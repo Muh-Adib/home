@@ -1,0 +1,347 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Development Documentation Index
+## Property Management System
+
+---
+
+## 📋 OVERVIEW
+
+Dokumen ini adalah index lengkap dari semua dokumentasi yang diperlukan untuk pengembangan Property Management System (PMS). Setiap dokumen dirancang untuk mempercepat workflow development dan memastikan konsistensi sistem.
+
+---
+
+## 📚 DOKUMENTASI YANG TERSEDIA
+
+### 1. 📊 BUSINESS & REQUIREMENTS
+
+#### 📄 ](./doc/FRD_IMPROVED.md)
+**Tujuan**: Mendefinisikan kebutuhan bisnis dan fungsional sistem
+**Isi Utama**:
+- Business model & revenue streams
+- Stakeholder roles & permissions
+- Core features (property, booking, payment, DP management)
+- Whole property rental logic
+- Dynamic pricing & financial management
+- Guest services & communication
+- **Update Terbaru**: Media management, detailed booking flow dengan gueuirements Document (SRD)](./doc/SYSTEM_REQUIREMENTS.md)
+**Tujuan**: Spesifikasi teknis dan non-fungsional requirements
+**Isi Utama**:
+- Functional requirements (FR-001 to FR-027)
+- Non-functional requirements (performance, security, scalability)
+- Technical stack requirements
+- Integration requirements
+- Compliance & testing requirements
+HITECTURE
+
+#### 📄 [Entity Relationship Diagram (ERD)](mdc:doc/DATABASE_ERD.md)
+**Tujuan**: Design database schema yang komprehensif
+**Isi Utama**:
+- Complete database schema (15 tables)
+- Primary & foreign key relationships
+- Indexing strategy untuk performance
+- Business constraints & validation rules
+- Media management tables
+- Booking workflow tracking
+- **Keent, guest breakdown, extra bed calculation
+
+#### 📄 [Data Flow Diagram (DFD)](mdc:doc/DATA_FLOW_DIAGRAM.md)
+**Tujuan**: Visualisasi alur data dalam sistem
+**Isi Utama**:
+- 4-level DFD (Context, System, Process, Implementation)
+- Data flow patterns (real-time, batch, event-driven)
+- Error handling flows
+- S
+- Performance optimization flows
+
+---
+
+### 3. 🔧 TECHNICAL DOCUMENTATION
+
+#### 📄 [API Documentation](mdc:doc/API_DOCUMENTATION.md)
+**Tujuan**: Complete REST API specification
+**Isi Utama**:
+- Authentication endpoints (Laravel Sanctum)
+- Properties API (CRUD, media, availability)
+- Bookings API (creation, workflow, nts API (DP management, verification)
+- Reports API (financial, occupancy)
+- Error codes & response formats
+
+#### 📄 [AI Coding Rules](mdc:doc/AI_CODING_RULES.md) **⭐ UPDATED**
+**Tujuan**: Development standards & best practices (Laravel 12.x + React 18+ + Shadcn UI)
+**Isi Utama**:
+- Laravel 12.x backend rules (enhanced features, terminal commands)
+- React 18+ frontend rules (concurrent features, TypeScript)
+- Shadcn UI integration patterns
+- Database interaction dengan modern Laravel
+- Security guidelinestimization
+- Testing standards dengan modern tools
+- Code review checklist untuk latest tech stack
+
+---
+
+### 4. 🎨 UI/UX & DESIGN
+
+#### 📄 [UI/UX Guidelines](mdc:doc/UI_UX_GUIDELINES.md)
+**Tujuan**: Complete design system dan component library
+**Isi Utama**:
+- Design principles & color system
+- Typography & spacing standards
+- Component library (buttons, forms, cards)
+- Layout patterns (dassts)
+- Responsive design guidelines
+- Accessibility standards
+- Performance guidelines
+- Animation & interaction patterns
+
+---
+
+### 5. 🧪 TESTING & QUALITY
+
+#### 📄 [Testing Strategy](mdc:doc/TESTING_STRATEGY.md)
+**Tujuan**: Comprehensive testing approach
+**Isi Utama**:
+- Testing pyramid (Unit, Integration, E2E)
+- Laravel backend testing (services, models, APIs)
+- React fronterformance testing (load, database)
+- Security testing (authentication, validation)
+- CI/CD pipeline setup
+- Test data management
+
+---
+
+### 6. 🚀 DEVELOPMENT STRATEGY
+
+#### 📄 [Development Strategy & Optimization](mdc:doc/DEVELOPMENT_STRATEGY.md)
+**Tujuan**: Roadmap pengembangan yang teroptimasi
+**Isi Utama**:
+- 3-phase implementation (MVP → Advanced → Integr roadmap (8 months total)
+- Media management system
+- Detailed booking flow dengan auto-calculation
+- Team structure & workflow
+- Performance optimization
+- Risk mitigation
+
+### 7. 🤖 AI DEVELOPMENT GUIDANCE **🆕**
+
+#### 📄 [AI Prompting Guide](mdc:doc/AI_PROMPTING_GUIDE.md) **⭐ NEW**
+**Tujuan**: Structured AI prompts untuk complete development lifecycle
+**Isi Utama**:
+- 7-phase development prompts (Initialization → Production)
+- Environment setup dengan terminal commands
+- Backend development (Models, Controllers, Services)
+- Frontend development (React 18+ + Shadcn UI)
+- Testing implementation (Unit, Integration, E2E)
+- Performance optimization & integrations
+- Quality assurance & code review prompts
+- **Key Features**: Documentation tags, troubleshooting guides, success metrics
+
+---
+
+## 🎯 DEVELOPMENT WORKFLOW **⭐ UPDATED**
+
+### Phase 1: Setup & Planning (Week 1)
+1. **Follow AI Prompting Guide Phase 1** untuk environment setup
+2. **Use AI_CODING_RULES.md terminal commands** untuk file generation
+3. **Implement database schema** dari DATABASE_ERD.md
+4. **Setup testing framework** sesuai TESTING_STRATEGY.md
+5. **Configure Shadcn UI** dan design system
+
+### Phase 2: Core Development (Sprint 1-12)
+1. **Use AI Prompting Guide Phase 2-3** untuk structured development
+2. **Follow AI_CODING_RULES.md** Laravel 12.x patterns
+3. **Implement APIs** sesuai API_DOCUMENTATION.md
+4. **Build UI components** dengan Shadcn UI patterns
+5. **Testing parallel** dengan development menggunakan modern tools
+
+### Phase 3: Enhancement & Optimization (Sprint 13-16)
+1. **Follow AI Prompting Guide Phase 4-7** untuk advanced features
+2. **Media management** implementation dengan optimization
+3. **Advanced booking flow** dengan guest breakdown
+4. **Performance optimization** dan security hardening
+5. **Production deployment** dengan monitoring
+
+---
+
+## ⚡ QUICK REFERENCE **⭐ UPDATED**
+
+### 🔑 Key Business Logic
+- **Property Type**: Whole property rental (villa/homestay)
+- **DP Management**: 30%, 50%, 70% options dengan tracking
+- **Guest Breakdown**: Male, female, children count dengan relationship
+- **Extra Bed**: Auto-calculation berdasarkan capacity vs guest count
+- **Booking Flow**: Guest → Staff Verification → Payment → Confirmation
+
+### 🛠️ Tech Stack (Updated)
+- **Backend**: Laravel 12.x + PHP 8.2+
+- **Frontend**: React 18+ + Inertia.js + TypeScript
+- **UI Framework**: Shadcn UI + Tailwind CSS
+- **Database**: PostgreSQL 15+ / MySQL 8.0+
+- **Cache**: Redis 7+
+- **Testing**: PHPUnit + Pest + Vitest + Playwright
+
+### 📊 Performance Targets
+- **Response Time**: < 2 seconds (95% requests)
+- **Database Queries**: < 100ms standard queries
+- **Test Coverage**: 80%+ overall
+- **Uptime**: 99.5%+
+
+### 🎨 Design System (Enhanced)
+- **Colors**: Primary blue (#3b82f6), semantic colors
+- **Typography**: Inter font family
+- **Components**: Shadcn UI + custom business components
+- **Layout**: Dashboard, Form, List patterns
+- **Responsive**: Mobile-first dengan React 18+ concurrent features
+
+---
+
+## 📋 CHECKLIST DEVELOPMENT **⭐ UPDATED**
+
+### ✅ Pre-Development Setup
+- [ ] Read FRD lengkap untuk business understanding
+- [ ] Follow AI_PROMPTING_GUIDE.md Phase 1 setup
+- [ ] Use AI_CODING_RULES.md terminal commands
+- [ ] Setup Laravel 12.x + React 18+ + Shadcn UI
+- [ ] Implement DATABASE_ERD.md schema
+- [ ] Configure TESTING_STRATEGY.md framework
+
+### ✅ Development Process
+- [ ] Follow AI_PROMPTING_GUIDE.md phase-by-phase
+- [ ] Use modern Laravel 12.x features dari AI_CODING_RULES.md
+- [ ] Implement React 18+ concurrent features
+- [ ] Build dengan Shadcn UI components
+- [ ] Write tests menggunakan modern tools
+- [ ] Follow UI_UX_GUIDELINES.md design system
+
+### ✅ Quality Gates (Enhanced)
+- [ ] Code review menggunakan AI_CODING_RULES.md checklist
+- [ ] Unit tests minimum 80% coverage
+- [ ] Integration tests untuk critical paths
+- [ ] E2E tests dengan Playwright
+- [ ] Security validation checklist
+- [ ] Performance benchmarks met
+- [ ] Accessibility standards compliance
+- [ ] TypeScript compliance
+
+---
+
+## 🤖 AI DEVELOPMENT WORKFLOW **🆕**
+
+### Using AI Prompting Guide
+1. **Start dengan specific phase prompts** dari AI_PROMPTING_GUIDE.md
+2. **Reference documentation tags** (@doc/filename.md) dalam prompts
+3. **Follow sequential development phases** untuk structured approach
+4. **Use troubleshooting prompts** untuk issue resolution
+5. **Apply quality assurance prompts** untuk code review
+
+### AI Terminal Command Generation
+- **Laravel File Generation**: Use commands dari AI_CODING_RULES.md
+- **React Component Setup**: Follow Shadcn UI installation steps
+- **Database Migration**: Generate dengan proper relationships
+- **Testing Setup**: Configure modern testing tools
+- **Production Deployment**: Use documented deployment procedures
+
+### AI Code Review Process
+- **Backend Review**: Laravel 12.x compliance check
+- **Frontend Review**: React 18+ + TypeScript validation
+- **Business Logic**: Validate against FRD specifications
+- **Security Review**: Follow security guidelines
+- **Performance Review**: Meet performance targets
+
+---
+
+## 🔄 DOCUMENT MAINTENANCE **⭐ UPDATED**
+
+### Update Schedule
+- **Weekly**: Development progress dan AI prompting updates
+- **Bi-weekly**: Sprint retrospective dengan documentation adjustments
+- **Monthly**: Complete documentation review termasuk AI guides
+- **Quarterly**: Major version updates dengan tech stack upgrades
+
+### Version Control
+- Semua dokumen di version control dengan Git
+- Update bersamaan dengan code changes
+- Maintain AI prompting guide accuracy
+- Document AI workflow improvements
+- Track documentation usage metrics
+
+---
+
+## 👥 TEAM ROLES & RESPONSIBILITIES **⭐ UPDATED**
+
+### 📋 Documentation Ownership
+- **Product Owner**: FRD maintenance dan business rules
+- **Tech Lead**: SRD, ERD, API documentation, AI_CODING_RULES.md
+- **Frontend Lead**: UI/UX Guidelines, React patterns
+- **Backend Lead**: Laravel patterns, testing strategy
+- **DevOps**: Development strategy, deployment guides
+- **AI Specialist**: AI_PROMPTING_GUIDE.md maintenance
+
+### 📚 Required Reading by Role (Updated)
+- **All Team**: FRD, Development Strategy, AI_PROMPTING_GUIDE.md
+- **Developers**: AI_CODING_RULES.md, API Documentation
+- **Frontend**: UI/UX Guidelines, React 18+ patterns, Shadcn UI
+- **Backend**: ERD, Laravel 12.x patterns, Security guidelines
+- **QA**: Testing Strategy, modern testing tools
+- **AI Users**: AI_PROMPTING_GUIDE.md, documentation tags
+
+---
+
+## 🆘 TROUBLESHOOTING **⭐ UPDATED**
+
+### Common Issues & Solutions
+1. **Laravel 12.x Compatibility**: Check AI_CODING_RULES.md compatibility notes
+2. **React 18+ Issues**: Reference concurrent features patterns
+3. **Shadcn UI Problems**: Follow installation dan usage guidelines
+4. **Database Performance**: Check ERD indexing strategy
+5. **API Errors**: Refer to API documentation error codes
+6. **Testing Failures**: Review modern testing strategy patterns
+7. **AI Prompting Issues**: Use troubleshooting section in AI guide
+
+### Support Contacts
+- **Technical Issues**: Tech Lead + AI_CODING_RULES.md
+- **Business Logic**: Product Owner + FRD
+- **AI Development**: AI Specialist + AI_PROMPTING_GUIDE.md
+- **Design Questions**: UI/UX Lead + Guidelines
+- **Testing Problems**: QA Lead + Testing Strategy
+
+---
+
+## 📊 SUCCESS METRICS **⭐ UPDATED**
+
+### Development Efficiency
+- **Documentation Usage**: Track AI prompting guide usage
+- **Bug Reduction**: Compare pre/post modern documentation
+- **Development Speed**: Sprint velocity dengan AI assistance
+- **Code Quality**: Static analysis scores dengan modern tools
+- **AI Adoption**: Team AI workflow adoption rate
+
+### Business Impact
+- **Feature Delivery**: On-time delivery dengan AI acceleration
+- **User Satisfaction**: Feedback scores
+- **System Performance**: SLA compliance
+- **Technical Debt**: Reduction dengan modern practices
+- **Team Productivity**: Velocity improvement dengan AI tools
+
+---
+
+**📅 Last Updated**: 2025  
+**📝 Document Version**: 1.0  
+**🔄 Next Review**: Monthly  
+**👤 Maintained By**: Development Team  
+
+---
+
+**🎯 FOKUS UTAMA**: 
+1. **Start dengan AI_PROMPTING_GUIDE.md** untuk structured development approach
+2. **Use AI_CODING_RULES.md terminal commands** untuk consistent file generation  
+3. **Follow documentation tags** (@doc/filename.md) dalam AI prompts
+4. **Implement modern tech stack** (Laravel 12.x + React 18+ + Shadcn UI)
+5. **Maintain quality standards** dengan comprehensive testing dan review process
+
+
+
+**🤖 AI DEVELOPMENT**: Use AI_PROMPTING_GUIDE.md sebagai primary guide untuk AI-assisted development, dengan semua dokumentasi lain sebagai reference yang di-tag dalam prompts. 

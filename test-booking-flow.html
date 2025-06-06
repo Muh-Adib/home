@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Booking Flow Test - Calculate Rate Fix</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f8f9fa;
+        }
+        .container { 
+            max-width: 900px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .fix-item { 
+            background: #d4edda; 
+            border: 1px solid #c3e6cb; 
+            border-radius: 5px; 
+            padding: 15px; 
+            margin: 10px 0; 
+        }
+        .error-item { 
+            background: #f8d7da; 
+            border: 1px solid #f5c6cb; 
+            border-radius: 5px; 
+            padding: 15px; 
+            margin: 10px 0; 
+        }
+        .test-link { 
+            display: inline-block; 
+            background: #007bff; 
+            color: white; 
+            padding: 10px 20px; 
+            text-decoration: none; 
+            border-radius: 5px; 
+            margin: 5px; 
+        }
+        .test-link:hover { 
+            background: #0056b3; 
+        }
+        .api-test {
+            background: #e7f3ff;
+            border: 1px solid #b3d4fc;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Booking Flow Error Fix - Calculate Rate API</h1>
+        
+        <h2>❌ Error yang Ditemukan</h2>
+        <div class="error-item">
+            <h3>React-DOM Error pada Booking Form</h3>
+            <p><strong>Error:</strong> <code>SyntaxError: Unexpected token '&lt;', "&lt;!DOCTYPE "... is not valid JSON</code></p>
+            <p><strong>File:</strong> Create.tsx line 119 (calculateRate function)</p>
+            <p><strong>Penyebab:</strong> API endpoint mengembalikan HTML error page instead of JSON</p>
+        </div>
+
+        <h2>✅ Perbaikan yang Dilakukan</h2>
+        
+        <div class="fix-item">
+            <h3>1. Route Accessibility Fix</h3>
+            <p><strong>Masalah:</strong> Route <code>/api/properties/{property}/calculate-rate</code> dalam middleware auth</p>
+            <p><strong>Solusi:</strong> Memindahkan route ke area public agar guest bisa akses saat booking</p>
+            <p><strong>File:</strong> routes/web.php</p>
+        </div>
+
+        <div class="fix-item">
+            <h3>2. Parameter Mapping Fix</h3>
+            <p><strong>Masalah:</strong> Frontend mengirim 'extra_beds' tapi backend expect 'guests'</p>
+            <p><strong>Solusi:</strong> Update PropertyController calculateRate method</p>
+            <p><strong>File:</strong> app/Http/Controllers/PropertyController.php</p>
+        </div>
+
+        <div class="fix-item">
+            <h3>3. Error Handling Enhancement</h3>
+            <p><strong>Tambahan:</strong> Try-catch block dan structured JSON response</p>
+            <p><strong>Benefit:</strong> Better error handling dan debugging</p>
+        </div>
+
+        <h2>🧪 Test API Endpoint</h2>
+        <div class="api-test">
+            <h4>Manual API Test:</h4>
+            <p><strong>URL:</strong> /api/properties/1/calculate-rate</p>
+            <p><strong>Parameters:</strong> check_in, check_out, extra_beds</p>
+            <p><strong>Method:</strong> GET</p>
+            <p><strong>Example:</strong></p>
+            <code>GET /api/properties/1/calculate-rate?check_in=2024-12-10&check_out=2024-12-12&extra_beds=1</code>
+        </div>
+
+        <h2>🔗 Test Booking Flow</h2>
+        <p>Coba akses URL berikut untuk test booking form:</p>
+        
+        <a href="http://127.0.0.1:8002/" class="test-link">🏠 Homepage</a>
+        <a href="http://127.0.0.1:8002/properties" class="test-link">🏢 Properties</a>
+        <a href="http://127.0.0.1:8002/properties/villa-sunset-bali/book" class="test-link">📋 Booking Form</a>
+        
+        <h2>📝 What to Test</h2>
+        <ol>
+            <li><strong>Booking Form Load:</strong> Form harus load tanpa console error</li>
+            <li><strong>Date Selection:</strong> Pilih check-in dan check-out date</li>
+            <li><strong>Guest Count:</strong> Ubah jumlah guest untuk trigger rate calculation</li>
+            <li><strong>Rate Calculation:</strong> Harus muncul perhitungan rate real-time</li>
+            <li><strong>No Console Errors:</strong> Browser console harus bersih dari error</li>
+        </ol>
+
+        <h2>🎯 Expected Results</h2>
+        <ul>
+            <li>✅ Booking form loads successfully</li>
+            <li>✅ Rate calculation works without errors</li>
+            <li>✅ Real-time price updates on date/guest changes</li>
+            <li>✅ No "react-dom" or JSON parsing errors</li>
+            <li>✅ Smooth booking flow from start to confirmation</li>
+        </ul>
+
+        <h2>📊 Technical Stack</h2>
+        <ul>
+            <li><strong>Backend:</strong> Laravel 12.x</li>
+            <li><strong>Frontend:</strong> React 18+ + Inertia.js</li>
+            <li><strong>UI:</strong> Shadcn UI + Tailwind CSS</li>
+            <li><strong>API:</strong> RESTful JSON endpoints</li>
+        </ul>
+
+        <hr>
+        <p><small>🚀 Laravel Server: http://127.0.0.1:8002 | Vite Dev: http://127.0.0.1:5173</small></p>
+        <p><small>📅 Last Updated: 2024-12-04 | Status: <span style="color: green;">Fixed</span></small></p>
+    </div>
+</body>
+</html> 

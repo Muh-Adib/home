@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment Flow Test - Property Management System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .test-link { display: block; margin: 10px 0; padding: 10px; background: #f5f5f5; text-decoration: none; border-radius: 5px; }
+        .test-link:hover { background: #e5e5e5; }
+        .status { padding: 5px 10px; border-radius: 3px; font-size: 12px; }
+        .confirmed { background: #d4edda; color: #155724; }
+        .verified { background: #cce5ff; color: #004085; }
+        .pending { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏨 Property Management System - Payment Flow Test</h1>
+        
+        <h2>📝 Sample Booking Details</h2>
+        <ul>
+            <li><strong>Booking Number:</strong> BKG-20250604-0001</li>
+            <li><strong>Guest:</strong> John Doe</li>
+            <li><strong>Property:</strong> Villa Sunset Bali</li>
+            <li><strong>Status:</strong> <span class="status confirmed">Confirmed</span></li>
+            <li><strong>DP Amount:</strong> Rp 180,000</li>
+            <li><strong>Total Amount:</strong> Rp 600,000</li>
+        </ul>
+
+        <h2>🔗 Test URLs</h2>
+        
+        <a href="http://127.0.0.1:8002/" class="test-link">
+            <strong>🏠 Homepage</strong><br>
+            <small>http://127.0.0.1:8002/</small>
+        </a>
+
+        <a href="http://127.0.0.1:8002/properties" class="test-link">
+            <strong>🏢 Properties List</strong><br>
+            <small>http://127.0.0.1:8002/properties</small>
+        </a>
+        
+        <a href="http://127.0.0.1:8002/booking/1/confirmation" class="test-link">
+            <strong>📋 Booking Confirmation</strong><br>
+            <small>http://127.0.0.1:8002/booking/1/confirmation</small><br>
+            <em>Should show "Make Payment" button since status is confirmed</em>
+        </a>
+        
+        <a href="http://127.0.0.1:8002/booking/BKG-20250604-0001/payment" class="test-link">
+            <strong>💳 Payment Form</strong><br>
+            <small>http://127.0.0.1:8002/booking/BKG-20250604-0001/payment</small><br>
+            <em>Main payment form with payment methods selection</em>
+        </a>
+
+        <h2>🧪 Payment Methods Available</h2>
+        <ul>
+            <li>🏦 Bank BCA - Transfer ke rekening BCA</li>
+            <li>🏦 Bank Mandiri - Transfer ke rekening Mandiri</li>
+            <li>🏦 Bank BNI - Transfer ke rekening BNI</li>
+            <li>📱 OVO - Transfer via OVO</li>
+            <li>📱 GoPay - Transfer via GoPay</li>
+            <li>📱 DANA - Transfer via DANA</li>
+            <li>💵 Cash Payment - Pembayaran tunai langsung</li>
+        </ul>
+
+        <h2>✅ Features to Test</h2>
+        <ul>
+            <li>Payment method selection with radio buttons</li>
+            <li>Show/hide account details with copy buttons</li>
+            <li>File upload for payment proof (JPG, PNG, PDF max 10MB)</li>
+            <li>Form validation (payment method required, file required)</li>
+            <li>Payment submission to success page</li>
+            <li>Booking status updates after payment</li>
+        </ul>
+
+        <h2>🎨 Frontend Stack</h2>
+        <ul>
+            <li><strong>Framework:</strong> Laravel 12.x + Inertia.js + React 18+</li>
+            <li><strong>UI Library:</strong> Shadcn UI + Tailwind CSS</li>
+            <li><strong>Payment Features:</strong> Multi-method support, file upload, real-time validation</li>
+            <li><strong>Business Logic:</strong> Down payment (30/50/70%), guest breakdown, booking workflow</li>
+        </ul>
+
+        <hr>
+        <p><small>🚀 Server: Laravel on port 8002 | Vite on port 5175</small></p>
+    </div>
+</body>
+</html> 
