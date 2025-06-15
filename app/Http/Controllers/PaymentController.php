@@ -10,29 +10,44 @@ use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
     /**
-     * Display payment form for booking
+     * Show payment form for guest (with authentication check)
      */
     public function create(Booking $booking): Response
     {
-        // Check if booking can receive payment
-        if (!in_array($booking->booking_status, ['pending_verification', 'confirmed'])) {
-            abort(403, 'Payment not allowed for this booking status.');
-        }
-
-        $booking->load(['property']);
-        $paymentMethods = PaymentMethod::active()->ordered()->get();
+        // Check if user has permission to make payment for this booking
+        $this->authorize('makePayment', $booking);
 
         // Calculate pending amount
         $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
         $pendingAmount = $booking->total_amount - $paidAmount;
 
+        if ($pendingAmount <= 0) {
+            return redirect()->route('my-bookings')
+                ->with('info', 'This booking has been fully paid.');
+        }
+
+        // Get active payment methods
+        $paymentMethods = PaymentMethod::active()->get();
+
+        // Calculate nights
+        $checkIn = \Carbon\Carbon::parse($booking->check_in_date);
+        $checkOut = \Carbon\Carbon::parse($booking->check_out_date);
+        $booking->nights = $checkIn->diffInDays($checkOut);
+
+        // Get guest count - fix field names
+        $booking->guest_count = ($booking->guest_count_male ?? 0) + 
+                               ($booking->guest_count_female ?? 0) + 
+                               ($booking->guest_count_children ?? 0);
+
         return Inertia::render('Payment/Create', [
-            'booking' => $booking,
+            'booking' => $booking->load('property'),
             'paymentMethods' => $paymentMethods,
             'pendingAmount' => $pendingAmount,
             'paidAmount' => $paidAmount,
@@ -40,102 +55,137 @@ class PaymentController extends Controller
     }
 
     /**
-     * Store payment
+     * Store payment for guest
      */
     public function store(Request $request, Booking $booking): RedirectResponse
     {
-        $validated = $request->validate([
-            'payment_method_id' => 'required|exists:payment_methods,id',
-            'amount' => 'required|numeric|min:1',
-            'payment_type' => 'required|in:dp,full_payment,remaining_payment',
-            'bank_account_name' => 'required|string|max:255',
-            'bank_account_number' => 'required|string|max:50',
-            'transfer_date' => 'required|date|before_or_equal:today',
-            'payment_proof' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+        // Log request data untuk debugging
+        Log::info('Payment submission started', [
+            'booking_number' => $booking->booking_number,
+            'user_id' => Auth::id(),
+            'request_data' => $request->except(['payment_proof']),
+            'has_file' => $request->hasFile('payment_proof')
         ]);
 
-        // Check if amount is valid
-        $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-        $pendingAmount = $booking->total_amount - $paidAmount;
-
-        if ($validated['amount'] > $pendingAmount) {
-            return back()->withErrors(['amount' => 'Payment amount exceeds pending amount.']);
-        }
-
-        DB::beginTransaction();
         try {
-            // Upload payment proof
-            $proofPath = $request->file('payment_proof')->store('payment-proofs', 'public');
+            // Check if user has permission to make payment for this booking
+            $this->authorize('makePayment', $booking);
+            Log::info('Authorization passed for makePayment');
+
+            $validated = $request->validate([
+                'payment_method_id' => 'required|exists:payment_methods,id',
+                'amount' => 'required|numeric|min:1',
+                'payment_proof' => 'required|image|mimes:jpeg,png,jpg|max:10240',
+                'notes' => 'nullable|string|max:1000',
+            ]);
+            Log::info('Validation passed');
+
+            // Check if amount is valid
+            $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+            $pendingAmount = $booking->total_amount - $paidAmount;
+
+            if ($validated['amount'] > $pendingAmount) {
+                Log::warning('Payment amount exceeds pending amount', [
+                    'amount' => $validated['amount'],
+                    'pending_amount' => $pendingAmount
+                ]);
+                return back()->withErrors([
+                    'amount' => 'Payment amount exceeds pending amount.'
+                ]);
+            }
+
+            DB::beginTransaction();
+            Log::info('Database transaction started');
+
+            // Get payment method
+            $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
+            Log::info('Payment method found', ['method' => $paymentMethod->name]);
+
+            // Determine payment type
+            $paymentType = $paidAmount === 0 ? 'dp' : 'remaining';
+            Log::info('Payment type determined', ['type' => $paymentType]);
+
+            // Upload payment proof with optimization
+            $paymentProofPath = $this->uploadAndOptimizePaymentProof($request->file('payment_proof'));
+            Log::info('Payment proof uploaded', ['path' => $paymentProofPath]);
 
             // Create payment record
             $payment = $booking->payments()->create([
-                'payment_method_id' => $validated['payment_method_id'],
-                'payment_number' => 'PAY' . date('Ymd') . str_pad(Payment::count() + 1, 4, '0', STR_PAD_LEFT),
+                'payment_method_id' => $paymentMethod->id,
+                'payment_number' => Payment::generatePaymentNumber(),
                 'amount' => $validated['amount'],
-                'payment_type' => $validated['payment_type'],
+                'payment_type' => $paymentType,
+                'payment_method' => $paymentMethod->type,
                 'payment_status' => 'pending',
-                'payment_date' => $validated['transfer_date'],
-                'payment_proof' => $proofPath,
-                'bank_account_name' => $validated['bank_account_name'],
-                'bank_account_number' => $validated['bank_account_number'],
+                'payment_date' => now(),
+                'attachment_path' => $paymentProofPath,
+                'bank_name' => $paymentMethod->bank_name,
+                'verification_notes' => $validated['notes'],
+                'processed_by' => Auth::id(),
             ]);
+            Log::info('Payment record created', ['payment_number' => $payment->payment_number]);
 
-            // Update booking payment status
-            if ($validated['payment_type'] === 'dp') {
-                $booking->update(['payment_status' => 'dp_received']);
-            } elseif ($validated['amount'] + $paidAmount >= $booking->total_amount) {
-                $booking->update(['payment_status' => 'fully_paid']);
+            // Create workflow entry if workflow relationship exists
+            if (method_exists($booking, 'workflow')) {
+                $booking->workflow()->create([
+                    'step' => 'payment_pending',
+                    'status' => 'pending',
+                    'processed_by' => Auth::id(),
+                    'processed_at' => now(),
+                    'notes' => "Payment submitted: {$payment->payment_number}",
+                ]);
+                Log::info('Workflow entry created');
             }
 
-            // Create workflow entry
-            $booking->workflow()->create([
-                'step' => 'payment_submitted',
-                'status' => 'completed',
-                'processed_at' => now(),
-                'notes' => "Payment submitted: Rp " . number_format($validated['amount']),
-            ]);
-
             DB::commit();
+            Log::info('Transaction committed successfully');
 
-            return redirect()->route('payment.success', $payment)
-                ->with('success', 'Payment submitted successfully. It will be verified by our staff.');
+            return redirect()->route('my-bookings')
+                ->with('success', 'Payment proof submitted successfully. We will verify your payment within 1-2 business hours.');
 
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            Log::error('Authorization failed', ['error' => $e->getMessage()]);
+            return back()->withErrors([
+                'error' => 'You are not authorized to make payment for this booking.'
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation failed', ['errors' => $e->errors()]);
+            return back()->withErrors($e->errors());
         } catch (\Exception $e) {
             DB::rollback();
-            return back()->withErrors(['error' => 'Failed to submit payment. Please try again.']);
+            Log::error('Payment submission failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Delete uploaded file if payment creation failed
+            if (isset($paymentProofPath)) {
+                Storage::disk('public')->delete($paymentProofPath);
+            }
+            
+            return back()->withErrors([
+                'error' => 'Failed to submit payment: ' . $e->getMessage()
+            ]);
         }
     }
 
     /**
-     * Show payment success page
+     * Show user's payment history
      */
-    public function success(Payment $payment): Response
+    public function myPayments(Request $request): Response
     {
-        $payment->load(['booking.property', 'payment_method']);
-
-        return Inertia::render('Payment/Success', [
-            'payment' => $payment,
-        ]);
-    }
-
-    /**
-     * Admin payments index
-     */
-    public function admin_index(Request $request): Response
-    {
-        $this->authorize('viewAny', Payment::class);
+        $user = $request->user();
         
         $query = Payment::query()
-            ->with(['booking.property', 'payment_method', 'verifier']);
+            ->with(['booking.property', 'paymentMethod'])
+            ->whereHas('booking', function ($q) use ($user) {
+                $q->where('guest_email', $user->email)
+                  ->orWhere('user_id', $user->id);
+            });
 
         // Filter by status
         if ($request->filled('status')) {
             $query->where('payment_status', $request->get('status'));
-        }
-
-        // Filter by payment method
-        if ($request->filled('payment_method')) {
-            $query->where('payment_method_id', $request->get('payment_method'));
         }
 
         // Search
@@ -143,157 +193,144 @@ class PaymentController extends Controller
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
                 $q->where('payment_number', 'like', "%{$search}%")
-                  ->orWhere('bank_account_name', 'like', "%{$search}%")
                   ->orWhereHas('booking', function ($bq) use ($search) {
-                      $bq->where('booking_number', 'like', "%{$search}%")
-                         ->orWhere('guest_name', 'like', "%{$search}%");
+                      $bq->where('booking_number', 'like', "%{$search}%");
                   });
             });
         }
 
-        // Date filter
-        if ($request->filled('date_from')) {
-            $query->whereDate('payment_date', '>=', $request->get('date_from'));
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('payment_date', '<=', $request->get('date_to'));
-        }
+        $payments = $query->latest()->paginate(10);
 
-        $payments = $query->latest()->paginate(20);
-        $paymentMethods = PaymentMethod::active()->get();
-
-        // Statistics
-        $stats = [
-            'pending' => Payment::where('payment_status', 'pending')->count(),
-            'verified' => Payment::where('payment_status', 'verified')->count(),
-            'today_amount' => Payment::where('payment_status', 'verified')
-                                   ->whereDate('verified_at', today())
-                                   ->sum('amount'),
-            'month_amount' => Payment::where('payment_status', 'verified')
-                                   ->whereMonth('verified_at', now()->month)
-                                   ->sum('amount'),
-        ];
-
-        return Inertia::render('Admin/Payments/Index', [
+        return Inertia::render('Payment/MyPayments', [
             'payments' => $payments,
-            'paymentMethods' => $paymentMethods,
-            'stats' => $stats,
             'filters' => [
-                'status' => $request->get('status'),
-                'payment_method' => $request->get('payment_method'),
                 'search' => $request->get('search'),
-                'date_from' => $request->get('date_from'),
-                'date_to' => $request->get('date_to'),
-            ],
+                'status' => $request->get('status'),
+            ]
         ]);
     }
 
     /**
-     * Admin payment details
+     * Show specific payment details for user
      */
-    public function admin_show(Payment $payment): Response
+    public function myPaymentShow(Payment $payment): Response
     {
+        // Check if user owns this payment
         $this->authorize('view', $payment);
-        
-        $payment->load([
-            'booking.property',
-            'booking.guests',
-            'payment_method',
-            'verifier'
-        ]);
 
-        return Inertia::render('Admin/Payments/Show', [
+        $payment->load(['booking.property', 'paymentMethod', 'verifier']);
+
+        return Inertia::render('Payment/Show', [
             'payment' => $payment,
         ]);
     }
 
     /**
-     * Verify payment
+     * Generate secure payment link for booking
      */
-    public function verify(Request $request, Payment $payment): RedirectResponse
+    public function generatePaymentLink(Booking $booking): string
     {
-        $this->authorize('verify', $payment);
+        $token = \Illuminate\Support\Str::random(32);
+        
+        // Store token in cache for 24 hours
+        \Illuminate\Support\Facades\Cache::put(
+            "payment_token_{$booking->booking_number}_{$token}",
+            $booking->booking_number,
+            now()->addHours(24)
+        );
 
-        $request->validate([
-            'verification_notes' => 'nullable|string|max:1000',
+        return route('booking.secure-payment', [
+            'booking' => $booking->booking_number,
+            'token' => $token
         ]);
-
-        DB::beginTransaction();
-        try {
-            $payment->update([
-                'payment_status' => 'verified',
-                'verification_notes' => $request->get('verification_notes'),
-                'verified_by' => $request->user()->id,
-                'verified_at' => now(),
-            ]);
-
-            // Update booking payment status
-            $booking = $payment->booking;
-            $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-
-            if ($totalPaid >= $booking->total_amount) {
-                $booking->update(['payment_status' => 'fully_paid']);
-            } elseif ($payment->payment_type === 'dp') {
-                $booking->update(['payment_status' => 'dp_received']);
-            }
-
-            // Create workflow entry
-            $booking->workflow()->create([
-                'step' => 'payment_verified',
-                'status' => 'completed',
-                'processed_by' => $request->user()->id,
-                'processed_at' => now(),
-                'notes' => "Payment verified: {$payment->payment_number}",
-            ]);
-
-            DB::commit();
-
-            return redirect()->back()
-                ->with('success', 'Payment verified successfully.');
-
-        } catch (\Exception $e) {
-            DB::rollback();
-            return back()->withErrors(['error' => 'Failed to verify payment.']);
-        }
     }
 
     /**
-     * Reject payment
+     * Secure payment page with token verification
      */
-    public function reject(Request $request, Payment $payment): RedirectResponse
+    public function securePayment(Request $request, Booking $booking, string $token): Response
     {
-        $this->authorize('verify', $payment);
+        // Verify token
+        $cachedBookingId = \Illuminate\Support\Facades\Cache::get("payment_token_{$booking->booking_number}_{$token}");
 
-        $request->validate([
-            'rejection_reason' => 'required|string|max:1000',
+        if (!$cachedBookingId || $cachedBookingId != $booking->booking_number) {
+            abort(404, 'Payment link is invalid or expired.');
+        }
+
+        // Calculate pending amount
+        $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+        $pendingAmount = $booking->total_amount - $paidAmount;
+
+        if ($pendingAmount <= 0) {
+            return redirect()->route('my-bookings')
+                ->with('info', 'This booking has been fully paid.');
+        }
+
+        // Get active payment methods
+        $paymentMethods = PaymentMethod::active()->get();
+
+        return Inertia::render('Payment/SecurePayment', [
+            'booking' => $booking->load('property'),
+            'paymentMethods' => $paymentMethods,
+            'pendingAmount' => $pendingAmount,
+            'paidAmount' => $paidAmount,
+            'token' => $token,
         ]);
+    }
 
-        DB::beginTransaction();
+    /**
+     * Store secure payment
+     */
+    public function securePaymentStore(Request $request, Booking $booking, string $token): RedirectResponse
+    {
+        // Verify token
+        $cachedBookingId = \Illuminate\Support\Facades\Cache::get("payment_token_{$booking->booking_number}_{$token}");
+        
+        if (!$cachedBookingId || $cachedBookingId != $booking->booking_number) {
+            abort(404, 'Payment link is invalid or expired.');
+        }
+
+        // Same validation and processing as regular store method
+        return $this->store($request, $booking);
+    }
+
+    /**
+     * Upload and optimize payment proof image
+     */
+    private function uploadAndOptimizePaymentProof($file): string
+    {
+        // Generate unique filename
+        $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+        $path = 'payment-proofs/' . $filename;
+        
+        // Store original file
+        $file->storeAs('payment-proofs', $filename, 'public');
+        
+        // Create thumbnail for preview (optional)
+        $this->createThumbnail($file, $filename);
+        
+        return $path;
+    }
+
+    /**
+     * Create thumbnail for payment proof
+     */
+    private function createThumbnail($file, $filename): void
+    {
         try {
-            $payment->update([
-                'payment_status' => 'failed',
-                'verification_notes' => $request->get('rejection_reason'),
-                'verified_by' => $request->user()->id,
-                'verified_at' => now(),
-            ]);
-
-            // Create workflow entry
-            $payment->booking->workflow()->create([
-                'step' => 'payment_rejected',
-                'status' => 'failed',
-                'processed_by' => $request->user()->id,
-                'processed_at' => now(),
-                'notes' => "Payment rejected: {$request->get('rejection_reason')}",
-            ]);
-
-            DB::commit();
-
-            return redirect()->back()
-                ->with('success', 'Payment rejected successfully.');
-
+            // Simple thumbnail creation without intervention image
+            $thumbnailDir = storage_path('app/public/payment-proofs/thumbnails');
+            if (!file_exists($thumbnailDir)) {
+                mkdir($thumbnailDir, 0755, true);
+            }
+            
+            // Copy original file as thumbnail for now
+            // In production, you might want to use proper image resizing
+            copy($file->getRealPath(), $thumbnailDir . '/' . $filename);
+            
         } catch (\Exception $e) {
-            DB::rollback();
-            return back()->withErrors(['error' => 'Failed to reject payment.']);
+            // Log error but don't fail the upload
+            Log::warning('Failed to create thumbnail: ' . $e->getMessage());
         }
     }
 }

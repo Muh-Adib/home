@@ -144,6 +144,9 @@ export interface Booking {
     guest_name: string;
     guest_email: string;
     guest_phone: string;
+    guest_country: string;
+    guest_id_number: string;
+    guest_gender: string;
     guest_count: number;
     guest_male: number;
     guest_female: number;
@@ -151,15 +154,13 @@ export interface Booking {
     check_in: string;
     check_out: string;
     nights: number;
-    base_rate: number;
-    total_rate: number;
-    cleaning_fee: number;
-    extra_bed_fee: number;
-    service_fee: number;
+    base_amount: number;
+    extra_bed_amount: number;
+    service_amount: number;
     tax_amount: number;
-    total_amount: number;
     dp_percentage: number;
     dp_amount: number;
+    total_amount: number;
     remaining_amount: number;
     booking_status: 'pending_verification' | 'confirmed' | 'checked_in' | 'checked_out' | 'cancelled' | 'no_show';
     payment_status: 'dp_pending' | 'dp_received' | 'fully_paid' | 'overdue' | 'refunded';
@@ -182,13 +183,14 @@ export interface Booking {
 export interface BookingGuest {
     id: number;
     booking_id: number;
-    name: string;
-    age?: number;
-    gender: 'male' | 'female';
-    relationship: 'self' | 'spouse' | 'child' | 'parent' | 'sibling' | 'friend' | 'colleague' | 'other';
+    full_name: string;
     id_number?: string;
+    age_category?: string;
+    gender: 'male' | 'female';
+    relationship_to_primary: string;
     phone?: string;
     email?: string;
+    notes?: string;
     created_at: string;
     updated_at: string;
 }
@@ -221,36 +223,46 @@ export interface BookingWorkflow {
 
 export interface Payment {
     id: number;
-    booking_id: number;
-    payment_method_id: number;
     payment_number: string;
+    booking_id: number;
+    payment_method_id?: number;
     amount: number;
-    payment_type: 'dp' | 'full_payment' | 'remaining_payment';
-    payment_status: 'pending' | 'verified' | 'failed' | 'refunded';
-    payment_date?: string;
-    payment_proof?: string;
-    bank_account_name?: string;
-    bank_account_number?: string;
-    transfer_date?: string;
+    payment_type: 'dp' | 'remaining' | 'full' | 'refund' | 'penalty';
+    payment_method: 'cash' | 'bank_transfer' | 'credit_card' | 'e_wallet' | 'other';
+    payment_date: string;
+    due_date?: string;
+    reference_number?: string;
+    bank_name?: string;
+    account_number?: string;
+    account_name?: string;
+    payment_status: 'pending' | 'verified' | 'failed' | 'cancelled';
     verification_notes?: string;
+    attachment_path?: string;
+    processed_by?: number;
     verified_by?: number;
     verified_at?: string;
+    gateway_transaction_id?: string;
+    gateway_response?: any;
     created_at: string;
     updated_at: string;
     booking?: Booking;
-    payment_method?: PaymentMethod;
+    paymentMethod?: PaymentMethod;
+    processor?: User;
     verifier?: User;
 }
 
 export interface PaymentMethod {
     id: number;
     name: string;
+    code: string;
     type: 'bank_transfer' | 'e_wallet' | 'credit_card' | 'cash';
-    account_name?: string;
+    icon?: string;
+    description?: string;
     account_number?: string;
+    account_name?: string;
     bank_name?: string;
     qr_code?: string;
-    instructions?: string;
+    instructions?: string[];
     is_active: boolean;
     sort_order: number;
     created_at: string;

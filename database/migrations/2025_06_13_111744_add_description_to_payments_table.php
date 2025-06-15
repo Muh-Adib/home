@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('property_media', function (Blueprint $table) {
-            $table->string('thumbnail_path', 500)->nullable()->after('file_path');
+        Schema::table('payments', function (Blueprint $table) {
+            $table->text('description')->nullable()->after('verification_notes');
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('property_media', function (Blueprint $table) {
-            $table->dropColumn('thumbnail_path');
+        Schema::table('payments', function (Blueprint $table) {
+            $table->dropColumn('description');
         });
     }
 };

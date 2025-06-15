@@ -66,27 +66,39 @@ export default function BookingsIndex({ bookings, filters, properties }: Booking
     };
 
     const handleVerify = (booking: Booking) => {
-        router.patch(`/admin/bookings/${booking.id}/verify`, {}, {
+        router.patch(`/admin/bookings/${booking.booking_number}/verify`, {}, {
+            preserveScroll: true,
+        });
+    };
+
+    const handleConfirm = (booking: Booking) => {
+        router.patch(`/admin/bookings/${booking.booking_number}/confirm`, {}, {
+            preserveScroll: true,
+        });
+    };
+
+    const handleReject = (booking: Booking) => {
+        router.patch(`/admin/bookings/${booking.booking_number}/reject`, {}, {
             preserveScroll: true,
         });
     };
 
     const handleCancel = (booking: Booking) => {
         if (confirm(`Are you sure you want to cancel booking "${booking.booking_number}"?`)) {
-            router.patch(`/admin/bookings/${booking.id}/cancel`, {}, {
+            router.patch(`/admin/bookings/${booking.booking_number}/cancel`, {}, {
                 preserveScroll: true,
             });
         }
     };
 
     const handleCheckIn = (booking: Booking) => {
-        router.patch(`/admin/bookings/${booking.id}/checkin`, {}, {
+        router.patch(`/admin/bookings/${booking.booking_number}/checkin`, {}, {
             preserveScroll: true,
         });
     };
 
     const handleCheckOut = (booking: Booking) => {
-        router.patch(`/admin/bookings/${booking.id}/checkout`, {}, {
+        router.patch(`/admin/bookings/${booking.booking_number}/checkout`, {}, {
             preserveScroll: true,
         });
     };
@@ -258,7 +270,7 @@ export default function BookingsIndex({ bookings, filters, properties }: Booking
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                             <DropdownMenuItem asChild>
-                                                <Link href={`/admin/bookings/${booking.id}`}>
+                                                <Link href={`/admin/bookings/${booking.booking_number}`}>
                                                     <Eye className="h-4 w-4 mr-2" />
                                                     View Details
                                                 </Link>
@@ -439,7 +451,7 @@ export default function BookingsIndex({ bookings, filters, properties }: Booking
                                                     <DropdownMenuContent align="end">
                                                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                         <DropdownMenuItem asChild>
-                                                            <Link href={`/admin/bookings/${booking.id}`}>
+                                                            <Link href={`/admin/bookings/${booking.booking_number}`}>
                                                                 <Eye className="h-4 w-4 mr-2" />
                                                                 View Details
                                                             </Link>

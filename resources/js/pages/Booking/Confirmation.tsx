@@ -46,7 +46,7 @@ interface Booking {
         address: string;
         cover_image?: string;
         owner: {
-            name: string;
+            name?: string;
             phone?: string;
         };
     };
@@ -230,9 +230,9 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                                 <Users className="h-6 w-6 text-blue-600" />
                                             </div>
                                             <div>
-                                                <p className="font-medium">{booking.property.owner.name}</p>
-                                                {booking.property.owner.phone && (
-                                                    <p className="text-sm text-gray-600">{booking.property.owner.phone}</p>
+                                                <p className="font-medium">{booking.property.owner?.name || 'N/A'}</p>
+                                                {booking.property.owner?.phone && (
+                                                    <p className="text-sm text-gray-600">{booking.property.owner?.phone}</p>
                                                 )}
                                             </div>
                                         </div>
@@ -286,19 +286,19 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                         <div className="space-y-3 text-sm">
                                             <div className="flex justify-between font-semibold">
                                                 <span>Total Amount</span>
-                                                <span>Rp {booking.total_amount.toLocaleString()}</span>
+                                                <span>Rp {(booking.total_amount || 0).toLocaleString()}</span>
                                             </div>
                                             
                                             <Separator />
                                             
                                             <div className="flex justify-between text-blue-600 font-semibold">
                                                 <span>Down Payment ({booking.dp_percentage}%)</span>
-                                                <span>Rp {booking.dp_amount.toLocaleString()}</span>
+                                                <span>Rp {(booking.dp_amount || 0).toLocaleString()}</span>
                                             </div>
                                             
                                             <div className="flex justify-between text-gray-600">
                                                 <span>Remaining Balance</span>
-                                                <span>Rp {booking.remaining_amount.toLocaleString()}</span>
+                                                <span>Rp {(booking.remaining_amount || 0).toLocaleString()}</span>
                                             </div>
 
                                             <div className="bg-yellow-50 p-3 rounded-lg mt-4">

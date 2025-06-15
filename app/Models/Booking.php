@@ -20,7 +20,9 @@ class Booking extends Model
         'guest_name',
         'guest_email',
         'guest_phone',
+        'guest_country',
         'guest_id_number',
+        'guest_gender',
         'guest_count',
         'guest_male',
         'guest_female',
@@ -32,6 +34,7 @@ class Booking extends Model
         'base_amount',
         'extra_bed_amount',
         'service_amount',
+        'tax_amount',
         'total_amount',
         'dp_percentage',
         'dp_amount',
@@ -48,6 +51,8 @@ class Booking extends Model
         'cancelled_by',
         'verified_by',
         'verified_at',
+        'payment_token',
+        'payment_token_expires_at',
         'created_by',
         'source',
     ];
@@ -65,6 +70,7 @@ class Booking extends Model
         'dp_deadline' => 'datetime',
         'cancelled_at' => 'datetime',
         'verified_at' => 'datetime',
+        'payment_token_expires_at' => 'datetime',
     ];
 
     // Boot method untuk auto-generate booking number
@@ -332,5 +338,56 @@ class Booking extends Model
     public function getRouteKeyName(): string
     {
         return 'booking_number';
+    }
+
+    /**
+     * Generate secure payment token for verified booking
+     */
+    public function generatePaymentToken(): string
+    {
+        $token = bin2hex(random_bytes(16)); // 32 character token
+        
+        $this->update([
+            'payment_token' => $token,
+            'payment_token_expires_at' => now()->addDays(7), // Token valid for 7 days
+        ]);
+
+        return $token;
+    }
+
+    /**
+     * Check if payment token is valid
+     */
+    public function isPaymentTokenValid(string $token): bool
+    {
+        return $this->payment_token === $token && 
+               $this->payment_token_expires_at && 
+               $this->payment_token_expires_at->isFuture();
+    }
+
+    /**
+     * Get secure payment URL
+     */
+    public function getSecurePaymentUrl(): ?string
+    {
+        if (!$this->payment_token) {
+            return null;
+        }
+
+        return route('booking.secure-payment', [
+            'booking' => $this->booking_number,
+            'token' => $this->payment_token
+        ]);
+    }
+
+    /**
+     * Clear payment token
+     */
+    public function clearPaymentToken(): void
+    {
+        $this->update([
+            'payment_token' => null,
+            'payment_token_expires_at' => null,
+        ]);
     }
 }

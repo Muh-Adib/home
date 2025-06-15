@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
+import React, { useState, useRef } from 'react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import { 
     ArrowLeft, 
     CreditCard, 
@@ -18,25 +19,28 @@ import {
     Users,
     Clock,
     CheckCircle,
-    AlertCircle,
     Info,
     Copy,
-    Eye,
-    EyeOff
+    Shield,
+    Loader2,
+    X,
+    AlertTriangle
 } from 'lucide-react';
 
 interface PaymentMethod {
     id: number;
     name: string;
     code: string;
-    type: string;
-    icon: string;
-    description: string;
+    type: 'bank_transfer' | 'e_wallet' | 'cash' | 'credit_card';
+    icon?: string;
+    description?: string;
     account_number?: string;
     account_name?: string;
     bank_name?: string;
-    instructions: string[];
+    qr_code?: string;
+    instructions?: string[];
     is_active: boolean;
+    sort_order: number;
 }
 
 interface Booking {
@@ -74,9 +78,15 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
     const [showAccountDetails, setShowAccountDetails] = useState(false);
     const [copiedField, setCopiedField] = useState<string | null>(null);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [isUploading, setIsUploading] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [isDragActive, setIsDragActive] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const { data, setData, post, processing, errors } = useForm({
-        payment_method: '',
+    const { data, setData, post, processing, errors, clearErrors } = useForm({
+        payment_method_id: '',
         amount: booking.dp_amount,
         payment_proof: null as File | null,
         notes: '',
@@ -84,24 +94,173 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
 
     const handleMethodSelect = (method: PaymentMethod) => {
         setSelectedMethod(method);
-        setData('payment_method', method.code);
+        setData('payment_method_id', method.id.toString());
+        setShowAccountDetails(method.type === 'bank_transfer' || method.type === 'e_wallet');
+        clearErrors('payment_method_id');
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setData('payment_proof', e.target.files[0]);
+        const file = e.target.files?.[0];
+        if (file) {
+            processFile(file);
         }
+    };
+
+    const processFile = (file: File) => {
+        // Validate file type
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+        if (!allowedTypes.includes(file.type)) {
+            alert('Harap pilih file gambar yang valid (JPEG, PNG, JPG)');
+            return;
+        }
+
+        // Validate file size (10MB max)
+        if (file.size > 10 * 1024 * 1024) {
+            alert('Ukuran file harus kurang dari 10MB');
+            return;
+        }
+
+        setData('payment_proof', file);
+        clearErrors('payment_proof');
+        
+        // Create preview URL
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            setPreviewUrl(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+
+        // Simulate upload progress
+        simulateUploadProgress();
+    };
+
+    const simulateUploadProgress = () => {
+        setIsUploading(true);
+        setUploadProgress(0);
+
+        const interval = setInterval(() => {
+            setUploadProgress((prev) => {
+                if (prev >= 100) {
+                    clearInterval(interval);
+                    setIsUploading(false);
+                    return 100;
+                }
+                return prev + Math.random() * 15;
+            });
+        }, 200);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        post(`/booking/${booking.booking_number}/payment`);
+        
+        // Prevent double submission
+        if (isSubmitting || processing) {
+            return;
+        }
+
+        // Client-side validation
+        if (!data.payment_method_id) {
+            alert('Harap pilih metode pembayaran');
+            return;
+        }
+
+        if (!data.payment_proof) {
+            alert('Harap upload bukti pembayaran');
+            return;
+        }
+
+        if (data.amount < 100000) {
+            alert('Jumlah pembayaran minimum adalah Rp 100.000');
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        // Debug: Log form data
+        console.log('Submitting payment with data:', {
+            payment_method_id: data.payment_method_id,
+            amount: data.amount,
+            payment_proof: data.payment_proof ? {
+                name: data.payment_proof.name,
+                size: data.payment_proof.size,
+                type: data.payment_proof.type
+            } : null,
+            notes: data.notes
+        });
+
+        // Submit dengan Inertia form handling
+        post(`/booking/${booking.booking_number}/payment`, {
+            forceFormData: true,
+            onSuccess: (page) => {
+                console.log('Payment submission successful:', page);
+                setIsSubmitting(false);
+                
+                // Redirect to my-bookings
+                router.visit('/my-bookings', {
+                    onSuccess: () => {
+                        console.log('Redirected to my-bookings successfully');
+                    }
+                });
+            },
+            onError: (errors) => {
+                console.error('Payment submission failed:', errors);
+                setIsSubmitting(false);
+                
+                // Show specific error message if available
+                if (errors.error) {
+                    alert(`Error: ${errors.error}`);
+                } else if (errors.payment_method_id) {
+                    alert(`Error metode pembayaran: ${errors.payment_method_id}`);
+                } else if (errors.amount) {
+                    alert(`Error jumlah: ${errors.amount}`);
+                } else if (errors.payment_proof) {
+                    alert(`Error bukti pembayaran: ${errors.payment_proof}`);
+                } else if (Object.keys(errors).length > 0) {
+                    const firstError = Object.values(errors)[0] as string;
+                    alert(`Error: ${firstError}`);
+                } else {
+                    alert('Terjadi kesalahan saat mengirim pembayaran. Silakan coba lagi.');
+                }
+            },
+            onFinish: () => {
+                setIsSubmitting(false);
+            }
+        });
     };
 
     const copyToClipboard = (text: string, field: string) => {
         navigator.clipboard.writeText(text);
         setCopiedField(field);
         setTimeout(() => setCopiedField(null), 2000);
+    };
+
+    const removeFile = () => {
+        setData('payment_proof', null);
+        setPreviewUrl(null);
+        setUploadProgress(0);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragActive(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragActive(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragActive(false);
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            processFile(files[0]);
+        }
     };
 
     const totalGuests = booking.guest_count_male + booking.guest_count_female + booking.guest_count_children;
@@ -114,7 +273,7 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                 {/* Header */}
                 <div className="bg-white border-b">
                     <div className="container mx-auto px-4 py-4">
-                        <Link href={`/booking/${booking.id}/confirmation`} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+                        <Link href={`/booking/${booking.booking_number}/confirmation`} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
                             <ArrowLeft className="h-4 w-4" />
                             Back to Booking Confirmation
                         </Link>
@@ -154,10 +313,10 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                                                 {paymentMethods.map((method) => (
                                                     <div
                                                         key={method.id}
-                                                        className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                                                        className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 ${
                                                             selectedMethod?.id === method.id
-                                                                ? 'border-blue-500 bg-blue-50'
-                                                                : 'border-gray-200 hover:border-gray-300'
+                                                                ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                                                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                                         }`}
                                                         onClick={() => handleMethodSelect(method)}
                                                     >
@@ -169,143 +328,104 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                                                                     <div className="text-sm text-gray-600">{method.description}</div>
                                                                 </div>
                                                             </div>
-                                                            <input
-                                                                type="radio"
-                                                                name="payment_method"
-                                                                value={method.code}
-                                                                checked={selectedMethod?.id === method.id}
-                                                                onChange={() => handleMethodSelect(method)}
-                                                                className="text-blue-600"
-                                                            />
+                                                            <div className={`w-5 h-5 rounded-full border-2 transition-all ${
+                                                                selectedMethod?.id === method.id
+                                                                    ? 'border-blue-500 bg-blue-500'
+                                                                    : 'border-gray-300'
+                                                            }`}>
+                                                                {selectedMethod?.id === method.id && (
+                                                                    <div className="w-full h-full rounded-full bg-white scale-50"></div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ))}
                                             </div>
-                                            {errors.payment_method && (
-                                                <p className="text-sm text-red-600 mt-2">{errors.payment_method}</p>
+                                            {errors.payment_method_id && (
+                                                <p className="text-sm text-red-600 mt-2">{errors.payment_method_id}</p>
                                             )}
                                         </div>
 
                                         {/* Payment Instructions */}
-                                        {selectedMethod && (
-                                            <Card>
+                                        {selectedMethod && showAccountDetails && (
+                                            <Card className="border-l-4 border-l-blue-500">
                                                 <CardHeader>
-                                                    <CardTitle className="text-lg">Payment Instructions</CardTitle>
+                                                    <CardTitle className="text-lg flex items-center gap-2">
+                                                        <Info className="h-5 w-5 text-blue-600" />
+                                                        Payment Instructions
+                                                    </CardTitle>
                                                 </CardHeader>
-                                                <CardContent>
+                                                <CardContent className="space-y-4">
                                                     {/* Account Details */}
-                                                    {(selectedMethod.account_number || selectedMethod.bank_name) && (
-                                                        <div className="space-y-3 mb-4">
-                                                            <div className="flex items-center justify-between">
-                                                                <span className="font-medium">Payment Details</span>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() => setShowAccountDetails(!showAccountDetails)}
-                                                                >
-                                                                    {showAccountDetails ? (
-                                                                        <>
-                                                                            <EyeOff className="h-4 w-4 mr-2" />
-                                                                            Hide
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            <Eye className="h-4 w-4 mr-2" />
-                                                                            Show
-                                                                        </>
-                                                                    )}
-                                                                </Button>
-                                                            </div>
-                                                            
-                                                            {showAccountDetails && (
-                                                                <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                                                                    {selectedMethod.bank_name && (
-                                                                        <div className="flex justify-between items-center">
-                                                                            <span className="text-sm font-medium">Bank:</span>
-                                                                            <span className="text-sm">{selectedMethod.bank_name}</span>
-                                                                        </div>
-                                                                    )}
-                                                                    
-                                                                    {selectedMethod.account_number && (
-                                                                        <div className="flex justify-between items-center">
-                                                                            <span className="text-sm font-medium">Account Number:</span>
-                                                                            <div className="flex items-center gap-2">
-                                                                                <span className="text-sm font-mono">{selectedMethod.account_number}</span>
-                                                                                <Button
-                                                                                    type="button"
-                                                                                    variant="ghost"
-                                                                                    size="sm"
-                                                                                    onClick={() => copyToClipboard(selectedMethod.account_number!, 'account')}
-                                                                                >
-                                                                                    <Copy className="h-3 w-3" />
-                                                                                </Button>
-                                                                                {copiedField === 'account' && (
-                                                                                    <span className="text-xs text-green-600">Copied!</span>
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                    
-                                                                    {selectedMethod.account_name && (
-                                                                        <div className="flex justify-between items-center">
-                                                                            <span className="text-sm font-medium">Account Name:</span>
-                                                                            <div className="flex items-center gap-2">
-                                                                                <span className="text-sm">{selectedMethod.account_name}</span>
-                                                                                <Button
-                                                                                    type="button"
-                                                                                    variant="ghost"
-                                                                                    size="sm"
-                                                                                    onClick={() => copyToClipboard(selectedMethod.account_name!, 'name')}
-                                                                                >
-                                                                                    <Copy className="h-3 w-3" />
-                                                                                </Button>
-                                                                                {copiedField === 'name' && (
-                                                                                    <span className="text-xs text-green-600">Copied!</span>
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                    
-                                                                    <div className="flex justify-between items-center">
-                                                                        <span className="text-sm font-medium">Amount:</span>
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className="text-sm font-bold text-blue-600">
-                                                                                Rp {booking.dp_amount.toLocaleString()}
-                                                                            </span>
-                                                                            <Button
-                                                                                type="button"
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => copyToClipboard(booking.dp_amount.toString(), 'amount')}
-                                                                            >
-                                                                                <Copy className="h-3 w-3" />
-                                                                            </Button>
-                                                                            {copiedField === 'amount' && (
-                                                                                <span className="text-xs text-green-600">Copied!</span>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                    
-                                                                    <div className="flex justify-between items-center">
-                                                                        <span className="text-sm font-medium">Reference:</span>
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className="text-sm font-mono">{booking.booking_number}</span>
-                                                                            <Button
-                                                                                type="button"
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => copyToClipboard(booking.booking_number, 'booking')}
-                                                                            >
-                                                                                <Copy className="h-3 w-3" />
-                                                                            </Button>
-                                                                            {copiedField === 'booking' && (
-                                                                                <span className="text-xs text-green-600">Copied!</span>
-                                                                            )}
-                                                                        </div>
+                                                    {selectedMethod.account_number && (
+                                                        <div className="bg-gray-50 p-4 rounded-lg">
+                                                            <h4 className="font-medium mb-3">Transfer Details:</h4>
+                                                            <div className="space-y-2 text-sm">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-gray-600">Bank:</span>
+                                                                    <span className="font-medium">{selectedMethod.bank_name}</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-gray-600">Account Number:</span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-mono font-medium">{selectedMethod.account_number}</span>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="h-6 w-6 p-0"
+                                                                            onClick={() => copyToClipboard(selectedMethod.account_number!, 'account')}
+                                                                        >
+                                                                            <Copy className="h-3 w-3" />
+                                                                        </Button>
+                                                                        {copiedField === 'account' && (
+                                                                            <span className="text-xs text-green-600">Copied!</span>
+                                                                        )}
                                                                     </div>
                                                                 </div>
-                                                            )}
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-gray-600">Account Name:</span>
+                                                                    <span className="font-medium">{selectedMethod.account_name}</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-gray-600">Amount:</span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-mono font-medium text-blue-600">
+                                                                            Rp {booking.dp_amount.toLocaleString()}
+                                                                        </span>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="h-6 w-6 p-0"
+                                                                            onClick={() => copyToClipboard(booking.dp_amount.toString(), 'amount')}
+                                                                        >
+                                                                            <Copy className="h-3 w-3" />
+                                                                        </Button>
+                                                                        {copiedField === 'amount' && (
+                                                                            <span className="text-xs text-green-600">Copied!</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-gray-600">Reference:</span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-mono font-medium">{booking.booking_number}</span>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="h-6 w-6 p-0"
+                                                                            onClick={() => copyToClipboard(booking.booking_number, 'booking')}
+                                                                        >
+                                                                            <Copy className="h-3 w-3" />
+                                                                        </Button>
+                                                                        {copiedField === 'booking' && (
+                                                                            <span className="text-xs text-green-600">Copied!</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     )}
 
@@ -313,7 +433,7 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                                                     <div>
                                                         <h4 className="font-medium mb-2">Steps to Complete Payment:</h4>
                                                         <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
-                                                            {selectedMethod.instructions.map((instruction, index) => (
+                                                            {selectedMethod.instructions?.map((instruction, index) => (
                                                                 <li key={index}>{instruction}</li>
                                                             ))}
                                                         </ol>
@@ -322,35 +442,123 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                                             </Card>
                                         )}
 
-                                        {/* Payment Proof Upload */}
+                                        {/* Enhanced Payment Proof Upload */}
                                         <div>
-                                            <Label htmlFor="payment_proof">Upload Payment Proof *</Label>
-                                            <div className="mt-2">
-                                                <div className="flex items-center justify-center w-full">
-                                                    <label htmlFor="payment_proof" className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                                            <Upload className="w-8 h-8 mb-2 text-gray-500" />
-                                                            <p className="mb-2 text-sm text-gray-500">
-                                                                <span className="font-semibold">Click to upload</span> or drag and drop
-                                                            </p>
-                                                            <p className="text-xs text-gray-500">PNG, JPG or PDF (MAX. 10MB)</p>
+                                            <Label htmlFor="payment_proof" className="text-base font-medium">
+                                                Upload Payment Proof *
+                                            </Label>
+                                            <p className="text-sm text-gray-600 mb-3">
+                                                Upload a clear screenshot or photo of your transfer receipt
+                                            </p>
+                                            
+                                            <div className="space-y-4">
+                                                {/* Upload Area with Drag & Drop */}
+                                                <div
+                                                    className={`relative border-2 border-dashed rounded-lg transition-all duration-200 ${
+                                                        isDragActive
+                                                            ? 'border-blue-500 bg-blue-50'
+                                                            : data.payment_proof
+                                                            ? 'border-green-500 bg-green-50'
+                                                            : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
+                                                    }`}
+                                                    onDragOver={handleDragOver}
+                                                    onDragLeave={handleDragLeave}
+                                                    onDrop={handleDrop}
+                                                >
+                                                    <input
+                                                        ref={fileInputRef}
+                                                        id="payment_proof"
+                                                        type="file"
+                                                        className="hidden"
+                                                        accept="image/jpeg,image/png,image/jpg"
+                                                        onChange={handleFileChange}
+                                                    />
+                                                    
+                                                    {!data.payment_proof ? (
+                                                        <label
+                                                            htmlFor="payment_proof"
+                                                            className="flex flex-col items-center justify-center w-full h-40 cursor-pointer p-6"
+                                                        >
+                                                            <div className="flex flex-col items-center justify-center">
+                                                                <Upload className={`w-10 h-10 mb-3 transition-colors ${
+                                                                    isDragActive ? 'text-blue-500' : 'text-gray-400'
+                                                                }`} />
+                                                                <p className="mb-2 text-sm text-gray-600">
+                                                                    <span className="font-semibold">Click to upload</span> or drag and drop
+                                                                </p>
+                                                                <p className="text-xs text-gray-500">
+                                                                    JPEG, PNG, JPG (Max 10MB)
+                                                                </p>
+                                                            </div>
+                                                        </label>
+                                                    ) : (
+                                                        <div className="p-4">
+                                                            <div className="flex items-start gap-4">
+                                                                {/* Thumbnail Preview */}
+                                                                <div className="flex-shrink-0">
+                                                                    {previewUrl && (
+                                                                        <div className="relative">
+                                                                            <img
+                                                                                src={previewUrl}
+                                                                                alt="Payment proof preview"
+                                                                                className="w-20 h-20 object-cover rounded-lg border-2 border-green-500 shadow-sm"
+                                                                            />
+                                                                            <div className="absolute -top-2 -right-2">
+                                                                                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
+                                                                                    <CheckCircle className="w-4 h-4 text-white" />
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                
+                                                                {/* File Info */}
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div>
+                                                                            <p className="text-sm font-medium text-gray-900 truncate">
+                                                                                {data.payment_proof.name}
+                                                                            </p>
+                                                                            <p className="text-xs text-gray-500">
+                                                                                {(data.payment_proof.size / 1024 / 1024).toFixed(2)} MB
+                                                                            </p>
+                                                                        </div>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            onClick={removeFile}
+                                                                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                                        >
+                                                                            <X className="w-4 h-4" />
+                                                                        </Button>
+                                                                    </div>
+                                                                    
+                                                                    {/* Upload Progress Bar */}
+                                                                    {isUploading && (
+                                                                        <div className="mt-2">
+                                                                            <div className="flex items-center gap-2 text-xs text-gray-600 mb-1">
+                                                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                                                Uploading... {Math.round(uploadProgress)}%
+                                                                            </div>
+                                                                            <Progress value={uploadProgress} className="h-1" />
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {!isUploading && uploadProgress === 100 && (
+                                                                        <div className="mt-2 flex items-center gap-1 text-xs text-green-600">
+                                                                            <CheckCircle className="w-3 h-3" />
+                                                                            Upload complete
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                        <input 
-                                                            id="payment_proof" 
-                                                            type="file" 
-                                                            className="hidden" 
-                                                            accept="image/*,application/pdf"
-                                                            onChange={handleFileChange}
-                                                        />
-                                                    </label>
+                                                    )}
                                                 </div>
-                                                {data.payment_proof && (
-                                                    <div className="mt-2 text-sm text-gray-600">
-                                                        Selected: {data.payment_proof.name}
-                                                    </div>
-                                                )}
+                                                
                                                 {errors.payment_proof && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.payment_proof}</p>
+                                                    <p className="text-sm text-red-600">{errors.payment_proof}</p>
                                                 )}
                                             </div>
                                         </div>
@@ -364,20 +572,30 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                                                 onChange={(e) => setData('notes', e.target.value)}
                                                 rows={3}
                                                 placeholder="Any additional information about the payment..."
+                                                className="mt-2"
                                             />
                                         </div>
 
-                                        {/* Submit */}
+                                        {/* Submit Buttons */}
                                         <div className="flex gap-4 pt-4">
                                             <Link href={`/booking/${booking.id}/confirmation`} className="flex-1">
-                                                <Button variant="outline" className="w-full">Cancel</Button>
+                                                <Button variant="outline" className="w-full" disabled={processing}>
+                                                    Cancel
+                                                </Button>
                                             </Link>
                                             <Button 
                                                 type="submit" 
-                                                disabled={!selectedMethod || !data.payment_proof || processing}
+                                                disabled={!selectedMethod || !data.payment_proof || processing || isSubmitting}
                                                 className="flex-1"
                                             >
-                                                {processing ? 'Submitting...' : 'Submit Payment'}
+                                                {(processing || isSubmitting) ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                        {isSubmitting ? 'Submitting...' : 'Processing...'}
+                                                    </>
+                                                ) : (
+                                                    'Submit Payment'
+                                                )}
                                             </Button>
                                         </div>
                                     </form>
@@ -483,8 +701,9 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
 
                                 {/* Status Info */}
                                 <Alert>
-                                    <Info className="h-4 w-4" />
+                                    <Shield className="h-4 w-4" />
                                     <AlertDescription>
+                                        <strong>Secure Payment</strong><br/>
                                         Your payment will be verified within 2-24 hours. 
                                         You will receive a confirmation email once verified.
                                     </AlertDescription>

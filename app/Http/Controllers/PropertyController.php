@@ -30,6 +30,10 @@ class PropertyController extends Controller
                 },
                 'featuredImages' => function ($query) {
                     $query->orderBy('display_order', 'asc');
+                },
+                'seasonalRates' => function ($query) {
+                    $query->where('is_active', true)
+                          ->orderBy('priority', 'desc');
                 }
             ])
             ->active();
@@ -58,6 +62,25 @@ class PropertyController extends Controller
             $query->where('capacity_max', '>=', $guests);
         }
 
+        // Filter by availability (date range)
+        if ($request->filled('check_in') && $request->filled('check_out')) {
+            $checkIn = $request->get('check_in');
+            $checkOut = $request->get('check_out');
+            
+            // Only show properties that are available for the selected dates
+            $query->whereDoesntHave('bookings', function ($q) use ($checkIn, $checkOut) {
+                $q->whereIn('booking_status', ['confirmed', 'checked_in'])
+                  ->where(function ($dateQuery) use ($checkIn, $checkOut) {
+                      $dateQuery->whereBetween('check_in_date', [$checkIn, $checkOut])
+                                ->orWhereBetween('check_out_date', [$checkIn, $checkOut])
+                                ->orWhere(function ($overlapQuery) use ($checkIn, $checkOut) {
+                                    $overlapQuery->where('check_in_date', '<=', $checkIn)
+                                                 ->where('check_out_date', '>=', $checkOut);
+                                });
+                  });
+            });
+        }
+
         // Sort options
         $sortBy = $request->get('sort', 'featured');
         switch ($sortBy) {
@@ -79,6 +102,41 @@ class PropertyController extends Controller
 
         $properties = $query->paginate(12);
 
+        // Calculate current rates for each property
+        $checkIn = $request->get('check_in', now()->toDateString());
+        $checkOut = $request->get('check_out', now()->addDay()->toDateString());
+        $guestCount = $request->get('guests', 2);
+
+        // Transform properties with rate calculation
+        $properties->getCollection()->transform(function ($property) use ($checkIn, $checkOut, $guestCount) {
+            try {
+                $rateCalculation = $property->calculateRate($checkIn, $checkOut, $guestCount);
+                $property->current_rate_calculation = $rateCalculation;
+                $property->current_total_rate = $rateCalculation['total_amount'];
+                $property->current_rate_per_night = $rateCalculation['total_amount'] / $rateCalculation['nights'];
+                $property->formatted_current_rate = 'Rp ' . number_format($property->current_rate_per_night, 0, ',', '.');
+                $property->has_seasonal_rate = $rateCalculation['seasonal_premium'] > 0;
+                $property->seasonal_rate_info = $rateCalculation['rate_breakdown']['seasonal_rates_applied'] ?? [];
+            } catch (\Exception $e) {
+                // Fallback to base rate if calculation fails
+                $property->current_total_rate = $property->base_rate;
+                $property->current_rate_per_night = $property->base_rate;
+                $property->formatted_current_rate = $property->formatted_base_rate;
+                $property->has_seasonal_rate = false;
+                $property->seasonal_rate_info = [];
+            }
+            return $property;
+        });
+
+        // Re-sort based on current rates if price sorting is requested
+        if ($sortBy === 'price_low') {
+            $sorted = $properties->getCollection()->sortBy('current_rate_per_night')->values();
+            $properties->setCollection($sorted);
+        } elseif ($sortBy === 'price_high') {
+            $sorted = $properties->getCollection()->sortByDesc('current_rate_per_night')->values();
+            $properties->setCollection($sorted);
+        }
+
         // Get filter options
         $amenities = Amenity::active()->ordered()->get();
         
@@ -90,6 +148,8 @@ class PropertyController extends Controller
                 'amenities' => $request->get('amenities'),
                 'guests' => $request->get('guests'),
                 'sort' => $sortBy,
+                'check_in' => $checkIn,
+                'check_out' => $checkOut,
             ]
         ]);
     }
@@ -97,7 +157,7 @@ class PropertyController extends Controller
     /**
      * Display the specified property (Public)
      */
-    public function show(Property $property): Response
+    public function show(Request $request, Property $property): Response
     {
         $property->load([
             'owner',
@@ -106,10 +166,58 @@ class PropertyController extends Controller
             },
             'media' => function ($query) {
                 $query->orderBy('display_order');
+            },
+            'seasonalRates' => function ($query) {
+                $query->where('is_active', true)
+                      ->orderBy('priority', 'desc');
             }
         ]);
 
-        // Get similar properties
+        // Get search parameters
+        $checkIn = $request->get('check_in');
+        $checkOut = $request->get('check_out');
+        $guestCount = $request->get('guests', 2);
+
+        // Calculate current rate if dates are provided
+        if ($checkIn && $checkOut) {
+            try {
+                $rateCalculation = $property->calculateRate($checkIn, $checkOut, $guestCount);
+                $property->current_rate_calculation = $rateCalculation;
+                $property->current_total_rate = $rateCalculation['total_amount'];
+                $property->current_rate_per_night = $rateCalculation['total_amount'] / $rateCalculation['nights'];
+                $property->formatted_current_rate = 'Rp ' . number_format($property->current_rate_per_night, 0, ',', '.');
+                $property->has_seasonal_rate = $rateCalculation['seasonal_premium'] > 0;
+                $property->seasonal_rate_info = $rateCalculation['rate_breakdown']['seasonal_rates_applied'] ?? [];
+                $property->rate_breakdown = $rateCalculation;
+            } catch (\Exception $e) {
+                // Fallback to base rate if calculation fails
+                $property->current_total_rate = $property->base_rate;
+                $property->current_rate_per_night = $property->base_rate;
+                $property->formatted_current_rate = $property->formatted_base_rate;
+                $property->has_seasonal_rate = false;
+                $property->seasonal_rate_info = [];
+            }
+        } else {
+            // Get default seasonal rate info for display
+            if ($property->seasonalRates->count() > 0) {
+                $property->has_seasonal_rate = true;
+                $property->seasonal_rate_info = $property->seasonalRates->map(function ($rate) {
+                    return [
+                        'name' => $rate->rate_name,
+                        'description' => $rate->description,
+                        'rate_value' => $rate->rate_value,
+                        'rate_type' => $rate->rate_type,
+                        'start_date' => $rate->start_date,
+                        'end_date' => $rate->end_date,
+                    ];
+                })->toArray();
+            } else {
+                $property->has_seasonal_rate = false;
+                $property->seasonal_rate_info = [];
+            }
+        }
+
+        // Get similar properties with rate calculation
         $similarProperties = Property::active()
             ->where('id', '!=', $property->id)
             ->where(function ($query) use ($property) {
@@ -119,13 +227,34 @@ class PropertyController extends Controller
                 ])
                 ->orWhere('capacity', $property->capacity);
             })
-            ->with(['coverImage'])
+            ->with(['media' => function ($query) {
+                $query->orderBy('display_order');
+            }])
             ->limit(4)
             ->get();
+
+        // Calculate rates for similar properties if dates are provided
+        if ($checkIn && $checkOut) {
+            $similarProperties->transform(function ($similarProperty) use ($checkIn, $checkOut, $guestCount) {
+                try {
+                    $rateCalculation = $similarProperty->calculateRate($checkIn, $checkOut, $guestCount);
+                    $similarProperty->current_rate_per_night = $rateCalculation['total_amount'] / $rateCalculation['nights'];
+                    $similarProperty->formatted_current_rate = 'Rp ' . number_format($similarProperty->current_rate_per_night, 0, ',', '.');
+                } catch (\Exception $e) {
+                    $similarProperty->formatted_current_rate = $similarProperty->formatted_base_rate;
+                }
+                return $similarProperty;
+            });
+        }
 
         return Inertia::render('Properties/Show', [
             'property' => $property,
             'similarProperties' => $similarProperties,
+            'searchParams' => [
+                'check_in' => $checkIn,
+                'check_out' => $checkOut,
+                'guests' => $guestCount,
+            ]
         ]);
     }
 
@@ -177,7 +306,6 @@ class PropertyController extends Controller
                     'check_in' => $checkIn,
                     'check_out' => $checkOut,
                 ],
-                'extra_beds' => $extraBeds,
                 'calculation' => $rateCalculation,
                 'formatted' => [
                     'base_amount' => 'Rp ' . number_format($rateCalculation['base_amount'], 0, ',', '.'),
@@ -380,6 +508,11 @@ class PropertyController extends Controller
             },
             'bookings' => function ($query) {
                 $query->latest()->limit(10);
+            },
+            'seasonalRates' => function ($query) {
+                $query->where('is_active', true)
+                      ->orderBy('priority', 'desc')
+                      ->orderBy('start_date', 'asc');
             }
         ]);
 

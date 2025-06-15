@@ -30,6 +30,7 @@ import {
     AlertCircle,
     MapPin
 } from 'lucide-react';
+import { DateRange, getDefaultDateRange } from '@/components/ui/date-range';
 
 interface ReportsOverview {
     totalRevenue: number;
@@ -208,24 +209,20 @@ export default function ReportsIndex({ data, properties, filters }: ReportsIndex
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleFilter} className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                            <div>
-                                <Label htmlFor="date_from">From Date</Label>
-                                <Input
-                                    id="date_from"
-                                    type="date"
-                                    value={filterData.date_from}
-                                    onChange={(e) => setFilterData('date_from', e.target.value)}
-                                />
-                            </div>
-                            
-                            <div>
-                                <Label htmlFor="date_to">To Date</Label>
-                                <Input
-                                    id="date_to"
-                                    type="date"
-                                    value={filterData.date_to}
-                                    onChange={(e) => setFilterData('date_to', e.target.value)}
+                        <form onSubmit={handleFilter} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="md:col-span-2">
+                                <Label>Date Range</Label>
+                                <DateRange
+                                    startDate={filterData.date_from}
+                                    endDate={filterData.date_to}
+                                    onDateChange={(startDate, endDate) => {
+                                        setFilterData('date_from', startDate);
+                                        setFilterData('date_to', endDate);
+                                    }}
+                                    size="md"
+                                    showNights={false}
+                                    startLabel="From Date"
+                                    endLabel="To Date"
                                 />
                             </div>
 

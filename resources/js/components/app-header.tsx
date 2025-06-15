@@ -11,7 +11,7 @@ import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
 import { type BreadcrumbItem, type NavItem, type SharedData, type User } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-react';
+import { BookOpen, CreditCard, Folder, LayoutGrid, Menu, Search, Settings } from 'lucide-react';
 import AppLogo from './app-logo';
 import AppLogoIcon from './app-logo-icon';
 
@@ -38,6 +38,16 @@ const getHeaderNavItemsForRole = (userRole: User['role']): NavItem[] => {
                 href: '/admin/bookings',
                 icon: BookOpen,
             },
+            {
+                title: 'Payment Methods',
+                href: '/admin/payment-methods',
+                icon: BookOpen,
+            },
+            {
+                title: 'Settings',
+                href: '/admin/settings',
+                icon: Settings,
+            },
         ],
         property_owner: [
             ...baseItems,
@@ -46,6 +56,11 @@ const getHeaderNavItemsForRole = (userRole: User['role']): NavItem[] => {
                 href: '/admin/properties',
                 icon: Folder,
             },
+            {
+                title: 'My Bookings',
+                href: '/admin/bookings',
+                icon: BookOpen,
+            },
         ],
         property_manager: [
             ...baseItems,
@@ -53,6 +68,16 @@ const getHeaderNavItemsForRole = (userRole: User['role']): NavItem[] => {
                 title: 'Properties',
                 href: '/admin/properties',
                 icon: Folder,
+            },
+            {
+                title: 'Bookings',
+                href: '/admin/bookings',
+                icon: BookOpen,
+            },
+            {
+                title: 'Payment Methods',
+                href: '/admin/payment-methods',
+                icon: BookOpen,
             },
         ],
         front_desk: [
@@ -66,19 +91,44 @@ const getHeaderNavItemsForRole = (userRole: User['role']): NavItem[] => {
         finance: [
             ...baseItems,
             {
+                title: 'Bookings',
+                href: '/admin/bookings',
+                icon: BookOpen,
+            },
+            {
                 title: 'Payments',
                 href: '/admin/payments',
+                icon: BookOpen,
+            },
+            {
+                title: 'Payment Methods',
+                href: '/admin/payment-methods',
                 icon: BookOpen,
             },
         ],
         housekeeping: [
             ...baseItems,
+            {
+                title: 'Bookings',
+                href: '/admin/bookings',
+                icon: BookOpen,
+            },
         ],
         guest: [
             {
                 title: 'Browse Properties',
                 href: '/properties',
                 icon: Folder,
+            },
+            {
+                title: 'My Bookings',
+                href: '/my-bookings',
+                icon: BookOpen,
+            },
+            {
+                title: 'My Payments',
+                href: '/my-payments',
+                icon: CreditCard,
             },
         ],
     };

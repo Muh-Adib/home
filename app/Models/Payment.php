@@ -26,6 +26,7 @@ class Payment extends Model
         'account_name',
         'payment_status',
         'verification_notes',
+        'description',
         'attachment_path',
         'processed_by',
         'verified_by',
@@ -72,7 +73,7 @@ class Payment extends Model
 
     public function paymentMethod(): BelongsTo
     {
-        return $this->belongsTo(PaymentMethod::class);
+        return $this->belongsTo(PaymentMethod::class, 'payment_method_id');
     }
 
     // Scopes

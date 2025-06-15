@@ -45,9 +45,21 @@ class UserController extends Controller
 
         $users = $query->paginate(20);
 
+        // Get statistics
+        $stats = [
+            'total_users' => User::count(),
+            'active_users' => User::where('status', 'active')->count(),
+            'pending_users' => User::where('status', 'inactive')->count(),
+            'role_breakdown' => User::groupBy('role')
+                ->selectRaw('role, count(*) as count')
+                ->pluck('count', 'role')
+                ->toArray(),
+        ];
+
         return Inertia::render('Admin/Users/Index', [
             'users' => $users,
             'filters' => $request->only(['search', 'role', 'status']),
+            'stats' => $stats,
         ]);
     }
 
@@ -127,6 +139,9 @@ class UserController extends Controller
         $this->authorize('view', $user);
 
         $user->load(['profile']);
+
+        // Add additional user information
+        $user->setAttribute('last_login_at', $user->last_login_at);
 
         return Inertia::render('Admin/Users/Show', [
             'user' => $user,
@@ -250,13 +265,19 @@ class UserController extends Controller
 
         // Don't allow deactivating current user
         if ($user->id === auth()->id() && $request->status !== 'active') {
-            return back()->withErrors(['error' => 'You cannot deactivate your own account']);
+            return back()->withErrors(['error' => 'Anda tidak dapat menonaktifkan akun Anda sendiri']);
         }
 
         $user->update([
             'status' => $request->status,
         ]);
 
-        return back()->with('success', 'User status updated successfully');
+        $statusLabel = [
+            'active' => 'diaktifkan',
+            'inactive' => 'dinonaktifkan', 
+            'suspended' => 'di-suspend'
+        ];
+
+        return back()->with('success', "Status user berhasil {$statusLabel[$request->status]}");
     }
 } 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Head, useForm, Link } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Map } from '@/components/ui/map';
 import { type Amenity, type Property, type BreadcrumbItem, type PageProps } from '@/types';
 import { 
     Building2, 
@@ -24,7 +25,8 @@ import {
     Info,
     AlertTriangle,
     ImageIcon,
-    Eye
+    Eye,
+    MapPin
 } from 'lucide-react';
 
 interface EditPropertyProps extends PageProps {
@@ -38,13 +40,18 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
     const [selectedAmenities, setSelectedAmenities] = useState<number[]>(
         property.amenities?.map((a: Amenity) => a.id) || []
     );
+    const [showMap, setShowMap] = useState(false);
+    const [mapCenter, setMapCenter] = useState({ 
+        lat: property.lat || -6.2088, 
+        lng: property.lng || 106.8456 
+    });
 
     const { data, setData, put, processing, errors } = useForm({
         name: property.name || '',
         description: property.description || '',
         address: property.address || '',
-        lat: property.lat || '',
-        lng: property.lng || '',
+        lat: property.lat || null,
+        lng: property.lng || null,
         capacity: property.capacity || 2,
         capacity_max: property.capacity_max || 4,
         bedroom_count: property.bedroom_count || 1,
@@ -76,6 +83,28 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         put(`/admin/properties/${property.slug}`);
+    };
+
+    const handleLocationChange = useCallback((lat: number, lng: number) => {
+        setData(prev => ({ ...prev, lat, lng }));
+        setMapCenter({ lat, lng });
+    }, [setData]);
+
+    const handleAddressChange = (address: string) => {
+        setData('address', address);
+        
+        // Simple geocoding simulation (in real app, use proper geocoding service)
+        if (address.toLowerCase().includes('jakarta')) {
+            setMapCenter({ lat: -6.2088, lng: 106.8456 });
+        } else if (address.toLowerCase().includes('yogya') || address.toLowerCase().includes('jogja')) {
+            setMapCenter({ lat: -7.7972, lng: 110.3688 });
+        } else if (address.toLowerCase().includes('bandung')) {
+            setMapCenter({ lat: -6.9175, lng: 107.6191 });
+        } else if (address.toLowerCase().includes('surabaya')) {
+            setMapCenter({ lat: -7.2575, lng: 112.7521 });
+        } else if (address.toLowerCase().includes('bali') || address.toLowerCase().includes('denpasar')) {
+            setMapCenter({ lat: -8.6705, lng: 115.2126 });
+        }
     };
 
     const handleAmenityToggle = (amenityId: number) => {
@@ -179,15 +208,75 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
 
                             <div className="space-y-2">
                                 <Label htmlFor="address">Address *</Label>
-                                <Input
+                                <Textarea
                                     id="address"
                                     value={data.address}
-                                    onChange={(e) => setData('address', e.target.value)}
+                                    onChange={(e) => handleAddressChange(e.target.value)}
                                     placeholder="Jl. Raya Ubud No. 123, Ubud, Bali"
+                                    rows={2}
                                     className={errors.address ? 'border-red-500' : ''}
                                 />
                                 {errors.address && <p className="text-sm text-red-500">{errors.address}</p>}
                             </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="lat">Latitude</Label>
+                                    <Input
+                                        id="lat"
+                                        type="number"
+                                        step="any"
+                                        value={data.lat || ''}
+                                        onChange={(e) => setData('lat', e.target.value ? parseFloat(e.target.value) : null)}
+                                        placeholder="-8.6705"
+                                        className={errors.lat ? 'border-red-500' : ''}
+                                    />
+                                    {errors.lat && <p className="text-sm text-red-500">{errors.lat}</p>}
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="lng">Longitude</Label>
+                                    <Input
+                                        id="lng"
+                                        type="number"
+                                        step="any"
+                                        value={data.lng || ''}
+                                        onChange={(e) => setData('lng', e.target.value ? parseFloat(e.target.value) : null)}
+                                        placeholder="115.2126"
+                                        className={errors.lng ? 'border-red-500' : ''}
+                                    />
+                                    {errors.lng && <p className="text-sm text-red-500">{errors.lng}</p>}
+                                </div>
+                                <div className="flex items-end">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setShowMap(!showMap)}
+                                        className="w-full"
+                                    >
+                                        <MapPin className="h-4 w-4 mr-2" />
+                                        {showMap ? 'Hide Map' : 'Show Map'}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {showMap && (
+                                <div className="space-y-2">
+                                    <Label>Property Location</Label>
+                                    <Map
+                                        lat={data.lat || mapCenter.lat}
+                                        lng={data.lng || mapCenter.lng}
+                                        height="300px"
+                                        draggable={true}
+                                        onLocationChange={handleLocationChange}
+                                        propertyName={data.name || "Property"}
+                                        address={data.address}
+                                    />
+                                    <p className="text-sm text-gray-600 flex items-center gap-1">
+                                        <Info className="h-3 w-3" />
+                                        Drag the marker to update the exact location
+                                    </p>
+                                </div>
+                            )}
 
                             <div className="space-y-2">
                                 <Label htmlFor="description">Description *</Label>

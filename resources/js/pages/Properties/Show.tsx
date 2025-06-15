@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Head, Link } from '@inertiajs/react';
+import React, { useState, useEffect } from 'react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Map } from '@/components/ui/map';
 import { 
     Building2, 
     MapPin, 
@@ -24,7 +25,12 @@ import {
     CheckCircle,
     ArrowLeft,
     Calendar,
-    Calculator
+    Calculator,
+    TrendingUp,
+    Sparkles,
+    Info,
+    Tag,
+    Percent
 } from 'lucide-react';
 
 interface Property {
@@ -49,6 +55,7 @@ interface Property {
     check_out_time: string;
     min_stay_weekday: number;
     min_stay_weekend: number;
+    min_stay_peak: number;
     is_featured: boolean;
     owner: {
         id: number;
@@ -57,6 +64,34 @@ interface Property {
     };
     amenities: Amenity[];
     media: Media[];
+    // Rate calculation data from backend
+    current_rate_calculation?: {
+        nights: number;
+        total_amount: number;
+        subtotal: number;
+        tax_amount: number;
+        cleaning_fee: number;
+        extra_bed_amount: number;
+        seasonal_premium: number;
+        weekend_premium: number;
+        extra_beds: number;
+        rate_breakdown: {
+            seasonal_rates_applied: Array<{
+                name: string;
+                description: string;
+                dates: string[];
+            }>;
+        };
+    };
+    current_total_rate?: number;
+    current_rate_per_night?: number;
+    formatted_current_rate?: string;
+    has_seasonal_rate?: boolean;
+    seasonal_rate_info?: Array<{
+        name: string;
+        description: string;
+        dates?: string[];
+    }>;
 }
 
 interface Amenity {
@@ -85,11 +120,23 @@ interface Media {
 interface PropertyShowProps {
     property: Property;
     similarProperties: Property[];
+    searchParams?: {
+        check_in?: string;
+        check_out?: string;
+        guests?: number;
+    };
 }
 
-export default function PropertyShow({ property, similarProperties }: PropertyShowProps) {
+export default function PropertyShow({ property, similarProperties, searchParams }: PropertyShowProps) {
+    const page = usePage();
+    const urlParams = new URLSearchParams(window.location.search);
+    const checkIn = urlParams.get('check_in') || searchParams?.check_in || '';
+    const checkOut = urlParams.get('check_out') || searchParams?.check_out || '';
+    const guests = parseInt(urlParams.get('guests') || searchParams?.guests?.toString() || '2');
+
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [showAllAmenities, setShowAllAmenities] = useState(false);
+    const [showMap, setShowMap] = useState(false);
 
     const images = property.media.filter(media => media.media_type === 'image') || [];
     const videos = property.media.filter(media => media.media_type === 'video') || [];
@@ -121,6 +168,47 @@ export default function PropertyShow({ property, similarProperties }: PropertySh
             business: Building2,
         };
         return icons[category] || CheckCircle;
+    };
+
+    // Calculate fake discount (20% markup from final rate)
+    const calculateDiscountPrice = () => {
+        if (!property.current_rate_calculation) return null;
+        
+        const finalRate = property.current_rate_calculation.total_amount;
+        const originalPrice = finalRate * 1.2; // 20% markup
+        const discountAmount = originalPrice - finalRate;
+        const discountPercent = Math.round((discountAmount / originalPrice) * 100);
+        
+        return {
+            original_price: originalPrice,
+            final_price: finalRate,
+            discount_amount: discountAmount,
+            discount_percent: discountPercent,
+            nights: property.current_rate_calculation.nights
+        };
+    };
+
+    const discountInfo = calculateDiscountPrice();
+
+    // Calculate nights between dates
+    const calculateNights = (checkInDate: string, checkOutDate: string) => {
+        if (!checkInDate || !checkOutDate) return 0;
+        const start = new Date(checkInDate);
+        const end = new Date(checkOutDate);
+        return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    };
+
+    const nights = calculateNights(checkIn, checkOut);
+
+    // Format date for display
+    const formatDate = (dateString: string) => {
+        if (!dateString) return '';
+        return new Date(dateString).toLocaleDateString('id-ID', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
     };
 
     return (
@@ -198,6 +286,14 @@ export default function PropertyShow({ property, similarProperties }: PropertySh
                                 Featured
                             </Badge>
                         )}
+
+                        {/* Discount Badge */}
+                        {discountInfo && checkIn && checkOut && (
+                            <Badge className="absolute top-4 right-4 bg-red-500 text-white text-sm px-3 py-1">
+                                <Percent className="h-3 w-3 mr-1" />
+                                {discountInfo.discount_percent}% OFF
+                            </Badge>
+                        )}
                     </div>
 
                     {/* Thumbnail Gallery */}
@@ -260,10 +356,36 @@ export default function PropertyShow({ property, similarProperties }: PropertySh
                             {/* Header */}
                             <div>
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">{property.name}</h1>
-                                <div className="flex items-center text-gray-600 mb-4">
-                                    <MapPin className="h-4 w-4 mr-1" />
-                                    {property.address}
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center text-gray-600">
+                                        <MapPin className="h-4 w-4 mr-1" />
+                                        {property.address}
+                                    </div>
+                                    {property.lat && property.lng && (
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={() => setShowMap(!showMap)}
+                                        >
+                                            <MapPin className="h-4 w-4 mr-2" />
+                                            {showMap ? 'Hide Map' : 'Show Map'}
+                                        </Button>
+                                    )}
                                 </div>
+
+                                {/* Map Section */}
+                                {showMap && property.lat && property.lng && (
+                                    <div className="mb-6">
+                                        <Map
+                                            lat={property.lat}
+                                            lng={property.lng}
+                                            height="400px"
+                                            propertyName={property.name}
+                                            address={property.address}
+                                            className="shadow-lg"
+                                        />
+                                    </div>
+                                )}
                                 
                                 <div className="flex items-center gap-6 text-sm text-gray-600">
                                     <div className="flex items-center">
@@ -391,62 +513,205 @@ export default function PropertyShow({ property, similarProperties }: PropertySh
                         {/* Booking Card */}
                         <div className="lg:col-span-1">
                             <div className="sticky top-24">
-                                <Card>
-                                    <CardHeader>
+                                <Card className="shadow-xl border-0">
+                                    <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 pb-2 pt-4">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <span className="text-2xl font-bold text-blue-600">
-                                                    {property.formatted_base_rate}
-                                                </span>
-                                                <span className="text-gray-600">/night</span>
+                                                {/* Show discount prices if dates are selected */}
+                                                {discountInfo && checkIn && checkOut ? (
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-lg text-gray-400 line-through">
+                                                                Rp {discountInfo.original_price.toLocaleString()}
+                                                            </span>
+                                                            <Badge variant="destructive" className="text-xs">
+                                                                -{discountInfo.discount_percent}%
+                                                            </Badge>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-3xl font-bold text-red-600">
+                                                                Rp {discountInfo.final_price.toLocaleString()}
+                                                            </span>
+                                                            <span className="text-gray-600 ml-1">total</span>
+                                                        </div>
+                                                        <div className="text-sm text-gray-600">
+                                                            (Rp {Math.round(discountInfo.final_price / discountInfo.nights).toLocaleString()}/night)
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div>
+                                                        <span className="text-3xl font-bold text-blue-600">
+                                                            {property.formatted_current_rate || property.formatted_base_rate}
+                                                        </span>
+                                                        <span className="text-gray-600 ml-1">/night</span>
+                                                    </div>
+                                                )}
                                             </div>
-                                            <Badge variant="secondary">
+                                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">
                                                 Whole Property
                                             </Badge>
                                         </div>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        {/* Pricing Details */}
-                                        <div className="space-y-2 text-sm">
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-600">Base rate</span>
-                                                <span>{property.formatted_base_rate}/night</span>
+                                        
+                                        {/* Selected Dates Info */}
+                                        {checkIn && checkOut && (
+                                            <div className="mt-4 p-3 bg-white rounded-lg border border-blue-200">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="text-sm text-gray-600">
+                                                        <div className="flex items-center gap-2">
+                                                            <Calendar className="h-4 w-4" />
+                                                            <span className="font-medium">Selected Dates</span>
+                                                        </div>
+                                                    </div>
+                                                    <Badge variant="outline" className="text-xs">
+                                                        {nights} {nights === 1 ? 'night' : 'nights'}
+                                                    </Badge>
+                                                </div>
+                                                <div className="space-y-1 text-sm">
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-600">Check-in:</span>
+                                                        <span className="font-medium">{formatDate(checkIn)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-600">Check-out:</span>
+                                                        <span className="font-medium">{formatDate(checkOut)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-600">Guests:</span>
+                                                        <span className="font-medium">{guests} guest{guests !== 1 ? 's' : ''}</span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            {property.weekend_premium_percent > 0 && (
-                                                <div className="flex justify-between">
-                                                    <span className="text-gray-600">Weekend premium</span>
-                                                    <span>+{property.weekend_premium_percent}%</span>
+                                        )}
+
+                                        {/* Special Offers */}
+                                        {property.has_seasonal_rate && property.seasonal_rate_info && property.seasonal_rate_info.length > 0 && (
+                                            <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                                                <div className="flex items-center gap-2 text-green-800 mb-2">
+                                                    <Sparkles className="h-4 w-4" />
+                                                    <span className="font-medium text-sm">Special Offers</span>
                                                 </div>
-                                            )}
-                                            {property.cleaning_fee > 0 && (
-                                                <div className="flex justify-between">
-                                                    <span className="text-gray-600">Cleaning fee</span>
-                                                    <span>Rp {property.cleaning_fee.toLocaleString()}</span>
+                                                {property.seasonal_rate_info.slice(0, 2).map((rate, index) => (
+                                                    <div key={index} className="text-xs text-green-700">
+                                                        • {rate.name}: {rate.description}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </CardHeader>
+                                    
+                                    <CardContent className="space-y-6">
+                                        {/* Simple Rate Summary */}
+                                        {checkIn && checkOut && property.current_rate_calculation ? (
+                                            <div className="space-y-4">
+                                                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                                    <Tag className="h-4 w-4" />
+                                                    Total Price
+                                                </h3>
+                                                
+                                                <div className="space-y-3 text-sm">
+                                                    {/* Discount Price Display */}
+                                                    {discountInfo && (
+                                                        <>
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-gray-600">Original Price</span>
+                                                                <span className="text-gray-400 line-through">
+                                                                    Rp {discountInfo.original_price.toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-gray-600">Discount</span>
+                                                                    <Badge variant="destructive" className="text-xs">
+                                                                        {discountInfo.discount_percent}% OFF
+                                                                    </Badge>
+                                                                </div>
+                                                                <span className="text-red-600 font-medium">
+                                                                    -Rp {discountInfo.discount_amount.toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                        </>
+                                                    )}
+
+                                                    {/* Additional Fees */}
+                                                    {property.current_rate_calculation.extra_bed_amount > 0 && (
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-gray-600">Extra beds</span>
+                                                            <span className="font-medium">
+                                                                Included
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-600">Cleaning fee</span>
+                                                        <span className="font-medium">Included</span>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-600">Taxes & fees</span>
+                                                        <span className="font-medium">Included</span>
+                                                    </div>
+                                                    
+                                                    <Separator />
+                                                    
+                                                    {/* Final Total */}
+                                                    <div className="flex justify-between items-center text-lg font-bold">
+                                                        <span>Total</span>
+                                                        <span className="text-blue-600">
+                                                            Rp {property.current_rate_calculation.total_amount.toLocaleString()}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="text-center text-xs text-green-600 bg-green-50 p-2 rounded">
+                                                        ✓ All-inclusive price, no hidden fees
+                                                    </div>
                                                 </div>
-                                            )}
-                                            {property.extra_bed_rate > 0 && (
-                                                <div className="flex justify-between">
-                                                    <span className="text-gray-600">Extra bed (per night)</span>
-                                                    <span>Rp {property.extra_bed_rate.toLocaleString()}</span>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2 text-sm">
+                                                <div className="flex justify-between font-medium">
+                                                    <span className="text-gray-600">Starting from</span>
+                                                    <span>{property.formatted_base_rate}/night</span>
                                                 </div>
-                                            )}
-                                        </div>
+                                                
+                                                {/* Special Rate Indicator */}
+                                                {property.has_seasonal_rate && property.seasonal_rate_info && property.seasonal_rate_info.length > 0 && (
+                                                    <div className="border-t pt-2 space-y-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-gray-600 text-xs font-medium">Special Rates Available</span>
+                                                            <Sparkles className="h-4 w-4 text-green-600" />
+                                                        </div>
+                                                        {property.seasonal_rate_info.slice(0, 2).map((rate, index) => (
+                                                            <div key={index} className="flex justify-between items-center">
+                                                                <span className="text-xs text-gray-600">{rate.name}</span>
+                                                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                                                    {rate.description}
+                                                                </Badge>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                
+                                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                                    <div className="flex items-center gap-2 text-sm text-blue-800">
+                                                        <Info className="h-4 w-4" />
+                                                        <span>Select dates to see total price</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <Separator />
 
                                         {/* Booking Actions */}
                                         <div className="space-y-3">
-                                            <Link href={`/properties/${property.slug}/book`}>
-                                                <Button className="w-full" size="lg">
+                                            <Link href={`/properties/${property.slug}/book${checkIn && checkOut ? `?check_in=${checkIn}&check_out=${checkOut}&guests=${guests}` : ''}`}>
+                                                <Button className="w-full bg-blue-600 hover:bg-blue-700" size="lg">
                                                     <Calendar className="h-4 w-4 mr-2" />
                                                     Book Now
                                                 </Button>
                                             </Link>
                                             
-                                            <Button variant="outline" className="w-full">
-                                                <Calculator className="h-4 w-4 mr-2" />
-                                                Calculate Rate
-                                            </Button>
                                         </div>
 
                                         <div className="text-center text-xs text-gray-500">
@@ -489,7 +754,7 @@ export default function PropertyShow({ property, similarProperties }: PropertySh
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <span className="text-lg font-bold text-blue-600">
-                                                        {similarProperty.formatted_base_rate}
+                                                        {similarProperty.formatted_current_rate || similarProperty.formatted_base_rate}
                                                     </span>
                                                     <span className="text-xs text-gray-600">/night</span>
                                                 </div>

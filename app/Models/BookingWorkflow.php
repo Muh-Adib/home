@@ -11,6 +11,13 @@ class BookingWorkflow extends Model
     use HasFactory;
 
     /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'booking_workflow';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>
@@ -85,14 +92,17 @@ class BookingWorkflow extends Model
     public function getStepLabel(): string
     {
         return match($this->step) {
-            'booking_created' => 'Booking Dibuat',
-            'verification' => 'Verifikasi',
-            'payment_received' => 'Pembayaran Diterima',
+            'submitted' => 'Booking Dibuat',
+            'staff_review' => 'Review Staff',
+            'approved' => 'Disetujui',
+            'rejected' => 'Ditolak',
+            'payment_pending' => 'Menunggu Pembayaran',
+            'dp_received' => 'DP Diterima',
             'payment_verified' => 'Pembayaran Diverifikasi',
-            'payment_rejected' => 'Pembayaran Ditolak',
-            'check_in' => 'Check-in',
-            'check_out' => 'Check-out',
-            'cancellation' => 'Pembatalan',
+            'confirmed' => 'Dikonfirmasi',
+            'checked_in' => 'Check-in',
+            'checked_out' => 'Check-out',
+            'completed' => 'Selesai',
             default => 'Langkah Tidak Diketahui'
         };
     }
@@ -173,7 +183,7 @@ class BookingWorkflow extends Model
         string $fromStatus, 
         string $toStatus, 
         int $userId, 
-        string $notes = null
+        ?string $notes = null
     ): self {
         return self::create([
             'booking_id' => $bookingId,
@@ -182,7 +192,7 @@ class BookingWorkflow extends Model
             'changed_by' => $userId,
             'changed_at' => now(),
             'notes' => $notes,
-            'step' => 'status_change',
+            'step' => 'staff_review',
             'status' => 'completed',
             'processed_by' => $userId,
             'processed_at' => now(),
@@ -197,7 +207,7 @@ class BookingWorkflow extends Model
         string $step,
         string $status,
         int $userId,
-        string $notes = null
+        ?string $notes = null
     ): self {
         return self::create([
             'booking_id' => $bookingId,

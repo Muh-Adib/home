@@ -33,7 +33,19 @@ interface PaymentDetail {
     payment_number: string;
     amount: number;
     payment_type: string;
-    payment_method: string;
+    payment_method: {
+        name: string;
+        code: string;
+        type: string;
+        icon: string;
+        description: string;
+        account_number: string;
+        account_name: string;
+        bank_name: string;
+        qr_code: string;
+        instructions: string;
+        is_active: boolean; 
+    };
     payment_status: string;
     payment_date: string;
     notes?: string;
@@ -79,17 +91,17 @@ export default function PaymentShow() {
     const { payment } = page.props as unknown as PaymentShowProps;
     const [showImagePreview, setShowImagePreview] = useState(false);
 
-    const { data: verifyData, setData: setVerifyData, post: postVerify, processing: verifyProcessing } = useForm({
+    const { data: verifyData, setData: setVerifyData, patch: patchVerify, processing: verifyProcessing } = useForm({
         verification_notes: '',
     });
 
-    const { data: rejectData, setData: setRejectData, post: postReject, processing: rejectProcessing } = useForm({
+    const { data: rejectData, setData: setRejectData, patch: patchReject, processing: rejectProcessing } = useForm({
         rejection_reason: '',
     });
 
     const handleVerify = (e: React.FormEvent) => {
         e.preventDefault();
-        postVerify(`/admin/payments/${payment.id}/verify`, {
+        patchVerify(`/admin/payments/${payment.payment_number}/verify`, {
             onSuccess: () => {
                 setVerifyData('verification_notes', '');
             }
@@ -98,7 +110,7 @@ export default function PaymentShow() {
 
     const handleReject = (e: React.FormEvent) => {
         e.preventDefault();
-        postReject(`/admin/payments/${payment.id}/reject`, {
+        patchReject(`/admin/payments/${payment.payment_number}/reject`, {
             onSuccess: () => {
                 setRejectData('rejection_reason', '');
             }
@@ -215,7 +227,7 @@ export default function PaymentShow() {
                                             <div className="space-y-3">
                                                 <div>
                                                     <span className="text-sm font-medium text-gray-500">Payment Method</span>
-                                                    <div className="font-medium">{payment.payment_method}</div>
+                                                    <div className="font-medium">{payment.payment_method.name}</div>
                                                 </div>
                                                 <div>
                                                     <span className="text-sm font-medium text-gray-500">Payment Date</span>
@@ -449,7 +461,7 @@ export default function PaymentShow() {
                                         </div>
 
                                         <Button variant="outline" size="sm" asChild className="w-full">
-                                            <Link href={`/admin/bookings/${payment.booking.id}`}>
+                                            <Link href={`/admin/bookings/${payment.booking.booking_number}`}>
                                                 <ExternalLink className="h-4 w-4 mr-2" />
                                                 View Booking
                                             </Link>
@@ -510,7 +522,7 @@ export default function PaymentShow() {
                                 <CardContent>
                                     <div className="space-y-3">
                                         <Button variant="outline" asChild className="w-full">
-                                            <Link href={`/admin/bookings/${payment.booking.id}`}>
+                                            <Link href={`/admin/bookings/${payment.booking.booking_number}`}>
                                                 <Building2 className="h-4 w-4 mr-2" />
                                                 View Booking
                                             </Link>

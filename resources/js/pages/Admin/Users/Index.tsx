@@ -214,7 +214,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                             <Users className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{stats.total_users}</div>
+                            <div className="text-2xl font-bold">{stats.total_users || 0}</div>
                             <p className="text-xs text-muted-foreground">
                                 All registered users
                             </p>

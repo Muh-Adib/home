@@ -29,8 +29,20 @@ import {
     Info,
     CheckCircle,
     XCircle,
-    AlertCircle
+    AlertCircle,
+    Plus
 } from 'lucide-react';
+
+interface SeasonalRate {
+    id: number;
+    name: string;
+    start_date: string;
+    end_date: string;
+    rate_type: 'percentage' | 'fixed' | 'multiplier';
+    rate_value: number;
+    priority: number;
+    is_active: boolean;
+}
 
 interface PropertyShowProps extends PageProps {
     property: Property & {
@@ -38,6 +50,7 @@ interface PropertyShowProps extends PageProps {
         amenities: any[];
         media: any[];
         bookings: any[];
+        seasonalRates?: SeasonalRate[];
     };
     stats: {
         total_bookings: number;
@@ -119,6 +132,12 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                 Preview
                             </Link>
                         </Button>
+                        <Button variant="outline" asChild>
+                            <Link href={`/admin/properties/${property.slug}/seasonal-rates`}>
+                                <DollarSign className="h-4 w-4 mr-2" />
+                                Seasonal Rates
+                            </Link>
+                        </Button>
                         <Button asChild>
                             <Link href={`/admin/properties/${property.slug}/edit`}>
                                 <Edit className="h-4 w-4 mr-2" />
@@ -196,6 +215,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                     <TabsList>
                         <TabsTrigger value="details">Details</TabsTrigger>
                         <TabsTrigger value="pricing">Pricing</TabsTrigger>
+                        <TabsTrigger value="seasonal-rates">Seasonal Rates</TabsTrigger>
                         <TabsTrigger value="amenities">Amenities</TabsTrigger>
                         <TabsTrigger value="media">Media</TabsTrigger>
                         <TabsTrigger value="bookings">Recent Bookings</TabsTrigger>
@@ -357,6 +377,66 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                         <p className="text-sm text-muted-foreground">per night</p>
                                     </div>
                                 </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* Seasonal Rates Tab */}
+                    <TabsContent value="seasonal-rates">
+                        <Card>
+                            <CardHeader className="flex items-center justify-between">
+                                <CardTitle className="flex items-center gap-2">
+                                    <Calendar className="h-5 w-5" />
+                                    Seasonal Rates
+                                </CardTitle>
+                                <Button asChild>
+                                    <Link href={`/admin/properties/${property.slug}/seasonal-rates`}>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Manage Seasonal Rates
+                                    </Link>
+                                </Button>
+                            </CardHeader>
+                            <CardContent>
+                                {property.seasonalRates && property.seasonalRates.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {property.seasonalRates.slice(0, 5).map((rate) => (
+                                            <div key={rate.id} className="flex items-center justify-between p-4 border rounded-lg">
+                                                <div>
+                                                    <h4 className="font-medium">{rate.name}</h4>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {new Date(rate.start_date).toLocaleDateString('id-ID')} - {new Date(rate.end_date).toLocaleDateString('id-ID')}
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <Badge className={
+                                                        rate.rate_type === 'percentage' ? 'bg-blue-100 text-blue-800' :
+                                                        rate.rate_type === 'fixed' ? 'bg-green-100 text-green-800' :
+                                                        'bg-purple-100 text-purple-800'
+                                                    }>
+                                                        {rate.rate_type === 'percentage' ? `${rate.rate_value > 0 ? '+' : ''}${rate.rate_value}%` :
+                                                         rate.rate_type === 'fixed' ? formatCurrency(rate.rate_value) :
+                                                         `${rate.rate_value}x`}
+                                                    </Badge>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        Priority {rate.priority}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {property.seasonalRates.length > 5 && (
+                                            <p className="text-sm text-muted-foreground text-center">
+                                                And {property.seasonalRates.length - 5} more rates...
+                                            </p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <Alert>
+                                        <Info className="h-4 w-4" />
+                                        <AlertDescription>
+                                            No seasonal rates configured yet. Click "Manage Seasonal Rates" to set up dynamic pricing based on seasons, holidays, and demand.
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
                             </CardContent>
                         </Card>
                     </TabsContent>

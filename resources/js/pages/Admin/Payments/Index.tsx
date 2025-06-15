@@ -24,6 +24,7 @@ import {
     RefreshCw,
     AlertCircle,
     TrendingUp,
+    Settings,
     Users,
     Calendar
 } from 'lucide-react';
@@ -57,11 +58,11 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
     const [showVerifyDialog, setShowVerifyDialog] = useState(false);
     const [showRejectDialog, setShowRejectDialog] = useState(false);
 
-    const { data: verifyData, setData: setVerifyData, processing: verifyProcessing, post: verifyPost, reset: verifyReset } = useForm({
+    const { data: verifyData, setData: setVerifyData, processing: verifyProcessing, patch : verifyPatch, reset: verifyReset } = useForm({
         verification_notes: '',
     });
 
-    const { data: rejectData, setData: setRejectData, processing: rejectProcessing, post: rejectPost, reset: rejectReset } = useForm({
+    const { data: rejectData, setData: setRejectData, processing: rejectProcessing, patch : rejectPatch, reset: rejectReset } = useForm({
         rejection_reason: '',
     });
 
@@ -98,7 +99,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
     const submitVerification = () => {
         if (!selectedPayment) return;
 
-        verifyPost(`/admin/payments/${selectedPayment.id}/verify`, {
+        verifyPatch(`/admin/payments/${selectedPayment.payment_number}/verify`, {
             preserveScroll: true,
             onSuccess: () => {
                 setShowVerifyDialog(false);
@@ -111,7 +112,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
     const submitRejection = () => {
         if (!selectedPayment) return;
 
-        rejectPost(`/admin/payments/${selectedPayment.id}/reject`, {
+        rejectPatch(`/admin/payments/${selectedPayment.payment_number}/reject`, {
             preserveScroll: true,
             onSuccess: () => {
                 setShowRejectDialog(false);
@@ -190,7 +191,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                             Manage and verify guest payments
                         </p>
                     </div>
-                    
+
                     <div className="flex flex-col sm:flex-row gap-2">
                         <Button variant="outline" className="w-full sm:w-auto">
                             <Download className="h-4 w-4 mr-2" />
@@ -340,7 +341,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                         <TableRow key={payment.id}>
                                             <TableCell className="font-medium">
                                                 <Link 
-                                                    href={`/admin/payments/${payment.id}`}
+                                                    href={`/admin/payments/${payment.payment_number}`}
                                                     className="text-primary hover:underline"
                                                 >
                                                     {payment.payment_number}
@@ -348,13 +349,13 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                             </TableCell>
                                             <TableCell>
                                                 <Link 
-                                                    href={`/admin/bookings/${payment.booking.id}`}
+                                                    href={`/admin/bookings/${payment.booking?.slug}`}
                                                     className="text-primary hover:underline"
                                                 >
-                                                    {payment.booking.booking_number}
+                                                    {payment.booking?.booking_number}
                                                 </Link>
                                             </TableCell>
-                                            <TableCell>{payment.booking.guest_name}</TableCell>
+                                            <TableCell>{payment.booking?.guest_name}</TableCell>
                                             <TableCell className="font-medium">
                                                 {formatCurrency(payment.amount)}
                                             </TableCell>
@@ -364,7 +365,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                             <TableCell>
                                                 <div className="flex items-center gap-2">
                                                     <CreditCard className="h-4 w-4" />
-                                                    {payment.payment_method?.name}
+                                                    {payment.paymentMethod?.name}
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -372,7 +373,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                             </TableCell>
                                             <TableCell>
                                                 <div className="text-sm">
-                                                    <div>{formatDate(payment.payment_date)}</div>
+                                                    <div>{formatDate(payment.payment_date || '')}</div>
                                                     {payment.verified_at && (
                                                         <div className="text-muted-foreground">
                                                             Verified: {formatDate(payment.verified_at)}
@@ -390,7 +391,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                                     <DropdownMenuContent align="end">
                                                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                         <DropdownMenuItem asChild>
-                                                            <Link href={`/admin/payments/${payment.id}`}>
+                                                            <Link href={`/admin/payments/${payment.payment_number}`}>
                                                                 <Eye className="mr-2 h-4 w-4" />
                                                                 View Details
                                                             </Link>

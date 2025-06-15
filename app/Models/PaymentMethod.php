@@ -30,7 +30,7 @@ class PaymentMethod extends Model
     // Relationships
     public function payments(): HasMany
     {
-        return $this->hasMany(Payment::class, 'payment_method', 'code');
+        return $this->hasMany(Payment::class, 'payment_method_id');
     }
 
     // Scopes

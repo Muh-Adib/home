@@ -18,7 +18,9 @@ return new class extends Migration
             $table->string('guest_name');
             $table->string('guest_email');
             $table->string('guest_phone', 20);
+            $table->string('guest_country', 100)->default('Indonesia');
             $table->string('guest_id_number', 50)->nullable(); // ID/Passport number
+            $table->enum('guest_gender', ['male', 'female'])->nullable();
             $table->integer('guest_count');
             $table->integer('guest_male')->default(0);
             $table->integer('guest_female')->default(0);
@@ -30,6 +32,7 @@ return new class extends Migration
             $table->decimal('base_amount', 12, 2); // Property base cost
             $table->decimal('extra_bed_amount', 12, 2)->default(0); // Extra bed charges
             $table->decimal('service_amount', 12, 2)->default(0); // Additional services
+            $table->decimal('tax_amount', 12, 2)->default(0); // Tax amount
             $table->decimal('total_amount', 12, 2); // Total booking amount
             $table->integer('dp_percentage')->default(0); // Down payment percentage
             $table->decimal('dp_amount', 12, 2)->default(0); // Down payment amount

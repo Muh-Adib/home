@@ -129,6 +129,11 @@ class Property extends Model
         return $this->hasMany(FinancialReport::class);
     }
 
+    public function seasonalRates(): HasMany
+    {
+        return $this->hasMany(PropertySeasonalRate::class);
+    }
+
     // Scopes
     public function scopeActive($query)
     {
@@ -260,37 +265,107 @@ class Property extends Model
             throw new \InvalidArgumentException('Check-out must be after check-in date');
         }
         
+        // Get seasonal rates for this period
+        $seasonalRates = PropertySeasonalRate::getEffectiveRateForProperty(
+            $this->id, 
+            $checkInDate, 
+            $checkOutDate
+        );
+        
         // Initialize calculation variables
         $totalBaseAmount = 0;
         $totalWeekendPremium = 0;
+        $totalSeasonalPremium = 0;
         $weekendNights = 0;
         $weekdayNights = 0;
+        $seasonalNights = 0;
+        $dailyBreakdown = [];
+        $appliedSeasonalRates = [];
         
         // Calculate night-by-night for dynamic pricing
         for ($date = $checkInDate->copy(); $date->lt($checkOutDate); $date->addDay()) {
             $dayRate = $this->base_rate;
+            $dateString = $date->format('Y-m-d');
+            $seasonalRate = $seasonalRates[$dateString] ?? null;
+            $appliedPremiums = [];
             
-            // Weekend premium (Friday, Saturday)
-            if ($date->isFriday() || $date->isSaturday()) {
+            // Apply seasonal rate if exists
+            $seasonalPremiumAmount = 0;
+            if ($seasonalRate) {
+                $originalRate = $dayRate;
+                $dayRate = $seasonalRate->calculateRate($dayRate);
+                $seasonalPremiumAmount = $dayRate - $originalRate;
+                $totalSeasonalPremium += $seasonalPremiumAmount;
+                $seasonalNights++;
+                
+                $appliedPremiums[] = [
+                    'type' => 'seasonal',
+                    'name' => $seasonalRate->name,
+                    'description' => $seasonalRate->getFormattedRateDescription(),
+                    'amount' => $seasonalPremiumAmount
+                ];
+                
+                // Track unique seasonal rates applied
+                if (!in_array($seasonalRate->name, array_column($appliedSeasonalRates, 'name'))) {
+                    $appliedSeasonalRates[] = [
+                        'name' => $seasonalRate->name,
+                        'description' => $seasonalRate->getFormattedRateDescription(),
+                        'dates' => [$dateString]
+                    ];
+                } else {
+                    // Add date to existing seasonal rate
+                    $key = array_search($seasonalRate->name, array_column($appliedSeasonalRates, 'name'));
+                    $appliedSeasonalRates[$key]['dates'][] = $dateString;
+                }
+            }
+            
+            // Weekend premium (Friday, Saturday) - only if no seasonal rate or if seasonal rate allows
+            $weekendPremiumAmount = 0;
+            if (($date->isFriday() || $date->isSaturday()) && 
+                (!$seasonalRate || !$seasonalRate->applies_to_weekends_only)) {
                 $weekendNights++;
-                $weekendPremiumAmount = $dayRate * ($this->weekend_premium_percent / 100);
+                $weekendPremiumAmount = $this->base_rate * ($this->weekend_premium_percent / 100);
                 $totalWeekendPremium += $weekendPremiumAmount;
                 $dayRate += $weekendPremiumAmount;
-            } else {
+                
+                $appliedPremiums[] = [
+                    'type' => 'weekend',
+                    'name' => 'Weekend Premium',
+                    'description' => "+{$this->weekend_premium_percent}%",
+                    'amount' => $weekendPremiumAmount
+                ];
+            } else if (!($date->isFriday() || $date->isSaturday())) {
                 $weekdayNights++;
             }
             
-            // Peak season multiplier (December, July, August)
-            if (in_array($date->month, [12, 7, 8])) {
-                $dayRate *= 1.2; // 20% peak season premium
-            }
-            
-            // Long weekend premium (national holidays)
+            // Long weekend premium (national holidays) - stacks with others
+            $holidayPremiumAmount = 0;
             if ($this->isLongWeekend($date)) {
-                $dayRate *= 1.15; // 15% long weekend premium
+                $holidayPremiumAmount = $this->base_rate * 0.15; // 15% holiday premium
+                $dayRate += $holidayPremiumAmount;
+                
+                $appliedPremiums[] = [
+                    'type' => 'holiday',
+                    'name' => 'Holiday Premium',
+                    'description' => '+15%',
+                    'amount' => $holidayPremiumAmount
+                ];
             }
             
             $totalBaseAmount += $dayRate;
+            
+            $dailyBreakdown[$dateString] = [
+                'date' => $date->format('Y-m-d'),
+                'day_name' => $date->format('l'),
+                'base_rate' => $this->base_rate,
+                'final_rate' => $dayRate,
+                'premiums' => $appliedPremiums,
+                'seasonal_rate' => $seasonalRate ? [
+                    'name' => $seasonalRate->name,
+                    'type' => $seasonalRate->rate_type,
+                    'value' => $seasonalRate->rate_value
+                ] : null
+            ];
         }
         
         // Extra bed calculation
@@ -315,9 +390,11 @@ class Property extends Model
             'nights' => $nights,
             'weekday_nights' => $weekdayNights,
             'weekend_nights' => $weekendNights,
+            'seasonal_nights' => $seasonalNights,
             'base_amount' => $this->base_rate * $nights,
             'total_base_amount' => $totalBaseAmount,
             'weekend_premium' => $totalWeekendPremium,
+            'seasonal_premium' => $totalSeasonalPremium,
             'extra_bed_amount' => $extraBedAmount,
             'cleaning_fee' => $this->cleaning_fee,
             'minimum_stay_discount' => $minimumStayDiscount,
@@ -330,6 +407,16 @@ class Property extends Model
                 'weekend_premium_percent' => $this->weekend_premium_percent,
                 'peak_season_applied' => $this->hasPeakSeasonDates($checkInDate, $checkOutDate),
                 'long_weekend_applied' => $this->hasLongWeekend($checkInDate, $checkOutDate),
+                'seasonal_rates_applied' => $appliedSeasonalRates,
+            ],
+            'daily_breakdown' => $dailyBreakdown,
+            'summary' => [
+                'average_nightly_rate' => $nights > 0 ? $totalBaseAmount / $nights : 0,
+                'total_nights' => $nights,
+                'base_nights_rate' => $this->base_rate * $nights,
+                'total_premiums' => $totalWeekendPremium + $totalSeasonalPremium,
+                'effective_discount' => $minimumStayDiscount,
+                'taxes_and_fees' => $taxAmount + $this->cleaning_fee + $extraBedAmount,
             ]
         ];
     }

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('property_id')->constrained()->onDelete('cascade');
             $table->enum('media_type', ['image', 'video', 'virtual_tour']);
             $table->string('file_path', 500);
+            $table->string('thumbnail_path', 500)->nullable();
             $table->string('file_name');
             $table->bigInteger('file_size');
             $table->string('mime_type', 100);

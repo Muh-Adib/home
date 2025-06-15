@@ -4,12 +4,14 @@ namespace App\Policies;
 
 use App\Models\Payment;
 use App\Models\User;
+use App\Models\Booking;
+use App\Models\PaymentMethod;
 use Illuminate\Auth\Access\Response;
 
 class PaymentPolicy
 {
     /**
-     * Determine whether the user can view any models.
+     * Determine whether the user can view any payments.
      */
     public function viewAny(User $user): bool
     {
@@ -22,7 +24,7 @@ class PaymentPolicy
     }
 
     /**
-     * Determine whether the user can view the model.
+     * Determine whether the user can view the payment.
      */
     public function view(User $user, Payment $payment): bool
     {
@@ -30,21 +32,19 @@ class PaymentPolicy
         if ($user->role === 'super_admin') {
             return true;
         }
-
-        // Property owner hanya dapat melihat payment untuk property mereka
+        
+        // Property owners can view payments for their properties
         if ($user->role === 'property_owner') {
             return $payment->booking->property->owner_id === $user->id;
         }
-
-        // Finance dan manager dapat melihat semua payment
-        return in_array($user->role, [
-            'property_manager', 
-            'finance'
-        ]);
+        
+        // Users can view their own booking payments
+        return $payment->booking->guest_email === $user->email || 
+               $payment->booking->user_id === $user->id;
     }
 
     /**
-     * Determine whether the user can create models.
+     * Determine whether the user can create payments.
      */
     public function create(User $user): bool
     {
@@ -54,7 +54,7 @@ class PaymentPolicy
     }
 
     /**
-     * Determine whether the user can update the model.
+     * Determine whether the user can update the payment.
      */
     public function update(User $user, Payment $payment): bool
     {
@@ -66,7 +66,7 @@ class PaymentPolicy
     }
 
     /**
-     * Determine whether the user can delete the model.
+     * Determine whether the user can delete the payment.
      */
     public function delete(User $user, Payment $payment): bool
     {
@@ -85,8 +85,8 @@ class PaymentPolicy
         if ($user->role === 'super_admin') {
             return true;
         }
-
-        // Finance dapat verify semua payment
+        
+            // Finance dapat verify semua payment
         if ($user->role === 'finance') {
             return true;
         }
@@ -106,27 +106,42 @@ class PaymentPolicy
     }
 
     /**
-     * Determine whether the user can reject payments.
+     * Determine whether the user can manage rejected payments.
      */
-    public function reject(User $user, Payment $payment): bool
+    public function manageRejectedPayments(User $user): bool
     {
-        // Super admin dapat reject semua
-        if ($user->role === 'super_admin') {
-            return true;
-        }
+        return in_array($user->role, [
+            'super_admin', 
+            'finance'
+        ]);
+    }
 
-        // Finance dapat reject semua payment
-        if ($user->role === 'finance') {
-            return true;
-        }
+    /**
+     * Determine whether the user can make payment for a booking.
+     */
+    public function makePayment(User $user, Booking $booking): bool
+    {
+        // User must be the guest who made the booking
+        return $booking->guest_email === $user->email || 
+               $booking->user_id === $user->id;
+    }
 
-        // Property owner dapat reject payment untuk property mereka
-        if ($user->role === 'property_owner') {
-            return $payment->booking->property->owner_id === $user->id;
-        }
+    /**
+     * Standard Laravel Policy method to create payment for booking
+     */
+    public function createForBooking(User $user, Booking $booking): bool
+    {
+        // User must be the guest who made the booking
+        return $booking->guest_email === $user->email || 
+               $booking->user_id === $user->id;
+    }
 
-        // Manager dapat reject
-        return $user->role === 'property_manager';
+    /**
+     * Determine whether the user can manage payment methods.
+     */
+    public function managePaymentMethods(User $user): bool
+    {
+        return $user->role === 'super_admin' ? Response::allow() : Response::deny('You are not authorized to manage payment methods.');
     }
 
     /**
@@ -181,17 +196,6 @@ class PaymentPolicy
      * Determine whether the user can export payment data.
      */
     public function export(User $user): bool
-    {
-        return in_array($user->role, [
-            'super_admin', 
-            'finance'
-        ]);
-    }
-
-    /**
-     * Determine whether the user can manage payment methods.
-     */
-    public function managePaymentMethods(User $user): bool
     {
         return in_array($user->role, [
             'super_admin', 

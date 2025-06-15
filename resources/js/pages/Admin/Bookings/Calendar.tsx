@@ -34,6 +34,7 @@ import {
     Mail,
     MapPin
 } from 'lucide-react';
+import { DateRange } from '@/components/ui/date-range';
 
 const locales = {
     'en-US': enUS,
@@ -586,25 +587,21 @@ export default function BookingCalendar({ bookings, properties, filters }: Booki
                                 </Select>
                             </div>
                             
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="check_in">Check-in</Label>
-                                    <Input
-                                        id="check_in"
-                                        type="date"
-                                        value={quickBookingData.check_in}
-                                        onChange={(e) => setQuickBookingData('check_in', e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <Label htmlFor="check_out">Check-out</Label>
-                                    <Input
-                                        id="check_out"
-                                        type="date"
-                                        value={quickBookingData.check_out}
-                                        onChange={(e) => setQuickBookingData('check_out', e.target.value)}
-                                    />
-                                </div>
+                            <div>
+                                <Label>Check-in & Check-out Dates</Label>
+                                <DateRange
+                                    startDate={quickBookingData.check_in}
+                                    endDate={quickBookingData.check_out}
+                                    onDateChange={(startDate, endDate) => {
+                                        setQuickBookingData('check_in', startDate);
+                                        setQuickBookingData('check_out', endDate);
+                                    }}
+                                    minDate={new Date().toISOString().split('T')[0]}
+                                    size="md"
+                                    showNights={true}
+                                    startLabel="Check-in"
+                                    endLabel="Check-out"
+                                />
                             </div>
                             
                             <div>

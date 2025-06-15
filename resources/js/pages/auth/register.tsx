@@ -7,6 +7,7 @@ import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AuthLayout from '@/layouts/auth-layout';
 
 type RegisterForm = {
@@ -14,6 +15,8 @@ type RegisterForm = {
     email: string;
     password: string;
     password_confirmation: string;
+    country: string;
+    gender: string;
 };
 
 export default function Register() {
@@ -22,6 +25,8 @@ export default function Register() {
         email: '',
         password: '',
         password_confirmation: '',
+        country: 'Indonesia',
+        gender: 'male',
     });
 
     const submit: FormEventHandler = (e) => {
@@ -30,6 +35,31 @@ export default function Register() {
             onFinish: () => reset('password', 'password_confirmation'),
         });
     };
+
+    const countries = [
+        'Indonesia',
+        'Singapore',
+        'Malaysia',
+        'Thailand',
+        'Philippines',
+        'Vietnam',
+        'Cambodia',
+        'Laos',
+        'Myanmar',
+        'Brunei',
+        'Australia',
+        'New Zealand',
+        'Japan',
+        'South Korea',
+        'China',
+        'India',
+        'United States',
+        'United Kingdom',
+        'Germany',
+        'France',
+        'Netherlands',
+        'Other'
+    ];
 
     return (
         <AuthLayout title="Create an account" description="Enter your details below to create your account">
@@ -54,6 +84,20 @@ export default function Register() {
                     </div>
 
                     <div className="grid gap-2">
+                        <Label htmlFor="gender">Gender</Label>
+                        <Select value={data.gender} onValueChange={(value) => setData('gender', value)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select your gender" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="male">Male</SelectItem>
+                                <SelectItem value="female">Female</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <InputError message={errors.gender} />
+                    </div>
+                    
+                    <div className="grid gap-2">
                         <Label htmlFor="email">Email address</Label>
                         <Input
                             id="email"
@@ -67,6 +111,23 @@ export default function Register() {
                             placeholder="email@example.com"
                         />
                         <InputError message={errors.email} />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="country">Country</Label>
+                        <Select value={data.country} onValueChange={(value) => setData('country', value)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select your country" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {countries.map(country => (
+                                    <SelectItem key={country} value={country}>
+                                        {country}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <InputError message={errors.country} />
                     </div>
 
                     <div className="grid gap-2">

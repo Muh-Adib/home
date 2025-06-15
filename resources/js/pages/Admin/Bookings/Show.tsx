@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { type Booking, type Payment, type BreadcrumbItem, type PageProps } from '@/types';
+import { type Booking, type Payment, type BreadcrumbItem, type PageProps, BookingGuest } from '@/types';
 import { 
     Calendar, 
     ArrowLeft,
@@ -27,6 +27,8 @@ import {
     User,
     AlertCircle,
     Download,
+    Edit,
+    Plus,
     Eye
 } from 'lucide-react';
 
@@ -38,13 +40,14 @@ interface BookingShowProps extends PageProps {
             slug: string;
             address: string;
         };
+        guests: BookingGuest[];
         payments: Payment[];
         workflow: Array<{
             id: number;
             status: string;
             notes: string;
             created_at: string;
-            creator: {
+            processor?: {
                 id: number;
                 name: string;
             };
@@ -70,27 +73,27 @@ export default function ShowBooking({ booking }: BookingShowProps) {
     });
 
     const breadcrumbs: BreadcrumbItem[] = [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Bookings', href: '/admin/bookings' },
-        { label: booking.booking_number, href: '' },
+        { title: 'Dashboard', href: '/admin/dashboard' },
+        { title: 'Bookings', href: '/admin/bookings' },
+        { title: booking.booking_number, href: `/admin/bookings/${booking.booking_number}` },
     ];
 
     const handleVerify = (e: React.FormEvent) => {
         e.preventDefault();
-        patchVerify(`/admin/bookings/${booking.id}/verify`);
+        patchVerify(`/admin/bookings/${booking.booking_number}/verify`);
     };
 
     const handleCancel = (e: React.FormEvent) => {
         e.preventDefault();
-        patchCancel(`/admin/bookings/${booking.id}/cancel`);
+        patchCancel(`/admin/bookings/${booking.booking_number}/cancel`);
     };
 
     const handleCheckIn = () => {
-        patchVerify(`/admin/bookings/${booking.id}/checkin`);
+        patchVerify(`/admin/bookings/${booking.booking_number}/checkin`);
     };
 
     const handleCheckOut = () => {
-        patchVerify(`/admin/bookings/${booking.id}/checkout`);
+        patchVerify(`/admin/bookings/${booking.booking_number}/checkout`);
     };
 
     const formatCurrency = (value: number) => 
@@ -127,12 +130,12 @@ export default function ShowBooking({ booking }: BookingShowProps) {
     };
 
     const calculateDays = () => {
-        const checkIn = new Date(booking.check_in_date);
-        const checkOut = new Date(booking.check_out_date);
+        const checkIn = new Date(booking.check_in);
+        const checkOut = new Date(booking.check_out);
         return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
     };
 
-    const canVerify = booking.booking_status === 'pending';
+    const canVerify = booking.booking_status === 'pending_verification';
     const canCancel = ['pending', 'confirmed'].includes(booking.booking_status);
     const canCheckIn = booking.booking_status === 'confirmed';
     const canCheckOut = booking.booking_status === 'checked_in';
@@ -150,7 +153,7 @@ export default function ShowBooking({ booking }: BookingShowProps) {
                             {getStatusBadge(booking.booking_status)}
                         </div>
                         <p className="text-muted-foreground">
-                            {booking.guest_name} • {new Date(booking.check_in_date).toLocaleDateString()} - {new Date(booking.check_out_date).toLocaleDateString()}
+                            {booking.guest_name} • {new Date(booking.check_in).toLocaleDateString()} - {new Date(booking.check_out).toLocaleDateString()}
                         </p>
                     </div>
                     
@@ -295,11 +298,11 @@ export default function ShowBooking({ booking }: BookingShowProps) {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <Label className="text-sm font-medium text-muted-foreground">Check-in Date</Label>
-                                            <p className="text-sm">{new Date(booking.check_in_date).toLocaleDateString()}</p>
+                                            <p className="text-sm">{new Date(booking.check_in).toLocaleDateString()}</p>
                                         </div>
                                         <div>
                                             <Label className="text-sm font-medium text-muted-foreground">Check-out Date</Label>
-                                            <p className="text-sm">{new Date(booking.check_out_date).toLocaleDateString()}</p>
+                                            <p className="text-sm">{new Date(booking.check_out).toLocaleDateString()}</p>
                                         </div>
                                         <div>
                                             <Label className="text-sm font-medium text-muted-foreground">Duration</Label>
@@ -325,15 +328,15 @@ export default function ShowBooking({ booking }: BookingShowProps) {
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                         <div>
                                             <Label className="text-sm font-medium text-muted-foreground">Room Rate</Label>
-                                            <p className="text-sm">{formatCurrency(booking.room_rate)}</p>
+                                            <p className="text-sm">{formatCurrency(booking.base_amount)}</p>
                                         </div>
                                         <div>
                                             <Label className="text-sm font-medium text-muted-foreground">Extra Bed</Label>
                                             <p className="text-sm">{formatCurrency(booking.extra_bed_amount)}</p>
                                         </div>
                                         <div>
-                                            <Label className="text-sm font-medium text-muted-foreground">Cleaning Fee</Label>
-                                            <p className="text-sm">{formatCurrency(booking.cleaning_fee)}</p>
+                                            <Label className="text-sm font-medium text-muted-foreground">Tax Amount</Label>
+                                            <p className="text-sm">{formatCurrency(booking.tax_amount)}</p>
                                         </div>
                                         <div>
                                             <Label className="text-sm font-medium text-muted-foreground">Total Amount</Label>
@@ -353,6 +356,48 @@ export default function ShowBooking({ booking }: BookingShowProps) {
                                     </div>
                                 </CardContent>
                             </Card>
+
+                            {/* Guest List */}
+                            {booking.guests && booking.guests.length > 0 && (
+                                <Card className="lg:col-span-2">
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Users className="h-5 w-5" />
+                                            Guest List
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        {booking.guests.map((guest, index) => (
+                                            <div key={guest.id || index} className="p-4 border rounded-lg">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-muted-foreground">Name</Label>
+                                                        <p className="text-sm font-medium">{String(guest.full_name || '')}</p>
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-muted-foreground">Email</Label>
+                                                        <p className="text-sm flex items-center gap-1">
+                                                            <Mail className="h-3 w-3" />
+                                                            {String(guest.email || 'Not specified')}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-muted-foreground">Phone</Label>
+                                                        <p className="text-sm flex items-center gap-1">
+                                                            <Phone className="h-3 w-3" />
+                                                            {String(guest.phone || 'Not specified')}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-muted-foreground">Relationship</Label>
+                                                        <p className="text-sm">{String(guest.relationship_to_primary || '')}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </CardContent>
+                                </Card>
+                            )}
                         </div>
                     </TabsContent>
 
@@ -389,7 +434,7 @@ export default function ShowBooking({ booking }: BookingShowProps) {
                                         </div>
                                         <div>
                                             <Label className="text-sm font-medium text-muted-foreground">Country</Label>
-                                            <p className="text-sm">{booking.guest_country}</p>
+                                            <p className="text-sm">{booking.guest_country || 'Not specified'}</p>
                                         </div>
                                     </div>
                                 </CardContent>
@@ -407,24 +452,66 @@ export default function ShowBooking({ booking }: BookingShowProps) {
                                     <div className="grid grid-cols-3 gap-4">
                                         <div>
                                             <Label className="text-sm font-medium text-muted-foreground">Male Adults</Label>
-                                            <p className="text-2xl font-bold">{booking.guests_male}</p>
+                                            <p className="text-2xl font-bold">{booking.guest_male}</p>
                                         </div>
                                         <div>
                                             <Label className="text-sm font-medium text-muted-foreground">Female Adults</Label>
-                                            <p className="text-2xl font-bold">{booking.guests_female}</p>
+                                            <p className="text-2xl font-bold">{booking.guest_female}</p>
                                         </div>
                                         <div>
                                             <Label className="text-sm font-medium text-muted-foreground">Children</Label>
-                                            <p className="text-2xl font-bold">{booking.guests_children}</p>
+                                            <p className="text-2xl font-bold">{booking.guest_children}</p>
                                         </div>
                                     </div>
                                     <Separator />
                                     <div>
                                         <Label className="text-sm font-medium text-muted-foreground">Total Guests</Label>
-                                        <p className="text-lg font-bold">{booking.guests_male + booking.guests_female + booking.guests_children}</p>
+                                        <p className="text-lg font-bold">{booking.guest_male + booking.guest_female + booking.guest_children}</p>
                                     </div>
                                 </CardContent>
                             </Card>
+
+                            {/* Detailed Guest List */}
+                            {booking.guests && booking.guests.length > 0 && (
+                                <Card className="lg:col-span-2">
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Users className="h-5 w-5" />
+                                            Detailed Guest List
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        {booking.guests.map((guest, index) => (
+                                            <div key={guest.id || index} className="p-4 border rounded-lg">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-muted-foreground">Full Name</Label>
+                                                        <p className="text-sm font-medium">{String(guest.full_name || '')}</p>
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-muted-foreground">Email</Label>
+                                                        <p className="text-sm flex items-center gap-1">
+                                                            <Mail className="h-3 w-3" />
+                                                            {String(guest.email || 'Not specified')}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-muted-foreground">Phone</Label>
+                                                        <p className="text-sm flex items-center gap-1">
+                                                            <Phone className="h-3 w-3" />
+                                                            {String(guest.phone || 'Not specified')}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-sm font-medium text-muted-foreground">Relationship</Label>
+                                                        <p className="text-sm">{String(guest.relationship_to_primary || '')}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </CardContent>
+                                </Card>
+                            )}
 
                             {/* Special Requests */}
                             {booking.special_requests && (
@@ -445,6 +532,32 @@ export default function ShowBooking({ booking }: BookingShowProps) {
 
                     {/* Payments */}
                     <TabsContent value="payments" className="space-y-6">
+                        {/* Payment Actions Header */}
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-semibold">Payment History</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    Total: {formatCurrency(booking.total_amount)} • 
+                                    Paid: {formatCurrency(booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0))} • 
+                                    Remaining: {formatCurrency(booking.total_amount - booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0))}
+                                </p>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button variant="outline" asChild>
+                                    <Link href={`/admin/payments/booking/${booking.booking_number}/create`}>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Create Payment
+                                    </Link>
+                                </Button>
+                                <Button variant="outline" asChild>
+                                    <Link href={`/admin/payments/booking/${booking.booking_number}/additional`}>
+                                        <CreditCard className="h-4 w-4 mr-2" />
+                                        Additional Payment
+                                    </Link>
+                                </Button>
+                            </div>
+                        </div>
+
                         <div className="space-y-4">
                             {booking.payments.map((payment) => (
                                 <Card key={payment.id}>
@@ -457,20 +570,33 @@ export default function ShowBooking({ booking }: BookingShowProps) {
                                                     <Badge variant="outline">{payment.payment_type}</Badge>
                                                 </div>
                                                 <p className="text-sm text-muted-foreground">
-                                                    {payment.payment_method} • {new Date(payment.payment_date).toLocaleDateString()}
+                                                    {payment.paymentMethod?.name} • {new Date(payment.payment_date).toLocaleDateString()}
                                                 </p>
-                                                {payment.notes && (
-                                                    <p className="text-sm">{payment.notes}</p>
+                                                {payment.verification_notes && (
+                                                    <p className="text-sm">{payment.verification_notes}</p>
+                                                )}
+                                                {payment.reference_number && (
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Ref: {payment.reference_number}
+                                                    </p>
                                                 )}
                                             </div>
                                             <div className="text-right">
                                                 <p className="font-medium text-lg">{formatCurrency(payment.amount)}</p>
-                                                <Button variant="outline" size="sm" asChild className="mt-2">
-                                                    <Link href={`/admin/payments/${payment.id}`}>
-                                                        <Eye className="h-4 w-4 mr-2" />
-                                                        View Payment
-                                                    </Link>
-                                                </Button>
+                                                <div className="flex gap-2 mt-2">
+                                                    <Button variant="outline" size="sm" asChild>
+                                                        <Link href={`/admin/payments/${payment.payment_number}`}>
+                                                            <Eye className="h-4 w-4 mr-2" />
+                                                            View
+                                                        </Link>
+                                                    </Button>
+                                                    <Button variant="outline" size="sm" asChild>
+                                                        <Link href={`/admin/payments/${payment.payment_number}/edit`}>
+                                                            <Edit className="h-4 w-4 mr-2" />
+                                                            Edit
+                                                        </Link>
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </div>
                                     </CardContent>
@@ -481,7 +607,16 @@ export default function ShowBooking({ booking }: BookingShowProps) {
                                 <Card>
                                     <CardContent className="flex flex-col items-center justify-center py-8">
                                         <CreditCard className="h-12 w-12 text-muted-foreground mb-4" />
-                                        <p className="text-muted-foreground">No payments submitted yet</p>
+                                        <h3 className="font-medium mb-2">No payments submitted yet</h3>
+                                        <p className="text-sm text-muted-foreground mb-4">
+                                            Create the first payment for this booking
+                                        </p>
+                                        <Button asChild>
+                                            <Link href={`/admin/payments/booking/${booking.booking_number}/create`}>
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                Create Payment
+                                            </Link>
+                                        </Button>
                                     </CardContent>
                                 </Card>
                             )}
@@ -505,7 +640,7 @@ export default function ShowBooking({ booking }: BookingShowProps) {
                                                 <div className="flex items-center gap-2">
                                                     {getStatusBadge(step.status)}
                                                     <span className="text-sm text-muted-foreground">
-                                                        by {step.creator.name}
+                                                        by {step.processor?.name || 'Unknown'}
                                                     </span>
                                                 </div>
                                                 <p className="text-sm text-muted-foreground">

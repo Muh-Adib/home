@@ -187,7 +187,7 @@ export default function PropertiesIndex({ properties, filters }: PropertiesIndex
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                             <DropdownMenuItem asChild>
-                                                <Link href={`/properties/${property.slug}`}>
+                                                <Link href={`/admin/properties/${property.slug}`}>
                                                     <Eye className="h-4 w-4 mr-2" />
                                                     View
                                                 </Link>
@@ -325,7 +325,7 @@ export default function PropertiesIndex({ properties, filters }: PropertiesIndex
                                                     <DropdownMenuContent align="end">
                                                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                         <DropdownMenuItem asChild>
-                                                            <Link href={`/properties/${property.slug}`}>
+                                                            <Link href={`/admin/properties/${property.slug}`}>
                                                                 <Eye className="h-4 w-4 mr-2" />
                                                                 View
                                                             </Link>

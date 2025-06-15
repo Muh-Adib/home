@@ -15,6 +15,10 @@ Route::middleware('guest')->group(function () {
         ->name('register');
 
     Route::post('register', [RegisteredUserController::class, 'store']);
+    
+    // Auto-registration for booking guests
+    Route::post('register/auto', [RegisteredUserController::class, 'autoRegister'])
+        ->name('register.auto');
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

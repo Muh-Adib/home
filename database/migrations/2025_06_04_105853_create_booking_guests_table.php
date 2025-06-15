@@ -14,16 +14,21 @@ return new class extends Migration
         Schema::create('booking_guests', function (Blueprint $table) {
             $table->id();
             $table->foreignId('booking_id')->constrained()->onDelete('cascade');
-            $table->string('guest_name');
-            $table->enum('guest_type', ['male', 'female', 'child']);
-            $table->integer('guest_age')->nullable();
-            $table->string('id_number', 50)->nullable();
-            $table->boolean('is_primary')->default(false); // Primary guest flag
+            $table->enum('guest_type', ['primary', 'additional']);
+            $table->string('full_name');
+            $table->string('phone')->nullable();
+            $table->string('email')->nullable();
+            $table->enum('gender', ['male', 'female'])->nullable();
+            $table->enum('age_category', ['adult', 'child', 'infant'])->default('adult');
+            $table->string('relationship_to_primary')->nullable();
+            $table->string('emergency_contact_name')->nullable();
+            $table->string('emergency_contact_phone')->nullable();
+            $table->text('notes')->nullable();
             $table->timestamps();
-
-            // Indexes
-            $table->index('booking_id');
-            $table->index(['booking_id', 'is_primary']);
+            
+            // Add indexes for performance
+            $table->index(['booking_id', 'guest_type']);
+            $table->index(['booking_id', 'age_category']);
         });
     }
 
