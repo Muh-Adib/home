@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification System Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        .info { background-color: #cce7ff; color: #004085; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .notification-item {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔔 Notification System Test</h1>
+    
+    <div class="status info">
+        <strong>Status Sistem:</strong>
+        <div id="system-status">Loading...</div>
+    </div>
+
+    <div class="status" id="connection-status">
+        <strong>Connection Status:</strong>
+        <span id="connection-text">Checking...</span>
+    </div>
+
+    <h3>Controls</h3>
+    <button onclick="testWebSocketConnection()">Test WebSocket</button>
+    <button onclick="testPollingFallback()">Test Polling</button>
+    <button onclick="testNotificationAPI()">Test API Endpoints</button>
+    <button onclick="clearLog()">Clear Log</button>
+    <button onclick="createTestNotification()">Create Test Notification</button>
+
+    <h3>System Log</h3>
+    <div class="log" id="log"></div>
+
+    <h3>Received Notifications</h3>
+    <div id="notifications-list">
+        <p>No notifications received yet...</p>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        let logElement = document.getElementById('log');
+        let statusElement = document.getElementById('connection-status');
+        let connectionTextElement = document.getElementById('connection-text');
+        let notificationsElement = document.getElementById('notifications-list');
+        let receivedNotifications = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            logElement.innerHTML += logEntry + '\n';
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(logEntry);
+        }
+
+        function updateConnectionStatus(status, message) {
+            statusElement.className = `status ${status}`;
+            connectionTextElement.textContent = message;
+            log(`Connection Status: ${message}`, status);
+        }
+
+        function addNotification(notification) {
+            receivedNotifications.push(notification);
+            
+            const notificationDiv = document.createElement('div');
+            notificationDiv.className = 'notification-item';
+            notificationDiv.innerHTML = `
+                <strong>${notification.data?.title || 'New Notification'}</strong><br>
+                <small>${notification.data?.message || 'No message'}</small><br>
+                <em>Received: ${new Date().toLocaleTimeString()}</em>
+            `;
+            
+            if (notificationsElement.innerHTML.includes('No notifications')) {
+                notificationsElement.innerHTML = '';
+            }
+            notificationsElement.insertBefore(notificationDiv, notificationsElement.firstChild);
+        }
+
+        function testWebSocketConnection() {
+            log('🔌 Testing WebSocket connection...');
+            
+            try {
+                const socket = io('http://localhost:6001', {
+                    transports: ['websocket', 'polling'],
+                    forceNew: true,
+                    timeout: 10000,
+                });
+
+                socket.on('connect', () => {
+                    log('✅ WebSocket connected successfully!');
+                    updateConnectionStatus('success', 'WebSocket Connected');
+                    
+                    // Try to subscribe to a test channel
+                    socket.emit('subscribe', {
+                        channel: 'test-channel',
+                        auth: {}
+                    });
+                });
+
+                socket.on('connect_error', (error) => {
+                    log(`❌ WebSocket connection failed: ${error.message}`);
+                    updateConnectionStatus('error', 'WebSocket Failed');
+                });
+
+                socket.on('disconnect', (reason) => {
+                    log(`🔌 WebSocket disconnected: ${reason}`);
+                    updateConnectionStatus('warning', 'WebSocket Disconnected');
+                });
+
+            } catch (error) {
+                log(`❌ WebSocket test error: ${error.message}`);
+                updateConnectionStatus('error', 'WebSocket Error');
+            }
+        }
+
+        function testPollingFallback() {
+            log('📡 Testing Polling fallback...');
+            
+            let pollingCount = 0;
+            const maxPolls = 3;
+            
+            const pollInterval = setInterval(async () => {
+                pollingCount++;
+                log(`📡 Polling attempt ${pollingCount}/${maxPolls}...`);
+                
+                try {
+                    const response = await fetch('/notifications/recent?limit=5', {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        log(`✅ Polling successful! Received ${data.notifications?.length || 0} notifications`);
+                        updateConnectionStatus('success', 'Polling Working');
+                        
+                        if (data.notifications?.length > 0) {
+                            data.notifications.forEach(notification => {
+                                addNotification(notification);
+                            });
+                        }
+                    } else {
+                        log(`❌ Polling failed: HTTP ${response.status}`);
+                        updateConnectionStatus('error', 'Polling Failed');
+                    }
+                } catch (error) {
+                    log(`❌ Polling error: ${error.message}`);
+                    updateConnectionStatus('error', 'Polling Error');
+                }
+                
+                if (pollingCount >= maxPolls) {
+                    clearInterval(pollInterval);
+                    log('📡 Polling test completed');
+                }
+            }, 2000);
+        }
+
+        async function testNotificationAPI() {
+            log('🔍 Testing Notification API endpoints...');
+            
+            const endpoints = [
+                '/notifications/recent',
+                '/notifications/unread',
+                '/notifications/count'
+            ];
+
+            for (const endpoint of endpoints) {
+                try {
+                    log(`Testing ${endpoint}...`);
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        log(`✅ ${endpoint}: Success - ${JSON.stringify(data).substring(0, 100)}...`);
+                    } else {
+                        log(`❌ ${endpoint}: Failed - HTTP ${response.status}`);
+                    }
+                } catch (error) {
+                    log(`❌ ${endpoint}: Error - ${error.message}`);
+                }
+            }
+        }
+
+        async function createTestNotification() {
+            log('🎯 Creating test notification...');
+            
+            try {
+                const response = await fetch('/test-notification', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        title: 'Test Notification',
+                        message: 'This is a test notification created at ' + new Date().toLocaleTimeString(),
+                    }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ Test notification created successfully!');
+                } else {
+                    log(`❌ Failed to create test notification: HTTP ${response.status}`);
+                }
+            } catch (error) {
+                log(`❌ Error creating test notification: ${error.message}`);
+            }
+        }
+
+        function clearLog() {
+            logElement.innerHTML = '';
+        }
+
+        // Check initial system status
+        window.onload = async function() {
+            log('🚀 Notification System Test Started');
+            
+            // Check if we're on the correct domain
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                log('⚠️ Running on localhost - make sure you\'re accessing through the Laravel app');
+            }
+            
+            // Check CSRF token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+            if (!csrfToken) {
+                log('⚠️ No CSRF token found - API calls may fail');
+            } else {
+                log('✅ CSRF token found');
+            }
+            
+            log('📋 System check completed. Use the buttons above to test different components.');
+            updateConnectionStatus('info', 'Ready for testing');
+        };
+    </script>
+</body>
+</html> 

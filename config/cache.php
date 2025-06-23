@@ -97,12 +97,53 @@ return [
     | Cache Key Prefix
     |--------------------------------------------------------------------------
     |
-    | When utilizing the APC, database, memcached, Redis, and DynamoDB cache
+    | When utilizing the APC, database, memcached, Redis, or DynamoDB cache
     | stores, there might be other applications using the same cache. For
     | that reason, you may prefix every cache key to avoid collisions.
     |
     */
 
     'prefix' => env('CACHE_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_cache_'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Performance Optimization Settings
+    |--------------------------------------------------------------------------
+    |
+    | These settings optimize cache performance for the Property Management System
+    |
+    */
+    
+    'performance' => [
+        'dashboard_cache_ttl' => env('DASHBOARD_CACHE_TTL', 300), // 5 minutes
+        'property_cache_ttl' => env('PROPERTY_CACHE_TTL', 3600), // 1 hour
+        'booking_cache_ttl' => env('BOOKING_CACHE_TTL', 1800), // 30 minutes
+        'rate_cache_ttl' => env('RATE_CACHE_TTL', 7200), // 2 hours
+        'media_cache_ttl' => env('MEDIA_CACHE_TTL', 86400), // 24 hours
+        'amenity_cache_ttl' => env('AMENITY_CACHE_TTL', 86400), // 24 hours
+        'user_session_ttl' => env('USER_SESSION_TTL', 7200), // 2 hours
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cache Tags for Selective Invalidation
+    |--------------------------------------------------------------------------
+    |
+    | Define cache tags for better cache management and selective invalidation
+    |
+    */
+    
+    'tags' => [
+        'properties' => 'properties',
+        'bookings' => 'bookings',
+        'users' => 'users',
+        'payments' => 'payments',
+        'dashboard' => 'dashboard',
+        'reports' => 'reports',
+        'media' => 'media',
+        'amenities' => 'amenities',
+        'inventory' => 'inventory',
+        'cleaning' => 'cleaning',
+    ],
 
 ];

@@ -12,6 +12,16 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * Payment Method Controller
+ * 
+ * This controller handles the payment method process for admin bookings.
+ * It includes methods for creating, storing, and managing payment methods.
+ * 
+ * @package App\Http\Controllers\Admin
+ * @author Muhammad Adib Aulia Hanif <adwk.project@gmail.com>
+ */
+
 class PaymentMethodController extends Controller
 {
     /**

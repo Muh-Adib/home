@@ -34,8 +34,12 @@ interface PaymentsIndexProps {
     payments: PaginatedData<Payment>;
     paymentMethods: PaymentMethod[];
     stats: {
-        pending: number;
-        verified: number;
+        pending_payments: number;
+        verified_payments: number;
+        failed_payments: number;
+        cancelled_payments: number;
+        refunded_payments: number;
+        total_payments: number;
         today_amount: number;
         month_amount: number;
     };
@@ -130,7 +134,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
             refunded: { variant: 'outline' as const, label: 'Refunded', icon: RefreshCw },
         };
         
-        const config = statusConfig[status];
+        const config = statusConfig[status as keyof typeof statusConfig];
         const Icon = config.icon;
         return (
             <Badge variant={config.variant} className="inline-flex items-center gap-1">
@@ -143,11 +147,20 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
     const getPaymentTypeBadge = (type: Payment['payment_type']) => {
         const typeConfig = {
             dp: { variant: 'secondary' as const, label: 'DP' },
-            full_payment: { variant: 'default' as const, label: 'Full Payment' },
-            remaining_payment: { variant: 'outline' as const, label: 'Remaining' },
+            remaining: { variant: 'outline' as const, label: 'Remaining' },
+            full: { variant: 'default' as const, label: 'Full Payment' },
+            refund: { variant: 'destructive' as const, label: 'Refund' },
+            penalty: { variant: 'destructive' as const, label: 'Penalty' },
+            additional: { variant: 'secondary' as const, label: 'Additional' },
+            damage: { variant: 'destructive' as const, label: 'Damage' },
+            cleaning: { variant: 'outline' as const, label: 'Cleaning' },
+            extra_service: { variant: 'secondary' as const, label: 'Extra Service' },
         };
         
-        const config = typeConfig[type];
+        const config = typeConfig[type as keyof typeof typeConfig] || { 
+            variant: 'secondary' as const, 
+            label: type || 'Unknown' 
+        };
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
 
@@ -208,7 +221,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                             <Clock className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{stats.pending}</div>
+                            <div className="text-2xl font-bold">{stats.pending_payments}</div>
                             <p className="text-xs text-muted-foreground">
                                 Awaiting verification
                             </p>
@@ -221,7 +234,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                             <CheckCircle className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{stats.verified}</div>
+                            <div className="text-2xl font-bold">{stats.verified_payments}</div>
                             <p className="text-xs text-muted-foreground">
                                 Successfully verified
                             </p>
@@ -253,6 +266,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                             </p>
                         </CardContent>
                     </Card>
+
                 </div>
 
                 {/* Filters */}
@@ -349,7 +363,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                             </TableCell>
                                             <TableCell>
                                                 <Link 
-                                                    href={`/admin/bookings/${payment.booking?.slug}`}
+                                                    href={`/admin/bookings/${payment.booking?.booking_number}`}
                                                     className="text-primary hover:underline"
                                                 >
                                                     {payment.booking?.booking_number}

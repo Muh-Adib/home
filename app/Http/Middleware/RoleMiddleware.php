@@ -37,6 +37,9 @@ class RoleMiddleware
         // 1. PENGECEKAN LOGIN
         // Jika user belum login, redirect ke halaman login
         if (!$request->user()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Unauthenticated'], 401);
+            }
             return redirect()->route('login');
         }
 
@@ -47,7 +50,27 @@ class RoleMiddleware
         // 3. PENGECEKAN ROLE
         // Cek apakah role user ada dalam daftar role yang diizinkan
         if (!in_array($userRole, $roles)) {
-            // Jika role tidak cocok, tampilkan error 403 (Forbidden)
+            // Log unauthorized access attempt
+            \Log::warning('Unauthorized access attempt', [
+                'user_id' => $request->user()->id,
+                'user_role' => $userRole,
+                'required_roles' => $roles,
+                'ip' => $request->ip(),
+                'route' => $request->route()?->getName(),
+                'url' => $request->fullUrl(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
+            // Return appropriate response based on request type
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Access denied. You do not have permission to access this resource.',
+                    'required_roles' => $roles,
+                    'user_role' => $userRole
+                ], 403);
+            }
+
+            // For web requests, show 403 error page
             abort(403, 'Access denied. You do not have permission to access this page.');
         }
 

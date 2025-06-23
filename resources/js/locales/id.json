@@ -1,0 +1,23 @@
+{
+  "welcome": "Selamat Datang",
+  "dashboard": "Dasbor",
+  "book_now": "Pesan Sekarang",
+  "logout": "Keluar",
+  "login": "Masuk",
+  "register": "Daftar",
+  "nav": {
+    "dashboard": "Dasbor",
+    "properties": "Properti",
+    "bookings": "Pemesanan",
+    "payment_methods": "Metode Pembayaran",
+    "settings": "Pengaturan",
+    "cleaning_tasks": "Tugas Kebersihan",
+    "my_properties": "Properti Saya",
+    "my_bookings": "Pemesanan Saya",
+    "my_payments": "Pembayaran Saya",
+    "browse_properties": "Cari Properti",
+    "payments": "Pembayaran",
+    "help": "Bantuan",
+    "support": "Dukungan"
+  }
+} 

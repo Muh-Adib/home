@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Property;
 use App\Models\PaymentMethod;
 use App\Models\BookingWorkflow;
+use App\Events\BookingCreated;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -13,6 +14,7 @@ use Inertia\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
+use App\Services\BookingService;
 
 /**
  * BookingController handles all booking-related operations
@@ -25,6 +27,13 @@ use Carbon\Carbon;
  */
 class BookingController extends Controller
 {
+    private BookingService $bookingService;
+
+    public function __construct(BookingService $bookingService)
+    {
+        $this->bookingService = $bookingService;
+    }
+
     // ========================================
     // PUBLIC BOOKING METHODS (Guest-facing)
     // ========================================
@@ -59,12 +68,11 @@ class BookingController extends Controller
      */
     public function store(Request $request, Property $property): RedirectResponse
     {
-        
         $validated = $request->validate([
             'check_in_date' => 'required|date|after_or_equal:today',
             'check_out_date' => 'required|date|after:check_in_date',
             'guest_count_male' => 'required|integer|min:0',
-            'guest_count_female' => 'required|integer|min:0', 
+            'guest_count_female' => 'required|integer|min:0',
             'guest_count_children' => 'required|integer|min:0',
             'guest_name' => 'required|string|max:255',
             'guest_email' => 'required|email|max:255',
@@ -86,122 +94,21 @@ class BookingController extends Controller
             'is_auto_register' => 'boolean',
         ]);
 
-        // Check availability
-        $isAvailable = $property->isAvailableForDates(
-            $validated['check_in_date'], 
-            $validated['check_out_date']
-        );
-
-        if (!$isAvailable) {
-            return redirect()->back()
-                ->with('error', 'Property is not available for selected dates.');
-        }
-
-        // Calculate total guests
-        $totalGuests = $validated['guest_count_male'] + 
-                      $validated['guest_count_female'] + 
-                      $validated['guest_count_children'];
-
-        // Validate minimum stay requirements
-        $checkIn = Carbon::parse($validated['check_in_date']);
-        $checkOut = Carbon::parse($validated['check_out_date']);
-        $nights = $checkIn->diffInDays($checkOut);
-        
-        // Get minimum stay requirement based on date
-        $isWeekend = $checkIn->isWeekend() || $checkOut->isWeekend();
-        $minStay = $isWeekend ? $property->min_stay_weekend : $property->min_stay_weekday;
-        
-        if ($nights < $minStay) {
-            return redirect()->back()
-                ->with('error', "Minimum stay requirement is {$minStay} nights for these dates.");
-        }
-
-        // Calculate rates
-        $rateCalculation = $property->calculateRate(
-            $validated['check_in_date'],
-            $validated['check_out_date'],
-            $totalGuests
-        );
-
-        DB::beginTransaction();
         try {
-            // Create booking
-            $booking = $property->bookings()->create([
-                'booking_number' => 'BK' . date('Ymd') . str_pad(Booking::count() + 1, 4, '0', STR_PAD_LEFT),
-                'guest_name' => $validated['guest_name'],
-                'guest_email' => $validated['guest_email'],
-                'guest_phone' => $validated['guest_phone'],
-                'guest_country' => $validated['guest_country'],
-                'guest_id_number' => $validated['guest_id_number'],
-                'guest_gender' => $validated['guest_gender'],
-                'guest_count' => $totalGuests,
-                'guest_male' => $validated['guest_count_male'],
-                'guest_female' => $validated['guest_count_female'],
-                'guest_children' => $validated['guest_count_children'],
-                'relationship_type' => $validated['relationship_type'],
-                'check_in' => $validated['check_in_date'],
-                'check_out' => $validated['check_out_date'],
-                'nights' => $nights,
-                'base_amount' => $rateCalculation['base_amount'],
-                'extra_bed_amount' => $rateCalculation['extra_bed_amount'],
-                'service_amount' => 0,
-                'tax_amount' => $rateCalculation['tax_amount'],
-                'total_amount' => $rateCalculation['total_amount'],
-                'dp_percentage' => $validated['dp_percentage'],
-                'dp_amount' => $rateCalculation['total_amount'] * $validated['dp_percentage'] / 100,
-                'remaining_amount' => $rateCalculation['total_amount'] * (100 - $validated['dp_percentage']) / 100,
-                'booking_status' => 'pending_verification',
-                'payment_status' => 'dp_pending',
-                'verification_status' => 'pending',
-                'special_requests' => $validated['special_requests'],
-            ]);
-
-            // Store guest details if provided
-            if (isset($validated['guests']) && is_array($validated['guests'])) {
-                foreach ($validated['guests'] as $index => $guestDetail) {
-                    if (!empty($guestDetail['name'])) { // Only create if name is provided
-                        $booking->guests()->create([
-                            'full_name' => $guestDetail['name'],
-                            'gender' => $guestDetail['gender'],
-                            'age_category' => $guestDetail['age_category'],
-                            'relationship_to_primary' => $guestDetail['relationship_to_primary'],
-                            'phone' => $guestDetail['phone'] ?? null,
-                            'email' => $guestDetail['email'] ?? null,
-                            'notes' => $guestDetail['notes'] ?? null,
-                            'guest_type' => $index === 0 ? 'primary' : 'additional',
-                        ]);
-                    }
-                }
-            }
-            
-
-            // Create initial workflow
-            $booking->workflow()->create([
-                'booking_id' => $booking->id,
-                'step' => 'submitted',
-                'status' => 'completed',
-                'processed_at' => now(),
-                'notes' => 'Enhanced booking created by ' . (auth()->check() ? 'registered user' : 'auto-registered guest'),
-            ]);
-
-            DB::commit();
-
-            // Redirect to user dashboard if logged in, confirmation page if not
-            if (auth()->check()) {
-                return redirect()->route('dashboard')
-                    ->with('success', 'Your booking has been submitted for verification. You will receive payment instructions after verification.');
-            } else {
-                return redirect()->route('bookings.confirmation', $booking->booking_number)
-                    ->with('success', 'Your booking has been submitted for verification.');
-            }
-
+            $booking = $this->bookingService->createBooking($property, $validated, auth()->user());
         } catch (\Exception $e) {
-            DB::rollback();
-            \Log::error('Enhanced booking creation failed: ' . $e->getMessage());
-            \Log::error('Full exception: ' . $e);
-            \Log::error('Validated data: ' . json_encode($validated));
-            return back()->withErrors(['error' => 'Failed to create booking: ' . $e->getMessage()]);
+            \Log::error('Booking creation failed: ' . $e->getMessage());
+            return back()->withErrors(['error' => $e->getMessage()]);
         }
+
+        // Redirect sesuai user login
+        if (auth()->check()) {
+            return redirect()->route('dashboard')
+                ->with('success', 'Your booking has been submitted for verification. You will receive payment instructions after verification.');
+        }
+
+        return redirect()->route('bookings.confirmation', $booking->booking_number)
+            ->with('success', 'Your booking has been submitted for verification.');
     }
 
 

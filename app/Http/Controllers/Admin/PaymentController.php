@@ -15,6 +15,16 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use App\Models\User;
 
+/**
+ * Payment Controller
+ * 
+ * This controller handles the payment process for admin bookings.
+ * It includes methods for creating, storing, and managing payments.
+ * 
+ * @package App\Http\Controllers\Admin
+ * @author Muhammad Adib Aulia Hanif <adwk.project@gmail.com>
+ */
+
 class PaymentController extends Controller
 {
     /**
@@ -55,10 +65,14 @@ class PaymentController extends Controller
 
         // Statistics
         $stats = [
-            'total_payments' => Payment::count(),
-            'pending_verification' => Payment::where('payment_status', 'pending')->count(),
+            'pending_payments' => Payment::where('payment_status', 'pending')->count(),
             'verified_payments' => Payment::where('payment_status', 'verified')->count(),
-            'total_amount' => Payment::where('payment_status', 'verified')->sum('amount'),
+            'failed_payments' => Payment::where('payment_status', 'failed')->count(),
+            'cancelled_payments' => Payment::where('payment_status', 'cancelled')->count(),
+            'refunded_payments' => Payment::where('payment_status', 'refunded')->count(),
+            'total_payments' => Payment::count(),
+            'today_amount' => Payment::where('payment_date', now()->toDateString())->sum('amount'),
+            'month_amount' => Payment::where('payment_date', now()->startOfMonth()->toDateString())->sum('amount'),
         ];
 
         return Inertia::render('Admin/Payments/Index', [

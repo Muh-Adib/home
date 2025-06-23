@@ -94,18 +94,26 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($users as $userData) {
-            $userId = DB::table('users')->insertGetId(array_merge($userData, [
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]));
+            // Use updateOrCreate to avoid duplicate constraint violations
+            $user = \App\Models\User::updateOrCreate(
+                ['email' => $userData['email']],
+                array_merge($userData, [
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ])
+            );
 
-            // Create user profile for each user
-            DB::table('user_profiles')->insert([
-                'user_id' => $userId,
-                'country' => 'Indonesia',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+            // Create user profile for each user if not exists
+            \App\Models\UserProfile::updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'country' => 'Indonesia',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+            
+            $this->command->info("Created/Updated user: {$userData['name']} ({$userData['email']})");
         }
     }
 }

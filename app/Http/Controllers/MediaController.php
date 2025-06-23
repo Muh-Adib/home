@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Validator;
 use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class MediaController extends Controller
 {
@@ -20,50 +22,210 @@ class MediaController extends Controller
      */
     public function upload(Request $request, Property $property)
     {
-        // Debug logging
-        \Log::info('Media upload request received', [
-            'property_id' => $property->id,
-            'property_slug' => $property->slug,
-            'request_method' => $request->method(),
-            'content_type' => $request->header('Content-Type'),
-            'has_files' => $request->hasFile('files'),
-            'all_keys' => array_keys($request->all()),
-            'file_keys' => $request->hasFile('files') ? array_keys($request->file('files')) : []
-        ]);
+        $this->authorize('update', $property);
         
-        $validator = Validator::make($request->all(), [
-            'files' => 'required|array',
-            'files.*' => 'required|file|mimes:jpeg,png,jpg,gif,webp,mp4,mov,avi,webm|max:51200', // 50MB max
-            'type' => 'required|in:image,video',
-            'sort_order' => 'nullable|integer|min:0',
+        $request->validate([
+            'files' => 'required|array|max:10',
+            'files.*' => [
+                'required',
+                'file',
+                'mimes:jpg,jpeg,png,webp,gif',
+                'max:5120', // 5MB max file size
+                'dimensions:min_width=200,min_height=200,max_width=4096,max_height=4096',
+                function ($attribute, $value, $fail) {
+                    // Custom validation for file content security
+                    if (!$this->isValidImageFile($value)) {
+                        $fail('The ' . $attribute . ' contains invalid or potentially dangerous content.');
+                    }
+                },
+            ],
+        ], [
+            'files.*.mimes' => 'Only JPG, JPEG, PNG, WebP, and GIF images are allowed.',
+            'files.*.max' => 'Each image must be less than 5MB.',
+            'files.*.dimensions' => 'Images must be between 200x200 and 4096x4096 pixels.',
         ]);
 
-        if ($validator->fails()) {
-            \Log::error('Media upload validation failed', [
-                'errors' => $validator->errors()->toArray(),
-                'request_data' => $request->except('files'),
-                'files_count' => $request->hasFile('files') ? count($request->file('files')) : 0
-            ]);
-            return redirect()->back()->withErrors($validator)->withInput();
-        }
+        // Debug logging
+        \Log::info('Media upload request', [
+            'property_id' => $property->id,
+            'user_id' => auth()->id(),
+            'files_count' => count($request->file('files')),
+            'ip' => $request->ip(),
+        ]);
 
-        $uploadedFiles = [];
-        $files = $request->file('files');
-
-        if (!is_array($files)) {
-            $files = [$files];
-        }
-
-        foreach ($files as $file) {
-            try {
-                $media = $this->processAndStoreMedia($file, $property, $request->get('type'));
-                $uploadedFiles[] = $media;
-            } catch (\Exception $e) {
-                return redirect()->back()->with('error', 'Upload failed: ' . $e->getMessage());
+        try {
+            DB::beginTransaction();
+            
+            $uploadedFiles = [];
+            $storage = Storage::disk('public');
+            
+            foreach ($request->file('files') as $file) {
+                // Generate secure filename
+                $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                $extension = $file->getClientOriginalExtension();
+                $safeName = Str::slug($originalName) . '_' . time() . '_' . Str::random(8) . '.' . $extension;
+                
+                // Store file with security checks
+                $path = $this->storeFileSecurely($file, $safeName, $property);
+                
+                if (!$path) {
+                    throw new \Exception('Failed to store file securely: ' . $file->getClientOriginalName());
+                }
+                
+                // Create media record
+                $media = PropertyMedia::create([
+                    'property_id' => $property->id,
+                    'file_name' => $safeName,
+                    'file_path' => $path,
+                    'file_size' => $file->getSize(),
+                    'mime_type' => $file->getMimeType(),
+                    'alt_text' => '',
+                    'is_cover' => false,
+                    'sort_order' => PropertyMedia::where('property_id', $property->id)->max('sort_order') + 1,
+                    'uploaded_by' => auth()->id(),
+                ]);
+                
+                // Generate thumbnails asynchronously for better performance
+                dispatch(function() use ($media) {
+                    $this->generateThumbnails($media);
+                });
+                
+                $uploadedFiles[] = [
+                    'id' => $media->id,
+                    'file_name' => $media->file_name,
+                    'url' => $media->url,
+                    'size' => $media->file_size,
+                ];
+                
+                \Log::info('File uploaded successfully', [
+                    'media_id' => $media->id,
+                    'property_id' => $property->id,
+                    'file_name' => $safeName,
+                ]);
             }
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Files uploaded successfully',
+                'files' => $uploadedFiles,
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollback();
+            
+            \Log::error('Media upload failed', [
+                'property_id' => $property->id,
+                'user_id' => auth()->id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Upload failed: ' . $e->getMessage(),
+            ], 500);
         }
+    }
 
-        return redirect()->back()->with('success', count($uploadedFiles) . ' files uploaded successfully');
+    /**
+     * Validate if uploaded file is a legitimate image file
+     * 
+     * @param \Illuminate\Http\UploadedFile $file
+     * @return bool
+     */
+    private function isValidImageFile($file)
+    {
+        try {
+            // Check file signature (magic bytes)
+            $handle = fopen($file->getRealPath(), 'rb');
+            $header = fread($handle, 16);
+            fclose($handle);
+            
+            // Define valid image signatures
+            $signatures = [
+                'jpg' => [0xFF, 0xD8, 0xFF],
+                'png' => [0x89, 0x50, 0x4E, 0x47],
+                'gif' => [0x47, 0x49, 0x46],
+                'webp' => [0x52, 0x49, 0x46, 0x46],
+            ];
+            
+            $isValid = false;
+            foreach ($signatures as $format => $signature) {
+                if (substr($header, 0, count($signature)) === implode('', array_map('chr', $signature))) {
+                    $isValid = true;
+                    break;
+                }
+            }
+            
+            if (!$isValid) {
+                return false;
+            }
+            
+            // Additional validation using GD/Imagick if available
+            if (extension_loaded('gd')) {
+                $imageInfo = @getimagesize($file->getRealPath());
+                if ($imageInfo === false) {
+                    return false;
+                }
+                
+                // Check if mime type matches file extension
+                $allowedMimeTypes = [
+                    'image/jpeg', 'image/jpg', 'image/png', 
+                    'image/gif', 'image/webp'
+                ];
+                
+                if (!in_array($imageInfo['mime'], $allowedMimeTypes)) {
+                    return false;
+                }
+            }
+            
+            return true;
+            
+        } catch (\Exception $e) {
+            \Log::warning('Image validation failed', [
+                'file' => $file->getClientOriginalName(),
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Store file with additional security measures
+     * 
+     * @param \Illuminate\Http\UploadedFile $file
+     * @param string $safeName
+     * @param Property $property
+     * @return string|false
+     */
+    private function storeFileSecurely($file, $safeName, $property)
+    {
+        try {
+            $directory = "properties/{$property->id}/media";
+            $path = $file->storeAs($directory, $safeName, 'public');
+            
+            if (!$path) {
+                return false;
+            }
+            
+            // Set proper file permissions
+            $fullPath = storage_path('app/public/' . $path);
+            if (file_exists($fullPath)) {
+                chmod($fullPath, 0644); // Read/write for owner, read for others
+            }
+            
+            return $path;
+            
+        } catch (\Exception $e) {
+            \Log::error('Secure file storage failed', [
+                'file' => $safeName,
+                'property_id' => $property->id,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
     }
 
     /**

@@ -1,0 +1,23 @@
+{
+  "welcome": "Welcome",
+  "dashboard": "Dashboard",
+  "book_now": "Book Now",
+  "logout": "Logout",
+  "login": "Login",
+  "register": "Register",
+  "nav": {
+    "dashboard": "Dashboard",
+    "properties": "Properties",
+    "bookings": "Bookings",
+    "payment_methods": "Payment Methods",
+    "settings": "Settings",
+    "cleaning_tasks": "Cleaning Tasks",
+    "my_properties": "My Properties",
+    "my_bookings": "My Bookings",
+    "my_payments": "My Payments",
+    "browse_properties": "Browse Properties",
+    "payments": "Payments",
+    "help": "Help",
+    "support": "Support"
+  }
+} 

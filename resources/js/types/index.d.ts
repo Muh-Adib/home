@@ -227,7 +227,7 @@ export interface Payment {
     booking_id: number;
     payment_method_id?: number;
     amount: number;
-    payment_type: 'dp' | 'remaining' | 'full' | 'refund' | 'penalty';
+    payment_type: 'dp' | 'remaining' | 'full' | 'refund' | 'penalty' | 'additional' | 'damage' | 'cleaning' | 'extra_service';
     payment_method: 'cash' | 'bank_transfer' | 'credit_card' | 'e_wallet' | 'other';
     payment_date: string;
     due_date?: string;
@@ -413,4 +413,76 @@ export type PageProps<T extends Record<string, unknown> = Record<string, unknown
     auth: {
         user: User;
     };
-}; 
+};
+
+// Cleaning Management Types
+export interface CleaningStats {
+    total_tasks: number;
+    pending_tasks: number;
+    in_progress_tasks: number;
+    completed_today: number;
+    overdue_tasks: number;
+}
+
+export interface ChecklistItem {
+    area: string;
+    tasks: string[];
+    completed: boolean;
+    notes?: string;
+}
+
+export interface CleaningTask {
+    id: number;
+    property_id: number;
+    booking_id?: number;
+    assigned_to?: number;
+    created_by: number;
+    schedule_id?: number;
+    task_number: string;
+    title: string;
+    description?: string;
+    task_type: 'regular_cleaning' | 'deep_cleaning' | 'checkout_cleaning' | 'checkin_prep' | 'maintenance_cleaning' | 'emergency_cleaning' | 'inspection';
+    priority: 'low' | 'normal' | 'high' | 'urgent';
+    status: 'pending' | 'assigned' | 'in_progress' | 'review_required' | 'completed' | 'cancelled';
+    scheduled_date: string;
+    estimated_duration: string;
+    deadline?: string;
+    cleaning_areas?: string[];
+    checklist?: ChecklistItem[];
+    special_instructions?: string;
+    estimated_cost: number;
+    completion_percentage: number;
+    started_at?: string;
+    completed_at?: string;
+    completed_by?: number;
+    completion_notes?: string;
+    quality_rating?: number;
+    reviewed_at?: string;
+    reviewed_by?: number;
+    review_notes?: string;
+    created_at: string;
+    updated_at: string;
+    property?: Property;
+    booking?: Booking;
+    assigned_to_user?: User;
+    created_by_user?: User;
+    completed_by_user?: User;
+    reviewed_by_user?: User;
+    schedule?: CleaningSchedule;
+    is_overdue?: boolean;
+    task_type_name?: string;
+    priority_name?: string;
+    status_name?: string;
+}
+
+export interface CleaningSchedule {
+    id: number;
+    property_id: number;
+    schedule_type: 'daily' | 'weekly' | 'monthly' | 'custom';
+    frequency: number;
+    start_date: string;
+    end_date: string;
+    status: 'active' | 'inactive' | 'completed';
+    created_at: string;
+    updated_at: string;
+}

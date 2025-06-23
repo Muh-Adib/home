@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use App\Models\Amenity;
 
 class AmenitySeeder extends Seeder
 {
@@ -52,12 +53,14 @@ class AmenitySeeder extends Seeder
             ['name' => 'Fire Extinguisher', 'icon' => 'fire-extinguisher', 'category' => 'safety', 'description' => 'Fire safety equipment', 'sort_order' => 53],
         ];
 
-        foreach ($amenities as $amenity) {
-            DB::table('amenities')->insert(array_merge($amenity, [
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]));
+        foreach ($amenities as $amenityData) {
+            // Use updateOrCreate to avoid duplicate constraint violations
+            $amenity = Amenity::updateOrCreate(
+                ['name' => $amenityData['name']],
+                $amenityData
+            );
+            
+            $this->command->info("Created/Updated amenity: {$amenityData['name']}");
         }
     }
 }

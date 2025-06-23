@@ -1,0 +1,41 @@
+{
+    "authHost": "http://home.test",
+    "authEndpoint": "/broadcasting/auth",
+    "clients": [
+        {
+            "appId": "homeapp",
+            "key": "homeapp_key"
+        }
+    ],
+    "database": "sqlite",
+    "databaseConfig": {
+        "sqlite": {
+            "databasePath": "./database/laravel-echo-server.sqlite"
+        }
+    },
+    "devMode": true,
+    "host": null,
+    "port": "6001",
+    "protocol": "http",
+    "socketio": {
+        "transports": ["websocket", "polling"],
+        "allowEIO3": true,
+        "cors": {
+            "origin": ["http://home.test", "https://home.test", "http://localhost:8000", "http://127.0.0.1:8000"],
+            "methods": ["GET", "POST"],
+            "credentials": true
+        },
+        "pingTimeout": 60000,
+        "pingInterval": 25000
+    },
+    "sslCertPath": "",
+    "sslKeyPath": "",
+    "sslCertChainPath": "",
+    "sslPassphrase": "",
+    "apiOriginAllow": {
+        "allowCors": true,
+        "allowOrigin": ["http://home.test", "https://home.test", "http://localhost:8000", "http://127.0.0.1:8000"],
+        "allowMethods": "GET,POST,PUT,DELETE,OPTIONS",
+        "allowHeaders": "Origin,Content-Type,X-Auth-Token,X-Requested-With,Accept,Authorization,X-CSRF-TOKEN,X-Socket-Id,Cookie"
+    }
+} 

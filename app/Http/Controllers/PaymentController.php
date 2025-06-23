@@ -14,6 +14,17 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 
+
+/**
+ * Payment Controller
+ * 
+ * This controller handles the payment process for guest bookings.
+ * It includes methods for creating, storing, and managing payments.
+ * 
+ * @package App\Http\Controllers
+ * @author Muhammad Adib Aulia Hanif <adwk.project@gmail.com>
+ */
+
 class PaymentController extends Controller
 {
     /**
@@ -225,74 +236,6 @@ class PaymentController extends Controller
         ]);
     }
 
-    /**
-     * Generate secure payment link for booking
-     */
-    public function generatePaymentLink(Booking $booking): string
-    {
-        $token = \Illuminate\Support\Str::random(32);
-        
-        // Store token in cache for 24 hours
-        \Illuminate\Support\Facades\Cache::put(
-            "payment_token_{$booking->booking_number}_{$token}",
-            $booking->booking_number,
-            now()->addHours(24)
-        );
-
-        return route('booking.secure-payment', [
-            'booking' => $booking->booking_number,
-            'token' => $token
-        ]);
-    }
-
-    /**
-     * Secure payment page with token verification
-     */
-    public function securePayment(Request $request, Booking $booking, string $token): Response
-    {
-        // Verify token
-        $cachedBookingId = \Illuminate\Support\Facades\Cache::get("payment_token_{$booking->booking_number}_{$token}");
-
-        if (!$cachedBookingId || $cachedBookingId != $booking->booking_number) {
-            abort(404, 'Payment link is invalid or expired.');
-        }
-
-        // Calculate pending amount
-        $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-        $pendingAmount = $booking->total_amount - $paidAmount;
-
-        if ($pendingAmount <= 0) {
-            return redirect()->route('my-bookings')
-                ->with('info', 'This booking has been fully paid.');
-        }
-
-        // Get active payment methods
-        $paymentMethods = PaymentMethod::active()->get();
-
-        return Inertia::render('Payment/SecurePayment', [
-            'booking' => $booking->load('property'),
-            'paymentMethods' => $paymentMethods,
-            'pendingAmount' => $pendingAmount,
-            'paidAmount' => $paidAmount,
-            'token' => $token,
-        ]);
-    }
-
-    /**
-     * Store secure payment
-     */
-    public function securePaymentStore(Request $request, Booking $booking, string $token): RedirectResponse
-    {
-        // Verify token
-        $cachedBookingId = \Illuminate\Support\Facades\Cache::get("payment_token_{$booking->booking_number}_{$token}");
-        
-        if (!$cachedBookingId || $cachedBookingId != $booking->booking_number) {
-            abort(404, 'Payment link is invalid or expired.');
-        }
-
-        // Same validation and processing as regular store method
-        return $this->store($request, $booking);
-    }
 
     /**
      * Upload and optimize payment proof image
