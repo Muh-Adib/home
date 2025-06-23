@@ -1,10 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { format } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { formatDate, DATE_FORMATS } from "@/lib/date-utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -19,6 +19,7 @@ interface DatePickerProps {
   placeholder?: string
   disabled?: boolean
   className?: string
+  format?: 'short' | 'long' | 'month-year'
 }
 
 export function DatePicker({
@@ -27,7 +28,19 @@ export function DatePicker({
   placeholder = "Pick a date",
   disabled = false,
   className,
+  format = 'short',
 }: DatePickerProps) {
+  const getFormatOptions = () => {
+    switch (format) {
+      case 'long':
+        return DATE_FORMATS.LONG;
+      case 'month-year':
+        return DATE_FORMATS.MONTH_YEAR;
+      default:
+        return DATE_FORMATS.SHORT;
+    }
+  };
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -41,7 +54,7 @@ export function DatePicker({
           disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? format(date, "PPP") : <span>{placeholder}</span>}
+          {date ? formatDate(date, getFormatOptions()) : <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">

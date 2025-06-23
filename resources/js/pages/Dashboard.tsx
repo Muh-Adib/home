@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import AppLayout from '@/layouts/app-layout';
 import { type User, type BreadcrumbItem, type PageProps } from '@/types';
+import { useTranslation, formatCurrencyByLanguage } from '@/lib/i18n';
 
 interface KPIData {
     value: number;
@@ -115,17 +116,19 @@ interface StatItem {
 
 // Component untuk stats berdasarkan role
 function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: DashboardData['kpis']; quickStats: QuickStats }) {
+    const { t, currentLanguage } = useTranslation();
+    
     const getStatsForRole = (role: User['role']): StatItem[] => {
         const baseStats: StatItem[] = [
             {
-                title: 'Total Properties',
+                title: t('dashboard.stats.totalProperties'),
                 value: quickStats.total_properties,
                 icon: Building2,
                 color: 'text-blue-600',
                 bg: 'bg-blue-50',
             },
             {
-                title: 'Active Properties',
+                title: t('dashboard.stats.activeProperties'),
                 value: quickStats.active_properties,
                 icon: Home,
                 color: 'text-green-600',
@@ -136,7 +139,7 @@ function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: Dashboar
         const roleStats: Record<User['role'], StatItem[]> = {
             super_admin: [
                 {
-                    title: 'Monthly Revenue',
+                    title: t('dashboard.stats.monthlyRevenue'),
                     value: kpis.revenue.value,
                     icon: DollarSign,
                     color: 'text-emerald-600',
@@ -146,7 +149,7 @@ function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: Dashboar
                     trend: kpis.revenue.trend,
                 },
                 {
-                    title: 'Total Bookings',
+                    title: t('dashboard.stats.totalBookings'),
                     value: kpis.bookings.value,
                     icon: Calendar,
                     color: 'text-blue-600',
@@ -155,7 +158,7 @@ function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: Dashboar
                     trend: kpis.bookings.trend,
                 },
                 {
-                    title: 'Occupancy Rate',
+                    title: t('dashboard.stats.occupancyRate'),
                     value: kpis.occupancy.value,
                     icon: TrendingUp,
                     color: 'text-purple-600',
@@ -165,14 +168,14 @@ function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: Dashboar
                     trend: kpis.occupancy.trend,
                 },
                 {
-                    title: 'Current Guests',
+                    title: t('dashboard.stats.currentGuests'),
                     value: quickStats.current_guests,
                     icon: Users,
                     color: 'text-indigo-600',
                     bg: 'bg-indigo-50',
                 },
                 {
-                    title: 'Pending Actions',
+                    title: t('dashboard.stats.pendingActions'),
                     value: kpis.pending_actions.value,
                     icon: AlertCircle,
                     color: 'text-orange-600',
@@ -182,7 +185,7 @@ function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: Dashboar
             ],
             property_owner: [
                 {
-                    title: 'Monthly Revenue',
+                    title: t('dashboard.stats.monthlyRevenue'),
                     value: kpis.revenue.value,
                     icon: DollarSign,
                     color: 'text-emerald-600',
@@ -192,7 +195,7 @@ function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: Dashboar
                     trend: kpis.revenue.trend,
                 },
                 {
-                    title: 'Occupancy Rate',
+                    title: t('dashboard.stats.occupancyRate'),
                     value: kpis.occupancy.value,
                     icon: TrendingUp,
                     color: 'text-purple-600',
@@ -317,15 +320,11 @@ function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: Dashboar
         
         switch (format) {
             case 'currency':
-                return new Intl.NumberFormat('id-ID', {
-                    style: 'currency',
-                    currency: 'IDR',
-                    minimumFractionDigits: 0,
-                }).format(value);
+                return formatCurrencyByLanguage(value, currentLanguage);
             case 'percentage':
                 return `${value}%`;
             default:
-                return value.toLocaleString('id-ID');
+                return value.toLocaleString(currentLanguage === 'id' ? 'id-ID' : 'en-US');
         }
     };
 
@@ -368,20 +367,22 @@ function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: Dashboar
 
 // Component untuk quick actions berdasarkan role
 function RoleBasedActions({ user }: { user: User }) {
+    const { t } = useTranslation();
+    
     const getActionsForRole = (role: User['role']) => {
         const roleActions: Record<User['role'], Array<{ title: string; href: string; icon: any; variant?: 'default' | 'secondary' }>> = {
             super_admin: [
-                { title: 'Add Property', href: '/admin/properties/create', icon: Building2 },
-                { title: 'View Reports', href: '/admin/reports', icon: TrendingUp, variant: 'secondary' },
-                { title: 'Manage Users', href: '/admin/users', icon: Users, variant: 'secondary' },
+                { title: t('dashboard.actions.addProperty'), href: '/admin/properties/create', icon: Building2 },
+                { title: t('dashboard.actions.viewReports'), href: '/admin/reports', icon: TrendingUp, variant: 'secondary' },
+                { title: t('dashboard.actions.manageUsers'), href: '/admin/users', icon: Users, variant: 'secondary' },
             ],
             property_owner: [
-                { title: 'Add Property', href: '/admin/properties/create', icon: Building2 },
-                { title: 'View Reports', href: '/admin/reports', icon: TrendingUp, variant: 'secondary' },
+                { title: t('dashboard.actions.addProperty'), href: '/admin/properties/create', icon: Building2 },
+                { title: t('dashboard.actions.viewReports'), href: '/admin/reports', icon: TrendingUp, variant: 'secondary' },
             ],
             property_manager: [
-                { title: 'New Booking', href: '/admin/bookings/create', icon: Calendar },
-                { title: 'Check Payments', href: '/admin/payments', icon: CreditCard, variant: 'secondary' },
+                { title: t('dashboard.actions.newBooking'), href: '/admin/bookings/create', icon: Calendar },
+                { title: t('dashboard.actions.viewAllPayments'), href: '/admin/payments', icon: CreditCard, variant: 'secondary' },
             ],
             front_desk: [
                 { title: 'Check In Guest', href: '/admin/checkin', icon: CheckCircle },
@@ -411,7 +412,7 @@ function RoleBasedActions({ user }: { user: User }) {
     return (
         <Card>
             <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
+                <CardTitle className="text-lg">{t('dashboard.sections.quickActions')}</CardTitle>
                 <CardDescription>Frequently used actions for your role</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -449,21 +450,22 @@ export default function Dashboard({
 }: DashboardProps) {
     const page = usePage<PageProps>();
     const { auth } = page.props;
+    const { t, currentLanguage } = useTranslation();
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Home', href: '/dashboard' },
-        { title: 'Dashboard' },
+        { title: t('dashboard.title') },
     ];
 
     const getRoleDisplayName = (role: User['role']) => {
         const roleNames: Record<User['role'], string> = {
-            super_admin: 'Super Administrator',
-            property_owner: 'Property Owner',
-            property_manager: 'Property Manager',
-            front_desk: 'Front Desk',
-            finance: 'Finance',
-            housekeeping: 'Housekeeping',
-            guest: 'Guest',
+            super_admin: t('dashboard.roles.super_admin'),
+            property_owner: t('dashboard.roles.property_owner'),
+            property_manager: t('dashboard.roles.staff'),
+            front_desk: t('dashboard.roles.staff'),
+            finance: t('dashboard.roles.staff'),
+            housekeeping: t('dashboard.roles.staff'),
+            guest: t('dashboard.roles.guest'),
         };
         return roleNames[role];
     };
@@ -484,20 +486,21 @@ export default function Dashboard({
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
+            <Head title={t('dashboard.title')} />
             <div className="space-y-6 p-4 md:p-6">
                 {/* Header Section */}
                 <div className="space-y-2">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div>
                             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-                                Welcome back, {auth.user.name}!
+                                {t('dashboard.welcome')}, {auth.user.name}!
                             </h1>
                             <div className="flex items-center gap-2 mt-1">
                                 <Badge variant="secondary" className="text-xs">
                                     {getRoleDisplayName(auth.user.role)}
                                 </Badge>
                                 <span className="text-sm text-muted-foreground">
-                                    {new Date().toLocaleDateString('id-ID', {
+                                    {new Date().toLocaleDateString(currentLanguage === 'id' ? 'id-ID' : 'en-US', {
                                         weekday: 'long',
                                         year: 'numeric',
                                         month: 'long',
@@ -524,8 +527,8 @@ export default function Dashboard({
                         <div className="lg:col-span-1">
                             <Card>
                                 <CardHeader className="pb-3">
-                                    <CardTitle className="text-lg">Recent Activity</CardTitle>
-                                    <CardDescription>Latest system activities</CardDescription>
+                                                                    <CardTitle className="text-lg">{t('dashboard.sections.recentActivity')}</CardTitle>
+                                <CardDescription>Latest system activities</CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-3">
                                     {recentActivity.slice(0, 5).map((activity) => {
@@ -543,9 +546,9 @@ export default function Dashboard({
                                                         <p className="text-xs text-muted-foreground truncate">
                                                             {activity.description}
                                                         </p>
-                                                        <p className="text-xs text-muted-foreground">
-                                                            {new Date(activity.time).toLocaleString('id-ID')}
-                                                        </p>
+                                                                                                <p className="text-xs text-muted-foreground">
+                                            {new Date(activity.time).toLocaleString(currentLanguage === 'id' ? 'id-ID' : 'en-US')}
+                                        </p>
                                                     </div>
                                                 </div>
                                                 <Badge variant={activity.status === 'confirmed' || activity.status === 'verified' ? 'default' : 'secondary'} className="text-xs">
@@ -557,7 +560,7 @@ export default function Dashboard({
                                     {recentActivity.length === 0 && (
                                         <div className="text-center text-muted-foreground py-6">
                                             <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                            <p className="text-sm">No recent activity</p>
+                                            <p className="text-sm">{t('dashboard.activity.noActivity')}</p>
                                         </div>
                                     )}
                                 </CardContent>
@@ -569,7 +572,7 @@ export default function Dashboard({
                     <div className="lg:col-span-1">
                         <Card>
                             <CardHeader className="pb-3">
-                                <CardTitle className="text-lg">Today's Agenda</CardTitle>
+                                <CardTitle className="text-lg">{t('dashboard.sections.todaysAgenda')}</CardTitle>
                                 <CardDescription>
                                     {auth.user.role === 'front_desk' ? 'Check-ins and check-outs' : 'Tasks and schedule'}
                                 </CardDescription>
@@ -603,7 +606,7 @@ export default function Dashboard({
                                 {todaysAgenda.length === 0 && (
                                     <div className="text-center text-muted-foreground py-6">
                                         <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                        <p className="text-sm">No agenda for today</p>
+                                        <p className="text-sm">{t('dashboard.agenda.noAgenda')}</p>
                                     </div>
                                 )}
                             </CardContent>
@@ -615,7 +618,7 @@ export default function Dashboard({
                 {(auth.user.role === 'super_admin' || auth.user.role === 'property_owner') && propertyPerformance.length > 0 && (
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-lg">Property Performance</CardTitle>
+                            <CardTitle className="text-lg">{t('dashboard.sections.propertyPerformance')}</CardTitle>
                             <CardDescription>Top performing properties</CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -630,11 +633,7 @@ export default function Dashboard({
                                         </div>
                                         <div className="text-right">
                                             <p className="font-medium">
-                                                {new Intl.NumberFormat('id-ID', {
-                                                    style: 'currency',
-                                                    currency: 'IDR',
-                                                    minimumFractionDigits: 0,
-                                                }).format(property.total_revenue)}
+                                                {formatCurrencyByLanguage(property.total_revenue, currentLanguage)}
                                             </p>
                                             <p className="text-sm text-muted-foreground">Revenue</p>
                                         </div>

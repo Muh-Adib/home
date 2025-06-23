@@ -1,11 +1,9 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Calendar, dateFnsLocalizer, View, Views } from 'react-big-calendar';
-import format from 'date-fns/format';
-import parse from 'date-fns/parse';
-import startOfWeek from 'date-fns/startOfWeek';
-import getDay from 'date-fns/getDay';
-import { enUS } from 'date-fns/locale';
+import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
+import moment from 'moment';
+import 'moment/locale/id';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { formatDate as formatDateUtil, parseDate, getStartOfWeek, getDay, toISODateString } from '@/lib/date-utils';
 
 import AppLayout from '@/layouts/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,17 +34,9 @@ import {
 } from 'lucide-react';
 import { DateRange } from '@/components/ui/date-range';
 
-const locales = {
-    'en-US': enUS,
-};
-
-const localizer = dateFnsLocalizer({
-    format,
-    parse,
-    startOfWeek,
-    getDay,
-    locales,
-});
+// Setup moment locale
+moment.locale('id');
+const localizer = momentLocalizer(moment);
 
 interface BookingCalendarProps {
     bookings: Booking[];
@@ -131,8 +121,8 @@ export default function BookingCalendar({ bookings, properties, filters }: Booki
             setSelectedSlot({ start, end });
             setQuickBookingData({
                 ...quickBookingData,
-                check_in: format(start, 'yyyy-MM-dd'),
-                check_out: format(end, 'yyyy-MM-dd'),
+                check_in: toISODateString(start),
+                check_out: toISODateString(end),
             });
             setShowQuickBookingDialog(true);
         }
@@ -216,7 +206,7 @@ export default function BookingCalendar({ bookings, properties, filters }: Booki
     // Custom slot style function
     const slotStyleGetter = useCallback((date: Date) => {
         const today = new Date();
-        const isToday = format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+        const isToday = toISODateString(date) === toISODateString(today);
         const isPast = date < today;
 
         return {

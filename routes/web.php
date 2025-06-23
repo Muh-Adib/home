@@ -12,7 +12,7 @@ use Inertia\Inertia;
 Route::get('/', function () {
     $featuredProperties = \App\Models\Property::active()
         ->featured()
-        ->with(['coverImage'])
+        ->with(['media'])
         ->limit(6)
         ->get()
         ->map(function ($property) {
@@ -29,7 +29,13 @@ Route::get('/', function () {
                 'bedroom_count' => $property->bedroom_count,
                 'bathroom_count' => $property->bathroom_count,
                 'is_featured' => $property->is_featured,
-                'cover_image' => $property->coverImage->first()?->url,
+                'media' => $property->media->map(function ($media) {
+                    return [
+                        'id' => $media->id,
+                        'file_path' => $media->file_path,
+                        'is_cover' => $media->is_cover,
+                    ];
+                }),
             ];
         });
 

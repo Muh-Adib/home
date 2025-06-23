@@ -1,16 +1,90 @@
 ## 🦎 Hello Komodo 🦎
+version: '3.8'
+
 services:
-  hello_world:
-    image: hello-world
-    # networks:
-    #   - default
-    # ports:
-    #   - 3000:3000
-    # volumes:
-    #   - data:/data
+  # Laravel Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pms_app
+    restart: unless-stopped
+    working_dir: /var/www/
+    volumes:
+      - ./:/var/www
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - pms_network
+    depends_on:
+      - db
+      - redis
 
-# networks:
-#   default: {}
+  # Nginx Web Server
+  webserver:
+    image: nginx:alpine
+    container_name: pms_webserver
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+    networks:
+      - pms_network
+    depends_on:
+      - app
 
-# volumes:
-#   data:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: pms_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pms_db
+      POSTGRES_USER: pms_user
+      POSTGRES_PASSWORD: pms_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    networks:
+      - pms_network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: pms_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    networks:
+      - pms_network
+
+  # Node.js for Frontend Development
+  node:
+    image: node:20-alpine
+    container_name: pms_node
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+      - /var/www/node_modules
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    networks:
+      - pms_network
+    depends_on:
+      - app
+
+networks:
+  pms_network:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local
+  redisdata:
+    driver: local

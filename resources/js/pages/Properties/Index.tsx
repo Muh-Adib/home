@@ -26,6 +26,7 @@ import {
     Sparkles
 } from 'lucide-react';
 import { DateRange, getDefaultDateRange, formatDateRange } from '@/components/ui/date-range';
+import { useTranslation, formatCurrencyByLanguage } from '@/lib/i18n';
 
 interface Property {
     id: number;
@@ -100,6 +101,7 @@ interface PropertiesIndexProps {
 }
 
 export default function PropertiesIndex({ properties, amenities, filters }: PropertiesIndexProps) {
+    const { t, currentLanguage } = useTranslation();
     const [showFilters, setShowFilters] = useState(false);
 
     // Get default date range
@@ -167,10 +169,10 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
     };
 
     const sortOptions = [
-        { value: 'featured', label: 'Featured First' },
-        { value: 'price_low', label: 'Price: Low to High' },
-        { value: 'price_high', label: 'Price: High to Low' },
-        { value: 'name', label: 'Name A-Z' },
+        { value: 'featured', label: t('properties.sort.featured') },
+        { value: 'price_low', label: t('properties.sort.priceLow') },
+        { value: 'price_high', label: t('properties.sort.priceHigh') },
+        { value: 'name', label: t('properties.sort.name') },
     ];
 
     const amenityCategories = amenities.reduce((acc, amenity) => {
@@ -191,7 +193,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
 
     return (
         <>
-            <Head title="Properties - Property Management System" />
+            <Head title={t('properties.pageTitle')} />
 
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}

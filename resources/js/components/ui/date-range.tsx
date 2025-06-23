@@ -4,6 +4,12 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { 
+  getNightsBetween, 
+  getDefaultDateRange, 
+  formatDateRange as formatDateRangeUtil,
+  isWeekend 
+} from '@/lib/date-utils';
 
 interface DateRangeProps {
     startDate?: string;
@@ -63,14 +69,12 @@ export function DateRange({
         setLocalEndDate(endDate);
     }, [startDate, endDate]);
 
-    // Calculate nights between dates
+    // Calculate nights between dates using utility function
     const calculateNights = (start: string, end: string): number => {
         if (!start || !end) return 0;
         const startDateObj = new Date(start);
         const endDateObj = new Date(end);
-        const diffTime = endDateObj.getTime() - startDateObj.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return Math.max(0, diffDays);
+        return getNightsBetween(startDateObj, endDateObj);
     };
 
     const nights = calculateNights(localStartDate, localEndDate);
@@ -80,14 +84,15 @@ export function DateRange({
         if (!date) return minStayNights;
         
         const dateObj = new Date(date);
-        const dayOfWeek = dateObj.getDay();
         
-        // Check if it's weekend (Friday-Sunday: 5,6,0)
-        const isWeekend = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0;
+        // Check if it's weekend using utility function
+        if (isWeekend(dateObj)) {
+            return minStayWeekend;
+        }
         
         // You can add peak season logic here later
         // For now, use weekend/weekday logic
-        return isWeekend ? minStayWeekend : minStayWeekday;
+        return minStayWeekday;
     };
 
     const currentMinStay = getMinimumStayForDate(localStartDate);
@@ -157,7 +162,7 @@ export function DateRange({
         <div className={cn('flex gap-2 items-end', className)}>
             {/* Start Date */}
             <div className="flex flex-col">
-                <Label className="text-xs text-gray-600 mb-1 flex items-center gap-1">
+                <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
                     {startLabel}
                 </Label>
@@ -175,7 +180,7 @@ export function DateRange({
 
             {/* End Date */}
             <div className="flex flex-col">
-                <Label className="text-xs text-gray-600 mb-1 flex items-center gap-1">
+                <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
                     {endLabel}
                 </Label>
@@ -195,23 +200,23 @@ export function DateRange({
             {showNights && localStartDate && localEndDate && nights > 0 && (
                 <div className={cn(
                     "flex flex-col items-center px-3 py-2 rounded-md border",
-                    isMinStayViolation ? "bg-red-50 border-red-200" : "bg-blue-50 border-blue-200"
+                    isMinStayViolation ? "bg-destructive/10 border-destructive/20" : "bg-primary/10 border-primary/20"
                 )}>
                     <span className={cn(
                         "text-xs font-medium",
-                        isMinStayViolation ? "text-red-600" : "text-blue-600"
+                        isMinStayViolation ? "text-destructive" : "text-primary"
                     )}>
                         {nights}
                     </span>
                     <span className={cn(
                         "text-xs flex items-center gap-1",
-                        isMinStayViolation ? "text-red-500" : "text-blue-500"
+                        isMinStayViolation ? "text-destructive/80" : "text-primary/80"
                     )}>
                         <Clock className="h-3 w-3" />
                         {nights === 1 ? 'night' : 'nights'}
                     </span>
                     {isMinStayViolation && (
-                        <span className="text-xs text-red-500 mt-1">
+                        <span className="text-xs text-destructive/80 mt-1">
                             Min: {currentMinStay}
                         </span>
                     )}
@@ -239,32 +244,11 @@ export function DateRange({
     );
 }
 
-// Helper function to get default date range (today to tomorrow)
-export const getDefaultDateRange = (nights: number = 1) => {
-    const today = new Date();
-    const endDate = new Date(today);
-    endDate.setDate(today.getDate() + nights);
-    
-    return {
-        startDate: today.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
-    };
-};
-
-// Helper function to format date range for display
-export const formatDateRange = (startDate: string, endDate: string, locale: string = 'id-ID') => {
-    if (!startDate || !endDate) return '';
-    
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    const options: Intl.DateTimeFormatOptions = {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-    };
-    
-    return `${start.toLocaleDateString(locale, options)} - ${end.toLocaleDateString(locale, options)}`;
-};
+// Re-export utility functions for convenience
+export { 
+  getDefaultDateRange, 
+  formatDateRange,
+  formatDateRange as formatDateRangeDisplay 
+} from '@/lib/date-utils';
 
 export default DateRange; 
