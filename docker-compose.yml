@@ -1,0 +1,209 @@
+version: '3.8'
+
+services:
+  # Main Application Container
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: php-base
+    container_name: pms_app
+    restart: unless-stopped
+    volumes:
+      - ./storage:/var/www/html/storage
+      - ./bootstrap/cache:/var/www/html/bootstrap/cache
+      - ./public/storage:/var/www/html/public/storage
+    networks:
+      - pms_network
+    depends_on:
+      - db
+      - redis
+    environment:
+      - APP_ENV=production
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - DB_PORT=3306
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+
+  # Database Container (MySQL)
+  db:
+    image: mysql:8.0
+    container_name: pms_database
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: property_management
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_USER: ${DB_USERNAME:-pms_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+    networks:
+      - pms_network
+    command: --default-authentication-plugin=mysql_native_password
+
+  # Alternative PostgreSQL Database (uncomment if preferred)
+  # db_postgres:
+  #   image: postgres:15-alpine
+  #   container_name: pms_postgres
+  #   restart: unless-stopped
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     POSTGRES_DB: property_management
+  #     POSTGRES_USER: ${DB_USERNAME:-pms_user}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - pms_network
+
+  # Redis Container for Cache and Sessions
+  redis:
+    image: redis:7-alpine
+    container_name: pms_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - pms_network
+    command: redis-server /usr/local/etc/redis/redis.conf
+
+  # Nginx Web Server
+  nginx:
+    image: nginx:alpine
+    container_name: pms_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./:/var/www/html:ro
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - pms_network
+    depends_on:
+      - app
+
+  # Queue Worker Container
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: php-base
+    container_name: pms_queue
+    restart: unless-stopped
+    volumes:
+      - ./storage:/var/www/html/storage
+      - ./bootstrap/cache:/var/www/html/bootstrap/cache
+    networks:
+      - pms_network
+    depends_on:
+      - db
+      - redis
+    environment:
+      - APP_ENV=production
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - REDIS_HOST=redis
+      - QUEUE_CONNECTION=redis
+    command: php artisan queue:work --sleep=3 --tries=3 --timeout=90
+
+  # Scheduler Container (Laravel Cron)
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: php-base
+    container_name: pms_scheduler
+    restart: unless-stopped
+    volumes:
+      - ./storage:/var/www/html/storage
+      - ./bootstrap/cache:/var/www/html/bootstrap/cache
+    networks:
+      - pms_network
+    depends_on:
+      - db
+      - redis
+    environment:
+      - APP_ENV=production
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - REDIS_HOST=redis
+    command: sh -c "while true; do php artisan schedule:run; sleep 60; done"
+
+  # Mail Server (Mailhog for development)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: pms_mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - pms_network
+
+  # Monitoring with Prometheus (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: pms_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - pms_network
+    profiles:
+      - monitoring
+
+  # Grafana for monitoring dashboards (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: pms_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - pms_network
+    profiles:
+      - monitoring
+
+# Networks
+networks:
+  pms_network:
+    driver: bridge
+
+# Volumes
+volumes:
+  mysql_data:
+    driver: local
+  # postgres_data:
+  #   driver: local
+  redis_data:
+    driver: local
+  nginx_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local 

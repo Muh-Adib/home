@@ -1,0 +1,115 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Laravel specific
+/node_modules
+/public/hot
+/public/storage
+/storage/*.key
+/vendor
+.env
+.env.backup
+.env.production
+.phpunit.result.cache
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/storage/logs/*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Documentation
+README.md
+*.md
+docs/
+doc/
+
+# Test files
+/tests
+/phpunit.xml
+/.phpunit.cache
+
+# Build files
+/public/build
+/public/mix-manifest.json
+
+# Cache directories
+/bootstrap/cache/*.php
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+
+# Temporary files
+tmp/
+temp/
+.tmp
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Docker files (avoid recursive copying)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Audit and report files
+AUDIT_REPORT*.md
+*_SUMMARY.md
+*_REPORT.md
+*_DEBUG.md
+*_GUIDE.md
+*_STATUS.md
+debug-*.md
+test-*.html
+test-*.php
+
+# Temporary use files
+temp_use_statements.txt
+
+# Laravel Echo Server
+laravel-echo-server.json
+laravel-echo-server.lock
+
+# Package lock files (will be generated in container)
+package-lock.json
+composer.lock 
