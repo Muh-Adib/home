@@ -29,6 +29,7 @@ class Booking extends Model
         'guest_children',
         'relationship_type',
         'check_in',
+        'check_in_time',
         'check_out',
         'nights',
         'base_amount',
@@ -60,6 +61,7 @@ class Booking extends Model
     protected $casts = [
         'check_in' => 'date',
         'check_out' => 'date',
+        'check_in_time' => 'time',
         'base_amount' => 'decimal:2',
         'extra_bed_amount' => 'decimal:2',
         'service_amount' => 'decimal:2',

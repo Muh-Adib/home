@@ -13,8 +13,36 @@ use Inertia\Response;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
+/*
+*  BookingManagementController adalah controller untuk mengelola booking
+*  user yang dapat mengakses adalah super_admin dan admin
+*  super_admin dapat mengakses semua booking
+*  admin dapat mengakses semua booking
+*  property_owner dapat mengakses booking yang terkait dengan property mereka
+*  property_manager dapat mengakses booking yang terkait dengan property mereka
+*  front_desk dapat mengakses booking yang terkait dengan property mereka
+*  housekeeping dapat mengakses booking yang terkait dengan property mereka
+*  finance dapat mengakses booking yang terkait dengan property mereka
+*  guest tidak dapat mengakses controller ini
+* 
+* Fungsi dalam controller ini:
+* - menampilkan booking
+* - menampilkan detail booking
+* - menampilkan timeline booking
+* - menampilkan calendar booking
+* - menampilkan form untuk membuat booking manual
+* - menghapus booking
+* - mengubah status booking
+* - menghapus data booking (hanya dapat dihapus oleh super_admin)
+* 
+* 
+* 
+* 
+*/
 class BookingManagementController extends Controller
 {
+    
+    
     /**
      * Display admin booking calendar with timeline view
      */

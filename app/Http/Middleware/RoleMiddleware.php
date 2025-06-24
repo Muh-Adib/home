@@ -8,6 +8,16 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * RoleMiddleware - Middleware untuk mengontrol akses berdasarkan role pengguna
+  * 
+ * role yang ada:
+ * super_admin
+ * admin
+ * property_owner
+ * property_manager
+ * front_desk
+ * housekeeping
+ * finance
+ * guest
  * 
  * Middleware ini digunakan untuk:
  * 1. Memastikan pengguna sudah login

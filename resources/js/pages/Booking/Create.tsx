@@ -23,7 +23,9 @@ import {
     Bed,
     Clock,
     UserPlus,
-    User
+    User,
+    Percent,
+    Tag
 } from 'lucide-react';
 import { DateRange, getDefaultDateRange } from '@/components/ui/date-range';
 
@@ -72,6 +74,7 @@ interface GuestDetail {
 interface BookingFormData {
     check_in_date: string;
     check_out_date: string;
+    check_in_time: string;
     guest_count_male: number;
     guest_count_female: number;
     guest_count_children: number;
@@ -112,6 +115,25 @@ interface RateCalculation {
     };
 }
 
+interface BookingErrors {
+    check_in_date?: string;
+    check_out_date?: string;
+    check_in_time?: string;
+    guest_count_male?: string;
+    guest_count_female?: string;
+    guest_count_children?: string;
+    guest_name?: string;
+    guest_email?: string;
+    guest_phone?: string;
+    guest_country?: string;
+    guest_id_number?: string;
+    guest_gender?: string;
+    relationship_type?: string;
+    special_requests?: string;
+    dp_percentage?: string;
+    guests?: string;
+}
+
 export default function BookingCreate({ property, auth }: BookingCreateProps) {
     const page = usePage();
     const searchParams = new URLSearchParams(window.location.search);
@@ -144,6 +166,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         return {
             check_in_date: urlCheckIn || '',
             check_out_date: urlCheckOut || '',
+            check_in_time: '15:00',
             guest_count_male: 2,
             guest_count_female: 2,
             guest_count_children: 0,
@@ -160,7 +183,32 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         };
     };
 
-    const { data, setData, post, processing, errors } = useForm<BookingFormData>(getInitialFormData());
+    const { data, setData, post, processing, errors } = useForm<BookingFormData>(
+        getInitialFormData()
+    );
+
+    // Type assertion for errors to match BookingErrors interface
+    const bookingErrors = errors as BookingErrors;
+
+    // Calculate fake discount (20% markup from final rate)
+    const calculateDiscountPrice = () => {
+        if (!rateCalculation) return null;
+        
+        const finalRate = rateCalculation.total_amount;
+        const originalPrice = finalRate * 1.2; // 20% markup
+        const discountAmount = originalPrice - finalRate;
+        const discountPercent = Math.round((discountAmount / originalPrice) * 100);
+        
+        return {
+            original_price: originalPrice,
+            final_price: finalRate,
+            discount_amount: discountAmount,
+            discount_percent: discountPercent,
+            nights: rateCalculation.nights
+        };
+    };
+
+    const discountInfo = calculateDiscountPrice();
 
     // Calculate total guests whenever individual counts change
     useEffect(() => {
@@ -188,7 +236,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
     const updateGuest = (index: number, field: keyof GuestDetail, value: string) => {
         const newGuests = [...data.guests];
         newGuests[index] = { ...newGuests[index], [field]: value };
-        setData('guests', newGuests);
+        setData((prev) => ({
+            ...prev,
+            guests: newGuests
+        }));
         
         // Jika mengubah gender, sinkronkan dengan gender count
         if (field === 'gender') {
@@ -231,7 +282,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         const countField = genderType === 'children' ? 'guest_count_children' : 
                           genderType === 'male' ? 'guest_count_male' : 'guest_count_female';
         
-        setData(countField, newCount);
+        setData((prev) => ({
+            ...prev,
+            [countField]: newCount
+        }));
         
         // Tunggu sebentar agar state ter-update, lalu sinkronkan guest details
         setTimeout(() => {
@@ -323,7 +377,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
             }
         }
 
-        setData('guests', newGuests);
+        setData((prev) => ({
+            ...prev,
+            guests: newGuests
+        }));
     };
 
     // Fungsi untuk sinkronisasi sederhana (regenerate semua dari awal)
@@ -372,7 +429,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
             });
         }
 
-        setData('guests', guests);
+        setData((prev) => ({
+            ...prev,
+            guests: guests
+        }));
     };
 
     const calculateRate = useCallback(async () => {
@@ -414,7 +474,6 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
     }, [data.check_in_date, data.check_out_date, calculateRate]);
 
     const dpOptions = [
-
         { value: 50, label: '50% Down Payment', description: 'Pay 50% now, 50% later' },
         { value: 70, label: '70% Down Payment', description: 'Pay 70% now, 30% later' },
         { value: 100, label: '100% Full Payment', description: 'Pay 100% now' },
@@ -443,6 +502,19 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         'France',
         'Netherlands',
         'Other'
+    ];
+
+    const checkInTimeOptions = [
+        { value: '15:00', label: '15:00' },
+        { value: '16:00', label: '16:00' },
+        { value: '17:00', label: '17:00' },
+        { value: '18:00', label: '18:00' },
+        { value: '19:00', label: '19:00' },
+        { value: '20:00', label: '20:00' },
+        { value: '21:00', label: '21:00' },
+        { value: '22:00', label: '22:00' },
+        { value: '23:00', label: '23:00' },
+        { value: '00:00', label: '00:00' },
     ];
 
     const relationshipOptions = [
@@ -525,20 +597,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                 </CardHeader>
                                 <CardContent>
                                     <form onSubmit={handleSubmit} className="space-y-6">
-                                        {/* Global Error Display */}
-                                        {Object.keys(errors).length > 0 && (
-                                            <Alert variant="destructive">
-                                                <AlertCircle className="h-4 w-4" />
-                                                <AlertDescription>
-                                                    <div className="font-medium mb-2">Please fix the following errors:</div>
-                                                    <ul className="text-sm space-y-1">
-                                                        {Object.entries(errors).map(([field, message]) => (
-                                                            <li key={field}>• {message}</li>
-                                                        ))}
-                                                    </ul>
-                                                </AlertDescription>
-                                            </Alert>
-                                        )}
+                                        
 
                                         {/* Dates */}
                                         <div>
@@ -562,13 +621,32 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                 showNights={true}
                                                 startLabel="Check-in"
                                                 endLabel="Check-out"
-                                                className={errors.check_in_date || errors.check_out_date ? 'border-red-500' : ''}
+                                                propertySlug={property.slug}
+                                                className={bookingErrors.check_in_date || bookingErrors.check_out_date ? 'border-red-500' : ''}
                                             />
-                                            {(errors.check_in_date || errors.check_out_date) && (
+                                            {(bookingErrors.check_in_date || bookingErrors.check_out_date) && (
                                                 <p className="text-sm text-red-600 mt-1">
-                                                    {errors.check_in_date || errors.check_out_date}
+                                                    {bookingErrors.check_in_date || bookingErrors.check_out_date}
                                                 </p>
                                             )}
+                                        </div>
+                                        <div>
+                                            <Label>Check-in Time</Label>
+                                            <Select value={data.check_in_time} onValueChange={(value: any) => setData((prev) => ({
+                                                ...prev,
+                                                check_in_time: value
+                                            }))}>
+                                                <SelectTrigger className={bookingErrors.check_in_time ? 'border-red-500' : ''}>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {checkInTimeOptions.map((option) => (
+                                                        <SelectItem key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
                                         </div>
 
                                         {/* Availability Status */}
@@ -621,10 +699,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                         min="0"
                                                         value={data.guest_count_male}
                                                         onChange={(e) => handleGenderCountChange('male', parseInt(e.target.value) || 0)}
-                                                        className={errors.guest_count_male ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_count_male ? 'border-red-500' : ''}
                                                     />
-                                                    {errors.guest_count_male && (
-                                                        <p className="text-sm text-red-600 mt-1">{errors.guest_count_male}</p>
+                                                    {bookingErrors.guest_count_male && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_count_male}</p>
                                                     )}
                                                 </div>
                                                 <div>
@@ -635,10 +713,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                         min="0"
                                                         value={data.guest_count_female}
                                                         onChange={(e) => handleGenderCountChange('female', parseInt(e.target.value) || 0)}
-                                                        className={errors.guest_count_female ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_count_female ? 'border-red-500' : ''}
                                                     />
-                                                    {errors.guest_count_female && (
-                                                        <p className="text-sm text-red-600 mt-1">{errors.guest_count_female}</p>
+                                                    {bookingErrors.guest_count_female && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_count_female}</p>
                                                     )}
                                                 </div>
                                                 <div>
@@ -649,10 +727,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                         min="0"
                                                         value={data.guest_count_children}
                                                         onChange={(e) => handleGenderCountChange('children', parseInt(e.target.value) || 0)}
-                                                        className={errors.guest_count_children ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_count_children ? 'border-red-500' : ''}
                                                     />
-                                                    {errors.guest_count_children && (
-                                                        <p className="text-sm text-red-600 mt-1">{errors.guest_count_children}</p>
+                                                    {bookingErrors.guest_count_children && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_count_children}</p>
                                                     )}
                                                 </div>
                                             </div>
@@ -719,17 +797,20 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                         type="text"
                                                         value={data.guest_name}
                                                         onChange={(e) => {
-                                                            setData('guest_name', e.target.value);
+                                                            setData((prev) => ({
+                                                                ...prev,
+                                                                guest_name: e.target.value
+                                                            }));
                                                             // Update primary guest in guests array
                                                             if (data.guests.length > 0) {
                                                                 updateGuest(0, 'name', e.target.value);
                                                             }
                                                         }}
-                                                        className={errors.guest_name ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_name ? 'border-red-500' : ''}
                                                         placeholder="Enter full name"
                                                     />
-                                                    {errors.guest_name && (
-                                                        <p className="text-sm text-red-600 mt-1">{errors.guest_name}</p>
+                                                    {bookingErrors.guest_name && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_name}</p>
                                                     )}
                                                 </div>
                                                 <div>
@@ -737,14 +818,17 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                     <Select 
                                                         value={data.guest_gender} 
                                                         onValueChange={(value: 'male' | 'female') => {
-                                                            setData('guest_gender', value);
+                                                            setData((prev) => ({
+                                                                ...prev,
+                                                                guest_gender: value
+                                                            }));
                                                             // Update primary guest in guests array
                                                             if (data.guests.length > 0) {
                                                                 updateGuest(0, 'gender', value);
                                                             }
                                                         }}
                                                     >
-                                                        <SelectTrigger className={errors.guest_gender ? 'border-red-500' : ''}>
+                                                        <SelectTrigger className={bookingErrors.guest_gender ? 'border-red-500' : ''}>
                                                             <SelectValue placeholder="Select gender" />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -752,8 +836,8 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                             <SelectItem value="female">Female</SelectItem>
                                                         </SelectContent>
                                                     </Select>
-                                                    {errors.guest_gender && (
-                                                        <p className="text-sm text-red-600 mt-1">{errors.guest_gender}</p>
+                                                    {bookingErrors.guest_gender && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_gender}</p>
                                                     )}
                                                 </div>
                                                 <div>
@@ -763,17 +847,20 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                         type="tel"
                                                         value={data.guest_phone}
                                                         onChange={(e) => {
-                                                            setData('guest_phone', e.target.value);
+                                                            setData((prev) => ({
+                                                                ...prev,
+                                                                guest_phone: e.target.value
+                                                            }));
                                                             // Update primary guest in guests array
                                                             if (data.guests.length > 0) {
                                                                 updateGuest(0, 'phone', e.target.value);
                                                             }
                                                         }}
-                                                        className={errors.guest_phone ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_phone ? 'border-red-500' : ''}
                                                         placeholder="+62xxx"
                                                     />
-                                                    {errors.guest_phone && (
-                                                        <p className="text-sm text-red-600 mt-1">{errors.guest_phone}</p>
+                                                    {bookingErrors.guest_phone && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_phone}</p>
                                                     )}
                                                 </div>
                                             </div>
@@ -785,23 +872,29 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                         type="email"
                                                         value={data.guest_email}
                                                         onChange={(e) => {
-                                                            setData('guest_email', e.target.value);
+                                                            setData((prev) => ({
+                                                                ...prev,
+                                                                guest_email: e.target.value
+                                                            }));
                                                             // Update primary guest in guests array
                                                             if (data.guests.length > 0) {
                                                                 updateGuest(0, 'email', e.target.value);
                                                             }
                                                         }}
-                                                        className={errors.guest_email ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_email ? 'border-red-500' : ''}
                                                         placeholder="your@email.com"
                                                     />
-                                                    {errors.guest_email && (
-                                                        <p className="text-sm text-red-600 mt-1">{errors.guest_email}</p>
+                                                    {bookingErrors.guest_email && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_email}</p>
                                                     )}
                                                 </div>
                                                 <div>
                                                     <Label htmlFor="guest_country">Country *</Label>
-                                                    <Select value={data.guest_country} onValueChange={(value: any) => setData('guest_country', value)}>
-                                                        <SelectTrigger className={errors.guest_country ? 'border-red-500' : ''}>
+                                                    <Select value={data.guest_country} onValueChange={(value: any) => setData((prev) => ({
+                                                        ...prev,
+                                                        guest_country: value
+                                                    }))}>
+                                                        <SelectTrigger className={bookingErrors.guest_country ? 'border-red-500' : ''}>
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -812,8 +905,8 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                             ))}
                                                         </SelectContent>
                                                     </Select>
-                                                    {errors.guest_country && (
-                                                        <p className="text-sm text-red-600 mt-1">{errors.guest_country}</p>
+                                                    {bookingErrors.guest_country && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_country}</p>
                                                     )}
                                                 </div>
                                             </div>
@@ -822,8 +915,11 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                         {/* Group Relationship */}
                                         <div>
                                             <Label htmlFor="relationship_type">Group Relationship *</Label>
-                                            <Select value={data.relationship_type} onValueChange={(value: any) => setData('relationship_type', value)}>
-                                                <SelectTrigger className={errors.relationship_type ? 'border-red-500' : ''}>
+                                            <Select value={data.relationship_type} onValueChange={(value: any) => setData((prev) => ({
+                                                ...prev,
+                                                relationship_type: value
+                                            }))}>
+                                                <SelectTrigger className={bookingErrors.relationship_type ? 'border-red-500' : ''}>
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -834,8 +930,8 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                     ))}
                                                 </SelectContent>
                                             </Select>
-                                            {errors.relationship_type && (
-                                                <p className="text-sm text-red-600 mt-1">{errors.relationship_type}</p>
+                                            {bookingErrors.relationship_type && (
+                                                <p className="text-sm text-red-600 mt-1">{bookingErrors.relationship_type}</p>
                                             )}
                                         </div>
 
@@ -967,7 +1063,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                                 ? 'border-blue-500 bg-blue-50'
                                                                 : 'border-gray-200 hover:border-gray-300'
                                                         }`}
-                                                        onClick={() => setData('dp_percentage', option.value)}
+                                                        onClick={() => setData((prev) => ({
+                                                            ...prev,
+                                                            dp_percentage: option.value
+                                                        }))}
                                                     >
                                                         <div className="flex items-center justify-between">
                                                             <div>
@@ -980,7 +1079,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                                     name="dp_percentage"
                                                                     value={option.value}
                                                                     checked={data.dp_percentage === option.value}
-                                                                    onChange={() => setData('dp_percentage', option.value)}
+                                                                    onChange={() => setData((prev) => ({
+                                                                        ...prev,
+                                                                        dp_percentage: option.value
+                                                                    }))}
                                                                     className="text-blue-600"
                                                                 />
                                                             </div>
@@ -996,7 +1098,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                             <Textarea
                                                 id="special_requests"
                                                 value={data.special_requests}
-                                                onChange={(e) => setData('special_requests', e.target.value)}
+                                                onChange={(e) => setData((prev) => ({
+                                                    ...prev,
+                                                    special_requests: e.target.value
+                                                }))}
                                                 rows={3}
                                                 placeholder="Any special requests or requirements..."
                                             />
@@ -1056,46 +1161,102 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
 
                                 {/* Rate Calculation */}
                                 {rateCalculation && (
-                                    <Card>
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2">
-                                                <Calculator className="h-5 w-5" />
-                                                Rate Breakdown
-                                            </CardTitle>
+                                    <Card className="shadow-xl border-0">
+                                        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                                            <div className="flex items-center justify-between">
+                                                <CardTitle className="flex items-center gap-2">
+                                                    <Tag className="h-5 w-5" />
+                                                    Total Price
+                                                </CardTitle>
+                                                {discountInfo && (
+                                                    <Badge variant="destructive" className="text-sm">
+                                                        <Percent className="h-3 w-3 mr-1" />
+                                                        {discountInfo.discount_percent}% OFF
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            {/* Show discount prices */}
+                                            {discountInfo && (
+                                                <div className="space-y-1 mt-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-lg text-gray-400 line-through">
+                                                            Rp {discountInfo.original_price.toLocaleString()}
+                                                        </span>
+                                                        <Badge variant="destructive" className="text-xs">
+                                                            -{discountInfo.discount_percent}%
+                                                        </Badge>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-3xl font-bold text-red-600">
+                                                            Rp {discountInfo.final_price.toLocaleString()}
+                                                        </span>
+                                                        <span className="text-gray-600 ml-1">total</span>
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        (Rp {Math.round(discountInfo.final_price / discountInfo.nights).toLocaleString()}/night)
+                                                    </div>
+                                                </div>
+                                            )}
                                         </CardHeader>
                                         <CardContent>
-                                            <div className="space-y-3">
-                                                <div className="flex justify-between">
-                                                    <span>Base rate ({rateCalculation.nights} nights)</span>
-                                                    <span>Rp {rateCalculation.base_amount.toLocaleString()}</span>
-                                                </div>
-                                                
-                                                {rateCalculation.weekend_premium > 0 && (
-                                                    <div className="flex justify-between">
-                                                        <span>Weekend premium</span>
-                                                        <span>Rp {rateCalculation.weekend_premium.toLocaleString()}</span>
+                                            <div className="space-y-4">
+                                                <div className="space-y-3 text-sm">
+                                                    {/* Discount Price Display */}
+                                                    {discountInfo && (
+                                                        <>
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-gray-600">Original Price</span>
+                                                                <span className="text-gray-400 line-through">
+                                                                    Rp {discountInfo.original_price.toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-gray-600">Discount</span>
+                                                                    <Badge variant="destructive" className="text-xs">
+                                                                        {discountInfo.discount_percent}% OFF
+                                                                    </Badge>
+                                                                </div>
+                                                                <span className="text-red-600 font-medium">
+                                                                    -Rp {discountInfo.discount_amount.toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                        </>
+                                                    )}
+
+                                                    {/* Additional Fees */}
+                                                    {rateCalculation.extra_bed_amount > 0 && (
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-gray-600">Extra beds ({extraBeds})</span>
+                                                            <span className="font-medium">
+                                                                Included
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-600">Cleaning fee</span>
+                                                        <span className="font-medium">Included</span>
                                                     </div>
-                                                )}
-                                                
-                                                {rateCalculation.extra_bed_amount > 0 && (
-                                                    <div className="flex justify-between">
-                                                        <span>Extra beds ({extraBeds})</span>
-                                                        <span>Rp {rateCalculation.extra_bed_amount.toLocaleString()}</span>
+
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-600">Taxes & fees</span>
+                                                        <span className="font-medium">Included</span>
                                                     </div>
-                                                )}
-                                                
-                                                {rateCalculation.cleaning_fee > 0 && (
-                                                    <div className="flex justify-between">
-                                                        <span>Cleaning fee</span>
-                                                        <span>Rp {rateCalculation.cleaning_fee.toLocaleString()}</span>
+                                                    
+                                                    <Separator />
+                                                    
+                                                    {/* Final Total */}
+                                                    <div className="flex justify-between items-center text-lg font-bold">
+                                                        <span>Total</span>
+                                                        <span className="text-blue-600">
+                                                            Rp {rateCalculation.total_amount.toLocaleString()}
+                                                        </span>
                                                     </div>
-                                                )}
-                                                
-                                                <Separator />
-                                                
-                                                <div className="flex justify-between font-semibold text-lg">
-                                                    <span>Total</span>
-                                                    <span>Rp {rateCalculation.total_amount.toLocaleString()}</span>
+
+                                                    <div className="text-center text-xs text-green-600 bg-green-50 p-2 rounded">
+                                                        ✓ All-inclusive price, no hidden fees
+                                                    </div>
                                                 </div>
                                                 
                                                 <Separator />

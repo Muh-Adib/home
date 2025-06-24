@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, usePage, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Map } from '@/components/ui/map';
+import { DateRange } from '@/components/ui/date-range';
 import { 
     Building2, 
     MapPin, 
@@ -130,13 +133,44 @@ interface PropertyShowProps {
 export default function PropertyShow({ property, similarProperties, searchParams }: PropertyShowProps) {
     const page = usePage();
     const urlParams = new URLSearchParams(window.location.search);
-    const checkIn = urlParams.get('check_in') || searchParams?.check_in || '';
-    const checkOut = urlParams.get('check_out') || searchParams?.check_out || '';
+    const checkIn = urlParams.get('check_in') || searchParams?.check_in || new Date().toISOString().split('T')[0];
+    const checkOut = urlParams.get('check_out') || searchParams?.check_out || new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0];
     const guests = parseInt(urlParams.get('guests') || searchParams?.guests?.toString() || '2');
 
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [showAllAmenities, setShowAllAmenities] = useState(false);
     const [showMap, setShowMap] = useState(false);
+    const [selectedCheckIn, setSelectedCheckIn] = useState(checkIn);
+    const [selectedCheckOut, setSelectedCheckOut] = useState(checkOut);
+    const [selectedGuests, setSelectedGuests] = useState(guests);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+
+    // Update URL when dates change
+    const updateSearchParams = (newCheckIn: string, newCheckOut: string, newGuests: number) => {
+        const params = new URLSearchParams(window.location.search);
+        params.set('check_in', newCheckIn);
+        params.set('check_out', newCheckOut);
+        params.set('guests', newGuests.toString());
+        
+        // Use router.visit to update URL and fetch new data
+        router.visit(`${window.location.pathname}?${params.toString()}`, {
+            preserveState: true,
+            replace: true,
+        });
+    };
+
+    // Handle date range change
+    const handleDateChange = (startDate: string, endDate: string) => {
+        setSelectedCheckIn(startDate);
+        setSelectedCheckOut(endDate);
+        updateSearchParams(startDate, endDate, selectedGuests);
+    };
+
+    // Handle guest count change
+    const handleGuestChange = (newGuests: number) => {
+        setSelectedGuests(newGuests);
+        updateSearchParams(selectedCheckIn, selectedCheckOut, newGuests);
+    };
 
     const images = property.media.filter(media => media.media_type === 'image') || [];
     const videos = property.media.filter(media => media.media_type === 'video') || [];
@@ -491,30 +525,18 @@ export default function PropertyShow({ property, similarProperties, searchParams
                                             </p>
                                         </div>
                                     </div>
-                                    <Separator />
+                                    
                                 </>
                             )}
 
-                            {/* Host */}
-                            <div>
-                                <h2 className="text-xl font-semibold mb-4">Hosted by {property.owner.name}</h2>
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                                        <Users className="h-6 w-6 text-blue-600" />
-                                    </div>
-                                    <div>
-                                        <p className="font-medium">{property.owner.name}</p>
-                                        <p className="text-sm text-gray-600">Property Owner</p>
-                                    </div>
-                                </div>
-                            </div>
+                           
                         </div>
 
                         {/* Booking Card */}
                         <div className="lg:col-span-1">
                             <div className="sticky top-24">
                                 <Card className="shadow-xl border-0">
-                                    <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 pb-2 pt-4">
+                                    <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 pb-2 pt-4 rounded-t-lg">
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 {/* Show discount prices if dates are selected */}
@@ -558,8 +580,16 @@ export default function PropertyShow({ property, similarProperties, searchParams
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="text-sm text-gray-600">
                                                         <div className="flex items-center gap-2">
-                                                            <Calendar className="h-4 w-4" />
-                                                            <span className="font-medium">Selected Dates</span>
+                                                        <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setShowDatePicker(!showDatePicker)}
+                                                >
+                                                    <Calendar className="h-4 w-4 mr-2" />
+                                                    {showDatePicker ? 'Hide Picker' : 'Change Dates'}
+                                                </Button>
+                                                
+                                                            
                                                         </div>
                                                     </div>
                                                     <Badge variant="outline" className="text-xs">
@@ -597,9 +627,74 @@ export default function PropertyShow({ property, similarProperties, searchParams
                                                 ))}
                                             </div>
                                         )}
+
+                                        {/* Date Range Picker */}
+                                        {showDatePicker && (
+                                                <div className="space-y-4 p-4 bg-gray-50 rounded-lg border">
+                                                    <div>
+                                                        <Label className="text-sm font-medium">Check-in & Check-out Dates</Label>
+                                                        <DateRange
+                                                            startDate={selectedCheckIn}
+                                                            endDate={selectedCheckOut}
+                                                            onDateChange={handleDateChange}
+                                                            minDate={new Date().toISOString().split('T')[0]}
+                                                            minStayWeekday={property.min_stay_weekday}
+                                                            minStayWeekend={property.min_stay_weekend}
+                                                            minStayPeak={property.min_stay_peak}
+                                                            showMinStayWarning={true}
+                                                            size="md"
+                                                            showNights={true}
+                                                            startLabel="Check-in"
+                                                            endLabel="Check-out"
+                                                        />
+                                                    </div>
+                                                    
+                                                    <div>
+                                                        <Label htmlFor="guests" className="text-sm font-medium">Number of Guests</Label>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => selectedGuests > 1 && handleGuestChange(selectedGuests - 1)}
+                                                                disabled={selectedGuests <= 1}
+                                                            >
+                                                                -
+                                                            </Button>
+                                                            <Input
+                                                                id="guests"
+                                                                type="number"
+                                                                min="1"
+                                                                max={property.capacity_max}
+                                                                value={selectedGuests}
+                                                                onChange={(e) => {
+                                                                    const value = parseInt(e.target.value) || 1;
+                                                                    if (value >= 1 && value <= property.capacity_max) {
+                                                                        handleGuestChange(value);
+                                                                    }
+                                                                }}
+                                                                className="w-20 text-center"
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => selectedGuests < property.capacity_max && handleGuestChange(selectedGuests + 1)}
+                                                                disabled={selectedGuests >= property.capacity_max}
+                                                            >
+                                                                +
+                                                            </Button>
+                                                            <span className="text-sm text-gray-600 ml-2">
+                                                                (Max {property.capacity_max})
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                     </CardHeader>
                                     
                                     <CardContent className="space-y-6">
+                                        
                                         {/* Simple Rate Summary */}
                                         {checkIn && checkOut && property.current_rate_calculation ? (
                                             <div className="space-y-4">
@@ -705,7 +800,7 @@ export default function PropertyShow({ property, similarProperties, searchParams
 
                                         {/* Booking Actions */}
                                         <div className="space-y-3">
-                                            <Link href={`/properties/${property.slug}/book${checkIn && checkOut ? `?check_in=${checkIn}&check_out=${checkOut}&guests=${guests}` : ''}`}>
+                                            <Link href={`/properties/${property.slug}/book${selectedCheckIn && selectedCheckOut ? `?check_in=${selectedCheckIn}&check_out=${selectedCheckOut}&guests=${selectedGuests}` : ''}`}>
                                                 <Button className="w-full bg-blue-600 hover:bg-blue-700" size="lg">
                                                     <Calendar className="h-4 w-4 mr-2" />
                                                     Book Now
@@ -758,7 +853,7 @@ export default function PropertyShow({ property, similarProperties, searchParams
                                                     </span>
                                                     <span className="text-xs text-gray-600">/night</span>
                                                 </div>
-                                                <Link href={`/properties/${similarProperty.slug}`}>
+                                                <Link href={`/properties/${similarProperty.slug}?check_in=${selectedCheckIn}&check_out=${selectedCheckOut}&guests=${selectedGuests}`}>
                                                     <Button size="sm" variant="outline">
                                                         View
                                                     </Button>

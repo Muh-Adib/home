@@ -62,14 +62,14 @@ Route::get('/', function () {
 // Public Property Routes
 Route::controller(PropertyController::class)->group(function () {
     Route::get('/properties', 'index')->name('properties.index');
-    Route::get('/properties/{property}', 'show')->name('properties.show');
+    Route::get('/properties/{property:slug}', 'show')->name('properties.show');
 });
 
 // Public Booking Routes
 Route::controller(BookingController::class)->group(function () {
     Route::get('/properties/{property:slug}/book', 'create')->name('bookings.create');
     Route::post('/properties/{property:slug}/book', 'store')->name('bookings.store');
-    Route::get('/booking/{booking}/confirmation', 'confirmation')->name('bookings.confirmation');
+    Route::get('/booking/{booking:booking_number}/confirmation', 'confirmation')->name('bookings.confirmation');
 });
 
 // Public Payment Routes
@@ -80,8 +80,10 @@ Route::controller(PaymentController::class)->group(function () {
 
 // Public API Routes
 Route::prefix('api')->name('api.')->group(function () {
-    Route::get('properties/{property}/calculate-rate', [PropertyController::class, 'calculateRate'])
+    Route::get('properties/{property:slug}/calculate-rate', [PropertyController::class, 'calculateRate'])
         ->name('properties.calculate-rate');
+    Route::get('properties/{property:slug}/availability', [BookingController::class, 'getAvailability'])
+        ->name('properties.availability');
 });
 
 /*

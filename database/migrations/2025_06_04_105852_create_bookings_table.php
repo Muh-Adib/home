@@ -27,6 +27,7 @@ return new class extends Migration
             $table->integer('guest_children')->default(0);
             $table->enum('relationship_type', ['keluarga', 'teman', 'kolega', 'pasangan', 'campuran']);
             $table->date('check_in');
+            $table->time('check_in_time');
             $table->date('check_out');
             $table->integer('nights'); // Will be calculated in application
             $table->decimal('base_amount', 12, 2); // Property base cost

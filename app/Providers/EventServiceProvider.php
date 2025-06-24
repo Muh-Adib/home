@@ -25,6 +25,8 @@ class EventServiceProvider extends ServiceProvider
         BookingCreated::class => [
             SendBookingNotification::class,
         ],
+
+        
     ];
 
     /**

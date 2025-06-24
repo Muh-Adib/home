@@ -96,6 +96,8 @@ class RegisteredUserController extends Controller
             // Send password via email
             \Mail::to($user->email)->send(new \App\Mail\WelcomeGuest($user, $password));
 
+            // Send password via Whatsapp
+
             event(new Registered($user));
 
             Auth::login($user);
@@ -113,11 +115,11 @@ class RegisteredUserController extends Controller
             });
 
             // Store the booking (fixed method name)
-            $bookingController->storeEnhanced($bookingRequest, $property);
+            $bookingController->store($bookingRequest, $property);
 
             \DB::commit();
 
-            return to_route('verification.notice')
+            return to_route('bookings.confirmation', $booking->booking_number)
                 ->with('message', 'Account created and booking submitted successfully! Please check your email for login credentials and verify your email address.');
 
         } catch (\Exception $e) {

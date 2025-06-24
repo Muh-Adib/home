@@ -13,7 +13,20 @@ class BookingService
 {
     /**
      * Buat booking baru dengan seluruh proses bisnis.
+     * proses ini akan membuat booking, menambahkan detail tamu, menambahkan workflow, dan dispatch event.
+     * admin dapat membuat booking dari halaman admin.
+     * admin tidak dapat membuat booking dari halaman website.
+     * guest dapat membuat booking dari halaman website.
+     * guest tidak dapat membuat booking dari halaman admin.
      *
+     * jika guest membuat booking dari halaman website, maka booking akan dibuat dengan status pending_verification.
+     * jika admin membuat booking dari halaman admin, maka booking akan dibuat dengan status verified.
+     * jika admin memverifikasi booking, maka booking akan dibuat dengan status pending_payment.
+     * jika admin membatalkan booking, maka booking akan dibuat dengan status cancelled.
+     * jika admin mengubah status booking, maka booking akan dibuat dengan status pending_verification.
+     * jika admin mengubah status booking, maka booking akan dibuat dengan status pending_payment.
+     * jika admin mengubah status booking, maka booking akan dibuat dengan status paid.
+     * 
      * @param Property $property
      * @param array $data Validated request data
      * @param object|null $user User yang membuat (boleh null untuk guest)
@@ -68,6 +81,7 @@ class BookingService
                 'guest_children'     => $data['guest_count_children'],
                 'relationship_type'  => $data['relationship_type'],
                 'check_in'           => $data['check_in_date'],
+                'check_in_time'      => $data['check_in_time'],
                 'check_out'          => $data['check_out_date'],
                 'nights'             => $nights,
                 'base_amount'        => $rateCalculation['base_amount'],
@@ -100,6 +114,18 @@ class BookingService
                         ]);
                     }
                 }
+            }
+
+            //jika booking dibuat oleh admin, maka status booking akan diubah menjadi verified
+            if ($user->role === 'superadmin' || $user->role === 'admin') {
+                $booking->booking_status = 'verified';
+                $booking->save();
+                $booking->workflow()->create([
+                    'step'         => 'verified',
+                    'status'       => 'completed',
+                    'processed_at' => now(),
+                    'notes'        => 'Booking dibuat oleh admin',
+                ]);
             }
 
             // Workflow awal

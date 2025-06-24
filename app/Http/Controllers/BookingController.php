@@ -15,23 +15,31 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
 use App\Services\BookingService;
+use App\Services\PaymentService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 /**
- * BookingController handles all booking-related operations
+ * BookingController adalah controller untuk mengelola booking guest
+ * user yang dapat mengakses adalah guest
+ * guest dapat membuat booking
+ * guest dapat melihat booking yang mereka buat
  * 
- * This controller manages:
- * - Public booking creation and confirmation (Guest-facing)
- * - Admin booking management (Admin-facing)
- * - Booking workflow operations (verify, check-in, check-out, cancel)
- * - Calendar view for visual booking management
+ * fungsi dalam controller ini:
+ * - membuat booking
+ * - melihat booking yang mereka buat
+ * - 
  */
 class BookingController extends Controller
 {
     private BookingService $bookingService;
+    private PaymentService $paymentService;
 
-    public function __construct(BookingService $bookingService)
+    public function __construct(BookingService $bookingService, PaymentService $paymentService)
     {
         $this->bookingService = $bookingService;
+        $this->paymentService = $paymentService;
     }
 
     // ========================================
@@ -71,6 +79,7 @@ class BookingController extends Controller
         $validated = $request->validate([
             'check_in_date' => 'required|date|after_or_equal:today',
             'check_out_date' => 'required|date|after:check_in_date',
+            'check_in_time' => 'required|date_format:H:i',
             'guest_count_male' => 'required|integer|min:0',
             'guest_count_female' => 'required|integer|min:0',
             'guest_count_children' => 'required|integer|min:0',
@@ -118,11 +127,16 @@ class BookingController extends Controller
      * @param string $bookingNumber
      * @return Response
      */
-    public function confirmation($bookingNumber): Response
+    public function confirmation(Request $request, string $bookingNumber): Response
     {
         $booking = Booking::where('booking_number', $bookingNumber)
-            ->with(['property', 'workflow'])
+            ->with(['property', 'guests', 'payments'])
             ->firstOrFail();
+
+        // Check if user has access to this booking
+        if (!Auth::check() || (Auth::user()->id !== $booking->user_id && !Auth::user()->isAdmin())) {
+            abort(403, 'Unauthorized access to booking');
+        }
 
         return Inertia::render('Booking/Confirmation', [
             'booking' => $booking,
@@ -627,5 +641,133 @@ class BookingController extends Controller
     public function destroy(Booking $booking)
     {
         abort(404, 'Method not implemented');
+    }
+
+    /**
+     * Get property availability data for calendar
+     */
+    public function getAvailability(Request $request, string $slug): JsonResponse
+    {
+        try {
+            $property = Property::where('slug', $slug)->firstOrFail();
+            
+            // Get date range for checking (default to next 3 months)
+            $startDate = $request->get('start_date', now()->format('Y-m-d'));
+            $endDate = $request->get('end_date', now()->addMonths(3)->format('Y-m-d'));
+            
+            // Get all confirmed and checked-in bookings that overlap with the date range
+            $bookedDates = $this->getBookedDatesForProperty($property->id, $startDate, $endDate);
+            
+            return response()->json([
+                'success' => true,
+                'bookedDates' => $bookedDates,
+                'message' => 'Availability data retrieved successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to get availability data: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve availability data',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get booked dates for a property within a date range
+     */
+    private function getBookedDatesForProperty(int $propertyId, string $startDate, string $endDate): array
+    {
+        $bookings = Booking::where('property_id', $propertyId)
+            ->whereIn('booking_status', ['confirmed', 'checked_in'])  // Only confirmed and checked-in bookings
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('check_in_date', [$startDate, $endDate])
+                      ->orWhereBetween('check_out_date', [$startDate, $endDate])
+                      ->orWhere(function ($q) use ($startDate, $endDate) {
+                          $q->where('check_in_date', '<=', $startDate)
+                            ->where('check_out_date', '>=', $endDate);
+                      });
+            })
+            ->get(['check_in_date', 'check_out_date']);
+
+        $bookedDates = [];
+        
+        foreach ($bookings as $booking) {
+            $checkIn = Carbon::parse($booking->check_in_date);
+            $checkOut = Carbon::parse($booking->check_out_date);
+            
+            // Add all dates from check-in to check-out (excluding check-out date)
+            $currentDate = $checkIn->copy();
+            while ($currentDate->lt($checkOut)) {
+                $bookedDates[] = $currentDate->format('Y-m-d');
+                $currentDate->addDay();
+            }
+        }
+        
+        return array_unique($bookedDates);
+    }
+
+    /**
+     * Calculate rate for booking
+     */
+    public function calculateRate(Request $request, string $slug): JsonResponse
+    {
+        try {
+            $property = Property::where('slug', $slug)->firstOrFail();
+            
+            $request->validate([
+                'check_in' => 'required|date|after_or_equal:today',
+                'check_out' => 'required|date|after:check_in',
+                'guest_count' => 'required|integer|min:1|max:' . $property->capacity_max,
+            ]);
+
+            $checkIn = Carbon::parse($request->check_in);
+            $checkOut = Carbon::parse($request->check_out);
+            $guestCount = $request->integer('guest_count');
+
+            // Check availability first
+            $bookedDates = $this->getBookedDatesForProperty(
+                $property->id, 
+                $checkIn->format('Y-m-d'), 
+                $checkOut->format('Y-m-d')
+            );
+
+            // Check if any of the requested dates are booked
+            $requestedDates = [];
+            $currentDate = $checkIn->copy();
+            while ($currentDate->lt($checkOut)) {
+                $requestedDates[] = $currentDate->format('Y-m-d');
+                $currentDate->addDay();
+            }
+
+            $conflictDates = array_intersect($requestedDates, $bookedDates);
+            if (!empty($conflictDates)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Selected dates are not available',
+                    'conflictDates' => $conflictDates
+                ], 422);
+            }
+
+            // Calculate rate using booking service
+            $calculation = $this->bookingService->calculateRate($property, $checkIn, $checkOut, $guestCount);
+
+            return response()->json([
+                'success' => true,
+                'calculation' => $calculation,
+                'message' => 'Rate calculated successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Rate calculation failed: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to calculate rate',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server error'
+            ], 500);
+        }
     }
 }
