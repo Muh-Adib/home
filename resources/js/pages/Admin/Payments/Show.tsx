@@ -55,6 +55,10 @@ interface PaymentDetail {
     verified_at?: string;
     verified_by?: number;
     created_at: string;
+    // Sender account fields
+    sender_account_name?: string;
+    sender_account_number?: string;
+    sender_bank_name?: string;
     booking: {
         id: number;
         booking_number: string;
@@ -67,6 +71,7 @@ interface PaymentDetail {
         total_amount: number;
         dp_amount: number;
         remaining_amount: number;
+        paid_amount: number;
         special_requests?: string;
         property: {
             id: number;
@@ -254,6 +259,56 @@ export default function PaymentShow() {
                                     )}
                                 </CardContent>
                             </Card>
+
+                            {/* Sender Account Information */}
+                            {(payment.sender_account_name || payment.sender_account_number || payment.sender_bank_name) && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <User className="h-5 w-5" />
+                                            Sender Account Information
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-3">
+                                                {payment.sender_account_name && (
+                                                    <div>
+                                                        <span className="text-sm font-medium text-gray-500">Account Holder Name</span>
+                                                        <div className="font-medium text-gray-900">{payment.sender_account_name}</div>
+                                                    </div>
+                                                )}
+                                                {payment.sender_account_number && (
+                                                    <div>
+                                                        <span className="text-sm font-medium text-gray-500">Account Number</span>
+                                                        <div className="font-mono text-gray-900 bg-gray-50 px-2 py-1 rounded">
+                                                            {payment.sender_account_number}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="space-y-3">
+                                                {payment.sender_bank_name && (
+                                                    <div>
+                                                        <span className="text-sm font-medium text-gray-500">Bank/E-wallet</span>
+                                                        <div className="font-medium text-gray-900">{payment.sender_bank_name}</div>
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <span className="text-sm font-medium text-gray-500">Transfer To</span>
+                                                    <div className="text-sm text-gray-600">
+                                                        <div className="font-medium">{payment.payment_method.account_name}</div>
+                                                        <div className="font-mono bg-gray-50 px-2 py-1 rounded mt-1">
+                                                            {payment.payment_method.account_number}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500 mt-1">{payment.payment_method.bank_name}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
 
                             {/* Payment Proof */}
                             {payment.attachment_path && (
@@ -451,12 +506,16 @@ export default function PaymentShow() {
                                                 <span className="font-medium">{formatCurrency(payment.booking.total_amount)}</span>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-sm text-gray-600">DP Amount:</span>
-                                                <span className="font-medium text-blue-600">{formatCurrency(payment.booking.dp_amount)}</span>
+                                                <span className="text-sm text-gray-600">Paid Amount:</span>
+                                                <span className="font-medium text-green-600">{formatCurrency(payment.booking.paid_amount)}</span>
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="text-sm text-gray-600">Remaining:</span>
-                                                <span className="font-medium">{formatCurrency(payment.booking.remaining_amount)}</span>
+                                                <span className="font-medium text-orange-600">{formatCurrency(payment.booking.remaining_amount)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-sm text-gray-600">DP Amount:</span>
+                                                <span className="font-medium text-blue-600">{formatCurrency(payment.booking.dp_amount)}</span>
                                             </div>
                                         </div>
 

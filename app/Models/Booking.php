@@ -61,7 +61,6 @@ class Booking extends Model
     protected $casts = [
         'check_in' => 'date',
         'check_out' => 'date',
-        'check_in_time' => 'time',
         'base_amount' => 'decimal:2',
         'extra_bed_amount' => 'decimal:2',
         'service_amount' => 'decimal:2',
@@ -235,6 +234,48 @@ class Booking extends Model
                 'no_show' => 'red',
                 default => 'gray'
             }
+        );
+    }
+
+    // Accessor and Mutator for check_in_time
+    protected function checkInTime(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value) {
+                if (!$value) return null;
+                
+                // Handle different time formats
+                try {
+                    if (strlen($value) === 5) { // Already in H:i format
+                        return $value;
+                    } elseif (strlen($value) === 8) { // H:i:s format
+                        return \Carbon\Carbon::createFromFormat('H:i:s', $value)->format('H:i');
+                    } else {
+                        // Try to parse as Carbon time
+                        return \Carbon\Carbon::parse($value)->format('H:i');
+                    }
+                } catch (\Exception $e) {
+                    return $value; // Return original value if parsing fails
+                }
+            },
+            set: function ($value) {
+                if (!$value) return null;
+                
+                try {
+                    // Ensure we store in H:i:s format for database
+                    if (strlen($value) === 5) { // H:i format
+                        return $value . ':00';
+                    } elseif (strlen($value) === 8) { // Already H:i:s
+                        return $value;
+                    } else {
+                        // Try to parse and format
+                        return \Carbon\Carbon::parse($value)->format('H:i:s');
+                    }
+                } catch (\Exception $e) {
+                    // Fallback - assume it's already in correct format
+                    return $value;
+                }
+            },
         );
     }
 

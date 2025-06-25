@@ -1,35 +1,27 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Switch } from '@/components/ui/switch';
-import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
     Upload, 
-    X, 
-    Image, 
-    Video, 
     Star, 
-    Edit, 
     Trash2, 
-    Eye,
-    Move,
-    Download,
-    RotateCcw,
-    Maximize2,
+    Move, 
+    Edit, 
+    Image as ImageIcon,
+    Video,
     AlertCircle,
-    CheckCircle2,
-    ImageIcon,
-    Edit2,
-    GripVertical
+    CheckCircle,
+    Info,
+    Save,
+    Eye
 } from 'lucide-react';
-import { useDropzone } from 'react-dropzone';
-import { router } from '@inertiajs/react';
-import { route } from 'ziggy-js';
+import FileUpload, { UploadedFile, FileUploadConfig, FileMetadata } from '@/components/ui/file-upload';
 
 interface MediaItem {
     id: number;
@@ -40,233 +32,251 @@ interface MediaItem {
     mime_type: string;
     media_type: 'image' | 'video';
     alt_text?: string;
-    description?: string; // changed from caption
+    description?: string;
+    title?: string;
+    category?: string;
     sort_order: number;
     display_order: number;
     is_featured: boolean;
+    is_cover: boolean;
     url: string;
     thumbnail_url?: string;
 }
 
 interface MediaUploadProps {
     propertySlug: string;
-    initialMedia?: MediaItem[];
+    initialMedia: MediaItem[];
     maxFiles?: number;
-    maxFileSize?: number; // in bytes
+    maxFileSize?: number;
     acceptedFileTypes?: string[];
-    onMediaChange?: (media: MediaItem[]) => void;
 }
 
-export default function MediaUpload({ 
-    propertySlug, 
-    initialMedia = [], 
-    maxFiles = 20,
-    maxFileSize = 20 * 1024 * 1024, // 20MB
-    acceptedFileTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'video/mp4', 'video/mov', 'video/avi'],
-    onMediaChange
+export default function MediaUpload({
+    propertySlug,
+    initialMedia,
+    maxFiles = 50,
+    maxFileSize = 50 * 1024 * 1024, // 50MB
+    acceptedFileTypes = [
+        'image/jpeg',
+        'image/png', 
+        'image/jpg', 
+        'image/gif',
+        'image/webp',
+        'video/mp4', 
+        'video/mov', 
+        'video/avi',
+        'video/webm'
+    ]
 }: MediaUploadProps) {
     const [media, setMedia] = useState<MediaItem[]>(initialMedia);
-    const [uploading, setUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
-    const [showEditDialog, setShowEditDialog] = useState(false);
-    const [showPreviewDialog, setShowPreviewDialog] = useState(false);
-    const [draggedItem, setDraggedItem] = useState<MediaItem | null>(null);
-    const [editForm, setEditForm] = useState({
-        alt_text: '',
-        description: '',
-        is_featured: false,
-    });
+    const [isUploading, setIsUploading] = useState(false);
+    const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
+    const [editingMedia, setEditingMedia] = useState<{[key: number]: boolean}>({});
 
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const onDrop = useCallback(async (acceptedFiles: File[]) => {
-        if (uploading || acceptedFiles.length === 0) return;
-        if (media.length + acceptedFiles.length > maxFiles) {
-            alert(`You can only upload a maximum of ${maxFiles} files.`);
-            return;
-        }
-
-        setUploading(true);
-        setUploadProgress(0);
-
-        const formData = new FormData();
-        acceptedFiles.forEach((file, index) => {
-            formData.append(`files[${index}]`, file);
-        });
-        formData.append('type', acceptedFiles[0].type.startsWith('video/') ? 'video' : 'image');
-
-        // Use native fetch for file upload to ensure proper FormData handling
-        fetch(route('admin.media.upload', propertySlug), {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                'X-Requested-With': 'XMLHttpRequest',
-            }
-        })
-        .then(async (response) => {
-            if (response.ok) {
-                // Success - refresh the page to show new media
-                window.location.reload();
-            } else {
-                const errorData = await response.text();
-                console.error('Upload error:', errorData);
-                alert('Upload failed. Please try again.');
-            }
-        })
-        .catch((error) => {
-            console.error('Upload error:', error);
-            alert('Upload failed. Please try again.');
-        })
-        .finally(() => {
-            setUploading(false);
-            setUploadProgress(0);
-        });
-    }, [media, maxFiles, propertySlug, onMediaChange]);
-
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({
-        onDrop,
-        accept: acceptedFileTypes.reduce((acc, type) => ({ ...acc, [type]: [] }), {}),
-        maxSize: maxFileSize,
-        disabled: uploading,
-    });
-
-    const handleEditMedia = (mediaItem: MediaItem) => {
-        setSelectedMedia(mediaItem);
-        setEditForm({
-            alt_text: mediaItem.alt_text || '',
-            description: mediaItem.description || '',
-            is_featured: mediaItem.is_featured,
-        });
-        setShowEditDialog(true);
+    // FileUpload configuration for media
+    const uploadConfig: FileUploadConfig = {
+        maxFiles,
+        maxFileSize,
+        acceptedFileTypes,
+        acceptedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.avi', '.webm'],
+        showPreview: true,
+        allowMultiple: true,
+        showProgress: true,
+        dragAndDrop: true,
+        showFileDetails: true,
+        showMetadataForm: true,
+        required: false
     };
 
-    const handleSaveEdit = async () => {
-        if (!selectedMedia) return;
+    // Show notification
+    const showNotification = (type: 'success' | 'error', message: string) => {
+        setNotification({ type, message });
+        setTimeout(() => setNotification(null), 5000);
+    };
 
+    // Handle file upload
+    const handleUpload = async (files: UploadedFile[]) => {
+        setIsUploading(true);
+        
         try {
-            const response = await fetch(`/admin/media/${selectedMedia.id}`, {
-                method: 'PATCH',
+            const formData = new FormData();
+            
+            // Add files to FormData - sesuai dengan MediaController expectation
+            files.forEach((uploadedFile, index) => {
+                formData.append(`files[]`, uploadedFile.file);
+            });
+
+            // Upload files via MediaController
+            const response = await fetch(`/admin/properties/${propertySlug}/media/upload`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showNotification('success', `${files.length} file(s) uploaded successfully!`);
+                
+                // Refresh media list
+                router.reload({
+                    only: ['property'],
+                    onSuccess: (page: any) => {
+                        if (page.props.property?.media) {
+                            setMedia(page.props.property.media);
+                        }
+                    }
+                });
+            } else {
+                throw new Error(result.message || 'Upload failed');
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            showNotification('error', error instanceof Error ? error.message : 'Upload failed');
+            throw error;
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    // Update media metadata - sesuai dengan PropertyMedia model fields
+    const updateMedia = async (mediaId: number, metadata: Partial<MediaItem>) => {
+        try {
+            const response = await fetch(`/admin/media/${mediaId}`, {
+                method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify(editForm),
+                body: JSON.stringify({
+                    alt_text: metadata.alt_text,
+                    description: metadata.description,
+                    title: metadata.title,
+                    is_featured: metadata.is_featured || false,
+                    display_order: metadata.display_order
+                }),
             });
 
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    const updatedMedia = media.map(item =>
-                        item.id === selectedMedia.id ? { ...item, ...editForm } : item
-                    );
-                    setMedia(updatedMedia);
-                    onMediaChange?.(updatedMedia);
-                    setShowEditDialog(false);
-                }
+            const result = await response.json();
+
+            if (result.success) {
+                showNotification('success', 'Media updated successfully!');
+                
+                // Update local state
+                setMedia(prevMedia => 
+                    prevMedia.map(item => 
+                        item.id === mediaId 
+                            ? { ...item, ...metadata }
+                            : item
+                    )
+                );
+                
+                // Stop editing mode
+                setEditingMedia(prev => ({ ...prev, [mediaId]: false }));
+            } else {
+                throw new Error(result.message || 'Update failed');
             }
         } catch (error) {
             console.error('Update error:', error);
-            alert('Update failed. Please try again.');
+            showNotification('error', error instanceof Error ? error.message : 'Update failed');
         }
     };
 
-    const handleDeleteMedia = async (mediaItem: MediaItem) => {
-        if (!confirm(`Are you sure you want to delete "${mediaItem.file_name}"?`)) {
-            return;
-        }
-
+    // Set featured media
+    const setFeatured = async (mediaId: number) => {
         try {
-            const response = await fetch(`/admin/media/${mediaItem.id}`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-
-            if (response.ok) {
-                const updatedMedia = media.filter(item => item.id !== mediaItem.id);
-                setMedia(updatedMedia);
-                onMediaChange?.(updatedMedia);
-            }
-        } catch (error) {
-            console.error('Delete error:', error);
-            alert('Delete failed. Please try again.');
-        }
-    };
-
-    const handleSetFeatured = async (mediaItem: MediaItem) => {
-        try {
-            const response = await fetch(`/admin/media/${mediaItem.id}/featured`, {
-                method: 'PATCH',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-
-            if (response.ok) {
-                const updatedMedia = media.map(item => ({
-                    ...item,
-                    is_featured: item.id === mediaItem.id
-                }));
-                setMedia(updatedMedia);
-                onMediaChange?.(updatedMedia);
-            }
-        } catch (error) {
-            console.error('Set featured error:', error);
-            alert('Failed to set featured image. Please try again.');
-        }
-    };
-
-    const handleDragStart = (e: React.DragEvent, mediaItem: MediaItem) => {
-        setDraggedItem(mediaItem);
-        e.dataTransfer.effectAllowed = 'move';
-    };
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-    };
-
-    const handleDrop = async (e: React.DragEvent, targetItem: MediaItem) => {
-        e.preventDefault();
-        if (!draggedItem || draggedItem.id === targetItem.id) return;
-
-        const newMedia = [...media];
-        const draggedIndex = newMedia.findIndex(item => item.id === draggedItem.id);
-        const targetIndex = newMedia.findIndex(item => item.id === targetItem.id);
-
-        // Reorder array
-        newMedia.splice(draggedIndex, 1);
-        newMedia.splice(targetIndex, 0, draggedItem);
-
-        // Update sort orders
-        newMedia.forEach((item, index) => {
-            item.sort_order = index + 1;
-            item.display_order = index + 1;
-        });
-
-        setMedia(newMedia);
-        setDraggedItem(null);
-
-        // Save order to server
-        try {
-            await fetch(`/admin/properties/${propertySlug}/media/reorder`, {
+            const response = await fetch(`/admin/media/${mediaId}/featured`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({
-                    media_ids: newMedia.map(item => item.id)
-                }),
             });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showNotification('success', 'Featured image updated!');
+                
+                // Update local state
+                setMedia(prevMedia => 
+                    prevMedia.map(item => ({
+                        ...item,
+                        is_featured: item.id === mediaId
+                    }))
+                );
+            } else {
+                throw new Error(result.message || 'Failed to set featured');
+            }
         } catch (error) {
-            console.error('Reorder error:', error);
+            console.error('Set featured error:', error);
+            showNotification('error', error instanceof Error ? error.message : 'Failed to set featured');
         }
     };
 
+    // Delete media
+    const deleteMedia = async (mediaId: number) => {
+        if (!confirm('Are you sure you want to delete this media? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/admin/media/${mediaId}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showNotification('success', 'Media deleted successfully!');
+                
+                // Remove from local state
+                setMedia(prevMedia => prevMedia.filter(item => item.id !== mediaId));
+            } else {
+                throw new Error(result.message || 'Delete failed');
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            showNotification('error', error instanceof Error ? error.message : 'Delete failed');
+        }
+    };
+
+    // Reorder media
+    const reorderMedia = async (mediaIds: number[]) => {
+        try {
+            const response = await fetch(`/admin/properties/${propertySlug}/media/reorder`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ media_ids: mediaIds }),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showNotification('success', 'Media reordered successfully!');
+            } else {
+                throw new Error(result.message || 'Reorder failed');
+            }
+        } catch (error) {
+            console.error('Reorder error:', error);
+            showNotification('error', error instanceof Error ? error.message : 'Reorder failed');
+        }
+    };
+
+    // Format file size
     const formatFileSize = (bytes: number) => {
         if (bytes === 0) return '0 Bytes';
         const k = 1024;
@@ -275,313 +285,323 @@ export default function MediaUpload({
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
+    // Get media type icon
     const getMediaIcon = (mediaType: string) => {
-        return mediaType === 'video' ? <Video className="h-4 w-4" /> : <Image className="h-4 w-4" />;
+        return mediaType === 'image' ? <ImageIcon className="w-5 h-5" /> : <Video className="w-5 h-5" />;
+    };
+
+    // Toggle edit mode
+    const toggleEditMode = (mediaId: number) => {
+        setEditingMedia(prev => ({
+            ...prev,
+            [mediaId]: !prev[mediaId]
+        }));
+    };
+
+    // Handle metadata update
+    const handleMetadataUpdate = (mediaId: number, field: keyof MediaItem, value: any) => {
+        setMedia(prevMedia => 
+            prevMedia.map(item => 
+                item.id === mediaId 
+                    ? { ...item, [field]: value }
+                    : item
+            )
+        );
     };
 
     return (
         <div className="space-y-6">
-            {/* Upload Area */}
+            {/* Notifications */}
+            {notification && (
+                <Alert className={notification.type === 'error' ? 'border-red-500 bg-red-50' : 'border-green-500 bg-green-50'}>
+                    {notification.type === 'error' ? (
+                        <AlertCircle className="h-4 w-4" />
+                    ) : (
+                        <CheckCircle className="h-4 w-4" />
+                    )}
+                    <AlertDescription>{notification.message}</AlertDescription>
+                </Alert>
+            )}
+
+            {/* File Upload Section */}
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Upload className="h-5 w-5" />
-                        Upload Media
+                        Upload New Media
                     </CardTitle>
-                    <CardDescription>
-                        Upload images and videos for your property. Maximum {maxFiles} files, up to {formatFileSize(maxFileSize)} each.
-                    </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div
-                        {...getRootProps()}
-                        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                            isDragActive 
-                                ? 'border-blue-500 bg-blue-50' 
-                                : uploading 
-                                ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
-                                : 'border-gray-300 hover:border-gray-400'
-                        }`}
-                    >
-                        <input {...getInputProps()} ref={fileInputRef} />
-                        
-                        {uploading ? (
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-center">
-                                    <Upload className="h-8 w-8 text-blue-500 animate-pulse" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium">Uploading files...</p>
-                                    <Progress value={uploadProgress} className="mt-2" />
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-center">
-                                    <Upload className="h-8 w-8 text-gray-400" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium">
-                                        {isDragActive ? 'Drop files here' : 'Drag & drop files here, or click to select'}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        Supports: JPG, PNG, GIF, MP4, MOV, AVI
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {media.length > 0 && (
-                        <div className="mt-4 text-sm text-muted-foreground">
-                            {media.length} of {maxFiles} files uploaded
-                        </div>
-                    )}
+                    <FileUpload
+                        config={uploadConfig}
+                        onFilesChange={() => {}} // We handle files in onUpload
+                        onUpload={handleUpload}
+                        label="Property Media Files"
+                        description="Upload high-quality images and videos to showcase your property. Supported formats: JPG, PNG, GIF, WebP, MP4, MOV, AVI, WebM"
+                    />
                 </CardContent>
             </Card>
 
-            {/* Media Gallery */}
+            {/* Existing Media Management */}
             {media.length > 0 && (
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <ImageIcon className="h-5 w-5" />
-                            Media Gallery
+                        <CardTitle className="flex items-center justify-between">
+                            <span>Existing Media ({media.length})</span>
+                            <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                    Images: {media.filter(m => m.media_type === 'image').length}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                    Videos: {media.filter(m => m.media_type === 'video').length}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                    Featured: {media.filter(m => m.is_featured).length}
+                                </Badge>
+                            </div>
                         </CardTitle>
-                        <CardDescription>
-                            Drag and drop to reorder. Click to edit details.
-                        </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {media
-                                .sort((a, b) => (a.display_order || a.sort_order) - (b.display_order || b.sort_order))
-                                .map((mediaItem) => (
-                                <div
-                                    key={mediaItem.id}
-                                    className="relative group border rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow"
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, mediaItem)}
-                                    onDragOver={handleDragOver}
-                                    onDrop={(e) => handleDrop(e, mediaItem)}
-                                >
+                                .sort((a, b) => a.display_order - b.display_order)
+                                .map((item) => (
+                                <div key={item.id} className="border rounded-lg p-3 bg-white shadow-sm">
                                     {/* Media Preview */}
-                                    <div className="aspect-square relative">
-                                        {mediaItem.media_type === 'image' ? (
+                                    <div className="aspect-video bg-gray-100 rounded mb-3 overflow-hidden relative group">
+                                        {item.media_type === 'image' ? (
                                             <img
-                                                src={mediaItem.thumbnail_url || mediaItem.url}
-                                                alt={mediaItem.alt_text || mediaItem.file_name}
+                                                src={item.thumbnail_url || item.url}
+                                                alt={item.alt_text || item.file_name}
                                                 className="w-full h-full object-cover"
                                             />
                                         ) : (
-                                            <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                                                <Video className="h-8 w-8 text-gray-400" />
+                                            <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                                                <Video className="w-8 h-8 text-gray-400" />
+                                                <span className="ml-2 text-sm text-gray-600">Video</span>
                                             </div>
                                         )}
                                         
-                                        {/* Featured Badge */}
-                                        {mediaItem.is_featured && (
-                                            <div className="absolute top-2 left-2">
-                                                <Badge variant="default" className="bg-yellow-500">
-                                                    <Star className="h-3 w-3 mr-1" />
+                                        {/* Overlay buttons */}
+                                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={() => window.open(item.url, '_blank')}
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={() => setFeatured(item.id)}
+                                                    className={item.is_featured ? 'bg-yellow-500 text-white' : ''}
+                                                >
+                                                    <Star className="w-4 h-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={() => toggleEditMode(item.id)}
+                                                    className={editingMedia[item.id] ? 'bg-blue-500 text-white' : ''}
+                                                >
+                                                    <Edit className="w-4 h-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={() => deleteMedia(item.id)}
+                                                    className="bg-red-500 text-white hover:bg-red-600"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Featured badge */}
+                                        {item.is_featured && (
+                                            <div className="absolute top-2 right-2">
+                                                <Badge className="bg-yellow-500 text-white">
+                                                    <Star className="w-3 h-3 mr-1" />
                                                     Featured
                                                 </Badge>
                                             </div>
                                         )}
-
-                                        {/* Media Type Badge */}
-                                        <div className="absolute top-2 right-2">
-                                            <Badge variant="secondary" className="text-xs">
-                                                {getMediaIcon(mediaItem.media_type)}
-                                            </Badge>
-                                        </div>
-
-                                        {/* Hover Overlay */}
-                                        <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    onClick={() => {
-                                                        setSelectedMedia(mediaItem);
-                                                        setShowPreviewDialog(true);
-                                                    }}
-                                                >
-                                                    <Eye className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    onClick={() => handleEditMedia(mediaItem)}
-                                                >
-                                                    <Edit className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="destructive"
-                                                    onClick={() => handleDeleteMedia(mediaItem)}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
                                     </div>
 
                                     {/* Media Info */}
-                                    <div className="p-3">
-                                        <p className="text-sm font-medium truncate" title={mediaItem.file_name}>
-                                            {mediaItem.file_name}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {formatFileSize(mediaItem.file_size)}
-                                        </p>
-                                                                        {mediaItem.description && (
-                                    <p className="text-xs text-muted-foreground mt-1 truncate" title={mediaItem.description}>
-                                        {mediaItem.description}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {/* Quick Actions */}
-                                    <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <div className="flex gap-1">
-                                            {!mediaItem.is_featured && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => handleSetFeatured(mediaItem)}
-                                                    className="h-6 px-2"
-                                                >
-                                                    <Star className="h-3 w-3" />
-                                                </Button>
-                                            )}
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-6 px-2 cursor-move"
-                                            >
-                                                <Move className="h-3 w-3" />
-                                            </Button>
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="font-medium truncate">{item.file_name}</span>
+                                            <div className="flex items-center gap-1 text-gray-500">
+                                                {getMediaIcon(item.media_type)}
+                                                <span>{formatFileSize(item.file_size)}</span>
+                                            </div>
                                         </div>
+                                        
+                                        {/* Metadata Form - sesuai dengan PropertyMedia model */}
+                                        {editingMedia[item.id] ? (
+                                            <div className="space-y-3 p-3 bg-gray-50 rounded border">
+                                                {/* Title */}
+                                                <div>
+                                                    <Label className="text-xs text-gray-600">Title</Label>
+                                                    <Input
+                                                        size={1}
+                                                        value={item.title || ''}
+                                                        onChange={(e) => handleMetadataUpdate(item.id, 'title', e.target.value)}
+                                                        placeholder="Media title..."
+                                                        className="text-xs mt-1"
+                                                    />
+                                                </div>
+                                                
+                                                {/* Alt Text */}
+                                                <div>
+                                                    <Label className="text-xs text-gray-600">Alt Text</Label>
+                                                    <Input
+                                                        size={1}
+                                                        value={item.alt_text || ''}
+                                                        onChange={(e) => handleMetadataUpdate(item.id, 'alt_text', e.target.value)}
+                                                        placeholder="Describe this image for accessibility..."
+                                                        className="text-xs mt-1"
+                                                    />
+                                                </div>
+                                                
+                                                {/* Description */}
+                                                <div>
+                                                    <Label className="text-xs text-gray-600">Description</Label>
+                                                    <Textarea
+                                                        rows={2}
+                                                        value={item.description || ''}
+                                                        onChange={(e) => handleMetadataUpdate(item.id, 'description', e.target.value)}
+                                                        placeholder="Detailed description..."
+                                                        className="text-xs mt-1"
+                                                    />
+                                                </div>
+                                                
+                                                {/* Category */}
+                                                <div>
+                                                    <Label className="text-xs text-gray-600">Category</Label>
+                                                    <Input
+                                                        size={1}
+                                                        value={item.category || ''}
+                                                        onChange={(e) => handleMetadataUpdate(item.id, 'category', e.target.value)}
+                                                        placeholder="e.g., bedroom, bathroom, kitchen..."
+                                                        className="text-xs mt-1"
+                                                    />
+                                                </div>
+                                                
+                                                {/* Display Order */}
+                                                <div>
+                                                    <Label className="text-xs text-gray-600">Display Order</Label>
+                                                    <Input
+                                                        type="number"
+                                                        size={1}
+                                                        value={item.display_order}
+                                                        onChange={(e) => handleMetadataUpdate(item.id, 'display_order', parseInt(e.target.value) || 0)}
+                                                        className="text-xs mt-1"
+                                                    />
+                                                </div>
+                                                
+                                                {/* Actions */}
+                                                <div className="flex gap-2 pt-2">
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => updateMedia(item.id, item)}
+                                                        className="flex-1"
+                                                    >
+                                                        <Save className="w-3 h-3 mr-1" />
+                                                        Save
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => toggleEditMode(item.id)}
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            /* View Mode */
+                                            <div className="space-y-2 text-xs text-gray-600">
+                                                {item.title && (
+                                                    <div>
+                                                        <span className="font-medium">Title:</span> {item.title}
+                                                    </div>
+                                                )}
+                                                {item.alt_text && (
+                                                    <div>
+                                                        <span className="font-medium">Alt:</span> {item.alt_text}
+                                                    </div>
+                                                )}
+                                                {item.description && (
+                                                    <div>
+                                                        <span className="font-medium">Description:</span> {item.description}
+                                                    </div>
+                                                )}
+                                                {item.category && (
+                                                    <div>
+                                                        <span className="font-medium">Category:</span> {item.category}
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <span className="font-medium">Order:</span> {item.display_order}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                        
+                        {/* Bulk Actions */}
+                        <div className="mt-6 pt-4 border-t">
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm text-gray-600">
+                                    {media.length} media files • {media.filter(m => m.is_featured).length} featured
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => router.get(`/admin/properties/${propertySlug}/media/optimize`)}
+                                    >
+                                        Optimize Images
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => router.get(`/admin/properties/${propertySlug}/media/thumbnails`)}
+                                    >
+                                        Generate Thumbnails
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
             )}
 
-            {/* Edit Media Dialog */}
-            <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Edit Media Details</DialogTitle>
-                        <DialogDescription>
-                            Update information for {selectedMedia?.file_name}
-                        </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="space-y-4">
-                        <div>
-                            <Label htmlFor="alt_text">Alt Text</Label>
-                            <Input
-                                id="alt_text"
-                                placeholder="Describe this image..."
-                                value={editForm.alt_text}
-                                onChange={(e) => setEditForm(prev => ({ ...prev, alt_text: e.target.value }))}
-                            />
-                        </div>
-                        
-                        <div>
-                                                                <Label htmlFor="description">Description</Label>
-                                    <Textarea
-                                        id="description"
-                                        placeholder="Add a description..."
-                                        value={editForm.description}
-                                        onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                            />
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                            <Switch
-                                id="is_featured"
-                                checked={editForm.is_featured}
-                                onCheckedChange={(checked) => setEditForm(prev => ({ ...prev, is_featured: checked }))}
-                            />
-                            <Label htmlFor="is_featured">Set as featured image</Label>
-                        </div>
-                    </div>
-                    
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-                            Cancel
-                        </Button>
-                        <Button onClick={handleSaveEdit}>
-                            Save Changes
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Preview Dialog */}
-            <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
-                <DialogContent className="max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle>{selectedMedia?.file_name}</DialogTitle>
-                    </DialogHeader>
-                    
-                    {selectedMedia && (
-                        <div className="space-y-4">
-                            <div className="flex justify-center">
-                                {selectedMedia.media_type === 'image' ? (
-                                    <img
-                                        src={selectedMedia.url}
-                                        alt={selectedMedia.alt_text || selectedMedia.file_name}
-                                        className="max-w-full max-h-96 object-contain"
-                                    />
-                                ) : (
-                                    <video
-                                        src={selectedMedia.url}
-                                        controls
-                                        className="max-w-full max-h-96"
-                                    />
-                                )}
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <strong>File Size:</strong> {formatFileSize(selectedMedia.file_size)}
-                                </div>
-                                <div>
-                                    <strong>Type:</strong> {selectedMedia.mime_type}
-                                </div>
-                                {selectedMedia.alt_text && (
-                                    <div className="col-span-2">
-                                        <strong>Alt Text:</strong> {selectedMedia.alt_text}
-                                    </div>
-                                )}
-                                {selectedMedia.description && (
-                                    <div className="col-span-2">
-                                        <strong>Description:</strong> {selectedMedia.description}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                    
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowPreviewDialog(false)}>
-                            Close
-                        </Button>
-                        <Button asChild>
-                            <a href={selectedMedia?.url} download target="_blank" rel="noopener noreferrer">
-                                <Download className="h-4 w-4 mr-2" />
-                                Download
-                            </a>
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {/* Tips */}
+            <Card className="bg-blue-50 border-blue-200">
+                <CardHeader>
+                    <CardTitle className="text-sm flex items-center gap-2 text-blue-800">
+                        <Info className="h-4 w-4" />
+                        Media Management Tips
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-blue-700 space-y-2">
+                    <p>• <strong>Featured Image:</strong> Set one main image that will be used as the property cover</p>
+                    <p>• <strong>Alt Text:</strong> Add descriptive text for better accessibility and SEO</p>
+                    <p>• <strong>Title:</strong> Give each media file a descriptive title</p>
+                    <p>• <strong>Category:</strong> Organize media by room or area (bedroom, kitchen, exterior, etc.)</p>
+                    <p>• <strong>Display Order:</strong> Control the order in which media appears to guests</p>
+                    <p>• <strong>Description:</strong> Add detailed descriptions for better context</p>
+                    <p>• <strong>File Size:</strong> Keep images under 5MB and videos under 50MB for better performance</p>
+                    <p>• <strong>Quality:</strong> Use high-resolution images (minimum 1200px width) for best results</p>
+                </CardContent>
+            </Card>
         </div>
     );
 } 

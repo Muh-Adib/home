@@ -18,73 +18,74 @@ import {
     BarChart3,
     Shield,
     Wrench,
-    ListChecks
+    ListChecks,
+    LucideIcon
 } from 'lucide-react';
 import AppLogo from './app-logo';
 import { NotificationBell } from './notifications/notification-bell';
 import { useTranslation } from 'react-i18next';
 
 // Helper function untuk role-based navigation
-const getNavItemsForRole = (userRole: User['role']): (NavItem & { key: NavKey })[] => {
+const getNavItemsForRole = (userRole: User['role']): (NavItem & { title: string, href: string, icon: LucideIcon })[] => {
     const baseItems = [
-        { key: 'dashboard', title: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
+        { title: 'dashboard', href: '/dashboard', icon: LayoutGrid },
     ];
 
-    const roleBasedItems: Record<User['role'], (NavItem & { key: NavKey })[]> = {
+    const roleBasedItems: Record<User['role'], (NavItem & { title: string, href: string, icon: LucideIcon })[]> = {
         super_admin: [
             ...baseItems,
-            { key: 'properties', href: '/admin/properties', icon: Building2 },
-            { key: 'bookings', href: '/admin/bookings', icon: Calendar },
-            { key: 'payments', href: '/admin/payments', icon: CreditCard },
-            { key: 'users', href: '/admin/users', icon: Users },
-            { key: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
-            { key: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
-            { key: 'reports', href: '/admin/reports', icon: BarChart3 },
-            { key: 'amenities', href: '/admin/amenities', icon: Package },
-            { key: 'settings', href: '/admin/settings', icon: Settings },
+            { title: 'properties', href: '/admin/properties', icon: Building2 },
+            { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+            { title: 'payments', href: '/admin/payments', icon: CreditCard },
+            { title: 'users', href: '/admin/users', icon: Users },
+            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+            { title: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
+            { title: 'reports', href: '/admin/reports', icon: BarChart3 },
+            { title: 'amenities', href: '/admin/amenities', icon: Package },
+            { title: 'settings', href: '/admin/settings', icon: Settings },
         ],
         property_owner: [
             ...baseItems,
-            { key: 'my_properties', href: '/admin/properties', icon: Building2 },
-            { key: 'bookings', href: '/admin/bookings', icon: Calendar },
-            { key: 'payments', href: '/admin/payments', icon: CreditCard },
-            { key: 'reports', href: '/admin/reports', icon: BarChart3 },
+            { title: 'my_properties', href: '/admin/properties', icon: Building2 },
+            { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+            { title: 'payments', href: '/admin/payments', icon: CreditCard },
+            { title: 'reports', href: '/admin/reports', icon: BarChart3 },
         ],
         property_manager: [
             ...baseItems,
-            { key: 'properties', href: '/admin/properties', icon: Building2 },
-            { key: 'bookings', href: '/admin/bookings', icon: Calendar },
-            { key: 'payments', href: '/admin/payments', icon: CreditCard },
-            { key: 'reports', href: '/admin/reports', icon: BarChart3 },
+            { title: 'properties', href: '/admin/properties', icon: Building2 },
+            { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+            { title: 'payments', href: '/admin/payments', icon: CreditCard },
+            { title: 'reports', href: '/admin/reports', icon: BarChart3 },
         ],
         front_desk: [
             ...baseItems,
-            { key: 'bookings', href: '/admin/bookings', icon: Calendar },
-            { key: 'check_in_out', href: '/admin/checkin', icon: Shield },
+            { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+            { title: 'check_in_out', href: '/admin/checkin', icon: Shield },
         ],
         finance: [
             ...baseItems,
-            { key: 'payments', href: '/admin/payments', icon: CreditCard },
-            { key: 'financial_reports', href: '/admin/reports/financial', icon: DollarSign },
-            { key: 'expenses', href: '/admin/expenses', icon: FileText },
+            { title: 'payments', href: '/admin/payments', icon: CreditCard },
+            { title: 'financial_reports', href: '/admin/reports/financial', icon: DollarSign },
+            { title: 'expenses', href: '/admin/expenses', icon: FileText },
         ],
         housekeeping: [
             ...baseItems,
-            { key: 'room_status', href: '/admin/rooms', icon: Wrench },
-            { key: 'maintenance', href: '/admin/maintenance', icon: Settings },
+            { title: 'room_status', href: '/admin/rooms', icon: Wrench },
+            { title: 'maintenance', href: '/admin/maintenance', icon: Settings },
         ],
         guest: [
-            { key: 'browse_properties', href: '/properties', icon: Home },
-            { key: 'my_bookings', href: '/my-bookings', icon: Calendar },
+            { title: 'browse_properties', href: '/properties', icon: Home },
+            { title: 'my_bookings', href: '/my-bookings', icon: Calendar },
         ],
     };
 
     return roleBasedItems[userRole] || baseItems;
 };
 
-const footerNavItems: (NavItem & { key: 'documentation' | 'support' })[] = [
-    { key: 'documentation', href: '/help', icon: FileText },
-    { key: 'support', href: '/support', icon: Settings },
+const footerNavItems: (NavItem & { title: string, href: string, icon: LucideIcon })[] = [
+    { title: 'documentation', href: '/help', icon: FileText },
+    { title: 'support', href: '/support', icon: Settings },
 ];
 
 export function AppSidebar() {

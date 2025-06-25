@@ -84,6 +84,8 @@ Route::prefix('api')->name('api.')->group(function () {
         ->name('properties.calculate-rate');
     Route::get('properties/{property:slug}/availability', [BookingController::class, 'getAvailability'])
         ->name('properties.availability');
+    Route::post('check-email', [BookingController::class, 'checkEmailExists'])
+        ->name('check-email');
 });
 
 /*
@@ -214,27 +216,24 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
 Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('dashboard', [DashboardController::class, 'admin'])->name('dashboard');
     
-    // Booking Management
-    Route::controller(BookingController::class)->group(function () {
-        Route::get('bookings', 'admin_index')->name('bookings.index');
+    // Booking Management - Consolidated under BookingManagementController
+    Route::controller(App\Http\Controllers\Admin\BookingManagementController::class)->group(function () {
+        // Main booking routes
+        Route::get('bookings', 'index')->name('bookings.index');
         Route::get('bookings/calendar', 'calendar')->name('bookings.calendar');
-        Route::get('bookings/{booking:booking_number}', 'admin_show')->name('bookings.show');
+        Route::get('bookings/{booking:booking_number}', 'show')->name('bookings.show');
         Route::patch('bookings/{booking:booking_number}/verify', 'verify')->name('bookings.verify');
         Route::patch('bookings/{booking:booking_number}/cancel', 'cancel')->name('bookings.cancel');
         Route::patch('bookings/{booking:booking_number}/checkin', 'checkin')->name('bookings.checkin');
         Route::patch('bookings/{booking:booking_number}/checkout', 'checkout')->name('bookings.checkout');
+        
+        // Booking management routes
+        Route::get('booking-management', 'index')->name('booking-management.index');
+        Route::get('booking-management/calendar', 'calendar')->name('booking-management.calendar');
+        Route::get('booking-management/create', 'create')->name('booking-management.create');
+        Route::post('booking-management', 'store')->name('booking-management.store');
+        Route::get('booking-management/{booking:booking_number}', 'show')->name('booking-management.show');
     });
-    
-    // Admin Booking Management
-    Route::controller(App\Http\Controllers\Admin\BookingManagementController::class)
-        ->prefix('booking-management')
-        ->name('booking-management.')
-        ->group(function () {
-            Route::get('/', 'index')->name('index');
-            Route::get('calendar', 'calendar')->name('calendar');
-            Route::get('create', 'create')->name('create');
-            Route::post('/', 'store')->name('store');
-        });
     
     // Booking Management API
     Route::prefix('api/admin/booking-management')->name('api.admin.booking-management.')->group(function () {

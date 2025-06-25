@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import MediaUpload from '@/components/MediaUpload';
-import { PageProps } from '@/types';
+import { BreadcrumbItem, PageProps } from '@/types';
 
 interface Property {
     id: number;
@@ -31,6 +31,7 @@ interface MediaItem {
     sort_order: number;
     display_order: number;
     is_featured: boolean;
+    is_cover: boolean;
     url: string;
     thumbnail_url?: string;
 }
@@ -51,21 +52,21 @@ export default function PropertyMedia({ property }: PropertyMediaProps) {
             default: return 'bg-gray-100 text-gray-800';
         }
     };
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: 'dashboard', href: '/dashboard' },
+        { title: 'properties', href: '/admin/properties' },
+        { title: property.name, href: `/admin/properties/${property.slug}` },
+        { title: 'media', href: `/admin/properties/${property.slug}/media` },
+    ];
 
     return (
-        <AppLayout>
+        <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Media Management - ${property.name}`} />
             
-            <div className="space-y-6">
+            <div className="space-y-6 p-4 md:p-6">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                        <Button variant="outline" size="sm" asChild>
-                            <Link href={route('admin.properties.show', property.slug)}>
-                                <ArrowLeft className="h-4 w-4 mr-2" />
-                                Back to Property
-                            </Link>
-                        </Button>
                         <div>
                             <h1 className="text-2xl font-bold">Media Management</h1>
                             <p className="text-muted-foreground">

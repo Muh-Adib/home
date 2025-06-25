@@ -33,6 +33,9 @@ class Payment extends Model
         'verified_at',
         'gateway_transaction_id',
         'gateway_response',
+        'sender_account_name',
+        'sender_account_number',
+        'sender_bank_name',
     ];
 
     protected $casts = [

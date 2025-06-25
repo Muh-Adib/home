@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Head, Link, useForm, usePage, router } from '@inertiajs/react';
+import GuestLayout from '@/layouts/guest-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,9 +26,13 @@ import {
     UserPlus,
     User,
     Percent,
-    Tag
+    Tag,
+    LogIn,
+    Mail,
+    Key
 } from 'lucide-react';
 import { DateRange, getDefaultDateRange } from '@/components/ui/date-range';
+import { useTranslation } from 'react-i18next';
 
 interface Property {
     id: number;
@@ -135,6 +140,7 @@ interface BookingErrors {
 }
 
 export default function BookingCreate({ property, auth }: BookingCreateProps) {
+    const { t } = useTranslation();
     const page = usePage();
     const searchParams = new URLSearchParams(window.location.search);
     
@@ -150,6 +156,12 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
     const [availabilityStatus, setAvailabilityStatus] = useState<'checking' | 'available' | 'unavailable' | null>(null);
     const [showGuestDetails, setShowGuestDetails] = useState(false);
     const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+    
+    // Email checking states
+    const [emailStatus, setEmailStatus] = useState<'checking' | 'available' | 'exists' | null>(null);
+    const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+    const [emailCheckTimeout, setEmailCheckTimeout] = useState<NodeJS.Timeout | null>(null);
+    const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 
     // Calculate minimum stay for initial dates validation
     const getMinimumStay = () => {
@@ -473,6 +485,72 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         }
     }, [data.check_in_date, data.check_out_date, calculateRate]);
 
+    // Email checking function
+    const checkEmailExists = useCallback(async (email: string) => {
+        if (!email || !email.includes('@')) {
+            setEmailStatus(null);
+            setShowLoginPrompt(false);
+            return;
+        }
+
+        setIsCheckingEmail(true);
+        setEmailStatus('checking');
+
+        try {
+            const response = await fetch('/api/check-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({ email }),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.exists) {
+                    setEmailStatus('exists');
+                    setShowLoginPrompt(true);
+                } else {
+                    setEmailStatus('available');
+                    setShowLoginPrompt(false);
+                }
+            } else {
+                setEmailStatus(null);
+                setShowLoginPrompt(false);
+            }
+        } catch (error) {
+            console.error('Error checking email:', error);
+            setEmailStatus(null);
+            setShowLoginPrompt(false);
+        } finally {
+            setIsCheckingEmail(false);
+        }
+    }, []);
+
+    // Debounced email checking
+    const handleEmailChange = (email: string) => {
+        setData((prev) => ({
+            ...prev,
+            guest_email: email
+        }));
+
+        // Clear existing timeout
+        if (emailCheckTimeout) {
+            clearTimeout(emailCheckTimeout);
+        }
+
+        // Set new timeout for checking email (Optional feature - not blocking submission)
+        if (!auth?.user && email.includes('@')) { 
+            const timeout = setTimeout(() => {
+                checkEmailExists(email);
+            }, 1000);
+            setEmailCheckTimeout(timeout);
+        }
+    };
+    
     const dpOptions = [
         { value: 50, label: '50% Down Payment', description: 'Pay 50% now, 50% later' },
         { value: 70, label: '70% Down Payment', description: 'Pay 70% now, 30% later' },
@@ -540,38 +618,62 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Check if user is logged in
-        if (!auth?.user) {
-            // Auto-register user first, then create booking
-            router.post('/register/auto', {
-                name: data.guest_name,
-                email: data.guest_email,
-                phone: data.guest_phone,
-                gender: data.guest_gender,
-                booking_data: JSON.stringify(data), // Pass booking data to be processed after registration
-                property_slug: property.slug,
+        console.log('Form submission started', {
+            data,
+            canSubmit,
+            totalGuests,
+            availabilityStatus,
+            hasRateCalculation: !!rateCalculation
+        });
+        
+        if (!canSubmit) {
+            console.warn('Form submission blocked - validation failed', {
+                hasCheckInDate: !!data.check_in_date,
+                hasCheckOutDate: !!data.check_out_date,
+                guestCountError,
+                hasGuestName: !!data.guest_name?.trim(),
+                hasGuestEmail: !!data.guest_email?.trim(),
+                hasGuestPhone: !!data.guest_phone?.trim(),
+                hasCountry: !!data.guest_country,
+                totalGuests,
+                availabilityStatus,
+                hasRateCalculation: !!rateCalculation
             });
-        } else {
-            // User is logged in, proceed with normal booking
-            post(`/properties/${property.slug}/book`);
+            return;
         }
+        
+        // Always use the same booking route - backend will handle user registration if needed
+        post(`/properties/${property.slug}/book`, {
+            onStart: () => {
+                console.log('Starting booking submission...');
+            },
+            onSuccess: (page) => {
+                console.log('Booking created successfully:', page);
+            },
+            onError: (errors) => {
+                console.error('Booking creation failed:', errors);
+            },
+            onFinish: () => {
+                console.log('Booking submission finished');
+            }
+        });
     };
 
     const guestCountError = totalGuests > property.capacity_max;
     const canSubmit = data.check_in_date && 
                      data.check_out_date && 
                      !guestCountError && 
-                     data.guest_name && 
-                     data.guest_email && 
-                     data.guest_phone && 
+                     data.guest_name.trim() && 
+                     data.guest_email.trim() && 
+                     data.guest_phone.trim() && 
                      data.guest_country && 
-                     data.guests.length > 0 && 
+                     totalGuests > 0 && 
                      availabilityStatus === 'available' && 
                      rateCalculation !== null;
 
     return (
-        <>
-            <Head title={`Book ${property.name} - Property Management System`} />
+        <GuestLayout>
+            <Head title={`${t('booking.book_your_stay')} ${property.name} - Property Management System`} />
             
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
@@ -579,7 +681,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                     <div className="container mx-auto px-4 py-4">
                         <Link href={`/properties/${property.slug}`} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
                             <ArrowLeft className="h-4 w-4" />
-                            Back to Property
+                            {t('booking.back_to_property')}
                         </Link>
                     </div>
                 </div>
@@ -592,7 +694,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <Calendar className="h-5 w-5 text-blue-600" />
-                                        Book Your Stay
+                                        {t('booking.book_your_stay')}
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
@@ -601,7 +703,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
 
                                         {/* Dates */}
                                         <div>
-                                            <Label>Check-in & Check-out Dates</Label>
+                                            <Label>{t('booking.check_in_checkout_dates')}</Label>
                                             <DateRange
                                                 startDate={data.check_in_date}
                                                 endDate={data.check_out_date}
@@ -631,7 +733,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                             )}
                                         </div>
                                         <div>
-                                            <Label>Check-in Time</Label>
+                                            <Label>{t('booking.check_in_time')}</Label>
                                             <Select value={data.check_in_time} onValueChange={(value: any) => setData((prev) => ({
                                                 ...prev,
                                                 check_in_time: value
@@ -1109,14 +1211,14 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
 
                                         <div className="flex gap-4 pt-4">
                                             <Link href={`/properties/${property.slug}`} className="flex-1">
-                                                <Button variant="outline" className="w-full">Cancel</Button>
+                                                <Button variant="outline" className="w-full">{t('common.cancel')}</Button>
                                             </Link>
                                             <Button 
                                                 type="submit" 
                                                 disabled={!canSubmit || processing}
                                                 className="flex-1"
                                             >
-                                                {processing ? 'Processing...' : 'Continue to Confirmation'}
+                                                {processing ? t('booking.processing') : t('booking.continue_confirmation')}
                                             </Button>
                                         </div>
                                     </form>
@@ -1130,7 +1232,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                 {/* Property Info */}
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle className="text-lg">Your Booking</CardTitle>
+                                        <CardTitle className="text-lg">{t('booking.your_booking')}</CardTitle>
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-4">
@@ -1284,6 +1386,6 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                     </div>
                 </div>
             </div>
-        </>
+        </GuestLayout>
     );
 } 

@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Events\BookingCreated;
+use App\Events\PaymentCreated;
 use App\Listeners\SendBookingNotification;
+use App\Listeners\SendPaymentNotification;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -26,7 +28,10 @@ class EventServiceProvider extends ServiceProvider
             SendBookingNotification::class,
         ],
 
-        
+        // Payment Events
+        PaymentCreated::class => [
+            SendPaymentNotification::class,
+        ],
     ];
 
     /**

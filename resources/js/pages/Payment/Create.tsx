@@ -1,31 +1,27 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
     ArrowLeft, 
     CreditCard, 
-    Upload,
     Building2,
     MapPin,
     Calendar,
     Users,
     Clock,
-    CheckCircle,
     Info,
     Copy,
     Shield,
-    Loader2,
-    X,
-    AlertTriangle
+    Loader2
 } from 'lucide-react';
+import FileUpload, { UploadedFile, FileUploadConfig } from '@/components/ui/file-upload';
 
 interface PaymentMethod {
     id: number;
@@ -72,25 +68,42 @@ interface Booking {
 interface PaymentCreateProps {
     booking: Booking;
     paymentMethods: PaymentMethod[];
+    pendingAmount: number;
+    paidAmount: number;
+    bankOptions: string[];
 }
 
-export default function PaymentCreate({ booking, paymentMethods }: PaymentCreateProps) {
+export default function PaymentCreate({ booking, paymentMethods, pendingAmount, paidAmount, bankOptions }: PaymentCreateProps) {
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
     const [showAccountDetails, setShowAccountDetails] = useState(false);
     const [copiedField, setCopiedField] = useState<string | null>(null);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [isUploading, setIsUploading] = useState(false);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [isDragActive, setIsDragActive] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [paymentProofFiles, setPaymentProofFiles] = useState<UploadedFile[]>([]);
 
     const { data, setData, post, processing, errors, clearErrors } = useForm({
         payment_method_id: '',
-        amount: booking.dp_amount,
+        amount: pendingAmount || booking.dp_amount,
         payment_proof: null as File | null,
         notes: '',
+        sender_account_name: '',
+        sender_account_number: '',
+        sender_bank_name: '',
     });
+
+    // FileUpload configuration for payment proof
+    const paymentProofConfig: FileUploadConfig = {
+        maxFiles: 1,
+        maxFileSize: 10 * 1024 * 1024, // 10MB
+        acceptedFileTypes: ['image/jpeg', 'image/png', 'image/jpg'],
+        acceptedExtensions: ['.jpg', '.jpeg', '.png'],
+        showPreview: true,
+        allowMultiple: false,
+        showProgress: true,
+        dragAndDrop: true,
+        showFileDetails: false,
+        showMetadataForm: false,
+        required: true
+    };
 
     const handleMethodSelect = (method: PaymentMethod) => {
         setSelectedMethod(method);
@@ -99,55 +112,15 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
         clearErrors('payment_method_id');
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            processFile(file);
+    // Handle payment proof files change
+    const handlePaymentProofChange = (files: UploadedFile[]) => {
+        setPaymentProofFiles(files);
+        if (files.length > 0) {
+            setData('payment_proof', files[0].file);
+            clearErrors('payment_proof');
+        } else {
+            setData('payment_proof', null);
         }
-    };
-
-    const processFile = (file: File) => {
-        // Validate file type
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-        if (!allowedTypes.includes(file.type)) {
-            alert('Harap pilih file gambar yang valid (JPEG, PNG, JPG)');
-            return;
-        }
-
-        // Validate file size (10MB max)
-        if (file.size > 10 * 1024 * 1024) {
-            alert('Ukuran file harus kurang dari 10MB');
-            return;
-        }
-
-        setData('payment_proof', file);
-        clearErrors('payment_proof');
-        
-        // Create preview URL
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            setPreviewUrl(e.target?.result as string);
-        };
-        reader.readAsDataURL(file);
-
-        // Simulate upload progress
-        simulateUploadProgress();
-    };
-
-    const simulateUploadProgress = () => {
-        setIsUploading(true);
-        setUploadProgress(0);
-
-        const interval = setInterval(() => {
-            setUploadProgress((prev) => {
-                if (prev >= 100) {
-                    clearInterval(interval);
-                    setIsUploading(false);
-                    return 100;
-                }
-                return prev + Math.random() * 15;
-            });
-        }, 200);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -174,6 +147,26 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
             return;
         }
 
+        if (data.amount > pendingAmount) {
+            alert(`Jumlah pembayaran tidak boleh melebihi sisa tagihan: Rp ${pendingAmount.toLocaleString()}`);
+            return;
+        }
+
+        if (!data.sender_account_name.trim()) {
+            alert('Harap isi nama pemilik rekening pengirim');
+            return;
+        }
+
+        if (!data.sender_account_number.trim()) {
+            alert('Harap isi nomor rekening pengirim');
+            return;
+        }
+
+        if (!data.sender_bank_name.trim()) {
+            alert('Harap isi nama bank/e-wallet pengirim');
+            return;
+        }
+
         setIsSubmitting(true);
 
         // Debug: Log form data
@@ -185,7 +178,10 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                 size: data.payment_proof.size,
                 type: data.payment_proof.type
             } : null,
-            notes: data.notes
+            notes: data.notes,
+            sender_account_name: data.sender_account_name,
+            sender_account_number: data.sender_account_number,
+            sender_bank_name: data.sender_bank_name
         });
 
         // Submit dengan Inertia form handling
@@ -234,35 +230,6 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
         setTimeout(() => setCopiedField(null), 2000);
     };
 
-    const removeFile = () => {
-        setData('payment_proof', null);
-        setPreviewUrl(null);
-        setUploadProgress(0);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-    };
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragActive(true);
-    };
-
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragActive(false);
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragActive(false);
-        
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            processFile(files[0]);
-        }
-    };
-
     const totalGuests = booking.guest_count_male + booking.guest_count_female + booking.guest_count_children;
 
     return (
@@ -293,16 +260,56 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                                 </CardHeader>
                                 <CardContent>
                                     <form onSubmit={handleSubmit} className="space-y-6">
-                                        {/* Payment Amount */}
+                                        {/* Payment Summary */}
                                         <div className="bg-blue-50 p-4 rounded-lg">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-lg font-semibold">Down Payment Amount</span>
-                                                <span className="text-2xl font-bold text-blue-600">
-                                                    Rp {booking.dp_amount.toLocaleString()}
-                                                </span>
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-lg font-semibold">Payment Summary</span>
+                                                </div>
+                                                
+                                                <div className="space-y-2 text-sm">
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-600">Total Booking Amount:</span>
+                                                        <span className="font-medium">Rp {booking.total_amount.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-600">Already Paid:</span>
+                                                        <span className="font-medium text-green-600">Rp {paidAmount.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-t pt-2">
+                                                        <span className="text-gray-600">Remaining Amount:</span>
+                                                        <span className="text-xl font-bold text-blue-600">Rp {pendingAmount.toLocaleString()}</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                {paidAmount > 0 && (
+                                                    <div className="text-sm text-gray-600">
+                                                        You can pay the full remaining amount or make a partial payment (minimum Rp 100,000)
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div className="text-sm text-gray-600 mt-2">
-                                                {booking.dp_percentage}% of total booking amount (Rp {booking.total_amount.toLocaleString()})
+                                        </div>
+
+                                        {/* Payment Amount Input */}
+                                        <div>
+                                            <Label htmlFor="amount">Payment Amount</Label>
+                                            <div className="mt-2">
+                                                <Input
+                                                    id="amount"
+                                                    type="number"
+                                                    min="100000"
+                                                    max={pendingAmount}
+                                                    value={data.amount}
+                                                    onChange={(e) => setData('amount', parseInt(e.target.value) || 0)}
+                                                    placeholder="Enter payment amount"
+                                                    className="text-lg font-medium"
+                                                />
+                                                <div className="text-xs text-gray-600 mt-1">
+                                                    Minimum: Rp 100,000 • Maximum: Rp {pendingAmount.toLocaleString()}
+                                                </div>
+                                                {errors.amount && (
+                                                    <p className="text-sm text-red-600 mt-1">{errors.amount}</p>
+                                                )}
                                             </div>
                                         </div>
 
@@ -391,14 +398,14 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                                                                     <span className="text-gray-600">Amount:</span>
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="font-mono font-medium text-blue-600">
-                                                                            Rp {booking.dp_amount.toLocaleString()}
+                                                                            Rp {data.amount.toLocaleString()}
                                                                         </span>
                                                                         <Button
                                                                             type="button"
                                                                             variant="ghost"
                                                                             size="sm"
                                                                             className="h-6 w-6 p-0"
-                                                                            onClick={() => copyToClipboard(booking.dp_amount.toString(), 'amount')}
+                                                                            onClick={() => copyToClipboard(data.amount.toString(), 'amount')}
                                                                         >
                                                                             <Copy className="h-3 w-3" />
                                                                         </Button>
@@ -442,125 +449,79 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                                             </Card>
                                         )}
 
-                                        {/* Enhanced Payment Proof Upload */}
-                                        <div>
-                                            <Label htmlFor="payment_proof" className="text-base font-medium">
-                                                Upload Payment Proof *
-                                            </Label>
-                                            <p className="text-sm text-gray-600 mb-3">
-                                                Upload a clear screenshot or photo of your transfer receipt
-                                            </p>
-                                            
-                                            <div className="space-y-4">
-                                                {/* Upload Area with Drag & Drop */}
-                                                <div
-                                                    className={`relative border-2 border-dashed rounded-lg transition-all duration-200 ${
-                                                        isDragActive
-                                                            ? 'border-blue-500 bg-blue-50'
-                                                            : data.payment_proof
-                                                            ? 'border-green-500 bg-green-50'
-                                                            : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
-                                                    }`}
-                                                    onDragOver={handleDragOver}
-                                                    onDragLeave={handleDragLeave}
-                                                    onDrop={handleDrop}
-                                                >
-                                                    <input
-                                                        ref={fileInputRef}
-                                                        id="payment_proof"
-                                                        type="file"
-                                                        className="hidden"
-                                                        accept="image/jpeg,image/png,image/jpg"
-                                                        onChange={handleFileChange}
+                                        {/* Sender Account Details */}
+                                        <div className="space-y-4">
+                                            <h3 className="text-lg font-semibold">Sender Account Details</h3>
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div>
+                                                    <Label htmlFor="sender_account_name">Account Holder Name *</Label>
+                                                    <Input
+                                                        id="sender_account_name"
+                                                        type="text"
+                                                        value={data.sender_account_name}
+                                                        onChange={(e) => setData('sender_account_name', e.target.value)}
+                                                        placeholder="Name as shown on bank account"
+                                                        required
+                                                        className="mt-2"
                                                     />
-                                                    
-                                                    {!data.payment_proof ? (
-                                                        <label
-                                                            htmlFor="payment_proof"
-                                                            className="flex flex-col items-center justify-center w-full h-40 cursor-pointer p-6"
-                                                        >
-                                                            <div className="flex flex-col items-center justify-center">
-                                                                <Upload className={`w-10 h-10 mb-3 transition-colors ${
-                                                                    isDragActive ? 'text-blue-500' : 'text-gray-400'
-                                                                }`} />
-                                                                <p className="mb-2 text-sm text-gray-600">
-                                                                    <span className="font-semibold">Click to upload</span> or drag and drop
-                                                                </p>
-                                                                <p className="text-xs text-gray-500">
-                                                                    JPEG, PNG, JPG (Max 10MB)
-                                                                </p>
-                                                            </div>
-                                                        </label>
-                                                    ) : (
-                                                        <div className="p-4">
-                                                            <div className="flex items-start gap-4">
-                                                                {/* Thumbnail Preview */}
-                                                                <div className="flex-shrink-0">
-                                                                    {previewUrl && (
-                                                                        <div className="relative">
-                                                                            <img
-                                                                                src={previewUrl}
-                                                                                alt="Payment proof preview"
-                                                                                className="w-20 h-20 object-cover rounded-lg border-2 border-green-500 shadow-sm"
-                                                                            />
-                                                                            <div className="absolute -top-2 -right-2">
-                                                                                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
-                                                                                    <CheckCircle className="w-4 h-4 text-white" />
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                
-                                                                {/* File Info */}
-                                                                <div className="flex-1 min-w-0">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <div>
-                                                                            <p className="text-sm font-medium text-gray-900 truncate">
-                                                                                {data.payment_proof.name}
-                                                                            </p>
-                                                                            <p className="text-xs text-gray-500">
-                                                                                {(data.payment_proof.size / 1024 / 1024).toFixed(2)} MB
-                                                                            </p>
-                                                                        </div>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            onClick={removeFile}
-                                                                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                                        >
-                                                                            <X className="w-4 h-4" />
-                                                                        </Button>
-                                                                    </div>
-                                                                    
-                                                                    {/* Upload Progress Bar */}
-                                                                    {isUploading && (
-                                                                        <div className="mt-2">
-                                                                            <div className="flex items-center gap-2 text-xs text-gray-600 mb-1">
-                                                                                <Loader2 className="w-3 h-3 animate-spin" />
-                                                                                Uploading... {Math.round(uploadProgress)}%
-                                                                            </div>
-                                                                            <Progress value={uploadProgress} className="h-1" />
-                                                                        </div>
-                                                                    )}
-                                                                    
-                                                                    {!isUploading && uploadProgress === 100 && (
-                                                                        <div className="mt-2 flex items-center gap-1 text-xs text-green-600">
-                                                                            <CheckCircle className="w-3 h-3" />
-                                                                            Upload complete
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                                    {errors.sender_account_name && (
+                                                        <p className="text-sm text-red-600 mt-1">{errors.sender_account_name}</p>
                                                     )}
                                                 </div>
                                                 
-                                                {errors.payment_proof && (
-                                                    <p className="text-sm text-red-600">{errors.payment_proof}</p>
-                                                )}
+                                                <div>
+                                                    <Label htmlFor="sender_account_number">Account Number *</Label>
+                                                    <Input
+                                                        id="sender_account_number"
+                                                        type="text"
+                                                        value={data.sender_account_number}
+                                                        onChange={(e) => setData('sender_account_number', e.target.value)}
+                                                        placeholder="Your account number"
+                                                        required
+                                                        className="mt-2"
+                                                    />
+                                                    {errors.sender_account_number && (
+                                                        <p className="text-sm text-red-600 mt-1">{errors.sender_account_number}</p>
+                                                    )}
+                                                </div>
+                                                
+                                                <div className="md:col-span-2">
+                                                    <Label htmlFor="sender_bank_name">Bank/E-Wallet Name *</Label>
+                                                    <Select
+                                                        value={data.sender_bank_name}
+                                                        onValueChange={(value) => setData('sender_bank_name', value)}
+                                                    >
+                                                        <SelectTrigger className="mt-2">
+                                                            <SelectValue placeholder="Select your bank or e-wallet" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {bankOptions.map((bank) => (
+                                                                <SelectItem key={bank} value={bank}>
+                                                                    {bank}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    {errors.sender_bank_name && (
+                                                        <p className="text-sm text-red-600 mt-1">{errors.sender_bank_name}</p>
+                                                    )}
+                                                </div>
                                             </div>
+                                            <div className="text-sm text-gray-600">
+                                                <Info className="h-4 w-4 inline mr-1" />
+                                                Please provide sender account details for verification purposes
+                                            </div>
+                                        </div>
+
+                                        {/* Payment Proof Upload */}
+                                        <div>
+                                            <FileUpload
+                                                config={paymentProofConfig}
+                                                onFilesChange={handlePaymentProofChange}
+                                                label="Upload Payment Proof"
+                                                description="Upload a clear screenshot or photo of your transfer receipt"
+                                                error={errors.payment_proof}
+                                            />
                                         </div>
 
                                         {/* Additional Notes */}
@@ -578,7 +539,7 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
 
                                         {/* Submit Buttons */}
                                         <div className="flex gap-4 pt-4">
-                                            <Link href={`/booking/${booking.id}/confirmation`} className="flex-1">
+                                            <Link href={`/booking/${booking.booking_number}/confirmation`} className="flex-1">
                                                 <Button variant="outline" className="w-full" disabled={processing}>
                                                     Cancel
                                                 </Button>
@@ -603,7 +564,7 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                             </Card>
                         </div>
 
-                        {/* Booking Summary */}
+                        {/* Booking Summary Sidebar */}
                         <div className="lg:col-span-1">
                             <div className="sticky top-4 space-y-6">
                                 {/* Booking Info */}
@@ -657,13 +618,13 @@ export default function PaymentCreate({ booking, paymentMethods }: PaymentCreate
                                                     <span>Total Amount:</span>
                                                     <span>Rp {booking.total_amount.toLocaleString()}</span>
                                                 </div>
-                                                <div className="flex justify-between text-blue-600 font-semibold">
-                                                    <span>Down Payment ({booking.dp_percentage}%):</span>
-                                                    <span>Rp {booking.dp_amount.toLocaleString()}</span>
+                                                <div className="flex justify-between text-green-600">
+                                                    <span>Already Paid:</span>
+                                                    <span>Rp {paidAmount.toLocaleString()}</span>
                                                 </div>
-                                                <div className="flex justify-between text-gray-600">
+                                                <div className="flex justify-between text-blue-600 font-semibold">
                                                     <span>Remaining Balance:</span>
-                                                    <span>Rp {booking.remaining_amount.toLocaleString()}</span>
+                                                    <span>Rp {pendingAmount.toLocaleString()}</span>
                                                 </div>
                                             </div>
                                         </div>

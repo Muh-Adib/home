@@ -25,24 +25,32 @@ class MediaController extends Controller
         $this->authorize('update', $property);
         
         $request->validate([
-            'files' => 'required|array|max:10',
+            'files' => 'required|array|max:50',
             'files.*' => [
                 'required',
                 'file',
-                'mimes:jpg,jpeg,png,webp,gif',
-                'max:5120', // 5MB max file size
-                'dimensions:min_width=200,min_height=200,max_width=4096,max_height=4096',
+                'mimes:jpg,jpeg,png,webp,gif,mp4,mov,avi,webm',
+                'max:51200', // 50MB max file size for videos
                 function ($attribute, $value, $fail) {
                     // Custom validation for file content security
-                    if (!$this->isValidImageFile($value)) {
-                        $fail('The ' . $attribute . ' contains invalid or potentially dangerous content.');
+                    if ($value->getMimeType() && str_starts_with($value->getMimeType(), 'image/')) {
+                        if (!$this->isValidImageFile($value)) {
+                            $fail('The ' . $attribute . ' contains invalid or potentially dangerous content.');
+                        }
+                        // Validate image dimensions
+                        $imageInfo = @getimagesize($value->getRealPath());
+                        if ($imageInfo) {
+                            [$width, $height] = $imageInfo;
+                            if ($width < 200 || $height < 200 || $width > 4096 || $height > 4096) {
+                                $fail('Images must be between 200x200 and 4096x4096 pixels.');
+                            }
+                        }
                     }
                 },
             ],
         ], [
-            'files.*.mimes' => 'Only JPG, JPEG, PNG, WebP, and GIF images are allowed.',
-            'files.*.max' => 'Each image must be less than 5MB.',
-            'files.*.dimensions' => 'Images must be between 200x200 and 4096x4096 pixels.',
+            'files.*.mimes' => 'Only JPG, JPEG, PNG, WebP, GIF, MP4, MOV, AVI, and WebM files are allowed.',
+            'files.*.max' => 'Each file must be less than 50MB.',
         ]);
 
         // Debug logging
@@ -72,23 +80,38 @@ class MediaController extends Controller
                     throw new \Exception('Failed to store file securely: ' . $file->getClientOriginalName());
                 }
                 
+                // Determine media type
+                $mediaType = str_starts_with($file->getMimeType(), 'image/') ? 'image' : 'video';
+                
                 // Create media record
                 $media = PropertyMedia::create([
                     'property_id' => $property->id,
+                    'media_type' => $mediaType,
                     'file_name' => $safeName,
                     'file_path' => $path,
                     'file_size' => $file->getSize(),
                     'mime_type' => $file->getMimeType(),
+                    'category' => 'exterior', // Default to exterior as per migration default
+                    'title' => pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
                     'alt_text' => '',
+                    'description' => '',
+                    'display_order' => PropertyMedia::where('property_id', $property->id)->max('display_order') + 1,
+                    'is_featured' => false,
                     'is_cover' => false,
-                    'sort_order' => PropertyMedia::where('property_id', $property->id)->max('sort_order') + 1,
-                    'uploaded_by' => auth()->id(),
                 ]);
                 
-                // Generate thumbnails asynchronously for better performance
-                dispatch(function() use ($media) {
-                    $this->generateThumbnails($media);
-                });
+                // Generate thumbnails immediately for images
+                if ($mediaType === 'image') {
+                    try {
+                        $this->generateThumbnail($media);
+                    } catch (\Exception $thumbnailError) {
+                        // Log thumbnail generation error but don't fail the upload
+                        \Log::warning('Thumbnail generation failed', [
+                            'media_id' => $media->id,
+                            'error' => $thumbnailError->getMessage(),
+                        ]);
+                    }
+                }
                 
                 $uploadedFiles[] = [
                     'id' => $media->id,
@@ -234,10 +257,13 @@ class MediaController extends Controller
     public function update(Request $request, PropertyMedia $media): JsonResponse
     {
         $validator = Validator::make($request->all(), [
+            'title' => 'nullable|string|max:255',
             'alt_text' => 'nullable|string|max:255',
-            'caption' => 'nullable|string|max:500',
-            'sort_order' => 'nullable|integer|min:0',
+            'description' => 'nullable|string|max:1000',
+            'category' => 'nullable|string|in:exterior,living_room,bedroom,kitchen,bathroom,amenities,tour',
+            'display_order' => 'nullable|integer|min:0',
             'is_featured' => 'boolean',
+            'is_cover' => 'boolean',
         ]);
 
         if ($validator->fails()) {
@@ -254,12 +280,19 @@ class MediaController extends Controller
                 ->update(['is_featured' => false]);
         }
 
-        $updateData = $request->only(['alt_text', 'is_featured']);
-        if ($request->has('caption')) {
-            $updateData['description'] = $request->get('caption');
+        // If setting as cover, unset other cover images for this property
+        if ($request->get('is_cover')) {
+            PropertyMedia::where('property_id', $media->property_id)
+                ->where('id', '!=', $media->id)
+                ->update(['is_cover' => false]);
         }
-        if ($request->has('sort_order')) {
-            $updateData['display_order'] = $request->get('sort_order');
+
+        $updateData = $request->only(['title', 'alt_text', 'category', 'is_featured', 'is_cover']);
+        if ($request->has('description')) {
+            $updateData['description'] = $request->get('description');
+        }
+        if ($request->has('display_order')) {
+            $updateData['display_order'] = $request->get('display_order');
         }
 
         $media->update($updateData);

@@ -264,20 +264,23 @@ class PropertyController extends Controller
     public function availability(Request $request, Property $property): JsonResponse
     {
         $request->validate([
-            'check_in' => 'required|date|after:today',
+            'check_in' => 'required|date',
             'check_out' => 'required|date|after:check_in',
         ]);
 
         $checkIn = $request->get('check_in');
         $checkOut = $request->get('check_out');
 
-        $isAvailable = $property->isAvailableForDates($checkIn, $checkOut);
+        // Get booked dates within the range
+        $bookedDates = $property->getBookedDatesInRange($checkIn, $checkOut);
 
         return response()->json([
-            'available' => $isAvailable,
+            'success' => true,
             'property_id' => $property->id,
             'check_in' => $checkIn,
             'check_out' => $checkOut,
+            'available' => count($bookedDates) === 0,
+            'bookedDates' => $bookedDates,
         ]);
     }
 

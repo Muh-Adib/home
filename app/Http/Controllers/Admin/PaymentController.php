@@ -28,6 +28,46 @@ use App\Models\User;
 class PaymentController extends Controller
 {
     /**
+     * List of Indonesian banks and e-wallets for sender account
+     */
+    const BANK_OPTIONS = [
+        // Major Banks
+        'BCA - Bank Central Asia',
+        'BRI - Bank Rakyat Indonesia',
+        'BNI - Bank Negara Indonesia',
+        'Mandiri - Bank Mandiri',
+        'CIMB Niaga',
+        'Danamon',
+        'Permata Bank',
+        'OCBC NISP',
+        'Maybank',
+        'BTPN',
+        'BJB - Bank Jabar Banten',
+        'Bank Mega',
+        'Bank Bukopin',
+        'Bank Syariah Indonesia (BSI)',
+        
+        // Digital Banks
+        'Jenius (BTPN)',
+        'Digibank by DBS',
+        'Bank Jago',
+        'Neo Commerce (Bank Neo)',
+        'SeaBank',
+        'Allo Bank',
+        
+        // E-Wallets
+        'GoPay',
+        'OVO',
+        'DANA',
+        'LinkAja',
+        'ShopeePay',
+        'PayPal',
+        
+        // Other
+        'Lainnya',
+    ];
+
+    /**
      * Display payments index
      */
     public function index(Request $request): Response
@@ -135,6 +175,7 @@ class PaymentController extends Controller
             'bookings' => $bookings,
             'paymentMethods' => $paymentMethods,
             'users' => $users,
+            'bankOptions' => self::BANK_OPTIONS,
         ]);
     }
 
@@ -304,6 +345,7 @@ class PaymentController extends Controller
             'booking' => $booking->load('property', 'guests'),
             'paymentMethods' => $paymentMethods,
             'users' => $users,
+            'bankOptions' => self::BANK_OPTIONS,
         ]);
     }
 
@@ -616,10 +658,17 @@ class PaymentController extends Controller
         $payment->load([
             'booking.property',
             'booking.workflow',
+            'booking.guests',
             'paymentMethod',
             'processor',
             'verifier'
         ]);
+
+        // Calculate booking payment summary
+        $booking = $payment->booking;
+        $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+        $booking->paid_amount = $paidAmount;
+        $booking->remaining_amount = $booking->total_amount - $paidAmount;
 
         return Inertia::render('Admin/Payments/Show', [
             'payment' => $payment,

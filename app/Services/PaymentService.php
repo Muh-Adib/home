@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Events\PaymentCreated;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -63,6 +65,21 @@ class PaymentService
             }
 
             //jika proses berhasil kirim notifikasi ke admin dan user yang bersangkutan (booking->guest)
+
+            // Dispatch PaymentCreated event untuk notifikasi
+            $user = User::find($userId);
+            if ($user) {
+                event(new PaymentCreated($payment->load('booking.property'), $user));
+            } else {
+                // Untuk guest payment, buat dummy user
+                $guestUser = new User();
+                $guestUser->id = 0;
+                $guestUser->name = 'Guest';
+                $guestUser->email = $booking->guest_email;
+                $guestUser->role = 'guest';
+                
+                event(new PaymentCreated($payment->load('booking.property'), $guestUser));
+            }
 
             return $payment;
         });

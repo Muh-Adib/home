@@ -10,6 +10,7 @@ import { Calendar as CalendarIcon, ChevronDown, AlertCircle, CheckCircle } from 
 import { cn } from '@/lib/utils';
 import { DateRange as DateRangeType } from 'react-day-picker';
 import { format, addDays, differenceInDays } from 'date-fns';
+import { id } from 'date-fns/locale';
 
 interface DateRangeProps {
     startDate?: string;
@@ -34,8 +35,9 @@ interface DateRangeProps {
     minStayWeekend?: number;
     minStayPeak?: number;
     showMinStayWarning?: boolean;
-    bookedDates?: string[]; // Array of booked dates in YYYY-MM-DD format
-    propertySlug?: string; // For fetching availability
+    bookedDates?: string[];
+    propertySlug?: string;
+    compact?: boolean;
 }
 
 export function DateRange({
@@ -50,19 +52,20 @@ export function DateRange({
     startLabel = 'Check-in',
     endLabel = 'Check-out',
     placeholder = {
-        start: 'Select check-in date',
-        end: 'Select check-out date'
+        start: 'Pilih tanggal masuk',
+        end: 'Pilih tanggal keluar'
     },
     disabled = false,
     autoTrigger = false,
     triggerDelay = 500,
     minStayNights = 1,
     minStayWeekday = 1,
-    minStayWeekend = 1,
-    minStayPeak = 1,
+    minStayWeekend = 2,
+    minStayPeak = 3,
     showMinStayWarning = true,
     bookedDates = [],
     propertySlug,
+    compact = true,
 }: DateRangeProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [dateRange, setDateRange] = useState<DateRangeType | undefined>(() => {
@@ -90,12 +93,12 @@ export function DateRange({
         }
     }, [startDate, endDate]);
 
-    // Fetch availability data when property slug changes and popover opens
+    // Fetch availability when property slug changes
     useEffect(() => {
-        if (propertySlug && isOpen && !loading) {
+        if (propertySlug) {
             fetchAvailability();
         }
-    }, [propertySlug, isOpen]);
+    }, [propertySlug]);
 
     // Fetch availability data from API
     const fetchAvailability = async () => {
@@ -105,7 +108,10 @@ export function DateRange({
         setError(null);
         
         try {
-            const response = await fetch(`/api/properties/${propertySlug}/availability`, {
+            const startDate = new Date();
+            const endDate = addDays(startDate, 90);
+            
+            const response = await fetch(`/api/properties/${propertySlug}/availability?check_in=${format(startDate, 'yyyy-MM-dd')}&check_out=${format(endDate, 'yyyy-MM-dd')}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -119,14 +125,14 @@ export function DateRange({
                 if (data.success) {
                     setAvailabilityData(data.bookedDates || []);
                 } else {
-                    setError(data.message || 'Failed to fetch availability');
+                    setError(data.message || 'Gagal memuat ketersediaan');
                 }
             } else {
-                setError('Failed to load availability data');
+                setError('Gagal memuat ketersediaan');
             }
         } catch (error) {
             console.error('Error fetching availability:', error);
-            setError('Network error while fetching availability');
+            setError('Kesalahan jaringan');
         } finally {
             setLoading(false);
         }
@@ -140,10 +146,9 @@ export function DateRange({
 
     const nights = calculateNights(dateRange?.from, dateRange?.to);
 
-    // Calculate minimum stay based on date type
+    // Get minimum stay for date
     const getMinimumStayForDate = (date: Date): number => {
         const dayOfWeek = date.getDay();
-        // Weekend: Friday(5), Saturday(6), Sunday(0)
         const isWeekend = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0;
         return isWeekend ? minStayWeekend : minStayWeekday;
     };
@@ -151,7 +156,7 @@ export function DateRange({
     const currentMinStay = dateRange?.from ? getMinimumStayForDate(dateRange.from) : minStayNights;
     const isMinStayViolation = nights > 0 && nights < currentMinStay;
 
-    // Check if a date is booked/unavailable
+    // Check if date is booked
     const isDateBooked = (date: Date): boolean => {
         const dateStr = format(date, 'yyyy-MM-dd');
         return availabilityData.includes(dateStr);
@@ -171,92 +176,77 @@ export function DateRange({
         return false;
     };
 
-    // Handle date selection with validation
+    // Handle date selection
     const handleDateSelect = (range: DateRangeType | undefined) => {
         if (!range) {
             setDateRange(undefined);
+            setError(null);
             if (onDateChange) {
                 onDateChange('', '');
             }
             return;
         }
 
-        // If only start date is selected
+        // Start date only - user memilih tanggal pertama
         if (range.from && !range.to) {
-            const requiredMinStay = getMinimumStayForDate(range.from);
-            let minEndDate = addDays(range.from, requiredMinStay);
-            
-            // Find next available date if minimum end date is booked
-            while (isDateBooked(minEndDate)) {
-                minEndDate = addDays(minEndDate, 1);
-            }
-            
-            const updatedRange = {
-                from: range.from,
-                to: minEndDate
-            };
-            
-            setDateRange(updatedRange);
-            
-            if (onDateChange) {
-                const startStr = range.from.toISOString().split('T')[0];
-                const endStr = minEndDate.toISOString().split('T')[0];
-                
-                if (autoTrigger) {
-                    setTimeout(() => {
-                        onDateChange(startStr, endStr);
-                    }, triggerDelay);
-                } else {
-                    onDateChange(startStr, endStr);
+            // Jika user mengklik tanggal yang sama dengan start date yang sudah ada, reset selection
+            if (dateRange?.from && range.from.getTime() === dateRange.from.getTime()) {
+                setDateRange(undefined);
+                setError(null);
+                if (onDateChange) {
+                    onDateChange('', '');
                 }
-            }
-        } 
-        // If both dates are selected
-        else if (range.from && range.to) {
-            // Check if range contains booked dates
-            if (rangeContainsBookedDates(range.from, range.to)) {
-                // Don't allow selection if range contains booked dates
                 return;
             }
             
-            // Check minimum stay requirement
+            // Simpan start date saja, tunggu user memilih end date
+            setDateRange({
+                from: range.from,
+                to: undefined
+            });
+            setError(null);
+            // Jangan panggil onDateChange sampai range lengkap dipilih
+            // Jangan tutup kalender, biarkan user memilih tanggal kedua
+        } 
+        // Complete range - user telah memilih kedua tanggal
+        else if (range.from && range.to) {
+            // Validasi: cek apakah range mengandung tanggal yang sudah dipesan
+            if (rangeContainsBookedDates(range.from, range.to)) {
+                setError('Rentang tanggal mengandung tanggal yang sudah dipesan');
+                // Reset ke start date saja, biarkan user memilih ulang end date
+                setDateRange({
+                    from: range.from,
+                    to: undefined
+                });
+                return;
+            }
+            
+            // Validasi minimum stay
             const nights = differenceInDays(range.to, range.from);
             const requiredMinStay = getMinimumStayForDate(range.from);
             
             if (nights < requiredMinStay) {
-                // Auto-adjust to minimum stay
-                const adjustedEndDate = addDays(range.from, requiredMinStay);
-                
-                // Check if adjusted range is valid
-                if (!rangeContainsBookedDates(range.from, adjustedEndDate)) {
-                    const adjustedRange = {
-                        from: range.from,
-                        to: adjustedEndDate
-                    };
-                    
-                    setDateRange(adjustedRange);
-                    
-                    if (onDateChange) {
-                        const startStr = range.from.toISOString().split('T')[0];
-                        const endStr = adjustedEndDate.toISOString().split('T')[0];
-                        onDateChange(startStr, endStr);
-                    }
-                }
+                setError(`Minimal menginap ${requiredMinStay} malam untuk tanggal yang dipilih`);
+                // Reset ke start date saja, biarkan user memilih ulang end date
+                setDateRange({
+                    from: range.from,
+                    to: undefined
+                });
                 return;
             }
             
-            // Valid selection
+            // Validasi berhasil - simpan range lengkap dan tutup kalender
             setDateRange(range);
             setIsOpen(false);
+            setError(null);
             
+            // Sekarang baru panggil onDateChange dengan range lengkap
             if (onDateChange) {
                 const startStr = range.from.toISOString().split('T')[0];
                 const endStr = range.to.toISOString().split('T')[0];
                 
                 if (autoTrigger) {
-                    setTimeout(() => {
-                        onDateChange(startStr, endStr);
-                    }, triggerDelay);
+                    setTimeout(() => onDateChange(startStr, endStr), triggerDelay);
                 } else {
                     onDateChange(startStr, endStr);
                 }
@@ -267,70 +257,101 @@ export function DateRange({
     // Format display text
     const formatDisplayText = () => {
         if (!dateRange?.from) {
-            return `${startLabel} - ${endLabel}`;
+            return compact ? startLabel : `${startLabel} - ${endLabel}`;
         }
         
         if (dateRange.from && dateRange.to) {
-            const fromFormat = format(dateRange.from, 'd MMM');
-            const toFormat = format(dateRange.to, 'd MMM');
+            const fromFormat = format(dateRange.from, compact ? 'd MMM' : 'd MMM yyyy', { locale: id });
+            const toFormat = format(dateRange.to, compact ? 'd MMM' : 'd MMM yyyy', { locale: id });
             return `${fromFormat} - ${toFormat}`;
         }
         
-        const fromFormat = format(dateRange.from, 'd MMM');
-        return `${fromFormat} - ${endLabel}`;
+        // Hanya start date yang dipilih, tampilkan dengan indikator bahwa user masih memilih
+        const fromFormat = format(dateRange.from, compact ? 'd MMM' : 'd MMM yyyy', { locale: id });
+        return compact ? 
+            `${fromFormat} → ?` : 
+            `${fromFormat} → Pilih tanggal keluar`;
     };
 
-    // Get button size based on size prop
+    // Button sizing
     const getButtonHeight = () => {
         switch (size) {
-            case 'sm': return 'h-8 text-xs';
-            case 'lg': return 'h-12 text-base';
-            default: return 'h-10 text-sm';
+            case 'sm': return 'h-8 text-xs px-2';
+            case 'lg': return 'h-12 text-base px-4';
+            default: return 'h-10 text-sm px-3';
         }
     };
 
-    // Get minimum date (default to today)
     const minimumDate = minDate ? new Date(minDate) : new Date();
+    const maximumDate = maxDate ? new Date(maxDate) : addDays(new Date(), 365);
 
-    // Get maximum date
-    const maximumDate = maxDate ? new Date(maxDate) : undefined;
-
-    // Create disabled date matcher for react-day-picker
     const disabledDates = [
         { before: minimumDate },
-        ...(maximumDate ? [{ after: maximumDate }] : []),
-        // Function to disable booked dates
+        { after: maximumDate },
         (date: Date) => isDateBooked(date),
+        // Disable dates sebelum start date jika start date sudah dipilih
+        (date: Date) => {
+            if (dateRange?.from && !dateRange?.to) {
+                return date <= dateRange.from;
+            }
+            return false;
+        },
     ];
 
     return (
         <div className={cn('w-full', className)}>
-            <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <Popover 
+                open={isOpen} 
+                onOpenChange={(open) => {
+                    // Jika user menutup popover saat hanya start date yang dipilih,
+                    // pertahankan state dan jangan reset
+                    if (!open && dateRange?.from && !dateRange?.to) {
+                        // Biarkan popover tertutup tapi pertahankan partial selection
+                        setIsOpen(false);
+                        return;
+                    }
+                    setIsOpen(open);
+                }}
+            >
                 <PopoverTrigger asChild>
                     <Button
                         variant="outline"
                         className={cn(
                             "w-full justify-between text-left font-normal transition-all duration-200",
+                            "border-input hover:border-primary/50 focus:border-primary",
                             !dateRange && "text-muted-foreground",
                             getButtonHeight(),
-                            disabled && "opacity-50 cursor-not-allowed"
+                            disabled && "opacity-50 cursor-not-allowed",
+                            compact && "min-w-0"
                         )}
                         disabled={disabled}
                     >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <CalendarIcon className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{formatDisplayText()}</span>
+                        <div className={cn(
+                            "flex items-center gap-2 min-w-0 flex-1",
+                            compact && "gap-1"
+                        )}>
+                            <CalendarIcon className={cn(
+                                "shrink-0",
+                                compact ? "h-3 w-3" : "h-4 w-4"
+                            )} />
+                            <span className="truncate text-left">
+                                {formatDisplayText()}
+                            </span>
                             {showNights && nights > 0 && (
                                 <Badge 
                                     variant={isMinStayViolation ? "destructive" : "secondary"} 
-                                    className="ml-auto shrink-0 text-xs"
+                                    className={cn(
+                                        "ml-auto shrink-0",
+                                        compact ? "text-xs px-1" : "text-xs px-2"
+                                    )}
                                 >
-                                    {nights}n
+                                    {nights} {compact ? 'mlm' : 'malam'}
                                 </Badge>
                             )}
                         </div>
                         <ChevronDown className={cn(
-                            "h-4 w-4 shrink-0 opacity-50 transition-transform duration-200",
+                            "shrink-0 opacity-50 transition-transform duration-200",
+                            compact ? "h-3 w-3" : "h-4 w-4",
                             isOpen && "rotate-180"
                         )} />
                     </Button>
@@ -343,99 +364,113 @@ export function DateRange({
                     sideOffset={4}
                 >
                     <div className="p-3">
-                        {loading ? (
+                        {loading && (
                             <div className="flex items-center justify-center p-8">
                                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                                <span className="ml-2 text-sm text-muted-foreground">Loading availability...</span>
+                                <span className="ml-2 text-sm text-muted-foreground">
+                                    Memuat ketersediaan...
+                                </span>
                             </div>
-                        ) : error ? (
+                        )}
+                        
+                        {error && (
                             <Alert variant="destructive" className="mb-3">
                                 <AlertCircle className="h-4 w-4" />
                                 <AlertDescription>{error}</AlertDescription>
                             </Alert>
-                        ) : null}
+                        )}
                         
-                        <Calendar
-                            initialFocus
-                            mode="range"
-                            defaultMonth={dateRange?.from || new Date()}
-                            selected={dateRange}
-                            onSelect={handleDateSelect}
-                            numberOfMonths={1}
-                            disabled={disabledDates}
-                            modifiers={{
-                                booked: (date: Date) => isDateBooked(date),
-                                
-                            }}
-                            modifiersStyles={{
-                                booked: {
-                                    backgroundColor: '#fecaca',
-                                    color: '#dc2626',
-                                    textDecoration: 'line-through',
-                                    position: 'relative'
-                                },
-                                highlight: {
-                                    backgroundColor: '#f0fdf4',
-                                    color: '#16a34a',
-                                    textDecoration: 'none',
-                                    position: 'relative'
-                                }
-                            }}
-                            className="rounded-md border-0"
-                        />
+                        {!loading && (
+                            <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={dateRange?.from || new Date()}
+                                selected={dateRange}
+                                onSelect={handleDateSelect}
+                                numberOfMonths={compact ? 1 : 2}
+                                disabled={disabledDates}
+                                modifiers={{
+                                    booked: (date: Date) => isDateBooked(date),
+                                }}
+                                modifiersStyles={{
+                                    booked: {
+                                        backgroundColor: 'hsl(var(--destructive))',
+                                        color: 'hsl(var(--destructive-foreground))',
+                                        opacity: 0.5,
+                                        textDecoration: 'line-through',
+                                    },
+                                }}
+                                className="rounded-md border-0"
+                                locale={id}
+                            />
+                        )}
                         
-                        {/* Status Info */}
                         <div className="flex items-center justify-between mt-3 pt-3 border-t text-xs text-muted-foreground">
-                            <div>
-                                {!dateRange?.from && 'Select check-in date'}
-                                {dateRange?.from && !dateRange?.to && 'Select check-out date'}
-                                {dateRange?.from && dateRange?.to && `${nights} night${nights !== 1 ? 's' : ''} selected`}
+                            <div className="flex-1">
+                                {!dateRange?.from && (
+                                    <span>Pilih tanggal check-in</span>
+                                )}
+                                {dateRange?.from && !dateRange?.to && (
+                                    <div className="space-y-1">
+                                        <span className="text-primary font-medium">
+                                            Check-in: {format(dateRange.from, 'd MMM yyyy', { locale: id })}
+                                        </span>
+                                        <div className="text-xs">
+                                            Sekarang pilih tanggal check-out
+                                        </div>
+                                    </div>
+                                )}
+                                {dateRange?.from && dateRange?.to && (
+                                    <span className="text-primary font-medium">
+                                        {nights} malam dipilih
+                                    </span>
+                                )}
                             </div>
                             
-                            {dateRange && (
+                            {dateRange?.from && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
                                     className="h-6 px-2 text-xs"
-                                    onClick={() => handleDateSelect(undefined)}
+                                    onClick={() => {
+                                        handleDateSelect(undefined);
+                                        setError(null);
+                                    }}
                                 >
                                     Reset
                                 </Button>
                             )}
                         </div>
 
-                        {/* Legend */}
                         <div className="flex items-center gap-4 mt-2 pt-2 border-t text-xs">
                             <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-red-200 border border-red-300 rounded"></div>
-                                <span>Booked</span>
+                                <div className="w-3 h-3 bg-destructive opacity-50 border border-destructive rounded"></div>
+                                <span>Dipesan</span>
                             </div>
                             <div className="flex items-center gap-1">
                                 <div className="w-3 h-3 bg-primary border border-primary rounded"></div>
-                                <span>Selected</span>
+                                <span>Dipilih</span>
                             </div>
                             <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-muted border border-border rounded"></div>
-                                <span>Available</span>
+                                <div className="w-3 h-3 bg-background border border-border rounded"></div>
+                                <span>Tersedia</span>
                             </div>
                         </div>
 
-                        {/* Minimum Stay Warning */}
                         {showMinStayWarning && isMinStayViolation && (
                             <Alert variant="destructive" className="mt-2">
                                 <AlertCircle className="h-4 w-4" />
                                 <AlertDescription>
-                                    Minimum stay of {currentMinStay} night{currentMinStay > 1 ? 's' : ''} required for selected dates
+                                    Minimal menginap {currentMinStay} malam untuk tanggal yang dipilih
                                 </AlertDescription>
                             </Alert>
                         )}
 
-                        {/* Success message when valid range is selected */}
-                        {dateRange?.from && dateRange?.to && !isMinStayViolation && (
-                            <Alert className="mt-2">
-                                <CheckCircle className="h-4 w-4" />
-                                <AlertDescription>
-                                    Valid {nights} night{nights > 1 ? 's' : ''} stay selected
+                        {dateRange?.from && dateRange?.to && !isMinStayViolation && !error && (
+                            <Alert className="mt-2 border-green-200 bg-green-50">
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                                <AlertDescription className="text-green-700">
+                                    Pilihan {nights} malam valid untuk reservasi
                                 </AlertDescription>
                             </Alert>
                         )}
@@ -446,7 +481,6 @@ export function DateRange({
     );
 }
 
-// Helper function to get default date range (today to tomorrow+nights)
 export const getDefaultDateRange = (nights: number = 1) => {
     const today = new Date();
     const endDate = addDays(today, nights);
@@ -457,7 +491,6 @@ export const getDefaultDateRange = (nights: number = 1) => {
     };
 };
 
-// Helper function to format date range for display
 export const formatDateRange = (startDate: string, endDate: string, locale: string = 'id-ID') => {
     if (!startDate || !endDate) return '';
     

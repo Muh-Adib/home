@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Payment;
 use App\Models\Booking;
 use App\Models\PaymentMethod;
+use App\Events\PaymentCreated;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -27,6 +28,46 @@ use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
+    /**
+     * List of Indonesian banks and e-wallets for sender account
+     */
+    const BANK_OPTIONS = [
+        // Major Banks
+        'BCA - Bank Central Asia',
+        'BRI - Bank Rakyat Indonesia',
+        'BNI - Bank Negara Indonesia',
+        'Mandiri - Bank Mandiri',
+        'CIMB Niaga',
+        'Danamon',
+        'Permata Bank',
+        'OCBC NISP',
+        'Maybank',
+        'BTPN',
+        'BJB - Bank Jabar Banten',
+        'Bank Mega',
+        'Bank Bukopin',
+        'Bank Syariah Indonesia (BSI)',
+        
+        // Digital Banks
+        'Jenius (BTPN)',
+        'Digibank by DBS',
+        'Bank Jago',
+        'Neo Commerce (Bank Neo)',
+        'SeaBank',
+        'Allo Bank',
+        
+        // E-Wallets
+        'GoPay',
+        'OVO',
+        'DANA',
+        'LinkAja',
+        'ShopeePay',
+        'PayPal',
+        
+        // Other
+        'Lainnya',
+    ];
+
     /**
      * Show payment form for guest (with authentication check)
      */
@@ -62,6 +103,7 @@ class PaymentController extends Controller
             'paymentMethods' => $paymentMethods,
             'pendingAmount' => $pendingAmount,
             'paidAmount' => $paidAmount,
+            'bankOptions' => self::BANK_OPTIONS,
         ]);
     }
 
@@ -88,6 +130,9 @@ class PaymentController extends Controller
                 'amount' => 'required|numeric|min:1',
                 'payment_proof' => 'required|image|mimes:jpeg,png,jpg|max:10240',
                 'notes' => 'nullable|string|max:1000',
+                'sender_account_name' => 'required|string|max:255',
+                'sender_account_number' => 'required|string|max:100',
+                'sender_bank_name' => 'required|string|max:255',
             ]);
             Log::info('Validation passed');
 
@@ -133,6 +178,9 @@ class PaymentController extends Controller
                 'bank_name' => $paymentMethod->bank_name,
                 'verification_notes' => $validated['notes'],
                 'processed_by' => Auth::id(),
+                'sender_account_name' => $validated['sender_account_name'],
+                'sender_account_number' => $validated['sender_account_number'],
+                'sender_bank_name' => $validated['sender_bank_name'],
             ]);
             Log::info('Payment record created', ['payment_number' => $payment->payment_number]);
 
@@ -150,6 +198,9 @@ class PaymentController extends Controller
 
             DB::commit();
             Log::info('Transaction committed successfully');
+
+            // Dispatch event
+            event(new PaymentCreated($payment, Auth::user()));
 
             return redirect()->route('my-bookings')
                 ->with('success', 'Payment proof submitted successfully. We will verify your payment within 1-2 business hours.');

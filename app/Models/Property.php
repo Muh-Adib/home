@@ -475,4 +475,49 @@ class Property extends Model
     {
         return 'slug';
     }
+
+    /**
+     * Get list of booked dates within a given range
+     */
+    public function getBookedDatesInRange($checkIn, $checkOut): array
+    {
+        $checkInDate = \Carbon\Carbon::parse($checkIn);
+        $checkOutDate = \Carbon\Carbon::parse($checkOut);
+        
+        // Get all confirmed bookings that overlap with the range
+        $bookings = $this->bookings()
+            ->whereIn('booking_status', ['confirmed', 'checked_in'])
+            ->where(function ($query) use ($checkInDate, $checkOutDate) {
+                $query->where(function ($q) use ($checkInDate, $checkOutDate) {
+                    // Booking starts within our range
+                    $q->whereBetween('check_in_date', [$checkInDate->format('Y-m-d'), $checkOutDate->format('Y-m-d')])
+                      // Booking ends within our range
+                      ->orWhereBetween('check_out_date', [$checkInDate->format('Y-m-d'), $checkOutDate->format('Y-m-d')])
+                      // Booking completely encompasses our range
+                      ->orWhere(function ($encompass) use ($checkInDate, $checkOutDate) {
+                          $encompass->where('check_in_date', '<=', $checkInDate->format('Y-m-d'))
+                                   ->where('check_out_date', '>=', $checkOutDate->format('Y-m-d'));
+                      });
+                });
+            })
+            ->get(['check_in_date', 'check_out_date']);
+
+        $bookedDates = [];
+        
+        foreach ($bookings as $booking) {
+            $bookingStart = \Carbon\Carbon::parse($booking->check_in_date);
+            $bookingEnd = \Carbon\Carbon::parse($booking->check_out_date);
+            
+            // Generate all dates within the booking period
+            $currentDate = $bookingStart->copy();
+            while ($currentDate->lte($bookingEnd->subDay())) { // Exclude checkout date
+                if ($currentDate->gte($checkInDate) && $currentDate->lte($checkOutDate)) {
+                    $bookedDates[] = $currentDate->format('Y-m-d');
+                }
+                $currentDate->addDay();
+            }
+        }
+        
+        return array_unique($bookedDates);
+    }
 }

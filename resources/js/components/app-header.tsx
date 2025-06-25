@@ -5,74 +5,74 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { NavigationMenu, NavigationMenuItem, NavigationMenuList, navigationMenuTriggerStyle } from '@/components/ui/navigation-menu';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
 import { type BreadcrumbItem, type NavItem, type SharedData, type User } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, CreditCard, Folder, LayoutGrid, ListChecks, Menu, Search, Settings } from 'lucide-react';
+import { BookOpen, CreditCard, Folder, LayoutGrid, ListChecks, Menu, Search, Settings, Users, BarChart3, Shield, Wrench, Home, Package, DollarSign, FileText, LucideIcon } from 'lucide-react';
 import AppLogo from './app-logo';
 import AppLogoIcon from './app-logo-icon';
 import LanguageSwitcher from '@/components/language-switcher';
 import { useTranslation } from 'react-i18next';
 
-type NavKey = 'dashboard' | 'properties' | 'bookings' | 'payment_methods' | 'settings' | 'cleaning_tasks' | 'my_properties' | 'my_bookings' | 'my_payments' | 'browse_properties' | 'payments';
-
-const getHeaderNavItemsForRole = (userRole: User['role']): (NavItem & { key: NavKey })[] => {
+const getHeaderNavItemsForRole = (userRole: User['role']): (NavItem & { title: string, href: string, icon: LucideIcon })[] => {
     const baseItems = [
-        { key: 'dashboard', href: '/dashboard', icon: LayoutGrid },
+        { title: 'dashboard', href: '/dashboard', icon: LayoutGrid },
     ];
 
-    const roleBasedItems: Record<User['role'], (NavItem & { key: NavKey })[]> = {
+    const roleBasedItems: Record<User['role'], (NavItem & { title: string, href: string, icon: LucideIcon })[]> = {
         super_admin: [
             ...baseItems,
-            { key: 'properties', href: '/admin/properties', icon: Folder },
-            { key: 'bookings', href: '/admin/bookings', icon: BookOpen },
-            { key: 'payment_methods', href: '/admin/payment-methods', icon: BookOpen },
-            { key: 'settings', href: '/admin/settings', icon: Settings },
-            { key: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+            { title: 'properties', href: '/admin/properties', icon: Folder },
+            { title: 'bookings', href: '/admin/bookings', icon: BookOpen },
+            { title: 'payment_methods', href: '/admin/payment-methods', icon: CreditCard },
+            { title: 'users', href: '/admin/users', icon: Users },
+            { title: 'settings', href: '/admin/settings', icon: Settings },
+            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
         ],
         property_owner: [
             ...baseItems,
-            { key: 'my_properties', href: '/admin/properties', icon: Folder },
-            { key: 'my_bookings', href: '/admin/bookings', icon: BookOpen },
+            { title: 'my_properties', href: '/admin/properties', icon: Folder },
+            { title: 'my_bookings', href: '/admin/bookings', icon: BookOpen },
         ],
         property_manager: [
             ...baseItems,
-            { key: 'properties', href: '/admin/properties', icon: Folder },
-            { key: 'bookings', href: '/admin/bookings', icon: BookOpen },
-            { key: 'payment_methods', href: '/admin/payment-methods', icon: BookOpen },
-            { key: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+            { title: 'properties', href: '/admin/properties', icon: Folder },
+            { title: 'bookings', href: '/admin/bookings', icon: BookOpen },
+            { title: 'payment_methods', href: '/admin/payment-methods', icon: CreditCard },
+            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
         ],
         front_desk: [
             ...baseItems,
-            { key: 'bookings', href: '/admin/bookings', icon: BookOpen },
+            { title: 'bookings', href: '/admin/bookings', icon: BookOpen },
+            { title: 'check_in_out', href: '/admin/checkin', icon: Shield },
         ],
         finance: [
             ...baseItems,
-            { key: 'bookings', href: '/admin/bookings', icon: BookOpen },
-            { key: 'payments', href: '/admin/payments', icon: BookOpen },
-            { key: 'payment_methods', href: '/admin/payment-methods', icon: BookOpen },
+            { title: 'bookings', href: '/admin/bookings', icon: BookOpen },
+            { title: 'payments', href: '/admin/payments', icon: CreditCard },
+            { title: 'payment_methods', href: '/admin/payment-methods', icon: CreditCard },
         ],
         housekeeping: [
             ...baseItems,
-            { key: 'bookings', href: '/admin/bookings', icon: BookOpen },
+            { title: 'bookings', href: '/admin/bookings', icon: BookOpen },
         ],
         guest: [
-            { key: 'browse_properties', href: '/properties', icon: Folder },
-            { key: 'my_bookings', href: '/my-bookings', icon: BookOpen },
-            { key: 'my_payments', href: '/my-payments', icon: CreditCard },
+            { title: 'browse_properties', href: '/properties', icon: Home },
+            { title: 'my_bookings', href: '/my-bookings', icon: BookOpen },
+            { title: 'my_payments', href: '/my-payments', icon: CreditCard },
         ],
     };
 
     return roleBasedItems[userRole] || baseItems;
 };
 
-const rightNavItems: (NavItem & { key: 'help' | 'support' })[] = [
-    { key: 'help', href: '/help', icon: BookOpen },
-    { key: 'support', href: '/support', icon: Folder },
+const rightNavItems: (NavItem & { title: string, href: string, icon: LucideIcon })[] = [
+    { title: 'help', href: '/help', icon: BookOpen },
+    { title: 'support', href: '/support', icon: Folder },
 ];
 
 const activeItemStyles = 'text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100';
@@ -101,6 +101,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                             </SheetTrigger>
                             <SheetContent side="left" className="bg-sidebar flex h-full w-64 flex-col items-stretch justify-between">
                                 <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+                                <SheetDescription className="sr-only">Main navigation menu for the application</SheetDescription>
                                 <SheetHeader className="flex justify-start text-left">
                                     <AppLogoIcon className="h-6 w-6 fill-current text-black dark:text-white" />
                                 </SheetHeader>
@@ -110,7 +111,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                             {mainNavItems.map((item) => (
                                                 <Link key={item.title} href={item.href} className="flex items-center space-x-2 font-medium">
                                                     {item.icon && <Icon iconNode={item.icon} className="h-5 w-5" />}
-                                                    <span>{t(`nav.${item.key}`)}</span>
+                                                    <span>{t(`nav.${item.title}`)}</span>
                                                 </Link>
                                             ))}
                                         </div>
@@ -125,7 +126,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                                     className="flex items-center space-x-2 font-medium"
                                                 >
                                                     {item.icon && <Icon iconNode={item.icon} className="h-5 w-5" />}
-                                                    <span>{t(`nav.${item.key}`)}</span>
+                                                    <span>{t(`nav.${item.title}`)}</span>
                                                 </a>
                                             ))}
                                         </div>
@@ -154,7 +155,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                             )}
                                         >
                                             {item.icon && <Icon iconNode={item.icon} className="mr-2 h-4 w-4" />}
-                                            {t(`nav.${item.key}`)}
+                                            {t(`nav.${item.title}`)}
                                         </Link>
                                         {page.url === item.href && (
                                             <div className="absolute bottom-0 left-0 h-0.5 w-full translate-y-px bg-black dark:bg-white"></div>
@@ -190,12 +191,12 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                                     rel="noopener noreferrer"
                                                     className="group text-accent-foreground ring-offset-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring ml-1 inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent p-0 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
                                                 >
-                                                    <span className="sr-only">{t(`nav.${item.key}`)}</span>
+                                                    <span className="sr-only">{t(`nav.${item.title}`)}</span>
                                                     {item.icon && <Icon iconNode={item.icon} className="size-5 opacity-80 group-hover:opacity-100" />}
                                                 </a>
                                             </TooltipTrigger>
                                             <TooltipContent>
-                                                <p>{t(`nav.${item.key}`)}</p>
+                                                <p>{t(`nav.${item.title}`)}</p>
                                             </TooltipContent>
                                         </Tooltip>
                                     </TooltipProvider>

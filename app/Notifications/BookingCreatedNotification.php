@@ -62,23 +62,20 @@ class BookingCreatedNotification extends Notification implements ShouldQueue
     {
         return [
             'type' => 'booking_created',
-            'title' => 'New Booking Created',
-            'message' => "New booking {$this->booking->booking_number} from {$this->booking->guest_name}",
-            'data' => [
-                'booking_id' => $this->booking->id,
-                'booking_number' => $this->booking->booking_number,
-                'guest_name' => $this->booking->guest_name,
-                'property_name' => $this->booking->property->name,
-                'check_in' => $this->booking->check_in,
-                'check_out' => $this->booking->check_out,
-                'total_amount' => $this->booking->total_amount,
-                'status' => $this->booking->booking_status,
-                'created_by' => [
-                    'id' => $this->createdBy->id,
-                    'name' => $this->createdBy->name,
-                ],
+            'booking_id' => $this->booking->id,
+            'booking_number' => $this->booking->booking_number,
+            'property_name' => $this->booking->property->name,
+            'guest_name' => $this->booking->guest_name,
+            'check_in' => $this->booking->check_in_date,
+            'check_out' => $this->booking->check_out_date,
+            'total_amount' => $this->booking->total_amount,
+            'booking_status' => $this->booking->booking_status,
+            'created_by' => [
+                'id' => $this->createdBy->id,
+                'name' => $this->createdBy->name,
             ],
-            'action_url' => '/admin/bookings/' . $this->booking->id,
+            'message' => "New booking {$this->booking->booking_number} created at {$this->booking->property->name}",
+            'action_url' => "/admin/bookings/{$this->booking->booking_number}",
             'icon' => 'calendar',
             'color' => 'blue',
         ];
@@ -108,7 +105,7 @@ class BookingCreatedNotification extends Notification implements ShouldQueue
                     'name' => $this->createdBy->name,
                 ],
             ],
-            'action_url' => '/admin/bookings/' . $this->booking->id,
+            'action_url' => '/admin/bookings/' . $this->booking->booking_number,
             'icon' => 'calendar',
             'color' => 'blue',
             'read_at' => null,
@@ -121,8 +118,10 @@ class BookingCreatedNotification extends Notification implements ShouldQueue
      */
     public function broadcastOn(): array
     {
+        // Return generic admin channel since we don't have access to $notifiable here
+        // The actual filtering will be done by the broadcasting system
         return [
-            new \Illuminate\Broadcasting\PrivateChannel('user.' . $this->notifiable->id),
+            new \Illuminate\Broadcasting\Channel('admin-notifications'),
         ];
     }
 

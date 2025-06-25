@@ -13,23 +13,17 @@ class BookingService
 {
     /**
      * Buat booking baru dengan seluruh proses bisnis.
-     * proses ini akan membuat booking, menambahkan detail tamu, menambahkan workflow, dan dispatch event.
-     * admin dapat membuat booking dari halaman admin.
-     * admin tidak dapat membuat booking dari halaman website.
-     * guest dapat membuat booking dari halaman website.
-     * guest tidak dapat membuat booking dari halaman admin.
-     *
-     * jika guest membuat booking dari halaman website, maka booking akan dibuat dengan status pending_verification.
-     * jika admin membuat booking dari halaman admin, maka booking akan dibuat dengan status verified.
-     * jika admin memverifikasi booking, maka booking akan dibuat dengan status pending_payment.
-     * jika admin membatalkan booking, maka booking akan dibuat dengan status cancelled.
-     * jika admin mengubah status booking, maka booking akan dibuat dengan status pending_verification.
-     * jika admin mengubah status booking, maka booking akan dibuat dengan status pending_payment.
-     * jika admin mengubah status booking, maka booking akan dibuat dengan status paid.
      * 
-     * @param Property $property
-     * @param array $data Validated request data
-     * @param object|null $user User yang membuat (boleh null untuk guest)
+     * Method ini akan:
+     * - Membuat booking dengan data yang tervalidasi
+     * - Menghitung rate dan biaya berdasarkan property dan tanggal
+     * - Membuat atau mengaitkan user/guest otomatis
+     * - Menambahkan workflow tracking
+     * - Dispatch event untuk notifikasi
+     * 
+     * @param Property $property Property yang akan dipesan
+     * @param array $data Data booking yang sudah tervalidasi
+     * @param object|null $user User yang membuat booking (null untuk guest)
      * @return Booking
      *
      * @throws \Exception
@@ -117,12 +111,12 @@ class BookingService
             }
 
             //jika booking dibuat oleh admin, maka status booking akan diubah menjadi verified
-            if ($user->role === 'superadmin' || $user->role === 'admin') {
+            if ($user && isset($user->role) && ($user->role === 'superadmin' || $user->role === 'admin')) {
                 $booking->booking_status = 'verified';
                 $booking->save();
                 $booking->workflow()->create([
-                    'step'         => 'verified',
-                    'status'       => 'completed',
+                    'step'         => 'approved',
+                    'status'       => 'confirmed',
                     'processed_at' => now(),
                     'notes'        => 'Booking dibuat oleh admin',
                 ]);
@@ -131,15 +125,73 @@ class BookingService
             // Workflow awal
             $booking->workflow()->create([
                 'step'         => 'submitted',
-                'status'       => 'completed',
+                'status'       => 'pending',
                 'processed_at' => now(),
                 'notes'        => 'Booking dibuat melalui service layer',
             ]);
 
             // Dispatch event
-            event(new BookingCreated($booking->load('property'), $user ?? (object)['id'=>0, 'name'=>'Guest']));
+            if ($user && $user instanceof \App\Models\User) {
+                event(new BookingCreated($booking->load('property'), $user));
+            } else {
+                // For guest bookings, create a dummy User object for notifications
+                $guestUser = new \App\Models\User();
+                $guestUser->id = 0;
+                $guestUser->name = 'Guest';
+                $guestUser->email = $booking->guest_email;
+                $guestUser->role = 'guest';
+                
+                event(new BookingCreated($booking->load('property'), $guestUser));
+            }
 
             return $booking;
         });
+    }
+
+    /**
+     * Calculate rate for booking
+     * 
+     * @param Property $property
+     * @param \Carbon\Carbon $checkIn
+     * @param \Carbon\Carbon $checkOut
+     * @param int $guestCount
+     * @return array
+     */
+    public function calculateRate(Property $property, $checkIn, $checkOut, int $guestCount): array
+    {
+        $nights = $checkIn->diffInDays($checkOut);
+        
+        // Base calculation using property's calculateRate method
+        return $property->calculateRate(
+            $checkIn->format('Y-m-d'),
+            $checkOut->format('Y-m-d'),
+            $guestCount
+        );
+    }
+
+    /**
+     * Create or get user for guest booking
+     * 
+     * @param array $guestData
+     * @return \App\Models\User|null
+     */
+    protected function createOrGetGuest(array $guestData): ?\App\Models\User
+    {
+        // For manual booking, we don't create user accounts
+        // Guest data is stored directly in booking table
+        return null;
+    }
+
+    /**
+     * Validate booking dates
+     * 
+     * @param Property $property
+     * @param string $checkIn
+     * @param string $checkOut
+     * @return bool
+     */
+    public function validateBookingDates(Property $property, string $checkIn, string $checkOut): bool
+    {
+        return $property->isAvailableForDates($checkIn, $checkOut);
     }
 } 
