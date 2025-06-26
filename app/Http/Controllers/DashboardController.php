@@ -21,6 +21,11 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         
+        // Redirect guest users to their own dashboard
+        if ($user->role === 'guest') {
+            return $this->guestDashboard($user);
+        }
+        
         // Get date ranges for comparison
         $today = Carbon::today();
         $thisMonth = Carbon::now()->startOfMonth();
@@ -56,6 +61,78 @@ class DashboardController extends Controller
             'revenueChart' => $revenueChart,
             'bookingTrends' => $bookingTrends,
             'propertyPerformance' => $propertyPerformance,
+        ]);
+    }
+
+    /**
+     * Display the guest dashboard
+     */
+    public function guestDashboard(User $user): Response
+    {
+        // Get upcoming bookings
+        $upcomingBookings = Booking::where('guest_email', $user->email)
+            ->where('booking_status', '!=', 'cancelled')
+            ->where('check_in', '>=', now())
+            ->with(['property'])
+            ->orderBy('check_in')
+            ->get();
+
+        // Get past bookings
+        $pastBookings = Booking::where('guest_email', $user->email)
+            ->where('check_out', '<', now())
+            ->with(['property'])
+            ->orderBy('check_out', 'desc')
+            ->limit(10)
+            ->get();
+
+        // Get recent payments
+        $recentPayments = Payment::whereHas('booking', function ($query) use ($user) {
+                $query->where('guest_email', $user->email);
+            })
+            ->with(['booking.property'])
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get()
+            ->map(function ($payment) {
+                return [
+                    'id' => $payment->id,
+                    'payment_number' => $payment->payment_number,
+                    'amount' => $payment->amount,
+                    'payment_status' => $payment->payment_status,
+                    'payment_date' => $payment->created_at->toDateString(),
+                    'booking' => [
+                        'booking_number' => $payment->booking->booking_number,
+                        'property' => [
+                            'name' => $payment->booking->property->name,
+                        ],
+                    ],
+                ];
+            });
+
+        // Calculate stats
+        $totalBookings = Booking::where('guest_email', $user->email)->count();
+        $upcomingBookingsCount = $upcomingBookings->count();
+        $completedBookings = Booking::where('guest_email', $user->email)
+            ->where('booking_status', 'completed')
+            ->count();
+        $totalSpent = Payment::whereHas('booking', function ($query) use ($user) {
+                $query->where('guest_email', $user->email);
+            })
+            ->where('payment_status', 'verified')
+            ->sum('amount');
+
+        $stats = [
+            'total_bookings' => $totalBookings,
+            'upcoming_bookings' => $upcomingBookingsCount,
+            'completed_bookings' => $completedBookings,
+            'total_spent' => $totalSpent,
+        ];
+
+        return Inertia::render('Guest/Dashboard', [
+            'upcoming_bookings' => $upcomingBookings,
+            'past_bookings' => $pastBookings,
+            'recent_payments' => $recentPayments,
+            'stats' => $stats,
         ]);
     }
 

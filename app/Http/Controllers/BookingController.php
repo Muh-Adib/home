@@ -264,7 +264,7 @@ class BookingController extends Controller
             return $booking;
         });
 
-        return Inertia::render('Bookings/MyBookings', [
+        return Inertia::render('Guest/MyBookings', [
             'bookings' => $bookings,
             'filters' => [
                 'search' => $request->get('search'),

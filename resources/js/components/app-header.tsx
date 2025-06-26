@@ -11,59 +11,64 @@ import { UserMenuContent } from '@/components/user-menu-content';
 import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
 import { type BreadcrumbItem, type NavItem, type SharedData, type User } from '@/types';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 import { BookOpen, CreditCard, Folder, LayoutGrid, ListChecks, Menu, Search, Settings, Users, BarChart3, Shield, Wrench, Home, Package, DollarSign, FileText, LucideIcon } from 'lucide-react';
 import AppLogo from './app-logo';
 import AppLogoIcon from './app-logo-icon';
 import LanguageSwitcher from '@/components/language-switcher';
 import { useTranslation } from 'react-i18next';
 
+declare global {
+    function route(name: string, params?: any): string;
+}
+
+
 const getHeaderNavItemsForRole = (userRole: User['role']): (NavItem & { title: string, href: string, icon: LucideIcon })[] => {
     const baseItems = [
-        { title: 'dashboard', href: '/dashboard', icon: LayoutGrid },
+        { title: 'dashboard', href: route('dashboard'), icon: LayoutGrid },
     ];
 
     const roleBasedItems: Record<User['role'], (NavItem & { title: string, href: string, icon: LucideIcon })[]> = {
         super_admin: [
             ...baseItems,
-            { title: 'properties', href: '/admin/properties', icon: Folder },
-            { title: 'bookings', href: '/admin/bookings', icon: BookOpen },
-            { title: 'payment_methods', href: '/admin/payment-methods', icon: CreditCard },
-            { title: 'users', href: '/admin/users', icon: Users },
-            { title: 'settings', href: '/admin/settings', icon: Settings },
-            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+            { title: 'properties', href: route('admin.properties.index'), icon: Folder },
+            { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
+            { title: 'payment_methods', href: route('admin.payment-methods.index'), icon: CreditCard },
+            { title: 'users', href: route('admin.users.index'), icon: Users },
+            { title: 'settings', href: route('admin.settings.general'), icon: Settings },
+            { title: 'cleaning_tasks', href: route('admin.cleaning-tasks.index'), icon: ListChecks },
         ],
         property_owner: [
             ...baseItems,
-            { title: 'my_properties', href: '/admin/properties', icon: Folder },
-            { title: 'my_bookings', href: '/admin/bookings', icon: BookOpen },
+            { title: 'my_properties', href: route('admin.properties.index'), icon: Folder },
+            { title: 'my_bookings', href: route('admin.bookings.index'), icon: BookOpen },
         ],
         property_manager: [
             ...baseItems,
-            { title: 'properties', href: '/admin/properties', icon: Folder },
-            { title: 'bookings', href: '/admin/bookings', icon: BookOpen },
-            { title: 'payment_methods', href: '/admin/payment-methods', icon: CreditCard },
-            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+            { title: 'properties', href: route('admin.properties.index'), icon: Folder },
+            { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
+            { title: 'payment_methods', href: route('admin.payment-methods.index'), icon: CreditCard },
+            { title: 'cleaning_tasks', href: route('admin.cleaning-tasks.index'), icon: ListChecks },
         ],
         front_desk: [
             ...baseItems,
-            { title: 'bookings', href: '/admin/bookings', icon: BookOpen },
-            { title: 'check_in_out', href: '/admin/checkin', icon: Shield },
+            { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
+            { title: 'check_in_out', href: route('admin.bookings.index'), icon: Shield },
         ],
         finance: [
             ...baseItems,
-            { title: 'bookings', href: '/admin/bookings', icon: BookOpen },
-            { title: 'payments', href: '/admin/payments', icon: CreditCard },
-            { title: 'payment_methods', href: '/admin/payment-methods', icon: CreditCard },
+            { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
+            { title: 'payments', href: route('admin.payments.index'), icon: CreditCard },
+            { title: 'payment_methods', href: route('admin.payment-methods.index'), icon: CreditCard },
         ],
         housekeeping: [
             ...baseItems,
-            { title: 'bookings', href: '/admin/bookings', icon: BookOpen },
+            { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
         ],
         guest: [
-            { title: 'browse_properties', href: '/properties', icon: Home },
-            { title: 'my_bookings', href: '/my-bookings', icon: BookOpen },
-            { title: 'my_payments', href: '/my-payments', icon: CreditCard },
+            { title: 'browse_properties', href: route('properties.index'), icon: Home },
+            { title: 'my_bookings', href: route('my-bookings'), icon: BookOpen },
+            { title: 'my_payments', href: route('my-payments'), icon: CreditCard },
         ],
     };
 
@@ -102,28 +107,32 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                             <SheetContent side="left" className="bg-sidebar flex h-full w-64 flex-col items-stretch justify-between">
                                 <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                                 <SheetDescription className="sr-only">Main navigation menu for the application</SheetDescription>
-                                <SheetHeader className="flex justify-start text-left">
-                                    <AppLogoIcon className="h-6 w-6 fill-current text-black dark:text-white" />
+                                <SheetHeader className="flex flex-row items-center justify-start p-4 border-b">
+                                    <AppLogo />
                                 </SheetHeader>
                                 <div className="flex h-full flex-1 flex-col space-y-4 p-4">
                                     <div className="flex h-full flex-col justify-between text-sm">
-                                        <div className="flex flex-col space-y-4">
+                                        <div className="flex flex-col space-y-2">
                                             {mainNavItems.map((item) => (
-                                                <Link key={item.title} href={item.href} className="flex items-center space-x-2 font-medium">
+                                                <Link 
+                                                    key={item.title} 
+                                                    href={item.href} 
+                                                    className="flex items-center space-x-3 rounded-lg px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-medium"
+                                                >
                                                     {item.icon && <Icon iconNode={item.icon} className="h-5 w-5" />}
                                                     <span>{t(`nav.${item.title}`)}</span>
                                                 </Link>
                                             ))}
                                         </div>
 
-                                        <div className="flex flex-col space-y-4">
+                                        <div className="flex flex-col space-y-2 pt-4 border-t">
                                             {rightNavItems.map((item) => (
                                                 <a
                                                     key={item.title}
                                                     href={item.href}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="flex items-center space-x-2 font-medium"
+                                                    className="flex items-center space-x-3 rounded-lg px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-medium"
                                                 >
                                                     {item.icon && <Icon iconNode={item.icon} className="h-5 w-5" />}
                                                     <span>{t(`nav.${item.title}`)}</span>
@@ -136,7 +145,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                         </Sheet>
                     </div>
 
-                    <Link href="/dashboard" prefetch className="flex items-center space-x-2">
+                    <Link href={route('dashboard')} prefetch className="flex items-center space-x-2">
                         <AppLogo />
                     </Link>
 

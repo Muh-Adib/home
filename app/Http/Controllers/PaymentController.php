@@ -250,6 +250,11 @@ class PaymentController extends Controller
             $query->where('payment_status', $request->get('status'));
         }
 
+        // Filter by type
+        if ($request->filled('type')) {
+            $query->where('payment_type', $request->get('type'));
+        }
+
         // Search
         if ($request->filled('search')) {
             $search = $request->get('search');
@@ -263,11 +268,12 @@ class PaymentController extends Controller
 
         $payments = $query->latest()->paginate(10);
 
-        return Inertia::render('Payment/MyPayments', [
+        return Inertia::render('Guest/MyPayments', [
             'payments' => $payments,
             'filters' => [
                 'search' => $request->get('search'),
                 'status' => $request->get('status'),
+                'type' => $request->get('type'),
             ]
         ]);
     }

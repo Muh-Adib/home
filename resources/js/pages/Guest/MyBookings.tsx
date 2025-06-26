@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +32,9 @@ import {
     Star,
     MessageSquare
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import AppLayout from '@/layouts/app-layout';
+import { PageProps } from '@/types';
 
 interface Property {
     id: number;
@@ -99,6 +102,8 @@ interface MyBookingsProps {
 }
 
 export default function MyBookings({ bookings, filters }: MyBookingsProps) {
+    const page = usePage<PageProps>();
+    const { t } = useTranslation();
     const [localFilters, setLocalFilters] = useState({
         search: filters.search || '',
         status: filters.status || '',
@@ -227,9 +232,14 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
         return booking.total_amount - getPaidAmount(booking);
     };
 
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: t('nav.home'), href: route('home') },
+        { title: t('nav.my_bookings'), href: route('my-bookings') }
+    ];
+
     return (
-        <>
-            <Head title="My Bookings - Property Management System" />
+        <AppLayout breadcrumbs={breadcrumbs}>
+            <Head title={`${t('nav.my_bookings')} - Property Management System`} />
 
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
@@ -237,21 +247,22 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                     <div className="container mx-auto px-4 py-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                <h1 className="text-3xl font-bold text-gray-900">My Bookings</h1>
+                                <h1 className="text-3xl font-bold text-gray-900">{t('nav.my_bookings')}</h1>
                                 <p className="text-gray-600 mt-1">
-                                    {bookings.total} bookings total
+                                    {bookings.total} {t('nav.bookings').toLowerCase()} total
                                 </p>
                             </div>
                             <div className="flex gap-2">
+                                <Link href="/my-payments">
+                                    <Button variant="outline">
+                                        <CreditCard className="h-4 w-4 mr-2" />
+                                        {t('nav.my_payments')}
+                                    </Button>
+                                </Link>
                                 <Link href="/dashboard">
                                     <Button variant="outline">
                                         <Home className="h-4 w-4 mr-2" />
-                                        Dashboard
-                                    </Button>
-                                </Link>
-                                <Link href="/">
-                                    <Button variant="outline">
-                                        Back to Home
+                                        {t('nav.dashboard')}
                                     </Button>
                                 </Link>
                             </div>
@@ -262,11 +273,11 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                             <div className="flex-1 relative">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <Input
-                                    placeholder="Search by booking number or property name..."
+                                    placeholder={t('Search by booking number or property name...')}
                                     value={localFilters.search}
                                     onChange={(e) => setLocalFilters(prev => ({ ...prev, search: e.target.value }))}
                                     className="pl-10"
-                                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                                 />
                             </div>
 
@@ -277,13 +288,13 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                     <SelectValue placeholder="Booking Status" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Status</SelectItem>
-                                    <SelectItem value="pending_verification">Menunggu Verifikasi</SelectItem>
-                                    <SelectItem value="confirmed">Dikonfirmasi</SelectItem>
-                                    <SelectItem value="checked_in">Check-in</SelectItem>
-                                    <SelectItem value="checked_out">Check-out</SelectItem>
-                                    <SelectItem value="completed">Selesai</SelectItem>
-                                    <SelectItem value="cancelled">Dibatalkan</SelectItem>
+                                    <SelectItem value="all">{t('All Status')}</SelectItem>
+                                    <SelectItem value="pending_verification">{t('booking_status.pending_verification')}</SelectItem>
+                                    <SelectItem value="confirmed">{t('booking_status.confirmed')}</SelectItem>
+                                    <SelectItem value="checked_in">{t('booking_status.checked_in')}</SelectItem>
+                                    <SelectItem value="checked_out">{t('booking_status.checked_out')}</SelectItem>
+                                    <SelectItem value="completed">{t('booking_status.completed')}</SelectItem>
+                                    <SelectItem value="cancelled">{t('booking_status.cancelled')}</SelectItem>
                                 </SelectContent>
                             </Select>
 
@@ -294,21 +305,21 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                     <SelectValue placeholder="Payment Status" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Payments</SelectItem>
-                                    <SelectItem value="dp_pending">Menunggu DP</SelectItem>
-                                    <SelectItem value="dp_received">DP Diterima</SelectItem>
-                                    <SelectItem value="fully_paid">Lunas</SelectItem>
-                                    <SelectItem value="overdue">Terlambat</SelectItem>
-                                    <SelectItem value="refunded">Dikembalikan</SelectItem>
+                                    <SelectItem value="all">{t('All Payments')}</SelectItem>
+                                    <SelectItem value="dp_pending">{t('payment.status.dp_pending')}</SelectItem>
+                                    <SelectItem value="dp_received">{t('payment.status.dp_received')}</SelectItem>
+                                    <SelectItem value="fully_paid">{t('payment.status.fully_paid')}</SelectItem>
+                                    <SelectItem value="overdue">{t('payment.status.overdue')}</SelectItem>
+                                    <SelectItem value="refunded">{t('payment.status.refunded')}</SelectItem>
                                 </SelectContent>
                             </Select>
 
                             <div className="flex gap-2">
                                 <Button onClick={handleSearch}>
-                                    Search
+                                    {t('Search')}
                                 </Button>
                                 <Button variant="outline" onClick={clearFilters}>
-                                    Clear
+                                    {t('Clear')}
                                 </Button>
                             </div>
                         </div>
@@ -422,18 +433,18 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                                         onClick={() => handleViewDetails(booking)}
                                                     >
                                                         <Eye className="h-4 w-4 mr-2" />
-                                                        View Details
+                                                        {t('View Details')}
                                                     </Button>
                                                     <Link href={`/properties/${booking.property.slug}`}>
                                                         <Button variant="outline" size="sm">
                                                             <Building2 className="h-4 w-4 mr-2" />
-                                                            View Property
+                                                            {t('View Property')}
                                                         </Button>
                                                     </Link>
                                                     {booking.can_review && (
                                                         <Button variant="outline" size="sm">
                                                             <Star className="h-4 w-4 mr-2" />
-                                                            Write Review
+                                                            {t('Write Review')}
                                                         </Button>
                                                     )}
                                                 </div>
@@ -443,13 +454,13 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                                         <Link href={booking.payment_link!}>
                                                             <Button size="sm">
                                                                 <CreditCard className="h-4 w-4 mr-2" />
-                                                                Make Payment
+                                                                {t('Make Payment')}
                                                             </Button>
                                                         </Link>
                                                     )}
                                                     {booking.can_cancel && (
                                                         <Button variant="destructive" size="sm">
-                                                            Cancel Booking
+                                                            {t('Cancel Booking')}
                                                         </Button>
                                                     )}
                                                 </div>
@@ -465,17 +476,17 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                     <div className="flex items-center gap-2">
                                         {bookings.prev_page_url && (
                                             <Link href={bookings.prev_page_url}>
-                                                <Button variant="outline">Previous</Button>
+                                                <Button variant="outline">{t('Previous')}</Button>
                                             </Link>
                                         )}
 
                                         <span className="px-4 py-2 text-sm text-gray-600">
-                                            Page {bookings.current_page} of {bookings.last_page}
+                                            {t('Page')} {bookings.current_page} {t('of')} {bookings.last_page}
                                         </span>
 
                                         {bookings.next_page_url && (
                                             <Link href={bookings.next_page_url}>
-                                                <Button variant="outline">Next</Button>
+                                                <Button variant="outline">{t('Next')}</Button>
                                             </Link>
                                         )}
                                     </div>
@@ -487,23 +498,23 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                             <CardContent className="text-center py-12">
                                 <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                                    No bookings found
+                                    {t('No bookings found')}
                                 </h3>
                                 <p className="text-gray-500 mb-4">
                                     {filters.search || filters.status || filters.payment_status
-                                        ? 'Try adjusting your search criteria or filters'
-                                        : 'You haven\'t made any bookings yet'
+                                        ? t('Try adjusting your search criteria or filters')
+                                        : t('You haven\'t made any bookings yet')
                                     }
                                 </p>
                                 <div className="flex gap-2 justify-center">
                                     {(filters.search || filters.status || filters.payment_status) && (
                                         <Button onClick={clearFilters} variant="outline">
-                                            Clear Filters
+                                            {t('Clear Filters')}
                                         </Button>
                                     )}
                                     <Link href="/properties">
                                         <Button>
-                                            Browse Properties
+                                            {t('Browse Properties')}
                                         </Button>
                                     </Link>
                                 </div>
@@ -721,6 +732,6 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                     </DialogContent>
                 </Dialog>
             </div>
-        </>
+        </AppLayout>
     );
 } 
