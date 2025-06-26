@@ -16,6 +16,7 @@ use Illuminate\Validation\Rule;
 use Carbon\Carbon;
 use App\Services\BookingService;
 use App\Services\PaymentService;
+use App\Services\AvailabilityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -34,13 +35,11 @@ use Illuminate\Support\Facades\Log;
  */
 class BookingController extends Controller
 {
-    private BookingService $bookingService;
-    private PaymentService $paymentService;
-
-    public function __construct(BookingService $bookingService, PaymentService $paymentService)
-    {
-        $this->bookingService = $bookingService;
-        $this->paymentService = $paymentService;
+    public function __construct(
+        private BookingService $bookingService,
+        private PaymentService $paymentService,
+        private AvailabilityService $availabilityService
+    ) {
     }
 
     // ========================================
@@ -298,21 +297,10 @@ class BookingController extends Controller
             $startDate = $request->get('start_date');
             $endDate = $request->get('end_date');
 
-            $bookedDates = $this->getBookedDatesForProperty(
-                $property->id, 
-                $startDate, 
-                $endDate
-            );
+            // Gunakan AvailabilityService untuk check availability
+            $availability = $this->availabilityService->checkAvailability($property, $startDate, $endDate);
 
-            return response()->json([
-                'success' => true,
-                'bookedDates' => $bookedDates,
-                'property' => [
-                    'id' => $property->id,
-                    'name' => $property->name,
-                    'slug' => $property->slug,
-                ],
-            ]);
+            return response()->json($availability);
 
         } catch (\Exception $e) {
             return response()->json([
@@ -320,43 +308,6 @@ class BookingController extends Controller
                 'message' => 'Failed to fetch availability: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-    /**
-     * Get booked dates for property within date range
-     * 
-     * @param int $propertyId
-     * @param string $startDate
-     * @param string $endDate
-     * @return array
-     */
-    private function getBookedDatesForProperty(int $propertyId, string $startDate, string $endDate): array
-    {
-        $bookings = Booking::where('property_id', $propertyId)
-            ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
-            ->where(function ($query) use ($startDate, $endDate) {
-                $query->whereBetween('check_in', [$startDate, $endDate])
-                      ->orWhereBetween('check_out', [$startDate, $endDate])
-                      ->orWhere(function ($q) use ($startDate, $endDate) {
-                          $q->where('check_in', '<=', $startDate)
-                            ->where('check_out', '>=', $endDate);
-                      });
-            })
-            ->get(['check_in', 'check_out']);
-
-        $bookedDates = [];
-        foreach ($bookings as $booking) {
-            $checkIn = Carbon::parse($booking->check_in);
-            $checkOut = Carbon::parse($booking->check_out);
-            
-            $current = $checkIn->copy();
-            while ($current->lt($checkOut)) {
-                $bookedDates[] = $current->format('Y-m-d');
-                $current->addDay();
-            }
-        }
-
-        return array_unique($bookedDates);
     }
 
     /**
@@ -377,48 +328,20 @@ class BookingController extends Controller
                 'guest_count' => 'required|integer|min:1|max:' . $property->capacity_max,
             ]);
 
-            $checkIn = Carbon::parse($request->check_in);
-            $checkOut = Carbon::parse($request->check_out);
+            $checkIn = $request->get('check_in');
+            $checkOut = $request->get('check_out');
             $guestCount = $request->integer('guest_count');
 
-            // Check availability first
-            $bookedDates = $this->getBookedDatesForProperty(
-                $property->id, 
-                $checkIn->format('Y-m-d'), 
-                $checkOut->format('Y-m-d')
-            );
+            // Gunakan AvailabilityService untuk calculate rate dengan validation dan formatting
+            $result = $this->availabilityService->calculateRateFormatted($property, $checkIn, $checkOut, $guestCount);
 
-            // Check if any of the requested dates are booked
-            $requestedDates = [];
-            $currentDate = $checkIn->copy();
-            while ($currentDate->lt($checkOut)) {
-                $requestedDates[] = $currentDate->format('Y-m-d');
-                $currentDate->addDay();
-            }
-
-            $conflictDates = array_intersect($requestedDates, $bookedDates);
-            if (!empty($conflictDates)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Selected dates are not available',
-                    'conflictDates' => $conflictDates
-                ], 422);
-            }
-
-            // Calculate rate using booking service
-            $calculation = $this->bookingService->calculateRate($property, $checkIn, $checkOut, $guestCount);
-
-            return response()->json([
-                'success' => true,
-                'calculation' => $calculation,
-                'message' => 'Rate calculated successfully'
-            ]);
+            return response()->json($result);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to calculate rate: ' . $e->getMessage()
-            ], 500);
+            ], 422);
         }
     }
 } 

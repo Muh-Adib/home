@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Property;
 use App\Models\Amenity;
 use App\Models\User;
+use App\Services\AvailabilityService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +17,13 @@ use Illuminate\Support\Str;
 
 class PropertyController extends Controller
 {
+    /**
+     * Constructor dengan dependency injection untuk AvailabilityService
+     */
+    public function __construct(private AvailabilityService $availabilityService)
+    {
+    }
+
     /**
      * Display a listing of properties (Public)
      */
@@ -67,18 +75,8 @@ class PropertyController extends Controller
             $checkIn = $request->get('check_in');
             $checkOut = $request->get('check_out');
             
-            // Only show properties that are available for the selected dates
-            $query->whereDoesntHave('bookings', function ($q) use ($checkIn, $checkOut) {
-                $q->whereIn('booking_status', ['confirmed', 'checked_in'])
-                  ->where(function ($dateQuery) use ($checkIn, $checkOut) {
-                      $dateQuery->whereBetween('check_in_date', [$checkIn, $checkOut])
-                                ->orWhereBetween('check_out_date', [$checkIn, $checkOut])
-                                ->orWhere(function ($overlapQuery) use ($checkIn, $checkOut) {
-                                    $overlapQuery->where('check_in_date', '<=', $checkIn)
-                                                 ->where('check_out_date', '>=', $checkOut);
-                                });
-                  });
-            });
+            // Use AvailabilityService untuk filter availability
+            $query = $this->availabilityService->filterPropertiesByAvailability($query, $checkIn, $checkOut);
         }
 
         // Sort options
@@ -107,10 +105,10 @@ class PropertyController extends Controller
         $checkOut = $request->get('check_out', now()->addDay()->toDateString());
         $guestCount = $request->get('guests', 2);
 
-        // Transform properties with rate calculation
+        // Transform properties with rate calculation menggunakan AvailabilityService
         $properties->getCollection()->transform(function ($property) use ($checkIn, $checkOut, $guestCount) {
             try {
-                $rateCalculation = $property->calculateRate($checkIn, $checkOut, $guestCount);
+                $rateCalculation = $this->availabilityService->calculateRate($property, $checkIn, $checkOut, $guestCount);
                 $property->current_rate_calculation = $rateCalculation;
                 $property->current_total_rate = $rateCalculation['total_amount'];
                 $property->current_rate_per_night = $rateCalculation['total_amount'] / $rateCalculation['nights'];
@@ -178,10 +176,10 @@ class PropertyController extends Controller
         $checkOut = $request->get('check_out');
         $guestCount = $request->get('guests', 2);
 
-        // Calculate current rate if dates are provided
+        // Calculate current rate if dates are provided menggunakan AvailabilityService
         if ($checkIn && $checkOut) {
             try {
-                $rateCalculation = $property->calculateRate($checkIn, $checkOut, $guestCount);
+                $rateCalculation = $this->availabilityService->calculateRate($property, $checkIn, $checkOut, $guestCount);
                 $property->current_rate_calculation = $rateCalculation;
                 $property->current_total_rate = $rateCalculation['total_amount'];
                 $property->current_rate_per_night = $rateCalculation['total_amount'] / $rateCalculation['nights'];
@@ -271,17 +269,10 @@ class PropertyController extends Controller
         $checkIn = $request->get('check_in');
         $checkOut = $request->get('check_out');
 
-        // Get booked dates within the range
-        $bookedDates = $property->getBookedDatesInRange($checkIn, $checkOut);
+        // Gunakan AvailabilityService untuk check availability
+        $availability = $this->availabilityService->checkAvailability($property, $checkIn, $checkOut);
 
-        return response()->json([
-            'success' => true,
-            'property_id' => $property->id,
-            'check_in' => $checkIn,
-            'check_out' => $checkOut,
-            'available' => count($bookedDates) === 0,
-            'bookedDates' => $bookedDates,
-        ]);
+        return response()->json($availability);
     }
 
     /**
@@ -300,24 +291,10 @@ class PropertyController extends Controller
         $guestCount = $request->get('guest_count', $property->capacity);
 
         try {
-            $rateCalculation = $property->calculateRate($checkIn, $checkOut, $guestCount);
+            // Gunakan AvailabilityService untuk calculate rate dengan formatting
+            $result = $this->availabilityService->calculateRateFormatted($property, $checkIn, $checkOut, $guestCount);
 
-            return response()->json([
-                'success' => true,
-                'property_id' => $property->id,
-                'dates' => [
-                    'check_in' => $checkIn,
-                    'check_out' => $checkOut,
-                ],
-                'calculation' => $rateCalculation,
-                'formatted' => [
-                    'base_amount' => 'Rp ' . number_format($rateCalculation['base_amount'], 0, ',', '.'),
-                    'weekend_premium' => 'Rp ' . number_format($rateCalculation['weekend_premium'], 0, ',', '.'),
-                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation['extra_bed_amount'], 0, ',', '.'),
-                    'cleaning_fee' => 'Rp ' . number_format($rateCalculation['cleaning_fee'], 0, ',', '.'),
-                    'total_amount' => 'Rp ' . number_format($rateCalculation['total_amount'], 0, ',', '.'),
-                ]
-            ]);
+            return response()->json($result);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
