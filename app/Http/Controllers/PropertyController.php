@@ -291,10 +291,24 @@ class PropertyController extends Controller
         $guestCount = $request->get('guest_count', $property->capacity);
 
         try {
-            // Gunakan AvailabilityService untuk calculate rate dengan formatting
-            $result = $this->availabilityService->calculateRateFormatted($property, $checkIn, $checkOut, $guestCount);
+            $rateCalculation = $property->calculateRate($checkIn, $checkOut, $guestCount);
 
-            return response()->json($result);
+            return response()->json([
+                'success' => true,
+                'property_id' => $property->id,
+                'dates' => [
+                    'check_in' => $checkIn,
+                    'check_out' => $checkOut,
+                ],
+                'calculation' => $rateCalculation,
+                'formatted' => [
+                    'base_amount' => 'Rp ' . number_format($rateCalculation['base_amount'], 0, ',', '.'),
+                    'weekend_premium' => 'Rp ' . number_format($rateCalculation['weekend_premium'], 0, ',', '.'),
+                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation['extra_bed_amount'], 0, ',', '.'),
+                    'cleaning_fee' => 'Rp ' . number_format($rateCalculation['cleaning_fee'], 0, ',', '.'),
+                    'total_amount' => 'Rp ' . number_format($rateCalculation['total_amount'], 0, ',', '.'),
+                ]
+            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

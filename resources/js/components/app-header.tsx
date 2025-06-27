@@ -12,18 +12,29 @@ import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
 import { type BreadcrumbItem, type NavItem, type SharedData, type User } from '@/types';
 import { Link, usePage, router } from '@inertiajs/react';
-import { BookOpen, CreditCard, Folder, LayoutGrid, ListChecks, Menu, Search, Settings, Users, BarChart3, Shield, Wrench, Home, Package, DollarSign, FileText, LucideIcon } from 'lucide-react';
+import { BookOpen, CreditCard, Folder, LayoutGrid, ListChecks, Menu, Search, Settings, Users, BarChart3, Shield, Wrench, Home, Package, DollarSign, FileText, LogIn, UserPlus, LucideIcon } from 'lucide-react';
 import AppLogo from './app-logo';
-import AppLogoIcon from './app-logo-icon';
 import LanguageSwitcher from '@/components/language-switcher';
 import { useTranslation } from 'react-i18next';
 
-declare global {
-    function route(name: string, params?: any): string;
-}
+// Helper function to check if user is authenticated
+const isAuthenticated = (user: User | null): user is User => {
+    return user !== null && user !== undefined;
+};
 
+// Helper function to check if user is guest
+const isGuest = (user: User | null): boolean => {
+    return isAuthenticated(user) && user.role === 'guest';
+};
 
-const getHeaderNavItemsForRole = (userRole: User['role']): (NavItem & { title: string, href: string, icon: LucideIcon })[] => {
+const getHeaderNavItemsForRole = (user: User | null): (NavItem & { title: string, href: string, icon: LucideIcon })[] => {
+    // Handle unauthenticated users
+    if (!isAuthenticated(user)) {
+        return [
+            { title: 'browse_properties', href: route('properties.index'), icon: Home },
+        ];
+    }
+
     const baseItems = [
         { title: 'dashboard', href: route('dashboard'), icon: LayoutGrid },
     ];
@@ -72,7 +83,7 @@ const getHeaderNavItemsForRole = (userRole: User['role']): (NavItem & { title: s
         ],
     };
 
-    return roleBasedItems[userRole] || baseItems;
+    return roleBasedItems[user.role] || baseItems;
 };
 
 const rightNavItems: (NavItem & { title: string, href: string, icon: LucideIcon })[] = [
@@ -91,7 +102,8 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
     const page = usePage<SharedData>();
     const { auth } = page.props;
     const getInitials = useInitials();
-    const mainNavItems = getHeaderNavItemsForRole(auth.user.role);
+    const mainNavItems = getHeaderNavItemsForRole(auth.user);
+    
     return (
         <>
             <div className="border-sidebar-border/80 border-b">
@@ -145,7 +157,12 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                         </Sheet>
                     </div>
 
-                    <Link href={route('dashboard')} prefetch className="flex items-center space-x-2">
+                    {/* Logo - Link to appropriate dashboard based on authentication */}
+                    <Link 
+                        href={isAuthenticated(auth.user) ? route('dashboard') : route('home')} 
+                        prefetch 
+                        className="flex items-center space-x-2"
+                    >
                         <AppLogo />
                     </Link>
 
@@ -177,18 +194,15 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
 
                     <div className="ml-auto flex items-center space-x-2">
                         <div className="relative flex items-center space-x-1">
-                            <Button variant="ghost" size="icon" className="group h-9 w-9 cursor-pointer">
-                                <Search className="!size-5 opacity-80 group-hover:opacity-100" />
-                            </Button>
                             
-                            {/* Notification Bell - Show for all authenticated users except guests */}
-                            {auth.user.role !== 'guest' && (
+                            {/* Conditional Rendering: Notification Bell - Only show for authenticated users (not guests or unauthenticated) */}
+                            {isAuthenticated(auth.user) && !isGuest(auth.user) && (
                                 <NotificationBell 
                                     userId={auth.user.id} 
                                     className="ml-1" 
                                 />
                             )}
-                            
+                            {isAuthenticated(auth.user) && (
                             <div className="hidden lg:flex">
                                 {rightNavItems.map((item) => (
                                     <TooltipProvider key={item.title} delayDuration={0}>
@@ -210,25 +224,47 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                         </Tooltip>
                                     </TooltipProvider>
                                 ))}
-                            </div>
+                            </div>)}
                         </div>
+                        
                         {/* Language Switcher */}
                         <LanguageSwitcher />
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="size-10 rounded-full p-1">
-                                    <Avatar className="size-8 overflow-hidden rounded-full">
-                                        <AvatarImage src={auth.user.avatar} alt={auth.user.name} />
-                                        <AvatarFallback className="rounded-lg bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white">
-                                            {getInitials(auth.user.name)}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-56" align="end">
-                                <UserMenuContent user={auth.user} />
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        
+                        {/* Conditional Rendering: User Menu vs Login/Register Buttons */}
+                        {isAuthenticated(auth.user) ? (
+                            // Authenticated User - Show user dropdown menu
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="size-10 rounded-full p-1">
+                                        <Avatar className="size-8 overflow-hidden rounded-full">
+                                            <AvatarImage src={auth.user.avatar} alt={auth.user.name} />
+                                            <AvatarFallback className="rounded-lg bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white">
+                                                {getInitials(auth.user.name)}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="w-56" align="end">
+                                    <UserMenuContent user={auth.user} />
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        ) : (
+                            // Unauthenticated User - Show Login/Register buttons
+                            <div className="flex items-center space-x-2">
+                                <Link href={route('login')}>
+                                    <Button variant="outline" size="sm" className="text-sm">
+                                        <LogIn className="mr-2 h-4 w-4" />
+                                        {t('nav.login')}
+                                    </Button>
+                                </Link>
+                                <Link href={route('register')}>
+                                    <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm">
+                                        <UserPlus className="mr-2 h-4 w-4" />
+                                        {t('nav.register')}
+                                    </Button>
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

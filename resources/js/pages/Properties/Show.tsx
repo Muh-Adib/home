@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Head, Link, usePage, router } from '@inertiajs/react';
+import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +36,11 @@ import {
     Tag,
     Percent
 } from 'lucide-react';
+import { type BreadcrumbItem, type PageProps } from '@/types';
+import { useTranslation } from 'react-i18next';
+import PropertyCard, { type Property as PropertyCardType } from '@/components/PropertyCard';
+import { useAvailability } from '@/hooks/use-availability';
+
 
 interface Property {
     id: number;
@@ -131,7 +137,8 @@ interface PropertyShowProps {
 }
 
 export default function PropertyShow({ property, similarProperties, searchParams }: PropertyShowProps) {
-    const page = usePage();
+    const page = usePage<PageProps>();
+    const { t } = useTranslation();
     const urlParams = new URLSearchParams(window.location.search);
     const checkIn = urlParams.get('check_in') || searchParams?.check_in || new Date().toISOString().split('T')[0];
     const checkOut = urlParams.get('check_out') || searchParams?.check_out || new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0];
@@ -144,6 +151,28 @@ export default function PropertyShow({ property, similarProperties, searchParams
     const [selectedCheckOut, setSelectedCheckOut] = useState(checkOut);
     const [selectedGuests, setSelectedGuests] = useState(guests);
     const [showDatePicker, setShowDatePicker] = useState(false);
+    
+    // Use availability hook
+    const {
+        availabilityData,
+        loading: availabilityLoading,
+        error: availabilityError,
+        refetch: refetchAvailability
+    } = useAvailability({
+        propertySlug: property.slug,
+        autoFetch: true,
+        dateRange: {
+            startDate: selectedCheckIn,
+            endDate: selectedCheckOut
+        }
+    });
+
+    // Breadcrumbs setup
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: t('nav.home'), href: route('home') || '/' },
+        { title: t('nav.browse_properties'), href: route('properties.index') || '/properties' },
+        { title: property.name, href: route('properties.show', property.slug) || `/properties/${property.slug}` }
+    ];
 
     // Update URL when dates change
     const updateSearchParams = (newCheckIn: string, newCheckOut: string, newGuests: number) => {
@@ -164,6 +193,10 @@ export default function PropertyShow({ property, similarProperties, searchParams
         setSelectedCheckIn(startDate);
         setSelectedCheckOut(endDate);
         updateSearchParams(startDate, endDate, selectedGuests);
+        // Refetch availability when dates change
+        if (startDate && endDate) {
+            refetchAvailability(startDate, endDate);
+        }
     };
 
     // Handle guest count change
@@ -246,35 +279,31 @@ export default function PropertyShow({ property, similarProperties, searchParams
     };
 
     return (
-        <>
-            <Head title={`${property.name} - Property Management System`} />
+        <AppLayout breadcrumbs={breadcrumbs}>
+            <Head title={`${property.name} - ${t('common.property_management_system')}`} />
             
-            <div className="min-h-screen bg-white">
-                {/* Navigation */}
-                <div className="sticky top-0 z-50 bg-white border-b">
-                    <div className="container mx-auto px-4 py-4">
-                        <div className="flex items-center justify-between">
-                            <Link href="/properties" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-                                <ArrowLeft className="h-4 w-4" />
-                                Back to Properties
-                            </Link>
-                            <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm">
-                                    <Share2 className="h-4 w-4 mr-2" />
-                                    Share
-                                </Button>
-                                <Button variant="outline" size="sm">
-                                    <Heart className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </div>
+            <div className="space-y-6 p-4 md:p-6">
+                {/* Navigation Header */}
+                <div className="flex items-center justify-between">
+                    <Link href="/properties" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
+                        <ArrowLeft className="h-4 w-4" />
+                        {t('properties.back_to_properties')}
+                    </Link>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm">
+                            <Share2 className="h-4 w-4 mr-2" />
+                            {t('common.share')}
+                        </Button>
+                        <Button variant="outline" size="sm">
+                            <Heart className="h-4 w-4" />
+                        </Button>
                     </div>
                 </div>
 
                 {/* Media Gallery */}
                 <div className="relative">
                     {/* Main Image Display */}
-                    <div className="aspect-video bg-slate-200 relative">
+                    <div className="aspect-video bg-slate-200 relative rounded-lg overflow-hidden">
                         {images.length > 0 ? (
                             <>
                                 <img 
@@ -288,7 +317,7 @@ export default function PropertyShow({ property, similarProperties, searchParams
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white"
+                                            className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white shadow-lg"
                                             onClick={prevImage}
                                         >
                                             <ChevronLeft className="h-4 w-4" />
@@ -296,7 +325,7 @@ export default function PropertyShow({ property, similarProperties, searchParams
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white"
+                                            className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white shadow-lg"
                                             onClick={nextImage}
                                         >
                                             <ChevronRight className="h-4 w-4" />
@@ -317,7 +346,7 @@ export default function PropertyShow({ property, similarProperties, searchParams
                         {property.is_featured && (
                             <Badge className="absolute top-4 left-4 bg-yellow-500 text-white">
                                 <Star className="h-3 w-3 mr-1" />
-                                Featured
+                                {t('properties.featured')}
                             </Badge>
                         )}
 
@@ -325,7 +354,7 @@ export default function PropertyShow({ property, similarProperties, searchParams
                         {discountInfo && checkIn && checkOut && (
                             <Badge className="absolute top-4 right-4 bg-red-500 text-white text-sm px-3 py-1">
                                 <Percent className="h-3 w-3 mr-1" />
-                                {discountInfo.discount_percent}% OFF
+                                {discountInfo.discount_percent}% {t('common.off')}
                             </Badge>
                         )}
                     </div>
@@ -383,490 +412,455 @@ export default function PropertyShow({ property, similarProperties, searchParams
                 </div>
 
                 {/* Property Info */}
-                <div className="container mx-auto px-4 py-8">
-                    <div className="grid lg:grid-cols-3 gap-8">
-                        {/* Main Content */}
-                        <div className="lg:col-span-2 space-y-8">
-                            {/* Header */}
-                            <div>
-                                <h1 className="text-3xl font-bold text-gray-900 mb-2">{property.name}</h1>
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center text-gray-600">
-                                        <MapPin className="h-4 w-4 mr-1" />
-                                        {property.address}
-                                    </div>
-                                    {property.lat && property.lng && (
-                                        <Button 
-                                            variant="outline" 
-                                            size="sm"
-                                            onClick={() => setShowMap(!showMap)}
-                                        >
-                                            <MapPin className="h-4 w-4 mr-2" />
-                                            {showMap ? 'Hide Map' : 'Show Map'}
-                                        </Button>
-                                    )}
+                <div className="grid lg:grid-cols-3 gap-8">
+                    {/* Main Content */}
+                    <div className="lg:col-span-2 space-y-8">
+                        {/* Header */}
+                        <div>
+                            <h1 className="text-3xl font-bold text-gray-900 mb-2">{property.name}</h1>
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center text-gray-600">
+                                    <MapPin className="h-4 w-4 mr-1" />
+                                    {property.address}
                                 </div>
-
-                                {/* Map Section */}
-                                {showMap && property.lat && property.lng && (
-                                    <div className="mb-6">
-                                        <Map
-                                            lat={property.lat}
-                                            lng={property.lng}
-                                            height="400px"
-                                            propertyName={property.name}
-                                            address={property.address}
-                                            className="shadow-lg"
-                                        />
-                                    </div>
+                                {property.lat && property.lng && (
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => setShowMap(!showMap)}
+                                    >
+                                        <MapPin className="h-4 w-4 mr-2" />
+                                        {showMap ? t('properties.hide_map') : t('properties.show_map')}
+                                    </Button>
                                 )}
-                                
-                                <div className="flex items-center gap-6 text-sm text-gray-600">
-                                    <div className="flex items-center">
-                                        <Bed className="h-4 w-4 mr-1" />
-                                        {property.bedroom_count} Bedrooms
-                                    </div>
-                                    <div className="flex items-center">
-                                        <Bath className="h-4 w-4 mr-1" />
-                                        {property.bathroom_count} Bathrooms
-                                    </div>
-                                    <div className="flex items-center">
-                                        <Users className="h-4 w-4 mr-1" />
-                                        {property.capacity}-{property.capacity_max} Guests
-                                    </div>
+                            </div>
+
+                            {/* Map Section */}
+                            {showMap && property.lat && property.lng && (
+                                <div className="mb-6">
+                                    <Map
+                                        lat={property.lat}
+                                        lng={property.lng}
+                                        height="400px"
+                                        propertyName={property.name}
+                                        address={property.address}
+                                        className="shadow-lg rounded-lg"
+                                    />
                                 </div>
-                            </div>
-
-                            <Separator />
-
-                            {/* Description */}
-                            <div>
-                                <h2 className="text-xl font-semibold mb-4">About this property</h2>
-                                <p className="text-gray-600 leading-relaxed whitespace-pre-line">
-                                    {property.description}
-                                </p>
-                            </div>
-
-                            <Separator />
-
-                            {/* Amenities */}
-                            <div>
-                                <h2 className="text-xl font-semibold mb-4">Amenities</h2>
-                                <div className="space-y-6">
-                                    {Object.entries(amenityCategories).map(([category, amenities]) => {
-                                        const CategoryIcon = getCategoryIcon(category);
-                                        const visibleAmenities = showAllAmenities ? amenities : amenities.slice(0, 4);
-                                        
-                                        return (
-                                            <div key={category}>
-                                                <h3 className="flex items-center gap-2 font-medium text-gray-900 mb-3 capitalize">
-                                                    <CategoryIcon className="h-5 w-5 text-blue-600" />
-                                                    {category.replace('_', ' ')}
-                                                </h3>
-                                                <div className="grid md:grid-cols-2 gap-2">
-                                                    {visibleAmenities.map(amenity => (
-                                                        <div key={amenity.id} className="flex items-center gap-2 text-gray-600">
-                                                            <CheckCircle className="h-4 w-4 text-green-500" />
-                                                            {amenity.name}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                {!showAllAmenities && amenities.length > 4 && (
-                                                    <Button
-                                                        variant="link"
-                                                        className="p-0 h-auto text-blue-600"
-                                                        onClick={() => setShowAllAmenities(true)}
-                                                    >
-                                                        Show {amenities.length - 4} more amenities
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            <Separator />
-
-                            {/* House Rules */}
-                            {property.house_rules && (
-                                <>
-                                    <div>
-                                        <h2 className="text-xl font-semibold mb-4">House Rules</h2>
-                                        <div className="bg-slate-50 p-4 rounded-lg">
-                                            <div className="grid md:grid-cols-2 gap-4 mb-4">
-                                                <div className="flex items-center gap-2">
-                                                    <Clock className="h-4 w-4 text-gray-600" />
-                                                    <span className="text-sm">
-                                                        Check-in: {property.check_in_time}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Clock className="h-4 w-4 text-gray-600" />
-                                                    <span className="text-sm">
-                                                        Check-out: {property.check_out_time}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Calendar className="h-4 w-4 text-gray-600" />
-                                                    <span className="text-sm">
-                                                        Min stay (weekday): {property.min_stay_weekday} nights
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Calendar className="h-4 w-4 text-gray-600" />
-                                                    <span className="text-sm">
-                                                        Min stay (weekend): {property.min_stay_weekend} nights
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <p className="text-sm text-gray-600 whitespace-pre-line">
-                                                {property.house_rules}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    
-                                </>
                             )}
-
-                           
+                            
+                            <div className="flex items-center gap-6 text-sm text-gray-600">
+                                <div className="flex items-center">
+                                    <Bed className="h-4 w-4 mr-1" />
+                                    {property.bedroom_count} {t('properties.bedrooms')}
+                                </div>
+                                <div className="flex items-center">
+                                    <Bath className="h-4 w-4 mr-1" />
+                                    {property.bathroom_count} {t('properties.bathrooms')}
+                                </div>
+                                <div className="flex items-center">
+                                    <Users className="h-4 w-4 mr-1" />
+                                    {property.capacity}-{property.capacity_max} {t('booking.guests')}
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Booking Card */}
-                        <div className="lg:col-span-1">
-                            <div className="sticky top-24">
-                                <Card className="shadow-xl border-0">
-                                    <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 pb-2 pt-4 rounded-t-lg">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                {/* Show discount prices if dates are selected */}
-                                                {discountInfo && checkIn && checkOut ? (
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-lg text-gray-400 line-through">
-                                                                Rp {discountInfo.original_price.toLocaleString()}
-                                                            </span>
-                                                            <Badge variant="destructive" className="text-xs">
-                                                                -{discountInfo.discount_percent}%
-                                                            </Badge>
-                                                        </div>
-                                                        <div>
-                                                            <span className="text-3xl font-bold text-red-600">
-                                                                Rp {discountInfo.final_price.toLocaleString()}
-                                                            </span>
-                                                            <span className="text-gray-600 ml-1">total</span>
-                                                        </div>
-                                                        <div className="text-sm text-gray-600">
-                                                            (Rp {Math.round(discountInfo.final_price / discountInfo.nights).toLocaleString()}/night)
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div>
-                                                        <span className="text-3xl font-bold text-blue-600">
-                                                            {property.formatted_current_rate || property.formatted_base_rate}
-                                                        </span>
-                                                        <span className="text-gray-600 ml-1">/night</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">
-                                                Whole Property
-                                            </Badge>
-                                        </div>
-                                        
-                                        {/* Selected Dates Info */}
-                                        {checkIn && checkOut && (
-                                            <div className="mt-4 p-3 bg-white rounded-lg border border-blue-200">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="text-sm text-gray-600">
-                                                        <div className="flex items-center gap-2">
-                                                        <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => setShowDatePicker(!showDatePicker)}
-                                                >
-                                                    <Calendar className="h-4 w-4 mr-2" />
-                                                    {showDatePicker ? 'Hide Picker' : 'Change Dates'}
-                                                </Button>
-                                                
-                                                            
-                                                        </div>
-                                                    </div>
-                                                    <Badge variant="outline" className="text-xs">
-                                                        {nights} {nights === 1 ? 'night' : 'nights'}
-                                                    </Badge>
-                                                </div>
-                                                <div className="space-y-1 text-sm">
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">Check-in:</span>
-                                                        <span className="font-medium">{formatDate(checkIn)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">Check-out:</span>
-                                                        <span className="font-medium">{formatDate(checkOut)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">Guests:</span>
-                                                        <span className="font-medium">{guests} guest{guests !== 1 ? 's' : ''}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
+                        <Separator />
 
-                                        {/* Special Offers */}
-                                        {property.has_seasonal_rate && property.seasonal_rate_info && property.seasonal_rate_info.length > 0 && (
-                                            <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
-                                                <div className="flex items-center gap-2 text-green-800 mb-2">
-                                                    <Sparkles className="h-4 w-4" />
-                                                    <span className="font-medium text-sm">Special Offers</span>
-                                                </div>
-                                                {property.seasonal_rate_info.slice(0, 2).map((rate, index) => (
-                                                    <div key={index} className="text-xs text-green-700">
-                                                        • {rate.name}: {rate.description}
+                        {/* Description */}
+                        <div>
+                            <h2 className="text-xl font-semibold mb-4">{t('properties.about_property')}</h2>
+                            <p className="text-gray-600 leading-relaxed whitespace-pre-line">
+                                {property.description}
+                            </p>
+                        </div>
+
+                        <Separator />
+
+                        {/* Amenities */}
+                        <div>
+                            <h2 className="text-xl font-semibold mb-4">{t('properties.amenities')}</h2>
+                            <div className="space-y-6">
+                                {Object.entries(amenityCategories).map(([category, amenities]) => {
+                                    const CategoryIcon = getCategoryIcon(category);
+                                    const visibleAmenities = showAllAmenities ? amenities : amenities.slice(0, 4);
+                                    
+                                    return (
+                                        <div key={category}>
+                                            <h3 className="flex items-center gap-2 font-medium text-gray-900 mb-3 capitalize">
+                                                <CategoryIcon className="h-5 w-5 text-blue-600" />
+                                                {category.replace('_', ' ')}
+                                            </h3>
+                                            <div className="grid md:grid-cols-2 gap-2">
+                                                {visibleAmenities.map(amenity => (
+                                                    <div key={amenity.id} className="flex items-center gap-2 text-gray-600">
+                                                        <CheckCircle className="h-4 w-4 text-green-500" />
+                                                        {amenity.name}
                                                     </div>
                                                 ))}
                                             </div>
-                                        )}
+                                            {!showAllAmenities && amenities.length > 4 && (
+                                                <Button
+                                                    variant="link"
+                                                    className="p-0 h-auto text-blue-600"
+                                                    onClick={() => setShowAllAmenities(true)}
+                                                >
+                                                    {t('properties.show_more_amenities')} {amenities.length - 4}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
 
-                                        {/* Date Range Picker */}
-                                        {showDatePicker && (
-                                                <div className="space-y-4 p-4 bg-gray-50 rounded-lg border">
-                                                    <div>
-                                                        <Label className="text-sm font-medium">Check-in & Check-out Dates</Label>
-                                                        <DateRange
-                                                            startDate={selectedCheckIn}
-                                                            endDate={selectedCheckOut}
-                                                            onDateChange={handleDateChange}
-                                                            minDate={new Date().toISOString().split('T')[0]}
-                                                            minStayWeekday={property.min_stay_weekday}
-                                                            minStayWeekend={property.min_stay_weekend}
-                                                            minStayPeak={property.min_stay_peak}
-                                                            showMinStayWarning={true}
-                                                            size="md"
-                                                            showNights={true}
-                                                            startLabel="Check-in"
-                                                            endLabel="Check-out"
-                                                        />
+                        <Separator />
+
+                        {/* House Rules */}
+                        {property.house_rules && (
+                            <>
+                                <div>
+                                    <h2 className="text-xl font-semibold mb-4">{t('properties.house_rules')}</h2>
+                                    <div className="bg-slate-50 p-4 rounded-lg">
+                                        <div className="grid md:grid-cols-2 gap-4 mb-4">
+                                            <div className="flex items-center gap-2">
+                                                <Clock className="h-4 w-4 text-gray-600" />
+                                                <span className="text-sm">
+                                                    {t('properties.check_in')}: {property.check_in_time}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Clock className="h-4 w-4 text-gray-600" />
+                                                <span className="text-sm">
+                                                    {t('properties.check_out')}: {property.check_out_time}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Calendar className="h-4 w-4 text-gray-600" />
+                                                <span className="text-sm">
+                                                    {t('properties.min_stay_weekday')}: {property.min_stay_weekday} {t('properties.nights')}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Calendar className="h-4 w-4 text-gray-600" />
+                                                <span className="text-sm">
+                                                    {t('properties.min_stay_weekend')}: {property.min_stay_weekend} {t('properties.nights')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <p className="text-sm text-gray-600 whitespace-pre-line">
+                                            {property.house_rules}
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                            </>
+                        )}
+
+                       
+                    </div>
+
+                    {/* Booking Card */}
+                    <div className="lg:col-span-1">
+                        <div className="sticky top-24">
+                            <Card className="shadow-xl border-0">
+                                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 pb-2 pt-4 rounded-t-lg">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            {/* Show discount prices if dates are selected */}
+                                            {discountInfo && checkIn && checkOut ? (
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-lg text-gray-400 line-through">
+                                                            Rp {discountInfo.original_price.toLocaleString()}
+                                                        </span>
+                                                        <Badge variant="destructive" className="text-xs">
+                                                            -{discountInfo.discount_percent}%
+                                                        </Badge>
                                                     </div>
-                                                    
                                                     <div>
-                                                        <Label htmlFor="guests" className="text-sm font-medium">Number of Guests</Label>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() => selectedGuests > 1 && handleGuestChange(selectedGuests - 1)}
-                                                                disabled={selectedGuests <= 1}
-                                                            >
-                                                                -
-                                                            </Button>
-                                                            <Input
-                                                                id="guests"
-                                                                type="number"
-                                                                min="1"
-                                                                max={property.capacity_max}
-                                                                value={selectedGuests}
-                                                                onChange={(e) => {
-                                                                    const value = parseInt(e.target.value) || 1;
-                                                                    if (value >= 1 && value <= property.capacity_max) {
-                                                                        handleGuestChange(value);
-                                                                    }
-                                                                }}
-                                                                className="w-20 text-center"
-                                                            />
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() => selectedGuests < property.capacity_max && handleGuestChange(selectedGuests + 1)}
-                                                                disabled={selectedGuests >= property.capacity_max}
-                                                            >
-                                                                +
-                                                            </Button>
-                                                            <span className="text-sm text-gray-600 ml-2">
-                                                                (Max {property.capacity_max})
-                                                            </span>
-                                                        </div>
+                                                        <span className="text-3xl font-bold text-red-600">
+                                                            Rp {discountInfo.final_price.toLocaleString()}
+                                                        </span>
+                                                        <span className="text-gray-600 ml-1">{t('properties.total')}</span>
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        (Rp {Math.round(discountInfo.final_price / discountInfo.nights).toLocaleString()}/{t('properties.night')})
                                                     </div>
                                                 </div>
+                                            ) : (
+                                                <div>
+                                                    <span className="text-3xl font-bold text-blue-600">
+                                                        {property.formatted_current_rate || property.formatted_base_rate}
+                                                    </span>
+                                                    <span className="text-gray-600 ml-1">/{t('properties.night')}</span>
+                                                </div>
                                             )}
-                                    </CardHeader>
+                                        </div>
+                                        <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">
+                                            {t('properties.whole_property')}
+                                        </Badge>
+                                    </div>
                                     
-                                    <CardContent className="space-y-6">
-                                        
-                                        {/* Simple Rate Summary */}
-                                        {checkIn && checkOut && property.current_rate_calculation ? (
-                                            <div className="space-y-4">
-                                                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                                                    <Tag className="h-4 w-4" />
-                                                    Total Price
-                                                </h3>
+                                    {/* Selected Dates Info */}
+                                    {checkIn && checkOut && (
+                                        <div className="mt-4 p-3 bg-white rounded-lg border border-blue-200">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="text-sm text-gray-600">
+                                                    <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => setShowDatePicker(!showDatePicker)}
+                                                    >
+                                                        <Calendar className="h-4 w-4 mr-2" />
+                                                        {showDatePicker ? t('properties.hide_picker') : t('properties.change_dates')}
+                                                    </Button>
+                                                    
+                                                        
+                                                    </div>
+                                                </div>
+                                                <Badge variant="outline" className="text-xs">
+                                                    {nights} {nights === 1 ? t('properties.night') : t('properties.nights')}
+                                                </Badge>
+                                            </div>
+                                            <div className="space-y-1 text-sm">
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-600">{t('properties.check_in')}:</span>
+                                                    <span className="font-medium">{formatDate(checkIn)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-600">{t('properties.check_out')}:</span>
+                                                    <span className="font-medium">{formatDate(checkOut)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-600">{t('booking.guests')}:</span>
+                                                    <span className="font-medium">{guests} {guests !== 1 ? t('properties.guests_plural') : t('properties.guest')}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Special Offers */}
+                                    {property.has_seasonal_rate && property.seasonal_rate_info && property.seasonal_rate_info.length > 0 && (
+                                        <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                                            <div className="flex items-center gap-2 text-green-800 mb-2">
+                                                <Sparkles className="h-4 w-4" />
+                                                <span className="font-medium text-sm">{t('properties.special_offers')}</span>
+                                            </div>
+                                            {property.seasonal_rate_info.slice(0, 2).map((rate, index) => (
+                                                <div key={index} className="text-xs text-green-700">
+                                                    • {rate.name}: {rate.description}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Date Range Picker */}
+                                    {showDatePicker && (
+                                            <div className="space-y-4 p-4 bg-gray-50 rounded-lg border">
+                                                <div>
+                                                    <Label className="text-sm font-medium">{t('properties.check_in_out_dates')}</Label>
+                                                    <DateRange
+                                                        startDate={selectedCheckIn}
+                                                        endDate={selectedCheckOut}
+                                                        onDateChange={handleDateChange}
+                                                        minDate={new Date().toISOString().split('T')[0]}
+                                                        minStayWeekday={property.min_stay_weekday}
+                                                        minStayWeekend={property.min_stay_weekend}
+                                                        minStayPeak={property.min_stay_peak}
+                                                        showMinStayWarning={true}
+                                                        size="md"
+                                                        showNights={true}
+                                                        startLabel={t('properties.check_in')}
+                                                        endLabel={t('properties.check_out')}
+                                                        bookedDates={availabilityData}
+                                                        loading={availabilityLoading}
+                                                        error={availabilityError}
+                                                    />
+                                                </div>
                                                 
-                                                <div className="space-y-3 text-sm">
-                                                    {/* Discount Price Display */}
-                                                    {discountInfo && (
-                                                        <>
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="text-gray-600">Original Price</span>
-                                                                <span className="text-gray-400 line-through">
-                                                                    Rp {discountInfo.original_price.toLocaleString()}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex justify-between items-center">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-gray-600">Discount</span>
-                                                                    <Badge variant="destructive" className="text-xs">
-                                                                        {discountInfo.discount_percent}% OFF
-                                                                    </Badge>
-                                                                </div>
-                                                                <span className="text-red-600 font-medium">
-                                                                    -Rp {discountInfo.discount_amount.toLocaleString()}
-                                                                </span>
-                                                            </div>
-                                                        </>
-                                                    )}
-
-                                                    {/* Additional Fees */}
-                                                    {property.current_rate_calculation.extra_bed_amount > 0 && (
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="text-gray-600">Extra beds</span>
-                                                            <span className="font-medium">
-                                                                Included
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-gray-600">Cleaning fee</span>
-                                                        <span className="font-medium">Included</span>
-                                                    </div>
-
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-gray-600">Taxes & fees</span>
-                                                        <span className="font-medium">Included</span>
-                                                    </div>
-                                                    
-                                                    <Separator />
-                                                    
-                                                    {/* Final Total */}
-                                                    <div className="flex justify-between items-center text-lg font-bold">
-                                                        <span>Total</span>
-                                                        <span className="text-blue-600">
-                                                            Rp {property.current_rate_calculation.total_amount.toLocaleString()}
+                                                <div>
+                                                    <Label htmlFor="guests" className="text-sm font-medium">{t('booking.guests')}</Label>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => selectedGuests > 1 && handleGuestChange(selectedGuests - 1)}
+                                                            disabled={selectedGuests <= 1}
+                                                        >
+                                                            -
+                                                        </Button>
+                                                        <Input
+                                                            id="guests"
+                                                            type="number"
+                                                            min="1"
+                                                            max={property.capacity_max}
+                                                            value={selectedGuests}
+                                                            onChange={(e) => {
+                                                                const value = parseInt(e.target.value) || 1;
+                                                                if (value >= 1 && value <= property.capacity_max) {
+                                                                    handleGuestChange(value);
+                                                                }
+                                                            }}
+                                                            className="w-20 text-center"
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => selectedGuests < property.capacity_max && handleGuestChange(selectedGuests + 1)}
+                                                            disabled={selectedGuests >= property.capacity_max}
+                                                        >
+                                                            +
+                                                        </Button>
+                                                        <span className="text-sm text-gray-600 ml-2">
+                                                            ({t('properties.max')} {property.capacity_max})
                                                         </span>
-                                                    </div>
-
-                                                    <div className="text-center text-xs text-green-600 bg-green-50 p-2 rounded">
-                                                        ✓ All-inclusive price, no hidden fees
                                                     </div>
                                                 </div>
                                             </div>
-                                        ) : (
-                                            <div className="space-y-2 text-sm">
-                                                <div className="flex justify-between font-medium">
-                                                    <span className="text-gray-600">Starting from</span>
-                                                    <span>{property.formatted_base_rate}/night</span>
-                                                </div>
-                                                
-                                                {/* Special Rate Indicator */}
-                                                {property.has_seasonal_rate && property.seasonal_rate_info && property.seasonal_rate_info.length > 0 && (
-                                                    <div className="border-t pt-2 space-y-2">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-gray-600 text-xs font-medium">Special Rates Available</span>
-                                                            <Sparkles className="h-4 w-4 text-green-600" />
+                                        )}
+                                </CardHeader>
+                                
+                                <CardContent className="space-y-6">
+                                    
+                                    {/* Simple Rate Summary */}
+                                    {checkIn && checkOut && property.current_rate_calculation ? (
+                                        <div className="space-y-4">
+                                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                                <Tag className="h-4 w-4" />
+                                                {t('properties.total_price')}
+                                            </h3>
+                                            
+                                            <div className="space-y-3 text-sm">
+                                                {/* Discount Price Display */}
+                                                {discountInfo && (
+                                                    <>
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-gray-600">{t('properties.original_price')}</span>
+                                                            <span className="text-gray-400 line-through">
+                                                                Rp {discountInfo.original_price.toLocaleString()}
+                                                            </span>
                                                         </div>
-                                                        {property.seasonal_rate_info.slice(0, 2).map((rate, index) => (
-                                                            <div key={index} className="flex justify-between items-center">
-                                                                <span className="text-xs text-gray-600">{rate.name}</span>
-                                                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                                                    {rate.description}
+                                                        <div className="flex justify-between items-center">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-gray-600">{t('properties.discount')}</span>
+                                                                <Badge variant="destructive" className="text-xs">
+                                                                    {discountInfo.discount_percent}% {t('common.off')}
                                                                 </Badge>
                                                             </div>
-                                                        ))}
+                                                            <span className="text-red-600 font-medium">
+                                                                -Rp {discountInfo.discount_amount.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* Additional Fees */}
+                                                {property.current_rate_calculation.extra_bed_amount > 0 && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-600">{t('properties.extra_beds')}</span>
+                                                        <span className="font-medium">
+                                                            {t('properties.included')}
+                                                        </span>
                                                     </div>
                                                 )}
                                                 
-                                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                                                    <div className="flex items-center gap-2 text-sm text-blue-800">
-                                                        <Info className="h-4 w-4" />
-                                                        <span>Select dates to see total price</span>
-                                                    </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-gray-600">{t('properties.cleaning_fee')}</span>
+                                                    <span className="font-medium">{t('properties.included')}</span>
+                                                </div>
+
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-gray-600">{t('properties.taxes_fees')}</span>
+                                                    <span className="font-medium">{t('properties.included')}</span>
+                                                </div>
+                                                
+                                                <Separator />
+                                                
+                                                {/* Final Total */}
+                                                <div className="flex justify-between items-center text-lg font-bold">
+                                                    <span>{t('properties.total')}</span>
+                                                    <span className="text-blue-600">
+                                                        Rp {property.current_rate_calculation.total_amount.toLocaleString()}
+                                                    </span>
+                                                </div>
+
+                                                <div className="text-center text-xs text-green-600 bg-green-50 p-2 rounded">
+                                                    ✓ {t('properties.all_inclusive_price')}
                                                 </div>
                                             </div>
-                                        )}
-
-                                        <Separator />
-
-                                        {/* Booking Actions */}
-                                        <div className="space-y-3">
-                                            <Link href={`/properties/${property.slug}/book${selectedCheckIn && selectedCheckOut ? `?check_in=${selectedCheckIn}&check_out=${selectedCheckOut}&guests=${selectedGuests}` : ''}`}>
-                                                <Button className="w-full bg-blue-600 hover:bg-blue-700" size="lg">
-                                                    <Calendar className="h-4 w-4 mr-2" />
-                                                    Book Now
-                                                </Button>
-                                            </Link>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between font-medium">
+                                                <span className="text-gray-600">{t('properties.starting_from')}</span>
+                                                <span>{property.formatted_base_rate}/{t('properties.night')}</span>
+                                            </div>
                                             
-                                        </div>
-
-                                        <div className="text-center text-xs text-gray-500">
-                                            You won't be charged yet
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Similar Properties */}
-                    {similarProperties.length > 0 && (
-                        <div className="mt-16">
-                            <h2 className="text-2xl font-bold mb-8">Similar Properties</h2>
-                            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                {similarProperties.map((similarProperty) => (
-                                    <Card key={similarProperty.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                                        <div className="aspect-video bg-slate-200 relative">
-                                            {similarProperty.media && similarProperty.media.length > 0 ? (
-                                                <img 
-                                                    src={similarProperty.media.find(m => m.is_featured)?.url || similarProperty.media[0]?.url} 
-                                                    alt={similarProperty.media.find(m => m.is_featured)?.alt_text || similarProperty.name}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-                                                    <Building2 className="h-8 w-8 text-blue-400" />
+                                            {/* Special Rate Indicator */}
+                                            {property.has_seasonal_rate && property.seasonal_rate_info && property.seasonal_rate_info.length > 0 && (
+                                                <div className="border-t pt-2 space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-gray-600 text-xs font-medium">{t('properties.special_rates_available')}</span>
+                                                        <Sparkles className="h-4 w-4 text-green-600" />
+                                                    </div>
+                                                    {property.seasonal_rate_info.slice(0, 2).map((rate, index) => (
+                                                        <div key={index} className="flex justify-between items-center">
+                                                            <span className="text-xs text-gray-600">{rate.name}</span>
+                                                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                                                {rate.description}
+                                                            </Badge>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             )}
-                                        </div>
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-base line-clamp-1">{similarProperty.name}</CardTitle>
-                                            <div className="flex items-center text-sm text-gray-600">
-                                                <MapPin className="h-3 w-3 mr-1" />
-                                                <span className="line-clamp-1">{similarProperty.address}</span>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <span className="text-lg font-bold text-blue-600">
-                                                        {similarProperty.formatted_current_rate || similarProperty.formatted_base_rate}
-                                                    </span>
-                                                    <span className="text-xs text-gray-600">/night</span>
+                                            
+                                            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                                <div className="flex items-center gap-2 text-sm text-blue-800">
+                                                    <Info className="h-4 w-4" />
+                                                    <span>{t('properties.select_dates_total')}</span>
                                                 </div>
-                                                <Link href={`/properties/${similarProperty.slug}?check_in=${selectedCheckIn}&check_out=${selectedCheckOut}&guests=${selectedGuests}`}>
-                                                    <Button size="sm" variant="outline">
-                                                        View
-                                                    </Button>
-                                                </Link>
                                             </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
+                                        </div>
+                                    )}
+
+                                    <Separator />
+
+                                    {/* Booking Actions */}
+                                    <div className="space-y-3">
+                                        <Link href={`/properties/${property.slug}/book${selectedCheckIn && selectedCheckOut ? `?check_in=${selectedCheckIn}&check_out=${selectedCheckOut}&guests=${selectedGuests}` : ''}`}>
+                                            <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700" size="lg">
+                                                <Calendar className="h-4 w-4 mr-2" />
+                                                {t('booking.book_now')}
+                                            </Button>
+                                        </Link>
+                                        
+                                    </div>
+
+                                    <div className="text-center text-xs text-gray-500">
+                                        {t('booking.no_charge_yet')}
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
-                    )}
+                    </div>
                 </div>
+
+                {/* Similar Properties */}
+                {similarProperties.length > 0 && (
+                    <div className="mt-16">
+                        <h2 className="text-2xl font-bold mb-8">{t('properties.similar_properties')}</h2>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {similarProperties.map((similarProperty) => (
+                                <PropertyCard key={similarProperty.id} property={similarProperty} />
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
-        </>
+        </AppLayout>
     );
 } 

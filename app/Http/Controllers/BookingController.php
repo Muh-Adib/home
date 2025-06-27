@@ -203,6 +203,11 @@ class BookingController extends Controller
     {
         $booking = Booking::where('booking_number', $bookingNumber)->firstOrFail();
         $booking->load(['property', 'workflow']);
+        // Generate payment link if needed
+        if ($booking->booking_status === 'confirmed' && 
+            in_array($booking->payment_status, ['dp_pending', 'dp_received'])) {
+            $booking->payment_link = route('payments.create', $booking->booking_number);
+        }
 
         return Inertia::render('Booking/Confirmation', [
             'booking' => $booking,
@@ -257,7 +262,7 @@ class BookingController extends Controller
             // Generate payment link if needed
             if ($booking->booking_status === 'confirmed' && 
                 in_array($booking->payment_status, ['dp_pending', 'dp_received'])) {
-                $booking->payment_link = route('payments.show', $booking->booking_number);
+                $booking->payment_link = route('payments.create', $booking->booking_number);
             }
 
             return $booking;
@@ -281,31 +286,42 @@ class BookingController extends Controller
      * Get property availability for date range (API)
      * 
      * @param Request $request
-     * @param string $slug
+     * @param Property $property
      * @return JsonResponse
      */
-    public function getAvailability(Request $request, string $slug): JsonResponse
+    public function getAvailability(Request $request, Property $property): JsonResponse
     {
         try {
-            $property = Property::where('slug', $slug)->firstOrFail();
+            //$property = Property::where('slug', $slug)->firstOrFail();
             
-            $request->validate([
-                'start_date' => 'required|date',
-                'end_date' => 'required|date|after:start_date',
+            //$request->validate([
+            //    'check_in' => 'required|date',
+            //    'check_out' => 'required|date|after:check_in',
+            //]);
+
+            //$checkIn = $request->get('check_in');
+            //$checkOut = $request->get('check_out');
+            $checkIn = new Carbon(today());
+            $checkOut = new Carbon(today()->addDays(90));
+
+            // Get booked dates in the range
+            $bookedDates = $this->availabilityService->getBookedDatesInRange($property, $checkIn, $checkOut);
+
+            return response()->json([
+                'success' => true,
+                'booked_dates' => $bookedDates,
+                'property' => $property->slug,
+                'date_range' => [
+                    'start' => $checkIn,
+                    'end' => $checkOut
+                ]
             ]);
-
-            $startDate = $request->get('start_date');
-            $endDate = $request->get('end_date');
-
-            // Gunakan AvailabilityService untuk check availability
-            $availability = $this->availabilityService->checkAvailability($property, $startDate, $endDate);
-
-            return response()->json($availability);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch availability: ' . $e->getMessage()
+                'message' => 'Failed to fetch availability: ' . $e->getMessage(),
+                'booked_dates' => []
             ], 500);
         }
     }
@@ -314,27 +330,28 @@ class BookingController extends Controller
      * Calculate rate for property and dates (API)
      * 
      * @param Request $request
-     * @param string $slug
+     * @param Property $property
      * @return JsonResponse
      */
-    public function calculateRate(Request $request, string $slug): JsonResponse
+    public function calculateRate(Request $request, Property $property): JsonResponse
     {
         try {
-            $property = Property::where('slug', $slug)->firstOrFail();
+            //$property = Property::where('slug', $slug)->firstOrFail();
             
             $request->validate([
                 'check_in' => 'required|date|after_or_equal:today',
                 'check_out' => 'required|date|after:check_in',
-                'guest_count' => 'required|integer|min:1|max:' . $property->capacity_max,
+                'guests' => 'required|integer|min:1|max:' . $property->capacity_max,
             ]);
 
             $checkIn = $request->get('check_in');
             $checkOut = $request->get('check_out');
-            $guestCount = $request->integer('guest_count');
+            $guestCount = $request->integer('guests');
 
             // Gunakan AvailabilityService untuk calculate rate dengan validation dan formatting
-            $result = $this->availabilityService->calculateRateFormatted($property, $checkIn, $checkOut, $guestCount);
-
+            //$result = $this->availabilityService->calculateRateFormatted($property, $checkIn, $checkOut, $guestCount);
+            $result = $property->calculateRate($checkIn, $checkOut, $guestCount);
+            dd($result);
             return response()->json($result);
 
         } catch (\Exception $e) {

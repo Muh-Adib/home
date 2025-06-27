@@ -22,22 +22,31 @@ import {
 
 interface Booking {
     id: string;
-    booking_code: string;
-    check_in_date: string;
-    check_out_date: string;
-    guest_count_total: number;
-    guest_count_male: number;
-    guest_count_female: number;
-    guest_count_children: number;
+    booking_number: string;
+    check_in: string;
+    check_in_time: string;
+    check_out: string;
+    nights: number;
+    guest_count: number;
     guest_name: string;
+    guest_male: number;
+    guest_female: number;
+    guest_children: number;
     guest_email: string;
-    guest_phone: string;
+    guest_phone?: string;
+    guest_country?: string;
+    guest_id_number?: string;
+    guest_gender?: string;
+    relationship_type?: string;
     special_requests?: string;
-    status: string;
+    booking_status: string;
+    payment_status: string;
+    payment_link: string;
     total_amount: number;
-    dp_percentage: number;
+    dp_dateline: string;
     dp_amount: number;
     remaining_amount: number;
+    dp_percentage: number;
     created_at: string;
     property: {
         id: number;
@@ -78,11 +87,11 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
         });
     };
 
-    const nights = Math.ceil((new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) / (1000 * 60 * 60 * 24));
+    const nights = Math.ceil((new Date(booking.check_out).getTime() - new Date(booking.check_in).getTime()) / (1000 * 60 * 60 * 24));
 
     return (
         <>
-            <Head title={`Booking Confirmation - ${booking.booking_code}`} />
+            <Head title={`Booking Confirmation - ${booking.booking_number}`} />
             
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
@@ -117,8 +126,8 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                     <CardHeader>
                                         <div className="flex items-center justify-between">
                                             <CardTitle>Booking Details</CardTitle>
-                                            <Badge className={statusColors[booking.status as keyof typeof statusColors]}>
-                                                {statusLabels[booking.status as keyof typeof statusLabels]}
+                                            <Badge className={statusColors[booking.booking_status as keyof typeof statusColors]}>
+                                                {statusLabels[booking.booking_status as keyof typeof statusLabels]}
                                             </Badge>
                                         </div>
                                     </CardHeader>
@@ -126,7 +135,7 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                         <div className="grid md:grid-cols-2 gap-4">
                                             <div>
                                                 <Label className="text-sm font-medium text-gray-600">Booking Code</Label>
-                                                <p className="text-lg font-mono font-semibold">{booking.booking_code}</p>
+                                                <p className="text-lg font-mono font-semibold">{booking.booking_number}</p>
                                             </div>
                                             <div>
                                                 <Label className="text-sm font-medium text-gray-600">Booking Date</Label>
@@ -141,14 +150,14 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                                 <Calendar className="h-5 w-5 text-blue-600" />
                                                 <div>
                                                     <p className="text-sm font-medium">Check-in</p>
-                                                    <p className="text-sm text-gray-600">{formatDate(booking.check_in_date)}</p>
+                                                    <p className="text-sm text-gray-600">{formatDate(booking.check_in)}</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <Calendar className="h-5 w-5 text-blue-600" />
                                                 <div>
                                                     <p className="text-sm font-medium">Check-out</p>
-                                                    <p className="text-sm text-gray-600">{formatDate(booking.check_out_date)}</p>
+                                                    <p className="text-sm text-gray-600">{formatDate(booking.check_out)}</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -168,10 +177,10 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                             <div>
                                                 <p className="text-sm font-medium">Guests</p>
                                                 <p className="text-sm text-gray-600">
-                                                    {booking.guest_count_total} guests total: 
-                                                    {booking.guest_count_male} male, 
-                                                    {booking.guest_count_female} female
-                                                    {booking.guest_count_children > 0 && `, ${booking.guest_count_children} children`}
+                                                    {booking.guest_count} guests total: 
+                                                    {booking.guest_male} male, 
+                                                    {booking.guest_female} female
+                                                    {booking.guest_children > 0 && `, ${booking.guest_children} children`}
                                                 </p>
                                             </div>
                                         </div>
@@ -312,8 +321,8 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
 
                                 {/* Actions */}
                                 <div className="space-y-3">
-                                    {booking.status === 'verified' && (
-                                        <Link href={`/booking/${booking.booking_code}/payment`} className="block">
+                                    {booking.payment_status === 'dp_pending' && (
+                                        <Link href={booking.payment_link} className="block">
                                             <Button className="w-full" size="lg">
                                                 <CreditCard className="h-4 w-4 mr-2" />
                                                 Make Payment
@@ -322,7 +331,7 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                         </Link>
                                     )}
                                     
-                                    {booking.status === 'pending' && (
+                                    {booking.payment_status === 'pending' && (
                                         <Alert>
                                             <Clock className="h-4 w-4" />
                                             <AlertDescription>
@@ -331,7 +340,7 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                         </Alert>
                                     )}
                                     
-                                    {booking.status === 'paid' && (
+                                    {booking.payment_status === 'paid' && (
                                         <Button className="w-full" variant="outline" disabled>
                                             <CheckCircle className="h-4 w-4 mr-2" />
                                             Payment Completed

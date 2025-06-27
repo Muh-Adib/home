@@ -74,7 +74,7 @@ Route::controller(BookingController::class)->group(function () {
 
 // Public Payment Routes
 Route::controller(PaymentController::class)->group(function () {
-    Route::get('/booking/{booking:booking_number}/payment', 'create')->name('payments.show');
+    Route::get('/booking/{booking:booking_number}/payment', 'create')->name('payments.create');
     Route::post('/booking/{booking:booking_number}/payment', 'store')->name('payments.store');
 });
 
@@ -121,7 +121,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('api')->name('api.')->group(function () {
         Route::controller(PropertyController::class)->group(function () {
             Route::get('properties/search', 'search')->name('properties.search');
-            Route::get('properties/{property}/availability', 'availability')->name('properties.availability');
+            // Availability endpoint removed to avoid conflict with public route
         });
         Route::get('amenities', [AmenityController::class, 'api_index'])->name('amenities.index');
     });
@@ -407,16 +407,8 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
             Route::get('{inventoryStock}/alerts', 'getAlerts')->name('alerts');
         });
     
-    // Inventory Transactions (Read-only)
-    Route::controller(App\Http\Controllers\Admin\InventoryTransactionController::class)
-        ->prefix('inventory-transactions')
-        ->name('inventory-transactions.')
-        ->group(function () {
-            Route::get('/', 'index')->name('index');
-            Route::get('{inventoryTransaction}', 'show')->name('show');
-        });
-    
-    // Inventory Reports
+    // Inventory Reports - DISABLED: Controller does not exist
+    /*
     Route::controller(App\Http\Controllers\Admin\InventoryReportController::class)
         ->prefix('inventory/reports')
         ->name('inventory.reports.')
@@ -428,8 +420,10 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
             Route::get('maintenance', 'maintenance')->name('maintenance');
             Route::get('valuation', 'valuation')->name('valuation');
         });
+    */
     
-    // Inventory API endpoints
+    // Inventory API endpoints - DISABLED: Controllers may not exist
+    /*
     Route::prefix('api')->name('api.')->group(function () {
         Route::get('properties/{property}/cleaning-areas', [App\Http\Controllers\Admin\CleaningTaskController::class, 'getPropertyCleaningAreas'])
             ->name('properties.cleaning-areas');
@@ -440,6 +434,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::get('inventory-stocks/by-property/{property}', [App\Http\Controllers\Admin\InventoryStockController::class, 'getByProperty'])
             ->name('inventory-stocks.by-property');
     });
+    */
 });
 
 /*

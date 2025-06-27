@@ -1,35 +1,101 @@
 {
   "welcome": "Selamat Datang",
+  "welcome_page": {
+    "title": "Selamat Datang",
+    "trusted_platform": "Platform Terpercaya",
+    "welcome_back": "Selamat datang kembali",
+    "hero": {
+      "title": "Temukan",
+      "subtitle": "Liburan Sempurna Anda",
+      "description": "Temukan properti menakjubkan untuk liburan Anda berikutnya. Dari villa yang nyaman hingga homestay mewah, kami memiliki akomodasi sempurna untuk kebutuhan Anda."
+    },
+    "search": {
+      "check_in": "Check-in",
+      "check_out": "Check-out",
+      "guests": "Tamu",
+      "guest_count": "Tamu",
+      "guest_count_plural": "Tamu",
+      "button": "Cari Properti"
+    },
+    "actions": {
+      "browse_all": "Jelajahi Semua Properti",
+      "join_host": "Bergabung sebagai Host"
+    },
+    "stats": {
+      "properties": "Properti",
+      "happy_guests": "Tamu Puas",
+      "satisfaction": "Tingkat Kepuasan",
+      "support": "Dukungan"
+    },
+    "features": {
+      "badge": "Fitur",
+      "title": "Mengapa Pilih PropertyMS?",
+      "description": "Kami menyediakan platform komprehensif untuk manajemen properti dan pemesanan dengan fitur modern dan pemrosesan pembayaran yang aman.",
+      "easy_booking": {
+        "title": "Pemesanan Mudah",
+        "description": "Proses pemesanan yang sederhana dan intuitif dengan konfirmasi instan dan opsi pembayaran fleksibel."
+      },
+      "secure_payments": {
+        "title": "Pembayaran Aman",
+        "description": "Berbagai metode pembayaran dengan pemrosesan aman dan tautan pembayaran bertoken untuk keamanan Anda."
+      },
+      "premium_experience": {
+        "title": "Pengalaman Premium",
+        "description": "Properti terkurasi dengan manajemen informasi tamu yang detail dan layanan pelanggan yang luar biasa."
+      }
+    },
+    "featured": {
+      "badge": "Unggulan",
+      "title": "Properti Unggulan",
+      "description": "Akomodasi pilihan untuk pengalaman menginap yang luar biasa",
+      "view_all": "Lihat Semua",
+      "featured_badge": "Unggulan"
+    },
+    "per_night": "malam",
+    "view_details": "Lihat Detail",
+    "cta": {
+      "title": "Siap Memulai Perjalanan Anda?",
+      "description": "Bergabunglah dengan ribuan tamu yang puas yang telah menemukan akomodasi sempurna mereka melalui platform kami.",
+      "browse_properties": "Jelajahi Properti",
+      "sign_up": "Daftar Sekarang"
+    },
+    "footer": {
+      "description": "Platform terpercaya Anda untuk manajemen properti dan sewa liburan. Menghubungkan host dan tamu untuk pengalaman yang berkesan.",
+      "trusted": "Terpercaya",
+      "secure": "Aman",
+      "quick_links": "Tautan Cepat",
+      "contact": "Kontak",
+      "email": "Email",
+      "phone": "Telepon",
+      "rights_reserved": "Semua hak dilindungi"
+    }
+  },
   "dashboard": "Dasbor",
   "book_now": "Pesan Sekarang",
   "logout": "Keluar",
   "login": "Masuk",
   "register": "Daftar",
   "nav": {
-    "dashboard": "Dasbor",
+    "home": "Beranda",
+    "dashboard": "Dashboard",
     "properties": "Properti",
-    "bookings": "Pemesanan",
+    "my_properties": "Properti Saya",
+    "browse_properties": "Jelajahi Properti",
+    "bookings": "Booking",
+    "my_bookings": "Booking Saya",
     "payment_methods": "Metode Pembayaran",
+    "users": "Pengguna",
     "settings": "Pengaturan",
     "cleaning_tasks": "Tugas Kebersihan",
-    "my_properties": "Properti Saya",
-    "my_bookings": "Pemesanan Saya",
-    "my_payments": "Pembayaran Saya",
-    "browse_properties": "Cari Properti",
+    "check_in_out": "Check In/Out",
     "payments": "Pembayaran",
+    "my_payments": "Pembayaran Saya",
     "help": "Bantuan",
     "support": "Dukungan",
-    "users": "Pengguna",
-    "cleaning_schedules": "Jadwal Kebersihan",
-    "reports": "Laporan",
-    "amenities": "Fasilitas",
-    "check_in_out": "Check In/Out",
-    "financial_reports": "Laporan Keuangan",
-    "expenses": "Pengeluaran",
-    "room_status": "Status Kamar",
-    "maintenance": "Pemeliharaan",
-    "documentation": "Dokumentasi",
-    "home": "Beranda"
+    "login": "Masuk",
+    "register": "Daftar",
+    "logout": "Keluar",
+    "profile": "Profil"
   },
   "auth": {
     "login_title": "Selamat Datang Kembali",
@@ -135,8 +201,28 @@
     "enter_email": "your@email.com",
     "select_gender": "Pilih jenis kelamin",
     "select_relationship": "Pilih hubungan",
-    "enter_guest_name": "Masukkan nama tamu",
-    "phone_placeholder": "Nomor telepon"
+
+   
+    "phone_placeholder": "Nomor telepon",
+    "enter_email_address": "Masukkan alamat email",
+    "group_relationship": "Hubungan Grup",
+    "relationship_to_primary_guest": "Hubungan dengan Tamu Utama",
+    "relationship_required_for_adult_guests": "Hubungan wajib untuk tamu dewasa",
+    "name_required_for_adult_guests": "Nama wajib untuk tamu dewasa",
+    "gender_required_for_adult_guests": "Jenis kelamin wajib untuk tamu dewasa",
+    "discount": "Diskon",
+    "off": "OFF",
+    "all_inclusive_price_no_hidden_fees": "Harga sudah termasuk semua, tanpa biaya tersembunyi",
+    "down_payment": "Uang Muka",
+    "remaining": "Sisa",
+    "total_price": "Total Harga",
+    "original_price": "Harga Asli",
+    "extra_beds": "Kasur tambahan",
+    "cleaning_fee": "Biaya kebersihan",
+    "taxes_fees": "Pajak & biaya",
+    "gender": "Jenis kelamin",
+    "for": "untuk",
+    "total": "Total"
   },
   "pricing": {
     "total_price": "Total Harga",
@@ -169,7 +255,6 @@
     "search": "Cari",
     "filter": "Filter",
     "back": "Kembali",
-    "next": "Selanjutnya",
     "submit": "Kirim",
     "required": "Wajib",
     "optional": "Opsional",
@@ -180,7 +265,9 @@
     "included": "Termasuk",
     "per_night": "per malam",
     "all_inclusive": "Harga sudah termasuk semua, tanpa biaya tersembunyi",
-    "nights": "malam"
+    "nights": "malam",
+    "next": "Berikutnya",
+    "page_of": "Halaman {{current}} dari {{total}}"
   },
   "payment": {
     "title": "Pembayaran Saya",
@@ -241,7 +328,40 @@
       "payment_type": "Tipe Pembayaran",
       "date_range": "Rentang Tanggal",
       "amount_range": "Rentang Jumlah"
-    }
+    },
+    "create_payment": "Buat Pembayaran",
+    "create_subtitle": "Pembayaran untuk pemesanan {{booking}}",
+    "payment_summary": "Ringkasan Pembayaran",
+    "total_booking": "Total Jumlah Pemesanan",
+    "already_paid": "Sudah Dibayar",
+    "remaining_amount": "Jumlah Tersisa",
+    "partial_payment_note": "Anda dapat membayar seluruh jumlah tersisa atau melakukan pembayaran sebagian (minimum Rp 100.000)",
+    "payment_amount": "Jumlah Pembayaran",
+    "enter_amount": "Masukkan jumlah pembayaran",
+    "minimum": "Minimum",
+    "maximum": "Maksimum",
+    "select_method": "Pilih Metode Pembayaran",
+    "payment_instructions": "Instruksi Pembayaran",
+    "transfer_details": "Detail Transfer",
+    "bank": "Bank",
+    "account_number": "Nomor Rekening",
+    "account_name": "Nama Rekening",
+    "reference": "Referensi",
+    "copied": "Disalin!",
+    "instructions": "Instruksi",
+    "sender_information": "Informasi Pengirim",
+    "sender_name": "Nama Pengirim",
+    "sender_name_placeholder": "Masukkan nama pengirim",
+    "sender_account": "Nomor Rekening Pengirim",
+    "sender_account_placeholder": "Masukkan nomor rekening",
+    "sender_bank": "Bank/E-Wallet Pengirim",
+    "select_bank": "Pilih bank atau e-wallet",
+    "upload_proof": "Upload Bukti Pembayaran",
+    "proof_label": "Bukti Pembayaran",
+    "proof_description": "Upload gambar bukti pembayaran yang jelas",
+    "notes_placeholder": "Catatan tambahan tentang pembayaran ini...",
+    "processing": "Memproses Pembayaran...",
+    "submit_payment": "Kirim Pembayaran"
   },
   "booking_status": {
     "pending_verification": "Menunggu Verifikasi",

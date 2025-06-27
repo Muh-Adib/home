@@ -37,7 +37,7 @@ interface GuestDashboardProps {
         payment_date: string;
         booking: {
             booking_number: string;
-            property: {
+        property: {
                 name: string;
             };
         };
@@ -54,7 +54,7 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
     const page = usePage<PageProps>();
     const { auth } = page.props;
     const { t } = useTranslation();
-    
+
     const breadcrumbs: BreadcrumbItem[] = [
         { title: t('nav.home'), href: route('home') || '/' },
         { title: t('nav.dashboard'), href: route('dashboard') }
@@ -212,7 +212,7 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                     <div className="text-center">
                                         <div className="font-medium text-base">My Bookings</div>
                                         <div className="text-xs text-muted-foreground mt-1">View all your reservations</div>
-                                    </div>
+                                </div>
                                 </Link>
                             </Button>
                             
@@ -222,7 +222,7 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                     <div className="text-center">
                                         <div className="font-medium text-base">Payment History</div>
                                         <div className="text-xs text-muted-foreground mt-1">Track your payments</div>
-                                    </div>
+                            </div>
                                 </Link>
                             </Button>
                             
@@ -232,7 +232,7 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                     <div className="text-center">
                                         <div className="font-medium text-base">Browse Properties</div>
                                         <div className="text-xs text-muted-foreground mt-1">Find your next stay</div>
-                                    </div>
+                            </div>
                                 </Link>
                             </Button>
                         </div>
@@ -240,7 +240,7 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                 </Card>
 
                 {/* Main Content */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Upcoming Bookings */}
                     <Card className="h-fit">
                         <CardHeader className="flex flex-row items-center justify-between">
@@ -258,8 +258,8 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                     <ArrowRight className="h-3 w-3" />
                                 </Button>
                             </Link>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
+                                </CardHeader>
+                                <CardContent className="space-y-4">
                             {upcoming_bookings.length > 0 ? (
                                 upcoming_bookings.slice(0, 3).map((booking) => {
                                     const daysUntil = getDaysUntilCheckIn(booking.check_in);
@@ -271,12 +271,12 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                                         <MapPin className="h-3 w-3" />
                                                         {booking.property?.address}
-                                                    </div>
+                                        </div>
                                                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                                         <Calendar className="h-3 w-3" />
                                                         {formatDate(booking.check_in)} - {formatDate(booking.check_out)}
-                                                    </div>
-                                                </div>
+                                        </div>
+                                    </div>
                                                 {getBookingStatusBadge(booking.booking_status)}
                                             </div>
                                             
@@ -311,10 +311,10 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                             Explore Properties
                                         </Button>
                                     </Link>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
 
                     {/* Recent Payments */}
                     <Card className="h-fit">
@@ -333,8 +333,8 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                     <ArrowRight className="h-3 w-3" />
                                 </Button>
                             </Link>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
+                                </CardHeader>
+                                <CardContent className="space-y-4">
                             {recent_payments.length > 0 ? (
                                 recent_payments.slice(0, 5).map((payment) => (
                                     <div key={payment.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
@@ -362,21 +362,21 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                     <CreditCard className="h-16 w-16 mx-auto mb-4 opacity-30" />
                                     <p className="text-lg font-medium mb-2">No payment history</p>
                                     <p className="text-sm">Your payments will appear here</p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
+                                    </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
 
                 {/* Recent Stays */}
                 {past_bookings.length > 0 && (
-                    <Card>
+                            <Card>
                         <CardHeader className="flex flex-row items-center justify-between">
                             <div>
-                                <CardTitle className="flex items-center gap-2">
+                                    <CardTitle className="flex items-center gap-2">
                                     <Activity className="h-5 w-5 text-purple-600" />
                                     Recent Stays
-                                </CardTitle>
+                                    </CardTitle>
                                 <CardDescription>Your completed bookings</CardDescription>
                             </div>
                             <Link href={route('my-bookings', { status: 'completed' }) || '/my-bookings?status=completed'}>
@@ -386,12 +386,12 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                     <ArrowRight className="h-3 w-3" />
                                 </Button>
                             </Link>
-                        </CardHeader>
-                        <CardContent>
+                                </CardHeader>
+                                <CardContent>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {past_bookings.slice(0, 6).map((booking) => (
                                     <div key={booking.id} className="border rounded-lg p-4 space-y-3 hover:bg-gray-50 transition-colors">
-                                        <div className="flex justify-between items-start">
+                                                <div className="flex justify-between items-start">
                                             <div className="space-y-1 flex-1">
                                                 <h4 className="font-medium">{booking.property?.name}</h4>
                                                 <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -400,8 +400,8 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                                 </div>
                                             </div>
                                             {getBookingStatusBadge(booking.booking_status)}
-                                        </div>
-                                        
+                            </div>
+                            
                                         <div className="flex justify-between items-center text-sm pt-2 border-t">
                                             <span className="text-muted-foreground">
                                                 {booking.guest_count} guests • {booking.nights} nights
@@ -409,8 +409,8 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                             <span className="font-medium">
                                                 {formatCurrency(booking.total_amount)}
                                             </span>
-                                        </div>
-                                        
+                            </div>
+                            
                                         {booking.booking_status === 'checked_out' && (
                                             <Button variant="outline" size="sm" className="w-full">
                                                 <Star className="h-4 w-4 mr-2" />
@@ -426,4 +426,4 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
             </div>
         </AppLayout>
     );
-}
+} 

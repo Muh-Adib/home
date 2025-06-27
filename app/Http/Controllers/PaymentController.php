@@ -93,11 +93,6 @@ class PaymentController extends Controller
         $checkOut = \Carbon\Carbon::parse($booking->check_out_date);
         $booking->nights = $checkIn->diffInDays($checkOut);
 
-        // Get guest count - fix field names
-        $booking->guest_count = ($booking->guest_count_male ?? 0) + 
-                               ($booking->guest_count_female ?? 0) + 
-                               ($booking->guest_count_children ?? 0);
-
         return Inertia::render('Payment/Create', [
             'booking' => $booking->load('property'),
             'paymentMethods' => $paymentMethods,

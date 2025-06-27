@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AppLayout from '@/layouts/app-layout';
-import { PageProps } from '@/types';
+import { BreadcrumbItem } from '@/types';
 
 interface Property {
     id: number;
@@ -102,13 +102,17 @@ interface MyBookingsProps {
 }
 
 export default function MyBookings({ bookings, filters }: MyBookingsProps) {
-    const page = usePage<PageProps>();
     const { t } = useTranslation();
     const [localFilters, setLocalFilters] = useState({
         search: filters.search || '',
         status: filters.status || '',
         payment_status: filters.payment_status || '',
     });
+    
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: t('nav.home'), href: route('home') },
+        { title: t('nav.my_bookings'), href: route('my-bookings') }
+    ];
 
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [showDetails, setShowDetails] = useState(false);
@@ -231,11 +235,6 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
     const getRemainingAmount = (booking: Booking) => {
         return booking.total_amount - getPaidAmount(booking);
     };
-
-    const breadcrumbs: BreadcrumbItem[] = [
-        { title: t('nav.home'), href: route('home') },
-        { title: t('nav.my_bookings'), href: route('my-bookings') }
-    ];
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
