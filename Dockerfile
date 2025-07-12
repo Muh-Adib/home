@@ -14,7 +14,7 @@ COPY tailwind.config.js ./
 COPY components.json ./
 
 # Install dependencies
-RUN npm install --legacy-peer-deps
+RUN npm ci --only=production
 
 # Copy source code
 COPY resources/ ./resources/
@@ -23,11 +23,8 @@ COPY public/ ./public/
 # Build assets
 RUN npm run build
 
-# Clean up node_modules to reduce image size
-RUN rm -rf node_modules
-
 # Production PHP stage
-FROM php:8.3-fpm-alpine AS production
+FROM php:8.3-fpm-alpine AS php-base
 
 # Install system dependencies
 RUN apk add --no-cache \
@@ -46,9 +43,7 @@ RUN apk add --no-cache \
     postgresql-client \
     redis \
     supervisor \
-    nginx \
-    nodejs \
-    npm
+    nginx
 
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -90,12 +85,6 @@ COPY . .
 # Copy built assets from node stage
 COPY --from=node-builder /app/public/build ./public/build
 
-# Copy package files for socket server dependencies
-COPY package*.json ./
-
-# Install only production dependencies for socket server
-RUN npm install --only=production --legacy-peer-deps
-
 # Set proper permissions
 RUN chown -R www:www /var/www/html \
     && chmod -R 755 /var/www/html/storage \
@@ -107,7 +96,6 @@ COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
 COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY docker/redis/redis.conf /etc/redis/redis.conf
 
 # Create required directories
 RUN mkdir -p /var/log/supervisor \
@@ -115,8 +103,7 @@ RUN mkdir -p /var/log/supervisor \
     && mkdir -p /var/www/html/storage/logs \
     && mkdir -p /var/www/html/storage/framework/cache \
     && mkdir -p /var/www/html/storage/framework/sessions \
-    && mkdir -p /var/www/html/storage/framework/views \
-    && mkdir -p /var/lib/redis
+    && mkdir -p /var/www/html/storage/framework/views
 
 # Optimize Laravel for production
 RUN php artisan config:cache \
