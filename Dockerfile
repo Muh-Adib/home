@@ -24,7 +24,7 @@ COPY public/ ./public/
 RUN npm run build
 
 # Production PHP stage
-FROM php:8.3-fpm-alpine AS php-base
+FROM php:8.3-fpm-alpine AS production
 
 # Install system dependencies
 RUN apk add --no-cache \

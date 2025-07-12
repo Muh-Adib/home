@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 
 interface MapProps {
     lat: number;
@@ -18,7 +18,86 @@ declare global {
     }
 }
 
-export const Map: React.FC<MapProps> = ({
+// Global Leaflet loading state
+let leafletLoadingPromise: Promise<void> | null = null;
+let leafletLoaded = false;
+
+// Preload Leaflet CSS
+const preloadLeafletCSS = () => {
+    if (document.querySelector('link[href*="leaflet"]')) {
+        return;
+    }
+    
+    const cssLink = document.createElement('link');
+    cssLink.rel = 'stylesheet';
+    cssLink.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    cssLink.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+    cssLink.crossOrigin = '';
+    document.head.appendChild(cssLink);
+};
+
+// Load Leaflet library once
+const loadLeaflet = (): Promise<void> => {
+    console.log('🗺️ loadLeaflet called, current state:', { leafletLoaded, leafletLoadingPromise: !!leafletLoadingPromise });
+    
+    if (leafletLoaded) {
+        console.log('🗺️ Leaflet already loaded, returning resolved promise');
+        return Promise.resolve();
+    }
+    
+    if (leafletLoadingPromise) {
+        console.log('🗺️ Leaflet loading in progress, returning existing promise');
+        return leafletLoadingPromise;
+    }
+    
+    // Preload CSS immediately
+    preloadLeafletCSS();
+    
+    console.log('🗺️ Starting Leaflet loading process');
+    
+    leafletLoadingPromise = new Promise<void>((resolve, reject) => {
+        // Check if already being loaded
+        if (document.querySelector('script[src*="leaflet"]')) {
+            console.log('🗺️ Leaflet script already in DOM, waiting for load');
+            const checkInterval = setInterval(() => {
+                if (window.L) {
+                    console.log('🗺️ Leaflet detected in window.L');
+                    clearInterval(checkInterval);
+                    leafletLoaded = true;
+                    resolve();
+                }
+            }, 50);
+            return;
+        }
+
+        // Load JS
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+        script.crossOrigin = '';
+        script.async = true;
+        
+        script.onload = () => {
+            console.log('🗺️ Leaflet script loaded successfully');
+            leafletLoaded = true;
+            resolve();
+        };
+        
+        script.onerror = (error) => {
+            console.error('🗺️ Failed to load Leaflet:', error);
+            leafletLoadingPromise = null;
+            reject(new Error('Failed to load Leaflet library'));
+        };
+        
+        document.head.appendChild(script);
+        console.log('🗺️ Leaflet script added to DOM');
+    });
+    
+    return leafletLoadingPromise;
+};
+
+// Memoized Map component to prevent unnecessary re-renders
+export const Map = React.memo<MapProps>(({
     lat,
     lng,
     zoom = 15,
@@ -34,215 +113,373 @@ export const Map: React.FC<MapProps> = ({
     const markerRef = useRef<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isMapContainerReady, setIsMapContainerReady] = useState(false);
+    const [isLeafletReady, setIsLeafletReady] = useState(leafletLoaded);
+    const initializationRef = useRef<boolean>(false);
+    const [mapContainerReady, setMapContainerReady] = useState(false);
 
-    // Validate coordinates
-    const isValidCoordinate = (coord: number) => {
-        return !isNaN(coord) && isFinite(coord) && coord !== 0;
-    };
+    // Callback ref to track when map container is available
+    const setMapRef = useCallback((node: HTMLDivElement | null) => {
+        console.log('🗺️ setMapRef called with node:', !!node);
+        
+        if (node) {
+            mapRef.current = node;
+            console.log('🗺️ Map container ref set, container is ready');
+            setMapContainerReady(true);
+        } else {
+            mapRef.current = null;
+            console.log('🗺️ Map container ref cleared');
+            setMapContainerReady(false);
+        }
+    }, []);
 
-    const isValidLat = isValidCoordinate(lat);
-    const isValidLng = isValidCoordinate(lng);
+    // Memoize coordinate validation
+    const coordinateValidation = useMemo(() => {
+        const isValidCoordinate = (coord: number) => {
+            return typeof coord === 'number' && !isNaN(coord) && isFinite(coord);
+        };
+        
+        const isValidLat = isValidCoordinate(lat) && lat >= -90 && lat <= 90;
+        const isValidLng = isValidCoordinate(lng) && lng >= -180 && lng <= 180;
+        
+        return { isValidLat, isValidLng };
+    }, [lat, lng]);
 
-    console.log('🗺️ Map Component Debug:', {
+    const { isValidLat, isValidLng } = coordinateValidation;
+
+    // Memoize debug log to prevent unnecessary console calls
+    const debugInfo = useMemo(() => ({
         lat,
         lng,
         isValidLat,
         isValidLng,
         propertyName,
         address,
-        isMapContainerReady
-    });
+        isLeafletReady,
+        mapContainerReady
+    }), [lat, lng, isValidLat, isValidLng, propertyName, address, isLeafletReady, mapContainerReady]);
 
-    // Check if map container is ready
-    useEffect(() => {
-        if (mapRef.current) {
-            setIsMapContainerReady(true);
+    console.log('🗺️ Map Component Debug:', debugInfo);
+
+    // Initialize map with optimized loading
+    const initializeMap = useCallback(async () => {
+        console.log('🗺️ initializeMap called with:', {
+            hasMapRef: !!mapRef.current,
+            isValidLat,
+            isValidLng,
+            isLeafletReady,
+            initializationRef: initializationRef.current
+        });
+
+        if (!mapRef.current || !isValidLat || !isValidLng || !isLeafletReady) {
+            console.log('🗺️ Map initialization skipped:', {
+                hasMapRef: !!mapRef.current,
+                isValidLat,
+                isValidLng,
+                isLeafletReady
+            });
+            return;
         }
-    }, []);
 
-    // Use callback ref to ensure container is ready
-    const setMapRef = (node: HTMLDivElement | null) => {
-        mapRef.current = node;
-        if (node) {
-            setIsMapContainerReady(true);
+        // Prevent multiple initializations
+        if (initializationRef.current) {
+            console.log('🗺️ Map initialization already in progress, skipping');
+            return;
+        }
+        
+        console.log('🗺️ Starting map initialization');
+        initializationRef.current = true;
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            console.log('🗺️ Initializing map with coordinates:', { lat, lng, zoom });
+            
+            // Clean up existing map
+            if (mapInstanceRef.current) {
+                console.log('🗺️ Cleaning up existing map');
+                mapInstanceRef.current.remove();
+                mapInstanceRef.current = null;
+                markerRef.current = null;
+            }
+
+            // Minimal delay for DOM readiness
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            // Check if container still exists
+            if (!mapRef.current) {
+                throw new Error('Map container not available');
+            }
+
+            console.log('🗺️ Creating Leaflet map instance');
+            // Initialize map with optimized options
+            mapInstanceRef.current = window.L.map(mapRef.current, {
+                center: [lat, lng],
+                zoom: zoom,
+                zoomControl: true,
+                attributionControl: true,
+                fadeAnimation: false, // Disable fade for faster rendering
+                zoomAnimation: true,
+                markerZoomAnimation: true
+            });
+
+            console.log('🗺️ Map initialized successfully');
+
+            // Add tile layer with optimized settings
+            console.log('🗺️ Adding tile layer');
+            window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19,
+                minZoom: 1,
+                updateWhenZooming: false, // Optimize performance
+                updateWhenIdle: true
+            }).addTo(mapInstanceRef.current);
+
+            // Add marker with optimized options
+            console.log('🗺️ Adding marker');
+            const markerOptions = draggable ? { 
+                draggable: true,
+                autoPan: false // Disable auto-pan for better performance
+            } : {};
+            
+            markerRef.current = window.L.marker([lat, lng], markerOptions)
+                .addTo(mapInstanceRef.current);
+
+            // Add popup if property info is provided
+            if (propertyName) {
+                console.log('🗺️ Adding popup');
+                const popupContent = `
+                    <div style="text-align: center; min-width: 200px;">
+                        <h4 style="margin: 0 0 8px 0; font-weight: 600; color: #333;">${propertyName}</h4>
+                        ${address ? `<p style="margin: 0; color: #666; font-size: 14px; line-height: 1.4;">${address}</p>` : ''}
+                        <p style="margin: 8px 0 0 0; color: #999; font-size: 12px;">
+                            ${lat.toFixed(6)}, ${lng.toFixed(6)}
+                        </p>
+                    </div>
+                `;
+                markerRef.current.bindPopup(popupContent).openPopup();
+            }
+
+            // Handle draggable marker
+            if (draggable && onLocationChange) {
+                markerRef.current.on('dragend', function(e: any) {
+                    const position = e.target.getLatLng();
+                    console.log('🗺️ Marker dragged to:', position);
+                    onLocationChange(position.lat, position.lng);
+                });
+            }
+
+            // Force map to update its size after initialization
+            setTimeout(() => {
+                if (mapInstanceRef.current) {
+                    console.log('🗺️ Invalidating map size');
+                    mapInstanceRef.current.invalidateSize();
+                }
+            }, 50); // Reduced delay
+
+            console.log('🗺️ Map loading completed, setting isLoading to false');
+            setIsLoading(false);
+            console.log('🗺️ Map loaded successfully');
+
+        } catch (error) {
+            console.error('🗺️ Error loading map:', error);
+            setError(error instanceof Error ? error.message : 'Gagal memuat peta');
+            setIsLoading(false);
+        } finally {
+            console.log('🗺️ Map initialization completed, resetting initializationRef');
+            initializationRef.current = false;
+        }
+    }, [lat, lng, zoom, propertyName, address, draggable, onLocationChange, isValidLat, isValidLng, isLeafletReady]);
+
+    // Update marker and map view when coordinates change
+    const updateMapPosition = useCallback(() => {
+        if (markerRef.current && mapInstanceRef.current && isValidLat && isValidLng) {
+            console.log('🗺️ Updating map position:', { lat, lng, zoom });
+            
+            try {
+                markerRef.current.setLatLng([lat, lng]);
+                mapInstanceRef.current.setView([lat, lng], zoom);
+                
+                // Update popup if it exists
+                if (propertyName && markerRef.current.getPopup()) {
+                    const popupContent = `
+                        <div style="text-align: center; min-width: 200px;">
+                            <h4 style="margin: 0 0 8px 0; font-weight: 600; color: #333;">${propertyName}</h4>
+                            ${address ? `<p style="margin: 0; color: #666; font-size: 14px; line-height: 1.4;">${address}</p>` : ''}
+                            <p style="margin: 8px 0 0 0; color: #999; font-size: 12px;">
+                                ${lat.toFixed(6)}, ${lng.toFixed(6)}
+                            </p>
+                        </div>
+                    `;
+                    markerRef.current.setPopupContent(popupContent);
+                }
+            } catch (error) {
+                console.error('🗺️ Error updating map position:', error);
+            }
+        }
+    }, [lat, lng, zoom, propertyName, address, isValidLat, isValidLng]);
+
+    // Load Leaflet on component mount (only once)
+    useEffect(() => {
+        console.log('🗺️ useEffect for Leaflet loading called, isLeafletReady:', isLeafletReady);
+        
+        if (!isLeafletReady) {
+            console.log('🗺️ Starting Leaflet loading process');
+            
+            // Add timeout fallback to prevent stuck loading
+            const timeoutId = setTimeout(() => {
+                console.warn('🗺️ Leaflet loading timeout, forcing ready state');
+                setIsLeafletReady(true);
+                setIsLoading(false);
+            }, 10000); // 10 second timeout
+            
+            loadLeaflet()
+                .then(() => {
+                    console.log('🗺️ Leaflet loaded successfully, setting isLeafletReady to true');
+                    clearTimeout(timeoutId);
+                    setIsLeafletReady(true);
+                })
+                .catch(error => {
+                    console.error('🗺️ Failed to load Leaflet:', error);
+                    clearTimeout(timeoutId);
+                    setError('Gagal memuat library peta');
+                    setIsLoading(false);
+                });
         } else {
-            setIsMapContainerReady(false);
+            console.log('🗺️ Leaflet already ready, skipping loading');
         }
-    };
+    }, [isLeafletReady]);
 
-    // Invalidate map when container becomes ready
+    // Monitor container availability and trigger initialization
     useEffect(() => {
-        if (isMapContainerReady && mapInstanceRef.current) {
+        if (mapContainerReady && isLeafletReady && isValidLat && isValidLng && !mapInstanceRef.current) {
+            console.log('🗺️ Container ready and all conditions met, triggering initialization');
+            
             // Small delay to ensure DOM is fully rendered
             const timer = setTimeout(() => {
-                if (mapInstanceRef.current) {
-                    mapInstanceRef.current.invalidateSize();
+                if (mapRef.current && !mapInstanceRef.current) {
+                    console.log('🗺️ Starting map initialization from container ready effect');
+                    initializeMap();
                 }
             }, 100);
             
             return () => clearTimeout(timer);
         }
-    }, [isMapContainerReady]);
+    }, [mapContainerReady, isLeafletReady, isValidLat, isValidLng, initializeMap]);
 
+    // Initialize map when Leaflet is loaded and coordinates are valid
     useEffect(() => {
-        // Wait for both map container and valid coordinates
-        if (!isMapContainerReady || !isValidLat || !isValidLng) {
-            console.warn('🗺️ Map initialization skipped:', {
-                hasMapRef: !!mapRef.current,
-                isMapContainerReady,
-                isValidLat,
-                isValidLng
-            });
-            
-            if (!isMapContainerReady) {
-                setError('Map container belum siap');
-            } else if (!isValidLat || !isValidLng) {
-                setError('Koordinat tidak valid');
-            }
-            
-            setIsLoading(false);
-            return;
-        }
-
-        setIsLoading(true);
-        setError(null);
-
-        // Load Leaflet CSS and JS if not already loaded
-        const loadLeaflet = async () => {
-            if (!window.L) {
-                // Load CSS
-                const cssLink = document.createElement('link');
-                cssLink.rel = 'stylesheet';
-                cssLink.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-                cssLink.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
-                cssLink.crossOrigin = '';
-                document.head.appendChild(cssLink);
-
-                // Load JS
-                return new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-                    script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
-                    script.crossOrigin = '';
-                    script.onload = resolve;
-                    script.onerror = reject;
-                    document.head.appendChild(script);
-                });
-            }
-        };
-
-        const initializeMap = async () => {
-            try {
-                console.log('🗺️ Initializing map with coordinates:', { lat, lng, zoom });
-                await loadLeaflet();
+        console.log('🗺️ useEffect for map initialization called:', {
+            isLeafletReady,
+            isValidLat,
+            isValidLng,
+            mapContainerReady,
+            hasMapRef: !!mapRef.current
+        });
+        
+        if (isLeafletReady && isValidLat && isValidLng) {
+            // If container is not ready, wait for it
+            if (!mapContainerReady || !mapRef.current) {
+                console.log('🗺️ Map container not ready, waiting for container...');
                 
-                if (mapInstanceRef.current) {
-                    mapInstanceRef.current.remove();
-                }
-
-                // Ensure map container is still available
-                if (!mapRef.current) {
-                    throw new Error('Map container not available');
-                }
-
-                // Small delay to ensure DOM is fully rendered
-                await new Promise(resolve => setTimeout(resolve, 50));
-
-                // Initialize map
-                mapInstanceRef.current = window.L.map(mapRef.current).setView([lat, lng], zoom);
-                console.log('🗺️ Map initialized successfully');
-
-                // Add tile layer
-                window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                }).addTo(mapInstanceRef.current);
-
-                // Add marker
-                const markerOptions = draggable ? { draggable: true } : {};
-                markerRef.current = window.L.marker([lat, lng], markerOptions)
-                    .addTo(mapInstanceRef.current);
-
-                // Add popup if property info is provided
-                if (propertyName) {
-                    const popupContent = `
-                        <div style="text-align: center;">
-                            <h4 style="margin: 0 0 8px 0; font-weight: 600;">${propertyName}</h4>
-                            ${address ? `<p style="margin: 0; color: #666; font-size: 14px;">${address}</p>` : ''}
-                        </div>
-                    `;
-                    markerRef.current.bindPopup(popupContent).openPopup();
-                }
-
-                // Handle draggable marker
-                if (draggable && onLocationChange) {
-                    markerRef.current.on('dragend', function(e: any) {
-                        const position = e.target.getLatLng();
-                        onLocationChange(position.lat, position.lng);
-                    });
-                }
-
-                // Force map to update its size
-                setTimeout(() => {
-                    if (mapInstanceRef.current) {
-                        mapInstanceRef.current.invalidateSize();
+                // Use a more robust approach to wait for container
+                const checkContainer = () => {
+                    if (mapRef.current) {
+                        console.log('🗺️ Map container now available, calling initializeMap');
+                        initializeMap();
+                    } else {
+                        console.log('🗺️ Map container still not available, retrying...');
+                        setTimeout(checkContainer, 50);
                     }
-                }, 100);
-
-                setIsLoading(false);
-                console.log('🗺️ Map loaded successfully');
-
-            } catch (error) {
-                console.error('🗺️ Error loading map:', error);
-                console.error('🗺️ Map error details:', {
-                    lat,
-                    lng,
-                    zoom,
-                    propertyName,
-                    address,
-                    error: error instanceof Error ? error.message : error
-                });
-                setError('Gagal memuat peta');
-                setIsLoading(false);
+                };
+                
+                // Start checking after a short delay
+                setTimeout(checkContainer, 50);
+                return;
             }
-        };
+            
+            console.log('🗺️ All conditions met, calling initializeMap');
+            
+            // Add timeout fallback for map initialization
+            const timeoutId = setTimeout(() => {
+                console.warn('🗺️ Map initialization timeout, forcing completion');
+                setIsLoading(false);
+                initializationRef.current = false;
+            }, 15000); // 15 second timeout
+            
+            initializeMap().finally(() => {
+                clearTimeout(timeoutId);
+            });
+        } else {
+            console.log('🗺️ Map initialization conditions not met:', {
+                isLeafletReady,
+                isValidLat,
+                isValidLng,
+                mapContainerReady,
+                hasMapRef: !!mapRef.current
+            });
+        }
+    }, [isLeafletReady, initializeMap, isValidLat, isValidLng, mapContainerReady]);
 
-        initializeMap();
+    // Update map position when coordinates change
+    useEffect(() => {
+        if (!isLoading && !error && mapInstanceRef.current) {
+            updateMapPosition();
+        }
+    }, [lat, lng, zoom, updateMapPosition, isLoading, error]);
 
+    // Cleanup on unmount
+    useEffect(() => {
         return () => {
             if (mapInstanceRef.current) {
                 mapInstanceRef.current.remove();
                 mapInstanceRef.current = null;
+                markerRef.current = null;
             }
         };
-    }, [lat, lng, zoom, propertyName, address, draggable, isValidLat, isValidLng, isMapContainerReady]);
+    }, []);
 
-    // Update marker position when props change
+    // Monitor loading state changes
     useEffect(() => {
-        if (markerRef.current && mapInstanceRef.current && isValidLat && isValidLng) {
-            console.log('🗺️ Updating map position:', { lat, lng, zoom });
-            markerRef.current.setLatLng([lat, lng]);
-            mapInstanceRef.current.setView([lat, lng], zoom);
+        console.log('🗺️ Loading state changed:', {
+            isLoading,
+            error,
+            isLeafletReady,
+            mapContainerReady,
+            hasMapRef: !!mapRef.current,
+            hasMapInstance: !!mapInstanceRef.current
+        });
+        
+        // Fallback: If loading takes too long, force initialization
+        if (isLoading && isLeafletReady && isValidLat && isValidLng) {
+            const fallbackTimer = setTimeout(() => {
+                console.warn('🗺️ Loading timeout, forcing map initialization');
+                if (!mapInstanceRef.current) {
+                    setIsLoading(false);
+                    setError('Map gagal dimuat dalam waktu yang ditentukan');
+                }
+            }, 8000); // 8 second fallback
+            
+            return () => clearTimeout(fallbackTimer);
         }
-    }, [lat, lng, zoom, isValidLat, isValidLng]);
+    }, [isLoading, error, isLeafletReady, mapContainerReady, isValidLat, isValidLng]);
 
     // If coordinates are invalid, show error message
     if (!isValidLat || !isValidLng) {
         return (
             <div 
-                style={{ height, width: '100%' }}
+                style={{ height:'100%', width: '100%' }}
                 className={`rounded-lg border bg-gray-100 flex items-center justify-center ${className}`}
             >
-                <div className="text-center text-gray-500">
+                <div className="text-center text-gray-500 p-4">
                     <div className="text-4xl mb-2">🗺️</div>
                     <p className="font-medium">Peta tidak tersedia</p>
                     <p className="text-sm text-gray-400 mt-1">
                         Koordinat: {lat}, {lng}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">
-                        {!isValidLat && 'Latitude tidak valid'}
+                        {!isValidLat && 'Latitude tidak valid (harus -90 sampai 90)'}
                         {!isValidLat && !isValidLng && ' • '}
-                        {!isValidLng && 'Longitude tidak valid'}
+                        {!isValidLng && 'Longitude tidak valid (harus -180 sampai 180)'}
                     </p>
                 </div>
             </div>
@@ -253,12 +490,22 @@ export const Map: React.FC<MapProps> = ({
     if (isLoading) {
         return (
             <div 
-                style={{ height, width: '100%' }}
+                style={{ height:'100%', width: '100%' }}
                 className={`rounded-lg border bg-gray-100 flex items-center justify-center ${className}`}
             >
-                <div className="text-center text-gray-500">
+                <div className="text-center text-gray-500 p-4">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
                     <p>Memuat peta...</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                        {!isLeafletReady ? 'Memuat library peta...' : 
+                         !mapContainerReady ? 'Menyiapkan container peta...' : 
+                         'Menginisialisasi peta...'}
+                    </p>
+                    <p className="text-xs text-gray-300 mt-1">
+                        Debug: Leaflet={isLeafletReady ? 'Ready' : 'Loading'}, 
+                        Container={mapContainerReady ? 'Ready' : 'Pending'},
+                        Map={mapInstanceRef.current ? 'Created' : 'Pending'}
+                    </p>
                 </div>
             </div>
         );
@@ -271,10 +518,20 @@ export const Map: React.FC<MapProps> = ({
                 style={{ height, width: '100%' }}
                 className={`rounded-lg border bg-red-50 flex items-center justify-center ${className}`}
             >
-                <div className="text-center text-red-500">
+                <div className="text-center text-red-500 p-4">
                     <div className="text-4xl mb-2">❌</div>
                     <p className="font-medium">Gagal memuat peta</p>
                     <p className="text-sm text-red-400 mt-1">{error}</p>
+                    <button 
+                        onClick={() => {
+                            setError(null);
+                            setIsLoading(true);
+                            initializeMap();
+                        }}
+                        className="mt-2 px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors"
+                    >
+                        Coba Lagi
+                    </button>
                 </div>
             </div>
         );
@@ -287,4 +544,4 @@ export const Map: React.FC<MapProps> = ({
             className={`rounded-lg border ${className}`}
         />
     );
-}; 
+});

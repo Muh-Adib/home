@@ -1,3 +1,4 @@
+import { type Amenity } from '@/types';
 export interface Property {
   id: number;
   name: string;
@@ -28,7 +29,7 @@ export interface Property {
       name: string;
       email: string;
   };
-  amenities: PropertyAmenity[];
+  amenities: Amenity[];
   media: PropertyMedia[];
   // Rate calculation data from backend
   current_rate_calculation?: {
@@ -77,16 +78,10 @@ export interface Property {
   thumbnail_url?: string;
   }
   
-  export interface PropertyAmenity {
-    id: string;
-    name: string;
-    category: string;
-    icon?: string;
-  }
   
   export interface PropertyWithDetails extends Property {
     owner: any;
-    amenities: PropertyAmenity[];
+    amenities: Amenity[];
     media: PropertyMedia[];
     seasonalRates?: any[];
     bookedDates: any[];

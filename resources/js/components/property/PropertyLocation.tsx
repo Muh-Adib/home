@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { MapPin } from 'lucide-react';
@@ -10,26 +10,45 @@ interface PropertyLocationProps {
   property: PropertyWithDetails;
 }
 
-export const PropertyLocation: React.FC<PropertyLocationProps> = ({ property }) => {
+// Memoized PropertyLocation component to prevent unnecessary re-renders
+export const PropertyLocation = React.memo<PropertyLocationProps>(({ property }) => {
   const { t } = useTranslation();
 
-  // Improved coordinate validation
-  const isValidCoordinate = (coord: number | undefined) => {
-    return coord !== undefined && coord !== null && !isNaN(Number(coord)) && isFinite(Number(coord)) && Number(coord) !== 0;
-  };
+  // Memoize coordinate validation and parsing
+  const coordinateData = useMemo(() => {
+    // Improved coordinate validation
+    const isValidCoordinate = (coord: number | undefined) => {
+      return coord !== undefined && coord !== null && 
+             !isNaN(Number(coord)) && isFinite(Number(coord)) && 
+             Number(coord) !== 0;
+    };
 
-  const lat = Number(property.lat);
-  const lng = Number(property.lng);
-  const hasValidCoordinates = isValidCoordinate(lat) && isValidCoordinate(lng);
+    const lat = Number(property.lat);
+    const lng = Number(property.lng);
+    const hasValidCoordinates = isValidCoordinate(lat) && isValidCoordinate(lng);
 
-  console.log('📍 PropertyLocation Debug:', {
-    originalLat: property.lat,
-    originalLng: property.lng,
+    return {
+      lat,
+      lng,
+      hasValidCoordinates,
+      originalLat: property.lat,
+      originalLng: property.lng
+    };
+  }, [property.lat, property.lng]);
+
+  const { lat, lng, hasValidCoordinates, originalLat, originalLng } = coordinateData;
+
+  // Memoize debug info to prevent unnecessary console calls
+  const debugInfo = useMemo(() => ({
+    originalLat,
+    originalLng,
     parsedLat: lat,
     parsedLng: lng,
     hasValidCoordinates,
     propertyName: property.name
-  });
+  }), [originalLat, originalLng, lat, lng, hasValidCoordinates, property.name]);
+
+  console.log('📍 PropertyLocation Debug:', debugInfo);
 
   return (
     <Card>
@@ -62,12 +81,10 @@ export const PropertyLocation: React.FC<PropertyLocationProps> = ({ property }) 
                   <MapPin className="h-12 w-12 mx-auto mb-2" />
                   <p>Peta tidak tersedia</p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Koordinat: {property.lat || 'null'}, {property.lng || 'null'}
+                    Koordinat: {originalLat || 'null'}, {originalLng || 'null'}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    {!isValidCoordinate(lat) && 'Latitude tidak valid'}
-                    {!isValidCoordinate(lat) && !isValidCoordinate(lng) && ' • '}
-                    {!isValidCoordinate(lng) && 'Longitude tidak valid'}
+                    {!coordinateData.hasValidCoordinates && 'Koordinat tidak valid'}
                   </p>
                 </div>
               </div>
@@ -77,4 +94,4 @@ export const PropertyLocation: React.FC<PropertyLocationProps> = ({ property }) 
       </CardContent>
     </Card>
   );
-};
+});

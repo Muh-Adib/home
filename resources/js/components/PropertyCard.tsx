@@ -17,7 +17,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import AmenityItem from '@/components/AmenityItem';
-import { Amenity, PropertyMedia, PropertyAmenity } from '@/types';
+import { Amenity, PropertyMedia } from '@/types';
 import { Property } from '@/types/property';
 
 
@@ -169,7 +169,7 @@ export default function PropertyCard({
                 viewMode === 'list' ? "mb-4" : "",
                 classNames?.amenities
             )}>
-                {property.amenities.slice(0, maxAmenities).map((amenity: PropertyAmenity, index: number) => (
+                {property.amenities.slice(0, maxAmenities).map((amenity: Amenity, index: number) => (
                     <AmenityItem 
                         key={`amenity-${amenity.id || amenity.name}-${index}`}
                         amenity={amenity}
@@ -254,7 +254,7 @@ export default function PropertyCard({
     if (viewMode === 'list') {
         return (
             <Card className={cn(
-                "overflow-hidden hover:shadow-lg transition-all duration-300 border-0 shadow-md",
+                "overflow-hidden hover:shadow-lg transition-all duration-300 border-0 shadow-md pt-0",
                 classNames?.card,
                 className
             )} {...rest}>
