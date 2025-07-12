@@ -96,6 +96,7 @@ COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
 COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/redis/redis.conf /etc/redis/redis.conf
 
 # Create required directories
 RUN mkdir -p /var/log/supervisor \
@@ -103,7 +104,8 @@ RUN mkdir -p /var/log/supervisor \
     && mkdir -p /var/www/html/storage/logs \
     && mkdir -p /var/www/html/storage/framework/cache \
     && mkdir -p /var/www/html/storage/framework/sessions \
-    && mkdir -p /var/www/html/storage/framework/views
+    && mkdir -p /var/www/html/storage/framework/views \
+    && mkdir -p /var/lib/redis
 
 # Optimize Laravel for production
 RUN php artisan config:cache \

@@ -78,6 +78,5 @@ vendor/
 composer.lock.backup
 
 # Local development
-docker/
 docker-compose.yml
 docker-compose.override.yml 

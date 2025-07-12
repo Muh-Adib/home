@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
+// Health check endpoint for Docker
+Route::get('/health', function () {
+    return response()->json(['status' => 'healthy', 'timestamp' => now()]);
+})->name('health');
+
 /*
 |--------------------------------------------------------------------------
 | PUBLIC ROUTES
