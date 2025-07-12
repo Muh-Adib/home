@@ -32,11 +32,19 @@ class SendPaymentNotification
             $user->notify(new PaymentCreatedNotification($payment));
         }
 
-        // Send notification to admin users (superadmin, admin, finance)
-        $adminUsers = User::whereIn('role', ['superadmin', 'admin', 'finance'])->get();
+        // Send notification to admin users (super_admin, property_manager, finance)
+        $adminUsers = User::whereIn('role', ['super_admin', 'property_manager', 'finance'])->get();
         
         foreach ($adminUsers as $admin) {
             $admin->notify(new PaymentCreatedNotification($payment));
+        }
+
+        // Send notification to guest based on booking email
+        if ($payment->booking && $payment->booking->guest_email) {
+            $guestUser = User::where('email', $payment->booking->guest_email)->first();
+            if ($guestUser && $guestUser->id !== ($user->id ?? 0)) {
+                $guestUser->notify(new PaymentCreatedNotification($payment));
+            }
         }
 
         // Also send to property owner if applicable

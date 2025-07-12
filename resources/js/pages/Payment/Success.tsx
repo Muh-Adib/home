@@ -321,7 +321,7 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
                                         </div>
                                         <div>
                                             <span className="font-medium">{t('common.email')}:</span>
-                                            <p className="text-blue-600">support@propertyms.com</p>
+                                            <p className="text-blue-600">support@homsjogja.com</p>
                                         </div>
                                         <div className="text-xs text-gray-500">
                                             {t('common.mention_booking_number')}: {booking.booking_number}

@@ -156,7 +156,7 @@ export default function EmailSettings({ settings }: EmailSettingsProps) {
                                         value={data.mail_from_name}
                                         onChange={(e) => setData('mail_from_name', e.target.value)}
                                         className={errors.mail_from_name ? 'border-red-500' : ''}
-                                        placeholder="Property Management System"
+                                        placeholder="Homsjogja"
                                     />
                                     {errors.mail_from_name && (
                                         <p className="text-sm text-red-600 mt-1">{errors.mail_from_name}</p>
@@ -172,7 +172,7 @@ export default function EmailSettings({ settings }: EmailSettingsProps) {
                                     value={data.mail_from_address}
                                     onChange={(e) => setData('mail_from_address', e.target.value)}
                                     className={errors.mail_from_address ? 'border-red-500' : ''}
-                                    placeholder="noreply@propertyms.com"
+                                    placeholder="noreply@homsjogja.com"
                                 />
                                 {errors.mail_from_address && (
                                     <p className="text-sm text-red-600 mt-1">{errors.mail_from_address}</p>
@@ -381,7 +381,7 @@ export default function EmailSettings({ settings }: EmailSettingsProps) {
                                     onChange={(e) => setData('notification_emails', e.target.value)}
                                     className={errors.notification_emails ? 'border-red-500' : ''}
                                     rows={3}
-                                    placeholder="admin@propertyms.com, manager@propertyms.com"
+                                    placeholder="admin@homsjogja.com, manager@homsjogja.com"
                                 />
                                 <p className="text-xs text-gray-500 mt-1">
                                     Comma-separated list of email addresses to receive admin notifications

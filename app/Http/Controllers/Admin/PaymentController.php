@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Events\PaymentStatusChanged;
 use App\Models\Payment;
 use App\Models\Booking;
 use App\Models\PaymentMethod;
@@ -801,6 +802,11 @@ class PaymentController extends Controller
                 ]);
             }
 
+            // Send notification if status changed
+            if ($oldStatus !== $validated['payment_status']) {
+                event(new PaymentStatusChanged($payment, Auth::user(), $oldStatus, $validated['payment_status']));
+            }
+
             DB::commit();
 
             return redirect()->route('admin.payments.index')
@@ -851,6 +857,9 @@ class PaymentController extends Controller
                 'notes' => "Payment verified: {$payment->payment_number}",
             ]);
 
+            // Send notification for status change
+            event(new PaymentStatusChanged($payment, Auth::user(), 'pending', 'verified'));
+
             DB::commit();
 
             return redirect()->back()
@@ -890,6 +899,9 @@ class PaymentController extends Controller
                 'processed_at' => now(),
                 'notes' => "Payment rejected: {$request->get('rejection_reason')}",
             ]);
+
+            // Send notification for status change
+            event(new PaymentStatusChanged($payment, Auth::user(), 'pending', 'failed'));
 
             DB::commit();
 

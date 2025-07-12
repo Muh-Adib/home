@@ -60,6 +60,7 @@ class PaymentCreatedNotification extends Notification implements ShouldQueue
     {
         return [
             'type' => 'payment_created',
+            'title' => 'Payment Created',
             'payment_id' => $this->payment->id,
             'payment_number' => $this->payment->payment_number,
             'booking_id' => $this->payment->booking_id,
@@ -68,6 +69,8 @@ class PaymentCreatedNotification extends Notification implements ShouldQueue
             'payment_status' => $this->payment->payment_status,
             'message' => "Payment {$this->payment->payment_number} created for booking {$this->payment->booking->booking_number}",
             'action_url' => "/admin/payments/{$this->payment->payment_number}",
+            'icon' => 'credit-card',
+            'color' => 'green',
         ];
     }
 
@@ -94,5 +97,13 @@ class PaymentCreatedNotification extends Notification implements ShouldQueue
         return [
             new \Illuminate\Broadcasting\Channel('admin-notifications'),
         ];
+    }
+
+    /**
+     * Get the type of the notification being broadcast.
+     */
+    public function broadcastType(): string
+    {
+        return 'notification.created';
     }
 }

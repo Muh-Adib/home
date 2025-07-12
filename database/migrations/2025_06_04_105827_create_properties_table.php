@@ -18,16 +18,17 @@ return new class extends Migration
             $table->string('slug')->unique();
             $table->text('description')->nullable();
             $table->text('address');
+            $table->string('maps_link')->nullable();
             $table->decimal('lat', 10, 8)->nullable()->index();
             $table->decimal('lng', 11, 8)->nullable()->index();
             $table->integer('capacity'); // Standard capacity
             $table->integer('capacity_max'); // Maximum with extra beds
             $table->integer('bedroom_count');
             $table->integer('bathroom_count');
-            $table->decimal('base_rate', 12, 2);
+            $table->decimal('base_rate', 12, 0);
             $table->integer('weekend_premium_percent')->default(20);
-            $table->decimal('cleaning_fee', 10, 2)->default(0);
-            $table->decimal('extra_bed_rate', 10, 2)->default(0);
+            $table->decimal('cleaning_fee', 10, 0)->default(0);
+            $table->decimal('extra_bed_rate', 10, 0)->default(0);
             $table->enum('status', ['active', 'inactive', 'maintenance'])->default('active');
             $table->json('amenities')->nullable(); // Stored as JSON for flexibility
             $table->text('house_rules')->nullable();

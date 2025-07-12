@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { FilePreviewModal } from '@/components/ui/file-preview-modal';
 import { type PageProps } from '@/types';
 import {
     ArrowLeft,
@@ -25,7 +26,10 @@ import {
     Phone,
     Mail,
     DollarSign,
-    ExternalLink
+    ExternalLink,
+    Image as ImageIcon,
+    File,
+    AlertTriangle
 } from 'lucide-react';
 
 interface PaymentDetail {
@@ -51,6 +55,10 @@ interface PaymentDetail {
     notes?: string;
     attachment_path?: string;
     attachment_filename?: string;
+    attachment_full_path?: string;
+    attachment_size?: number;
+    attachment_type?: string;
+    attachment_exists?: boolean;
     verification_notes?: string;
     verified_at?: string;
     verified_by?: number;
@@ -316,44 +324,120 @@ export default function PaymentShow() {
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2">
                                             <FileText className="h-5 w-5" />
-                                            Payment Proof
+                                            Bukti Pembayaran
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-4">
-                                            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                            {/* File Info */}
+                                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                                                 <div className="flex items-center gap-3">
-                                                    <FileText className="h-8 w-8 text-blue-600" />
+                                                    {payment.attachment_type === 'image' && <ImageIcon className="h-8 w-8 text-blue-600" />}
+                                                    {payment.attachment_type === 'pdf' && <FileText className="h-8 w-8 text-red-600" />}
+                                                    {!payment.attachment_type || (payment.attachment_type !== 'image' && payment.attachment_type !== 'pdf') && <File className="h-8 w-8 text-gray-600" />}
                                                     <div>
-                                                        <div className="font-medium">{payment.attachment_filename}</div>
-                                                        <div className="text-sm text-gray-500">Payment proof document</div>
+                                                        <div className="font-medium">{payment.attachment_filename || 'Unknown file'}</div>
+                                                        <div className="text-sm text-gray-500">
+                                                            {payment.attachment_type?.toUpperCase() || 'FILE'} • {payment.attachment_size ? Math.round(payment.attachment_size / 1024) + ' KB' : 'Unknown size'}
+                                                        </div>
+                                                        {!payment.attachment_exists && (
+                                                            <div className="text-sm text-red-500 flex items-center gap-1 mt-1">
+                                                                <AlertTriangle className="h-3 w-3" />
+                                                                File tidak ditemukan
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <Button variant="outline" size="sm" asChild>
-                                                        <a href={payment.attachment_path} target="_blank" rel="noopener noreferrer">
+                                                    {payment.attachment_exists && (
+                                                        <>
+                                                            <FilePreviewModal
+                                                                filePath={payment.attachment_full_path || payment.attachment_path}
+                                                                fileName={payment.attachment_filename}
+                                                                fileSize={payment.attachment_size}
+                                                                fileType={payment.attachment_type}
+                                                                fileExists={payment.attachment_exists}
+                                                            >
+                                                                <Button variant="outline" size="sm">
                                                             <Eye className="h-4 w-4 mr-2" />
-                                                            View
-                                                        </a>
+                                                                    Preview
                                                     </Button>
+                                                            </FilePreviewModal>
                                                     <Button variant="outline" size="sm" asChild>
-                                                        <a href={payment.attachment_path} download>
+                                                                <a href={payment.attachment_full_path || payment.attachment_path} download={payment.attachment_filename}>
                                                             <Download className="h-4 w-4 mr-2" />
                                                             Download
                                                         </a>
                                                     </Button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
 
-                                            {/* Image Preview */}
-                                            {isImageFile(payment.attachment_filename) && (
+                                            {/* Quick Preview for Images */}
+                                            {payment.attachment_exists && payment.attachment_type === 'image' && (
                                                 <div className="border rounded-lg overflow-hidden">
+                                                    <div className="relative group">
                                                     <img
-                                                        src={payment.attachment_path}
-                                                        alt="Payment proof"
+                                                            src={payment.attachment_full_path || payment.attachment_path}
+                                                            alt="Payment proof preview"
                                                         className="w-full h-auto max-h-96 object-contain bg-gray-50"
-                                                        onClick={() => setShowImagePreview(true)}
-                                                    />
+                                                        />
+                                                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
+                                                            <FilePreviewModal
+                                                                filePath={payment.attachment_full_path || payment.attachment_path}
+                                                                fileName={payment.attachment_filename}
+                                                                fileSize={payment.attachment_size}
+                                                                fileType={payment.attachment_type}
+                                                                fileExists={payment.attachment_exists}
+                                                            >
+                                                                <Button 
+                                                                    variant="secondary" 
+                                                                    size="sm" 
+                                                                    className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                                                >
+                                                                    <Eye className="h-4 w-4 mr-2" />
+                                                                    View Full Size
+                                                                </Button>
+                                                            </FilePreviewModal>
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-3 bg-white border-t">
+                                                        <p className="text-sm text-gray-600">
+                                                            Klik "Preview" atau "View Full Size" untuk melihat dengan kontrol zoom dan rotasi
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Quick Info for PDF */}
+                                            {payment.attachment_exists && payment.attachment_type === 'pdf' && (
+                                                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                                                    <div className="flex items-center gap-3">
+                                                        <FileText className="h-6 w-6 text-red-600" />
+                                                        <div>
+                                                            <p className="font-medium text-red-900">PDF Document</p>
+                                                            <p className="text-sm text-red-700">
+                                                                Klik "Preview" untuk melihat dokumen dalam modal
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Error State */}
+                                            {!payment.attachment_exists && (
+                                                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                                                    <div className="flex items-center gap-3">
+                                                        <AlertTriangle className="h-6 w-6 text-red-600" />
+                                                        <div>
+                                                            <p className="font-medium text-red-900">File Tidak Ditemukan</p>
+                                                            <p className="text-sm text-red-700">
+                                                                File bukti pembayaran tidak dapat ditemukan di server. 
+                                                                Hubungi administrator sistem.
+                                                            </p>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>

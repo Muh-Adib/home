@@ -112,7 +112,7 @@ export default function BookingCalendar({ bookings, properties, filters }: Booki
     const events: CalendarEvent[] = useMemo(() => {
         return filteredBookings.map(booking => ({
             id: booking.id,
-            title: `${booking.guest_name} - ${booking.property?.name}`,
+            title: `${booking.guest_name} - ${booking.property?.name || 'Unknown Property'}`,
             start: new Date(booking.check_in),
             end: new Date(booking.check_out),
             resource: booking,
@@ -407,7 +407,7 @@ export default function BookingCalendar({ bookings, properties, filters }: Booki
                                 slotPropGetter={slotStyleGetter}
                                 popup
                                 tooltipAccessor={(event: CalendarEvent) => 
-                                    `${event.resource.guest_name} - ${event.resource.property.name} (${event.resource.booking_status})`
+                                    `${event.resource.guest_name} - ${event.resource.property?.name || 'Unknown Property'} (${event.resource.booking_status})`
                                 }
                                 components={{
                                     toolbar: (props) => (
@@ -648,45 +648,6 @@ export default function BookingCalendar({ bookings, properties, filters }: Booki
                     </DialogContent>
                 </Dialog>
             </div>
-
-            <style jsx global>{`
-                .calendar-container .rbc-calendar {
-                    font-family: inherit;
-                }
-                
-                .calendar-container .rbc-event {
-                    font-size: 12px;
-                    padding: 2px 5px;
-                    border-radius: 4px;
-                }
-                
-                .calendar-container .rbc-toolbar {
-                    margin-bottom: 1rem;
-                }
-                
-                .calendar-container .rbc-header {
-                    font-weight: 500;
-                    padding: 8px 6px;
-                    border-bottom: 1px solid #e5e7eb;
-                }
-                
-                .calendar-container .rbc-date-cell {
-                    padding: 8px;
-                }
-                
-                .calendar-container .rbc-today {
-                    background-color: #fef3c7;
-                }
-                
-                .calendar-container .rbc-off-range-bg {
-                    background-color: #f9fafb;
-                }
-                
-                .calendar-container .rbc-event:focus {
-                    outline: 2px solid #3b82f6;
-                    outline-offset: 2px;
-                }
-            `}</style>
         </AppLayout>
     );
 } 

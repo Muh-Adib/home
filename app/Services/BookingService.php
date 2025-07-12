@@ -30,17 +30,40 @@ class BookingService
      */
     public function createBooking(Property $property, array $data, $user = null): Booking
     {
-        // Cek ketersediaan properti
-        if (!$property->isAvailableForDates($data['check_in_date'], $data['check_out_date'])) {
-            throw new \Exception('Property is not available for selected dates.');
+        // Log booking creation attempt
+        \Illuminate\Support\Facades\Log::info('BookingService::createBooking started', [
+            'property_id' => $property->id,
+            'check_in_date' => $data['check_in_date'],
+            'check_out_date' => $data['check_out_date'],
+            'user_id' => $user ? $user->id : null
+        ]);
+
+        // Validate and parse dates
+        try {
+            $checkIn  = Carbon::parse($data['check_in_date']);
+            $checkOut = Carbon::parse($data['check_out_date']);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Invalid date format in createBooking', [
+                'check_in_date' => $data['check_in_date'],
+                'check_out_date' => $data['check_out_date'],
+                'error' => $e->getMessage()
+            ]);
+            throw new \Exception('Invalid date format provided. Please use valid dates.');
         }
 
         // Hitung total tamu
         $totalGuests = $data['guest_count_male'] + $data['guest_count_female'] + $data['guest_count_children'];
 
+        // Validasi kapasitas
+        if ($totalGuests > $property->capacity_max) {
+            throw new \Exception("Guest count ({$totalGuests}) exceeds property maximum capacity ({$property->capacity_max}).");
+        }
+
+        if ($totalGuests < 1) {
+            throw new \Exception("At least one guest is required.");
+        }
+
         // Validasi minimum stay
-        $checkIn  = Carbon::parse($data['check_in_date']);
-        $checkOut = Carbon::parse($data['check_out_date']);
         $nights   = $checkIn->diffInDays($checkOut);
         $isWeekend = $checkIn->isWeekend() || $checkOut->isWeekend();
         $minStay  = $isWeekend ? $property->min_stay_weekend : $property->min_stay_weekday;
@@ -49,11 +72,23 @@ class BookingService
         }
 
         // Hitung tarif
-        $rateCalculation = $property->calculateRate(
-            $data['check_in_date'],
-            $data['check_out_date'],
-            $totalGuests
-        );
+        try {
+            $rateCalculation = $property->calculateRate(
+                $data['check_in_date'],
+                $data['check_out_date'],
+                $totalGuests
+            );
+            \Illuminate\Support\Facades\Log::info('Rate calculation successful', [
+                'property_id' => $property->id,
+                'total_amount' => $rateCalculation['total_amount']
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Rate calculation failed in createBooking', [
+                'property_id' => $property->id,
+                'error' => $e->getMessage()
+            ]);
+            throw new \Exception('Failed to calculate rate: ' . $e->getMessage());
+        }
 
         // Simpan booking di dalam transaksi
         return DB::transaction(function () use ($property, $data, $totalGuests, $nights, $rateCalculation, $user) {
@@ -110,13 +145,13 @@ class BookingService
                 }
             }
 
-            //jika booking dibuat oleh admin, maka status booking akan diubah menjadi verified
+            //jika booking dibuat oleh admin, maka status booking akan diubah menjadi confirmed
             if ($user && isset($user->role) && ($user->role === 'superadmin' || $user->role === 'admin')) {
-                $booking->booking_status = 'verified';
+                $booking->booking_status = 'confirmed';
                 $booking->save();
                 $booking->workflow()->create([
                     'step'         => 'approved',
-                    'status'       => 'confirmed',
+                    'status'       => 'in_progress',
                     'processed_at' => now(),
                     'notes'        => 'Booking dibuat oleh admin',
                 ]);

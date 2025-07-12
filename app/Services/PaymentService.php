@@ -57,7 +57,7 @@ class PaymentService
             if (method_exists($booking, 'workflow')) {
                 $booking->workflow()->create([
                     'step'         => 'payment_pending',
-                    'status'       => 'pending',
+                    'status'       => 'in_progress',
                     'processed_by' => $userId,
                     'processed_at' => now(),
                     'notes'        => "Payment submitted: {$payment->payment_number}",

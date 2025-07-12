@@ -32,7 +32,7 @@ class WelcomeGuest extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Welcome to Property Management System - Your Account Details',
+            subject: 'Welcome to Homsjogja - Your Account Details',
         );
     }
 

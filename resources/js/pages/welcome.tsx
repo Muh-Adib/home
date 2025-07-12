@@ -4,6 +4,7 @@ import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import DateRangePicker from '@/components/ui/date-range-picker';
 import {
     Building2,
     MapPin,
@@ -20,7 +21,9 @@ import {
     Heart,
     Award,
     CheckCircle,
-    TrendingUp
+    TrendingUp,
+    Sun,
+    Moon
 } from 'lucide-react';
 import { type SharedData, type BreadcrumbItem } from '@/types';
 import { useTranslation } from 'react-i18next';
@@ -55,7 +58,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
         { title: t('nav.home'), href: route('home') || '/' }
     ];
 
-    // Default dates - today and tomorrow, adjustable based on minimum stay
+    // Default dates - today and tomorrow
     const getDefaultDates = () => {
         const today = new Date();
         const tomorrow = new Date(today);
@@ -82,21 +85,21 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`${t('welcome_page.title')} - Property Management System`} />
+                            <Head title={`${t('welcome_page.title')} - Homsjogja`} />
 
-            <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 via-yellow-50 to-blue-100">
                 {/* Hero Section */}
                 <section className="py-20 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-yellow-400/20"></div>
                     <div className="container mx-auto px-4 text-center relative z-10">
                         <div className="max-w-4xl mx-auto">
-                            <Badge className="mb-6 bg-blue-100 text-blue-700 hover:bg-blue-200">
+                            <Badge className="mb-6 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-300">
                                 <Star className="h-3 w-3 mr-1" />
                                 {t('welcome_page.trusted_platform')}
                             </Badge>
                             <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
                                 {t('welcome_page.hero.title')}
-                                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent block mt-2">
+                                <span className="bg-gradient-to-r from-blue-600 to-yellow-500 bg-clip-text text-transparent block mt-2">
                                     {t('welcome_page.hero.subtitle')}
                                 </span>
                             </h1>
@@ -106,47 +109,34 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
                             {/* Quick Search Form */}
                             <div className="max-w-5xl mx-auto mb-8">
-                                <Card className="p-6 shadow-xl border-0 bg-white/90 backdrop-blur-sm">
+                                <Card className="p-6 shadow-xl border-0 bg-white/95 backdrop-blur-sm border-yellow-200">
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                                         <div className="text-left">
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                <Calendar className="h-4 w-4 inline mr-2" />
-                                                {t('welcome.search.check_in')}
+                                                <Calendar className="h-4 w-4 inline mr-2 text-blue-600" />
+                                                {t('welcome_page.search.date_range')}
                                             </label>
-                                            <input
-                                                type="date"
-                                                value={searchDates.checkIn}
-                                                onChange={(e) => setSearchDates(prev => ({ ...prev, checkIn: e.target.value }))}
-                                                min={new Date().toISOString().split('T')[0]}
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                            <DateRangePicker
+                                                checkIn={searchDates.checkIn}
+                                                checkOut={searchDates.checkOut}
+                                                onCheckInChange={(date) => setSearchDates(prev => ({ ...prev, checkIn: date }))}
+                                                onCheckOutChange={(date) => setSearchDates(prev => ({ ...prev, checkOut: date }))}
+                                                className="bg-white border-blue-200 hover:bg-blue-50"
                                             />
                                         </div>
                                         <div className="text-left">
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                <Calendar className="h-4 w-4 inline mr-2" />
-                                                {t('welcome.search.check_out')}
-                                            </label>
-                                            <input
-                                                type="date"
-                                                value={searchDates.checkOut}
-                                                onChange={(e) => setSearchDates(prev => ({ ...prev, checkOut: e.target.value }))}
-                                                min={searchDates.checkIn}
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                            />
-                                        </div>
-                                        <div className="text-left">
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                <Users className="h-4 w-4 inline mr-2" />
-                                                {t('welcome.search.guests')}
+                                                <Users className="h-4 w-4 inline mr-2 text-blue-600" />
+                                                {t('welcome_page.search.guests')}
                                             </label>
                                             <select
                                                 value={guests}
                                                 onChange={(e) => setGuests(parseInt(e.target.value))}
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                className="w-full px-4 py-3 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                                             >
                                                 {[...Array(20)].map((_, i) => (
                                                     <option key={i + 1} value={i + 1}>
-                                                        {i + 1} {t('welcome.search.guest_count', { count: i + 1 })}
+                                                        {i + 1} {t('welcome_page.search.guest_count', { count: i + 1 })}
                                                     </option>
                                                 ))}
                                             </select>
@@ -155,10 +145,10 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                             <Button 
                                                 onClick={handleQuickSearch}
                                                 size="lg" 
-                                                className="w-full px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center gap-2 shadow-lg"
+                                                className="w-full px-8 py-3 bg-gradient-to-r from-blue-600 to-yellow-500 hover:from-blue-700 hover:to-yellow-600 flex items-center gap-2 shadow-lg text-white"
                                             >
                                                 <Search className="h-5 w-5" />
-                                                {t('welcome.search.button')}
+                                                {t('welcome_page.search.button')}
                                             </Button>
                                         </div>
                                     </div>
@@ -167,16 +157,16 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
                             <div className="flex flex-col sm:flex-row gap-4 justify-center">
                                 <Link href="/properties">
-                                    <Button variant="outline" size="lg" className="flex items-center gap-2 border-2 hover:bg-blue-50">
+                                    <Button variant="outline" size="lg" className="flex items-center gap-2 border-2 border-blue-300 hover:bg-blue-50 text-blue-700">
                                         <Building2 className="h-5 w-5" />
-                                        {t('welcome.actions.browse_all')}
+                                        {t('welcome_page.actions.browse_all')}
                                     </Button>
                                 </Link>
                                 {!auth.user && (
                                     <Link href="/register">
-                                        <Button variant="outline" size="lg" className="flex items-center gap-2 border-2 hover:bg-purple-50">
+                                        <Button variant="outline" size="lg" className="flex items-center gap-2 border-2 border-yellow-300 hover:bg-yellow-50 text-yellow-700">
                                             <Star className="h-5 w-5" />
-                                            {t('welcome.actions.join_host')}
+                                            {t('welcome_page.actions.join_host')}
                                         </Button>
                                     </Link>
                                 )}
@@ -186,75 +176,75 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                 </section>
 
                 {/* Stats Section */}
-                <section className="py-12 bg-white/50">
+                <section className="py-12 bg-white/70 backdrop-blur-sm">
                     <div className="container mx-auto px-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
                             <div className="space-y-2">
                                 <div className="text-3xl font-bold text-blue-600">1000+</div>
-                                <div className="text-sm text-gray-600">{t('welcome.stats.properties')}</div>
+                                <div className="text-sm text-gray-600">{t('welcome_page.stats.properties')}</div>
                             </div>
                             <div className="space-y-2">
-                                <div className="text-3xl font-bold text-green-600">50K+</div>
-                                <div className="text-sm text-gray-600">{t('welcome.stats.guests')}</div>
+                                <div className="text-3xl font-bold text-yellow-600">50K+</div>
+                                <div className="text-sm text-gray-600">{t('welcome_page.stats.guests')}</div>
                             </div>
                             <div className="space-y-2">
-                                <div className="text-3xl font-bold text-purple-600">98%</div>
-                                <div className="text-sm text-gray-600">{t('welcome.stats.satisfaction')}</div>
+                                <div className="text-3xl font-bold text-blue-600">98%</div>
+                                <div className="text-sm text-gray-600">{t('welcome_page.stats.satisfaction')}</div>
                             </div>
                             <div className="space-y-2">
-                                <div className="text-3xl font-bold text-orange-600">24/7</div>
-                                <div className="text-sm text-gray-600">{t('welcome.stats.support')}</div>
+                                <div className="text-3xl font-bold text-yellow-600">24/7</div>
+                                <div className="text-sm text-gray-600">{t('welcome_page.stats.support')}</div>
                             </div>
                         </div>
                     </div>
                 </section>
 
                 {/* Features Section */}
-                <section className="py-16 bg-white">
+                <section className="py-16 bg-gradient-to-br from-blue-50 to-yellow-50">
                     <div className="container mx-auto px-4">
                         <div className="text-center mb-16">
                             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                                {t('welcome.features.title')}
+                                {t('welcome_page.features.title')}
                             </h2>
                             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-                                {t('welcome.features.subtitle')}
+                                {t('welcome_page.features.subtitle')}
                             </p>
                         </div>
 
                         <div className="grid md:grid-cols-3 gap-8">
-                            <Card className="p-6 hover:shadow-lg transition-all duration-300 group border-0 shadow-md">
+                            <Card className="p-6 hover:shadow-lg transition-all duration-300 group border-0 shadow-md bg-white/80 backdrop-blur-sm">
                                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
                                     <Search className="h-6 w-6 text-blue-600" />
                                 </div>
                                 <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                                    {t('welcome.features.smart_search.title')}
+                                    {t('welcome_page.features.smart_search.title')}
                                 </h3>
                                 <p className="text-gray-600">
-                                    {t('welcome.features.smart_search.description')}
+                                    {t('welcome_page.features.smart_search.description')}
                                 </p>
                             </Card>
 
-                            <Card className="p-6 hover:shadow-lg transition-all duration-300 group border-0 shadow-md">
-                                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
-                                    <Shield className="h-6 w-6 text-green-600" />
+                            <Card className="p-6 hover:shadow-lg transition-all duration-300 group border-0 shadow-md bg-white/80 backdrop-blur-sm">
+                                <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-yellow-200 transition-colors">
+                                    <Shield className="h-6 w-6 text-yellow-600" />
                                 </div>
                                 <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                                    {t('welcome.features.secure_booking.title')}
+                                    {t('welcome_page.features.secure_booking.title')}
                                 </h3>
                                 <p className="text-gray-600">
-                                    {t('welcome.features.secure_booking.description')}
+                                    {t('welcome_page.features.secure_booking.description')}
                                 </p>
                             </Card>
 
-                            <Card className="p-6 hover:shadow-lg transition-all duration-300 group border-0 shadow-md">
-                                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
-                                    <Award className="h-6 w-6 text-purple-600" />
+                            <Card className="p-6 hover:shadow-lg transition-all duration-300 group border-0 shadow-md bg-white/80 backdrop-blur-sm">
+                                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
+                                    <Award className="h-6 w-6 text-blue-600" />
                                 </div>
                                 <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                                    {t('welcome.features.quality_assurance.title')}
+                                    {t('welcome_page.features.quality_assurance.title')}
                                 </h3>
                                 <p className="text-gray-600">
-                                    {t('welcome.features.quality_assurance.description')}
+                                    {t('welcome_page.features.quality_assurance.description')}
                                 </p>
                             </Card>
                         </div>
@@ -263,21 +253,21 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
                 {/* Featured Properties Section */}
                 {featuredProperties.length > 0 && (
-                    <section className="py-16 bg-gradient-to-br from-gray-50 to-blue-50">
+                    <section className="py-16 bg-gradient-to-br from-yellow-50 to-blue-50">
                         <div className="container mx-auto px-4">
                             <div className="text-center mb-16">
                                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                                    {t('welcome.featured.title')}
+                                    {t('welcome_page.featured.title')}
                                 </h2>
                                 <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-                                    {t('welcome.featured.subtitle')}
+                                    {t('welcome_page.featured.subtitle')}
                                 </p>
                             </div>
 
                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                                 {featuredProperties.slice(0, 6).map((property) => (
-                                    <Card key={property.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 group border-0 shadow-md">
-                                        <div className="aspect-video bg-gradient-to-br from-blue-100 to-blue-200 relative overflow-hidden">
+                                    <Card key={property.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 group border-0 shadow-md bg-white/90 backdrop-blur-sm">
+                                        <div className="aspect-video bg-gradient-to-br from-blue-100 to-yellow-100 relative overflow-hidden">
                                             {property.cover_image ? (
                                                 <img 
                                                     src={property.cover_image} 
@@ -299,7 +289,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                             </Button>
 
                                             {property.is_featured && (
-                                                <Badge className="absolute top-3 left-3 bg-yellow-500 text-white">
+                                                <Badge className="absolute top-3 left-3 bg-yellow-500 text-white border-yellow-600">
                                                     <Star className="h-3 w-3 mr-1" />
                                                     {t('properties.featured')}
                                                 </Badge>
@@ -345,7 +335,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                                 </div>
                                                 
                                                 <Link href={`/properties/${property.slug}`}>
-                                                    <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                                                    <Button size="sm" className="bg-gradient-to-r from-blue-600 to-yellow-500 hover:from-blue-700 hover:to-yellow-600 text-white">
                                                         {t('properties.view')}
                                                     </Button>
                                                 </Link>
@@ -357,8 +347,8 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
                             <div className="text-center mt-12">
                                 <Link href="/properties">
-                                    <Button size="lg" variant="outline" className="border-2 hover:bg-blue-50">
-                                        {t('welcome.featured.view_all')}
+                                    <Button size="lg" variant="outline" className="border-2 border-blue-300 hover:bg-blue-50 text-blue-700">
+                                        {t('welcome_page.featured.view_all')}
                                         <ArrowRight className="ml-2 h-5 w-5" />
                                     </Button>
                                 </Link>
@@ -368,14 +358,14 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                 )}
 
                 {/* CTA Section */}
-                <section className="py-20 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                <section className="py-20 bg-gradient-to-r from-blue-600 via-blue-500 to-yellow-500 text-white">
                     <div className="container mx-auto px-4 text-center">
                         <div className="max-w-3xl mx-auto">
                             <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                                {t('welcome.cta.title')}
+                                {t('welcome_page.cta.title')}
                             </h2>
                             <p className="text-xl mb-8 opacity-90">
-                                {t('welcome.cta.description')}
+                                {t('welcome_page.cta.description')}
                             </p>
                             
                             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -383,20 +373,20 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                     <>
                                         <Link href="/register">
                                             <Button size="lg" variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100">
-                                                {t('welcome.cta.get_started')}
+                                                {t('welcome_page.cta.get_started')}
                                                 <ArrowRight className="ml-2 h-5 w-5" />
                                             </Button>
                                         </Link>
                                         <Link href="/properties">
                                             <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
-                                                {t('welcome.cta.explore_first')}
+                                                {t('welcome_page.cta.explore_first')}
                                             </Button>
                                         </Link>
                                     </>
                                 ) : (
                                     <Link href="/properties">
                                         <Button size="lg" variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100">
-                                            {t('welcome.cta.explore_properties')}
+                                            {t('welcome_page.cta.explore_properties')}
                                             <ArrowRight className="ml-2 h-5 w-5" />
                                         </Button>
                                     </Link>
@@ -411,74 +401,64 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                     <div className="container mx-auto px-4">
                         <div className="grid md:grid-cols-4 gap-8">
                             <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">{t('footer.company')}</h3>
+                                <h3 className="text-lg font-semibold">{t('welcome_page.footer.company')}</h3>
                                 <div className="space-y-2 text-sm text-gray-400">
                                     <Link href="/about" className="block hover:text-white transition-colors">
-                                        {t('footer.about')}
+                                        {t('welcome_page.footer.about')}
                                     </Link>
                                     <Link href="/careers" className="block hover:text-white transition-colors">
-                                        {t('footer.careers')}
+                                        {t('welcome_page.footer.careers')}
                                     </Link>
                                     <Link href="/press" className="block hover:text-white transition-colors">
-                                        {t('footer.press')}
+                                        {t('welcome_page.footer.press')}
                                     </Link>
                                 </div>
                             </div>
                             
                             <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">{t('footer.support')}</h3>
+                                <h3 className="text-lg font-semibold">{t('welcome_page.footer.support')}</h3>
                                 <div className="space-y-2 text-sm text-gray-400">
                                     <Link href="/help" className="block hover:text-white transition-colors">
-                                        {t('footer.help_center')}
+                                        {t('welcome_page.footer.help_center')}
                                     </Link>
                                     <Link href="/contact" className="block hover:text-white transition-colors">
-                                        {t('footer.contact')}
+                                        {t('welcome_page.footer.contact')}
                                     </Link>
                                     <Link href="/safety" className="block hover:text-white transition-colors">
-                                        {t('footer.safety')}
+                                        {t('welcome_page.footer.safety')}
                                     </Link>
                                 </div>
                             </div>
                             
                             <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">{t('footer.hosting')}</h3>
+                                <h3 className="text-lg font-semibold">{t('welcome_page.footer.hosting')}</h3>
                                 <div className="space-y-2 text-sm text-gray-400">
                                     <Link href="/host" className="block hover:text-white transition-colors">
-                                        {t('footer.become_host')}
+                                        {t('welcome_page.footer.become_host')}
                                     </Link>
                                     <Link href="/host-resources" className="block hover:text-white transition-colors">
-                                        {t('footer.host_resources')}
-                                    </Link>
-                                    <Link href="/community" className="block hover:text-white transition-colors">
-                                        {t('footer.community')}
+                                        {t('welcome_page.footer.host_resources')}
                                     </Link>
                                 </div>
                             </div>
                             
                             <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">{t('footer.legal')}</h3>
+                                <h3 className="text-lg font-semibold">{t('welcome_page.footer.contact')}</h3>
                                 <div className="space-y-2 text-sm text-gray-400">
-                                    <Link href="/terms" className="block hover:text-white transition-colors">
-                                        {t('footer.terms')}
-                                    </Link>
-                                    <Link href="/privacy" className="block hover:text-white transition-colors">
-                                        {t('footer.privacy')}
-                                    </Link>
-                                    <Link href="/cookies" className="block hover:text-white transition-colors">
-                                        {t('footer.cookies')}
-                                    </Link>
+                                    <div className="flex items-center">
+                                        <span className="mr-2">📧</span>
+                                        <span>info@homsjogja.com</span>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <span className="mr-2">📞</span>
+                                        <span>+62 21 1234 5678</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         
-                        <div className="border-t border-gray-700 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
-                            <div className="text-sm text-gray-400">
-                                © 2024 PropertyMS. {t('footer.copyright')}
-                            </div>
-                            <div className="flex items-center space-x-4 mt-4 md:mt-0">
-                                <span className="text-sm text-gray-400">{t('footer.follow_us')}</span>
-                                {/* Social media links can be added here */}
-                            </div>
+                        <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-400">
+                            <p>&copy; 2025 Homsjogja. {t('welcome_page.footer.rights_reserved')}</p>
                         </div>
                     </div>
                 </footer>

@@ -12,7 +12,7 @@ import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
 import { type BreadcrumbItem, type NavItem, type SharedData, type User } from '@/types';
 import { Link, usePage, router } from '@inertiajs/react';
-import { BookOpen, CreditCard, Folder, LayoutGrid, ListChecks, Menu, Search, Settings, Users, BarChart3, Shield, Wrench, Home, Package, DollarSign, FileText, LogIn, UserPlus, LucideIcon } from 'lucide-react';
+import { BookOpen, CreditCard, Folder, LayoutGrid, ListChecks, Menu, Search, Settings, Users, BarChart3, Shield, Wrench, Home, Package, DollarSign, FileText, LogIn, UserPlus, LucideIcon, Building2, Sparkles, Calendar } from 'lucide-react';
 import AppLogo from './app-logo';
 import LanguageSwitcher from '@/components/language-switcher';
 import { useTranslation } from 'react-i18next';
@@ -46,13 +46,17 @@ const getHeaderNavItemsForRole = (user: User | null): (NavItem & { title: string
             { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
             { title: 'payment_methods', href: route('admin.payment-methods.index'), icon: CreditCard },
             { title: 'users', href: route('admin.users.index'), icon: Users },
-            { title: 'settings', href: route('admin.settings.general'), icon: Settings },
+            { title: 'amenities', href: route('admin.amenities.index'), icon: Building2 },
             { title: 'cleaning_tasks', href: route('admin.cleaning-tasks.index'), icon: ListChecks },
+            { title: 'cleaning_staff', href: route('admin.cleaning-staff.index'), icon: Sparkles },
+            { title: 'settings', href: route('admin.settings.general'), icon: Settings },
         ],
         property_owner: [
             ...baseItems,
             { title: 'my_properties', href: route('admin.properties.index'), icon: Folder },
             { title: 'my_bookings', href: route('admin.bookings.index'), icon: BookOpen },
+            { title: 'cleaning_tasks', href: route('admin.cleaning-tasks.index'), icon: ListChecks },
+            { title: 'cleaning_staff', href: route('admin.cleaning-staff.index'), icon: Sparkles },
         ],
         property_manager: [
             ...baseItems,
@@ -60,11 +64,13 @@ const getHeaderNavItemsForRole = (user: User | null): (NavItem & { title: string
             { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
             { title: 'payment_methods', href: route('admin.payment-methods.index'), icon: CreditCard },
             { title: 'cleaning_tasks', href: route('admin.cleaning-tasks.index'), icon: ListChecks },
+            { title: 'cleaning_staff', href: route('admin.cleaning-staff.index'), icon: Sparkles },
         ],
         front_desk: [
             ...baseItems,
             { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
             { title: 'check_in_out', href: route('admin.bookings.index'), icon: Shield },
+            { title: 'cleaning_staff', href: route('admin.cleaning-staff.index'), icon: Sparkles },
         ],
         finance: [
             ...baseItems,
@@ -74,6 +80,9 @@ const getHeaderNavItemsForRole = (user: User | null): (NavItem & { title: string
         ],
         housekeeping: [
             ...baseItems,
+            { title: 'cleaning_tasks', href: route('admin.cleaning-tasks.index'), icon: ListChecks },
+            { title: 'cleaning_staff', href: route('admin.cleaning-staff.index'), icon: Sparkles },
+            { title: 'cleaning_schedules', href: route('admin.cleaning-schedules.index'), icon: Calendar },
             { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
         ],
         guest: [

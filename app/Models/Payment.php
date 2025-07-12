@@ -46,6 +46,14 @@ class Payment extends Model
         'gateway_response' => 'array',
     ];
 
+    protected $appends = [
+        'attachment_filename',
+        'attachment_full_path', 
+        'attachment_size',
+        'attachment_type',
+        'attachment_exists'
+    ];
+
     // Boot method
     protected static function boot()
     {
@@ -77,6 +85,66 @@ class Payment extends Model
     public function paymentMethod(): BelongsTo
     {
         return $this->belongsTo(PaymentMethod::class, 'payment_method_id');
+    }
+
+    // Accessors for attachment information
+    public function getAttachmentFilenameAttribute(): ?string
+    {
+        if (!$this->attachment_path) {
+            return null;
+        }
+        
+        return basename($this->attachment_path);
+    }
+
+    public function getAttachmentFullPathAttribute(): ?string
+    {
+        if (!$this->attachment_path) {
+            return null;
+        }
+        
+        return asset('storage/' . $this->attachment_path);
+    }
+
+    public function getAttachmentSizeAttribute(): ?int
+    {
+        if (!$this->attachment_path) {
+            return null;
+        }
+        
+        $fullPath = storage_path('app/public/' . $this->attachment_path);
+        
+        if (file_exists($fullPath)) {
+            return filesize($fullPath);
+        }
+        
+        return null;
+    }
+
+    public function getAttachmentTypeAttribute(): ?string
+    {
+        if (!$this->attachment_path) {
+            return null;
+        }
+        
+        $extension = pathinfo($this->attachment_path, PATHINFO_EXTENSION);
+        
+        return match(strtolower($extension)) {
+            'jpg', 'jpeg', 'png', 'gif', 'webp' => 'image',
+            'pdf' => 'pdf',
+            'doc', 'docx' => 'document',
+            'xls', 'xlsx' => 'spreadsheet',
+            default => 'file'
+        };
+    }
+
+    public function getAttachmentExistsAttribute(): bool
+    {
+        if (!$this->attachment_path) {
+            return false;
+        }
+        
+        return \Storage::disk('public')->exists($this->attachment_path);
     }
 
     // Scopes

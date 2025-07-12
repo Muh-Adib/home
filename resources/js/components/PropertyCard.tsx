@@ -11,95 +11,16 @@ import {
     Bath,
     Star,
     Heart,
-    Sparkles
+    Sparkles,
+    type LucideIcon
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import AmenityItem from '@/components/AmenityItem';
+import { Amenity, PropertyMedia, PropertyAmenity } from '@/types';
+import { Property } from '@/types/property';
 
-// Define interfaces for the component
-interface Property {
-    id: number;
-    name: string;
-    slug: string;
-    description: string;
-    address: string;
-    lat?: number;
-    lng?: number;
-    capacity: number;
-    capacity_max: number;
-    bedroom_count: number;
-    bathroom_count: number;
-    base_rate: number;
-    formatted_base_rate: string;
-    weekend_premium_percent: number;
-    cleaning_fee: number;
-    extra_bed_rate: number;
-    house_rules?: string;
-    check_in_time: string;
-    check_out_time: string;
-    min_stay_weekday: number;
-    min_stay_weekend: number;
-    min_stay_peak: number;
-    is_featured: boolean;
-    owner: {
-        id: number;
-        name: string;
-        email: string;
-    };
-    amenities: Amenity[];
-    media: Media[];
-    // Rate calculation data from backend
-    current_rate_calculation?: {
-        nights: number;
-        total_amount: number;
-        subtotal: number;
-        tax_amount: number;
-        cleaning_fee: number;
-        extra_bed_amount: number;
-        seasonal_premium: number;
-        weekend_premium: number;
-        extra_beds: number;
-        rate_breakdown: {
-            seasonal_rates_applied: Array<{
-                name: string;
-                description: string;
-                dates: string[];
-            }>;
-        };
-    };
-    current_total_rate?: number;
-    current_rate_per_night?: number;
-    formatted_current_rate?: string;
-    has_seasonal_rate?: boolean;
-    seasonal_rate_info?: Array<{
-        name: string;
-        description: string;
-        dates?: string[];
-    }>;
-}
 
-interface Media {
-    id: number;
-    file_name: string;
-    file_path: string;
-    thumbnail_path?: string;
-    file_size: number;
-    mime_type: string;
-    media_type: 'image' | 'video';
-    alt_text?: string;
-    description?: string;
-    display_order: number;
-    is_featured: boolean;
-    url: string;
-    thumbnail_url?: string;
-}
-
-interface Amenity {
-    id: number;
-    name: string;
-    icon: string;
-    category: string;
-}
 
 // Main PropertyCard props interface extending React.ComponentPropsWithoutRef for full reusability
 interface PropertyCardProps {
@@ -141,7 +62,7 @@ export default function PropertyCard({
     viewMode = 'grid',
     buildPropertyUrl,
     showFullDescription = false,
-    maxAmenities = 3,
+    maxAmenities = 5,
     hidePrice = false,
     hideFeatures = false,
     customButton,
@@ -240,7 +161,7 @@ export default function PropertyCard({
         )
     );
     
-    // Amenities preview component
+    // Amenities preview component - Updated to use AmenityItem
     const AmenitiesPreview = ({ showNames = false }) => (
         property.amenities && property.amenities.length > 0 && (
             <div className={cn(
@@ -248,13 +169,20 @@ export default function PropertyCard({
                 viewMode === 'list' ? "mb-4" : "",
                 classNames?.amenities
             )}>
-                {property.amenities.slice(0, maxAmenities).map(amenity => (
-                    <Badge key={amenity.id} variant="outline" className="text-xs">
-                        {amenity.icon} {showNames && amenity.name}
-                    </Badge>
+                {property.amenities.slice(0, maxAmenities).map((amenity: PropertyAmenity, index: number) => (
+                    <AmenityItem 
+                        key={`amenity-${amenity.id || amenity.name}-${index}`}
+                        amenity={amenity}
+                        variant="badge"
+                        showName={showNames}
+                    />
                 ))}
                 {property.amenities.length > maxAmenities && (
-                    <Badge variant="outline" className="text-xs bg-gray-50">
+                    <Badge 
+                        key={`more-amenities-${property.id}`}
+                        variant="outline" 
+                        className="text-xs bg-gray-50"
+                    >
                         +{property.amenities.length - maxAmenities} {t('common.more')}
                     </Badge>
                 )}
@@ -273,13 +201,13 @@ export default function PropertyCard({
                     )}>
                         {property.formatted_current_rate || property.formatted_base_rate}
                     </span>
-                    <span className="text-gray-600 text-sm ml-1">/{t('properties.night')}</span>
+                    <span className="text-gray-600 text-sm ml-1">/{t('common.per_night')}</span>
                 </div>
                 
                 {property.has_seasonal_rate && property.seasonal_rate_info && (
                     <div className="text-xs text-green-600 mt-1 flex items-center">
                         <Sparkles className="h-3 w-3 mr-1" />
-                        {property.seasonal_rate_info[0]?.description || t('properties.special_rates_available')}
+                        {property.seasonal_rate_info[0]?.name || t('properties.special_rates_available')}
                     </div>
                 )}
             </div>
@@ -292,12 +220,27 @@ export default function PropertyCard({
             return <>{customButton}</>;
         }
         
+        // For grid view, we don't need Link since the entire card is clickable
+        if (viewMode === 'grid') {
+            return (
+                <Button 
+                    size={viewMode === 'grid' ? "sm" : "default"} 
+                    className={cn(
+                        "bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-700",
+                        classNames?.button
+                    )}
+                >
+                    {viewMode === 'grid' ? t('properties.view') : t('properties.view_details')}
+                </Button>
+            );
+        }
+        // For list view, we need the Link since the card is not clickable
         return (
             <Link href={getPropertyUrl(property)}>
                 <Button 
                     size={viewMode === 'list' ? "default" : "sm"} 
                     className={cn(
-                        "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700",
+                        "bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-700",
                         classNames?.button
                     )}
                 >
@@ -361,6 +304,7 @@ export default function PropertyCard({
     
     // Grid View Layout (default)
     return (
+        <Link href={getPropertyUrl(property)}>
         <Card className={cn(
             "overflow-hidden hover:shadow-xl transition-all duration-300 group border-0 shadow-md",
             classNames?.card,
@@ -395,16 +339,19 @@ export default function PropertyCard({
                 <PropertyFeatures />
                 <AmenitiesPreview />
                 
-                <div className="flex items-center justify-between pt-2">
-                    <div className="flex-1">
+                <div className="flex flex-col gap-2 pt-2 items-center">
+                    <div className="w-full">
                         <PriceDisplay />
                     </div>
-                    <ActionButton />
+                    <div className="w-full">
+                        <ActionButton />
+                    </div>
                 </div>
             </CardContent>
         </Card>
+        </Link>
     );
 }
 
 // Export types for external use
-export type { PropertyCardProps, Property, Media, Amenity }; 
+export type { PropertyCardProps, Property, PropertyMedia, Amenity }; 

@@ -165,7 +165,7 @@ export default function PaymentMethodEdit({ paymentMethod }: PaymentMethodEditPr
                                 id="account_name"
                                 value={data.account_name}
                                 onChange={(e) => setData('account_name', e.target.value)}
-                                placeholder="PropertyMS Indonesia"
+                                placeholder="Homsjogja Indonesia"
                                 className={errors.account_name ? 'border-red-500' : ''}
                             />
                             {errors.account_name && <p className="text-sm text-red-500 mt-1">{errors.account_name}</p>}
@@ -193,7 +193,7 @@ export default function PaymentMethodEdit({ paymentMethod }: PaymentMethodEditPr
                                 id="account_name"
                                 value={data.account_name}
                                 onChange={(e) => setData('account_name', e.target.value)}
-                                placeholder="PropertyMS"
+                                placeholder="Homsjogja"
                                 className={errors.account_name ? 'border-red-500' : ''}
                             />
                             {errors.account_name && <p className="text-sm text-red-500 mt-1">{errors.account_name}</p>}

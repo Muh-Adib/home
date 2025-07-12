@@ -21,6 +21,7 @@ class Property extends Model
         'slug',
         'description',
         'address',
+        'maps_link',
         'lat',
         'lng',
         'capacity',
@@ -134,6 +135,16 @@ class Property extends Model
         return $this->hasMany(PropertySeasonalRate::class);
     }
 
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    public function approvedReviews(): HasMany
+    {
+        return $this->hasMany(Review::class)->approved();
+    }
+
     // Scopes
     public function scopeActive($query)
     {
@@ -194,29 +205,46 @@ class Property extends Model
             return false;
         }
 
-        $checkInDate = \Carbon\Carbon::parse($checkIn);
-        $checkOutDate = \Carbon\Carbon::parse($checkOut);
-        $nights = $checkInDate->diffInDays($checkOutDate);
-
-        // Check minimum stay requirements
-        if (!$this->meetsMinimumStay($checkInDate, $checkOutDate, $nights)) {
+        // Convert input dates to ensure proper format
+        try {
+            $checkInDate = \Carbon\Carbon::parse($checkIn);
+            $checkOutDate = \Carbon\Carbon::parse($checkOut);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Invalid date format in isAvailableForDates', [
+                'check_in' => $checkIn,
+                'check_out' => $checkOut,
+                'error' => $e->getMessage()
+            ]);
             return false;
         }
 
-        // Check for existing bookings (avoid overlaps)
+        // Convert to standard Y-m-d format for consistency
+        $checkIn = $checkInDate->format('Y-m-d');
+        $checkOut = $checkOutDate->format('Y-m-d');
+        $nights = $checkInDate->diffInDays($checkOutDate);
+
+        // Check minimum stay requirements
+        //if (!$this->meetsMinimumStay($checkInDate, $checkOutDate, $nights)) {
+        //    return false;
+        //}
+
+        // Check for existing bookings using CORRECT overlap detection logic
+        // Two periods overlap if: start1 < end2 AND start2 < end1
         $hasOverlappingBooking = $this->bookings()
-                    ->where('booking_status', '!=', 'cancelled')
+                    ->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
                     ->where(function ($query) use ($checkIn, $checkOut) {
-                        $query->whereBetween('check_in', [$checkIn, $checkOut])
-                              ->orWhereBetween('check_out', [$checkIn, $checkOut])
-                              ->orWhere(function ($overlapQuery) use ($checkIn, $checkOut) {
-                                  $overlapQuery->where('check_in', '<=', $checkIn)
-                                              ->where('check_out', '>=', $checkOut);
-                              });
+                        $query->where('check_in', '<', $checkOut)
+                              ->where('check_out', '>', $checkIn);
                     })
                     ->exists();
 
         if ($hasOverlappingBooking) {
+            \Illuminate\Support\Facades\Log::info('Property not available - overlapping booking found', [
+                'property_id' => $this->id,
+                'check_in' => $checkIn,
+                'check_out' => $checkOut,
+                'hasOverlappingBooking' => $hasOverlappingBooking 
+            ]);
             return false;
         }
 
@@ -231,28 +259,13 @@ class Property extends Model
      */
     private function meetsMinimumStay(\Carbon\Carbon $checkInDate, \Carbon\Carbon $checkOutDate, int $nights): bool
     {
-        // Check if it includes weekend (Friday/Saturday checkout)
-        $includesWeekend = false;
-        for ($date = $checkInDate->copy(); $date->lt($checkOutDate); $date->addDay()) {
-            if ($date->isFriday() || $date->isSaturday()) {
-                $includesWeekend = true;
-                break;
-            }
-        }
-
-        // Check if it includes peak season
-        $includesPeakSeason = $this->hasPeakSeasonDates($checkInDate, $checkOutDate);
-
-        // Apply minimum stay rules
-        if ($includesPeakSeason && $nights < $this->min_stay_peak) {
-            return false;
-        } elseif ($includesWeekend && $nights < $this->min_stay_weekend) {
-            return false;
-        } elseif ($nights < $this->min_stay_weekday) {
-            return false;
-        }
-
-        return true;
+        // Get effective minimum stay considering seasonal rates
+        $effectiveMinStay = $this->getEffectiveMinimumStay(
+            $checkInDate->format('Y-m-d'), 
+            $checkOutDate->format('Y-m-d')
+        );
+        
+        return $nights >= $effectiveMinStay;
     }
 
     public function calculateRate($checkIn, $checkOut, $guestCount = null): array
@@ -302,7 +315,8 @@ class Property extends Model
                     'type' => 'seasonal',
                     'name' => $seasonalRate->name,
                     'description' => $seasonalRate->getFormattedRateDescription(),
-                    'amount' => $seasonalPremiumAmount
+                    'amount' => $seasonalPremiumAmount,
+                    'min_stay_nights' => $seasonalRate->min_stay_nights 
                 ];
                 
                 // Track unique seasonal rates applied
@@ -310,7 +324,8 @@ class Property extends Model
                     $appliedSeasonalRates[] = [
                         'name' => $seasonalRate->name,
                         'description' => $seasonalRate->getFormattedRateDescription(),
-                        'dates' => [$dateString]
+                        'dates' => [$dateString],
+                        'min_stay_nights' => $seasonalRate->min_stay_nights 
                     ];
                 } else {
                     // Add date to existing seasonal rate
@@ -386,6 +401,9 @@ class Property extends Model
         $taxAmount = $subtotal * 0.11;
         $totalAmount = $subtotal + $taxAmount;
         
+        // Get minimum stay information
+        $minimumStayInfo = $this->getMinimumStayInfo($checkIn, $checkOut);
+        
         return [
             'nights' => $nights,
             'weekday_nights' => $weekdayNights,
@@ -402,6 +420,7 @@ class Property extends Model
             'tax_amount' => $taxAmount,
             'total_amount' => $totalAmount,
             'extra_beds' => $extraBeds,
+            'minimum_stay' => $minimumStayInfo,
             'rate_breakdown' => [
                 'base_rate_per_night' => $this->base_rate,
                 'weekend_premium_percent' => $this->weekend_premium_percent,
@@ -490,23 +509,23 @@ class Property extends Model
             ->where(function ($query) use ($checkInDate, $checkOutDate) {
                 $query->where(function ($q) use ($checkInDate, $checkOutDate) {
                     // Booking starts within our range
-                    $q->whereBetween('check_in_date', [$checkInDate->format('Y-m-d'), $checkOutDate->format('Y-m-d')])
+                    $q->whereBetween('check_in', [$checkInDate->format('Y-m-d'), $checkOutDate->format('Y-m-d')])
                       // Booking ends within our range
-                      ->orWhereBetween('check_out_date', [$checkInDate->format('Y-m-d'), $checkOutDate->format('Y-m-d')])
+                      ->orWhereBetween('check_out', [$checkInDate->format('Y-m-d'), $checkOutDate->format('Y-m-d')])
                       // Booking completely encompasses our range
                       ->orWhere(function ($encompass) use ($checkInDate, $checkOutDate) {
-                          $encompass->where('check_in_date', '<=', $checkInDate->format('Y-m-d'))
-                                   ->where('check_out_date', '>=', $checkOutDate->format('Y-m-d'));
+                          $encompass->where('check_in', '<=', $checkInDate->format('Y-m-d'))
+                                   ->where('check_out', '>=', $checkOutDate->format('Y-m-d'));
                       });
                 });
             })
-            ->get(['check_in_date', 'check_out_date']);
+            ->get(['check_in', 'check_out']);
 
         $bookedDates = [];
         
         foreach ($bookings as $booking) {
-            $bookingStart = \Carbon\Carbon::parse($booking->check_in_date);
-            $bookingEnd = \Carbon\Carbon::parse($booking->check_out_date);
+            $bookingStart = \Carbon\Carbon::parse($booking->check_in);
+            $bookingEnd = \Carbon\Carbon::parse($booking->check_out);
             
             // Generate all dates within the booking period
             $currentDate = $bookingStart->copy();
@@ -519,5 +538,123 @@ class Property extends Model
         }
         
         return array_unique($bookedDates);
+    }
+
+    /**
+     * Get effective minimum stay for a date range considering seasonal rates
+     */
+    public function getEffectiveMinimumStay($checkIn, $checkOut): int
+    {
+        $checkInDate = \Carbon\Carbon::parse($checkIn);
+        $checkOutDate = \Carbon\Carbon::parse($checkOut);
+        
+        // Get seasonal rates for this period
+        $seasonalRates = PropertySeasonalRate::getEffectiveRateForProperty(
+            $this->id, 
+            $checkInDate, 
+            $checkOutDate
+        );
+        
+        // If no seasonal rates, use property default
+        if (empty($seasonalRates)) {
+            return $this->getDefaultMinimumStay($checkInDate, $checkOutDate);
+        }
+        
+        // Get the highest minimum stay from seasonal rates
+        $maxSeasonalMinStay = 0;
+        foreach ($seasonalRates as $date => $seasonalRate) {
+            if ($seasonalRate && $seasonalRate->min_stay_nights > $maxSeasonalMinStay) {
+                $maxSeasonalMinStay = $seasonalRate->min_stay_nights;
+            }
+        }
+        
+        // If seasonal rate has higher minimum stay, use it
+        if ($maxSeasonalMinStay > 0) {
+            return $maxSeasonalMinStay;
+        }
+        
+        // Otherwise use property default
+        return $this->getDefaultMinimumStay($checkInDate, $checkOutDate);
+    }
+    
+    /**
+     * Get default minimum stay based on property settings
+     */
+    private function getDefaultMinimumStay(\Carbon\Carbon $checkInDate, \Carbon\Carbon $checkOutDate): int
+    {
+        $nights = $checkInDate->diffInDays($checkOutDate);
+        
+        // Check if it includes weekend (Friday/Saturday checkout)
+        $includesWeekend = false;
+        for ($date = $checkInDate->copy(); $date->lt($checkOutDate); $date->addDay()) {
+            if ($date->isFriday() || $date->isSaturday()) {
+                $includesWeekend = true;
+                break;
+            }
+        }
+
+        // Check if it includes peak season
+        $includesPeakSeason = $this->hasPeakSeasonDates($checkInDate, $checkOutDate);
+
+        // Return appropriate minimum stay
+        if ($includesPeakSeason) {
+            return $this->min_stay_peak;
+        } elseif ($includesWeekend) {
+            return $this->min_stay_weekend;
+        } else {
+            return $this->min_stay_weekday;
+        }
+    }
+
+    /**
+     * Get minimum stay information for frontend display
+     */
+    public function getMinimumStayInfo($checkIn, $checkOut): array
+    {
+        $checkInDate = \Carbon\Carbon::parse($checkIn);
+        $checkOutDate = \Carbon\Carbon::parse($checkOut);
+        $nights = $checkInDate->diffInDays($checkOutDate);
+        
+        // Get seasonal rates for this period
+        $seasonalRates = PropertySeasonalRate::getEffectiveRateForProperty(
+            $this->id, 
+            $checkInDate, 
+            $checkOutDate
+        );
+        
+        $effectiveMinStay = $this->getEffectiveMinimumStay($checkIn, $checkOut);
+        $meetsRequirement = $nights >= $effectiveMinStay;
+        
+        // Get seasonal rate info if applicable
+        $seasonalRateInfo = null;
+        if (!empty($seasonalRates)) {
+            $appliedSeasonalRates = [];
+            foreach ($seasonalRates as $date => $seasonalRate) {
+                if ($seasonalRate && $seasonalRate->min_stay_nights > 0) {
+                    $appliedSeasonalRates[] = [
+                        'name' => $seasonalRate->name,
+                        'min_stay' => $seasonalRate->min_stay_nights,
+                        'date' => $date
+                    ];
+                }
+            }
+            
+            if (!empty($appliedSeasonalRates)) {
+                $seasonalRateInfo = $appliedSeasonalRates;
+            }
+        }
+        
+        return [
+            'effective_min_stay' => $effectiveMinStay,
+            'current_nights' => $nights,
+            'meets_requirement' => $meetsRequirement,
+            'has_seasonal_rate' => !empty($seasonalRates),
+            'seasonal_rate_info' => $seasonalRateInfo,
+            'default_min_stay' => [
+                'weekday' => $this->min_stay_weekday,
+                'weekend' => $this->min_stay_weekend,
+                'peak' => $this->min_stay_peak,
+            ]
+        ];
     }
 }

@@ -172,9 +172,74 @@ class PropertyController extends Controller
         ]);
 
         // Get search parameters
-        $checkIn = $request->get('check_in');
-        $checkOut = $request->get('check_out');
+        $checkIn = $request->get('check_in') ?: today()->toDateString();
+        $checkOut = $request->get('check_out') ?: today()->addDays($property->min_stay_weekday)->toDateString();
         $guestCount = $request->get('guests', 2);
+
+        // Pre-load 3-month availability and rates data
+        $startDate = today()->toDateString();
+        $endDate = today()->addMonths(3)->toDateString();
+        
+        // Get comprehensive availability data for 3 months
+        $bookedDates = $this->availabilityService->getBookedDatesInRange($property, $startDate, $endDate);
+        $bookedPeriods = $this->availabilityService->getBookedPeriodsInRange($property, $startDate, $endDate);
+        
+        // Pre-calculate rates for the entire 3-month period
+        $availabilityAndRates = [
+            'success' => true,
+            'property_id' => $property->id,
+            'date_range' => [
+                'start' => $startDate,
+                'end' => $endDate,
+            ],
+            'guest_count' => $guestCount,
+            'booked_dates' => $bookedDates,
+            'booked_periods' => $bookedPeriods,
+            'rates' => [],
+            'property_info' => [
+                'base_rate' => $property->base_rate,
+                'capacity' => $property->capacity,
+                'capacity_max' => $property->capacity_max,
+                'cleaning_fee' => $property->cleaning_fee,
+                'extra_bed_rate' => $property->extra_bed_rate,
+                'weekend_premium_percent' => $property->weekend_premium_percent,
+            ]
+        ];
+
+        // Calculate rates for each day in the 3-month period
+        try {
+            $currentDate = \Carbon\Carbon::parse($startDate);
+            $endDateCarbon = \Carbon\Carbon::parse($endDate);
+            
+            while ($currentDate->lte($endDateCarbon)) {
+                $dateStr = $currentDate->format('Y-m-d');
+                
+                // Skip if date is booked
+                if (!in_array($dateStr, $bookedDates)) {
+                    try {
+                        $nextDate = $currentDate->copy()->addDay();
+                        $rateResult = $property->calculateRate($dateStr, $nextDate->format('Y-m-d'), $guestCount);
+                        
+                        $availabilityAndRates['rates'][$dateStr] = [
+                            'base_rate' => $rateResult['base_amount'] / $rateResult['nights'],
+                            'weekend_premium' => $rateResult['weekend_premium'] > 0,
+                            'seasonal_premium' => $rateResult['seasonal_premium'] / $rateResult['nights'], // Send actual amount per night
+                            'seasonal_rate_applied' => $rateResult['rate_breakdown']['seasonal_rates_applied'] ?? null,
+                            'is_weekend' => $currentDate->isWeekend(),
+                        ];
+                    } catch (\Exception $e) {
+                        // Skip if rate calculation fails for this date
+                    }
+                }
+                
+                $currentDate->addDay();
+            }
+        } catch (\Exception $e) {
+            \Log::warning('Failed to pre-calculate rates for property show', [
+                'property_slug' => $property->slug,
+                'error' => $e->getMessage()
+            ]);
+        }
 
         // Calculate current rate if dates are provided menggunakan AvailabilityService
         if ($checkIn && $checkOut) {
@@ -252,7 +317,8 @@ class PropertyController extends Controller
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
                 'guests' => $guestCount,
-            ]
+            ],
+            'availabilityData' => $availabilityAndRates,
         ]);
     }
 
@@ -348,297 +414,5 @@ class PropertyController extends Controller
         return response()->json(['properties' => $properties]);
     }
 
-    // ADMIN METHODS (Protected routes)
-
-    /**
-     * Display admin properties listing
-     */
-    public function admin_index(Request $request): Response
-    {
-        $this->authorize('viewAny', Property::class);
-        
-        $user = $request->user();
-        
-        $query = Property::query()
-            ->with(['owner', 'media', 'bookings' => function ($q) {
-                $q->whereIn('booking_status', ['confirmed', 'checked_in']);
-            }]);
-
-        // Filter by owner for property owners
-        if ($user->role === 'property_owner') {
-            $query->byOwner($user->id);
-        }
-
-        // Search
-        if ($request->filled('search')) {
-            $search = $request->get('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('address', 'like', "%{$search}%");
-            });
-        }
-
-        // Status filter
-        if ($request->filled('status')) {
-            $query->where('status', $request->get('status'));
-        }
-
-        $properties = $query->paginate(15);
-
-        return Inertia::render('Admin/Properties/Index', [
-            'properties' => $properties,
-            'filters' => [
-                'search' => $request->get('search'),
-                'status' => $request->get('status'),
-            ]
-        ]);
-    }
-
-    /**
-     * Show the form for creating a new property
-     */
-    public function create(Request $request): Response
-    {
-        $this->authorize('create', Property::class);
-        
-        if($request->user()->hasRole('super_admin')){
-            $owners = User::where('role', 'property_owner')->get();
-        }else{
-            $owners = null;
-        }
-        
-        $amenities = Amenity::active()->ordered()->get();
-        
-        return Inertia::render('Admin/Properties/Create', [
-            'amenities' => $amenities,
-            'owners' => $owners,
-        ]);
-    }
-
-    /**
-     * Store a newly created property
-     */
-    public function store(Request $request): RedirectResponse
-    {
-        $this->authorize('create', Property::class);
-        
-        $user = $request->user();
-        
-        $validationRules = [
-            'name' => 'required|string|max:255',
-            'description' => 'required|string',
-            'address' => 'required|string',
-            'lat' => 'nullable|numeric|between:-90,90',
-            'lng' => 'nullable|numeric|between:-180,180',
-            'capacity' => 'required|integer|min:1',
-            'capacity_max' => 'required|integer|gte:capacity',
-            'bedroom_count' => 'required|integer|min:1',
-            'bathroom_count' => 'required|integer|min:1',
-            'base_rate' => 'required|numeric|min:0',
-            'weekend_premium_percent' => 'required|numeric|min:0|max:100',
-            'cleaning_fee' => 'required|numeric|min:0',
-            'extra_bed_rate' => 'required|numeric|min:0',
-            'house_rules' => 'nullable|string',
-            'check_in_time' => 'required|date_format:H:i',
-            'check_out_time' => 'required|date_format:H:i',
-            'min_stay_weekday' => 'required|integer|min:1',
-            'min_stay_weekend' => 'required|integer|min:1',
-            'min_stay_peak' => 'required|integer|min:1',
-            'is_featured' => 'boolean',
-            'seo_title' => 'nullable|string|max:255',
-            'seo_description' => 'nullable|string|max:255',
-            'amenities' => 'array',
-            'amenities.*' => 'exists:amenities,id',
-        ];
-
-        // Only super_admin can assign owner_id, property_owner creates for themselves
-        if ($user->hasRole('super_admin')) {
-            $validationRules['owner_id'] = 'required|string';
-        }
-
-        $validated = $request->validate($validationRules);
-        
-        // Set owner_id based on user role
-        if ($user->hasRole('property_owner')) {
-            $validated['owner_id'] = $user->id;
-        } elseif ($user->hasRole('super_admin')) {
-            if ($request->get('owner_id') === 'auto') {
-                // Auto-assign to the first available property owner
-                $firstOwner = User::hasRole('property_owner')->first();
-                $validated['owner_id'] = $firstOwner ? $firstOwner->id : $user->id;
-            } else {
-                $validated['owner_id'] = $request->get('owner_id');
-            }
-        } else {
-            $validated['owner_id'] = $user->id;
-        }
-        
-        // Generate slug
-        $validated['slug'] = Str::slug($validated['name']);
-
-        $property = Property::create($validated);
-
-        // Attach amenities
-        if ($request->filled('amenities')) {
-            $property->amenities()->attach($request->get('amenities'));
-        }
-
-        return redirect()->route('admin.properties.index')
-            ->with('success', 'Property created successfully.');
-    }
-
-    /**
-     * Display the specified property (Admin)
-     */
-    public function admin_show(Property $property): Response
-    {
-        $this->authorize('view', $property);
-
-        $property->load([
-            'owner',
-            'amenities',
-            'media' => function ($query) {
-                $query->orderBy('display_order');
-            },
-            'bookings' => function ($query) {
-                $query->latest()->limit(10);
-            },
-            'seasonalRates' => function ($query) {
-                $query->where('is_active', true)
-                      ->orderBy('priority', 'desc')
-                      ->orderBy('start_date', 'asc');
-            }
-        ]);
-
-        // Calculate property statistics
-        $stats = [
-            'total_bookings' => $property->bookings()->count(),
-            'confirmed_bookings' => $property->bookings()->where('status', 'confirmed')->count(),
-            'total_revenue' => $property->bookings()
-                ->where('status', '!=', 'cancelled')
-                ->sum('total_amount'),
-            'average_rating' => $property->bookings()
-                ->whereNotNull('guest_rating')
-                ->avg('guest_rating'),
-            'occupancy_rate' => $this->calculateOccupancyRate($property),
-        ];
-
-        return Inertia::render('Admin/Properties/Show', [
-            'property' => $property,
-            'stats' => $stats,
-        ]);
-    }
-
-    /**
-     * Calculate occupancy rate for property
-     */
-    private function calculateOccupancyRate(Property $property): float
-    {
-        $startDate = now()->subMonths(12)->startOfMonth();
-        $endDate = now()->endOfMonth();
-        
-        $totalDays = $startDate->diffInDays($endDate);
-        $bookedDays = $property->bookings()
-            ->where('status', '!=', 'cancelled')
-            ->whereBetween('check_in_date', [$startDate, $endDate])
-            ->get()
-            ->sum(function ($booking) {
-                return $booking->check_in_date->diffInDays($booking->check_out_date);
-            });
-            
-        return $totalDays > 0 ? round(($bookedDays / $totalDays) * 100, 2) : 0;
-    }
-
-    /**
-     * Show the form for editing the specified property
-     */
-    public function edit(Property $property): Response
-    {
-        $this->authorize('update', $property);
-
-        $property->load(['amenities', 'media']);
-        $amenities = Amenity::active()->ordered()->get();
-        
-        return Inertia::render('Admin/Properties/Edit', [
-            'property' => $property,
-            'amenities' => $amenities,
-        ]);
-    }
-
-    /**
-     * Update the specified property
-     */
-    public function update(Request $request, Property $property): RedirectResponse
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'required|string',
-            'address' => 'required|string',
-            'lat' => 'nullable|numeric|between:-90,90',
-            'lng' => 'nullable|numeric|between:-180,180',
-            'capacity' => 'required|integer|min:1',
-            'capacity_max' => 'required|integer|gte:capacity',
-            'bedroom_count' => 'required|integer|min:1',
-            'bathroom_count' => 'required|integer|min:1',
-            'base_rate' => 'required|numeric|min:0',
-            'weekend_premium_percent' => 'required|numeric|min:0|max:100',
-            'cleaning_fee' => 'required|numeric|min:0',
-            'extra_bed_rate' => 'required|numeric|min:0',
-            'status' => 'required|in:active,inactive,maintenance',
-            'house_rules' => 'nullable|string',
-            'check_in_time' => 'required|date_format:H:i',
-            'check_out_time' => 'required|date_format:H:i',
-            'min_stay_weekday' => 'required|integer|min:1',
-            'min_stay_weekend' => 'required|integer|min:1',
-            'min_stay_peak' => 'required|integer|min:1',
-            'is_featured' => 'boolean',
-            'seo_title' => 'nullable|string|max:255',
-            'seo_description' => 'nullable|string|max:255',
-            'amenities' => 'array',
-            'amenities.*' => 'exists:amenities,id',
-        ]);
-
-        // Update slug if name changed
-        if ($property->name !== $validated['name']) {
-            $validated['slug'] = Str::slug($validated['name']);
-        }
-
-        $property->update($validated);
-
-        // Sync amenities
-        if ($request->has('amenities')) {
-            $property->amenities()->sync($request->get('amenities'));
-        }
-
-        return redirect()->route('admin.properties.index')
-            ->with('success', 'Property updated successfully.');
-    }
-
-    /**
-     * Remove the specified property
-     */
-    public function destroy(Property $property): RedirectResponse
-    {
-        $property->delete();
-
-        return redirect()->route('admin.properties.index')
-            ->with('success', 'Property deleted successfully.');
-    }
-
-    /**
-     * Property media management
-     */
-    public function media(Property $property): Response
-    {
-        $property->load(['media' => function ($query) {
-            $query->orderBy('display_order', 'asc')
-                  ->orderBy('created_at', 'desc');
-        }]);
-
-        return Inertia::render('Admin/Properties/Media', [
-            'property' => $property,
-        ]);
-    }
-
-    // Media management methods moved to MediaController
+    // Admin methods have been moved to App\Http\Controllers\Admin\PropertyManagementController
 }

@@ -19,7 +19,11 @@ import {
     Shield,
     Wrench,
     ListChecks,
-    LucideIcon
+    LucideIcon,
+    Sparkles,
+    ClipboardList,
+    CheckCircle,
+    MapPin
 } from 'lucide-react';
 import AppLogo from './app-logo';
 import { NotificationBell } from './notifications/notification-bell';
@@ -40,6 +44,7 @@ const getNavItemsForRole = (userRole: User['role']): (NavItem & { title: string,
             { title: 'users', href: '/admin/users', icon: Users },
             { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
             { title: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
+            { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
             { title: 'reports', href: '/admin/reports', icon: BarChart3 },
             { title: 'amenities', href: '/admin/amenities', icon: Package },
             { title: 'settings', href: '/admin/settings', icon: Settings },
@@ -49,6 +54,8 @@ const getNavItemsForRole = (userRole: User['role']): (NavItem & { title: string,
             { title: 'my_properties', href: '/admin/properties', icon: Building2 },
             { title: 'bookings', href: '/admin/bookings', icon: Calendar },
             { title: 'payments', href: '/admin/payments', icon: CreditCard },
+            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+            { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
             { title: 'reports', href: '/admin/reports', icon: BarChart3 },
         ],
         property_manager: [
@@ -56,12 +63,15 @@ const getNavItemsForRole = (userRole: User['role']): (NavItem & { title: string,
             { title: 'properties', href: '/admin/properties', icon: Building2 },
             { title: 'bookings', href: '/admin/bookings', icon: Calendar },
             { title: 'payments', href: '/admin/payments', icon: CreditCard },
+            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+            { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
             { title: 'reports', href: '/admin/reports', icon: BarChart3 },
         ],
         front_desk: [
             ...baseItems,
             { title: 'bookings', href: '/admin/bookings', icon: Calendar },
             { title: 'check_in_out', href: '/admin/checkin', icon: Shield },
+            { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
         ],
         finance: [
             ...baseItems,
@@ -71,12 +81,16 @@ const getNavItemsForRole = (userRole: User['role']): (NavItem & { title: string,
         ],
         housekeeping: [
             ...baseItems,
+            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+            { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
+            { title: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
             { title: 'room_status', href: '/admin/rooms', icon: Wrench },
             { title: 'maintenance', href: '/admin/maintenance', icon: Settings },
         ],
         guest: [
             { title: 'browse_properties', href: '/properties', icon: Home },
             { title: 'my_bookings', href: '/my-bookings', icon: Calendar },
+            { title: 'my_payments', href: '/my-payments', icon: CreditCard },
         ],
     };
 

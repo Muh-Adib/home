@@ -2,363 +2,304 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Booking;
+use App\Http\Requests\Booking\CreateBookingRequest;
+use App\Services\BookingServiceRefactored;
+use App\Services\RateCalculationService;
+use App\Domain\Booking\ValueObjects\BookingRequest as BookingRequestVO;
 use App\Models\Property;
-use App\Models\PaymentMethod;
-use App\Models\BookingWorkflow;
-use App\Events\BookingCreated;
+use App\Models\Booking;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
-use Carbon\Carbon;
-use App\Services\BookingService;
-use App\Services\PaymentService;
-use App\Services\AvailabilityService;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 /**
- * BookingController - Controller untuk mengelola booking guest
+ * Refactored BookingController - Demonstrates Clean Architecture
  * 
- * Controller ini menangani semua fungsi guest terkait booking:
- * - Membuat booking baru (guest-facing)
- * - Melihat konfirmasi booking
- * - Melihat daftar booking milik user
- * - API untuk availability check
- * - API untuk rate calculation
- * 
- * Fungsi admin telah dipindahkan ke BookingManagementController
+ * This controller follows clean architecture principles:
+ * - Thin controllers (only handle HTTP concerns)
+ * - Business logic in services
+ * - Validation in form requests
+ * - Data access in repositories
+ * - Route model binding with slug
  */
 class BookingController extends Controller
 {
     public function __construct(
-        private BookingService $bookingService,
-        private PaymentService $paymentService,
-        private AvailabilityService $availabilityService
-    ) {
-    }
-
-    // ========================================
-    // PUBLIC BOOKING METHODS (Guest-facing)
-    // ========================================
+        private BookingServiceRefactored $bookingService,
+        private RateCalculationService $rateCalculationService
+    ) {}
 
     /**
-     * Show the form for creating a new booking with guest details
+     * Show booking creation form
      * 
-     * @param Property $property
-     * @return Response
+     * Route: GET /properties/{property:slug}/book
+     * Property is automatically resolved by Laravel's route model binding
      */
     public function create(Property $property): Response
     {
-        // Check if property is available for booking
-        if ($property->status !== 'active') {
-            abort(404, 'Property not available for booking.');
-        }
-
-        $property->load(['amenities', 'media', 'owner']);
-        
         return Inertia::render('Booking/Create', [
-            'property' => $property,
+            'property' => $property->load(['amenities', 'media']),
         ]);
     }
 
     /**
-     * Store a newly created booking
+     * Store new booking
      * 
-     * @param Request $request
-     * @param Property $property
-     * @return RedirectResponse
+     * Route: POST /properties/{property:slug}/book
+     * Property is automatically resolved by Laravel's route model binding
      */
-    public function store(Request $request, Property $property): RedirectResponse
+    public function store(CreateBookingRequest $request, Property $property): RedirectResponse
     {
-        $validated = $request->validate([
-            'check_in_date' => 'required|date|after_or_equal:today',
-            'check_in_time' => 'required|date_format:H:i',
-            'check_out_date' => 'required|date|after:check_in_date',
-            'guest_count_male' => 'required|integer|min:0',
-            'guest_count_female' => 'required|integer|min:0',
-            'guest_count_children' => 'required|integer|min:0',
-            'guest_name' => 'required|string|max:255',
-            'guest_email' => 'required|email|max:255',
-            'guest_phone' => 'required|string|max:20',
-            'guest_country' => 'required|string|max:100',
-            'guest_id_number' => 'nullable|string|max:50',
-            'guest_gender' => 'required|in:male,female',
-            'relationship_type' => 'required|in:keluarga,teman,kolega,pasangan,campuran',
-            'special_requests' => 'nullable|string|max:1000',
-            'dp_percentage' => 'required|integer|in:30,50,70',
-            'guests' => 'nullable|array',
-        ]);
-
         try {
-            // Check if user is authenticated
-            if (!auth()->check()) {
-                // Check if email already exists
-                $existingUser = \App\Models\User::where('email', $validated['guest_email'])->first();
-                
-                if ($existingUser) {
-                    // Email exists, user should login first
-                    return back()->withErrors([
-                        'guest_email' => 'Email sudah terdaftar. Silakan login terlebih dahulu atau gunakan fitur lupa password jika tidak ingat kata sandi.'
-                    ])->withInput();
-                }
-
-                // Auto-register user if email doesn't exist
-                return $this->autoRegisterAndBook($validated, $property);
-            }
-
-            // User is authenticated, proceed with normal booking
-            $booking = $this->bookingService->createBooking($property, $validated, auth()->user());
-
+            // Add property_id to validated data since it comes from route
+            $validatedData = $request->validated();
+            $validatedData['property_id'] = $property->id;
+            
+            // Convert request to value object
+            $bookingRequest = BookingRequestVO::fromArray($validatedData);
+            
+            // Create booking using service
+            $booking = $this->bookingService->createBooking($bookingRequest, auth()->user());
+            
             return redirect()->route('bookings.confirmation', $booking->booking_number)
-                ->with('success', 'Booking berhasil dibuat. Silakan tunggu verifikasi dari admin.');
+                ->with('success', 'Booking berhasil dibuat!');
 
         } catch (\Exception $e) {
-            Log::error('Booking creation failed: ' . $e->getMessage());
+            Log::error('Booking creation failed', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id(),
+                'property_id' => $property->id,
+                'property_slug' => $property->slug,
+            ]);
+
             return back()->withErrors(['error' => 'Gagal membuat booking: ' . $e->getMessage()]);
         }
     }
 
     /**
-     * Auto-register user and create booking
-     * 
-     * @param array $validated
-     * @param Property $property
-     * @return RedirectResponse
+     * Show booking confirmation
      */
-    private function autoRegisterAndBook(array $validated, Property $property): RedirectResponse
+    public function confirmation(Booking $booking): Response
     {
-        DB::beginTransaction();
-        try {
-            // Generate random password
-            $password = \Str::random(12);
-
-            $user = \App\Models\User::create([
-                'name' => $validated['guest_name'],
-                'email' => $validated['guest_email'],
-                'phone' => $validated['guest_phone'],
-                'gender' => $validated['guest_gender'],
-                'country' => $validated['guest_country'],
-                'password' => \Hash::make($password),
-                'role' => 'guest',
-                'status' => 'active',
-            ]);
-
-            // Send welcome email with credentials
-            try {
-                \Mail::to($user->email)->send(new \App\Mail\WelcomeGuest($user, $password));
-            } catch (\Exception $e) {
-                Log::warning('Failed to send welcome email: ' . $e->getMessage());
-            }
-
-            // Login user
-            Auth::login($user);
-
-            // Create booking
-            $booking = $this->bookingService->createBooking($property, $validated, $user);
-
-            DB::commit();
-
-            return redirect()->route('bookings.confirmation', $booking->booking_number)
-                ->with('success', 'Akun berhasil dibuat dan booking berhasil disubmit! Silakan cek email untuk kredensial login dan verifikasi email.');
-
-        } catch (\Exception $e) {
-            DB::rollback();
-            Log::error('Auto registration failed: ' . $e->getMessage());
-            return back()->withErrors(['error' => 'Gagal membuat akun dan booking. Silakan coba lagi.']);
-        }
-    }
-
-    /**
-     * Check if email exists (API)
-     * 
-     * @param Request $request
-     * @return JsonResponse
-     */
-    public function checkEmailExists(Request $request): JsonResponse
-    {
-        $request->validate([
-            'email' => 'required|email'
-        ]);
-
-        $exists = \App\Models\User::where('email', $request->email)->exists();
-
-        return response()->json([
-            'exists' => $exists
-        ]);
-    }
-
-    /**
-     * Show booking confirmation page
-     * 
-     * @param Request $request
-     * @param string $bookingNumber
-     * @return Response
-     */
-    public function confirmation(Request $request, string $bookingNumber): Response
-    {
-        $booking = Booking::where('booking_number', $bookingNumber)->firstOrFail();
-        $booking->load(['property', 'workflow']);
-        // Generate payment link if needed
-        if ($booking->booking_status === 'confirmed' && 
-            in_array($booking->payment_status, ['dp_pending', 'dp_received'])) {
-            $booking->payment_link = route('payments.create', $booking->booking_number);
-        }
+        $this->authorize('view', $booking);
 
         return Inertia::render('Booking/Confirmation', [
-            'booking' => $booking,
+            'booking' => $booking->load(['property', 'payments']),
         ]);
     }
 
     /**
-     * Display user's bookings
-     * 
-     * @param Request $request
-     * @return Response
+     * Show user's bookings
      */
-    public function myBookings(Request $request): Response
+    public function myBookings(): Response
     {
-        $query = Booking::query()
-            ->with(['property.media'])
-            ->where('guest_email', auth()->user()->email ?? '')
-            ->orWhere('created_by', auth()->id());
-
-        // Search filter
-        if ($request->filled('search')) {
-            $search = $request->get('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('booking_number', 'like', "%{$search}%")
-                  ->orWhere('guest_name', 'like', "%{$search}%");
-            });
-        }
-
-        // Status filter
-        if ($request->filled('status')) {
-            $query->where('booking_status', $request->get('status'));
-        }
-
-        // Payment status filter
-        if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->get('payment_status'));
-        }
-
-        $bookings = $query->latest()->paginate(10);
-
-        // Transform bookings for frontend
-        $bookings->getCollection()->transform(function ($booking) {
-            // Calculate nights
-            $checkIn = Carbon::parse($booking->check_in);
-            $checkOut = Carbon::parse($booking->check_out);
-            $booking->nights = $checkIn->diffInDays($checkOut);
-
-            // Determine if can cancel (before check-in date and status allows)
-            $booking->can_cancel = in_array($booking->booking_status, ['pending_verification', 'confirmed']) && 
-                                   $checkIn->greaterThan(now()->addDay());
-
-            // Generate payment link if needed
-            if ($booking->booking_status === 'confirmed' && 
-                in_array($booking->payment_status, ['dp_pending', 'dp_received'])) {
-                $booking->payment_link = route('payments.create', $booking->booking_number);
-            }
-
-            return $booking;
-        });
+        $bookings = $this->bookingService->getUserBookings(auth()->user());
 
         return Inertia::render('Guest/MyBookings', [
             'bookings' => $bookings,
-            'filters' => [
-                'search' => $request->get('search'),
-                'status' => $request->get('status'),
-                'payment_status' => $request->get('payment_status'),
-            ]
         ]);
     }
 
-    // ========================================
-    // PUBLIC API METHODS
-    // ========================================
+    /**
+     * Calculate rate (API)
+     * 
+     * Route: GET /api/properties/{property:slug}/calculate-rate
+     * Property is automatically resolved by Laravel's route model binding
+     */
+    public function calculateRate(Request $request, Property $property): JsonResponse
+    {
+        try {
+            $request->validate([
+                'check_in' => 'required|date|after_or_equal:today',
+                'check_out' => 'required|date|after:check_in',
+                'guest_count' => 'required|integer|min:1|max:' . $property->capacity_max,
+            ]);
+
+            $result = $this->rateCalculationService->calculateRateFormatted(
+                $property,
+                $request->get('check_in'),
+                $request->get('check_out'),
+                $request->get('guest_count')
+            );
+
+            return response()->json($result);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+
+        } catch (\Exception $e) {
+            Log::error('Rate calculation failed', [
+                'property_id' => $property->id,
+                'property_slug' => $property->slug,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Rate calculation failed: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 
     /**
-     * Get property availability for date range (API)
+     * Check availability (API)
      * 
-     * @param Request $request
-     * @param Property $property
-     * @return JsonResponse
+     * Route: GET /api/properties/{property:slug}/availability
+     * Property is automatically resolved by Laravel's route model binding
      */
     public function getAvailability(Request $request, Property $property): JsonResponse
     {
         try {
-            //$property = Property::where('slug', $slug)->firstOrFail();
-            
-            //$request->validate([
-            //    'check_in' => 'required|date',
-            //    'check_out' => 'required|date|after:check_in',
-            //]);
+            $request->validate([
+                'check_in' => 'required|date',
+                'check_out' => 'required|date|after:check_in',
+            ]);
 
-            //$checkIn = $request->get('check_in');
-            //$checkOut = $request->get('check_out');
-            $checkIn = new Carbon(today());
-            $checkOut = new Carbon(today()->addDays(90));
-
-            // Get booked dates in the range
-            $bookedDates = $this->availabilityService->getBookedDatesInRange($property, $checkIn, $checkOut);
+            $bookedDates = $this->bookingService->getBookedDates(
+                $property,
+                $request->get('check_in'),
+                $request->get('check_out')
+            );
 
             return response()->json([
                 'success' => true,
                 'booked_dates' => $bookedDates,
                 'property' => $property->slug,
                 'date_range' => [
-                    'start' => $checkIn,
-                    'end' => $checkOut
+                    'start' => $request->get('check_in'),
+                    'end' => $request->get('check_out')
                 ]
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Availability check failed', [
+                'property_id' => $property->id,
+                'property_slug' => $property->slug,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch availability: ' . $e->getMessage(),
+                'message' => 'Failed to check availability: ' . $e->getMessage(),
                 'booked_dates' => []
             ], 500);
         }
     }
 
     /**
-     * Calculate rate for property and dates (API)
+     * Get availability and rates (API)
      * 
-     * @param Request $request
-     * @param Property $property
-     * @return JsonResponse
+     * Route: GET /api/properties/{property:slug}/availability-and-rates
+     * Property is automatically resolved by Laravel's route model binding
      */
-    public function calculateRate(Request $request, Property $property): JsonResponse
+    public function getAvailabilityAndRates(Request $request, Property $property): JsonResponse
     {
         try {
-            //$property = Property::where('slug', $slug)->firstOrFail();
-            
             $request->validate([
-                'check_in' => 'required|date|after_or_equal:today',
+                'check_in' => 'required|date',
                 'check_out' => 'required|date|after:check_in',
-                'guests' => 'required|integer|min:1|max:' . $property->capacity_max,
+                'guest_count' => 'required|integer|min:1|max:' . $property->capacity_max,
             ]);
 
-            $checkIn = $request->get('check_in');
-            $checkOut = $request->get('check_out');
-            $guestCount = $request->integer('guests');
+            // Get availability
+            $bookedDates = $this->bookingService->getBookedDates(
+                $property,
+                $request->get('check_in'),
+                $request->get('check_out')
+            );
 
-            // Gunakan AvailabilityService untuk calculate rate dengan validation dan formatting
-            //$result = $this->availabilityService->calculateRateFormatted($property, $checkIn, $checkOut, $guestCount);
-            $result = $property->calculateRate($checkIn, $checkOut, $guestCount);
-            dd($result);
-            return response()->json($result);
+            // Calculate rates
+            $rateCalculation = $this->rateCalculationService->calculateRateFormatted(
+                $property,
+                $request->get('check_in'),
+                $request->get('check_out'),
+                $request->get('guest_count')
+            );
+
+            return response()->json([
+                'success' => true,
+                'property_id' => $property->id,
+                'property_slug' => $property->slug,
+                'booked_dates' => $bookedDates,
+                'rate_calculation' => $rateCalculation,
+                'date_range' => [
+                    'start' => $request->get('check_in'),
+                    'end' => $request->get('check_out')
+                ],
+                'guest_count' => $request->get('guest_count')
+            ]);
 
         } catch (\Exception $e) {
+            Log::error('Availability and rates check failed', [
+                'property_id' => $property->id,
+                'property_slug' => $property->slug,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to calculate rate: ' . $e->getMessage()
-            ], 422);
+                'message' => 'Failed to check availability and rates: ' . $e->getMessage(),
+                'booked_dates' => [],
+                'rate_calculation' => null
+            ], 500);
+        }
+    }
+
+    /**
+     * Check if email exists (API)
+     */
+    public function checkEmailExists(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $exists = \App\Models\User::where('email', $request->email)->exists();
+
+        return response()->json([
+            'exists' => $exists,
+            'email' => $request->email
+        ]);
+    }
+
+    /**
+     * Cancel booking
+     */
+    public function cancel(Request $request, Booking $booking): RedirectResponse
+    {
+        $this->authorize('cancel', $booking);
+
+        $request->validate([
+            'reason' => 'required|string|max:500',
+        ]);
+
+        try {
+            $success = $this->bookingService->cancelBooking(
+                $booking,
+                $request->get('reason'),
+                auth()->user()
+            );
+
+            if ($success) {
+                return back()->with('success', 'Booking berhasil dibatalkan.');
+            }
+
+            return back()->withErrors(['error' => 'Gagal membatalkan booking.']);
+
+        } catch (\Exception $e) {
+            Log::error('Booking cancellation failed', [
+                'booking_number' => $booking->booking_number,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'Gagal membatalkan booking: ' . $e->getMessage()]);
         }
     }
 } 

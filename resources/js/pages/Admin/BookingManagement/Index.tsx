@@ -13,7 +13,7 @@ import {
     Clock,
     DollarSign
 } from 'lucide-react';
-import { type BreadcrumbItem } from '@/types';
+import { PaginatedData, type BreadcrumbItem } from '@/types';
 
 interface Property {
     id: number;
@@ -46,7 +46,7 @@ interface BookingStats {
 }
 
 interface IndexProps {
-    properties: Property[];
+    properties: PaginatedData<Property>;
     recentBookings: RecentBooking[];
     stats: BookingStats;
 }
@@ -230,7 +230,7 @@ export default function Index({ properties, recentBookings, stats }: IndexProps)
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {properties.slice(0, 6).map(property => (
+                            {properties.data.map(property => (
                                 <Card key={property.id} className="hover:shadow-md transition-shadow">
                                     <CardContent className="p-4">
                                         <div className="flex items-start justify-between mb-2">

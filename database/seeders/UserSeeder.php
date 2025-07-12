@@ -28,7 +28,7 @@ class UserSeeder extends Seeder
 
             // Property Owner
             [
-                'name' => 'John Property Owner',
+                'name' => 'Indah Arini Puspitasari',
                 'email' => 'owner@pms.com',
                 'password' => Hash::make('password'),
                 'phone' => '+6281234567891',
@@ -39,7 +39,7 @@ class UserSeeder extends Seeder
 
             // Property Manager
             [
-                'name' => 'Jane Manager',
+                'name' => 'Faisal Hadi',
                 'email' => 'manager@pms.com',
                 'password' => Hash::make('password'),
                 'phone' => '+6281234567892',

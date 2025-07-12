@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
@@ -25,15 +25,11 @@ import {
     Star,
     Save,
     AlertCircle,
-    Info
+    Info,
+    Eye,
+    EyeOff
 } from 'lucide-react';
-
-interface Amenity {
-    id: number;
-    name: string;
-    category: string;
-    icon: string;
-}
+import { Amenity } from '@/types';
 
 interface User {
     id: number;
@@ -50,6 +46,7 @@ interface PropertyFormData {
     name: string;
     description: string;
     address: string;
+    maps_link: string;
     lat: number | null;
     lng: number | null;
     capacity: number;
@@ -71,19 +68,58 @@ interface PropertyFormData {
     seo_description: string;
     amenities: number[];
     owner_id?: string;
-    [key: string]: any; // Index signature for FormDataType compatibility
 }
+
+// Utility functions
+const formatCurrency = (value: number): string => {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+    }).format(value);
+};
+
+const validateCoordinate = (lat: number | null, lng: number | null): boolean => {
+    if (lat === null || lng === null) return false;
+    return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+};
+
+// Indonesian cities with coordinates for better geocoding
+const INDONESIAN_CITIES = {
+    'jakarta': { lat: -6.2088, lng: 106.8456, name: 'Jakarta' },
+    'yogya': { lat: -7.7972, lng: 110.3688, name: 'Yogyakarta' },
+    'jogja': { lat: -7.7972, lng: 110.3688, name: 'Yogyakarta' },
+    'yogyakarta': { lat: -7.7972, lng: 110.3688, name: 'Yogyakarta' },
+    'bandung': { lat: -6.9175, lng: 107.6191, name: 'Bandung' },
+    'surabaya': { lat: -7.2575, lng: 112.7521, name: 'Surabaya' },
+    'bali': { lat: -8.6705, lng: 115.2126, name: 'Bali' },
+    'denpasar': { lat: -8.6705, lng: 115.2126, name: 'Denpasar' },
+    'ubud': { lat: -8.5069, lng: 115.2624, name: 'Ubud' },
+    'canggu': { lat: -8.6482, lng: 115.1386, name: 'Canggu' },
+    'seminyak': { lat: -8.6913, lng: 115.1735, name: 'Seminyak' },
+    'kuta': { lat: -8.7203, lng: 115.1677, name: 'Kuta' },
+    'sanur': { lat: -8.6872, lng: 115.2620, name: 'Sanur' },
+    'lombok': { lat: -8.6500, lng: 116.3244, name: 'Lombok' },
+    'medan': { lat: 3.5952, lng: 98.6722, name: 'Medan' },
+    'palembang': { lat: -2.9761, lng: 104.7754, name: 'Palembang' },
+    'makassar': { lat: -5.1477, lng: 119.4327, name: 'Makassar' },
+    'semarang': { lat: -6.9661, lng: 110.4203, name: 'Semarang' },
+    'malang': { lat: -7.9797, lng: 112.6304, name: 'Malang' },
+};
 
 function CreateProperty({ amenities, owners }: CreatePropertyProps) {
     const [showMap, setShowMap] = useState(false);
     const [mapCenter, setMapCenter] = useState({ lat: -6.2088, lng: 106.8456 }); // Jakarta default
+    const [showAdvancedSEO, setShowAdvancedSEO] = useState(false);
+    const [selectedCity, setSelectedCity] = useState<string>('');
 
-    const { data, setData, post, processing, errors } = useForm<PropertyFormData>({
+    const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
         description: '',
         address: '',
-        lat: null,
-        lng: null,
+        maps_link: '',
+        lat: null as number | null,
+        lng: null as number | null,
         capacity: 2,
         capacity_max: 4,
         bedroom_count: 1,
@@ -98,12 +134,40 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
         min_stay_weekday: 1,
         min_stay_weekend: 2,
         min_stay_peak: 3,
-        is_featured: false,
+        is_featured: false as boolean,
         seo_title: '',
         seo_description: '',
-        amenities: [],
+        amenities: [] as number[],
         owner_id: owners ? undefined : '',
     });
+
+    // Auto-generate SEO title when property name changes
+    useEffect(() => {
+        if (data.name && !data.seo_title) {
+            const cityName = selectedCity ? INDONESIAN_CITIES[selectedCity as keyof typeof INDONESIAN_CITIES]?.name : '';
+            const generatedTitle = cityName 
+                ? `${data.name} - Luxury Villa in ${cityName} | Book Now`
+                : `${data.name} - Premium Villa Rental | Book Direct`;
+            setData('seo_title', generatedTitle);
+        }
+    }, [data.name, selectedCity, setData]);
+
+    // Auto-generate SEO description when description changes
+    useEffect(() => {
+        if (data.description && !data.seo_description && data.description.length > 20) {
+            const shortDesc = data.description.substring(0, 150).trim();
+            const generatedDesc = shortDesc + (data.description.length > 150 ? '...' : '') + 
+                ` Book direct for best rates. ${data.bedroom_count} bedrooms, ${data.bathroom_count} bathrooms, sleeps ${data.capacity_max}.`;
+            setData('seo_description', generatedDesc);
+        }
+    }, [data.description, data.bedroom_count, data.bathroom_count, data.capacity_max, setData]);
+
+    // Ensure capacity_max is always >= capacity
+    useEffect(() => {
+        if (data.capacity > data.capacity_max) {
+            setData('capacity_max', data.capacity);
+        }
+    }, [data.capacity, data.capacity_max, setData]);
 
     const handleLocationChange = useCallback((lat: number, lng: number) => {
         setData(prev => ({ ...prev, lat, lng }));
@@ -113,17 +177,25 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
     const handleAddressChange = (address: string) => {
         setData('address', address);
         
-        // Simple geocoding simulation (in real app, use proper geocoding service)
-        if (address.toLowerCase().includes('jakarta')) {
-            setMapCenter({ lat: -6.2088, lng: 106.8456 });
-        } else if (address.toLowerCase().includes('yogya') || address.toLowerCase().includes('jogja')) {
-            setMapCenter({ lat: -7.7972, lng: 110.3688 });
-        } else if (address.toLowerCase().includes('bandung')) {
-            setMapCenter({ lat: -6.9175, lng: 107.6191 });
-        } else if (address.toLowerCase().includes('surabaya')) {
-            setMapCenter({ lat: -7.2575, lng: 112.7521 });
-        } else if (address.toLowerCase().includes('bali') || address.toLowerCase().includes('denpasar')) {
-            setMapCenter({ lat: -8.6705, lng: 115.2126 });
+        // Enhanced geocoding with better city detection
+        const addressLower = address.toLowerCase();
+        let detectedCity = '';
+        
+        for (const [key, cityData] of Object.entries(INDONESIAN_CITIES)) {
+            if (addressLower.includes(key)) {
+                setMapCenter({ lat: cityData.lat, lng: cityData.lng });
+                setSelectedCity(key);
+                detectedCity = cityData.name;
+                break;
+            }
+        }
+        
+        // If we detected a city and SEO title is empty or still default, update it
+        if (detectedCity && data.name) {
+            const currentSEOTitle = data.seo_title;
+            if (!currentSEOTitle || currentSEOTitle.includes('Premium Villa Rental')) {
+                setData('seo_title', `${data.name} - Luxury Villa in ${detectedCity} | Book Now`);
+            }
         }
     };
 
@@ -137,17 +209,67 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        post(route('admin.properties.store'));
+        
+        // Client-side validation
+        const validationErrors: Record<string, string> = {};
+        
+        if (!data.name.trim()) validationErrors.name = 'Property name is required';
+        if (!data.description.trim()) validationErrors.description = 'Description is required';
+        if (!data.address.trim()) validationErrors.address = 'Address is required';
+        if (data.capacity < 1) validationErrors.capacity = 'Capacity must be at least 1';
+        if (data.capacity_max < data.capacity) validationErrors.capacity_max = 'Maximum capacity must be at least equal to standard capacity';
+        if (data.base_rate < 0) validationErrors.base_rate = 'Base rate cannot be negative';
+        if (data.lat !== null && data.lng !== null && !validateCoordinate(data.lat, data.lng)) {
+            validationErrors.coordinates = 'Invalid coordinates';
+        }
+        
+        if (Object.keys(validationErrors).length > 0) {
+            // Show validation errors (in real app, you'd set these to form errors)
+            console.log('Validation errors:', validationErrors);
+            return;
+        }
+        
+        post(route('admin.properties.store'), {
+            onSuccess: () => {
+                // Handle success
+                console.log('Property created successfully');
+            },
+            onError: (errors) => {
+                // Handle server errors
+                console.log('Server errors:', errors);
+            }
+        });
     };
 
-    // Group amenities by category
-    const amenityCategories = amenities.reduce((acc, amenity) => {
-        if (!acc[amenity.category]) {
-            acc[amenity.category] = [];
+    const handleReset = () => {
+        if (confirm('Are you sure you want to reset all fields? This action cannot be undone.')) {
+            reset();
+            setShowMap(false);
+            setSelectedCity('');
+            setMapCenter({ lat: -6.2088, lng: 106.8456 });
         }
-        acc[amenity.category].push(amenity);
+    };
+
+    // Group amenities by category with better organization
+    const amenityCategories = amenities.reduce((acc, amenity) => {
+        const category = amenity.category || 'other';
+        if (!acc[category]) {
+            acc[category] = [];
+        }
+        acc[category].push(amenity);
         return acc;
     }, {} as Record<string, Amenity[]>);
+
+    // Sort categories for better UX
+    const sortedCategories = Object.keys(amenityCategories).sort((a, b) => {
+        const order = ['essential', 'comfort', 'entertainment', 'outdoor', 'safety', 'other'];
+        return order.indexOf(a) - order.indexOf(b);
+    });
+
+    // Calculate estimated pricing
+    const weekendRate = data.base_rate + (data.base_rate * data.weekend_premium_percent / 100);
+    const totalForWeekendStay = (weekendRate * 2) + data.cleaning_fee;
+
 
     return (
         <>
@@ -180,7 +302,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                     <div className="font-medium mb-2">Please fix the following errors:</div>
                                     <ul className="text-sm space-y-1">
                                         {Object.entries(errors).map(([field, message]) => (
-                                            <li key={field}>• {field}: {message}</li>
+                                            <li key={field}>• {field}: {String(message)}</li>
                                         ))}
                                     </ul>
                                 </AlertDescription>
@@ -252,7 +374,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                                 <Switch
                                                     id="is_featured"
                                                     checked={data.is_featured}
-                                                    onCheckedChange={(checked) => setData('is_featured', checked)}
+                                                    onCheckedChange={(checked: boolean) => setData('is_featured', checked)}
                                                 />
                                                 <Label htmlFor="is_featured" className="flex items-center gap-2">
                                                     <Star className="h-4 w-4" />
@@ -283,6 +405,16 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                                 className={errors.address ? 'border-red-500' : ''}
                                             />
                                             {errors.address && <p className="text-sm text-red-600 mt-1">{errors.address}</p>}
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="maps_link">Maps Link</Label>
+                                            <Input
+                                                id="maps_link"
+                                                value={data.maps_link}
+                                                onChange={(e) => setData('maps_link', e.target.value)}
+                                                placeholder="https://maps.app.goo.gl/XCq7dHsWgRQwbBAx8"
+                                            />
+                                            {errors.maps_link && <p className="text-sm text-red-600 mt-1">{errors.maps_link}</p>}
                                         </div>
 
                                         <div className="grid md:grid-cols-3 gap-4">
@@ -616,7 +748,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                                         <div key={amenity.id} className="flex items-center space-x-2">
                                                             <Checkbox
                                                                 id={`amenity-${amenity.id}`}
-                                                                checked={data.amenities.includes(amenity.id)}
+                                                                checked={Array.isArray(data.amenities) && data.amenities.includes(amenity.id)}
                                                                 onCheckedChange={(checked) => handleAmenityChange(amenity.id, checked as boolean)}
                                                             />
                                                             <Label 

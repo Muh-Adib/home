@@ -81,6 +81,7 @@ interface Payment {
         account_name?: string;
         bank_name?: string;
         instructions: string[];
+        is_active: boolean;
     };
     processor?: {
         id: number;
@@ -123,7 +124,9 @@ interface PaymentEditProps {
 
 export default function PaymentEdit({ payment, paymentMethods, users }: PaymentEditProps) {
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(
-        payment.paymentMethod || null
+        payment.paymentMethod
+            ? { ...payment.paymentMethod, type: payment.paymentMethod.type as 'bank_transfer' | 'e_wallet' | 'credit_card' | 'cash' }
+            : null
     );
 
     const { data, setData, put, processing, errors } = useForm({
@@ -148,7 +151,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Payments', href: '/admin/payments' },
-        { title: payment.payment_number, href: `/admin/payments/${payment.id}` },
+        { title: payment.payment_number, href: `/admin/payments/${payment.payment_number}` },
         { title: 'Edit', href: '#' },
     ];
 
@@ -181,7 +184,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
             }
         });
 
-        put(`/admin/payments/${payment.id}`, {
+        put(`/admin/payments/${payment.payment_number}`, {
             data: formData,
             forceFormData: true,
         });

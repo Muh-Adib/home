@@ -137,7 +137,7 @@ export default function GeneralSettings({ settings }: GeneralSettingsProps) {
                         <CardHeader>
                             <CardTitle>Site Information</CardTitle>
                             <p className="text-sm text-gray-600">
-                                Basic information about your property management system
+                                Basic information about your Homsjogja system
                             </p>
                         </CardHeader>
                         <CardContent className="space-y-6">
@@ -149,7 +149,7 @@ export default function GeneralSettings({ settings }: GeneralSettingsProps) {
                                         value={data.site_name}
                                         onChange={(e) => setData('site_name', e.target.value)}
                                         className={errors.site_name ? 'border-red-500' : ''}
-                                        placeholder="Property Management System"
+                                        placeholder="Homsjogja"
                                     />
                                     {errors.site_name && (
                                         <p className="text-sm text-red-600 mt-1">{errors.site_name}</p>
@@ -164,7 +164,7 @@ export default function GeneralSettings({ settings }: GeneralSettingsProps) {
                                         value={data.contact_email}
                                         onChange={(e) => setData('contact_email', e.target.value)}
                                         className={errors.contact_email ? 'border-red-500' : ''}
-                                        placeholder="contact@propertyms.com"
+                                        placeholder="contact@homsjogja.com"
                                     />
                                     {errors.contact_email && (
                                         <p className="text-sm text-red-600 mt-1">{errors.contact_email}</p>

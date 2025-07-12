@@ -190,7 +190,7 @@ export default function MyPayments({ payments, filters }: MyPaymentsProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`${t('payment.title')} - Property Management System`} />
+                            <Head title={`${t('payment.title')} - Homsjogja`} />
 
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}

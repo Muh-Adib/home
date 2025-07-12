@@ -17,8 +17,11 @@ import {
     Mail,
     ArrowRight,
     Download,
-    Info
+    Info,
+    Lock,
+    MessageCircle
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface Booking {
     id: string;
@@ -48,6 +51,12 @@ interface Booking {
     remaining_amount: number;
     dp_percentage: number;
     created_at: string;
+    workflow: {
+        step: string;
+        status: string;
+        processed_by: string;
+        processed_at: string;
+    };
     property: {
         id: number;
         name: string;
@@ -63,9 +72,12 @@ interface Booking {
 
 interface BookingConfirmationProps {
     booking: Booking;
+    password: string|null;
 }
 
-export default function BookingConfirmation({ booking }: BookingConfirmationProps) {
+export default function BookingConfirmation({ booking, password }: BookingConfirmationProps) {
+    const { t } = useTranslation();
+    
     const statusColors = {
         pending_verification: 'bg-yellow-100 text-yellow-800',
         confirmed: 'bg-green-100 text-green-800',
@@ -73,9 +85,9 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
     };
 
     const statusLabels = {
-        pending_verification: 'Pending Verification',
-        confirmed: 'Confirmed',
-        cancelled: 'Cancelled',
+        pending_verification: t('booking.status.pending_verification'),
+        confirmed: t('booking.status.confirmed'),
+        cancelled: t('booking.status.cancelled'),
     };
 
     const formatDate = (dateString: string) => {
@@ -85,6 +97,28 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
             month: 'long',
             day: 'numeric'
         });
+    };
+
+    const formatWhatsAppMessage = () => {
+        const message = `Halo Admin, saya ingin bertanya tentang booking saya:
+
+📋 Booking Number: ${booking.booking_number}
+🏠 Property: ${booking.property.name}
+👤 Guest: ${booking.guest_name}
+📅 Check-in: ${formatDate(booking.check_in)}
+📅 Check-out: ${formatDate(booking.check_out)}
+👥 Guests: ${booking.guest_count} orang
+💰 Total: Rp ${(booking.total_amount || 0).toLocaleString()}
+
+Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
+
+        return encodeURIComponent(message);
+    };
+
+    const getWhatsAppLink = () => {
+        const phoneNumber = booking.property.owner?.phone || '6281234567890'; // Default number
+        const message = formatWhatsAppMessage();
+        return `https://wa.me/${phoneNumber}?text=${message}`;
     };
 
     const nights = Math.ceil((new Date(booking.check_out).getTime() - new Date(booking.check_in).getTime()) / (1000 * 60 * 60 * 24));
@@ -99,9 +133,9 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                     <div className="container mx-auto px-4 py-6">
                         <div className="text-center">
                             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                            <h1 className="text-3xl font-bold text-gray-900">Booking Submitted!</h1>
+                            <h1 className="text-3xl font-bold text-gray-900">{t('booking.confirmation.title')}</h1>
                             <p className="text-gray-600 mt-2">
-                                Your booking request has been submitted successfully.
+                                {t('booking.confirmation.subtitle')}
                             </p>
                         </div>
                     </div>
@@ -113,8 +147,7 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                         <Alert>
                             <Info className="h-4 w-4" />
                             <AlertDescription>
-                                <strong>What's next?</strong> Our staff will verify your booking details and contact you within 24 hours. 
-                                You'll receive payment instructions once your booking is verified.
+                                <strong>{t('booking.confirmation.whats_next.title')}</strong> {t('booking.confirmation.whats_next.description')}
                             </AlertDescription>
                         </Alert>
 
@@ -125,7 +158,7 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                 <Card>
                                     <CardHeader>
                                         <div className="flex items-center justify-between">
-                                            <CardTitle>Booking Details</CardTitle>
+                                            <CardTitle>{t('booking.confirmation.booking_details')}</CardTitle>
                                             <Badge className={statusColors[booking.booking_status as keyof typeof statusColors]}>
                                                 {statusLabels[booking.booking_status as keyof typeof statusLabels]}
                                             </Badge>
@@ -134,11 +167,11 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                     <CardContent className="space-y-4">
                                         <div className="grid md:grid-cols-2 gap-4">
                                             <div>
-                                                <Label className="text-sm font-medium text-gray-600">Booking Code</Label>
+                                                <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.booking_code')}</Label>
                                                 <p className="text-lg font-mono font-semibold">{booking.booking_number}</p>
                                             </div>
                                             <div>
-                                                <Label className="text-sm font-medium text-gray-600">Booking Date</Label>
+                                                <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.booking_date')}</Label>
                                                 <p>{formatDate(booking.created_at)}</p>
                                             </div>
                                         </div>
@@ -149,14 +182,14 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                             <div className="flex items-center gap-3">
                                                 <Calendar className="h-5 w-5 text-blue-600" />
                                                 <div>
-                                                    <p className="text-sm font-medium">Check-in</p>
+                                                    <p className="text-sm font-medium">{t('booking.confirmation.check_in')}</p>
                                                     <p className="text-sm text-gray-600">{formatDate(booking.check_in)}</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <Calendar className="h-5 w-5 text-blue-600" />
                                                 <div>
-                                                    <p className="text-sm font-medium">Check-out</p>
+                                                    <p className="text-sm font-medium">{t('booking.confirmation.check_out')}</p>
                                                     <p className="text-sm text-gray-600">{formatDate(booking.check_out)}</p>
                                                 </div>
                                             </div>
@@ -165,8 +198,8 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                         <div className="flex items-center gap-3">
                                             <Clock className="h-5 w-5 text-blue-600" />
                                             <div>
-                                                <p className="text-sm font-medium">Duration</p>
-                                                <p className="text-sm text-gray-600">{nights} nights</p>
+                                                <p className="text-sm font-medium">{t('booking.confirmation.duration')}</p>
+                                                <p className="text-sm text-gray-600">{nights} {t('booking.confirmation.nights')}</p>
                                             </div>
                                         </div>
 
@@ -175,12 +208,12 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                         <div className="flex items-center gap-3">
                                             <Users className="h-5 w-5 text-blue-600" />
                                             <div>
-                                                <p className="text-sm font-medium">Guests</p>
+                                                <p className="text-sm font-medium">{t('booking.confirmation.guests')}</p>
                                                 <p className="text-sm text-gray-600">
-                                                    {booking.guest_count} guests total: 
-                                                    {booking.guest_male} male, 
-                                                    {booking.guest_female} female
-                                                    {booking.guest_children > 0 && `, ${booking.guest_children} children`}
+                                                    {booking.guest_count} {t('booking.confirmation.guests_total')}: 
+                                                    {booking.guest_male} {t('booking.confirmation.male')}, 
+                                                    {booking.guest_female} {t('booking.confirmation.female')}
+                                                    {booking.guest_children > 0 && `, ${booking.guest_children} ${t('booking.confirmation.children')}`}
                                                 </p>
                                             </div>
                                         </div>
@@ -189,7 +222,7 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                             <>
                                                 <Separator />
                                                 <div>
-                                                    <p className="text-sm font-medium mb-2">Special Requests</p>
+                                                    <p className="text-sm font-medium mb-2">{t('booking.confirmation.special_requests')}</p>
                                                     <p className="text-sm text-gray-600 bg-slate-50 p-3 rounded-lg">
                                                         {booking.special_requests}
                                                     </p>
@@ -202,18 +235,18 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                 {/* Guest Information */}
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle>Primary Guest Information</CardTitle>
+                                        <CardTitle>{t('booking.confirmation.primary_guest_info')}</CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-4">
                                         <div className="grid md:grid-cols-2 gap-4">
                                             <div>
-                                                <Label className="text-sm font-medium text-gray-600">Full Name</Label>
+                                                <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.full_name')}</Label>
                                                 <p>{booking.guest_name}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Phone className="h-4 w-4 text-gray-600" />
                                                 <div>
-                                                    <Label className="text-sm font-medium text-gray-600">Phone</Label>
+                                                    <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.phone')}</Label>
                                                     <p>{booking.guest_phone}</p>
                                                 </div>
                                             </div>
@@ -221,30 +254,22 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                         <div className="flex items-center gap-2">
                                             <Mail className="h-4 w-4 text-gray-600" />
                                             <div>
-                                                <Label className="text-sm font-medium text-gray-600">Email</Label>
+                                                <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.email')}</Label>
                                                 <p>{booking.guest_email}</p>
                                             </div>
                                         </div>
-                                    </CardContent>
-                                </Card>
-
-                                {/* Property Owner Contact */}
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle>Property Owner</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                                                <Users className="h-6 w-6 text-blue-600" />
-                                            </div>
+                                        {password && (
+                                        <div className="flex items-center gap-2">
+                                            <Lock className="h-4 w-4 text-gray-600" />
                                             <div>
-                                                <p className="font-medium">{booking.property.owner?.name || 'N/A'}</p>
-                                                {booking.property.owner?.phone && (
-                                                    <p className="text-sm text-gray-600">{booking.property.owner?.phone}</p>
-                                                )}
+                                                <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.password')}</Label>
+                                                <p>{password}</p>
+                                                <p className="text-xs text-gray-500">
+                                                    <span className="font-bold">{t('booking.confirmation.note')}:</span> {t('booking.confirmation.password_note')}
+                                                </p>
                                             </div>
                                         </div>
+                                        )}
                                     </CardContent>
                                 </Card>
                             </div>
@@ -254,7 +279,7 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                 {/* Property */}
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle className="text-lg">Property</CardTitle>
+                                        <CardTitle className="text-lg">{t('booking.confirmation.property')}</CardTitle>
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-4">
@@ -288,54 +313,80 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                     <CardHeader>
                                         <CardTitle className="text-lg flex items-center gap-2">
                                             <CreditCard className="h-5 w-5" />
-                                            Payment Summary
+                                            {t('booking.confirmation.payment_summary')}
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-3 text-sm">
                                             <div className="flex justify-between font-semibold">
-                                                <span>Total Amount</span>
+                                                <span>{t('booking.confirmation.total_amount')}</span>
                                                 <span>Rp {(booking.total_amount || 0).toLocaleString()}</span>
                                             </div>
                                             
                                             <Separator />
                                             
                                             <div className="flex justify-between text-blue-600 font-semibold">
-                                                <span>Down Payment ({booking.dp_percentage}%)</span>
+                                                <span>{t('booking.confirmation.down_payment')} ({booking.dp_percentage}%)</span>
                                                 <span>Rp {(booking.dp_amount || 0).toLocaleString()}</span>
                                             </div>
                                             
                                             <div className="flex justify-between text-gray-600">
-                                                <span>Remaining Balance</span>
+                                                <span>{t('booking.confirmation.remaining_balance')}</span>
                                                 <span>Rp {(booking.remaining_amount || 0).toLocaleString()}</span>
                                             </div>
 
                                             <div className="bg-yellow-50 p-3 rounded-lg mt-4">
                                                 <p className="text-sm text-yellow-800">
-                                                    <strong>Payment Instructions:</strong> You will receive payment details after your booking is verified by our staff.
+                                                    <strong>{t('booking.confirmation.payment_instructions')}:</strong> {t('booking.confirmation.payment_instructions_desc')}
                                                 </p>
                                             </div>
                                         </div>
                                     </CardContent>
                                 </Card>
 
+                                {/* WhatsApp CTA */}
+                                <Card className="border-green-200 bg-green-50">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-lg flex items-center gap-2 text-green-800">
+                                            <MessageCircle className="h-5 w-5" />
+                                            {t('booking.confirmation.need_help')}
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="text-sm text-green-700 mb-4">
+                                            {t('booking.confirmation.contact_admin_description')}
+                                        </p>
+                                        <a 
+                                            href={getWhatsAppLink()} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="block"
+                                        >
+                                            <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
+                                                <MessageCircle className="h-4 w-4 mr-2" />
+                                                {t('booking.confirmation.contact_admin')}
+                                            </Button>
+                                        </a>
+                                    </CardContent>
+                                </Card>
+
                                 {/* Actions */}
                                 <div className="space-y-3">
-                                    {booking.payment_status === 'dp_pending' && (
+                                    {booking.payment_status === 'dp_pending' && booking.booking_status === 'confirmed' && (
                                         <Link href={booking.payment_link} className="block">
                                             <Button className="w-full" size="lg">
                                                 <CreditCard className="h-4 w-4 mr-2" />
-                                                Make Payment
-                                                <span className="text-xs ml-2">(Rp {booking.dp_amount.toLocaleString()})</span>
+                                                {t('booking.confirmation.make_payment')}
+                                                <span className="text-xs ml-2">(Rp {(booking.dp_amount).toLocaleString()})</span>
                                             </Button>
                                         </Link>
                                     )}
                                     
-                                    {booking.payment_status === 'pending' && (
+                                    {booking.booking_status === 'pending_verification' && (
                                         <Alert>
                                             <Clock className="h-4 w-4" />
                                             <AlertDescription>
-                                                Your booking is being verified by our staff. You will be notified once verification is complete.
+                                                {t('booking.confirmation.verification_pending')}
                                             </AlertDescription>
                                         </Alert>
                                     )}
@@ -343,26 +394,26 @@ export default function BookingConfirmation({ booking }: BookingConfirmationProp
                                     {booking.payment_status === 'paid' && (
                                         <Button className="w-full" variant="outline" disabled>
                                             <CheckCircle className="h-4 w-4 mr-2" />
-                                            Payment Completed
+                                            {t('booking.confirmation.payment_completed')}
                                         </Button>
                                     )}
                                     
                                     <Button className="w-full" variant="outline" disabled>
                                         <Download className="h-4 w-4 mr-2" />
-                                        Download Booking Voucher
-                                        <span className="text-xs ml-2">(Available after payment)</span>
+                                        {t('booking.confirmation.download_voucher')}
+                                        <span className="text-xs ml-2">({t('booking.confirmation.available_after_payment')})</span>
                                     </Button>
                                     
                                     <Link href="/properties" className="block">
                                         <Button variant="outline" className="w-full">
-                                            Browse More Properties
+                                            {t('booking.confirmation.browse_more_properties')}
                                             <ArrowRight className="h-4 w-4 ml-2" />
                                         </Button>
                                     </Link>
                                     
                                     <Link href="/" className="block">
                                         <Button variant="ghost" className="w-full">
-                                            Back to Home
+                                            {t('booking.confirmation.back_to_home')}
                                         </Button>
                                     </Link>
                                 </div>

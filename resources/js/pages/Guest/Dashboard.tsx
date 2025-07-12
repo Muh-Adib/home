@@ -124,7 +124,7 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`${t('nav.dashboard')} - Property Management System`} />
+                            <Head title={`${t('nav.dashboard')} - Homsjogja`} />
             
             <div className="space-y-6 p-4 md:p-6">
                 {/* Welcome Header */}

@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\Property;
 use App\Models\User;
 use App\Services\BookingService;
+use App\Events\BookingStatusChanged;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -92,11 +93,16 @@ class BookingManagementController extends Controller
         $bookings = $bookingsQuery->get();
         
         // Transform bookings for calendar display
-        $calendarBookings = $bookings->map(function ($booking) {
+        $calendarBookings = $bookings->map(function ($booking) use ($user) {
             return [
                 'id' => $booking->id,
                 'booking_number' => $booking->booking_number,
                 'property_id' => $booking->property_id,
+                'property' => [
+                    'id' => $booking->property->id,
+                    'name' => $booking->property->name,
+                    'address' => $booking->property->address,
+                ],
                 'property_name' => $booking->property->name,
                 'guest_name' => $booking->guest_name,
                 'guest_count' => $booking->guest_count,
@@ -108,7 +114,7 @@ class BookingManagementController extends Controller
                 'booking_status' => $booking->booking_status,
                 'payment_status' => $booking->payment_status,
                 'status_color' => $this->getStatusColor($booking->booking_status),
-                'can_edit' => $this->canEditBooking($booking, $request->user()),
+                'can_edit' => $this->canEditBooking($booking, $user),
             ];
         });
         
@@ -151,11 +157,25 @@ class BookingManagementController extends Controller
             'check_in_date' => $request->get('check_in'),
             'check_out_date' => $request->get('check_out'),
         ];
+
+        // Get availability data for selected property if exists
+        $availabilityData = null;
+        if ($selectedProperty) {
+            try {
+                $startDate = $request->get('check_in') ?: now()->toDateString();
+                $endDate = $request->get('check_out') ?: now()->addMonths(3)->toDateString();
+                
+                $availabilityData = $selectedProperty->getAvailabilityData($startDate, $endDate);
+            } catch (\Exception $e) {
+                \Log::error('Error getting availability data for admin booking create: ' . $e->getMessage());
+            }
+        }
         
         return Inertia::render('Admin/Bookings/Create', [
             'properties' => $properties,
             'selectedProperty' => $selectedProperty,
             'prefilledData' => $prefilledData,
+            'availabilityData' => $availabilityData,
         ]);
     }
     
@@ -168,9 +188,9 @@ class BookingManagementController extends Controller
             'property_id' => 'required|exists:properties,id',
             'check_in_date' => 'required|date|after_or_equal:today',
             'check_out_date' => 'required|date|after:check_in_date',
-            'guest_count_male' => 'required|integer|min:0',
-            'guest_count_female' => 'required|integer|min:0',
-            'guest_count_children' => 'required|integer|min:0',
+            'guest_male' => 'required|integer|min:0',
+            'guest_female' => 'required|integer|min:0',
+            'guest_children' => 'required|integer|min:0',
             'guest_name' => 'required|string|max:255',
             'guest_email' => 'required|email|max:255',
             'guest_phone' => 'required|string|max:20',
@@ -184,6 +204,7 @@ class BookingManagementController extends Controller
             'payment_status' => 'required|in:dp_pending,dp_received,fully_paid',
             'dp_percentage' => 'required|integer|in:30,50,70,100',
             'auto_confirm' => 'boolean',
+            'guests' => 'nullable|array',
         ]);
         
         $property = Property::findOrFail($validated['property_id']);
@@ -205,8 +226,16 @@ class BookingManagementController extends Controller
         }
 
         try {
+            // Transform guest counts for BookingService
+            $bookingData = array_merge($validated, [
+                'guest_count_male' => $validated['guest_male'],
+                'guest_count_female' => $validated['guest_female'],
+                'guest_count_children' => $validated['guest_children'],
+                'guest_count' => $validated['guest_male'] + $validated['guest_female'] + $validated['guest_children'],
+            ]);
+            
             // Use BookingService to create the booking
-            $booking = $this->bookingService->createBooking($property, $validated, $user);
+            $booking = $this->bookingService->createBooking($property, $bookingData, $user);
             
             // Additional admin-specific updates
             $booking->update([
@@ -380,6 +409,89 @@ class BookingManagementController extends Controller
     }
     
     /**
+     * Get property date range data (API)
+     */
+    public function getPropertyDateRange(Request $request)
+    {
+        $request->validate([
+            'property_id' => 'required|exists:properties,id',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after:start_date',
+        ]);
+        
+        $property = Property::findOrFail($request->property_id);
+        $startDate = $request->get('start_date', now()->toDateString());
+        $endDate = $request->get('end_date', now()->addMonths(3)->toDateString());
+        
+        try {
+            // Get availability data
+            $availabilityData = $property->getAvailabilityData($startDate, $endDate);
+            
+            // Get booked dates
+            $bookedDates = Booking::where('property_id', $property->id)
+                ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
+                ->where(function ($query) use ($startDate, $endDate) {
+                    $query->whereBetween('check_in', [$startDate, $endDate])
+                          ->orWhereBetween('check_out', [$startDate, $endDate])
+                          ->orWhere(function ($q) use ($startDate, $endDate) {
+                              $q->where('check_in', '<=', $startDate)
+                                ->where('check_out', '>=', $endDate);
+                          });
+                })
+                ->get()
+                ->flatMap(function ($booking) {
+                    $dates = [];
+                    $current = \Carbon\Carbon::parse($booking->check_in);
+                    $end = \Carbon\Carbon::parse($booking->check_out);
+                    
+                    while ($current < $end) {
+                        $dates[] = $current->toDateString();
+                        $current->addDay();
+                    }
+                    
+                    return $dates;
+                })
+                ->unique()
+                ->values()
+                ->toArray();
+            
+            // Get seasonal rates if available
+            $seasonalRates = [];
+            if (method_exists($property, 'getSeasonalRates')) {
+                $seasonalRates = $property->getSeasonalRates($startDate, $endDate);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'property' => [
+                    'id' => $property->id,
+                    'name' => $property->name,
+                    'base_rate' => $property->base_rate,
+                    'capacity' => $property->capacity,
+                    'capacity_max' => $property->capacity_max,
+                    'cleaning_fee' => $property->cleaning_fee,
+                    'extra_bed_rate' => $property->extra_bed_rate,
+                    'weekend_premium_percent' => $property->weekend_premium_percent,
+                ],
+                'date_range' => [
+                    'start' => $startDate,
+                    'end' => $endDate,
+                ],
+                'booked_dates' => $bookedDates,
+                'availability_data' => $availabilityData,
+                'seasonal_rates' => $seasonalRates,
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error getting property date range: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to get property date range data',
+            ], 500);
+        }
+    }
+    
+    /**
      * Helper method to get status color
      */
     private function getStatusColor(string $status): string
@@ -522,6 +634,8 @@ class BookingManagementController extends Controller
 
         DB::beginTransaction();
         try {
+            $oldStatus = $booking->booking_status;
+            
             $booking->update([
                 'verification_status' => 'approved',
                 'booking_status' => 'confirmed',
@@ -532,13 +646,16 @@ class BookingManagementController extends Controller
             // Create workflow record
             $booking->workflow()->create([
                 'step' => 'approved',
-                'status' => 'completed',
+                'status' => 'in_progress',
                 'processed_by' => $request->user()->id,
                 'processed_at' => now(),
                 'notes' => $request->get('notes', 'Booking verified and confirmed by admin'),
             ]);
 
             DB::commit();
+
+            // Dispatch BookingStatusChanged event
+            event(new BookingStatusChanged($booking->load('property'), $oldStatus, 'confirmed', $request->user()));
 
             return redirect()->back()
                 ->with('success', 'Booking verified successfully. Guest can now proceed with payment.');
@@ -547,7 +664,7 @@ class BookingManagementController extends Controller
             DB::rollback();
             \Log::error('Booking verification failed: ' . $e->getMessage());
             return redirect()->back()
-                ->with('error', 'Failed to verify booking. Please try again.');
+                ->withErrors(['error' => 'Failed to verify booking. Please try again.']);
         }
     }
 
@@ -568,6 +685,8 @@ class BookingManagementController extends Controller
 
         DB::beginTransaction();
         try {
+            $oldStatus = $booking->booking_status;
+            
             $booking->update([
                 'booking_status' => 'cancelled',
                 'cancellation_reason' => $request->get('cancellation_reason'),
@@ -585,6 +704,9 @@ class BookingManagementController extends Controller
             ]);
 
             DB::commit();
+
+            // Dispatch BookingStatusChanged event
+            event(new BookingStatusChanged($booking->load('property'), $oldStatus, 'cancelled', $request->user()));
 
             return redirect()->back()
                 ->with('success', 'Booking cancelled successfully.');
@@ -608,13 +730,15 @@ class BookingManagementController extends Controller
     {
         $this->authorize('update', $booking);
 
-        if ($booking->booking_status !== 'confirmed') {
+        if ($booking->booking_status !== 'confirmed' && $booking->payment_status !== 'fully_paid') {
             return redirect()->back()
                 ->with('error', 'Only confirmed bookings can be checked in.');
         }
 
         DB::beginTransaction();
         try {
+            $oldStatus = $booking->booking_status;
+            
             $booking->update([
                 'booking_status' => 'checked_in',
                 'checked_in_at' => now(),
@@ -624,13 +748,16 @@ class BookingManagementController extends Controller
             // Create workflow record
             $booking->workflow()->create([
                 'step' => 'checked_in',
-                'status' => 'completed',
+                'status' => 'in_progress',
                 'processed_by' => $request->user()->id,
                 'processed_at' => now(),
                 'notes' => 'Guest checked in successfully',
             ]);
 
             DB::commit();
+
+            // Dispatch BookingStatusChanged event
+            event(new BookingStatusChanged($booking->load('property'), $oldStatus, 'checked_in', $request->user()));
 
             return redirect()->back()
                 ->with('success', 'Guest checked in successfully.');
@@ -644,7 +771,7 @@ class BookingManagementController extends Controller
     }
 
     /**
-     * Check-out guest
+     * Check-out guest  
      * 
      * @param Request $request
      * @param Booking $booking
@@ -663,6 +790,7 @@ class BookingManagementController extends Controller
         try {
             $booking->update([
                 'booking_status' => 'checked_out',
+                'is_cleaned' => false,
                 'checked_out_at' => now(),
                 'checked_out_by' => $request->user()->id,
             ]);

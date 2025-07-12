@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Property Management System</title>
+    <title>Welcome to Homsjogja</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -60,7 +60,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>Welcome to Property Management System!</h1>
+                        <h1>Welcome to Homsjogja!</h1>
         <p>Your account has been created successfully</p>
     </div>
 
@@ -103,13 +103,13 @@
         <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
 
         <p>Best regards,<br>
-        <strong>Property Management System Team</strong></p>
+                        <strong>Homsjogja Team</strong></p>
     </div>
 
     <div class="footer">
         <p>This email was sent to {{ $user->email }} because an account was created for you.</p>
         <p>If you didn't request this account, please contact our support team immediately.</p>
-        <p>&copy; {{ date('Y') }} Property Management System. All rights reserved.</p>
+        <p>&copy; {{ date('Y') }} Homsjogja. All rights reserved.</p>
     </div>
 </body>
 </html>

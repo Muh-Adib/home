@@ -7,6 +7,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { 
     Upload, 
     Star, 
@@ -55,7 +62,7 @@ export default function MediaUpload({
     propertySlug,
     initialMedia,
     maxFiles = 50,
-    maxFileSize = 50 * 1024 * 1024, // 50MB
+    maxFileSize = 100 * 1024 * 1024, // 100MB (konsisten dengan PHP config)
     acceptedFileTypes = [
         'image/jpeg',
         'image/png', 
@@ -72,6 +79,17 @@ export default function MediaUpload({
     const [isUploading, setIsUploading] = useState(false);
     const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
     const [editingMedia, setEditingMedia] = useState<{[key: number]: boolean}>({});
+
+    // Category options sesuai dengan enum database
+    const categoryOptions = [
+        { value: 'exterior', label: 'Exterior' },
+        { value: 'living_room', label: 'Living Room' },
+        { value: 'bedroom', label: 'Bedroom' },
+        { value: 'kitchen', label: 'Kitchen' },
+        { value: 'bathroom', label: 'Bathroom' },
+        { value: 'amenities', label: 'Amenities' },
+        { value: 'tour', label: 'Virtual Tour' },
+    ];
 
     // FileUpload configuration for media
     const uploadConfig: FileUploadConfig = {
@@ -94,6 +112,31 @@ export default function MediaUpload({
         setTimeout(() => setNotification(null), 5000);
     };
 
+    // Refresh CSRF token
+    const refreshCsrfToken = async () => {
+        try {
+            const response = await fetch('/csrf-token', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                // Update the meta tag
+                const metaTag = document.querySelector('meta[name="csrf-token"]');
+                if (metaTag) {
+                    metaTag.setAttribute('content', data.token);
+                }
+                return data.token;
+            }
+        } catch (error) {
+            console.error('Failed to refresh CSRF token:', error);
+        }
+        return null;
+    };
+
     // Handle file upload
     const handleUpload = async (files: UploadedFile[]) => {
         setIsUploading(true);
@@ -106,11 +149,46 @@ export default function MediaUpload({
                 formData.append(`files[]`, uploadedFile.file);
             });
 
+            // Get CSRF token with better error handling
+            let csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            
+            // If no CSRF token found, try to refresh it
+            if (!csrfToken) {
+                console.log('CSRF token not found, attempting to refresh...');
+                try {
+                    const response = await fetch('/csrf-token', {
+                        method: 'GET',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        csrfToken = data.token;
+                        // Update the meta tag
+                        const metaTag = document.querySelector('meta[name="csrf-token"]');
+                        if (metaTag) {
+                            metaTag.setAttribute('content', data.token);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to refresh CSRF token:', error);
+                }
+            }
+
+            if (!csrfToken) {
+                throw new Error('CSRF token not found. Please refresh the page and try again.');
+            }
+
+            console.log('Uploading to:', `/admin/properties/${propertySlug}/media/upload`);
+            console.log('CSRF Token:', csrfToken ? 'Found' : 'Missing');
+
             // Upload files via MediaController
             const response = await fetch(`/admin/properties/${propertySlug}/media/upload`, {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-CSRF-TOKEN': csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: formData,
@@ -118,7 +196,7 @@ export default function MediaUpload({
 
             const result = await response.json();
 
-            if (result.success) {
+            if (response.ok && result.success) {
                 showNotification('success', `${files.length} file(s) uploaded successfully!`);
                 
                 // Refresh media list
@@ -131,11 +209,47 @@ export default function MediaUpload({
                     }
                 });
             } else {
-                throw new Error(result.message || 'Upload failed');
+                // Handle validation errors
+                if (response.status === 422 && result.errors) {
+                    const errorMessages: string[] = [];
+                    Object.keys(result.errors).forEach(key => {
+                        if (Array.isArray(result.errors[key])) {
+                            errorMessages.push(...result.errors[key]);
+                        } else {
+                            errorMessages.push(result.errors[key]);
+                        }
+                    });
+                    throw new Error(errorMessages.join(', '));
+                }
+                
+                // Handle CSRF token mismatch specifically
+                if (response.status === 419) {
+                    throw new Error('CSRF token mismatch. Please refresh the page and try again.');
+                }
+                
+                // Handle other errors
+                throw new Error(result.message || `Upload failed with status ${response.status}`);
             }
         } catch (error) {
             console.error('Upload error:', error);
-            showNotification('error', error instanceof Error ? error.message : 'Upload failed');
+            
+            // Provide more specific error messages
+            let errorMessage = 'Upload failed';
+            if (error instanceof Error) {
+                if (error.message.includes('CSRF token mismatch') || error.message.includes('419')) {
+                    errorMessage = 'CSRF token mismatch. Please refresh the page and try again.';
+                } else if (error.message.includes('413')) {
+                    errorMessage = 'File too large. Maximum file size is 100MB.';
+                } else if (error.message.includes('422')) {
+                    errorMessage = error.message;
+                } else if (error.message.includes('500')) {
+                    errorMessage = 'Server error. Please try again later.';
+                } else {
+                    errorMessage = error.message;
+                }
+            }
+            
+            showNotification('error', errorMessage);
             throw error;
         } finally {
             setIsUploading(false);
@@ -146,7 +260,7 @@ export default function MediaUpload({
     const updateMedia = async (mediaId: number, metadata: Partial<MediaItem>) => {
         try {
             const response = await fetch(`/admin/media/${mediaId}`, {
-                method: 'PUT',
+                method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
@@ -156,6 +270,7 @@ export default function MediaUpload({
                     alt_text: metadata.alt_text,
                     description: metadata.description,
                     title: metadata.title,
+                    category: metadata.category,
                     is_featured: metadata.is_featured || false,
                     display_order: metadata.display_order
                 }),
@@ -190,7 +305,7 @@ export default function MediaUpload({
     const setFeatured = async (mediaId: number) => {
         try {
             const response = await fetch(`/admin/media/${mediaId}/featured`, {
-                method: 'POST',
+                method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
@@ -482,13 +597,21 @@ export default function MediaUpload({
                                                 {/* Category */}
                                                 <div>
                                                     <Label className="text-xs text-gray-600">Category</Label>
-                                                    <Input
-                                                        size={1}
-                                                        value={item.category || ''}
-                                                        onChange={(e) => handleMetadataUpdate(item.id, 'category', e.target.value)}
-                                                        placeholder="e.g., bedroom, bathroom, kitchen..."
-                                                        className="text-xs mt-1"
-                                                    />
+                                                    <Select
+                                                        value={item.category || 'exterior'}
+                                                        onValueChange={(value) => handleMetadataUpdate(item.id, 'category', value)}
+                                                    >
+                                                        <SelectTrigger className="text-xs mt-1 h-8">
+                                                            <SelectValue placeholder="Select category..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {categoryOptions.map((option) => (
+                                                                <SelectItem key={option.value} value={option.value}>
+                                                                    {option.label}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
                                                 </div>
                                                 
                                                 {/* Display Order */}
@@ -542,7 +665,7 @@ export default function MediaUpload({
                                                 )}
                                                 {item.category && (
                                                     <div>
-                                                        <span className="font-medium">Category:</span> {item.category}
+                                                        <span className="font-medium">Category:</span> {categoryOptions.find(opt => opt.value === item.category)?.label || item.category}
                                                     </div>
                                                 )}
                                                 <div>

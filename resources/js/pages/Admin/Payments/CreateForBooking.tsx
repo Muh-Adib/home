@@ -105,7 +105,7 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
         processed_by: '',
         verified_by: '',
         gateway_transaction_id: '',
-        auto_confirm: false,
+        auto_confirm: false as boolean,
     });
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -151,20 +151,7 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
-        const formData = new FormData();
-        Object.keys(data).forEach(key => {
-            if (key === 'attachment' && data.attachment) {
-                formData.append(key, data.attachment);
-            } else if (key !== 'attachment') {
-                formData.append(key, String(data[key as keyof typeof data]));
-            }
-        });
-
-        post(`/admin/payments/booking/${booking.booking_number}/create`, {
-            data: formData,
-            forceFormData: true,
-        });
+        post(`/admin/payments/booking/${booking.booking_number}/create`);
     };
 
     const getPaymentTypeIcon = (type: string) => {
@@ -570,7 +557,7 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                             <Switch
                                                 id="auto_confirm"
                                                 checked={data.auto_confirm}
-                                                onCheckedChange={(checked) => setData('auto_confirm', checked)}
+                                                onCheckedChange={(checked:boolean) => setData('auto_confirm', checked)}
                                             />
                                             <Label htmlFor="auto_confirm">
                                                 Auto-confirm booking when fully paid

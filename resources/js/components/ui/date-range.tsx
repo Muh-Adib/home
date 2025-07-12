@@ -12,6 +12,35 @@ import { DateRange as DateRangeType } from 'react-day-picker';
 import { format, addDays, differenceInDays } from 'date-fns';
 import { id } from 'date-fns/locale';
 
+// Custom CSS for range selection styling
+const customCalendarStyles = `
+  .rdp-day_range_start:not(.rdp-day_outside) {
+    background-color: #059669 !important;
+    color: white !important;
+    border: 2px solid #047857 !important;
+    font-weight: bold !important;
+  }
+  
+  .rdp-day_range_end:not(.rdp-day_outside) {
+    background-color: #059669 !important;
+    color: white !important;
+    border: 2px solid #047857 !important;
+    font-weight: bold !important;
+  }
+  
+  .rdp-day_range_middle:not(.rdp-day_outside) {
+    background-color: #10b981 !important;
+    color: white !important;
+    opacity: 0.6 !important;
+  }
+  
+  .rdp-day_selected:not(.rdp-day_outside) {
+    background-color: #059669 !important;
+    color: white !important;
+    font-weight: bold !important;
+  }
+`;
+
 interface DateRangeProps {
     startDate?: string;
     endDate?: string;
@@ -420,6 +449,35 @@ export function DateRange({
 
     return (
         <div className={cn('w-full', className)}>
+            {/* Custom styles for calendar range selection */}
+            <style>{`
+                .rdp-day_range_start:not(.rdp-day_outside) {
+                    background-color: #059669 !important;
+                    color: white !important;
+                    border: 2px solid #047857 !important;
+                    font-weight: bold !important;
+                }
+                
+                .rdp-day_range_end:not(.rdp-day_outside) {
+                    background-color: #059669 !important;
+                    color: white !important;
+                    border: 2px solid #047857 !important;
+                    font-weight: bold !important;
+                }
+                
+                .rdp-day_range_middle:not(.rdp-day_outside) {
+                    background-color: #10b981 !important;
+                    color: white !important;
+                    opacity: 0.6 !important;
+                }
+                
+                .rdp-day_selected:not(.rdp-day_outside) {
+                    background-color: #059669 !important;
+                    color: white !important;
+                    font-weight: bold !important;
+                }
+            `}</style>
+            
             <Popover
                 open={isOpen}
                 onOpenChange={(open) => {
@@ -528,7 +586,7 @@ export function DateRange({
                                 defaultMonth={dateRange?.from || new Date()}
                                 selected={getPreviewRange()}
                                 onSelect={handleDateSelect}
-                                numberOfMonths={compact ? 1 : 2}
+                                numberOfMonths={1}
                                 disabled={disabledDates}
                                 onDayMouseEnter={(date) => {
                                     if (dateRange?.from && !dateRange?.to) {
@@ -560,28 +618,31 @@ export function DateRange({
                                 }}
                                 modifiersStyles={{
                                     booked: {
-                                        backgroundColor: 'hsl(var(--destructive))',
-                                        color: 'hsl(var(--destructive-foreground))',
-                                        opacity: 0.5,
+                                        backgroundColor: '#f97316', // Orange-500
+                                        color: 'white',
+                                        opacity: 0.8,
                                         textDecoration: 'line-through',
+                                        fontWeight: 'normal',
                                     },
                                     hovered: {
-                                        backgroundColor: 'hsl(var(--primary))',
-                                        color: 'hsl(var(--primary-foreground))',
-                                        opacity: 0.3,
+                                        backgroundColor: '#10b981', // Emerald-500 (green)
+                                        color: 'white',
+                                        opacity: 0.4,
                                     },
                                     startSelected: {
-                                        backgroundColor: 'hsl(var(--primary))',
-                                        color: 'hsl(var(--primary-foreground))',
+                                        backgroundColor: '#059669', // Emerald-600 (darker green)
+                                        color: 'white',
                                         fontWeight: 'bold',
+                                        border: '2px solid #047857', // Emerald-700 border
                                     },
                                     endSelected: {
-                                        backgroundColor: 'hsl(var(--primary))',
-                                        color: 'hsl(var(--primary-foreground))',
+                                        backgroundColor: '#059669', // Emerald-600 (darker green)
+                                        color: 'white',
                                         fontWeight: 'bold',
+                                        border: '2px solid #047857', // Emerald-700 border
                                     },
                                 }}
-                                className="rounded-md border-0"
+                                className="rounded-md border-0 green-calendar-theme"
                                 locale={id}
                             />
                         )}
@@ -626,15 +687,15 @@ export function DateRange({
 
                         <div className="flex items-center gap-4 mt-2 pt-2 border-t text-xs">
                             <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-destructive opacity-50 border border-destructive rounded"></div>
+                                <div className="w-3 h-3 rounded" style={{ backgroundColor: '#f97316', opacity: 0.8 }}></div>
                                 <span>Dipesan</span>
                             </div>
                             <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-primary border border-primary rounded"></div>
+                                <div className="w-3 h-3 rounded" style={{ backgroundColor: '#059669', border: '1px solid #047857' }}></div>
                                 <span>Dipilih</span>
                             </div>
                             <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-primary opacity-30 border border-primary rounded"></div>
+                                <div className="w-3 h-3 rounded" style={{ backgroundColor: '#10b981', opacity: 0.4 }}></div>
                                 <span>Preview</span>
                             </div>
                             <div className="flex items-center gap-1">

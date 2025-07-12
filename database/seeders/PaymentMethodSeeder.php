@@ -23,7 +23,7 @@ class PaymentMethodSeeder extends Seeder
                 'icon' => '🏦',
                 'description' => 'Transfer ke rekening BCA',
                 'account_number' => '1234567890',
-                'account_name' => 'PropertyMS Indonesia',
+                'account_name' => 'Homsjogja Indonesia',
                 'bank_name' => 'Bank Central Asia',
                 'instructions' => [
                     'Transfer ke nomor rekening yang tertera',
@@ -41,7 +41,7 @@ class PaymentMethodSeeder extends Seeder
                 'icon' => '🏦',
                 'description' => 'Transfer ke rekening Mandiri',
                 'account_number' => '0987654321',
-                'account_name' => 'PropertyMS Indonesia',
+                'account_name' => 'Homsjogja Indonesia',
                 'bank_name' => 'Bank Mandiri',
                 'instructions' => [
                     'Transfer ke nomor rekening yang tertera',
@@ -59,7 +59,7 @@ class PaymentMethodSeeder extends Seeder
                 'icon' => '🏦',
                 'description' => 'Transfer ke rekening BNI',
                 'account_number' => '1122334455',
-                'account_name' => 'PropertyMS Indonesia',
+                'account_name' => 'Homsjogja Indonesia',
                 'bank_name' => 'Bank Negara Indonesia',
                 'instructions' => [
                     'Transfer ke nomor rekening yang tertera',
@@ -79,7 +79,7 @@ class PaymentMethodSeeder extends Seeder
                 'icon' => '📱',
                 'description' => 'Transfer via OVO',
                 'account_number' => '081234567890',
-                'account_name' => 'PropertyMS',
+                'account_name' => 'Homsjogja',
                 'instructions' => [
                     'Transfer ke nomor OVO yang tertera',
                     'Gunakan catatan: kode booking',
@@ -96,7 +96,7 @@ class PaymentMethodSeeder extends Seeder
                 'icon' => '📱',
                 'description' => 'Transfer via GoPay',
                 'account_number' => '081234567890',
-                'account_name' => 'PropertyMS',
+                'account_name' => 'Homsjogja',
                 'instructions' => [
                     'Transfer ke nomor GoPay yang tertera',
                     'Gunakan catatan: kode booking',
@@ -113,7 +113,7 @@ class PaymentMethodSeeder extends Seeder
                 'icon' => '📱',
                 'description' => 'Transfer via DANA',
                 'account_number' => '081234567890',
-                'account_name' => 'PropertyMS',
+                'account_name' => 'Homsjogja',
                 'instructions' => [
                     'Transfer ke nomor DANA yang tertera',
                     'Gunakan catatan: kode booking',
@@ -134,7 +134,7 @@ class PaymentMethodSeeder extends Seeder
                 'instructions' => [
                     'Hubungi customer service kami',
                     'Atur jadwal pembayaran tunai',
-                    'Lokasi: kantor PropertyMS',
+                    'Lokasi: kantor Homsjogja',
                     'Bawa kode booking untuk verifikasi'
                 ],
                 'is_active' => true,

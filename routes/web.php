@@ -29,6 +29,11 @@ Route::get('/locale/{locale}', function (string $locale) {
     return back();
 })->name('locale.switch');
 
+// CSRF token refresh for AJAX requests
+Route::get('/csrf-token', function () {
+    return response()->json(['token' => csrf_token()]);
+})->name('csrf.token');
+
 // Homepage
 Route::get('/', function () {
     $featuredProperties = \App\Models\Property::active()
@@ -80,10 +85,12 @@ Route::controller(PaymentController::class)->group(function () {
 
 // Public API Routes
 Route::prefix('api')->name('api.')->group(function () {
-    Route::get('properties/{property:slug}/calculate-rate', [PropertyController::class, 'calculateRate'])
+    Route::get('properties/{property:slug}/calculate-rate', [BookingController::class, 'calculateRate'])
         ->name('properties.calculate-rate');
     Route::get('properties/{property:slug}/availability', [BookingController::class, 'getAvailability'])
         ->name('properties.availability');
+    Route::get('properties/{property:slug}/availability-and-rates', [BookingController::class, 'getAvailabilityAndRates'])
+        ->name('properties.availability-and-rates');
     Route::post('check-email', [BookingController::class, 'checkEmailExists'])
         ->name('check-email');
 });
@@ -148,16 +155,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
 */
 
 Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])->prefix('admin')->name('admin.')->group(function () {
-    // Property Management
-    Route::controller(PropertyController::class)->group(function () {
-        Route::get('properties', 'admin_index')->name('properties.index');
+    // Property Management - Now using dedicated PropertyManagementController
+    Route::controller(App\Http\Controllers\Admin\PropertyManagementController::class)->group(function () {
+        Route::get('properties', 'index')->name('properties.index');
         Route::get('properties/create', 'create')->name('properties.create');
         Route::post('properties', 'store')->name('properties.store');
-        Route::get('properties/{property:slug}', 'admin_show')->name('properties.show');
+        Route::get('properties/{property:slug}', 'show')->name('properties.show');
         Route::get('properties/{property:slug}/edit', 'edit')->name('properties.edit');
         Route::put('properties/{property:slug}', 'update')->name('properties.update');
         Route::delete('properties/{property:slug}', 'destroy')->name('properties.destroy');
         Route::get('properties/{property}/media', 'media')->name('properties.media');
+        
+        // Additional property management features
+        Route::post('properties/bulk-status', 'bulkStatus')->name('properties.bulk-status');
+        Route::patch('properties/{property:slug}/toggle-featured', 'toggleFeatured')->name('properties.toggle-featured');
+        Route::post('properties/{property:slug}/duplicate', 'duplicate')->name('properties.duplicate');
+        Route::get('properties/{property:slug}/analytics', 'analytics')->name('properties.analytics');
     });
     
     // Media Management
@@ -221,7 +234,14 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         // Main booking routes
         Route::get('bookings', 'index')->name('bookings.index');
         Route::get('bookings/calendar', 'calendar')->name('bookings.calendar');
+
+        Route::get('bookings/create', 'create')->name('bookings.create');
+        Route::post('bookings', 'store')->name('bookings.store');
+        
         Route::get('bookings/{booking:booking_number}', 'show')->name('bookings.show');
+        Route::get('bookings/timeline', 'timeline')->name('bookings.timeline');
+        Route::get('bookings/timeline/{booking:booking_number}', 'timeline')->name('bookings.timeline.show');
+        
         Route::patch('bookings/{booking:booking_number}/verify', 'verify')->name('bookings.verify');
         Route::patch('bookings/{booking:booking_number}/cancel', 'cancel')->name('bookings.cancel');
         Route::patch('bookings/{booking:booking_number}/checkin', 'checkin')->name('bookings.checkin');
@@ -241,6 +261,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::get('timeline', [$controller, 'timeline']);
         Route::post('check-availability', [$controller, 'checkAvailability']);
         Route::post('calculate-rate', [$controller, 'calculateRate']);
+        Route::get('property-date-range', [$controller, 'getPropertyDateRange']);
     });
     
     // Cleaning Management
@@ -265,6 +286,18 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
             Route::post('{cleaningTask}/submit-review', 'submitForReview')->name('submit-review');
             Route::post('{cleaningTask}/approve', 'approve')->name('approve');
             Route::get('calendar/data', 'calendar')->name('calendar');
+            Route::post('bulk-action', 'bulkAction')->name('bulk-action');
+        });
+    
+    // Cleaning Staff Management
+    Route::controller(App\Http\Controllers\Admin\CleaningStaffController::class)
+        ->prefix('cleaning-staff')
+        ->name('cleaning-staff.')
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('{bookingId}/mark-cleaned', 'markAsCleaned')->name('mark-cleaned');
+            Route::get('{bookingId}/generate-keybox', 'generateKeyboxCode')->name('generate-keybox');
+            Route::get('stats', 'getCleaningStats')->name('stats');
         });
     
     // Cleaning Schedules

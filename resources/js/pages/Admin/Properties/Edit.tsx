@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Head, useForm, Link } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,21 +37,20 @@ interface EditPropertyProps extends PageProps {
 }
 
 export default function EditProperty({ property, amenities }: EditPropertyProps) {
-    const [selectedAmenities, setSelectedAmenities] = useState<number[]>(
-        property.amenities?.map((a: Amenity) => a.id) || []
-    );
     const [showMap, setShowMap] = useState(false);
     const [mapCenter, setMapCenter] = useState({ 
         lat: property.lat || -6.2088, 
         lng: property.lng || 106.8456 
     });
 
+    // Initialize form data with property values
     const { data, setData, put, processing, errors } = useForm({
         name: property.name || '',
         description: property.description || '',
         address: property.address || '',
-        lat: property.lat || null,
-        lng: property.lng || null,
+        lat: property.lat || null as number | null,
+        lng: property.lng || null as number | null,
+        maps_link: property.maps_link || '',
         capacity: property.capacity || 2,
         capacity_max: property.capacity_max || 4,
         bedroom_count: property.bedroom_count || 1,
@@ -70,8 +69,21 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
         is_featured: property.is_featured || false,
         seo_title: property.seo_title || '',
         seo_description: property.seo_description || '',
-        amenities: selectedAmenities,
+        amenities: property.amenities?.map((a: Amenity) => a.id) || [],
     });
+
+    // Sync selectedAmenities with form data
+    const selectedAmenities = data.amenities || [];
+
+    // Debug: Log form data changes
+    useEffect(() => {
+        console.log('Form data updated:', data);
+    }, [data]);
+
+    // Debug: Log property changes
+    useEffect(() => {
+        console.log('Property prop updated:', property);
+    }, [property]);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -82,7 +94,18 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        put(`/admin/properties/${property.slug}`);
+        console.log('Submitting form data:', data);
+        put(`/admin/properties/${property.slug}`, {
+            onSuccess: (page) => {
+                console.log('Property updated successfully:', page);
+            },
+            onError: (errors) => {
+                console.error('Update failed:', errors);
+            },
+            onFinish: () => {
+                console.log('Form submission finished');
+            }
+        });
     };
 
     const handleLocationChange = useCallback((lat: number, lng: number) => {
@@ -109,11 +132,11 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
 
     const handleAmenityToggle = (amenityId: number) => {
         const updated = selectedAmenities.includes(amenityId)
-            ? selectedAmenities.filter(id => id !== amenityId)
+            ? selectedAmenities.filter((id: number) => id !== amenityId)
             : [...selectedAmenities, amenityId];
         
-        setSelectedAmenities(updated);
         setData('amenities', updated);
+        console.log('Amenities updated:', updated);
     };
 
     const formatCurrency = (value: number) => 
@@ -163,6 +186,23 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Debug Information */}
+                    {process.env.NODE_ENV === 'development' && (
+                        <Card className="border-yellow-200 bg-yellow-50">
+                            <CardHeader>
+                                <CardTitle className="text-yellow-800 text-sm">Debug Information</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-xs text-yellow-700 space-y-1">
+                                    <div><strong>Form Data:</strong> {JSON.stringify(data, null, 2)}</div>
+                                    <div><strong>Selected Amenities:</strong> {selectedAmenities.join(', ')}</div>
+                                    <div><strong>Property Amenities:</strong> {property.amenities?.map((a: Amenity) => a.id).join(', ')}</div>
+                                    <div><strong>Errors:</strong> {Object.keys(errors).length > 0 ? JSON.stringify(errors) : 'None'}</div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {/* Basic Information */}
                     <Card>
                         <CardHeader>
@@ -611,35 +651,6 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                         rows={2}
                                     />
                                 </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Media Management */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <ImageIcon className="h-5 w-5" />
-                                Media Management
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <p className="text-muted-foreground">
-                                Manage photos and videos for your property to attract more guests.
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <Button variant="outline" asChild>
-                                    <Link href={`/admin/properties/${property.slug}/media`}>
-                                        <ImageIcon className="h-4 w-4 mr-2" />
-                                        Manage Media ({property.media?.length || 0} files)
-                                    </Link>
-                                </Button>
-                                <Button variant="outline" asChild>
-                                    <Link href={`/admin/properties/${property.slug}`}>
-                                        <Eye className="h-4 w-4 mr-2" />
-                                        View Property
-                                    </Link>
-                                </Button>
                             </div>
                         </CardContent>
                     </Card>

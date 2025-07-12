@@ -44,6 +44,12 @@ return new class extends Migration
             $table->enum('verification_status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->datetime('dp_deadline')->nullable();
             $table->text('special_requests')->nullable();
+            $table->text('checkin_instruction')->nullable();
+            $table->string('keybox_code', 3)->nullable();
+            $table->string('maps_link')->nullable();
+            $table->boolean('is_cleaned')->default(false);
+            $table->timestamp('cleaned_at')->nullable();
+            $table->foreignId('cleaned_by')->nullable()->constrained('users');
             $table->text('internal_notes')->nullable();
             $table->text('cancellation_reason')->nullable();
             $table->timestamp('cancelled_at')->nullable();

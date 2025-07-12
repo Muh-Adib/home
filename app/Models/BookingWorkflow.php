@@ -175,6 +175,7 @@ class BookingWorkflow extends Model
         return $query->where('step', $step);
     }
 
+
     /**
      * Create workflow entry for booking status change
      */

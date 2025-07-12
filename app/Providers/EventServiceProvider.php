@@ -3,9 +3,13 @@
 namespace App\Providers;
 
 use App\Events\BookingCreated;
+use App\Events\BookingStatusChanged;
 use App\Events\PaymentCreated;
+use App\Events\PaymentStatusChanged;
 use App\Listeners\SendBookingNotification;
+use App\Listeners\SendBookingStatusNotification;
 use App\Listeners\SendPaymentNotification;
+use App\Listeners\SendPaymentStatusChangedNotification;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -28,9 +32,17 @@ class EventServiceProvider extends ServiceProvider
             SendBookingNotification::class,
         ],
 
+        BookingStatusChanged::class => [
+            SendBookingStatusNotification::class,
+        ],
+
         // Payment Events
         PaymentCreated::class => [
             SendPaymentNotification::class,
+        ],
+
+        PaymentStatusChanged::class => [
+            SendPaymentStatusChangedNotification::class,
         ],
     ];
 

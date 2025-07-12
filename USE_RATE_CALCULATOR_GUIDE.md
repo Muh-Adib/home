@@ -1,0 +1,1 @@
+"# useRateCalculator Hook Implementation Guide" 

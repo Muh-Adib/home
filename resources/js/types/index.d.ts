@@ -68,6 +68,7 @@ export interface Property {
     slug: string;
     description: string;
     address: string;
+    maps_link?: string;
     lat?: number;
     lng?: number;
     capacity: number;
@@ -97,6 +98,7 @@ export interface Property {
     media?: PropertyMedia[];
     coverImage?: PropertyMedia[];
     formatted_base_rate?: string;
+    bookings?: Booking[];
 }
 
 export interface PropertyMedia {
@@ -111,6 +113,7 @@ export interface PropertyMedia {
     sort_order: number;
     is_featured: boolean;
     url: string;
+    thumbnail_url?: string;
     created_at: string;
     updated_at: string;
 }
@@ -119,12 +122,14 @@ export interface Amenity {
     id: number;
     name: string;
     description?: string;
-    icon?: string;
-    category: 'basic' | 'kitchen' | 'bathroom' | 'entertainment' | 'outdoor' | 'safety';
-    is_featured: boolean;
+    icon: string; // Icon name string dari database (e.g., 'wifi', 'snowflake')
+    category: string;
+    is_active: boolean;
+    sort_order: number;
     created_at: string;
     updated_at: string;
 }
+
 
 export interface PropertyAmenity {
     id: number;
@@ -171,8 +176,25 @@ export interface Booking {
     verified_at?: string;
     cancelled_by?: number;
     cancelled_at?: string;
+    source: string;
     created_at: string;
     updated_at: string;
+    //rate calculation
+    current_rate_calculation?: any;
+    current_total_rate?: number;
+    current_rate_per_night?: number;
+    formatted_current_rate?: string;
+    has_seasonal_rate?: boolean;
+    seasonal_rate_info?: {
+        name: string;
+        description: string;
+        rate_value: number;
+        rate_type: string;
+        start_date: string;
+        end_date: string;
+    }[];
+    rate_breakdown?: {};
+
     property?: Property;
     guests?: BookingGuest[];
     services?: BookingService[];

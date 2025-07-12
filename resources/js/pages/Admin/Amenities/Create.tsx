@@ -14,9 +14,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, Building2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { BreadcrumbItem } from '@/types';
+import { BreadcrumbItem, Amenity} from '@/types';
+import { getAvailableIcons } from '@/lib/lucide-icons';
+import AmenityItem from '@/components/AmenityItem';
 
 interface CreateAmenityProps {
     categories: Record<string, string>;
@@ -49,62 +51,50 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
         }, 0);
     };
 
-    const iconOptions = [
-        { value: 'none', label: '🚫 None' },
-        { value: 'wifi', label: '📶 WiFi' },
-        { value: 'snowflake', label: '❄️ AC' },
-        { value: 'car', label: '🚗 Parking' },
-        { value: 'tv', label: '📺 TV' },
-        { value: 'shirt', label: '🧺 Linens' },
-        { value: 'chef-hat', label: '👨‍🍳 Kitchen' },
-        { value: 'refrigerator', label: '🧊 Fridge' },
-        { value: 'microwave', label: '📻 Microwave' },
-        { value: 'coffee', label: '☕ Coffee' },
-        { value: 'utensils', label: '🍽️ Dining' },
-        { value: 'droplets', label: '🚿 Hot Water' },
-        { value: 'wind', label: '💨 Hair Dryer' },
-        { value: 'soap', label: '🧼 Toiletries' },
-        { value: 'play', label: '▶️ Streaming' },
-        { value: 'speaker', label: '🔊 Sound' },
-        { value: 'gamepad-2', label: '🎮 Games' },
-        { value: 'waves', label: '🏊 Pool' },
-        { value: 'trees', label: '🌳 Garden' },
-        { value: 'flame', label: '🔥 BBQ' },
-        { value: 'armchair', label: '🪑 Seating' },
-        { value: 'umbrella', label: '🏖️ Beach' },
-        { value: 'camera', label: '📷 Security' },
-        { value: 'lock', label: '🔒 Safe' },
-        { value: 'heart-pulse', label: '🩹 First Aid' },
-        { value: 'fire-extinguisher', label: '🧯 Fire Safety' },
-    ];
+    const iconOptions = getAvailableIcons();
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Amenities', href: '/admin/amenities' },
+        { title: 'Create Amenity', href: '' },
     ];
+
+    // Create mock amenity object for preview
+    const previewAmenity: Amenity = {
+        id: 0,
+        name: data.name || 'Amenity Name',
+        icon: data.icon === 'none' ? '' : data.icon,
+        category: data.category,
+        description: data.description,
+        is_active: data.is_active,
+        sort_order: data.sort_order,
+        created_at: '',
+        updated_at: '',
+    };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Create Amenity" />
-
-            <div className="space-y-6">
+            
+            <div className="space-y-6 p-4 md:p-6">
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                        <Link href={route('admin.amenities.index')}>
-                            <Button variant="outline" size="sm">
-                                <ArrowLeft className="w-4 h-4 mr-2" />
-                                Back to Amenities
-                            </Button>
+                <div className="flex items-center gap-4">
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href="/admin/amenities">
+                            <ArrowLeft className="h-4 w-4 mr-2" />
+                            Back
                         </Link>
-                        <div>
-                            <h1 className="text-3xl font-bold text-gray-900">Create New Amenity</h1>
-                            <p className="text-gray-600 mt-1">Add a new amenity to the system</p>
-                        </div>
+                    </Button>
+                    
+                    <div>
+                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Create Amenity</h1>
+                        <p className="text-muted-foreground">
+                            Add a new amenity for properties
+                        </p>
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit}>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Main Form */}
                         <div className="lg:col-span-2 space-y-6">
@@ -115,13 +105,15 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
                                 <CardContent className="space-y-6">
                                     {/* Name */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="name">Amenity Name *</Label>
+                                        <Label htmlFor="name">
+                                            Name <span className="text-red-500">*</span>
+                                        </Label>
                                         <Input
                                             id="name"
                                             value={data.name}
                                             onChange={(e) => setData('name', e.target.value)}
-                                            placeholder="e.g. WiFi, Swimming Pool, Air Conditioning"
-                                            className={errors.name ? 'border-red-500' : ''}
+                                            placeholder="Enter amenity name"
+                                            required
                                         />
                                         {errors.name && (
                                             <p className="text-sm text-red-600">{errors.name}</p>
@@ -150,14 +142,16 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
 
                                     {/* Category */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="category">Category *</Label>
+                                        <Label htmlFor="category">
+                                            Category <span className="text-red-500">*</span>
+                                        </Label>
                                         <Select value={data.category} onValueChange={(value) => setData('category', value)}>
-                                            <SelectTrigger className={errors.category ? 'border-red-500' : ''}>
-                                                <SelectValue placeholder="Select a category" />
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select category" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {Object.entries(categories).map(([key, label]) => (
-                                                    <SelectItem key={key} value={key}>
+                                                {Object.entries(categories).map(([value, label]) => (
+                                                    <SelectItem key={value} value={value}>
                                                         {label}
                                                     </SelectItem>
                                                 ))}
@@ -175,13 +169,35 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
                                             id="description"
                                             value={data.description}
                                             onChange={(e) => setData('description', e.target.value)}
-                                            placeholder="Brief description of the amenity..."
-                                            rows={4}
-                                            className={errors.description ? 'border-red-500' : ''}
+                                            placeholder="Enter amenity description (optional)"
+                                            rows={3}
                                         />
                                         {errors.description && (
                                             <p className="text-sm text-red-600">{errors.description}</p>
                                         )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Settings */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Settings</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    {/* Active Status */}
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="is_active">Active Status</Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                Whether this amenity is available for properties
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            id="is_active"
+                                            checked={data.is_active}
+                                            onCheckedChange={(checked) => setData('is_active', checked)}
+                                        />
                                     </div>
 
                                     {/* Sort Order */}
@@ -194,10 +210,9 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
                                             onChange={(e) => setData('sort_order', parseInt(e.target.value) || 0)}
                                             placeholder="0"
                                             min="0"
-                                            className={errors.sort_order ? 'border-red-500' : ''}
                                         />
-                                        <p className="text-sm text-gray-500">
-                                            Lower numbers appear first. Leave 0 for automatic ordering.
+                                        <p className="text-sm text-muted-foreground">
+                                            Lower numbers appear first in listings
                                         </p>
                                         {errors.sort_order && (
                                             <p className="text-sm text-red-600">{errors.sort_order}</p>
@@ -207,89 +222,79 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
                             </Card>
                         </div>
 
-                        {/* Sidebar */}
+                        {/* Preview */}
                         <div className="space-y-6">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Status & Settings</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-6">
-                                    {/* Active Status */}
-                                    <div className="flex items-center justify-between">
-                                        <div className="space-y-0.5">
-                                            <Label htmlFor="is_active">Active Status</Label>
-                                            <p className="text-sm text-gray-500">
-                                                Enable this amenity for properties
-                                            </p>
-                                        </div>
-                                        <Switch
-                                            id="is_active"
-                                            checked={data.is_active}
-                                            onCheckedChange={(checked) => setData('is_active', Boolean(checked))}
-                                        />
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {/* Preview */}
                             <Card>
                                 <CardHeader>
                                     <CardTitle>Preview</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="space-y-3">
-                                        <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                                <span className="text-blue-600 text-sm">
-                                                    {data.icon && data.icon !== 'none' ? iconOptions.find(i => i.value === data.icon)?.label.split(' ')[0] : '🏠'}
-                                                </span>
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="font-medium text-gray-900">
-                                                    {data.name || 'Amenity Name'}
-                                                </div>
-                                                {data.description && (
-                                                    <div className="text-sm text-gray-500 mt-1">
-                                                        {data.description}
-                                                    </div>
-                                                )}
+                                        {/* Card Preview */}
+                                        <AmenityItem 
+                                            amenity={previewAmenity}
+                                            variant="card"
+                                            showName={true}
+                                        />
+                                        
+                                        {/* Badge Preview */}
+                                        <div className="pt-4 border-t">
+                                            <Label className="text-sm font-medium mb-2 block">Badge Preview:</Label>
+                                            <div className="flex gap-2">
+                                                <AmenityItem 
+                                                    amenity={previewAmenity}
+                                                    variant="badge"
+                                                    showName={false}
+                                                />
+                                                <AmenityItem 
+                                                    amenity={previewAmenity}
+                                                    variant="badge"
+                                                    showName={true}
+                                                />
                                             </div>
                                         </div>
                                         
-                                        <div className="text-sm text-gray-500">
-                                            <p><strong>Category:</strong> {categories[data.category] || 'Not selected'}</p>
-                                            <p><strong>Status:</strong> {data.is_active ? 'Active' : 'Inactive'}</p>
-                                            <p><strong>Sort Order:</strong> {data.sort_order}</p>
+                                        {/* List Preview */}
+                                        <div className="pt-4 border-t">
+                                            <Label className="text-sm font-medium mb-2 block">List Preview:</Label>
+                                            <AmenityItem 
+                                                amenity={previewAmenity}
+                                                variant="list"
+                                                showName={true}
+                                            />
                                         </div>
                                     </div>
                                 </CardContent>
                             </Card>
 
                             {/* Help Text */}
-                            <Alert>
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertDescription>
-                                    <strong>Tips:</strong>
-                                    <ul className="mt-2 space-y-1 text-sm">
-                                        <li>• Use clear, descriptive names</li>
-                                        <li>• Choose appropriate categories</li>
-                                        <li>• Add helpful descriptions for guests</li>
-                                        <li>• Use sort order to prioritize important amenities</li>
-                                    </ul>
-                                </AlertDescription>
-                            </Alert>
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <AlertCircle className="h-4 w-4" />
+                                        Guidelines
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-2 text-sm text-muted-foreground">
+                                        <p>• Use clear, descriptive names</p>
+                                        <p>• Choose appropriate icons that represent the amenity</p>
+                                        <p>• Select the correct category for proper grouping</p>
+                                        <p>• Add descriptions for better understanding</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
                     </div>
 
-                    {/* Submit Buttons */}
-                    <div className="flex justify-end space-x-4 pt-6 border-t">
-                        <Link href={route('admin.amenities.index')}>
-                            <Button variant="outline" type="button">
-                                Cancel
-                            </Button>
-                        </Link>
+                    {/* Footer Actions */}
+                    <div className="flex items-center justify-between pt-6 border-t">
+                        <Button type="button" variant="outline" asChild>
+                            <Link href="/admin/amenities">Cancel</Link>
+                        </Button>
+                        
                         <Button type="submit" disabled={processing}>
-                            <Save className="w-4 h-4 mr-2" />
+                            <Save className="h-4 w-4 mr-2" />
                             {processing ? 'Creating...' : 'Create Amenity'}
                         </Button>
                     </div>

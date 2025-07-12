@@ -304,9 +304,9 @@ class SettingsController extends Controller
         ]);
 
         try {
-            \Mail::raw('This is a test email from Property Management System.', function ($message) use ($validated) {
+            \Mail::raw('This is a test email from Homsjogja.', function ($message) use ($validated) {
                 $message->to($validated['test_email'])
-                        ->subject('Test Email - Property Management System');
+                        ->subject('Test Email - Homsjogja');
             });
 
             return back()->with('success', 'Test email berhasil dikirim ke ' . $validated['test_email']);
@@ -355,9 +355,9 @@ class SettingsController extends Controller
     private function getGeneralSettings(): array
     {
         return [
-            'site_name' => config('app.name', 'Property Management System'),
+            'site_name' => config('app.name', 'Homsjogja'),
             'site_description' => config('app.description', 'Modern property management and booking system'),
-            'contact_email' => config('mail.from.address', 'contact@propertyms.com'),
+            'contact_email' => config('mail.from.address', 'contact@homsjogja.com'),
             'contact_phone' => config('app.contact_phone', '+62 123 456 7890'),
             'contact_address' => config('app.contact_address', 'Jakarta, Indonesia'),
             'timezone' => config('app.timezone', 'Asia/Jakarta'),

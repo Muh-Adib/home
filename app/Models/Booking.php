@@ -46,6 +46,12 @@ class Booking extends Model
         'verification_status',
         'dp_deadline',
         'special_requests',
+        'checkin_instruction',
+        'keybox_code',
+        'maps_link',
+        'is_cleaned',
+        'cleaned_at',
+        'cleaned_by',
         'internal_notes',
         'cancellation_reason',
         'cancelled_at',
@@ -71,7 +77,9 @@ class Booking extends Model
         'dp_deadline' => 'datetime',
         'cancelled_at' => 'datetime',
         'verified_at' => 'datetime',
+        'cleaned_at' => 'datetime',
         'payment_token_expires_at' => 'datetime',
+        'is_cleaned' => 'boolean',
     ];
 
     // Boot method untuk auto-generate booking number
@@ -149,6 +157,16 @@ class Booking extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function cleanedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cleaned_by');
+    }
+
+    public function review()
+    {
+        return $this->hasOne(Review::class);
     }
 
     // Scopes

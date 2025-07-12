@@ -6,7 +6,7 @@ import { initializeTheme } from './hooks/use-appearance';
 import './lib/echo'; // Initialize enhanced Echo with fallback
 import './lib/i18n';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'Homsjogja';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

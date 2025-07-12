@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Rate Calculation API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin-top: 20px; padding: 15px; border-radius: 4px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Rate Calculation API</h1>
+        
+        <form id="testForm">
+            <div class="form-group">
+                <label for="propertySlug">Property Slug:</label>
+                <input type="text" id="propertySlug" name="propertySlug" value="villa-pondok-sakura" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="checkIn">Check In:</label>
+                <input type="date" id="checkIn" name="checkIn" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="checkOut">Check Out:</label>
+                <input type="date" id="checkOut" name="checkOut" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="guestCount">Guest Count:</label>
+                <input type="number" id="guestCount" name="guestCount" value="4" min="1" max="20" required>
+            </div>
+            
+            <button type="submit">Test Rate Calculation</button>
+        </form>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Set default dates (tomorrow and day after)
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const dayAfter = new Date();
+        dayAfter.setDate(dayAfter.getDate() + 2);
+        
+        document.getElementById('checkIn').value = tomorrow.toISOString().split('T')[0];
+        document.getElementById('checkOut').value = dayAfter.toISOString().split('T')[0];
+
+        document.getElementById('testForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const propertySlug = formData.get('propertySlug');
+            const checkIn = formData.get('checkIn');
+            const checkOut = formData.get('checkOut');
+            const guestCount = formData.get('guestCount');
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const params = new URLSearchParams({
+                    check_in: checkIn,
+                    check_out: checkOut,
+                    guest_count: guestCount
+                });
+                
+                console.log('Testing with params:', Object.fromEntries(params));
+                
+                const response = await fetch(`/api/properties/${propertySlug}/calculate-rate?${params}`, {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <h3>✅ Success!</h3>
+                            <p><strong>Total Amount:</strong> ${data.formatted?.total_amount || 'N/A'}</p>
+                            <p><strong>Nights:</strong> ${data.calculation?.nights || 'N/A'}</p>
+                            <details>
+                                <summary>Full Response</summary>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <h3>❌ Error ${response.status}</h3>
+                            <p><strong>Message:</strong> ${data.message || 'Unknown error'}</p>
+                            ${data.errors ? `<p><strong>Validation Errors:</strong></p><pre>${JSON.stringify(data.errors, null, 2)}</pre>` : ''}
+                            ${data.debug_info ? `<p><strong>Debug Info:</strong></p><pre>${JSON.stringify(data.debug_info, null, 2)}</pre>` : ''}
+                            <details>
+                                <summary>Full Response</summary>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('Fetch error:', error);
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Network Error</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html> 

@@ -5,16 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2 } from 'lucide-react';
-import { BreadcrumbItem } from '@/types';
+import { BreadcrumbItem, Amenity as BaseAmenity } from '@/types';
+import AmenityItem from '@/components/AmenityItem';
 
-interface Amenity {
-    id: number;
-    name: string;
-    icon: string;
-    category: string;
-    description: string;
-    is_active: boolean;
-    sort_order: number;
+// Extend Amenity interface for Index page with properties_count
+interface Amenity extends BaseAmenity {
     properties_count?: number;
 }
 
@@ -45,7 +40,7 @@ export default function AmenitiesIndex({ amenities, categories }: AmenitiesIndex
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Amenities Management" />
 
-            <div className="space-y-6">
+            <div className="space-y-6 p-4 md:p-6">
                 {/* Header */}
                 <div className="flex justify-between items-center">
                     <div>
@@ -61,25 +56,25 @@ export default function AmenitiesIndex({ amenities, categories }: AmenitiesIndex
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                     <Card>
-                        <CardContent className="p-6">
+                        <CardContent className="p-6 sm:p-4 flex flex-col items-center justify-center">
                             <div className="text-2xl font-bold">{amenities.total}</div>
-                            <p className="text-gray-600">Total Amenities</p>
+                            <p className="text-gray-600 text-center">Total Amenities</p>
                         </CardContent>
                     </Card>
                     <Card>
-                        <CardContent className="p-6">
+                        <CardContent className="p-6 sm:p-4 flex flex-col items-center justify-center">
                             <div className="text-2xl font-bold text-green-600">
                                 {amenities.data.filter(a => a.is_active).length}
                             </div>
-                            <p className="text-gray-600">Active</p>
+                            <p className="text-gray-600 text-center">Active</p>
                         </CardContent>
                     </Card>
                     <Card>
-                        <CardContent className="p-6">
+                        <CardContent className="p-6 sm:p-4 flex flex-col items-center justify-center">
                             <div className="text-2xl font-bold">{categories.length}</div>
-                            <p className="text-gray-600">Categories</p>
+                            <p className="text-gray-600 text-center">Categories</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -108,7 +103,7 @@ export default function AmenitiesIndex({ amenities, categories }: AmenitiesIndex
                                                 <div className="flex items-center space-x-3">
                                                     <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                                                         <span className="text-blue-600 text-sm">
-                                                            {amenity.icon || '🏠'}
+                                                            <AmenityItem amenity={amenity} variant="badge" showName={false} />
                                                         </span>
                                                     </div>
                                                     <div>

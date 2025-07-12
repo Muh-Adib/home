@@ -30,27 +30,32 @@ class MediaController extends Controller
                 'required',
                 'file',
                 'mimes:jpg,jpeg,png,webp,gif,mp4,mov,avi,webm',
-                'max:51200', // 50MB max file size for videos
+                'max:102400', // 100MB max file size (konsisten dengan PHP config)
                 function ($attribute, $value, $fail) {
                     // Custom validation for file content security
                     if ($value->getMimeType() && str_starts_with($value->getMimeType(), 'image/')) {
                         if (!$this->isValidImageFile($value)) {
                             $fail('The ' . $attribute . ' contains invalid or potentially dangerous content.');
                         }
-                        // Validate image dimensions
+                        // Validate image dimensions - lebih fleksibel
                         $imageInfo = @getimagesize($value->getRealPath());
                         if ($imageInfo) {
                             [$width, $height] = $imageInfo;
-                            if ($width < 200 || $height < 200 || $width > 4096 || $height > 4096) {
-                                $fail('Images must be between 200x200 and 4096x4096 pixels.');
+                            if ($width < 100 || $height < 100 || $width > 8192 || $height > 8192) {
+                                $fail('Images must be between 100x100 and 8192x8192 pixels.');
                             }
                         }
                     }
                 },
             ],
         ], [
+            'files.required' => 'Please select at least one file to upload.',
+            'files.array' => 'Files must be uploaded as an array.',
+            'files.max' => 'You can upload maximum 50 files at once.',
+            'files.*.required' => 'Each file is required.',
+            'files.*.file' => 'Each item must be a valid file.',
             'files.*.mimes' => 'Only JPG, JPEG, PNG, WebP, GIF, MP4, MOV, AVI, and WebM files are allowed.',
-            'files.*.max' => 'Each file must be less than 50MB.',
+            'files.*.max' => 'Each file must be less than 100MB.',
         ]);
 
         // Debug logging
@@ -226,7 +231,7 @@ class MediaController extends Controller
     private function storeFileSecurely($file, $safeName, $property)
     {
         try {
-            $directory = "properties/{$property->id}/media";
+            $directory = "properties/{$property->slug}/media";
             $path = $file->storeAs($directory, $safeName, 'public');
             
             if (!$path) {

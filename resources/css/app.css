@@ -157,3 +157,73 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* Custom DateRange Calendar Theme - Green Colors */
+.green-calendar-theme .rdp-day_range_start:not(.rdp-day_outside) {
+    background-color: #059669 !important;
+    color: white !important;
+    border: 2px solid #047857 !important;
+    font-weight: bold !important;
+}
+
+.green-calendar-theme .rdp-day_range_end:not(.rdp-day_outside) {
+    background-color: #059669 !important;
+    color: white !important;
+    border: 2px solid #047857 !important;
+    font-weight: bold !important;
+}
+
+.green-calendar-theme .rdp-day_range_middle:not(.rdp-day_outside) {
+    background-color: #10b981 !important;
+    color: white !important;
+    opacity: 0.6 !important;
+}
+
+.green-calendar-theme .rdp-day_selected:not(.rdp-day_outside) {
+    background-color: #059669 !important;
+    color: white !important;
+    font-weight: bold !important;
+}
+
+.green-calendar-theme .rdp-day_selected:hover:not(.rdp-day_outside) {
+    background-color: #047857 !important;
+    color: white !important;
+}
+
+/* Calendar Styles */
+.calendar-container .rbc-calendar {
+    font-family: inherit;
+}
+
+.calendar-container .rbc-event {
+    font-size: 12px;
+    padding: 2px 5px;
+    border-radius: 4px;
+}
+
+.calendar-container .rbc-toolbar {
+    margin-bottom: 1rem;
+}
+
+.calendar-container .rbc-header {
+    font-weight: 500;
+    padding: 8px 6px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.calendar-container .rbc-date-cell {
+    padding: 8px;
+}
+
+.calendar-container .rbc-today {
+    background-color: #fef3c7;
+}
+
+.calendar-container .rbc-off-range-bg {
+    background-color: #f9fafb;
+}
+
+.calendar-container .rbc-event:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}

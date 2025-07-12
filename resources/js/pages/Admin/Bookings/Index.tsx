@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { type Booking, type BreadcrumbItem, type User, type PaginatedData, type PageProps } from '@/types';
+import { type Booking, type BreadcrumbItem, type User, type PaginatedData, type PageProps, type Property } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
 import { 
     Calendar, 
@@ -26,9 +26,12 @@ import {
     DollarSign,
     Phone,
     Mail,
-    CalendarDays
+    CalendarDays,
+    BarChart3
 } from 'lucide-react';
 import { useState } from 'react';
+import AvailabilityCalendar from '@/components/availability-calendar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 interface BookingsIndexProps {
     bookings: PaginatedData<Booking>;
@@ -48,6 +51,7 @@ export default function BookingsIndex({ bookings, filters, properties }: Booking
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [paymentStatusFilter, setPaymentStatusFilter] = useState(filters.payment_status || 'all');
+    const [showCalendar, setShowCalendar] = useState(false);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -66,40 +70,74 @@ export default function BookingsIndex({ bookings, filters, properties }: Booking
     };
 
     const handleVerify = (booking: Booking) => {
-        router.patch(`/admin/bookings/${booking.booking_number}/verify`, {}, {
+        router.patch(`/admin/bookings/${booking.booking_number}/verify`, {
+            notes: 'Booking verified and confirmed by ' + auth.user.name,
+        }, {
             preserveScroll: true,
+            onSuccess: () => {
+                // Force refresh data after successful verify
+                router.reload({ only: ['bookings'] });
+            },
+            onError: (errors) => {
+                console.error('Verify failed:', errors);
+            }
         });
     };
 
     const handleConfirm = (booking: Booking) => {
-        router.patch(`/admin/bookings/${booking.booking_number}/confirm`, {}, {
+        router.patch(`/admin/bookings/${booking.booking_number}/confirm`, {
+            notes: 'Booking confirmed by ' + auth.user.name,
+        }, {
             preserveScroll: true,
+            onSuccess: () => {
+                router.reload({ only: ['bookings'] });
+            }
         });
     };
 
     const handleReject = (booking: Booking) => {
-        router.patch(`/admin/bookings/${booking.booking_number}/reject`, {}, {
+        router.patch(`/admin/bookings/${booking.booking_number}/reject`, {
+            notes: 'Booking rejected by ' + auth.user.name,
+        }, {
             preserveScroll: true,
+            onSuccess: () => {
+                router.reload({ only: ['bookings'] });
+            }
         });
     };
 
     const handleCancel = (booking: Booking) => {
         if (confirm(`Are you sure you want to cancel booking "${booking.booking_number}"?`)) {
-            router.patch(`/admin/bookings/${booking.booking_number}/cancel`, {}, {
+            router.patch(`/admin/bookings/${booking.booking_number}/cancel`, {
+                cancellation_reason: 'Cancelled by admin: ' + auth.user.name,
+            }, {
                 preserveScroll: true,
+                onSuccess: () => {
+                    router.reload({ only: ['bookings'] });
+                }
             });
         }
     };
 
     const handleCheckIn = (booking: Booking) => {
-        router.patch(`/admin/bookings/${booking.booking_number}/checkin`, {}, {
+        router.patch(`/admin/bookings/${booking.booking_number}/checkin`, {
+            notes: 'Booking checked in by ' + auth.user.name,
+        }, {
             preserveScroll: true,
+            onSuccess: () => {
+                router.reload({ only: ['bookings'] });
+            }
         });
     };
 
     const handleCheckOut = (booking: Booking) => {
-        router.patch(`/admin/bookings/${booking.booking_number}/checkout`, {}, {
+        router.patch(`/admin/bookings/${booking.booking_number}/checkout`, {
+            notes: 'Booking checked out by ' + auth.user.name,
+        }, {
             preserveScroll: true,
+            onSuccess: () => {
+                router.reload({ only: ['bookings'] });
+            }
         });
     };
 
@@ -170,6 +208,20 @@ export default function BookingsIndex({ bookings, filters, properties }: Booking
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-2">
+                        <Dialog open={showCalendar} onOpenChange={setShowCalendar}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" className="w-full sm:w-auto" onClick={() => setShowCalendar(true)}>
+                                    <BarChart3 className="h-4 w-4 mr-2" />
+                                    Timeline Kalender
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-6xl w-full">
+                                <DialogHeader>
+                                    <DialogTitle>Property Availability Timeline</DialogTitle>
+                                </DialogHeader>
+                                <AvailabilityCalendar bookings={bookings.data} properties={properties as any} />
+                            </DialogContent>
+                        </Dialog>
                         <Button variant="outline" asChild className="w-full sm:w-auto">
                             <Link href="/admin/bookings/calendar">
                                 <Calendar className="h-4 w-4 mr-2" />
@@ -345,7 +397,7 @@ export default function BookingsIndex({ bookings, filters, properties }: Booking
                                         </div>
                                         
                                         <div className="flex items-center gap-1 font-semibold">
-                                            <DollarSign className="h-4 w-4" />
+                                           
                                             <span>{formatCurrency(booking.total_amount)}</span>
                                         </div>
                                     </div>

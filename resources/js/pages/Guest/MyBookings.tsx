@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import BookingCard from '@/components/BookingCard';
 import {
     Calendar,
     MapPin,
@@ -42,6 +45,15 @@ interface Property {
     slug: string;
     address: string;
     cover_image?: string;
+    media?: Array<{
+        id: number;
+        url: string;
+        thumbnail_url?: string;
+        media_type: string;
+        is_cover: boolean;
+        is_featured: boolean;
+        alt_text?: string;
+    }>;
 }
 
 interface Payment {
@@ -62,6 +74,7 @@ interface Booking {
     id: number;
     booking_number: string;
     property: Property;
+    property_image?: string;
     check_in: string;
     check_out: string;
     guest_count: number;
@@ -69,9 +82,9 @@ interface Booking {
     guest_email: string;
     guest_phone: string;
     guest_country?: string;
-    guest_breakdown_male: number;
-    guest_breakdown_female: number;
-    guest_breakdown_children: number;
+    guest_male: number;
+    guest_female: number;
+    guest_children: number;
     total_amount: number;
     booking_status: string;
     payment_status: string;
@@ -82,6 +95,18 @@ interface Booking {
     nights: number;
     can_cancel: boolean;
     can_review: boolean;
+    can_show_checkin?: boolean;
+    checkin_countdown?: string;
+    checkin_time_formatted?: string;
+    checkin_instruction?: string;
+    keybox_code?: string;
+    maps_link?: string;
+    is_cleaned?: boolean;
+    review?: {
+        id: number;
+        rating: number;
+        comment: string;
+    } | null;
 }
 
 interface MyBookingsProps {
@@ -116,6 +141,11 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
 
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [showDetails, setShowDetails] = useState(false);
+
+    const handleViewDetails = (booking: Booking) => {
+        setSelectedBooking(booking);
+        setShowDetails(true);
+    };
 
     const formatCurrency = (amount: number) => {
         return `Rp ${amount.toLocaleString('id-ID')}`;
@@ -206,25 +236,6 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
         router.get(route('my-bookings'));
     };
 
-    const handleViewDetails = (booking: Booking) => {
-        setSelectedBooking(booking);
-        setShowDetails(true);
-    };
-
-    const getDaysUntilCheckIn = (checkInDate: string) => {
-        const checkIn = new Date(checkInDate);
-        const today = new Date();
-        const diffTime = checkIn.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
-    };
-
-    const canMakePayment = (booking: Booking) => {
-        return booking.booking_status === 'confirmed' && 
-               ['dp_pending', 'dp_received'].includes(booking.payment_status) &&
-               booking.payment_link;
-    };
-
     const getPaidAmount = (booking: Booking) => {
         if (!booking.payments) return 0;
         return booking.payments
@@ -236,9 +247,17 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
         return booking.total_amount - getPaidAmount(booking);
     };
 
+    const canMakePayment = (booking: Booking) => {
+        return booking.booking_status === 'confirmed' && 
+               ['dp_pending', 'dp_received'].includes(booking.payment_status) &&
+               booking.payment_link;
+    };
+
+    console.log(bookings);
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`${t('nav.my_bookings')} - Property Management System`} />
+                            <Head title={`${t('nav.my_bookings')} - Homsjogja`} />
 
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
@@ -329,145 +348,13 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                 <div className="container mx-auto px-4 py-8">
                     {bookings.data.length > 0 ? (
                         <div className="space-y-6">
-                            {bookings.data.map((booking) => {
-                                const daysUntilCheckIn = getDaysUntilCheckIn(booking.check_in);
-                                const paidAmount = getPaidAmount(booking);
-                                const remainingAmount = getRemainingAmount(booking);
-
-                                return (
-                                    <Card key={booking.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                                        <CardContent className="p-6">
-                                            <div className="flex items-start justify-between mb-4">
-                                                <div>
-                                                    <div className="flex items-center gap-3 mb-2">
-                                                        <h3 className="text-lg font-semibold">
-                                                            {booking.booking_number}
-                                                        </h3>
-                                                        <Badge className={getStatusColor(booking.booking_status)}>
-                                                            {getStatusText(booking.booking_status)}
-                                                        </Badge>
-                                                        <Badge className={getPaymentStatusColor(booking.payment_status)}>
-                                                            {getPaymentStatusText(booking.payment_status)}
-                                                        </Badge>
-                                                        {booking.booking_status === 'confirmed' && daysUntilCheckIn > 0 && daysUntilCheckIn <= 7 && (
-                                                            <Badge variant="outline" className="text-blue-600 border-blue-300">
-                                                                {daysUntilCheckIn === 1 ? 'Check-in besok' : `${daysUntilCheckIn} hari lagi`}
-                                                            </Badge>
-                                                        )}
-                                                    </div>
-                                                    <Link href={`/properties/${booking.property.slug}`} className="text-blue-600 hover:underline">
-                                                        <h4 className="font-medium text-lg text-blue-600">{booking.property.name}</h4>
-                                                    </Link>
-                                                    <div className="flex items-center text-sm text-gray-600 mt-1">
-                                                        <MapPin className="h-4 w-4 mr-1" />
-                                                        <span>{booking.property.address}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-2xl font-bold text-blue-600">
-                                                        {formatCurrency(booking.total_amount)}
-                                                    </p>
-                                                    <p className="text-sm text-gray-600">
-                                                        {booking.nights} nights
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                                                <div className="flex items-center gap-2">
-                                                    <Calendar className="h-4 w-4 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm font-medium">Check-in</p>
-                                                        <p className="text-sm text-gray-600">{formatDate(booking.check_in)}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Calendar className="h-4 w-4 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm font-medium">Check-out</p>
-                                                        <p className="text-sm text-gray-600">{formatDate(booking.check_out)}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Users className="h-4 w-4 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm font-medium">Guests</p>
-                                                        <p className="text-sm text-gray-600">
-                                                            {booking.guest_count} guests 
-                                                            <span className="text-xs text-gray-500 ml-1">
-                                                                ({booking.guest_breakdown_male}M, {booking.guest_breakdown_female}F, {booking.guest_breakdown_children}C)
-                                                            </span>
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <DollarSign className="h-4 w-4 text-gray-500" />
-                                                    <div>
-                                                        <p className="text-sm font-medium">Payment</p>
-                                                        <p className="text-sm text-gray-600">
-                                                            {formatCurrency(paidAmount)} / {formatCurrency(booking.total_amount)}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Payment Information */}
-                                            {booking.payment_status !== 'fully_paid' && remainingAmount > 0 && (
-                                                <Alert className="mb-4">
-                                                    <AlertCircle className="h-4 w-4" />
-                                                    <AlertDescription>
-                                                        Outstanding payment: {formatCurrency(remainingAmount)}
-                                                        {booking.payment_status === 'dp_pending' && ' (Down Payment required)'}
-                                                        {booking.payment_status === 'dp_received' && ' (Remaining payment)'}
-                                                    </AlertDescription>
-                                                </Alert>
-                                            )}
-
-                                            {/* Action Buttons */}
-                                            <div className="flex items-center justify-between pt-4 border-t">
-                                                <div className="flex gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleViewDetails(booking)}
-                                                    >
-                                                        <Eye className="h-4 w-4 mr-2" />
-                                                        {t('View Details')}
-                                                    </Button>
-                                                    <Link href={`/properties/${booking.property.slug}`}>
-                                                        <Button variant="outline" size="sm">
-                                                            <Building2 className="h-4 w-4 mr-2" />
-                                                            {t('View Property')}
-                                                        </Button>
-                                                    </Link>
-                                                    {booking.can_review && (
-                                                        <Button variant="outline" size="sm">
-                                                            <Star className="h-4 w-4 mr-2" />
-                                                            {t('Write Review')}
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                                
-                                                <div className="flex gap-2">
-                                                    {canMakePayment(booking) && (
-                                                        <Link href={booking.payment_link!}>
-                                                            <Button size="sm">
-                                                                <CreditCard className="h-4 w-4 mr-2" />
-                                                                {t('Make Payment')}
-                                                            </Button>
-                                                        </Link>
-                                                    )}
-                                                    {booking.can_cancel && (
-                                                        <Button variant="destructive" size="sm">
-                                                            {t('Cancel Booking')}
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                );
-                            })}
+                            {bookings.data.map((booking) => (
+                                <BookingCard 
+                                    key={booking.id} 
+                                    booking={booking} 
+                                    onViewDetails={handleViewDetails}
+                                />
+                            ))}
 
                             {/* Pagination */}
                             {bookings.last_page > 1 && (
@@ -604,10 +491,10 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                                 <div>
                                                     <p className="text-sm font-medium text-gray-600">Guest Breakdown</p>
                                                     <p className="text-lg">
-                                                        {selectedBooking.guest_breakdown_male} Male, {' '}
-                                                        {selectedBooking.guest_breakdown_female} Female
-                                                        {selectedBooking.guest_breakdown_children > 0 && 
-                                                            `, ${selectedBooking.guest_breakdown_children} Children`
+                                                        {selectedBooking.guest_male} Male, {' '}
+                                                        {selectedBooking.guest_female} Female
+                                                        {selectedBooking.guest_children > 0 && 
+                                                            `, ${selectedBooking.guest_children} Children`
                                                         }
                                                     </p>
                                                 </div>

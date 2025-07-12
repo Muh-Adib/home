@@ -285,7 +285,7 @@ export default function GuestLayout({
 
                             <div className="mt-8 pt-8 border-t border-gray-200">
                                 <p className="text-center text-gray-600">
-                                    © 2024 Property Management System. All rights reserved.
+                                    © 2024 Homsjogja. All rights reserved.
                                 </p>
                             </div>
                         </div>

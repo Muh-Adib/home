@@ -14,19 +14,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, Building2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { BreadcrumbItem } from '@/types';
+import { BreadcrumbItem, Amenity } from '@/types';
+import { getAvailableIcons } from '@/lib/lucide-icons';
 
-interface Amenity {
-    id: number;
-    name: string;
-    icon: string;
-    category: string;
-    description: string;
-    is_active: boolean;
-    sort_order: number;
-}
+// Using Amenity interface from types/index.d.ts
 
 interface EditAmenityProps {
     amenity: Amenity;
@@ -56,34 +49,7 @@ export default function EditAmenity({ amenity, categories }: EditAmenityProps) {
         }, 0);
     };
 
-    const iconOptions = [
-        { value: 'none', label: '🚫 None' },
-        { value: 'wifi', label: '📶 WiFi' },
-        { value: 'snowflake', label: '❄️ AC' },
-        { value: 'car', label: '🚗 Parking' },
-        { value: 'tv', label: '📺 TV' },
-        { value: 'shirt', label: '🧺 Linens' },
-        { value: 'chef-hat', label: '👨‍🍳 Kitchen' },
-        { value: 'refrigerator', label: '🧊 Fridge' },
-        { value: 'microwave', label: '📻 Microwave' },
-        { value: 'coffee', label: '☕ Coffee' },
-        { value: 'utensils', label: '🍽️ Dining' },
-        { value: 'droplets', label: '🚿 Hot Water' },
-        { value: 'wind', label: '💨 Hair Dryer' },
-        { value: 'soap', label: '🧼 Toiletries' },
-        { value: 'play', label: '▶️ Streaming' },
-        { value: 'speaker', label: '🔊 Sound' },
-        { value: 'gamepad-2', label: '🎮 Games' },
-        { value: 'waves', label: '🏊 Pool' },
-        { value: 'trees', label: '🌳 Garden' },
-        { value: 'flame', label: '🔥 BBQ' },
-        { value: 'armchair', label: '🪑 Seating' },
-        { value: 'umbrella', label: '🏖️ Beach' },
-        { value: 'camera', label: '📷 Security' },
-        { value: 'lock', label: '🔒 Safe' },
-        { value: 'heart-pulse', label: '🩹 First Aid' },
-        { value: 'fire-extinguisher', label: '🧯 Fire Safety' },
-    ];
+    const iconOptions = getAvailableIcons();
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -247,9 +213,15 @@ export default function EditAmenity({ amenity, categories }: EditAmenityProps) {
                                     <div className="space-y-3">
                                         <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                                             <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                                <span className="text-blue-600 text-sm">
-                                                    {data.icon && data.icon !== 'none' ? iconOptions.find(i => i.value === data.icon)?.label.split(' ')[0] : '🏠'}
-                                                </span>
+                                                {(() => {
+                                                    const iconOption = iconOptions.find(i => i.value === data.icon);
+                                                    const IconComponent = iconOption?.icon;
+                                                    return IconComponent ? (
+                                                        <IconComponent className="h-4 w-4 text-blue-600" />
+                                                    ) : (
+                                                        <Building2 className="h-4 w-4 text-blue-600" />
+                                                    );
+                                                })()}
                                             </div>
                                             <div className="flex-1">
                                                 <div className="font-medium text-gray-900">

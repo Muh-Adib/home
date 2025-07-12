@@ -172,7 +172,7 @@ export default function PropertyMedia({ property }: PropertyMediaProps) {
                     propertySlug={property.slug}
                     initialMedia={property.media} 
                     maxFiles={50}
-                    maxFileSize={50 * 1024 * 1024} // 50MB
+                    maxFileSize={100 * 1024 * 1024} // 100MB (konsisten dengan PHP config)
                     acceptedFileTypes={[
                         'image/jpeg',
                         'image/png', 

@@ -21,7 +21,9 @@ return new class extends Migration
                 'bathroom', 
                 'entertainment', 
                 'outdoor', 
-                'safety'
+                'safety',
+                'special',
+                'accessibility'
             ])->default('basic');
             $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);

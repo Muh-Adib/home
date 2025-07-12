@@ -36,6 +36,7 @@ class AvailabilityService
      */
     public function checkAvailability(Property $property, string $checkIn, string $checkOut): array
     {
+        //check if property is available for given date range
         $bookedDates = $this->getBookedDatesInRange($property, $checkIn, $checkOut);
         $bookedPeriods = $this->getBookedPeriodsInRange($property, $checkIn, $checkOut);
         
@@ -83,13 +84,26 @@ class AvailabilityService
      */
     private function getOverlappingBookings(Property $property, string $checkIn, string $checkOut): Collection
     {
+        // Ensure dates are in proper Y-m-d format
+        try {
+            $checkInFormatted = Carbon::parse($checkIn)->format('Y-m-d');
+            $checkOutFormatted = Carbon::parse($checkOut)->format('Y-m-d');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Invalid date format in getOverlappingBookings', [
+                'check_in' => $checkIn,
+                'check_out' => $checkOut,
+                'error' => $e->getMessage()
+            ]);
+            return collect([]);
+        }
+
         return Booking::where('property_id', $property->id)
-            ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
-            ->where(function ($query) use ($checkIn, $checkOut) {
+            ->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
+            ->where(function ($query) use ($checkInFormatted, $checkOutFormatted) {
                 // Fix: Proper overlap detection
                 // Dua periode overlap jika: start1 < end2 AND start2 < end1
-                $query->where('check_in', '<', $checkOut)
-                      ->where('check_out', '>', $checkIn);
+                $query->where('check_in', '<', $checkOutFormatted)
+                      ->where('check_out', '>', $checkInFormatted);
             })
             ->get(['check_in', 'check_out', 'booking_status']);
     }
@@ -188,11 +202,72 @@ class AvailabilityService
      */
     public function calculateRateFormatted(Property $property, string $checkIn, string $checkOut, int $guestCount): array
     {
-        $calculation = $this->calculateRate($property, $checkIn, $checkOut, $guestCount);
+        // Validate dates first
+        $dateValidation = $this->validateDates($checkIn, $checkOut);
+        if ($dateValidation) {
+            return [
+                'success' => false,
+                'error_type' => 'validation',
+                'message' => implode(', ', $dateValidation),
+                'errors' => $dateValidation,
+                'property_id' => $property->id,
+                'dates' => [
+                    'check_in' => $checkIn,
+                    'check_out' => $checkOut,
+                ],
+                'guest_count' => $guestCount,
+            ];
+        }
+        
+        // Validate guest count
+        if ($guestCount > $property->capacity_max) {
+            return [
+                'success' => false,
+                'error_type' => 'capacity',
+                'message' => "Guest count cannot exceed property maximum capacity ({$property->capacity_max})",
+                'property_id' => $property->id,
+                'dates' => [
+                    'check_in' => $checkIn,
+                    'check_out' => $checkOut,
+                ],
+                'guest_count' => $guestCount,
+                'capacity_info' => [
+                    'capacity' => $property->capacity,
+                    'capacity_max' => $property->capacity_max,
+                    'requested_guests' => $guestCount,
+                ]
+            ];
+        }
+
+        // Check availability
+        $availability = $this->checkAvailability($property, $checkIn, $checkOut);
+        
+        if (!$availability['available']) {
+            return [
+                'success' => false,
+                'error_type' => 'availability',
+                'message' => 'Property is not available for selected dates',
+                'property_id' => $property->id,
+                'dates' => [
+                    'check_in' => $checkIn,
+                    'check_out' => $checkOut,
+                ],
+                'guest_count' => $guestCount,
+                'availability_info' => [
+                    'available' => false,
+                    'booked_dates' => $availability['booked_dates'],
+                    'booked_periods' => $availability['booked_periods'],
+                    'alternative_dates' => $this->getNextAvailableDates($property, 3), // Suggest next 3 nights
+                ]
+            ];
+        }
+
+        // Use Property model's existing calculateRate method
+        $calculation = $property->calculateRate($checkIn, $checkOut, $guestCount);
         
         return [
             'success' => true,
-            'property_id' => $property->id,
+            'property_slug' => $property->slug,
             'dates' => [
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
@@ -221,10 +296,23 @@ class AvailabilityService
      */
     public function filterPropertiesByAvailability($query, string $checkIn, string $checkOut)
     {
-        return $query->whereDoesntHave('bookings', function ($q) use ($checkIn, $checkOut) {
-            $q->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
-              ->where('check_in', '<', $checkOut)
-              ->where('check_out', '>', $checkIn);
+        // Ensure dates are in proper Y-m-d format
+        try {
+            $checkInFormatted = Carbon::parse($checkIn)->format('Y-m-d');
+            $checkOutFormatted = Carbon::parse($checkOut)->format('Y-m-d');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Invalid date format in filterPropertiesByAvailability', [
+                'check_in' => $checkIn,
+                'check_out' => $checkOut,
+                'error' => $e->getMessage()
+            ]);
+            return $query; // Return unfiltered query on error
+        }
+
+        return $query->whereDoesntHave('bookings', function ($q) use ($checkInFormatted, $checkOutFormatted) {
+            $q->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
+              ->where('check_in', '<', $checkOutFormatted)
+              ->where('check_out', '>', $checkInFormatted);
         });
     }
 

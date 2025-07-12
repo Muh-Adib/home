@@ -62,6 +62,7 @@ class BookingCreatedNotification extends Notification implements ShouldQueue
     {
         return [
             'type' => 'booking_created',
+            'title' => 'New Booking Created',
             'booking_id' => $this->booking->id,
             'booking_number' => $this->booking->booking_number,
             'property_name' => $this->booking->property->name,

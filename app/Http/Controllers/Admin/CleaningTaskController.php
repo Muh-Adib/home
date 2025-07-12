@@ -245,6 +245,86 @@ class CleaningTaskController extends Controller
     }
 
     /**
+     * Bulk actions for cleaning tasks
+     */
+    public function bulkAction(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'task_ids' => 'required|array',
+            'task_ids.*' => 'exists:cleaning_tasks,id',
+            'action' => 'required|in:assign,start,complete,delete',
+        ]);
+
+        $taskIds = $request->task_ids;
+        $action = $request->action;
+        $tasks = CleaningTask::whereIn('id', $taskIds)->get();
+        
+        $successCount = 0;
+        $errorCount = 0;
+        $errors = [];
+
+        foreach ($tasks as $task) {
+            try {
+                switch ($action) {
+                    case 'assign':
+                        if ($task->status === 'pending' && $request->assigned_to) {
+                            $task->update(['assigned_to' => $request->assigned_to, 'status' => 'assigned']);
+                            $successCount++;
+                        } else {
+                            $errorCount++;
+                            $errors[] = "Task {$task->task_number} cannot be assigned in current status";
+                        }
+                        break;
+                        
+                    case 'start':
+                        if ($task->status === 'assigned') {
+                            $task->update(['status' => 'in_progress', 'started_at' => now()]);
+                            $successCount++;
+                        } else {
+                            $errorCount++;
+                            $errors[] = "Task {$task->task_number} cannot be started in current status";
+                        }
+                        break;
+                        
+                    case 'complete':
+                        if ($task->status === 'in_progress') {
+                            $task->update([
+                                'status' => 'completed',
+                                'completed_at' => now(),
+                                'completed_by' => auth()->id()
+                            ]);
+                            $successCount++;
+                        } else {
+                            $errorCount++;
+                            $errors[] = "Task {$task->task_number} cannot be completed in current status";
+                        }
+                        break;
+                        
+                    case 'delete':
+                        if (in_array($task->status, ['pending', 'assigned'])) {
+                            $task->delete();
+                            $successCount++;
+                        } else {
+                            $errorCount++;
+                            $errors[] = "Task {$task->task_number} cannot be deleted in current status";
+                        }
+                        break;
+                }
+            } catch (\Exception $e) {
+                $errorCount++;
+                $errors[] = "Error processing task {$task->task_number}: " . $e->getMessage();
+            }
+        }
+
+        $message = "Bulk action completed: {$successCount} successful, {$errorCount} failed.";
+        if (!empty($errors)) {
+            return back()->withErrors(['bulk_errors' => $errors])->with('success', $message);
+        }
+
+        return back()->with('success', $message);
+    }
+
+    /**
      * Assign task to staff member
      */
     public function assign(Request $request, CleaningTask $cleaningTask): RedirectResponse

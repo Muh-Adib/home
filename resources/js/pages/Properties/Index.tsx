@@ -146,7 +146,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`${t('properties.browse_title')} - Property Management System`} />
+                            <Head title={`${t('properties.browse_title')} - Homsjogja`} />
 
             <div className="space-y-6 p-4 md:p-6">
                 {/* Header */}

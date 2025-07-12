@@ -27,6 +27,9 @@ return new class extends Migration
             $table->string('account_name')->nullable();
             $table->enum('payment_status', ['pending', 'verified', 'failed', 'cancelled'])->default('pending');
             $table->text('verification_notes')->nullable();
+            $table->string('sender_account_name')->nullable();
+            $table->string('sender_account_number')->nullable();
+            $table->string('sender_bank_name')->nullable();
             $table->text('description')->nullable();
             $table->string('attachment_path', 500)->nullable(); // Payment proof
             $table->foreignId('processed_by')->nullable()->constrained('users');

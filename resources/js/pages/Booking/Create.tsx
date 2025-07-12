@@ -34,6 +34,7 @@ import {
 import { DateRange, getDefaultDateRange } from '@/components/ui/date-range';
 import { useTranslation } from 'react-i18next';
 import { useAvailability } from '@/hooks/use-availability';
+import { useRateCalculation } from '@/hooks/use-rate-calculation';
 
 interface Property {
     id: number;
@@ -65,6 +66,38 @@ interface BookingCreateProps {
             role: string;
         }
     };
+    initialAvailabilityData: {
+        success: boolean;
+        property_id: string;
+        date_range: {
+            start: string;
+            end: string;
+        };
+        guest_count: number;
+        booked_dates: string[];
+        booked_periods: string[][];
+        rates: Record<string, {
+            base_rate: number;
+            weekend_premium: boolean;
+            seasonal_premium: number;
+            seasonal_rate_applied?: {
+                name: string;
+                rate_type: string;
+                rate_value: number;
+                description: string;
+                min_stay_nights: number;
+            }[];
+            is_weekend: boolean;
+        }>;
+        property_info: {
+            base_rate: number;
+            capacity: number;
+            capacity_max: number;
+            cleaning_fee: number;
+            extra_bed_rate: number;
+            weekend_premium_percent: number;
+        };
+    };
 }
 
 interface GuestDetail {
@@ -81,9 +114,9 @@ interface BookingFormData {
     check_in_date: string;
     check_out_date: string;
     check_in_time: string;
-    guest_count_male: number;
-    guest_count_female: number;
-    guest_count_children: number;
+    guest_male: number;
+    guest_female: number;
+    guest_children: number;
     guest_name: string;
     guest_email: string;
     guest_phone: string;
@@ -125,9 +158,9 @@ interface BookingErrors {
     check_in_date?: string;
     check_out_date?: string;
     check_in_time?: string;
-    guest_count_male?: string;
-    guest_count_female?: string;
-    guest_count_children?: string;
+    guest_male?: string;
+    guest_female?: string;
+    guest_children?: string;
     guest_name?: string;
     guest_email?: string;
     guest_phone?: string;
@@ -140,7 +173,118 @@ interface BookingErrors {
     guests?: string;
 }
 
-export default function BookingCreate({ property, auth }: BookingCreateProps) {
+interface AvailabilityData {
+    success: boolean;
+    property_id: string;
+    date_range: {
+        start: string;
+        end: string;
+    };
+    guest_count: number;
+    booked_dates: string[];
+    booked_periods: string[][];
+    rates: Record<string, {
+        base_rate: number;
+        weekend_premium: boolean;
+        seasonal_premium: number;
+        seasonal_rate_applied?: {
+            name: string;
+            rate_type: string;
+            rate_value: number;
+            description: string;
+            min_stay_nights: number;
+        }[];
+        is_weekend: boolean;
+    }>;
+    property_info: {
+        base_rate: number;
+        capacity: number;
+        capacity_max: number;
+        cleaning_fee: number;
+        extra_bed_rate: number;
+        weekend_premium_percent: number;
+    };
+}
+
+interface UseAvailabilityOptions {
+    propertySlug: string;
+    autoFetch?: boolean;
+    dateRange?: {
+        startDate?: string;
+        endDate?: string;
+    };
+}
+
+interface UseRateCalculationOptions {
+    availabilityData: AvailabilityData;
+    guestCount: number;
+}
+
+interface UseAvailabilityResult {
+    data: AvailabilityData | null;
+    loading: boolean;
+    error: string | null;
+    refetch: (startDate?: string, endDate?: string) => Promise<void>;
+    isDateBooked: (date: Date) => boolean;
+    rangeContainsBookedDates: (from: Date, to: Date) => boolean;
+}
+
+interface UseRateCalculationResult {
+    rateCalculation: RateCalculation | null;
+    rateError: string | null;
+    isCalculatingRate: boolean;
+    calculateRate: (startDate: string, endDate: string) => Promise<RateCalculation | null>;
+    hasSeasonalPremium: boolean;
+    hasWeekendPremium: boolean;
+    isRateReady: boolean;
+}
+
+interface CheckInTimeOption {
+    value: string;
+    label: string;
+}
+
+const checkInTimeOptions: CheckInTimeOption[] = [
+    { value: '15:00', label: '15:00' },
+    { value: '16:00', label: '16:00' },
+    { value: '17:00', label: '17:00' },
+    { value: '18:00', label: '18:00' },
+    { value: '19:00', label: '19:00' },
+    { value: '20:00', label: '20:00' },
+];
+
+interface RelationshipOption {
+    value: string;
+    label: string;
+}
+
+
+// Auto-fill form data based on user login status and URL params
+const getInitialFormData = (auth: BookingCreateProps['auth'], urlCheckIn: string, urlCheckOut: string, urlGuests: number): BookingFormData => {
+    // Auto-fill with user data if logged in
+    const user = auth?.user;
+    
+    return {
+        check_in_date: urlCheckIn || '',
+        check_out_date: urlCheckOut || '',
+        check_in_time: '15:00',
+        guest_male: (urlGuests > 0) ? Math.floor(urlGuests / 2) : 0,
+        guest_female: (urlGuests > 0) ? Math.floor(urlGuests / 2) : 0,
+        guest_children: (urlGuests > 0) ? (urlGuests % 2) : 0,
+        guest_name: user?.name || '',
+        guest_email: user?.email || '',
+        guest_phone: user?.phone || '',
+        guest_country: 'Indonesia',
+        guest_id_number: '',
+        guest_gender: (user?.gender as 'male' | 'female') || 'male',
+        relationship_type: 'keluarga',
+        special_requests: '',
+        dp_percentage: 50,
+        guests: [],
+    };
+};
+
+export default function BookingCreate({ property, auth, initialAvailabilityData }: BookingCreateProps) {
     const { t } = useTranslation();
     const page = usePage();
     const searchParams = new URLSearchParams(window.location.search);
@@ -150,20 +294,54 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
     const urlCheckOut = searchParams.get('check_out') || '';
     const urlGuests = parseInt(searchParams.get('guests') || '2');
 
+    // Form data initialization
+    const { data, setData, post, processing, errors } = useForm<BookingFormData>(
+        getInitialFormData(auth, urlCheckIn, urlCheckOut, urlGuests)
+    );
+
+    // Guest state
     const [totalGuests, setTotalGuests] = useState(urlGuests);
     const [extraBeds, setExtraBeds] = useState(0);
-    const [rateCalculation, setRateCalculation] = useState<RateCalculation | null>(null);
-    const [isCalculatingRate, setIsCalculatingRate] = useState(false);
-    const [availabilityStatus, setAvailabilityStatus] = useState<'checking' | 'available' | 'unavailable' | null>(null);
     const [showGuestDetails, setShowGuestDetails] = useState(false);
     const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
     
+    // Availability state
+    const [availabilityStatus, setAvailabilityStatus] = useState<'checking' | 'available' | 'unavailable' | null>(null);
+    
+    // Email state
+    const [emailStatus, setEmailStatus] = useState<'checking' | 'available' | 'exists' | null>(null);
+    const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+    const [emailCheckTimeout, setEmailCheckTimeout] = useState<NodeJS.Timeout | null>(null);
+    const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+
+    // Options
+    const relationshipOptions: RelationshipOption[] = [
+        { value: 'keluarga', label: t('booking.relationship_type.family') },
+        { value: 'teman', label: t('booking.relationship_type.friend') },
+        { value: 'kolega', label: t('booking.relationship_type.colleague') },
+        { value: 'pasangan', label: t('booking.relationship_type.couple') },
+        { value: 'campuran', label: t('booking.relationship_type.mixed') }
+    ];
+
+    const relationshipToOptions: RelationshipToOption[] = [
+        { value: 'self', label: t('booking.relationship_to.self') },
+        { value: 'spouse', label: t('booking.relationship_to.spouse') },
+        { value: 'child', label: t('booking.relationship_to.child') },
+        { value: 'parent', label: t('booking.relationship_to.parent') },
+        { value: 'sibling', label: t('booking.relationship_to.sibling') },
+        { value: 'friend', label: t('booking.relationship_to.friend') },
+        { value: 'colleague', label: t('booking.relationship_to.colleague') },
+        { value: 'other', label: t('booking.relationship_to.other') }
+    ];
+
     // Use availability hook
     const {
-        availabilityData,
+        data: availabilityData,
         loading: availabilityLoading,
         error: availabilityError,
-        refetch: refetchAvailability
+        refetch: refetchAvailability,
+        isDateBooked,
+        rangeContainsBookedDates
     } = useAvailability({
         propertySlug: property.slug,
         autoFetch: true,
@@ -171,13 +349,95 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
             startDate: urlCheckIn,
             endDate: urlCheckOut
         }
-    });
-    
-    // Email checking states
-    const [emailStatus, setEmailStatus] = useState<'checking' | 'available' | 'exists' | null>(null);
-    const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-    const [emailCheckTimeout, setEmailCheckTimeout] = useState<NodeJS.Timeout | null>(null);
-    const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+    } as UseAvailabilityOptions) as UseAvailabilityResult;
+
+    // Use rate calculation hook
+    const {
+        rateCalculation,
+        rateError,
+        isCalculatingRate,
+        calculateRate,
+        hasSeasonalPremium,
+        hasWeekendPremium,
+        isRateReady
+    } = useRateCalculation({
+        availabilityData: availabilityData || initialAvailabilityData,
+        guestCount: totalGuests
+    } as UseRateCalculationOptions) as UseRateCalculationResult;
+
+    // Calculate rate when dates or guest count changes
+    useEffect(() => {
+        if (data.check_in_date && data.check_out_date && totalGuests > 0) {
+            calculateRate(data.check_in_date, data.check_out_date)
+                .then(calculation => {
+                    if (calculation) {
+                        setAvailabilityStatus('available');
+                    }
+                })
+                .catch(error => {
+                    setAvailabilityStatus('unavailable');
+                    console.error('Rate calculation error:', error);
+                });
+        }
+    }, [data.check_in_date, data.check_out_date, totalGuests, calculateRate]);
+
+    // Update URL and recalculate rate when dates change
+    useEffect(() => {
+        if (data.check_in_date && data.check_out_date) {
+            setAvailabilityStatus('checking');
+            calculateRate(data.check_in_date, data.check_out_date);
+            searchParams.set('check_in', data.check_in_date);
+            searchParams.set('check_out', data.check_out_date);
+            searchParams.set('guests', totalGuests.toString());
+            window.history.pushState({}, '', window.location.pathname + '?' + searchParams.toString());
+            console.log('🔄 data.check_in_date:', data.check_in_date);
+        }
+    }, [data.check_in_date, data.check_out_date, calculateRate]);
+
+    // Form submission handler
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        // Validate required fields
+        if (!data.check_in_date || !data.check_out_date || !data.check_in_time) {
+            console.error('Required fields missing');
+            return;
+        }
+
+        // Validate guest count
+        if (totalGuests <= 0) {
+            console.error('Invalid guest count');
+            return;
+        }
+
+        // Validate rate calculation
+        if (!rateCalculation) {
+            console.error('Rate calculation not ready');
+            return;
+        }
+
+        try {
+            console.log('Form submission started', { 
+                data, 
+                canSubmit: true,
+                totalGuests,
+                availabilityStatus,
+                hasRateCalculation: !!rateCalculation 
+            });
+
+            // Submit form
+            post(route('bookings.store', property.slug), {
+                onSuccess: () => {
+                    console.log('Booking created successfully');
+                },
+                onError: (error) => {
+                    console.error('Booking creation failed:', error);
+                }
+            });
+        } catch (error) {
+            console.error('Form submission error:', error);
+        }
+    };
 
     // Calculate minimum stay for initial dates validation
     const getMinimumStay = () => {
@@ -185,35 +445,6 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         const isWeekend = today.getDay() === 0 || today.getDay() === 6;
         return isWeekend ? property.min_stay_weekend : property.min_stay_weekday;
     };
-
-    // Auto-fill form data based on user login status and URL params
-    const getInitialFormData = (): BookingFormData => {
-        // Auto-fill with user data if logged in
-        const user = auth?.user;
-        
-        return {
-            check_in_date: urlCheckIn || '',
-            check_out_date: urlCheckOut || '',
-            check_in_time: '15:00',
-            guest_count_male: (urlGuests > 0) ? Math.floor(urlGuests / 2) : 0,
-            guest_count_female: (urlGuests > 0) ? Math.floor(urlGuests / 2) : 0,
-            guest_count_children: (urlGuests > 0) ? (urlGuests % 2) : 0,
-            guest_name: user?.name || '',
-            guest_email: user?.email || '',
-            guest_phone: user?.phone || '',
-            guest_country: 'Indonesia',
-            guest_id_number: '',
-            guest_gender: (user?.gender as 'male' | 'female') || 'male',
-            relationship_type: 'keluarga',
-            special_requests: '',
-            dp_percentage: 50,
-            guests: [],
-        };
-    };
-
-    const { data, setData, post, processing, errors } = useForm<BookingFormData>(
-        getInitialFormData()
-    );
 
     // Type assertion for errors to match BookingErrors interface
     const bookingErrors = errors as BookingErrors;
@@ -240,10 +471,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
 
     // Calculate total guests whenever individual counts change
     useEffect(() => {
-        const total = data.guest_count_male + data.guest_count_female + data.guest_count_children;
+        const total = data.guest_male + data.guest_female + data.guest_children;
         setTotalGuests(total);
 
-        const totalForExtraBeds = Math.ceil(data.guest_count_male + data.guest_count_female + (data.guest_count_children * 0.5));
+        const totalForExtraBeds = Math.ceil(data.guest_male + data.guest_female + (data.guest_children * 0.5));
         
         // Calculate extra beds needed
         const extraBedsNeeded = Math.max(0, totalForExtraBeds - property.capacity);
@@ -254,7 +485,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
 
         // Auto-show guest details when total guests > 1
         setShowGuestDetails(total > 1);
-    }, [data.guest_count_male, data.guest_count_female, data.guest_count_children, data.guest_gender, property.capacity]);
+    }, [data.guest_male, data.guest_female, data.guest_children, data.guest_gender, property.capacity]);
 
     const generateGuestList = () => {
         // Gunakan fungsi sinkronisasi yang sudah dibuat
@@ -339,9 +570,9 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
 
         // Hitung kebutuhan guest berdasarkan count terbaru
         const updatedCounts = {
-            male: changedGenderType === 'male' ? newCount : data.guest_count_male,
-            female: changedGenderType === 'female' ? newCount : data.guest_count_female,
-            children: changedGenderType === 'children' ? newCount : data.guest_count_children,
+            male: changedGenderType === 'male' ? newCount : data.guest_male,
+            female: changedGenderType === 'female' ? newCount : data.guest_female,
+            children: changedGenderType === 'children' ? newCount : data.guest_children,
         };
 
         // Pisahkan guest yang ada berdasarkan kategori (kecuali primary)
@@ -386,7 +617,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                     age_category: 'adult',
                     relationship_to_primary: '',
                 });
-            }
+            }   
         }
 
         // Tambahkan children
@@ -463,49 +694,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         }));
     };
 
-    const calculateRate = useCallback(async () => {
-        try {
-            const response = await fetch(`/api/properties/${property.slug}/calculate-rate?` + new URLSearchParams({
-                check_in: data.check_in_date,
-                check_out: data.check_out_date,
-                guest_count: totalGuests.toString(),
-            }));
-            
-            if (response.ok) {
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.includes('application/json')) {
-                    const result = await response.json();
-                    console.log('🔄 result:', result);
-                    if (result.success) {
-                        setRateCalculation(result.calculation);
-                        setAvailabilityStatus('available');
-                    } else {
-                        setAvailabilityStatus('unavailable');
-                    }
-                } else {
-                    setAvailabilityStatus('unavailable');
-                }
-            } else {
-                setAvailabilityStatus('unavailable');
-            }
-        } catch (error) {
-            console.error('Error calculating rate:', error);
-            setAvailabilityStatus('unavailable');
-        }
-    }, [property.slug, data.check_in_date, data.check_out_date, totalGuests]);
 
-    // Calculate rate when dates change
-    useEffect(() => {
-        if (data.check_in_date && data.check_out_date) {
-            setAvailabilityStatus('checking');
-            calculateRate();
-            searchParams.set('check_in', data.check_in_date);
-            searchParams.set('check_out', data.check_out_date);
-            searchParams.set('guests', totalGuests.toString());
-            window.history.pushState({}, '', window.location.pathname + '?' + searchParams.toString());
-            console.log('🔄 data.check_in_date:', data.check_in_date);
-        }
-    }, [data.check_in_date, data.check_out_date, calculateRate]);
 
     // Email checking function
     const checkEmailExists = useCallback(async (email: string) => {
@@ -604,98 +793,20 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         'Other'
     ];
 
-    const checkInTimeOptions = [
-        { value: '15:00', label: '15:00' },
-        { value: '16:00', label: '16:00' },
-        { value: '17:00', label: '17:00' },
-        { value: '18:00', label: '18:00' },
-        { value: '19:00', label: '19:00' },
-        { value: '20:00', label: '20:00' },
-        { value: '21:00', label: '21:00' },
-        { value: '22:00', label: '22:00' },
-        { value: '23:00', label: '23:00' },
-        { value: '00:00', label: '00:00' },
-    ];
 
-    const relationshipOptions = [
-        { value: 'keluarga', label: t('booking.family') },
-        { value: 'teman', label: t('booking.friends') },
-        { value: 'kolega', label: t('booking.colleagues') },
-        { value: 'pasangan', label: t('booking.couple') },
-        { value: 'campuran', label: t('booking.mixed') },
-    ];
-
-    const relationshipToOptions = [
-        { value: 'self', label: t('booking.self') },
-        { value: 'spouse', label: t('booking.spouse') },
-        { value: 'child', label: t('booking.child') },
-        { value: 'parent', label: t('booking.parent') },
-        { value: 'sibling', label: t('booking.sibling') },
-        { value: 'friend', label: t('booking.friend') },
-        { value: 'colleague', label: t('booking.colleague') },
-        { value: 'relative', label: t('booking.relative') },
-        { value: 'other', label: t('booking.other') },
-    ];
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        
-        console.log('Form submission started', {
-            data,
-            canSubmit,
-            totalGuests,
-            availabilityStatus,
-            hasRateCalculation: !!rateCalculation
-        });
-        
-        if (!canSubmit) {
-            console.warn('Form submission blocked - validation failed', {
-                hasCheckInDate: !!data.check_in_date,
-                hasCheckOutDate: !!data.check_out_date,
-                guestCountError,
-                hasGuestName: !!data.guest_name?.trim(),
-                hasGuestEmail: !!data.guest_email?.trim(),
-                hasGuestPhone: !!data.guest_phone?.trim(),
-                hasCountry: !!data.guest_country,
-                totalGuests,
-                availabilityStatus,
-                hasRateCalculation: !!rateCalculation
-            });
-            return;
-        }
-        
-        // Always use the same booking route - backend will handle user registration if needed
-        post(`/properties/${property.slug}/book`, {
-            onStart: () => {
-                console.log('Starting booking submission...');
-            },
-            onSuccess: (page) => {
-                console.log('Booking created successfully:', page);
-            },
-            onError: (errors) => {
-                console.error('Booking creation failed:', errors);
-            },
-            onFinish: () => {
-                console.log('Booking submission finished');
-            }
-        });
-    };
-
+    // Guest count validation
     const guestCountError = totalGuests > property.capacity_max;
     const canSubmit = data.check_in_date && 
                      data.check_out_date && 
-                     !guestCountError && 
-                     data.guest_name.trim() && 
-                     data.guest_email.trim() && 
-                     data.guest_phone.trim() && 
-                     data.guest_country && 
+                     data.check_in_time && 
                      totalGuests > 0 && 
-                     availabilityStatus === 'available' && 
-                     rateCalculation !== null;
+                     !guestCountError && 
+                     rateCalculation && 
+                     !processing;
 
     return (
         <AppLayout>
-            <Head title={`${t('booking.book_your_stay')} ${property.name} - Property Management System`} />
+            <Head title={`${t('booking.book_your_stay')} ${property.name} - Homsjogja`} />
             
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
@@ -749,7 +860,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                 showNights={true}
                                                 startLabel="Check-in"
                                                 endLabel="Check-out"
-                                                bookedDates={availabilityData}
+                                                bookedDates={availabilityData?.booked_dates || initialAvailabilityData.booked_dates || []}
                                                 loading={availabilityLoading}
                                                 error={availabilityError}
                                                 className={bookingErrors.check_in_date || bookingErrors.check_out_date ? 'border-red-500' : ''}
@@ -822,17 +933,17 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                             
                                             <div className="grid grid-cols-3 gap-4 mb-4">
                                                 <div>
-                                                    <Label htmlFor="guest_count_male">{t('booking.male_adults')}</Label>
+                                                    <Label htmlFor="guest_male">{t('booking.male_adults')}</Label>
                                                     <Input
-                                                        id="guest_count_male"
+                                                        id="guest_male"
                                                         type="number"
                                                         min="0"
-                                                        value={data.guest_count_male}
+                                                        value={data.guest_male}
                                                         onChange={(e) => handleGenderCountChange('male', parseInt(e.target.value) || 0)}
-                                                        className={bookingErrors.guest_count_male ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_male ? 'border-red-500' : ''}
                                                     />
-                                                    {bookingErrors.guest_count_male && (
-                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_count_male}</p>
+                                                    {bookingErrors.guest_male && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_male}</p>
                                                     )}
                                                 </div>
                                                 <div>
@@ -841,12 +952,12 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                         id="guest_count_female"
                                                         type="number"
                                                         min="0"
-                                                        value={data.guest_count_female}
+                                                        value={data.guest_female}
                                                         onChange={(e) => handleGenderCountChange('female', parseInt(e.target.value) || 0)}
-                                                        className={bookingErrors.guest_count_female ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_female ? 'border-red-500' : ''}
                                                     />
-                                                    {bookingErrors.guest_count_female && (
-                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_count_female}</p>
+                                                    {bookingErrors.guest_female && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_female}</p>
                                                     )}
                                                 </div>
                                                 <div>
@@ -855,12 +966,12 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                         id="guest_count_children"
                                                         type="number"
                                                         min="0"
-                                                        value={data.guest_count_children}
+                                                        value={data.guest_children}
                                                         onChange={(e) => handleGenderCountChange('children', parseInt(e.target.value) || 0)}
-                                                        className={bookingErrors.guest_count_children ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_children ? 'border-red-500' : ''}
                                                     />
-                                                    {bookingErrors.guest_count_children && (
-                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_count_children}</p>
+                                                    {bookingErrors.guest_children && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_children}</p>
                                                     )}
                                                 </div>
                                             </div>
@@ -1298,61 +1409,16 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                     <Tag className="h-5 w-5" />
                                                     {t('booking.total_price')}
                                                 </CardTitle>
-                                                {discountInfo && (
-                                                    <Badge variant="destructive" className="text-sm">
-                                                        <Percent className="h-3 w-3 mr-1" />
-                                                        {discountInfo.discount_percent}% {t('booking.off')}
-                                                    </Badge>
-                                                )}
+                                                {/* discountInfo was removed, so this badge is no longer relevant */}
                                             </div>
                                             {/* Show discount prices */}
-                                            {discountInfo && (
-                                                <div className="space-y-1 mt-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-lg text-gray-400 line-through">
-                                                            Rp {discountInfo.original_price.toLocaleString()}
-                                                        </span>
-                                                        <Badge variant="destructive" className="text-xs">
-                                                            -{discountInfo.discount_percent}%
-                                                        </Badge>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-3xl font-bold text-red-600">
-                                                            Rp {discountInfo.final_price.toLocaleString()}
-                                                        </span>
-                                                        <span className="text-gray-600 ml-1">total</span>
-                                                    </div>
-                                                    <div className="text-sm text-gray-600">
-                                                        (Rp {Math.round(discountInfo.final_price / discountInfo.nights).toLocaleString()}/night)
-                                                    </div>
-                                                </div>
-                                            )}
+                                            {/* discountInfo was removed, so this section is no longer relevant */}
                                         </CardHeader>
                                         <CardContent>
                                             <div className="space-y-4">
                                                 <div className="space-y-3 text-sm">
                                                     {/* Discount Price Display */}
-                                                    {discountInfo && (
-                                                        <>
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="text-gray-600">{t('booking.original_price')}</span>
-                                                                <span className="text-gray-400 line-through">
-                                                                    Rp {discountInfo.original_price.toLocaleString()}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex justify-between items-center">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-gray-600">{t('booking.discount')}</span>
-                                                                    <Badge variant="destructive" className="text-xs">
-                                                                        {discountInfo.discount_percent}% {t('booking.off')}
-                                                                    </Badge>
-                                                                </div>
-                                                                <span className="text-red-600 font-medium">
-                                                                    -Rp {discountInfo.discount_amount.toLocaleString()}
-                                                                </span>
-                                                            </div>
-                                                        </>
-                                                    )}
+                                                    {/* discountInfo was removed, so this section is no longer relevant */}
 
                                                     {/* Additional Fees */}
                                                     {rateCalculation.extra_bed_amount > 0 && (
