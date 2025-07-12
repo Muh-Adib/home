@@ -14,7 +14,7 @@ COPY tailwind.config.js ./
 COPY components.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY resources/ ./resources/
@@ -22,6 +22,9 @@ COPY public/ ./public/
 
 # Build assets
 RUN npm run build
+
+# Clean up node_modules to reduce image size
+RUN rm -rf node_modules
 
 # Production PHP stage
 FROM php:8.3-fpm-alpine AS production
@@ -43,7 +46,9 @@ RUN apk add --no-cache \
     postgresql-client \
     redis \
     supervisor \
-    nginx
+    nginx \
+    nodejs \
+    npm
 
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -84,6 +89,12 @@ COPY . .
 
 # Copy built assets from node stage
 COPY --from=node-builder /app/public/build ./public/build
+
+# Copy package files for socket server dependencies
+COPY package*.json ./
+
+# Install only production dependencies for socket server
+RUN npm install --only=production --legacy-peer-deps
 
 # Set proper permissions
 RUN chown -R www:www /var/www/html \
