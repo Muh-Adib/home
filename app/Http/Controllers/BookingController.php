@@ -40,8 +40,88 @@ class BookingController extends Controller
      */
     public function create(Property $property): Response
     {
+        // Get search parameters from URL
+        $searchParams = request()->only(['check_in', 'check_out', 'guests']);
+        
+        // Get initial availability data for the property - same as show property
+        $initialAvailabilityData = null;
+        try {
+            $startDate = $searchParams['check_in'] ?? now()->toDateString();
+            $endDate = $searchParams['check_out'] ?? now()->addMonths(3)->toDateString();
+            $guestCount = $searchParams['guests'] ?? 2;
+            
+            // Get availability data using the same service as show property
+            $availabilityService = app(\App\Services\AvailabilityService::class);
+            
+            // Get availability data - same format as show property
+            $availability = $availabilityService->checkAvailability($property, $startDate, $endDate);
+            
+            // Get rate calculation - same format as show property
+            $rateCalculation = null;
+            try {
+                $rateCalculation = $availabilityService->calculateRateFormatted($property, $startDate, $endDate, $guestCount);
+            } catch (\Exception $e) {
+                \Log::warning('Rate calculation failed for initial data: ' . $e->getMessage());
+            }
+            
+            // Format data for frontend - same format as show property
+            $initialAvailabilityData = [
+                'success' => true,
+                'property_id' => $property->id,
+                'date_range' => [
+                    'start' => $startDate,
+                    'end' => $endDate,
+                ],
+                'guest_count' => $guestCount,
+                'booked_dates' => $availability['booked_dates'] ?? [],
+                'booked_periods' => $availability['booked_periods'] ?? [],
+                'rates' => $rateCalculation && isset($rateCalculation['rates']) ? $rateCalculation['rates'] : [],
+                'property_info' => [
+                    'base_rate' => $property->base_rate,
+                    'capacity' => $property->capacity,
+                    'capacity_max' => $property->capacity_max,
+                    'cleaning_fee' => $property->cleaning_fee,
+                    'extra_bed_rate' => $property->extra_bed_rate,
+                    'weekend_premium_percent' => $property->weekend_premium_percent,
+                ],
+                // Add additional data needed for booking
+                'max_selectable_date' => now()->addMonths(12)->toDateString(),
+                'min_stay_weekday' => $property->min_stay_weekday,
+                'min_stay_weekend' => $property->min_stay_weekend,
+                'min_stay_peak' => $property->min_stay_peak,
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error getting initial availability data for booking create: ' . $e->getMessage());
+            // Provide fallback data
+            $initialAvailabilityData = [
+                'success' => true,
+                'property_id' => $property->id,
+                'date_range' => [
+                    'start' => $searchParams['check_in'] ?? now()->toDateString(),
+                    'end' => $searchParams['check_out'] ?? now()->addMonths(3)->toDateString(),
+                ],
+                'guest_count' => $searchParams['guests'] ?? 2,
+                'booked_dates' => [],
+                'booked_periods' => [],
+                'rates' => [],
+                'property_info' => [
+                    'base_rate' => $property->base_rate,
+                    'capacity' => $property->capacity,
+                    'capacity_max' => $property->capacity_max,
+                    'cleaning_fee' => $property->cleaning_fee,
+                    'extra_bed_rate' => $property->extra_bed_rate,
+                    'weekend_premium_percent' => $property->weekend_premium_percent,
+                ],
+                'max_selectable_date' => now()->addMonths(12)->toDateString(),
+                'min_stay_weekday' => $property->min_stay_weekday,
+                'min_stay_weekend' => $property->min_stay_weekend,
+                'min_stay_peak' => $property->min_stay_peak,
+            ];
+        }
+
         return Inertia::render('Booking/Create', [
             'property' => $property->load(['amenities', 'media']),
+            'initialAvailabilityData' => $initialAvailabilityData,
         ]);
     }
 
@@ -208,33 +288,55 @@ class BookingController extends Controller
                 'guest_count' => 'required|integer|min:1|max:' . $property->capacity_max,
             ]);
 
-            // Get availability
-            $bookedDates = $this->bookingService->getBookedDates(
+            // Get availability data using the same service as show property
+            $availabilityService = app(\App\Services\AvailabilityService::class);
+            
+            // Get availability data
+            $availability = $availabilityService->checkAvailability(
                 $property,
                 $request->get('check_in'),
                 $request->get('check_out')
             );
 
-            // Calculate rates
-            $rateCalculation = $this->rateCalculationService->calculateRateFormatted(
+            // Get rate calculation
+            $rateCalculation = $availabilityService->calculateRateFormatted(
                 $property,
                 $request->get('check_in'),
                 $request->get('check_out'),
                 $request->get('guest_count')
             );
 
-            return response()->json([
+            // Format response for frontend
+            $response = [
                 'success' => true,
                 'property_id' => $property->id,
                 'property_slug' => $property->slug,
-                'booked_dates' => $bookedDates,
-                'rate_calculation' => $rateCalculation,
                 'date_range' => [
                     'start' => $request->get('check_in'),
                     'end' => $request->get('check_out')
                 ],
-                'guest_count' => $request->get('guest_count')
-            ]);
+                'guest_count' => $request->get('guest_count'),
+                'booked_dates' => $availability['booked_dates'] ?? [],
+                'booked_periods' => $availability['booked_periods'] ?? [],
+                'rates' => $rateCalculation && $rateCalculation['success'] ? $rateCalculation['rates'] ?? [] : [],
+                'property_info' => [
+                    'base_rate' => $property->base_rate,
+                    'capacity' => $property->capacity,
+                    'capacity_max' => $property->capacity_max,
+                    'cleaning_fee' => $property->cleaning_fee,
+                    'extra_bed_rate' => $property->extra_bed_rate,
+                    'weekend_premium_percent' => $property->weekend_premium_percent,
+                ],
+            ];
+
+            return response()->json($response);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
 
         } catch (\Exception $e) {
             Log::error('Availability and rates check failed', [
@@ -245,9 +347,7 @@ class BookingController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to check availability and rates: ' . $e->getMessage(),
-                'booked_dates' => [],
-                'rate_calculation' => null
+                'message' => 'Failed to get availability and rates: ' . $e->getMessage(),
             ], 500);
         }
     }

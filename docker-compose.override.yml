@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  app:
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - LOG_LEVEL=debug
+    volumes:
+      - ./:/var/www/html
+      - ./vendor:/var/www/html/vendor
+    ports:
+      - "8000:8000"
+    command: php artisan serve --host=0.0.0.0 --port=8000
+
+  db:
+    environment:
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=128M
+
+  nginx:
+    profiles:
+      - production
+
+  queue:
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+    command: php artisan queue:work --sleep=3 --tries=3 --timeout=90 --max-jobs=1000 --verbose
+
+  scheduler:
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+    command: sh -c "while true; do php artisan schedule:run --verbose; sleep 60; done"
+
+  mailhog:
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # Development tools
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: pms_phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_PASSWORD:-secret}
+    networks:
+      - pms_network
+    depends_on:
+      - db
+    profiles:
+      - dev
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: pms_redis_commander
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    networks:
+      - pms_network
+    depends_on:
+      - redis
+    profiles:
+      - dev 

@@ -13,21 +13,49 @@ services:
       - ./storage:/var/www/html/storage
       - ./bootstrap/cache:/var/www/html/bootstrap/cache
       - ./public/storage:/var/www/html/public/storage
+      - ./vendor:/var/www/html/vendor
     networks:
       - pms_network
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      - APP_ENV=production
-      - DB_CONNECTION=mysql
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_KEY=${APP_KEY}
+      - APP_URL=${APP_URL:-http://localhost}
+      - DB_CONNECTION=${DB_CONNECTION:-mysql}
       - DB_HOST=db
       - DB_PORT=3306
+      - DB_DATABASE=${DB_DATABASE:-property_management}
+      - DB_USERNAME=${DB_USERNAME:-pms_user}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - CACHE_DRIVER=redis
-      - SESSION_DRIVER=redis
-      - QUEUE_CONNECTION=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-null}
+      - CACHE_DRIVER=${CACHE_DRIVER:-redis}
+      - SESSION_DRIVER=${SESSION_DRIVER:-redis}
+      - QUEUE_CONNECTION=${QUEUE_CONNECTION:-redis}
+      - MAIL_MAILER=${MAIL_MAILER:-smtp}
+      - MAIL_HOST=mailhog
+      - MAIL_PORT=1025
+      - MAIL_USERNAME=${MAIL_USERNAME:-null}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-null}
+      - MAIL_ENCRYPTION=${MAIL_ENCRYPTION:-null}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS:-noreply@example.com}
+      - MAIL_FROM_NAME="${MAIL_FROM_NAME:-Property Management System}"
+      - LOG_CHANNEL=${LOG_CHANNEL:-stack}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
+      - BROADCAST_DRIVER=${BROADCAST_DRIVER:-log}
+      - FILESYSTEM_DISK=${FILESYSTEM_DISK:-local}
+    healthcheck:
+      test: ["CMD", "php", "artisan", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Database Container (MySQL)
   db:
@@ -37,16 +65,24 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_DATABASE: property_management
+      MYSQL_DATABASE: ${DB_DATABASE:-property_management}
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
       MYSQL_USER: ${DB_USERNAME:-pms_user}
       MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
     networks:
       - pms_network
-    command: --default-authentication-plugin=mysql_native_password
+    command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=256M
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-secret}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Alternative PostgreSQL Database (uncomment if preferred)
   # db_postgres:
@@ -56,13 +92,21 @@ services:
   #   ports:
   #     - "5432:5432"
   #   environment:
-  #     POSTGRES_DB: property_management
+  #     POSTGRES_DB: ${DB_DATABASE:-property_management}
   #     POSTGRES_USER: ${DB_USERNAME:-pms_user}
   #     POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+  #     POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
   #   volumes:
   #     - postgres_data:/var/lib/postgresql/data
+  #     - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
   #   networks:
   #     - pms_network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-pms_user} -d ${DB_DATABASE:-property_management}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
 
   # Redis Container for Cache and Sessions
   redis:
@@ -73,10 +117,16 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     networks:
       - pms_network
     command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # Nginx Web Server
   nginx:
@@ -95,7 +145,14 @@ services:
     networks:
       - pms_network
     depends_on:
-      - app
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Queue Worker Container
   queue:
@@ -108,18 +165,32 @@ services:
     volumes:
       - ./storage:/var/www/html/storage
       - ./bootstrap/cache:/var/www/html/bootstrap/cache
+      - ./vendor:/var/www/html/vendor
     networks:
       - pms_network
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      - APP_ENV=production
-      - DB_CONNECTION=mysql
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - DB_CONNECTION=${DB_CONNECTION:-mysql}
       - DB_HOST=db
+      - DB_DATABASE=${DB_DATABASE:-property_management}
+      - DB_USERNAME=${DB_USERNAME:-pms_user}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
       - REDIS_HOST=redis
-      - QUEUE_CONNECTION=redis
-    command: php artisan queue:work --sleep=3 --tries=3 --timeout=90
+      - QUEUE_CONNECTION=${QUEUE_CONNECTION:-redis}
+      - LOG_CHANNEL=${LOG_CHANNEL:-stack}
+    command: php artisan queue:work --sleep=3 --tries=3 --timeout=90 --max-jobs=1000
+    healthcheck:
+      test: ["CMD", "php", "artisan", "queue:work", "--once"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
 
   # Scheduler Container (Laravel Cron)
   scheduler:
@@ -132,17 +203,31 @@ services:
     volumes:
       - ./storage:/var/www/html/storage
       - ./bootstrap/cache:/var/www/html/bootstrap/cache
+      - ./vendor:/var/www/html/vendor
     networks:
       - pms_network
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      - APP_ENV=production
-      - DB_CONNECTION=mysql
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - DB_CONNECTION=${DB_CONNECTION:-mysql}
       - DB_HOST=db
+      - DB_DATABASE=${DB_DATABASE:-property_management}
+      - DB_USERNAME=${DB_USERNAME:-pms_user}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
       - REDIS_HOST=redis
-    command: sh -c "while true; do php artisan schedule:run; sleep 60; done"
+      - LOG_CHANNEL=${LOG_CHANNEL:-stack}
+    command: sh -c "while true; do php artisan schedule:run --verbose; sleep 60; done"
+    healthcheck:
+      test: ["CMD", "php", "artisan", "--version"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # Mail Server (Mailhog for development)
   mailhog:
@@ -154,6 +239,28 @@ services:
       - "8025:8025"  # Web UI
     networks:
       - pms_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Laravel Echo Server for WebSockets (optional)
+  echo:
+    image: laravel-echo-server:latest
+    container_name: pms_echo
+    restart: unless-stopped
+    ports:
+      - "6001:6001"
+    volumes:
+      - ./laravel-echo-server.json:/app/laravel-echo-server.json:ro
+    networks:
+      - pms_network
+    depends_on:
+      - redis
+    profiles:
+      - websockets
 
   # Monitoring with Prometheus (optional)
   prometheus:
@@ -169,6 +276,12 @@ services:
       - pms_network
     profiles:
       - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Grafana for monitoring dashboards (optional)
   grafana:
@@ -179,6 +292,7 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
     volumes:
       - grafana_data:/var/lib/grafana
       - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
@@ -187,23 +301,56 @@ services:
       - pms_network
     profiles:
       - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 # Networks
 networks:
   pms_network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 # Volumes
 volumes:
   mysql_data:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/mysql
   # postgres_data:
   #   driver: local
+  #   driver_opts:
+  #     type: none
+  #     o: bind
+  #     device: ./docker/volumes/postgres
   redis_data:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/redis
   nginx_logs:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/nginx/logs
   prometheus_data:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/prometheus
   grafana_data:
-    driver: local 
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker/volumes/grafana 

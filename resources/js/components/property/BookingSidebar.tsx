@@ -83,7 +83,14 @@ export function BookingSidebar({
     };
 
     const handleGuestCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const count = parseInt(e.target.value) || 1;
+        let count = parseInt(e.target.value) || 1;
+        
+        // Jika input melebihi kapasitas maksimum, set ke kapasitas maksimum
+        if (count > property.capacity_max) {
+            count = property.capacity_max;
+            e.target.value = property.capacity_max.toString();
+        }
+        
         onGuestCountChange(count);
     };
 

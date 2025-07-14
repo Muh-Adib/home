@@ -39,10 +39,22 @@ class BookingRepository
             'check_out' => $request->checkOutDate,
             'nights' => $request->getNights(),
             
+            // Rate Calculation Fields (will be updated by service)
+            'base_amount' => 0,
+            'weekend_premium_amount' => 0,
+            'seasonal_premium_amount' => 0,
+            'extra_bed_amount' => 0,
+            'cleaning_fee' => 0,
+            'tax_amount' => 0,
+            'total_amount' => 0,
+            'dp_amount' => 0,
+            'remaining_amount' => 0,
+            
             // Booking Status and Payment
             'booking_status' => $request->bookingStatus,
             'payment_status' => $request->paymentStatus,
             'dp_percentage' => $request->dpPercentage,
+            'dp_deadline' => now()->addDays(3),
             
             // Additional Information
             'special_requests' => $request->specialRequests,
