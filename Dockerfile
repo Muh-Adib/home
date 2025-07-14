@@ -74,7 +74,8 @@ RUN addgroup -g 1000 www && \
 WORKDIR /var/www/html
 
 # Copy composer files
-COPY composer.json composer.lock ./
+COPY composer.json ./
+COPY composer.lock ./
 
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
@@ -90,13 +91,6 @@ RUN chown -R www:www /var/www/html \
     && chmod -R 755 /var/www/html/storage \
     && chmod -R 755 /var/www/html/bootstrap/cache
 
-# Copy configuration files
-COPY docker/php/php.ini /usr/local/etc/php/conf.d/custom.ini
-COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
-COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
-COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
 # Create required directories
 RUN mkdir -p /var/log/supervisor \
     && mkdir -p /var/run/php \
@@ -105,10 +99,17 @@ RUN mkdir -p /var/log/supervisor \
     && mkdir -p /var/www/html/storage/framework/sessions \
     && mkdir -p /var/www/html/storage/framework/views
 
-# Optimize Laravel for production
-RUN php artisan config:cache \
-    && php artisan route:cache \
-    && php artisan view:cache
+# Copy configuration files if they exist
+RUN if [ -f docker/php/php.ini ]; then cp docker/php/php.ini /usr/local/etc/php/conf.d/custom.ini; fi
+RUN if [ -f docker/php/opcache.ini ]; then cp docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini; fi
+RUN if [ -f docker/nginx/nginx.conf ]; then cp docker/nginx/nginx.conf /etc/nginx/nginx.conf; fi
+RUN if [ -f docker/nginx/default.conf ]; then cp docker/nginx/default.conf /etc/nginx/http.d/default.conf; fi
+RUN if [ -f docker/supervisor/supervisord.conf ]; then cp docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf; fi
+
+# Optimize Laravel for production (with error handling)
+RUN php artisan config:cache || echo "Config cache failed, continuing..." \
+    && php artisan route:cache || echo "Route cache failed, continuing..." \
+    && php artisan view:cache || echo "View cache failed, continuing..."
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

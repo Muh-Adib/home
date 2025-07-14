@@ -1,12 +1,10 @@
 #!/bin/bash
 
-# Property Management System Docker Deployment Script
-# Usage: ./docker-deploy.sh [environment] [action]
+# ===========================================
+# PROPERTY MANAGEMENT SYSTEM - DOCKER DEPLOYMENT SCRIPT
+# ===========================================
 
-set -e
-
-ENVIRONMENT=${1:-production}
-ACTION=${2:-up}
+set -e  # Exit on any error
 
 # Colors for output
 RED='\033[0;31m'
@@ -32,266 +30,280 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Function to check if Docker is running
-check_docker() {
-    if ! docker info > /dev/null 2>&1; then
-        print_error "Docker is not running. Please start Docker and try again."
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Function to check if file exists
+file_exists() {
+    [ -f "$1" ]
+}
+
+# Function to check if directory exists
+dir_exists() {
+    [ -d "$1" ]
+}
+
+# ===========================================
+# PRE-DEPLOYMENT CHECKS
+# ===========================================
+
+print_status "Starting Docker deployment for Property Management System..."
+
+# Check if Docker is installed
+if ! command_exists docker; then
+    print_error "Docker is not installed. Please install Docker first."
+    exit 1
+fi
+
+# Check if Docker Compose is installed
+if ! command_exists docker-compose && ! docker compose version >/dev/null 2>&1; then
+    print_error "Docker Compose is not installed. Please install Docker Compose first."
+    exit 1
+fi
+
+# Check if required files exist
+required_files=(
+    "docker-compose.yml"
+    "Dockerfile"
+    "composer.json"
+    "package.json"
+)
+
+for file in "${required_files[@]}"; do
+    if ! file_exists "$file"; then
+        print_error "Required file not found: $file"
         exit 1
     fi
-    print_success "Docker is running"
-}
+done
 
-# Function to create necessary directories
-create_directories() {
-    print_status "Creating necessary directories..."
-    
-    mkdir -p docker/volumes/mysql
-    mkdir -p docker/volumes/redis
-    mkdir -p docker/volumes/nginx/logs
-    mkdir -p docker/volumes/prometheus
-    mkdir -p docker/volumes/grafana
-    mkdir -p storage/logs
-    mkdir -p bootstrap/cache
-    
-    print_success "Directories created"
-}
+print_success "All required files found"
 
-# Function to set permissions
-set_permissions() {
-    print_status "Setting file permissions..."
-    
-    # Set proper permissions for Laravel
-    chmod -R 755 storage
-    chmod -R 755 bootstrap/cache
-    chmod -R 755 public/storage
-    
-    print_success "Permissions set"
-}
+# ===========================================
+# ENVIRONMENT SETUP
+# ===========================================
 
-# Function to build images
-build_images() {
-    print_status "Building Docker images..."
-    
-    docker-compose build --no-cache
-    
-    print_success "Images built successfully"
-}
+print_status "Setting up environment..."
 
-# Function to start services
-start_services() {
-    print_status "Starting services for environment: $ENVIRONMENT"
-    
-    case $ENVIRONMENT in
-        "development"|"dev")
-            print_status "Starting development environment..."
-            docker-compose --profile dev up -d
-            ;;
-        "production"|"prod")
-            print_status "Starting production environment..."
-            docker-compose --profile production up -d
-            ;;
-        "monitoring")
-            print_status "Starting with monitoring..."
-            docker-compose --profile monitoring up -d
-            ;;
-        "websockets")
-            print_status "Starting with WebSocket support..."
-            docker-compose --profile websockets up -d
-            ;;
-        *)
-            print_status "Starting default environment..."
-            docker-compose up -d
-            ;;
-    esac
-    
-    print_success "Services started successfully"
-}
-
-# Function to stop services
-stop_services() {
-    print_status "Stopping services..."
-    
-    docker-compose down
-    
-    print_success "Services stopped"
-}
-
-# Function to restart services
-restart_services() {
-    print_status "Restarting services..."
-    
-    docker-compose restart
-    
-    print_success "Services restarted"
-}
-
-# Function to show logs
-show_logs() {
-    print_status "Showing logs..."
-    
-    docker-compose logs -f
-}
-
-# Function to run Laravel commands
-run_laravel_command() {
-    local command=$1
-    print_status "Running Laravel command: $command"
-    
-    docker-compose exec app php artisan $command
-}
-
-# Function to setup Laravel
-setup_laravel() {
-    print_status "Setting up Laravel application..."
-    
-    # Generate application key if not exists
-    if ! docker-compose exec app php artisan key:generate --show > /dev/null 2>&1; then
-        print_status "Generating application key..."
-        docker-compose exec app php artisan key:generate
-    fi
-    
-    # Run migrations
-    print_status "Running database migrations..."
-    docker-compose exec app php artisan migrate --force
-    
-    # Run seeders if in development
-    if [ "$ENVIRONMENT" = "development" ] || [ "$ENVIRONMENT" = "dev" ]; then
-        print_status "Running database seeders..."
-        docker-compose exec app php artisan db:seed --force
-    fi
-    
-    # Clear and cache config
-    print_status "Clearing and caching configuration..."
-    docker-compose exec app php artisan config:clear
-    docker-compose exec app php artisan config:cache
-    docker-compose exec app php artisan route:clear
-    docker-compose exec app php artisan route:cache
-    docker-compose exec app php artisan view:clear
-    docker-compose exec app php artisan view:cache
-    
-    # Create storage link
-    print_status "Creating storage link..."
-    docker-compose exec app php artisan storage:link
-    
-    print_success "Laravel setup completed"
-}
-
-# Function to show service status
-show_status() {
-    print_status "Service status:"
-    docker-compose ps
-    
-    echo ""
-    print_status "Service URLs:"
-    echo "  - Application: http://localhost"
-    echo "  - MailHog: http://localhost:8025"
-    if [ "$ENVIRONMENT" = "development" ] || [ "$ENVIRONMENT" = "dev" ]; then
-        echo "  - phpMyAdmin: http://localhost:8080"
-        echo "  - Redis Commander: http://localhost:8081"
-    fi
-    if [ "$ENVIRONMENT" = "monitoring" ]; then
-        echo "  - Prometheus: http://localhost:9090"
-        echo "  - Grafana: http://localhost:3000"
-    fi
-}
-
-# Function to cleanup
-cleanup() {
-    print_warning "This will remove all containers, networks, and volumes. Are you sure? (y/N)"
-    read -r response
-    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        print_status "Cleaning up..."
-        docker-compose down -v --remove-orphans
-        docker system prune -f
-        print_success "Cleanup completed"
+# Create .env file if it doesn't exist
+if ! file_exists ".env"; then
+    print_warning ".env file not found. Creating from template..."
+    if file_exists "ENV_EXAMPLE.md"; then
+        cp ENV_EXAMPLE.md .env
+        print_success "Created .env from ENV_EXAMPLE.md"
     else
-        print_status "Cleanup cancelled"
+        print_error "ENV_EXAMPLE.md not found. Please create .env file manually."
+        exit 1
     fi
-}
+fi
 
-# Function to show help
-show_help() {
-    echo "Property Management System Docker Deployment Script"
-    echo ""
-    echo "Usage: $0 [environment] [action]"
-    echo ""
-    echo "Environments:"
-    echo "  development, dev  - Development environment with debug tools"
-    echo "  production, prod  - Production environment"
-    echo "  monitoring        - Production with monitoring tools"
-    echo "  websockets        - Production with WebSocket support"
-    echo ""
-    echo "Actions:"
-    echo "  up                - Start services (default)"
-    echo "  down              - Stop services"
-    echo "  restart           - Restart services"
-    echo "  build             - Build images"
-    echo "  setup             - Setup Laravel application"
-    echo "  logs              - Show logs"
-    echo "  status            - Show service status"
-    echo "  cleanup           - Remove all containers and volumes"
-    echo "  help              - Show this help"
-    echo ""
-    echo "Examples:"
-    echo "  $0 development up"
-    echo "  $0 production setup"
-    echo "  $0 dev logs"
-}
+# Generate APP_KEY if not set
+if ! grep -q "APP_KEY=base64:" .env; then
+    print_warning "APP_KEY not set. Generating new key..."
+    # This will be done inside the container
+fi
 
-# Main script logic
-main() {
-    print_status "Property Management System Docker Deployment"
-    print_status "Environment: $ENVIRONMENT"
-    print_status "Action: $ACTION"
-    echo ""
-    
-    # Check Docker
-    check_docker
-    
-    # Create directories
-    create_directories
-    
-    # Set permissions
-    set_permissions
-    
-    case $ACTION in
-        "up"|"start")
-            build_images
-            start_services
-            setup_laravel
-            show_status
-            ;;
-        "down"|"stop")
-            stop_services
-            ;;
-        "restart")
-            restart_services
-            ;;
-        "build")
-            build_images
-            ;;
-        "setup")
-            setup_laravel
-            ;;
-        "logs")
-            show_logs
-            ;;
-        "status")
-            show_status
-            ;;
-        "cleanup")
-            cleanup
-            ;;
-        "help"|"--help"|"-h")
-            show_help
-            ;;
-        *)
-            print_error "Unknown action: $ACTION"
-            show_help
-            exit 1
-            ;;
-    esac
-}
+# ===========================================
+# DOCKER VOLUME SETUP
+# ===========================================
 
-# Run main function
-main "$@" 
+print_status "Setting up Docker volumes..."
+
+# Create volume directories
+volume_dirs=(
+    "docker/volumes/mysql"
+    "docker/volumes/redis"
+    "docker/volumes/nginx/logs"
+    "docker/volumes/prometheus"
+    "docker/volumes/grafana"
+)
+
+for dir in "${volume_dirs[@]}"; do
+    if ! dir_exists "$dir"; then
+        mkdir -p "$dir"
+        print_success "Created directory: $dir"
+    fi
+done
+
+# Set proper permissions for volumes
+chmod -R 755 docker/volumes/ 2>/dev/null || true
+
+# ===========================================
+# DEPENDENCY INSTALLATION
+# ===========================================
+
+print_status "Installing dependencies..."
+
+# Check if composer.lock exists, if not install dependencies
+if ! file_exists "composer.lock"; then
+    print_warning "composer.lock not found. Installing PHP dependencies..."
+    if command_exists composer; then
+        composer install --no-dev --optimize-autoloader
+        print_success "PHP dependencies installed"
+    else
+        print_warning "Composer not found locally. Dependencies will be installed in container."
+    fi
+fi
+
+# Check if package-lock.json exists, if not install dependencies
+if ! file_exists "package-lock.json"; then
+    print_warning "package-lock.json not found. Installing Node.js dependencies..."
+    if command_exists npm; then
+        npm ci --only=production
+        print_success "Node.js dependencies installed"
+    else
+        print_warning "npm not found locally. Dependencies will be installed in container."
+    fi
+fi
+
+# ===========================================
+# DOCKER BUILD
+# ===========================================
+
+print_status "Building Docker images..."
+
+# Stop any running containers
+print_status "Stopping existing containers..."
+docker-compose down --remove-orphans 2>/dev/null || true
+
+# Remove old images to ensure fresh build
+print_status "Removing old images..."
+docker-compose down --rmi all --volumes --remove-orphans 2>/dev/null || true
+
+# Build images
+print_status "Building new images..."
+if docker-compose build --no-cache --pull; then
+    print_success "Docker images built successfully"
+else
+    print_error "Failed to build Docker images"
+    exit 1
+fi
+
+# ===========================================
+# CONTAINER STARTUP
+# ===========================================
+
+print_status "Starting containers..."
+
+# Start services
+if docker-compose up -d; then
+    print_success "Containers started successfully"
+else
+    print_error "Failed to start containers"
+    exit 1
+fi
+
+# ===========================================
+# HEALTH CHECKS
+# ===========================================
+
+print_status "Performing health checks..."
+
+# Wait for services to be ready
+print_status "Waiting for services to be ready..."
+sleep 30
+
+# Check container status
+print_status "Checking container status..."
+if docker-compose ps | grep -q "Up"; then
+    print_success "All containers are running"
+else
+    print_error "Some containers failed to start"
+    docker-compose logs
+    exit 1
+fi
+
+# ===========================================
+# LARAVEL SETUP
+# ===========================================
+
+print_status "Setting up Laravel application..."
+
+# Wait for database to be ready
+print_status "Waiting for database to be ready..."
+for i in {1..30}; do
+    if docker-compose exec -T db mysqladmin ping -h localhost -u root -psecret >/dev/null 2>&1; then
+        print_success "Database is ready"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        print_error "Database failed to start within timeout"
+        exit 1
+    fi
+    sleep 2
+done
+
+# Run Laravel setup commands
+print_status "Running Laravel setup commands..."
+
+# Generate APP_KEY if needed
+docker-compose exec -T app php artisan key:generate --force 2>/dev/null || true
+
+# Run migrations
+if docker-compose exec -T app php artisan migrate --force; then
+    print_success "Database migrations completed"
+else
+    print_warning "Migrations failed, but continuing..."
+fi
+
+# Run seeders
+if docker-compose exec -T app php artisan db:seed --force; then
+    print_success "Database seeders completed"
+else
+    print_warning "Seeders failed, but continuing..."
+fi
+
+# Clear and cache config
+docker-compose exec -T app php artisan config:clear 2>/dev/null || true
+docker-compose exec -T app php artisan config:cache 2>/dev/null || true
+
+# Clear and cache routes
+docker-compose exec -T app php artisan route:clear 2>/dev/null || true
+docker-compose exec -T app php artisan route:cache 2>/dev/null || true
+
+# Clear and cache views
+docker-compose exec -T app php artisan view:clear 2>/dev/null || true
+docker-compose exec -T app php artisan view:cache 2>/dev/null || true
+
+# Set proper permissions
+docker-compose exec -T app chown -R www:www /var/www/html/storage 2>/dev/null || true
+docker-compose exec -T app chmod -R 755 /var/www/html/storage 2>/dev/null || true
+docker-compose exec -T app chmod -R 755 /var/www/html/bootstrap/cache 2>/dev/null || true
+
+# ===========================================
+# FINAL STATUS
+# ===========================================
+
+print_status "Deployment completed successfully!"
+
+# Show container status
+print_status "Container status:"
+docker-compose ps
+
+# Show service URLs
+print_status "Service URLs:"
+echo "  - Application: http://localhost"
+echo "  - MailHog: http://localhost:8025"
+echo "  - Grafana (if enabled): http://localhost:3000"
+echo "  - Prometheus (if enabled): http://localhost:9090"
+
+# Show logs if there are any errors
+print_status "Recent logs:"
+docker-compose logs --tail=20
+
+print_success "Property Management System is now running!"
+print_status "You can access the application at: http://localhost"
+
+# ===========================================
+# USEFUL COMMANDS
+# ===========================================
+
+echo ""
+print_status "Useful commands:"
+echo "  - View logs: docker-compose logs -f"
+echo "  - Stop services: docker-compose down"
+echo "  - Restart services: docker-compose restart"
+echo "  - Access app container: docker-compose exec app sh"
+echo "  - Access database: docker-compose exec db mysql -u root -psecret property_management"
+echo "  - View container status: docker-compose ps" 

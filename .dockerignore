@@ -110,6 +110,6 @@ temp_use_statements.txt
 laravel-echo-server.json
 laravel-echo-server.lock
 
-# Package lock files (will be generated in container)
-package-lock.json
-composer.lock 
+# Package lock files (needed for Docker build)
+# package-lock.json
+# composer.lock 
