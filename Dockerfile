@@ -13,8 +13,8 @@ COPY vite.config.ts ./
 COPY tailwind.config.js ./
 COPY components.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies with legacy peer deps to handle conflicts
+RUN npm ci --only=production --legacy-peer-deps
 
 # Copy source code
 COPY resources/ ./resources/
