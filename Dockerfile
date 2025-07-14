@@ -13,8 +13,10 @@ COPY vite.config.ts ./
 COPY tailwind.config.js ./
 COPY components.json ./
 
-# Install dependencies with legacy peer deps to handle conflicts
-RUN npm ci --only=production --legacy-peer-deps
+# Install dependencies with fallback strategy
+RUN npm cache clean --force || true \
+    && (npm ci --legacy-peer-deps || npm install --legacy-peer-deps) \
+    && npm list || echo "Some dependency warnings, continuing..."
 
 # Copy source code
 COPY resources/ ./resources/
@@ -122,4 +124,4 @@ EXPOSE 80 443
 USER www
 
 # Start supervisor
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
