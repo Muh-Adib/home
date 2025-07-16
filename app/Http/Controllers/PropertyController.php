@@ -154,6 +154,9 @@ class PropertyController extends Controller
 
     /**
      * Display the specified property (Public)
+     * 
+     * Route: GET /properties/{property:slug}
+     * Property is automatically resolved by Laravel's route model binding
      */
     public function show(Request $request, Property $property): Response
     {
@@ -324,6 +327,9 @@ class PropertyController extends Controller
 
     /**
      * Property availability check (API)
+     * 
+     * Route: GET /api/properties/{property:slug}/availability
+     * Property is automatically resolved by Laravel's route model binding
      */
     public function availability(Request $request, Property $property): JsonResponse
     {

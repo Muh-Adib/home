@@ -161,6 +161,9 @@ class BookingController extends Controller
 
     /**
      * Show booking confirmation
+     * 
+     * Route: GET /bookings/{booking:booking_number}/confirmation
+     * Booking is automatically resolved by Laravel's route model binding
      */
     public function confirmation(Booking $booking): Response
     {
@@ -173,6 +176,9 @@ class BookingController extends Controller
 
     /**
      * Show user's bookings
+     * 
+     * Route: GET /my-bookings
+     * User is automatically resolved by Laravel's route model binding
      */
     public function myBookings(): Response
     {
@@ -354,6 +360,9 @@ class BookingController extends Controller
 
     /**
      * Check if email exists (API)
+     * 
+     * Route: GET /api/check-email-exists
+     * Request is validated using Laravel's request validation
      */
     public function checkEmailExists(Request $request): JsonResponse
     {
@@ -371,6 +380,10 @@ class BookingController extends Controller
 
     /**
      * Cancel booking
+     * 
+     * Route: POST /bookings/{booking:booking_number}/cancel
+     * Booking is automatically resolved by Laravel's route model binding
+     * Request is validated using Laravel's request validation
      */
     public function cancel(Request $request, Booking $booking): RedirectResponse
     {

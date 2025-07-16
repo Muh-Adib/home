@@ -38,18 +38,6 @@ export const PropertyLocation = React.memo<PropertyLocationProps>(({ property })
 
   const { lat, lng, hasValidCoordinates, originalLat, originalLng } = coordinateData;
 
-  // Memoize debug info to prevent unnecessary console calls
-  const debugInfo = useMemo(() => ({
-    originalLat,
-    originalLng,
-    parsedLat: lat,
-    parsedLng: lng,
-    hasValidCoordinates,
-    propertyName: property.name
-  }), [originalLat, originalLng, lat, lng, hasValidCoordinates, property.name]);
-
-  console.log('📍 PropertyLocation Debug:', debugInfo);
-
   return (
     <Card>
       <CardHeader>

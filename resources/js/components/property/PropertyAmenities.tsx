@@ -4,16 +4,16 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AmenityItem from '@/components/AmenityItem';
-import { PropertyAmenity } from '@/types/property';
+import { Amenity } from '@/types';
 
 interface PropertyAmenitiesProps {
-  amenities: PropertyAmenity[];
+  amenities: Amenity[];
 }
 
 export const PropertyAmenities: React.FC<PropertyAmenitiesProps> = ({ amenities }) => {
   const { t } = useTranslation();
 
-  const amenitiesByCategory = amenities?.reduce((acc: Record<string, PropertyAmenity[]>, amenity) => {
+  const amenitiesByCategory = amenities?.reduce((acc: Record<string, Amenity[]>, amenity) => {
     const category = amenity.category || 'other';
     if (!acc[category]) acc[category] = [];
     acc[category].push(amenity);

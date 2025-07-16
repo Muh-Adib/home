@@ -328,7 +328,7 @@ export function BookingSidebar({
                         <Button 
                             size="lg" 
                             className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                            disabled={!isRateReady || isCalculatingRate || !checkInDate || !checkOutDate || !meetsMinimumStay}
+                            disabled={!isRateReady || !meetsMinimumStay}
                             asChild
                         >
                             <Link

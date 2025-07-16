@@ -23,7 +23,7 @@ COPY resources/ ./resources/
 COPY public/ ./public/
 
 # Build assets
-RUN npm run build
+#RUN npm run build
 
 # Production PHP stage
 FROM php:8.3-fpm-alpine AS php-base

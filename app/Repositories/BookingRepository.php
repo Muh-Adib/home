@@ -106,7 +106,7 @@ class BookingRepository
 
         return array_unique($bookedDates);
     }
-
+    //potensi error kehilangan data jika booking berada di akhir dan awal bulan lainnya
     public function getBookingsByDateRange(Property $property, string $startDate, string $endDate): Collection
     {
         return Booking::where('property_id', $property->id)
