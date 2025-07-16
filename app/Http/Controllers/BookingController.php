@@ -367,14 +367,28 @@ class BookingController extends Controller
     public function checkEmailExists(Request $request): JsonResponse
     {
         $request->validate([
-            'email' => 'required|email',
+            'email' => 'required|email|max:255',
         ]);
 
-        $exists = \App\Models\User::where('email', $request->email)->exists();
+        // Use validated data to prevent any potential injection
+        $email = $request->validated()['email'];
+        
+        // Additional sanitization for extra security
+        $email = filter_var($email, FILTER_SANITIZE_EMAIL);
+        
+        if (!$email) {
+            return response()->json([
+                'exists' => false,
+                'email' => $request->email,
+                'error' => 'Invalid email format'
+            ], 422);
+        }
+
+        $exists = \App\Models\User::where('email', $email)->exists();
 
         return response()->json([
             'exists' => $exists,
-            'email' => $request->email
+            'email' => $email
         ]);
     }
 
