@@ -79,14 +79,7 @@ RUN addgroup -g 1000 www && \
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy composer files
-COPY composer.json ./
-COPY composer.lock ./
-
-# Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
-
-# Copy application code
+# Copy application code FIRST (including artisan file)
 COPY . .
 
 # Copy built assets from node stage
@@ -111,6 +104,13 @@ RUN if [ -f docker/php/opcache.ini ]; then cp docker/php/opcache.ini /usr/local/
 RUN if [ -f docker/nginx/nginx.conf ]; then cp docker/nginx/nginx.conf /etc/nginx/nginx.conf; fi
 RUN if [ -f docker/nginx/default.conf ]; then cp docker/nginx/default.conf /etc/nginx/http.d/default.conf; fi
 RUN if [ -f docker/supervisor/supervisord.conf ]; then cp docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf; fi
+
+# Install PHP dependencies AFTER copying application code
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+
+# Create .env file if it doesn't exist and generate application key
+RUN if [ ! -f .env ]; then cp .env.example .env; fi \
+    && php artisan key:generate --force || echo "Key generation failed, continuing..."
 
 # Optimize Laravel for production (with error handling)
 RUN php artisan config:cache || echo "Config cache failed, continuing..." \
