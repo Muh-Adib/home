@@ -117,7 +117,7 @@ export function usePropertyAvailability(
         const checkOut = to.toISOString().split('T')[0];
         
         // Check if any dates in range are booked
-        const dateRange = [];
+        const dateRange: string[] = [];
         const current = new Date(from);
         while (current < to) {
             dateRange.push(current.toISOString().split('T')[0]);
