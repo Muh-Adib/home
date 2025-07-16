@@ -28,7 +28,7 @@ RUN npm run build
 # Production PHP stage
 FROM php:8.3-fpm-alpine AS php-base
 
-# Install system dependencies
+# Install system dependencies including build tools for Redis
 RUN apk add --no-cache \
     git \
     curl \
@@ -45,7 +45,11 @@ RUN apk add --no-cache \
     postgresql-client \
     redis \
     supervisor \
-    nginx
+    nginx \
+    autoconf \
+    g++ \
+    make \
+    pcre-dev
 
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -62,7 +66,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         intl \
         opcache
 
-# Install Redis extension
+# Install Redis extension BEFORE purging build tools
 RUN pecl install redis && docker-php-ext-enable redis
 
 # Install Composer
