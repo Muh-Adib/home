@@ -34,6 +34,16 @@ Route::get('/csrf-token', function () {
     return response()->json(['token' => csrf_token()]);
 })->name('csrf.token');
 
+// Health check endpoint for Docker
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'healthy',
+        'timestamp' => now()->toISOString(),
+        'version' => config('app.version', '1.0.0'),
+        'environment' => config('app.env'),
+    ]);
+})->name('health');
+
 // Homepage
 Route::get('/', function () {
     $featuredProperties = \App\Models\Property::active()

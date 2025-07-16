@@ -96,14 +96,18 @@ RUN mkdir -p /var/log/supervisor \
     && mkdir -p /var/www/html/storage/logs \
     && mkdir -p /var/www/html/storage/framework/cache \
     && mkdir -p /var/www/html/storage/framework/sessions \
-    && mkdir -p /var/www/html/storage/framework/views
+    && mkdir -p /var/www/html/storage/framework/views \
+    && mkdir -p /etc/supervisor.d
 
 # Copy configuration files if they exist
 RUN if [ -f docker/php/php.ini ]; then cp docker/php/php.ini /usr/local/etc/php/conf.d/custom.ini; fi
 RUN if [ -f docker/php/opcache.ini ]; then cp docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini; fi
 RUN if [ -f docker/nginx/nginx.conf ]; then cp docker/nginx/nginx.conf /etc/nginx/nginx.conf; fi
 RUN if [ -f docker/nginx/default.conf ]; then cp docker/nginx/default.conf /etc/nginx/http.d/default.conf; fi
-RUN if [ -f docker/supervisor/supervisord.conf ]; then cp docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf; fi
+
+# Copy and setup supervisor configuration
+COPY docker/supervisor/init-supervisor.sh /usr/local/bin/init-supervisor.sh
+RUN chmod +x /usr/local/bin/init-supervisor.sh
 
 # Install PHP dependencies AFTER copying application code
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
@@ -127,5 +131,5 @@ EXPOSE 80 443
 # Switch to non-root user
 USER www
 
-# Start supervisor
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# Start supervisor using initialization script
+CMD ["/usr/local/bin/init-supervisor.sh"]
