@@ -537,9 +537,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
             guest_email: email
         }));
 
-        // Clear existing timeout
+        // Clear existing timeout to prevent memory leaks
         if (emailCheckTimeout) {
             clearTimeout(emailCheckTimeout);
+            setEmailCheckTimeout(null);
         }
 
         // Set new timeout for checking email (Optional feature - not blocking submission)
@@ -550,6 +551,15 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
             setEmailCheckTimeout(timeout);
         }
     };
+
+    // Cleanup timeouts on component unmount to prevent memory leaks
+    useEffect(() => {
+        return () => {
+            if (emailCheckTimeout) {
+                clearTimeout(emailCheckTimeout);
+            }
+        };
+    }, [emailCheckTimeout]);
     
     const dpOptions = [
         { value: 50, label: '50% Down Payment', description: 'Pay 50% now, 50% later' },
