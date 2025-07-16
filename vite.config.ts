@@ -22,4 +22,19 @@ export default defineConfig({
             'ziggy-js': resolve(__dirname, 'vendor/tightenco/ziggy'),
         },
     },
+    build: {
+        rollupOptions: {
+            onwarn(warning, warn) {
+                // Suppress specific warnings that might be causing issues
+                if (warning.code === 'CIRCULAR_DEPENDENCY') return;
+                if (warning.message.includes('object is not extensible')) return;
+                warn(warning);
+            },
+            treeshake: {
+                moduleSideEffects: false,
+            },
+        },
+        target: 'es2020',
+        minify: 'esbuild',
+    },
 });

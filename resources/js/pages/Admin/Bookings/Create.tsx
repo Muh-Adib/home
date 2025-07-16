@@ -251,7 +251,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         const toDate = new Date(checkOut);
         
         // Generate date range
-        const dateArray = [];
+        const dateArray: string[] = [];
         const current = new Date(fromDate);
         while (current < toDate) {
             dateArray.push(current.toISOString().split('T')[0]);

@@ -64,7 +64,7 @@ export default function Calendar({ properties, currentProperty, currentMonth, ti
         const startDate = new Date(firstDay);
         startDate.setDate(startDate.getDate() - firstDay.getDay());
         
-        const dates = [];
+        const dates: Date[] = [];
         const endDate = new Date(lastDay);
         endDate.setDate(endDate.getDate() + (6 - lastDay.getDay()));
         
