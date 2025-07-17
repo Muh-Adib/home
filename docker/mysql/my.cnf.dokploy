@@ -1,0 +1,39 @@
+[mysqld]
+# Basic Settings for Dokploy
+default-authentication-plugin=mysql_native_password
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci
+
+# Performance Settings - Optimized for small instances
+innodb-buffer-pool-size=128M
+innodb-log-file-size=32M
+innodb-flush-log-at-trx-commit=2
+innodb-flush-method=O_DIRECT_NO_FSYNC
+
+# Connection Settings
+max-connections=100
+max-connect-errors=1000
+wait-timeout=28800
+interactive-timeout=28800
+
+# Logging - Minimal for production
+log-error=/var/log/mysql/error.log
+general-log=0
+slow-query-log=0
+
+# Security
+skip-name-resolve
+local-infile=0
+skip-show-database
+
+# Memory optimizations
+table-open-cache=64
+thread-cache-size=8
+query-cache-type=1
+query-cache-size=32M
+
+[mysql]
+default-character-set=utf8mb4
+
+[client]
+default-character-set=utf8mb4
