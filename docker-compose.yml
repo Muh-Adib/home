@@ -57,7 +57,7 @@ services:
       retries: 3
       start_period: 40s
 
-  # Database Container (MySQL)
+  # Database Container (MySQL) - Simplified for Dokploy
   db:
     image: mysql:8.0
     container_name: pms_database
@@ -73,16 +73,15 @@ services:
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
     networks:
       - pms_network
-    command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=256M --max-connections=200
+    command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=128M
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-secret}"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+      interval: 60s
+      timeout: 30s
+      retries: 15
+      start_period: 120s
 
   # Alternative PostgreSQL Database (uncomment if preferred)
   # db_postgres:
