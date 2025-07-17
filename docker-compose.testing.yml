@@ -1,0 +1,154 @@
+version: '3.8'
+
+services:
+  # Main Application Container - Testing Configuration
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: php-base
+    restart: unless-stopped
+    volumes:
+      - app_storage:/var/www/html/storage
+      - app_cache:/var/www/html/bootstrap/cache
+    networks:
+      - dokploy-network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Testing Environment Configuration
+      - APP_ENV=testing
+      - APP_DEBUG=true
+      - APP_KEY=${APP_KEY}
+      - APP_URL=http://test-homsjogja.local  # Random domain untuk testing
+      
+      # Database Configuration
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_DATABASE=${DB_DATABASE:-property_management_test}
+      - DB_USERNAME=${DB_USERNAME:-pms_user}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      
+      # Cache Configuration (Simplified untuk testing)
+      - CACHE_DRIVER=array
+      - SESSION_DRIVER=file
+      - QUEUE_CONNECTION=sync
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      
+      # Mail Configuration (Testing)
+      - MAIL_MAILER=log
+      - MAIL_FROM_ADDRESS="noreply@test-homsjogja.local"
+      - MAIL_FROM_NAME="PMS Testing"
+      
+      # Logging
+      - LOG_CHANNEL=stack
+      - LOG_LEVEL=debug
+    ports:
+      - "80"  # Internal port - Dokploy akan handle routing
+    healthcheck:
+      test: ["CMD", "php", "artisan", "tinker", "--execute", "echo 'OK';"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Database Container - Optimized for Testing
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      # Database Configuration
+      MYSQL_DATABASE: ${DB_DATABASE:-property_management_test}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_USER: ${DB_USERNAME:-pms_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      
+      # Force proper MySQL initialization
+      MYSQL_RANDOM_ROOT_PASSWORD: "no"
+      MYSQL_ONETIME_PASSWORD: "no"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - dokploy-network
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --innodb-buffer-pool-size=128M
+      --innodb-log-file-size=32M
+      --innodb-flush-log-at-trx-commit=2
+      --innodb-flush-method=O_DIRECT_NO_FSYNC
+      --skip-name-resolve
+      --max-connections=100
+      --wait-timeout=28800
+      --interactive-timeout=28800
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-secret}"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # Redis Container - Optional untuk Testing
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - dokploy-network
+    command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Queue Worker - Simplified untuk Testing
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: php-base
+    restart: unless-stopped
+    volumes:
+      - app_storage:/var/www/html/storage
+      - app_cache:/var/www/html/bootstrap/cache
+    networks:
+      - dokploy-network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - APP_ENV=testing
+      - APP_DEBUG=true
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - DB_DATABASE=${DB_DATABASE:-property_management_test}
+      - DB_USERNAME=${DB_USERNAME:-pms_user}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      - REDIS_HOST=redis
+      - QUEUE_CONNECTION=sync  # Sync untuk testing
+    command: php artisan queue:work --sleep=5 --tries=3 --timeout=60 --daemon
+
+networks:
+  dokploy-network:
+    external: true
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_storage:
+    driver: local
+  app_cache:
+    driver: local
