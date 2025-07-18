@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Booking\CreateBookingRequest;
 use App\Services\BookingServiceRefactored;
 use App\Services\RateCalculationService;
-use App\Domain\Booking\ValueObjects\BookingRequest as BookingRequestVO;
+
 use App\Models\Property;
 use App\Models\Booking;
 use Illuminate\Http\Request;
@@ -216,14 +216,34 @@ class BookingController extends Controller
     private function createBookingNormally(Property $property, array $data)
     {
         try {
-            // Add property_id to validated data since it comes from route
-            $data['property_id'] = $property->id;
+            // Ensure required fields are present and transform data for BookingService
+            $bookingData = array_merge($data, [
+                'check_in_date' => $data['check_in'] ?? session('booking_data.check_in'),
+                'check_out_date' => $data['check_out'] ?? session('booking_data.check_out'),
+                'check_in_time' => $data['check_in_time'] ?? '14:00',
+                'guest_count_male' => $data['male_count'] ?? 1,
+                'guest_count_female' => $data['female_count'] ?? 1,
+                'guest_count_children' => $data['children_count'] ?? 0,
+                'relationship_type' => $data['relationship_type'] ?? 'family',
+                'guest_country' => $data['guest_country'] ?? 'Indonesia',
+                'guest_gender' => $data['guest_gender'] ?? 'prefer_not_to_say',
+                'special_requests' => $data['special_requests'] ?? '',
+            ]);
+
+            // Create or find user if not authenticated
+            $user = auth()->user();
+            if (!$user) {
+                $user = $this->createOrFindUser($bookingData);
+                
+                // Auto-login the user for better UX
+                auth()->login($user);
+            }
             
-            // Convert request to value object
-            $bookingRequest = BookingRequestVO::fromArray($data);
+            // Create booking using service with correct signature
+            $booking = $this->bookingService->createBooking($property, $bookingData, $user);
             
-            // Create booking using service
-            $booking = $this->bookingService->createBooking($bookingRequest, auth()->user());
+            // Clear session data
+            session()->forget(['booking_data', 'pending_booking_data']);
             
             return $booking;
 
@@ -237,6 +257,48 @@ class BookingController extends Controller
 
             throw $e;
         }
+    }
+
+    /**
+     * Create or find user for booking (with proper password handling)
+     */
+    private function createOrFindUser(array $data): \App\Models\User
+    {
+        // Try to find existing user
+        $user = \App\Models\User::where('email', $data['guest_email'])->first();
+        
+        if ($user) {
+            // Update phone if needed
+            if (empty($user->phone) && !empty($data['guest_phone'])) {
+                $user->update(['phone' => $data['guest_phone']]);
+            }
+            return $user;
+        }
+
+        // Create new user with proper password
+        $password = \Illuminate\Support\Str::random(12); // Generate secure random password
+        
+        $user = \App\Models\User::create([
+            'name' => $data['guest_name'],
+            'email' => $data['guest_email'],
+            'phone' => $data['guest_phone'],
+            'password' => \Illuminate\Support\Facades\Hash::make($password),
+            'role' => 'guest',
+            'status' => 'active',
+        ]);
+
+        // Send welcome email with password
+        try {
+            $user->notify(new \App\Notifications\GuestWelcomeNotification($password));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to send welcome email', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'error' => $e->getMessage()
+            ]);
+        }
+
+        return $user;
     }
 
     /**

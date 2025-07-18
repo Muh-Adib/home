@@ -828,9 +828,11 @@ class BookingManagementController extends Controller
     {
         $property = $booking->property;
         
-        // Check if user is new (created recently)
-        $isNewUser = $booking->created_by && 
-                     User::find($booking->created_by)?->created_at->gte(now()->subDays(1));
+        // Find the guest user by email (correct approach)
+        $guestUser = User::where('email', $booking->guest_email)->first();
+        
+        // Check if user is truly new (just created for this booking)
+        $isNewUser = $guestUser && $guestUser->created_at->gte(now()->subHours(1));
 
         $message = "*Konfirmasi Booking #{$booking->booking_number}*\n\n";
         $message .= "Halo {$booking->guest_name},\n\n";
@@ -854,14 +856,17 @@ class BookingManagementController extends Controller
             $message .= "• Dashboard: " . route('dashboard') . "\n\n";
         }
 
-        // Add login info for new users
-        if ($isNewUser) {
-            $user = User::find($booking->created_by);
-            
+        // Add login info for new users (only if account was just created)
+        if ($isNewUser && $guestUser) {
             $message .= "*Akun Login Anda:*\n";
-            $message .= "• Email: {$user->email}\n";
+            $message .= "• Email: {$guestUser->email}\n";
             $message .= "• Login di: " . route('login') . "\n";
-            $message .= "_Password telah dikirim via email terpisah_\n\n";
+            $message .= "_Cek email Anda untuk password login_\n\n";
+        } elseif ($guestUser) {
+            // Existing user
+            $message .= "*Akses Dashboard:*\n";
+            $message .= "• Login dengan akun Anda di: " . route('login') . "\n";
+            $message .= "• Email: {$guestUser->email}\n\n";
         }
 
         $message .= "Terima kasih telah memilih properti kami! 🏠\n";

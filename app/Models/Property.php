@@ -727,4 +727,26 @@ class Property extends Model
             ]
         ];
     }
+
+    /**
+     * Get the next check-in booking for this property
+     * Used by cleaning dashboard to show upcoming guests
+     */
+    public function getNextCheckIn()
+    {
+        $nextBooking = $this->bookings()
+            ->where('booking_status', 'confirmed')
+            ->where('check_in', '>', now())
+            ->orderBy('check_in', 'asc')
+            ->first(['check_in', 'guest_name']);
+
+        if (!$nextBooking) {
+            return null;
+        }
+
+        return [
+            'check_in' => $nextBooking->check_in,
+            'guest_name' => $nextBooking->guest_name,
+        ];
+    }
 }
