@@ -256,6 +256,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::patch('bookings/{booking:booking_number}/cancel', 'cancel')->name('bookings.cancel');
         Route::patch('bookings/{booking:booking_number}/checkin', 'checkin')->name('bookings.checkin');
         Route::patch('bookings/{booking:booking_number}/checkout', 'checkout')->name('bookings.checkout');
+        Route::get('bookings/{booking:booking_number}/whatsapp', 'sendWhatsApp')->name('bookings.whatsapp');
         
         // Booking management routes
         Route::get('booking-management', 'index')->name('booking-management.index');
@@ -397,6 +398,36 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         Route::get('property', 'property')->name('property');
         Route::post('property', 'updateProperty')->name('property.update');
     });
+});
+
+/*
+|--------------------------------------------------------------------------
+| STAFF ROUTES - CLEANING MANAGEMENT
+|--------------------------------------------------------------------------
+| Routes for staff cleaning operations
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth', 'role:super_admin,cleaning_staff,front_desk'])->group(function () {
+    Route::get('/staff/cleaning', [App\Http\Controllers\Staff\CleaningDashboardController::class, 'index'])
+        ->name('staff.cleaning.index');
+    Route::patch('/staff/cleaning/{booking}/mark-cleaned', [App\Http\Controllers\Staff\CleaningDashboardController::class, 'markAsCleaned'])
+        ->name('staff.cleaning.mark-cleaned');
+    Route::get('/staff/cleaning/property/{property}/keybox', [App\Http\Controllers\Staff\CleaningDashboardController::class, 'getKeyboxCode'])
+        ->name('staff.cleaning.keybox');
+});
+
+/*
+|--------------------------------------------------------------------------
+| BOOKING RESUME ROUTES
+|--------------------------------------------------------------------------
+| Routes for booking resume after login
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/booking/resume', [App\Http\Controllers\BookingController::class, 'resumeBooking'])
+        ->name('bookings.resume');
 });
 
 /*

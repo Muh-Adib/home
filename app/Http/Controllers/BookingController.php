@@ -133,19 +133,99 @@ class BookingController extends Controller
      */
     public function store(CreateBookingRequest $request, Property $property): RedirectResponse
     {
+        $validated = $request->validated();
+        
+        // Check if user exists with email or phone
+        $existingUser = \App\Models\User::where('email', $validated['guest_email'])
+            ->orWhere('phone', $validated['guest_phone'])
+            ->first();
+
+        if ($existingUser && !auth()->check()) {
+            // Save booking data to session
+            session([
+                'pending_booking_data' => [
+                    'property_id' => $property->id,
+                    'form_data' => $validated,
+                    'booking_session' => session('booking_data'),
+                    'created_at' => now(),
+                ]
+            ]);
+
+            return redirect()->route('login')
+                ->with('info', 'We found an existing account with your email/phone. Please login to continue booking.')
+                ->with('intended_url', route('bookings.resume'));
+        }
+
+        // Proceed with normal booking creation
+        try {
+            $booking = $this->createBookingNormally($property, $validated);
+            
+            return redirect()->route('bookings.confirmation', $booking->booking_number)
+                ->with('success', 'Booking berhasil dibuat!');
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Gagal membuat booking: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Resume booking after login
+     */
+    public function resumeBooking(): RedirectResponse
+    {
+        if (!auth()->check()) {
+            return redirect()->route('login');
+        }
+
+        $pendingData = session('pending_booking_data');
+        
+        if (!$pendingData || $pendingData['created_at']->lt(now()->subHours(2))) {
+            session()->forget('pending_booking_data');
+            return redirect()->route('properties.index')
+                ->with('error', 'Booking session expired. Please start again.');
+        }
+
+        $property = Property::find($pendingData['property_id']);
+        
+        if (!$property) {
+            return redirect()->route('properties.index')
+                ->with('error', 'Property not found.');
+        }
+
+        // Restore session data
+        session(['booking_data' => $pendingData['booking_session']]);
+
+        try {
+            // Create booking with saved data
+            $booking = $this->createBookingNormally($property, $pendingData['form_data']);
+            
+            // Clear pending data
+            session()->forget('pending_booking_data');
+            
+            return redirect()->route('bookings.confirmation', $booking->booking_number)
+                ->with('success', 'Welcome back! Your booking has been created successfully.');
+
+        } catch (\Exception $e) {
+            return redirect()->route('properties.show', $property->slug)
+                ->with('error', 'Failed to create booking. Please try again.');
+        }
+    }
+
+    /**
+     * Create booking normally (extracted for reuse)
+     */
+    private function createBookingNormally(Property $property, array $data)
+    {
         try {
             // Add property_id to validated data since it comes from route
-            $validatedData = $request->validated();
-            $validatedData['property_id'] = $property->id;
+            $data['property_id'] = $property->id;
             
             // Convert request to value object
-            $bookingRequest = BookingRequestVO::fromArray($validatedData);
+            $bookingRequest = BookingRequestVO::fromArray($data);
             
             // Create booking using service
             $booking = $this->bookingService->createBooking($bookingRequest, auth()->user());
             
-            return redirect()->route('bookings.confirmation', $booking->booking_number)
-                ->with('success', 'Booking berhasil dibuat!');
+            return $booking;
 
         } catch (\Exception $e) {
             Log::error('Booking creation failed', [
@@ -155,7 +235,7 @@ class BookingController extends Controller
                 'property_slug' => $property->slug,
             ]);
 
-            return back()->withErrors(['error' => 'Gagal membuat booking: ' . $e->getMessage()]);
+            throw $e;
         }
     }
 

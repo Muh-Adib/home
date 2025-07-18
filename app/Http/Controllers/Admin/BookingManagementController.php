@@ -612,8 +612,12 @@ class BookingManagementController extends Controller
             'workflow.processor'
         ]);
 
+        // Generate WhatsApp message template
+        $whatsappData = $this->generateWhatsAppMessage($booking);
+
         return Inertia::render('Admin/Bookings/Show', [
             'booking' => $booking,
+            'whatsappData' => $whatsappData,
         ]);
     }
 
@@ -815,5 +819,110 @@ class BookingManagementController extends Controller
             return redirect()->back()
                 ->with('error', 'Failed to check out guest. Please try again.');
         }
+    }
+
+    /**
+     * Generate WhatsApp message template
+     */
+    private function generateWhatsAppMessage(Booking $booking): array
+    {
+        $property = $booking->property;
+        $checkinInstructions = $property->getFormattedCheckinInstructions();
+        
+        // Check if user is new (created recently)
+        $isNewUser = $booking->created_by && 
+                     User::find($booking->created_by)?->created_at->gte(now()->subDays(1));
+
+        $message = "*Konfirmasi Booking #{$booking->booking_number}*\n\n";
+        $message .= "Halo {$booking->guest_name},\n\n";
+        $message .= "Booking Anda telah dikonfirmasi:\n";
+        $message .= "📍 *Property*: {$property->name}\n";
+        $message .= "📅 *Check-in*: {$booking->check_in}\n";
+        $message .= "📅 *Check-out*: {$booking->check_out}\n";
+        $message .= "👥 *Jumlah Tamu*: {$booking->guest_count} orang\n";
+        $message .= "💰 *Total*: Rp " . number_format($booking->total_amount, 0, ',', '.') . "\n\n";
+
+        if ($property->current_keybox_code) {
+            $message .= "*Informasi Check-in:*\n";
+            
+            if (isset($checkinInstructions['welcome'])) {
+                $message .= "• {$checkinInstructions['welcome']}\n";
+            }
+            if (isset($checkinInstructions['keybox_location'])) {
+                $message .= "• {$checkinInstructions['keybox_location']}\n";
+            }
+            if (isset($checkinInstructions['keybox_code'])) {
+                $message .= "• {$checkinInstructions['keybox_code']}\n";
+            }
+            if (isset($checkinInstructions['checkin_time'])) {
+                $message .= "• {$checkinInstructions['checkin_time']}\n";
+            }
+            
+            if (isset($checkinInstructions['additional_info']) && is_array($checkinInstructions['additional_info'])) {
+                $message .= "\n*Informasi Tambahan:*\n";
+                foreach ($checkinInstructions['additional_info'] as $info) {
+                    $message .= "• {$info}\n";
+                }
+            }
+            
+            if (isset($checkinInstructions['emergency_contact'])) {
+                $message .= "\n📞 {$checkinInstructions['emergency_contact']}\n";
+            }
+        }
+
+        // Add login info for new users
+        if ($isNewUser) {
+            $user = User::find($booking->created_by);
+            $tempPassword = 'temp' . rand(1000, 9999); // This should be generated during user creation
+            
+            $message .= "\n*Akun Login Anda:*\n";
+            $message .= "• Email: {$user->email}\n";
+            $message .= "• Password: {$tempPassword}\n";
+            $message .= "• Login di: " . route('login') . "\n";
+            $message .= "_Silakan ganti password setelah login_\n";
+        }
+
+        $message .= "\nTerima kasih telah memilih properti kami! 🏠";
+
+        return [
+            'phone' => $this->formatPhoneNumber($booking->guest_phone),
+            'message' => $message,
+            'whatsapp_url' => "https://wa.me/{$this->formatPhoneNumber($booking->guest_phone)}?text=" . urlencode($message),
+            'can_send' => !empty($booking->guest_phone),
+        ];
+    }
+
+    /**
+     * Format phone number for WhatsApp
+     */
+    private function formatPhoneNumber(string $phone): string
+    {
+        // Remove all non-numeric characters
+        $phone = preg_replace('/[^0-9]/', '', $phone);
+        
+        // Convert Indonesian format to international
+        if (substr($phone, 0, 1) === '0') {
+            $phone = '62' . substr($phone, 1);
+        } elseif (substr($phone, 0, 2) !== '62') {
+            $phone = '62' . $phone;
+        }
+        
+        return $phone;
+    }
+
+    /**
+     * Send WhatsApp message (redirect to WhatsApp Web)
+     */
+    public function sendWhatsApp(Booking $booking): RedirectResponse
+    {
+        $this->authorize('view', $booking);
+        
+        $whatsappData = $this->generateWhatsAppMessage($booking);
+        
+        if (!$whatsappData['can_send']) {
+            return redirect()->back()->with('error', 'Guest phone number not available.');
+        }
+
+        return redirect($whatsappData['whatsapp_url']);
     }
 }

@@ -45,6 +45,10 @@ class Property extends Model
         'seo_title',
         'seo_description',
         'seo_keywords',
+        'current_keybox_code',
+        'keybox_updated_at',
+        'keybox_updated_by',
+        'checkin_instructions',
     ];
 
     protected $casts = [
@@ -57,6 +61,8 @@ class Property extends Model
         'is_featured' => 'boolean',
         'check_in_time' => 'datetime:H:i',
         'check_out_time' => 'datetime:H:i',
+        'checkin_instructions' => 'array',
+        'keybox_updated_at' => 'datetime',
     ];
 
     // Boot method untuk auto-generate slug
@@ -493,6 +499,69 @@ class Property extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * Generate new keybox code and update property
+     */
+    public function generateNewKeyboxCode($updatedBy = null): string
+    {
+        $newCode = str_pad(random_int(100, 999), 3, '0', STR_PAD_LEFT);
+        
+        $this->update([
+            'current_keybox_code' => $newCode,
+            'keybox_updated_at' => now(),
+            'keybox_updated_by' => $updatedBy ?? auth()->id(),
+        ]);
+
+        return $newCode;
+    }
+
+    /**
+     * Get formatted check-in instructions with current keybox code
+     */
+    public function getFormattedCheckinInstructions(): array
+    {
+        $instructions = $this->checkin_instructions ?? [];
+        
+        // Replace placeholders with actual data
+        return array_map(function($instruction) {
+            if (is_string($instruction)) {
+                return str_replace(
+                    ['{{keybox_code}}', '{{property_name}}', '{{address}}'],
+                    [$this->current_keybox_code, $this->name, $this->address],
+                    $instruction
+                );
+            }
+            return $instruction;
+        }, $instructions);
+    }
+
+    /**
+     * Default check-in instructions template
+     */
+    public static function getDefaultCheckinInstructionsTemplate(): array
+    {
+        return [
+            'welcome' => 'Selamat datang di {{property_name}}!',
+            'keybox_location' => 'Keybox terletak di depan pintu masuk.',
+            'keybox_code' => 'Kode keybox: {{keybox_code}}',
+            'checkin_time' => 'Check-in time: 14:00 - 22:00',
+            'emergency_contact' => 'Hubungi kami jika ada kendala: 0812-3456-7890',
+            'additional_info' => [
+                'WiFi password tersedia di dalam rumah',
+                'Harap menjaga kebersihan selama menginap',
+                'Check-out maksimal pukul 12:00'
+            ]
+        ];
+    }
+
+    /**
+     * Relationship to user who updated keybox
+     */
+    public function keyboxUpdatedBy()
+    {
+        return $this->belongsTo(User::class, 'keybox_updated_by');
     }
 
     /**
