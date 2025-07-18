@@ -20,7 +20,6 @@ import {
     ExternalLink
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useRateCalculation } from '@/hooks/use-rate-calculation';
 import type { Property } from '@/components/PropertyCard';
 
 interface BookingSidebarProps {
@@ -43,6 +42,13 @@ interface BookingSidebarProps {
         seasonalRateApplied?: any;
     };
     meetsMinimumStay: boolean;
+    // Rate calculation data from parent
+    rateCalculation?: any;
+    rateError?: string | null;
+    isCalculatingRate?: boolean;
+    hasSeasonalPremium?: boolean;
+    hasWeekendPremium?: boolean;
+    isRateReady?: boolean;
 }
 
 export function BookingSidebar({
@@ -56,30 +62,19 @@ export function BookingSidebar({
     guestCount,
     maxSelectableDate,
     effectiveMinStay,
-    meetsMinimumStay
+    meetsMinimumStay,
+    // Rate calculation props
+    rateCalculation,
+    rateError,
+    isCalculatingRate,
+    hasSeasonalPremium,
+    hasWeekendPremium,
+    isRateReady
 }: BookingSidebarProps) {
     const { t } = useTranslation();
-    
-    const {
-        rateCalculation,
-        rateError,
-        isCalculatingRate,
-        calculateRate,
-        hasSeasonalPremium,
-        hasWeekendPremium,
-        isRateReady
-    } = useRateCalculation({
-        availabilityData,
-        guestCount
-    });
 
     const handleDateRangeChange = (startDate: string, endDate: string) => {
         onDateRangeChange(startDate, endDate);
-        
-        // Calculate rate if both dates are selected
-        if (startDate && endDate) {
-            calculateRate(startDate, endDate);
-        }
     };
 
     const handleGuestCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,6 +88,8 @@ export function BookingSidebar({
         
         onGuestCountChange(count);
     };
+
+    const canSubmit = isRateReady && meetsMinimumStay && checkInDate && checkOutDate && guestCount;
 
     return (
         <div className="space-y-6">
@@ -328,18 +325,18 @@ export function BookingSidebar({
                         <Button 
                             size="lg" 
                             className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                            disabled={!isRateReady || !meetsMinimumStay}
+                            disabled={!canSubmit}
                             asChild
                         >
                             <Link
-                                href={`/properties/${property.slug}/book?check_in=${checkInDate}&check_out=${checkOutDate}&guests=${guestCount}`}
+                                href={!canSubmit ? '#' : `/properties/${property.slug}/book?check_in=${checkInDate}&check_out=${checkOutDate}&guests=${guestCount}`}
                             >
                                 {isCalculatingRate ? (
                                     <>
                                         <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                                         {t('properties.calculating')}
                                     </>
-                                ) : isRateReady ? (
+                                ) : canSubmit ? (
                                     <>
                                         <CheckCircle className="h-4 w-4 mr-2" />
                                         {t('properties.book_now')}

@@ -38,91 +38,60 @@ class BookingController extends Controller
      * Route: GET /properties/{property:slug}/book
      * Property is automatically resolved by Laravel's route model binding
      */
-    public function create(Property $property): Response
+    public function create(Property $property)
     {
-        // Get search parameters from URL
+        // Ambil search params dari URL
         $searchParams = request()->only(['check_in', 'check_out', 'guests']);
-        
-        // Get initial availability data for the property - same as show property
-        $initialAvailabilityData = null;
+
+        // Validasi: semua search params wajib ada
+        if (
+            empty($searchParams['check_in']) ||
+            empty($searchParams['check_out']) ||
+            empty($searchParams['guests'])
+        ) {
+            return redirect()->back()->withErrors(['error' => 'Tanggal check-in, check-out, dan jumlah tamu wajib diisi.']);
+        }
+
+        $startDate = $searchParams['check_in'];
+        $endDate = $searchParams['check_out'];
+        $guestCount = $searchParams['guests'];
+
+        // Cek ketersediaan properti
+        $availabilityService = app(\App\Services\AvailabilityService::class);
+
         try {
-            $startDate = $searchParams['check_in'] ?? now()->toDateString();
-            $endDate = $searchParams['check_out'] ?? now()->addMonths(3)->toDateString();
-            $guestCount = $searchParams['guests'] ?? 2;
-            
-            // Get availability data using the same service as show property
-            $availabilityService = app(\App\Services\AvailabilityService::class);
-            
-            // Get availability data - same format as show property
             $availability = $availabilityService->checkAvailability($property, $startDate, $endDate);
-            
-            // Get rate calculation - same format as show property
-            $rateCalculation = null;
+
+            // Jika tidak ada ketersediaan (misal: semua tanggal diblok), redirect back
+            if (
+                isset($availability['booked_dates']) &&
+                is_array($availability['booked_dates']) &&
+                count($availability['booked_dates']) > 0
+            ) {
+                return redirect()->back()->withErrors(['error' => 'Properti tidak tersedia pada tanggal yang dipilih.']);
+            }
+
+            // Hitung tarif berdasarkan tanggal & jumlah tamu
             try {
                 $rateCalculation = $availabilityService->calculateRateFormatted($property, $startDate, $endDate, $guestCount);
             } catch (\Exception $e) {
-                \Log::warning('Rate calculation failed for initial data: ' . $e->getMessage());
+                \Log::warning('Gagal menghitung tarif: ' . $e->getMessage());
+                return redirect()->back()->withErrors(['error' => 'Gagal menghitung tarif. Silakan coba tanggal lain.']);
             }
-            
-            // Format data for frontend - same format as show property
-            $initialAvailabilityData = [
-                'success' => true,
-                'property_id' => $property->id,
-                'date_range' => [
-                    'start' => $startDate,
-                    'end' => $endDate,
-                ],
-                'guest_count' => $guestCount,
-                'booked_dates' => $availability['booked_dates'] ?? [],
-                'booked_periods' => $availability['booked_periods'] ?? [],
-                'rates' => $rateCalculation && isset($rateCalculation['rates']) ? $rateCalculation['rates'] : [],
-                'property_info' => [
-                    'base_rate' => $property->base_rate,
-                    'capacity' => $property->capacity,
-                    'capacity_max' => $property->capacity_max,
-                    'cleaning_fee' => $property->cleaning_fee,
-                    'extra_bed_rate' => $property->extra_bed_rate,
-                    'weekend_premium_percent' => $property->weekend_premium_percent,
-                ],
-                // Add additional data needed for booking
-                'max_selectable_date' => now()->addMonths(12)->toDateString(),
-                'min_stay_weekday' => $property->min_stay_weekday,
-                'min_stay_weekend' => $property->min_stay_weekend,
-                'min_stay_peak' => $property->min_stay_peak,
-            ];
-        } catch (\Exception $e) {
-            \Log::error('Error getting initial availability data for booking create: ' . $e->getMessage());
-            // Provide fallback data
-            $initialAvailabilityData = [
-                'success' => true,
-                'property_id' => $property->id,
-                'date_range' => [
-                    'start' => $searchParams['check_in'] ?? now()->toDateString(),
-                    'end' => $searchParams['check_out'] ?? now()->addMonths(3)->toDateString(),
-                ],
-                'guest_count' => $searchParams['guests'] ?? 2,
-                'booked_dates' => [],
-                'booked_periods' => [],
-                'rates' => [],
-                'property_info' => [
-                    'base_rate' => $property->base_rate,
-                    'capacity' => $property->capacity,
-                    'capacity_max' => $property->capacity_max,
-                    'cleaning_fee' => $property->cleaning_fee,
-                    'extra_bed_rate' => $property->extra_bed_rate,
-                    'weekend_premium_percent' => $property->weekend_premium_percent,
-                ],
-                'max_selectable_date' => now()->addMonths(12)->toDateString(),
-                'min_stay_weekday' => $property->min_stay_weekday,
-                'min_stay_weekend' => $property->min_stay_weekend,
-                'min_stay_peak' => $property->min_stay_peak,
-            ];
-        }
 
-        return Inertia::render('Booking/Create', [
-            'property' => $property->load(['amenities', 'media']),
-            'initialAvailabilityData' => $initialAvailabilityData,
-        ]);
+            return Inertia::render('Booking/Create', [
+                'property' => $property->load(['amenities', 'media']),
+                'rateCalculation' => $rateCalculation,
+                'searchParams' => [
+                    'check_in' => $startDate,
+                    'check_out' => $endDate,
+                    'guests' => $guestCount,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Gagal mendapatkan data ketersediaan: ' . $e->getMessage());
+            return redirect()->back()->withErrors(['error' => 'Gagal mendapatkan data ketersediaan properti.']);
+        }
     }
 
     /**

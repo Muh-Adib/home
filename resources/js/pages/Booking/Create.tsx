@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Head, Link, useForm, usePage, router } from '@inertiajs/react';
-import GuestLayout from '@/layouts/guest-layout';
+import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -682,7 +682,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                      rateCalculation !== null;
 
     return (
-        <GuestLayout>
+        <AppLayout>
             <Head title={`${t('booking.book_your_stay')} ${property.name} - Property Management System`} />
             
             <div className="min-h-screen bg-slate-50">
@@ -714,32 +714,26 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                         {/* Dates */}
                                         <div>
                                             <Label>{t('booking.check_in_checkout_dates')}</Label>
-                                            <DateRange
-                                                startDate={data.check_in_date}
-                                                endDate={data.check_out_date}
-                                                onDateChange={handleDateRangeChange}
-                                                bookedDates={availabilityData?.booked_dates || []}
-                                                loading={isCalculatingRate}
-                                                error={rateCalculation?.error}
-                                                minDate={new Date().toISOString().split('T')[0]}
-                                                maxDate={data.check_out_date}
-                                                minStayWeekday={property.min_stay_weekday}
-                                                minStayWeekend={property.min_stay_weekend}
-                                                minStayPeak={property.min_stay_peak}
-                                                showMinStayWarning={true}
-                                                autoTrigger={true}
-                                                triggerDelay={300}
-                                                className="w-full"
-                                                size="lg"
-                                                compact={false}
-                                                showNights={true}
-                                                startLabel={t('booking.check_in')}
-                                                endLabel={t('booking.check_out')}
-                                                placeholder={{
-                                                    start: t('booking.check_in'),
-                                                    end: t('booking.check_out')
-                                                }}
-                                            />
+                                            <div className="flex flex-col md:flex-row gap-4 mt-2">
+                                                <div>
+                                                    <span className="text-sm text-gray-500">Check in</span>
+                                                    <div className="font-semibold text-gray-800">
+                                                        {data.check_in_date
+                                                            ? new Date(data.check_in_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+                                                            : <span className="text-gray-400">Pilih tanggal</span>
+                                                        }
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <span className="text-sm text-gray-500">Check Out</span>
+                                                    <div className="font-semibold text-gray-800">
+                                                        {data.check_out_date
+                                                            ? new Date(data.check_out_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+                                                            : <span className="text-gray-400">Pilih tanggal</span>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </div>
                                             {(bookingErrors.check_in_date || bookingErrors.check_out_date) && (
                                                 <p className="text-sm text-red-600 mt-1">
                                                     {bookingErrors.check_in_date || bookingErrors.check_out_date}
@@ -1400,6 +1394,6 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                     </div>
                 </div>
             </div>
-        </GuestLayout>
+        </AppLayout>
     );
 } 

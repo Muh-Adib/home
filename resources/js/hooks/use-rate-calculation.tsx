@@ -160,8 +160,29 @@ export function useRateCalculation({
 
     // Main rate calculation function
     const calculateRate = useCallback((checkIn: string, checkOut: string): RateCalculation | null => {
-        if (!availabilityData?.rates || !availabilityData?.property_info || !checkIn || !checkOut) {
+        // Validate inputs
+        if (!checkIn || !checkOut) {
+            console.warn('❌ Missing check-in or check-out dates');
             return null;
+        }
+
+        if (!availabilityData?.rates || !availabilityData?.property_info) {
+            console.warn('❌ Missing availability data or property info');
+            return null;
+        }
+
+        // Validate date format
+        const checkInDate = new Date(checkIn);
+        const checkOutDate = new Date(checkOut);
+        
+        if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+            console.error('❌ Invalid date format');
+            throw new Error('Invalid date format');
+        }
+
+        if (checkInDate >= checkOutDate) {
+            console.error('❌ Check-out date must be after check-in date');
+            throw new Error('Check-out date must be after check-in date');
         }
 
         try {
@@ -198,6 +219,12 @@ export function useRateCalculation({
                     guestCount,
                     capacity: availabilityData.property_info.capacity
                 });
+            }
+
+            // Validate final calculation
+            if (totalAmount <= 0) {
+                console.error('❌ Invalid total amount calculated:', totalAmount);
+                throw new Error('Invalid rate calculation');
             }
 
             console.log('💰 Detailed Calculation Breakdown:');

@@ -37,7 +37,15 @@ export default function PropertyShow({
   });
 
   // Rate calculation
-  const { rateCalculation, rateError, isCalculatingRate, calculateRate } = useRateCalculation({
+  const { 
+    rateCalculation,
+    rateError,
+    isCalculatingRate,
+    calculateRate,
+    hasSeasonalPremium,
+    hasWeekendPremium,
+    isRateReady
+  } = useRateCalculation({
     availabilityData,
     guestCount: state.guestCount
   });
@@ -54,6 +62,18 @@ export default function PropertyShow({
   const maxSelectableDate = getMaxSelectableDate(availabilityData);
   const images = property.media?.filter(m => m.media_type === 'image') || [];
   const meetsMinimumStay = computed.nights >= effectiveMinStay.minStay;
+
+  // Initial rate calculation when searchParams are provided
+  useEffect(() => {
+    if (searchParams.check_in && searchParams.check_out && availabilityData) {
+      console.log('🚀 Initial rate calculation from searchParams:', {
+        checkIn: searchParams.check_in,
+        checkOut: searchParams.check_out,
+        guests: searchParams.guests || 2
+      });
+      calculateRate(searchParams.check_in, searchParams.check_out);
+    }
+  }, [searchParams.check_in, searchParams.check_out, searchParams.guests, availabilityData, calculateRate]);
 
   // Event handlers
   const handleDateRangeChange = useCallback((startDate: string, endDate: string) => {
@@ -123,6 +143,13 @@ export default function PropertyShow({
               maxSelectableDate={maxSelectableDate}
               effectiveMinStay={effectiveMinStay}
               meetsMinimumStay={meetsMinimumStay}
+              // Pass calculated rate data from parent
+              rateCalculation={rateCalculation}
+              rateError={rateError}
+              isCalculatingRate={isCalculatingRate}
+              hasSeasonalPremium={hasSeasonalPremium}
+              hasWeekendPremium={hasWeekendPremium}
+              isRateReady={isRateReady}
             />
           </div>
         </div>
