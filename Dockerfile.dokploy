@@ -1,0 +1,156 @@
+# Multi-stage Dockerfile for Dokploy Laravel App
+# Optimized for Property Management System
+
+# Build stage for Node.js dependencies and assets
+FROM node:20-alpine AS node-builder
+
+WORKDIR /app
+
+# Copy package files for better layer caching
+COPY package*.json ./
+COPY tsconfig.json ./
+COPY vite.config.ts ./
+COPY tailwind.config.js ./
+COPY components.json ./
+
+# Install Node dependencies with fallback strategy
+RUN npm cache clean --force || true \
+    && (npm ci --legacy-peer-deps || npm install --legacy-peer-deps) \
+    && npm list || echo "Some dependency warnings, continuing..."
+
+# Copy source code for building
+COPY resources/ ./resources/
+COPY public/ ./public/
+
+# Build frontend assets
+RUN npm run build
+
+# Production PHP stage
+FROM php:8.3-fpm-alpine
+
+# Install system dependencies including build tools
+RUN apk add --no-cache \
+    nginx \
+    supervisor \
+    curl \
+    wget \
+    git \
+    nodejs \
+    npm \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
+    libzip-dev \
+    zip \
+    unzip \
+    icu-dev \
+    oniguruma-dev \
+    mysql-client \
+    redis \
+    autoconf \
+    g++ \
+    make \
+    pcre-dev \
+    bash
+
+# Install PHP extensions
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) \
+        pdo_mysql \
+        mbstring \
+        exif \
+        pcntl \
+        bcmath \
+        gd \
+        zip \
+        intl \
+        opcache
+
+# Install Redis extension with explicit configuration
+RUN pecl install redis-6.0.2 \
+    && docker-php-ext-enable redis \
+    && echo "extension=redis.so" > /usr/local/etc/php/conf.d/redis.ini
+
+# Verify Redis extension installation
+RUN php -m | grep redis || (echo "Redis extension failed to install" && exit 1)
+
+# Clean up build tools (keep only runtime essentials)
+RUN apk del autoconf g++ make pcre-dev
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Create application user
+RUN addgroup -g 1000 www && adduser -u 1000 -G www -s /bin/sh -D www
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Copy application code with proper ownership
+COPY --chown=www:www . .
+
+# Copy built assets from node stage
+COPY --from=node-builder /app/public/build ./public/build
+
+# Install Laravel Echo Server globally
+RUN npm install -g laravel-echo-server@1.6.3
+
+# Install PHP dependencies (production optimized)
+RUN composer install \
+    --no-dev \
+    --optimize-autoloader \
+    --no-interaction \
+    --no-progress \
+    --prefer-dist
+
+# Create required directories with proper permissions
+RUN mkdir -p \
+    storage/logs \
+    storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/views \
+    storage/app/public \
+    bootstrap/cache \
+    /var/log/supervisor \
+    /var/run/php \
+    && chown -R www:www storage bootstrap/cache \
+    && chmod -R 755 storage bootstrap/cache
+
+# Copy optimized configuration files
+COPY docker/nginx/dokploy.conf /etc/nginx/http.d/default.conf
+COPY docker/supervisor/dokploy.conf /etc/supervisor.d/supervisord.conf
+COPY docker/php/dokploy.ini /usr/local/etc/php/conf.d/custom.ini
+
+# Copy Laravel Echo Server configuration
+COPY laravel-echo-server.dokploy.json /var/www/html/laravel-echo-server.json
+
+# Create Laravel Echo Server database directory
+RUN mkdir -p /var/www/html/database && \
+    touch /var/www/html/database/laravel-echo-server.sqlite && \
+    chown -R www:www /var/www/html/database
+
+# Generate application key if .env doesn't exist
+RUN if [ ! -f .env ]; then cp .env.example .env; fi \
+    && php artisan key:generate --force || echo "Key generation skipped"
+
+# Optimize Laravel for production (with error handling)
+RUN php artisan config:cache || echo "Config cache failed, continuing..." \
+    && php artisan route:cache || echo "Route cache failed, continuing..." \
+    && php artisan view:cache || echo "View cache failed, continuing..." \
+    && php artisan event:cache || echo "Event cache failed, continuing..."
+
+# Set final permissions
+RUN chown -R www:www /var/www/html \
+    && chmod -R 755 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache \
+    && chmod +x /var/www/html/artisan
+
+# Expose HTTP and WebSocket ports
+EXPOSE 80 6001
+
+# Health check for application readiness
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
+
+# Start supervisor to manage all processes
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor.d/supervisord.conf"]

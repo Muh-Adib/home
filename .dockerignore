@@ -1,11 +1,43 @@
-# Version control
-.git
-.gitignore
-.gitattributes
+# Laravel specific files
+.env
+.env.*
+!.env.example
+!.env.dokploy
 
-# IDE files
-.vscode
-.idea
+# Dependencies and build artifacts
+node_modules/
+vendor/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Application cache and temporary files
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
+storage/app/public/*
+bootstrap/cache/*
+!storage/app/.gitignore
+!storage/framework/.gitignore
+!storage/logs/.gitignore
+
+# Build and compilation outputs
+public/build/*
+public/hot
+public/storage
+public/mix-manifest.json
+mix-manifest.json
+
+# Testing files
+.phpunit.result.cache
+tests/_output/*
+.pest/
+
+# Development tools
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
@@ -19,97 +51,113 @@
 ehthumbs.db
 Thumbs.db
 
-# Laravel specific
-/node_modules
-/public/hot
-/public/storage
-/storage/*.key
-/vendor
-.env
-.env.backup
-.env.production
-.phpunit.result.cache
+# Version control
+.git/
+.gitignore
+.gitattributes
 
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-/storage/logs/*
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Dependency directories
-node_modules/
-jspm_packages/
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# Documentation
+# Documentation (not needed in production)
 README.md
 *.md
-docs/
+!DOKPLOY_DEPLOYMENT_INSTRUCTIONS.md
 doc/
+docs/
 
-# Test files
-/tests
-/phpunit.xml
-/.phpunit.cache
+# Deployment related files (exclude from main app image)
+docker-compose*.yml
+Dockerfile
+!Dockerfile.dokploy
+!Dockerfile.websocket
+!laravel-echo-server.dokploy.json
 
-# Build files
-/public/build
-/public/mix-manifest.json
+# CI/CD files
+.github/
+!.github/workflows/dokploy-deploy.yml
 
-# Cache directories
-/bootstrap/cache/*.php
-/storage/framework/cache/*
-/storage/framework/sessions/*
-/storage/framework/views/*
+# Package manager files
+package-lock.json
+yarn.lock
+composer.lock
+# Keep composer.json and package.json for build
 
-# Temporary files
+# Temporary files and caches
 tmp/
 temp/
-.tmp
+*.tmp
+*.log
+.npm/
+.cache/
 
-# Coverage directory used by tools like istanbul
-coverage/
+# Editor files
+*.sublime-project
+*.sublime-workspace
 
-# Docker files (avoid recursive copying)
-Dockerfile*
-docker-compose*.yml
-.dockerignore
+# Local development files
+.vagrant/
+Homestead.json
+Homestead.yaml
+.env.dusk.local
 
-# Audit and report files
-AUDIT_REPORT*.md
-*_SUMMARY.md
-*_REPORT.md
-*_DEBUG.md
-*_GUIDE.md
-*_STATUS.md
-debug-*.md
-test-*.html
-test-*.php
+# Database files
+*.sqlite
+*.sqlite3
+database/*.sqlite
+database/*.sqlite3
 
-# Temporary use files
-temp_use_statements.txt
-
-# Laravel Echo Server
+# Laravel Echo Server files (for main app)
 laravel-echo-server.json
 laravel-echo-server.lock
+!laravel-echo-server.dokploy.json
 
-# Package lock files (needed for Docker build)
-# package-lock.json
-# composer.lock 
+# Test and debug files
+test-*.html
+test-*.php
+test-*.sh
+debug-*.sh
+*-test.*
+*-debug.*
+
+# Deployment scripts (not needed in production)
+deploy-*.sh
+fix-*.sh
+rebuild-*.sh
+health-check-*.sh
+quick-fix-*.sh
+
+# Volume and data directories
+volumes/
+data/
+
+# Backup files
+*.bak
+*.backup
+backup-*
+
+# Runtime files
+*.pid
+*.sock
+
+# Coverage and profiling
+coverage/
+.nyc_output/
+*.coverage
+
+# IDE and editor specific
+.vscode/
+.idea/
+*.sublime-*
+.atom/
+
+# Local SSL certificates
+*.pem
+*.key
+*.crt
+*.cert
+
+# Local configuration overrides
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Build context optimization
+public/vendor/
+public/packages/ 
