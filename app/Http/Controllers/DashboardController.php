@@ -69,13 +69,39 @@ class DashboardController extends Controller
      */
     public function guestDashboard(User $user): Response
     {
-        // Get upcoming bookings
+        // Get upcoming bookings with checkin instructions (only if payment paid + within checkin window)
         $upcomingBookings = Booking::where('guest_email', $user->email)
-            ->where('booking_status', '!=', 'cancelled')
-            ->where('check_in', '>=', now())
+            ->where('booking_status', 'confirmed')
+            ->where('payment_status', 'fully_paid')
+            ->where('check_in', '>=', today())
+            ->where('check_in', '<=', today()->addDays(7))
             ->with(['property'])
             ->orderBy('check_in')
-            ->get();
+            ->get()
+            ->map(function ($booking) {
+                $property = $booking->property;
+                $checkInDate = \Carbon\Carbon::parse($booking->check_in);
+                $canShowInstructions = false;
+                
+                // Show instructions only on check-in day or within check-in window (12:00 PM onwards)
+                if ($checkInDate->isToday() && now()->gte($checkInDate->setTimeFromTimeString('12:00'))) {
+                    $canShowInstructions = true;
+                }
+                
+                return [
+                    'id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
+                    'property' => $property->only(['name', 'address']),
+                    'check_in' => $booking->check_in,
+                    'check_out' => $booking->check_out,
+                    'guest_count' => $booking->guest_count,
+                    'total_amount' => $booking->total_amount,
+                    'can_show_instructions' => $canShowInstructions,
+                    'checkin_instructions' => $canShowInstructions ? $property->getCheckinInstructionsForDashboard() : null,
+                    'status' => $booking->booking_status,
+                    'payment_status' => $booking->payment_status,
+                ];
+            });
 
         // Get past bookings
         $pastBookings = Booking::where('guest_email', $user->email)

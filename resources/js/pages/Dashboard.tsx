@@ -21,7 +21,12 @@ import {
     Filter,
     Download,
     RefreshCw,
-    Home
+    Home,
+    Key,
+    MapPin,
+    AlertCircle,
+    Info,
+    Phone
 } from 'lucide-react';
 import AppLayout from '@/layouts/app-layout';
 import { type User, type BreadcrumbItem, type PageProps } from '@/types';
@@ -84,6 +89,30 @@ interface PropertyPerformance {
     occupancy_rate: number;
 }
 
+interface GuestBooking {
+    id: number;
+    booking_number: string;
+    property: {
+        name: string;
+        address: string;
+    };
+    check_in: string;
+    check_out: string;
+    guest_count: number;
+    total_amount: number;
+    can_show_instructions: boolean;
+    checkin_instructions: {
+        welcome?: string;
+        keybox_location?: string;
+        keybox_code?: string;
+        checkin_time?: string;
+        emergency_contact?: string;
+        additional_info?: string[];
+    } | null;
+    status: string;
+    payment_status: string;
+}
+
 interface DashboardData {
     kpis: {
         revenue: KPIData;
@@ -97,6 +126,7 @@ interface DashboardData {
     revenueChart: RevenueChart[];
     bookingTrends: BookingTrend[];
     propertyPerformance: PropertyPerformance[];
+    upcomingBookings?: GuestBooking[]; // For guest users
 }
 
 interface DashboardProps extends DashboardData {}
@@ -445,7 +475,8 @@ export default function Dashboard({
     quickStats, 
     revenueChart, 
     bookingTrends, 
-    propertyPerformance 
+    propertyPerformance,
+    upcomingBookings 
 }: DashboardProps) {
     const page = usePage<PageProps>();
     const { auth } = page.props;
@@ -641,6 +672,165 @@ export default function Dashboard({
                                     </div>
                                 ))}
                             </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Guest Dashboard - Show upcoming bookings with checkin instructions */}
+                {auth.user.role === 'guest' && upcomingBookings && upcomingBookings.length > 0 && (
+                    <div className="space-y-6">
+                        {upcomingBookings.map((booking) => (
+                            <Card key={booking.id} className="border-l-4 border-l-blue-500">
+                                <CardHeader>
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                        <div>
+                                            <CardTitle className="flex items-center gap-2">
+                                                <Building2 className="h-5 w-5" />
+                                                {booking.property.name}
+                                            </CardTitle>
+                                            <CardDescription className="flex items-center gap-2 mt-1">
+                                                <MapPin className="h-4 w-4" />
+                                                {booking.property.address}
+                                            </CardDescription>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Badge variant="secondary">
+                                                {booking.status}
+                                            </Badge>
+                                            <Badge variant={booking.payment_status === 'fully_paid' ? 'default' : 'destructive'}>
+                                                {booking.payment_status}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                                            <span>Check-in: {new Date(booking.check_in).toLocaleDateString('id-ID', {
+                                                weekday: 'long',
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric'
+                                            })}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                                            <span>Check-out: {new Date(booking.check_out).toLocaleDateString('id-ID', {
+                                                weekday: 'long',
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric'
+                                            })}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <Users className="h-4 w-4 text-muted-foreground" />
+                                            <span>{booking.guest_count} guests</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Check-in Instructions (only show when appropriate) */}
+                                    {booking.can_show_instructions && booking.checkin_instructions && (
+                                        <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
+                                            <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                                                <Key className="h-4 w-4" />
+                                                Check-in Instructions
+                                            </h4>
+                                            
+                                            <div className="space-y-2 text-blue-700">
+                                                {booking.checkin_instructions.welcome && (
+                                                    <p className="text-sm">
+                                                        {booking.checkin_instructions.welcome}
+                                                    </p>
+                                                )}
+                                                
+                                                {booking.checkin_instructions.keybox_location && (
+                                                    <p className="text-sm flex items-center gap-2">
+                                                        <MapPin className="h-4 w-4" />
+                                                        {booking.checkin_instructions.keybox_location}
+                                                    </p>
+                                                )}
+                                                
+                                                {booking.checkin_instructions.keybox_code && (
+                                                    <div className="text-sm flex items-center gap-2">
+                                                        <Key className="h-4 w-4" />
+                                                        <span className="font-mono text-lg font-semibold bg-blue-100 px-3 py-1 rounded border-2 border-blue-300">
+                                                            {booking.checkin_instructions.keybox_code}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                
+                                                {booking.checkin_instructions.checkin_time && (
+                                                    <p className="text-sm flex items-center gap-2">
+                                                        <Clock className="h-4 w-4" />
+                                                        {booking.checkin_instructions.checkin_time}
+                                                    </p>
+                                                )}
+                                                
+                                                {booking.checkin_instructions.additional_info && booking.checkin_instructions.additional_info.length > 0 && (
+                                                    <div className="mt-3">
+                                                        <p className="font-medium text-sm">Additional Information:</p>
+                                                        <ul className="list-disc pl-5 mt-1 space-y-1">
+                                                            {booking.checkin_instructions.additional_info.map((info, index) => (
+                                                                <li key={index} className="text-sm">{info}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                                
+                                                {booking.checkin_instructions.emergency_contact && (
+                                                    <p className="text-sm mt-3 font-medium flex items-center gap-2">
+                                                        <Phone className="h-4 w-4" />
+                                                        {booking.checkin_instructions.emergency_contact}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Instruction availability notice */}
+                                    {!booking.can_show_instructions && new Date(booking.check_in).toDateString() === new Date().toDateString() && (
+                                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                            <div className="flex items-center gap-2 text-yellow-800">
+                                                <Info className="h-4 w-4" />
+                                                <p className="text-sm">
+                                                    Check-in instructions will be available starting 12:00 PM on your check-in day
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Payment notice */}
+                                    {booking.payment_status !== 'fully_paid' && (
+                                        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                            <div className="flex items-center gap-2 text-red-800">
+                                                <AlertCircle className="h-4 w-4" />
+                                                <p className="text-sm">
+                                                    Please complete your payment to access check-in instructions
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                )}
+
+                {/* Empty state for guest with no upcoming bookings */}
+                {auth.user.role === 'guest' && (!upcomingBookings || upcomingBookings.length === 0) && (
+                    <Card>
+                        <CardContent className="text-center py-12">
+                            <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold mb-2">No Upcoming Bookings</h3>
+                            <p className="text-muted-foreground mb-4">
+                                You don't have any upcoming bookings with check-in instructions available.
+                            </p>
+                            <Button asChild>
+                                <Link href="/properties">
+                                    Browse Properties
+                                </Link>
+                            </Button>
                         </CardContent>
                     </Card>
                 )}

@@ -612,8 +612,12 @@ class BookingManagementController extends Controller
             'workflow.processor'
         ]);
 
+        // Generate WhatsApp message template
+        $whatsappData = $this->generateWhatsAppMessage($booking);
+
         return Inertia::render('Admin/Bookings/Show', [
             'booking' => $booking,
+            'whatsappData' => $whatsappData,
         ]);
     }
 
@@ -815,5 +819,98 @@ class BookingManagementController extends Controller
             return redirect()->back()
                 ->with('error', 'Failed to check out guest. Please try again.');
         }
+    }
+
+    /**
+     * Generate WhatsApp message template (simplified - booking confirmation only)
+     */
+    private function generateWhatsAppMessage(Booking $booking): array
+    {
+        $property = $booking->property;
+        
+        // Find the guest user by email (correct approach)
+        $guestUser = User::where('email', $booking->guest_email)->first();
+        
+        // Check if user is truly new (just created for this booking)
+        $isNewUser = $guestUser && $guestUser->created_at->gte(now()->subHours(1));
+
+        $message = "*Konfirmasi Booking #{$booking->booking_number}*\n\n";
+        $message .= "Halo {$booking->guest_name},\n\n";
+        $message .= "Booking Anda telah dikonfirmasi:\n";
+        $message .= "📍 *Property*: {$property->name}\n";
+        $message .= "📅 *Check-in*: " . \Carbon\Carbon::parse($booking->check_in)->format('d M Y') . "\n";
+        $message .= "📅 *Check-out*: " . \Carbon\Carbon::parse($booking->check_out)->format('d M Y') . "\n";
+        $message .= "👥 *Jumlah Tamu*: {$booking->guest_count} orang\n";
+        $message .= "💰 *Total*: Rp " . number_format($booking->total_amount, 0, ',', '.') . "\n\n";
+
+        // Payment information
+        $message .= "*Status Pembayaran:*\n";
+        $message .= "• Status: " . ucfirst($booking->payment_status) . "\n";
+        
+        if ($booking->payment_status !== 'fully_paid') {
+            $message .= "• Silakan selesaikan pembayaran untuk konfirmasi booking\n";
+            $message .= "• Link pembayaran: " . route('payments.show', $booking->booking_number) . "\n\n";
+        } else {
+            $message .= "• Pembayaran telah lunas ✅\n";
+            $message .= "• Informasi check-in akan tersedia di dashboard Anda\n";
+            $message .= "• Dashboard: " . route('dashboard') . "\n\n";
+        }
+
+        // Add login info for new users (only if account was just created)
+        if ($isNewUser && $guestUser) {
+            $message .= "*Akun Login Anda:*\n";
+            $message .= "• Email: {$guestUser->email}\n";
+            $message .= "• Login di: " . route('login') . "\n";
+            $message .= "_Cek email Anda untuk password login_\n\n";
+        } elseif ($guestUser) {
+            // Existing user
+            $message .= "*Akses Dashboard:*\n";
+            $message .= "• Login dengan akun Anda di: " . route('login') . "\n";
+            $message .= "• Email: {$guestUser->email}\n\n";
+        }
+
+        $message .= "Terima kasih telah memilih properti kami! 🏠\n";
+        $message .= "Tim {$property->name}";
+
+        return [
+            'phone' => $this->formatPhoneNumber($booking->guest_phone),
+            'message' => $message,
+            'whatsapp_url' => "https://wa.me/{$this->formatPhoneNumber($booking->guest_phone)}?text=" . urlencode($message),
+            'can_send' => !empty($booking->guest_phone),
+        ];
+    }
+
+    /**
+     * Format phone number for WhatsApp
+     */
+    private function formatPhoneNumber(string $phone): string
+    {
+        // Remove all non-numeric characters
+        $phone = preg_replace('/[^0-9]/', '', $phone);
+        
+        // Convert Indonesian format to international
+        if (substr($phone, 0, 1) === '0') {
+            $phone = '62' . substr($phone, 1);
+        } elseif (substr($phone, 0, 2) !== '62') {
+            $phone = '62' . $phone;
+        }
+        
+        return $phone;
+    }
+
+    /**
+     * Send WhatsApp message (redirect to WhatsApp Web)
+     */
+    public function sendWhatsApp(Booking $booking): RedirectResponse
+    {
+        $this->authorize('view', $booking);
+        
+        $whatsappData = $this->generateWhatsAppMessage($booking);
+        
+        if (!$whatsappData['can_send']) {
+            return redirect()->back()->with('error', 'Guest phone number not available.');
+        }
+
+        return redirect($whatsappData['whatsapp_url']);
     }
 }

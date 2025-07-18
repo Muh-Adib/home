@@ -29,8 +29,16 @@ import {
     Download,
     Edit,
     Plus,
-    Eye
+    Eye,
+    MessageCircle
 } from 'lucide-react';
+
+interface WhatsAppData {
+    phone: string;
+    message: string;
+    whatsapp_url: string;
+    can_send: boolean;
+}
 
 interface BookingShowProps extends PageProps {
     booking: Booking & {
@@ -61,9 +69,10 @@ interface BookingShowProps extends PageProps {
             name: string;
         };
     };
+    whatsappData?: WhatsAppData;
 }
 
-export default function ShowBooking({ booking }: BookingShowProps) {
+export default function ShowBooking({ booking, whatsappData }: BookingShowProps) {
     const { data: verifyData, setData: setVerifyData, patch: patchVerify, processing: verifyProcessing } = useForm({
         notes: '',
     });
@@ -158,6 +167,24 @@ export default function ShowBooking({ booking }: BookingShowProps) {
                     </div>
                     
                     <div className="flex gap-3">
+                        {/* WhatsApp Button */}
+                        {whatsappData && whatsappData.can_send && (
+                            <Button 
+                                asChild
+                                variant="outline"
+                                className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
+                            >
+                                <a 
+                                    href={whatsappData.whatsapp_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    <MessageCircle className="h-4 w-4 mr-2" />
+                                    Chat Guest
+                                </a>
+                            </Button>
+                        )}
+                        
                         {/* Action Buttons */}
                         {canCheckOut && (
                             <Button onClick={handleCheckOut} disabled={verifyProcessing}>

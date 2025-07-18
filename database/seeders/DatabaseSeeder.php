@@ -19,11 +19,6 @@ class DatabaseSeeder extends Seeder
             PropertySeasonalRateSeeder::class,
             UpdatePaymentMethodIdSeeder::class,
             UpdatePaymentStructureSeeder::class,
-            
-            // Cleaning & Inventory Management
-            InventoryCategorySeeder::class,
-            InventoryItemSeeder::class,
-            CleaningTaskSeeder::class,
         ]);
     }
 }
