@@ -822,12 +822,11 @@ class BookingManagementController extends Controller
     }
 
     /**
-     * Generate WhatsApp message template
+     * Generate WhatsApp message template (simplified - booking confirmation only)
      */
     private function generateWhatsAppMessage(Booking $booking): array
     {
         $property = $booking->property;
-        $checkinInstructions = $property->getFormattedCheckinInstructions();
         
         // Check if user is new (created recently)
         $isNewUser = $booking->created_by && 
@@ -837,52 +836,36 @@ class BookingManagementController extends Controller
         $message .= "Halo {$booking->guest_name},\n\n";
         $message .= "Booking Anda telah dikonfirmasi:\n";
         $message .= "📍 *Property*: {$property->name}\n";
-        $message .= "📅 *Check-in*: {$booking->check_in}\n";
-        $message .= "📅 *Check-out*: {$booking->check_out}\n";
+        $message .= "📅 *Check-in*: " . \Carbon\Carbon::parse($booking->check_in)->format('d M Y') . "\n";
+        $message .= "📅 *Check-out*: " . \Carbon\Carbon::parse($booking->check_out)->format('d M Y') . "\n";
         $message .= "👥 *Jumlah Tamu*: {$booking->guest_count} orang\n";
         $message .= "💰 *Total*: Rp " . number_format($booking->total_amount, 0, ',', '.') . "\n\n";
 
-        if ($property->current_keybox_code) {
-            $message .= "*Informasi Check-in:*\n";
-            
-            if (isset($checkinInstructions['welcome'])) {
-                $message .= "• {$checkinInstructions['welcome']}\n";
-            }
-            if (isset($checkinInstructions['keybox_location'])) {
-                $message .= "• {$checkinInstructions['keybox_location']}\n";
-            }
-            if (isset($checkinInstructions['keybox_code'])) {
-                $message .= "• {$checkinInstructions['keybox_code']}\n";
-            }
-            if (isset($checkinInstructions['checkin_time'])) {
-                $message .= "• {$checkinInstructions['checkin_time']}\n";
-            }
-            
-            if (isset($checkinInstructions['additional_info']) && is_array($checkinInstructions['additional_info'])) {
-                $message .= "\n*Informasi Tambahan:*\n";
-                foreach ($checkinInstructions['additional_info'] as $info) {
-                    $message .= "• {$info}\n";
-                }
-            }
-            
-            if (isset($checkinInstructions['emergency_contact'])) {
-                $message .= "\n📞 {$checkinInstructions['emergency_contact']}\n";
-            }
+        // Payment information
+        $message .= "*Status Pembayaran:*\n";
+        $message .= "• Status: " . ucfirst($booking->payment_status) . "\n";
+        
+        if ($booking->payment_status !== 'fully_paid') {
+            $message .= "• Silakan selesaikan pembayaran untuk konfirmasi booking\n";
+            $message .= "• Link pembayaran: " . route('payments.show', $booking->booking_number) . "\n\n";
+        } else {
+            $message .= "• Pembayaran telah lunas ✅\n";
+            $message .= "• Informasi check-in akan tersedia di dashboard Anda\n";
+            $message .= "• Dashboard: " . route('dashboard') . "\n\n";
         }
 
         // Add login info for new users
         if ($isNewUser) {
             $user = User::find($booking->created_by);
-            $tempPassword = 'temp' . rand(1000, 9999); // This should be generated during user creation
             
-            $message .= "\n*Akun Login Anda:*\n";
+            $message .= "*Akun Login Anda:*\n";
             $message .= "• Email: {$user->email}\n";
-            $message .= "• Password: {$tempPassword}\n";
             $message .= "• Login di: " . route('login') . "\n";
-            $message .= "_Silakan ganti password setelah login_\n";
+            $message .= "_Password telah dikirim via email terpisah_\n\n";
         }
 
-        $message .= "\nTerima kasih telah memilih properti kami! 🏠";
+        $message .= "Terima kasih telah memilih properti kami! 🏠\n";
+        $message .= "Tim {$property->name}";
 
         return [
             'phone' => $this->formatPhoneNumber($booking->guest_phone),

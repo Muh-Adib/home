@@ -502,25 +502,26 @@ class Property extends Model
     }
 
     /**
-     * Generate new keybox code and update property
+     * Update keybox code manually (staff input from frontend)
      */
-    public function generateNewKeyboxCode($updatedBy = null): string
+    public function updateKeyboxCode(string $newCode, $updatedBy = null): bool
     {
-        $newCode = str_pad(random_int(100, 999), 3, '0', STR_PAD_LEFT);
+        // Validate code format (3 digits)
+        if (!preg_match('/^\d{3}$/', $newCode)) {
+            throw new \InvalidArgumentException('Keybox code must be 3 digits');
+        }
         
-        $this->update([
+        return $this->update([
             'current_keybox_code' => $newCode,
             'keybox_updated_at' => now(),
             'keybox_updated_by' => $updatedBy ?? auth()->id(),
         ]);
-
-        return $newCode;
     }
 
     /**
-     * Get formatted check-in instructions with current keybox code
+     * Get checkin instructions for dashboard (when payment paid + checkin time)
      */
-    public function getFormattedCheckinInstructions(): array
+    public function getCheckinInstructionsForDashboard(): array
     {
         $instructions = $this->checkin_instructions ?? [];
         

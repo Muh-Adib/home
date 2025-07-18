@@ -54,11 +54,16 @@ class CleaningDashboardController extends Controller
     }
 
     /**
-     * Mark as cleaned and generate new keybox code
+     * Mark as cleaned and update keybox code (frontend input)
      */
     public function markAsCleaned(Request $request, Booking $booking)
     {
         $this->authorize('update', $booking);
+
+        $request->validate([
+            'new_keybox_code' => 'required|string|regex:/^\d{3}$/',
+            'notes' => 'nullable|string|max:500',
+        ]);
 
         DB::beginTransaction();
         try {
@@ -67,15 +72,19 @@ class CleaningDashboardController extends Controller
                 'is_cleaned' => true,
                 'cleaned_at' => now(),
                 'cleaned_by' => auth()->id(),
+                'cleaning_notes' => $request->get('notes'),
             ]);
 
-            // Generate new keybox code for property
-            $newKeyboxCode = $booking->property->generateNewKeyboxCode(auth()->id());
+            // Update keybox code for property (staff input)
+            $booking->property->updateKeyboxCode(
+                $request->get('new_keybox_code'), 
+                auth()->id()
+            );
 
             DB::commit();
 
             return redirect()->back()->with('success', 
-                "Property cleaned successfully! New keybox code: {$newKeyboxCode}"
+                "Property cleaned successfully! Keybox code updated to: {$request->get('new_keybox_code')}"
             );
 
         } catch (\Exception $e) {
