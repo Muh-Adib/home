@@ -508,3 +508,93 @@ export interface CleaningSchedule {
     created_at: string;
     updated_at: string;
 }
+
+// WhatsApp Integration Types
+export interface WhatsAppData {
+    phone: string;
+    message: string;
+    whatsapp_url: string;
+    can_send: boolean;
+}
+
+// Staff Cleaning Dashboard Types
+export interface CleaningProperty {
+    id: number;
+    booking_number: string;
+    property_name: string;
+    property_address: string;
+    guest_name: string;
+    guest_count: number;
+    check_out: string;
+    current_keybox_code: string | null;
+    next_checkin: {
+        check_in: string;
+        guest_name: string;
+    } | null;
+    priority: 'high' | 'medium' | 'low';
+}
+
+export interface RecentlyCleaned {
+    id: number;
+    booking_number: string;
+    property: {
+        name: string;
+        current_keybox_code: string;
+        keybox_updated_at: string;
+    };
+    cleanedBy: {
+        name: string;
+    };
+    cleaned_at: string;
+}
+
+export interface CleaningStats {
+    total_checkout_today: number;
+    cleaned_today: number;
+    pending_cleaning: number;
+    high_priority: number;
+}
+
+// Guest Dashboard Types
+export interface GuestBooking {
+    id: number;
+    booking_number: string;
+    property: {
+        name: string;
+        address: string;
+    };
+    check_in: string;
+    check_out: string;
+    guest_count: number;
+    total_amount: number;
+    can_show_instructions: boolean;
+    checkin_instructions: {
+        welcome?: string;
+        keybox_location?: string;
+        keybox_code?: string;
+        checkin_time?: string;
+        emergency_contact?: string;
+        additional_info?: string[];
+    } | null;
+    status: string;
+    payment_status: string;
+}
+
+// Optimized Booking Types
+export interface BookingSessionData {
+    guest_name?: string;
+    guest_email?: string;
+    guest_phone?: string;
+    guest_whatsapp?: string;
+    special_requests?: string;
+    male_count?: number;
+    female_count?: number;
+    children_count?: number;
+}
+
+export interface ExistingUser {
+    id: number;
+    name: string;
+    email: string;
+    phone: string;
+}
