@@ -64,8 +64,13 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         intl \
         opcache
 
-# Install Redis extension
-RUN pecl install redis && docker-php-ext-enable redis
+# Install Redis extension with explicit configuration
+RUN pecl install redis-6.0.2 \
+    && docker-php-ext-enable redis \
+    && echo "extension=redis.so" > /usr/local/etc/php/conf.d/redis.ini
+
+# Verify Redis extension installation
+RUN php -m | grep redis || (echo "Redis extension failed to install" && exit 1)
 
 # Clean up build tools (keep only runtime essentials)
 RUN apk del autoconf g++ make pcre-dev
