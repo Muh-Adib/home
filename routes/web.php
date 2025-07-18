@@ -256,6 +256,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::patch('bookings/{booking:booking_number}/cancel', 'cancel')->name('bookings.cancel');
         Route::patch('bookings/{booking:booking_number}/checkin', 'checkin')->name('bookings.checkin');
         Route::patch('bookings/{booking:booking_number}/checkout', 'checkout')->name('bookings.checkout');
+        Route::get('bookings/{booking:booking_number}/whatsapp', 'sendWhatsApp')->name('bookings.whatsapp');
         
         // Booking management routes
         Route::get('booking-management', 'index')->name('booking-management.index');
@@ -274,62 +275,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::get('property-date-range', [$controller, 'getPropertyDateRange']);
     });
     
-    // Cleaning Management
-    Route::resource('cleaning-tasks', App\Http\Controllers\Admin\CleaningTaskController::class)
-        ->names([
-            'index' => 'cleaning-tasks.index',
-            'create' => 'cleaning-tasks.create',
-            'store' => 'cleaning-tasks.store',
-            'show' => 'cleaning-tasks.show',
-            'edit' => 'cleaning-tasks.edit',
-            'update' => 'cleaning-tasks.update',
-            'destroy' => 'cleaning-tasks.destroy',
-        ]);
-    
-    Route::controller(App\Http\Controllers\Admin\CleaningTaskController::class)
-        ->prefix('cleaning-tasks')
-        ->name('cleaning-tasks.')
-        ->group(function () {
-            Route::post('{cleaningTask}/assign', 'assign')->name('assign');
-            Route::post('{cleaningTask}/start', 'start')->name('start');
-            Route::post('{cleaningTask}/complete', 'complete')->name('complete');
-            Route::post('{cleaningTask}/submit-review', 'submitForReview')->name('submit-review');
-            Route::post('{cleaningTask}/approve', 'approve')->name('approve');
-            Route::get('calendar/data', 'calendar')->name('calendar');
-            Route::post('bulk-action', 'bulkAction')->name('bulk-action');
-        });
-    
-    // Cleaning Staff Management
-    Route::controller(App\Http\Controllers\Admin\CleaningStaffController::class)
-        ->prefix('cleaning-staff')
-        ->name('cleaning-staff.')
-        ->group(function () {
-            Route::get('/', 'index')->name('index');
-            Route::post('{bookingId}/mark-cleaned', 'markAsCleaned')->name('mark-cleaned');
-            Route::get('{bookingId}/generate-keybox', 'generateKeyboxCode')->name('generate-keybox');
-            Route::get('stats', 'getCleaningStats')->name('stats');
-        });
-    
-    // Cleaning Schedules
-    Route::resource('cleaning-schedules', App\Http\Controllers\Admin\CleaningScheduleController::class)
-        ->names([
-            'index' => 'cleaning-schedules.index',
-            'create' => 'cleaning-schedules.create',
-            'store' => 'cleaning-schedules.store',
-            'show' => 'cleaning-schedules.show',
-            'edit' => 'cleaning-schedules.edit',
-            'update' => 'cleaning-schedules.update',
-            'destroy' => 'cleaning-schedules.destroy',
-        ]);
-    
-    Route::controller(App\Http\Controllers\Admin\CleaningScheduleController::class)
-        ->prefix('cleaning-schedules')
-        ->name('cleaning-schedules.')
-        ->group(function () {
-            Route::post('{cleaningSchedule}/activate', 'activate')->name('activate');
-            Route::post('{cleaningSchedule}/deactivate', 'deactivate')->name('deactivate');
-            Route::post('{cleaningSchedule}/generate-tasks', 'generateTasks')->name('generate-tasks');
-        });
+
 });
 
 /*
@@ -379,106 +325,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance,property_o
     });
 });
 
-/*
-|--------------------------------------------------------------------------
-| ADMIN ROUTES - INVENTORY MANAGEMENT
-|--------------------------------------------------------------------------
-| Routes for inventory management
-|--------------------------------------------------------------------------
-*/
 
-Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->prefix('admin')->name('admin.')->group(function () {
-    // Inventory Categories
-    Route::resource('inventory-categories', App\Http\Controllers\Admin\InventoryCategoryController::class)
-        ->names([
-            'index' => 'inventory-categories.index',
-            'create' => 'inventory-categories.create',
-            'store' => 'inventory-categories.store',
-            'show' => 'inventory-categories.show',
-            'edit' => 'inventory-categories.edit',
-            'update' => 'inventory-categories.update',
-            'destroy' => 'inventory-categories.destroy',
-        ]);
-    
-    // Inventory Items
-    Route::resource('inventory-items', App\Http\Controllers\Admin\InventoryItemController::class)
-        ->names([
-            'index' => 'inventory-items.index',
-            'create' => 'inventory-items.create',
-            'store' => 'inventory-items.store',
-            'show' => 'inventory-items.show',
-            'edit' => 'inventory-items.edit',
-            'update' => 'inventory-items.update',
-            'destroy' => 'inventory-items.destroy',
-        ]);
-    
-    Route::controller(App\Http\Controllers\Admin\InventoryItemController::class)
-        ->prefix('inventory-items')
-        ->name('inventory-items.')
-        ->group(function () {
-            Route::post('{inventoryItem}/discontinue', 'discontinue')->name('discontinue');
-            Route::post('{inventoryItem}/reactivate', 'reactivate')->name('reactivate');
-            Route::get('{inventoryItem}/reorder-suggestion', 'reorderSuggestion')->name('reorder-suggestion');
-            Route::get('{inventoryItem}/maintenance-schedule', 'maintenanceSchedule')->name('maintenance-schedule');
-            Route::get('{inventoryItem}/expiry-alerts', 'expiryAlerts')->name('expiry-alerts');
-        });
-    
-    // Inventory Stock Management
-    Route::resource('inventory-stocks', App\Http\Controllers\Admin\InventoryStockController::class)
-        ->names([
-            'index' => 'inventory-stocks.index',
-            'create' => 'inventory-stocks.create',
-            'store' => 'inventory-stocks.store',
-            'show' => 'inventory-stocks.show',
-            'edit' => 'inventory-stocks.edit',
-            'update' => 'inventory-stocks.update',
-            'destroy' => 'inventory-stocks.destroy',
-        ]);
-    
-    Route::controller(App\Http\Controllers\Admin\InventoryStockController::class)
-        ->prefix('inventory-stocks')
-        ->name('inventory-stocks.')
-        ->group(function () {
-            Route::post('{inventoryStock}/reserve', 'reserve')->name('reserve');
-            Route::post('{inventoryStock}/release-reservation', 'releaseReservation')->name('release-reservation');
-            Route::post('{inventoryStock}/add-stock', 'addStock')->name('add-stock');
-            Route::post('{inventoryStock}/remove-stock', 'removeStock')->name('remove-stock');
-            Route::post('{inventoryStock}/use-stock', 'useStock')->name('use-stock');
-            Route::post('{inventoryStock}/update-condition', 'updateCondition')->name('update-condition');
-            Route::post('{inventoryStock}/schedule-maintenance', 'scheduleMaintenance')->name('schedule-maintenance');
-            Route::post('{inventoryStock}/complete-maintenance', 'completeMaintenance')->name('complete-maintenance');
-            Route::get('{inventoryStock}/alerts', 'getAlerts')->name('alerts');
-        });
-    
-    // Inventory Reports - DISABLED: Controller does not exist
-    /*
-    Route::controller(App\Http\Controllers\Admin\InventoryReportController::class)
-        ->prefix('inventory/reports')
-        ->name('inventory.reports.')
-        ->group(function () {
-            Route::get('/', 'index')->name('index');
-            Route::get('stock-levels', 'stockLevels')->name('stock-levels');
-            Route::get('low-stock', 'lowStock')->name('low-stock');
-            Route::get('expiry', 'expiry')->name('expiry');
-            Route::get('maintenance', 'maintenance')->name('maintenance');
-            Route::get('valuation', 'valuation')->name('valuation');
-        });
-    */
-    
-    // Inventory API endpoints - DISABLED: Controllers may not exist
-    /*
-    Route::prefix('api')->name('api.')->group(function () {
-        Route::get('properties/{property}/cleaning-areas', [App\Http\Controllers\Admin\CleaningTaskController::class, 'getPropertyCleaningAreas'])
-            ->name('properties.cleaning-areas');
-        Route::get('inventory-categories/tree', [App\Http\Controllers\Admin\InventoryCategoryController::class, 'getTree'])
-            ->name('inventory-categories.tree');
-        Route::get('inventory-items/by-category/{category}', [App\Http\Controllers\Admin\InventoryItemController::class, 'getByCategory'])
-            ->name('inventory-items.by-category');
-        Route::get('inventory-stocks/by-property/{property}', [App\Http\Controllers\Admin\InventoryStockController::class, 'getByProperty'])
-            ->name('inventory-stocks.by-property');
-    });
-    */
-});
 
 /*
 |--------------------------------------------------------------------------
@@ -551,6 +398,36 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         Route::get('property', 'property')->name('property');
         Route::post('property', 'updateProperty')->name('property.update');
     });
+});
+
+/*
+|--------------------------------------------------------------------------
+| STAFF ROUTES - CLEANING MANAGEMENT
+|--------------------------------------------------------------------------
+| Routes for staff cleaning operations
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth', 'role:super_admin,cleaning_staff,front_desk'])->group(function () {
+    Route::get('/staff/cleaning', [App\Http\Controllers\Staff\CleaningDashboardController::class, 'index'])
+        ->name('staff.cleaning.index');
+    Route::patch('/staff/cleaning/{booking}/mark-cleaned', [App\Http\Controllers\Staff\CleaningDashboardController::class, 'markAsCleaned'])
+        ->name('staff.cleaning.mark-cleaned');
+    Route::get('/staff/cleaning/property/{property}/keybox', [App\Http\Controllers\Staff\CleaningDashboardController::class, 'getKeyboxCode'])
+        ->name('staff.cleaning.keybox');
+});
+
+/*
+|--------------------------------------------------------------------------
+| BOOKING RESUME ROUTES
+|--------------------------------------------------------------------------
+| Routes for booking resume after login
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/booking/resume', [App\Http\Controllers\BookingController::class, 'resumeBooking'])
+        ->name('bookings.resume');
 });
 
 /*

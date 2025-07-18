@@ -142,8 +142,7 @@ return [
         'reports' => 'reports',
         'media' => 'media',
         'amenities' => 'amenities',
-        'inventory' => 'inventory',
-        'cleaning' => 'cleaning',
+
     ],
 
 ];

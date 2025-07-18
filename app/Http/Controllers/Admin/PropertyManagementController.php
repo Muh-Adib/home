@@ -235,6 +235,12 @@ class PropertyManagementController extends Controller
         return Inertia::render('Admin/Properties/Edit', [
             'property' => $property,
             'amenities' => $amenities,
+            'defaultCheckinTemplate' => Property::getDefaultCheckinInstructionsTemplate(),
+            'currentKeyboxInfo' => [
+                'code' => $property->current_keybox_code,
+                'last_updated' => $property->keybox_updated_at,
+                'updated_by' => $property->keyboxUpdatedBy?->name,
+            ]
         ]);
     }
 
@@ -272,6 +278,14 @@ class PropertyManagementController extends Controller
             'seo_description' => 'nullable|string',
             'amenities' => 'array',
             'amenities.*' => 'exists:amenities,id',
+            'checkin_instructions' => 'nullable|array',
+            'checkin_instructions.welcome' => 'nullable|string|max:500',
+            'checkin_instructions.keybox_location' => 'nullable|string|max:500',
+            'checkin_instructions.keybox_code' => 'nullable|string|max:500',
+            'checkin_instructions.checkin_time' => 'nullable|string|max:200',
+            'checkin_instructions.emergency_contact' => 'nullable|string|max:200',
+            'checkin_instructions.additional_info' => 'nullable|array',
+            'checkin_instructions.additional_info.*' => 'string|max:300',
         ]);
 
         // Update slug if name changed

@@ -52,6 +52,7 @@ class Booking extends Model
         'is_cleaned',
         'cleaned_at',
         'cleaned_by',
+        'cleaning_notes',
         'internal_notes',
         'cancellation_reason',
         'cancelled_at',
