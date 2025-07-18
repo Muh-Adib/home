@@ -1,0 +1,154 @@
+{
+  "version": "1.0",
+  "name": "homsjogja-property-management",
+  "description": "Property Management System with separated services",
+  "services": {
+    "database": {
+      "type": "mysql",
+      "version": "8.0",
+      "name": "homsjogja-db",
+      "environment": {
+        "MYSQL_DATABASE": "homsjogja_db",
+        "MYSQL_USER": "homsjogja_user",
+        "MYSQL_PASSWORD": "SecurePassword123!",
+        "MYSQL_ROOT_PASSWORD": "RootPassword123!",
+        "MYSQL_CHARACTER_SET_SERVER": "utf8mb4",
+        "MYSQL_COLLATION_SERVER": "utf8mb4_unicode_ci"
+      },
+      "volumes": [
+        "mysql_data:/var/lib/mysql"
+      ],
+      "networks": ["homsjogja_network"],
+      "resources": {
+        "memory": "512M",
+        "cpu": "0.5"
+      },
+      "healthcheck": {
+        "test": ["CMD", "mysqladmin", "ping", "-h", "localhost"],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3
+      }
+    },
+    "redis": {
+      "type": "redis",
+      "version": "7-alpine",
+      "name": "homsjogja-redis",
+      "environment": {
+        "REDIS_PASSWORD": "RedisPassword123!"
+      },
+      "volumes": [
+        "redis_data:/data"
+      ],
+      "networks": ["homsjogja_network"],
+      "resources": {
+        "memory": "256M",
+        "cpu": "0.25"
+      },
+      "command": "redis-server --requirepass RedisPassword123! --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru",
+      "healthcheck": {
+        "test": ["CMD", "redis-cli", "ping"],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 3
+      }
+    },
+    "app": {
+      "type": "application",
+      "name": "homsjogja-app",
+      "build": {
+        "context": ".",
+        "dockerfile": "Dockerfile.dokploy"
+      },
+      "depends_on": ["database", "redis"],
+      "networks": ["homsjogja_network"],
+      "resources": {
+        "memory": "1G",
+        "cpu": "1.0"
+      },
+      "environment": {
+        "APP_ENV": "production",
+        "APP_DEBUG": "false",
+        "DB_HOST": "homsjogja-db",
+        "REDIS_HOST": "homsjogja-redis",
+        "SESSION_DRIVER": "redis",
+        "CACHE_STORE": "redis",
+        "QUEUE_CONNECTION": "redis",
+        "BROADCAST_DRIVER": "redis"
+      },
+      "traefik": {
+        "enable": true,
+        "rule": "Host(`homsjogja.yourdomain.com`)",
+        "entrypoints": "websecure",
+        "tls": {
+          "certresolver": "letsencrypt"
+        },
+        "service": {
+          "port": 80
+        }
+      }
+    },
+    "websocket": {
+      "type": "application",
+      "name": "homsjogja-websocket",
+      "build": {
+        "context": ".",
+        "dockerfile": "Dockerfile.websocket"
+      },
+      "depends_on": ["redis"],
+      "networks": ["homsjogja_network"],
+      "resources": {
+        "memory": "256M",
+        "cpu": "0.5"
+      },
+      "environment": {
+        "REDIS_HOST": "homsjogja-redis",
+        "REDIS_PASSWORD": "RedisPassword123!",
+        "AUTH_HOST": "https://homsjogja.yourdomain.com"
+      },
+      "traefik": {
+        "enable": true,
+        "rule": "Host(`ws.homsjogja.yourdomain.com`)",
+        "entrypoints": "websecure",
+        "tls": {
+          "certresolver": "letsencrypt"
+        },
+        "service": {
+          "port": 6001
+        },
+        "middlewares": [
+          "websocket-headers"
+        ]
+      }
+    }
+  },
+  "networks": {
+    "homsjogja_network": {
+      "driver": "bridge"
+    }
+  },
+  "volumes": {
+    "mysql_data": {
+      "driver": "local"
+    },
+    "redis_data": {
+      "driver": "local"
+    }
+  },
+  "middlewares": {
+    "websocket-headers": {
+      "headers": {
+        "customRequestHeaders": {
+          "Connection": "upgrade",
+          "Upgrade": "websocket"
+        }
+      }
+    }
+  },
+  "deployment": {
+    "strategy": "rolling",
+    "order": ["database", "redis", "app", "websocket"],
+    "healthcheck_timeout": "60s",
+    "rollback_on_failure": true
+  }
+}

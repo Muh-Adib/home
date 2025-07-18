@@ -1,0 +1,184 @@
+name: Deploy to Dokploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: 'Deployment target'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - app
+        - websocket
+        - database
+
+env:
+  DOKPLOY_SERVER_URL: ${{ secrets.DOKPLOY_SERVER_URL }}
+  DOKPLOY_API_TOKEN: ${{ secrets.DOKPLOY_API_TOKEN }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.3'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, dom, filter, gd, iconv, json, mbstring, redis
+        tools: composer:v2
+
+    - name: Get Composer Cache Directory
+      id: composer-cache
+      run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+    - name: Cache Composer dependencies
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+        restore-keys: ${{ runner.os }}-composer-
+
+    - name: Cache Node modules
+      uses: actions/cache@v3
+      with:
+        path: ~/.npm
+        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: ${{ runner.os }}-node-
+
+    - name: Install PHP dependencies
+      run: composer install --no-dev --optimize-autoloader --no-interaction
+
+    - name: Install Node dependencies
+      run: npm ci --legacy-peer-deps
+
+    - name: Build frontend assets
+      run: npm run build
+
+    - name: Create deployment info
+      run: |
+        echo "COMMIT_SHA=${GITHUB_SHA}" >> deployment-info.txt
+        echo "BRANCH=${GITHUB_REF_NAME}" >> deployment-info.txt
+        echo "TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> deployment-info.txt
+        echo "ACTOR=${GITHUB_ACTOR}" >> deployment-info.txt
+
+    - name: Deploy Database Service
+      if: github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'database' || github.event.inputs.deploy_target == ''
+      run: |
+        curl -X POST "${{ env.DOKPLOY_SERVER_URL }}/api/services/homsjogja-db/deploy" \
+          -H "Authorization: Bearer ${{ env.DOKPLOY_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{"wait": true, "timeout": 300}'
+
+    - name: Deploy Redis Service
+      if: github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'database' || github.event.inputs.deploy_target == ''
+      run: |
+        curl -X POST "${{ env.DOKPLOY_SERVER_URL }}/api/services/homsjogja-redis/deploy" \
+          -H "Authorization: Bearer ${{ env.DOKPLOY_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{"wait": true, "timeout": 180}'
+
+    - name: Deploy Laravel App
+      if: github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'app' || github.event.inputs.deploy_target == ''
+      run: |
+        curl -X POST "${{ env.DOKPLOY_SERVER_URL }}/api/services/homsjogja-app/deploy" \
+          -H "Authorization: Bearer ${{ env.DOKPLOY_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{"wait": true, "timeout": 600, "force_rebuild": true}'
+
+    - name: Deploy WebSocket Service
+      if: github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'websocket' || github.event.inputs.deploy_target == ''
+      run: |
+        curl -X POST "${{ env.DOKPLOY_SERVER_URL }}/api/services/homsjogja-websocket/deploy" \
+          -H "Authorization: Bearer ${{ env.DOKPLOY_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{"wait": true, "timeout": 300, "force_rebuild": true}'
+
+    - name: Run Database Migrations
+      if: github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'app' || github.event.inputs.deploy_target == ''
+      run: |
+        sleep 30  # Wait for app to be ready
+        curl -X POST "${{ env.DOKPLOY_SERVER_URL }}/api/services/homsjogja-app/exec" \
+          -H "Authorization: Bearer ${{ env.DOKPLOY_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{"command": "php artisan migrate --force", "timeout": 120}'
+
+    - name: Clear Application Cache
+      if: github.event.inputs.deploy_target == 'all' || github.event.inputs.deploy_target == 'app' || github.event.inputs.deploy_target == ''
+      run: |
+        curl -X POST "${{ env.DOKPLOY_SERVER_URL }}/api/services/homsjogja-app/exec" \
+          -H "Authorization: Bearer ${{ env.DOKPLOY_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{"command": "php artisan optimize:clear && php artisan config:cache && php artisan route:cache && php artisan view:cache", "timeout": 60}'
+
+    - name: Health Check - Main App
+      run: |
+        sleep 15
+        for i in {1..5}; do
+          if curl -f https://homsjogja.yourdomain.com/health; then
+            echo "✅ Main app is healthy"
+            break
+          fi
+          echo "⏳ Waiting for app to be ready... (attempt $i/5)"
+          sleep 15
+        done
+
+    - name: Health Check - WebSocket
+      run: |
+        sleep 10
+        for i in {1..3}; do
+          if curl -f https://ws.homsjogja.yourdomain.com; then
+            echo "✅ WebSocket service is healthy"
+            break
+          fi
+          echo "⏳ Waiting for WebSocket to be ready... (attempt $i/3)"
+          sleep 10
+        done
+
+    - name: Deployment Summary
+      if: always()
+      run: |
+        echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: \`${GITHUB_SHA:0:7}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch**: \`${GITHUB_REF_NAME}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Actor**: \`${GITHUB_ACTOR}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Target**: \`${{ github.event.inputs.deploy_target || 'all' }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Timestamp**: \`$(date -u +%Y-%m-%dT%H:%M:%SZ)\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔗 Service URLs" >> $GITHUB_STEP_SUMMARY
+        echo "- **Main App**: https://homsjogja.yourdomain.com" >> $GITHUB_STEP_SUMMARY
+        echo "- **WebSocket**: https://ws.homsjogja.yourdomain.com" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify Deployment Status
+      if: success()
+      run: |
+        echo "✅ Deployment completed successfully!"
+        # Add Slack/Discord notification here if needed
+        
+    - name: Notify Deployment Failure
+      if: failure()
+      run: |
+        echo "❌ Deployment failed!"
+        # Add Slack/Discord notification here if needed

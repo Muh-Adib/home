@@ -19,9 +19,29 @@ let echoInstance: Echo | null = null;
 // Enhanced Echo configuration with error handling
 function createEchoInstance(): Echo | null {
     try {
+        // Determine WebSocket URL based on environment
+        const getWebSocketUrl = () => {
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                return 'http://localhost:6001';
+            }
+            
+            // Production - use dedicated WebSocket subdomain
+            const currentHost = window.location.hostname;
+            const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+            
+            // Replace main domain with WebSocket subdomain
+            if (currentHost.includes('homsjogja')) {
+                const wsHost = currentHost.replace(/^(.*\.)?homsjogja/, 'ws.homsjogja');
+                return `${protocol}//${wsHost}`;
+            }
+            
+            // Fallback for custom domains
+            return `${protocol}//ws.${currentHost}`;
+        };
+
         const echo = new Echo({
             broadcaster: 'socket.io',
-            host: `${window.location.protocol}//${window.location.hostname}:6001`,
+            host: getWebSocketUrl(),
             // Auth configuration for private channels
             auth: {
                 headers: {

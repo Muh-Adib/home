@@ -1,0 +1,43 @@
+# Dockerfile untuk Laravel Echo Server (Socket.io)
+# Dedicated WebSocket service for real-time notifications
+
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    wget \
+    bash
+
+# Install Laravel Echo Server globally
+RUN npm install -g laravel-echo-server@1.6.3
+
+# Copy configuration file
+COPY laravel-echo-server.dokploy.json ./laravel-echo-server.json
+
+# Create required directories
+RUN mkdir -p database logs \
+    && touch database/laravel-echo-server.sqlite \
+    && chmod 755 database
+
+# Create non-root user for security
+RUN addgroup -g 1000 echouser && adduser -u 1000 -G echouser -s /bin/sh -D echouser
+
+# Set permissions
+RUN chown -R echouser:echouser /app
+
+# Switch to non-root user
+USER echouser
+
+# Expose WebSocket port
+EXPOSE 6001
+
+# Health check to ensure service is running
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:6001 || exit 1
+
+# Start Laravel Echo Server
+CMD ["laravel-echo-server", "start"]
