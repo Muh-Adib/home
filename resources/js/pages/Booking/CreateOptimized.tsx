@@ -3,11 +3,8 @@ import { Head, Link, useForm, usePage, router } from '@inertiajs/react';
 import GuestLayout from '@/layouts/guest-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
@@ -17,17 +14,13 @@ import {
     Building2,
     MapPin,
     Info,
-    AlertCircle,
     CheckCircle,
-    User,
-    UserPlus,
-    Mail,
-    Phone,
-    MessageCircle,
     RefreshCw
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '@/utils/formatCurrency';
+import { GuestDetailsForm } from '@/components/booking/GuestDetailsForm';
+import { useEmailUserDetection } from '@/hooks/use-email-user-detection';
 
 interface Property {
     id: number;
@@ -97,61 +90,32 @@ export default function CreateOptimizedBooking({
     const { t } = useTranslation();
     const page = usePage();
     
-    const [showLoginNotice, setShowLoginNotice] = useState(false);
     const [emailCheckDebounce, setEmailCheckDebounce] = useState<NodeJS.Timeout | null>(null);
-    const [isCheckingEmail, setIsCheckingEmail] = useState(false);
-    const [foundUser, setFoundUser] = useState<ExistingUser | null>(existingUser || null);
+    const [guestFormData, setGuestFormData] = useState<any>({});
+    
+    // Use email user detection hook
+    const { 
+        isChecking: isCheckingEmail, 
+        foundUser, 
+        showLoginNotice, 
+        checkEmailExists,
+        dismissLoginNotice 
+    } = useEmailUserDetection();
 
     const { data, setData, post, processing, errors, reset, clearErrors } = useForm({
-        guest_name: sessionData?.guest_name || existingUser?.name || '',
-        guest_email: sessionData?.guest_email || existingUser?.email || '',
-        guest_phone: sessionData?.guest_phone || existingUser?.phone || '',
-        guest_whatsapp: sessionData?.guest_whatsapp || existingUser?.phone || '',
         special_requests: sessionData?.special_requests || '',
-        male_count: sessionData?.male_count || 1,
-        female_count: sessionData?.female_count || 1,
-        children_count: sessionData?.children_count || 0,
     });
 
-    // Email validation and user checking
-    const checkEmailExists = async (email: string) => {
-        if (!email || !email.includes('@')) return;
-        
-        setIsCheckingEmail(true);
-        try {
-            const response = await fetch(route('booking.check-email'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': page.props.csrf_token,
-                },
-                body: JSON.stringify({ email }),
-            });
-            
-            const result = await response.json();
-            if (result.exists) {
-                setFoundUser(result.user);
-                setShowLoginNotice(true);
-                // Pre-fill form with user data
-                setData(prev => ({
-                    ...prev,
-                    guest_name: result.user.name,
-                    guest_phone: result.user.phone,
-                    guest_whatsapp: result.user.phone,
-                }));
-            } else {
-                setFoundUser(null);
-                setShowLoginNotice(false);
-            }
-        } catch (error) {
-            console.error('Error checking email:', error);
-        } finally {
-            setIsCheckingEmail(false);
+    // Initialize with existing user if provided
+    useEffect(() => {
+        if (existingUser) {
+            // Set initial found user state if passed from backend
+            checkEmailExists(existingUser.email);
         }
-    };
+    }, [existingUser, checkEmailExists]);
 
+    // Handle email change with debouncing
     const handleEmailChange = (email: string) => {
-        setData('guest_email', email);
         clearErrors('guest_email');
         
         // Debounce email checking
@@ -168,13 +132,14 @@ export default function CreateOptimizedBooking({
     const proceedWithLogin = () => {
         // Save current form data to session before redirecting to login
         router.post(route('booking.save-session'), {
+            ...guestFormData,
             ...data,
             booking_data: bookingData,
         }, {
             onSuccess: () => {
                 router.visit(route('login'), {
                     data: { 
-                        email: data.guest_email,
+                        email: guestFormData.guest_email,
                         redirect_to: route('booking.create', { 
                             property: property.slug,
                             ...bookingData 
@@ -186,14 +151,19 @@ export default function CreateOptimizedBooking({
     };
 
     const proceedAsGuest = () => {
-        setShowLoginNotice(false);
-        setFoundUser(null);
+        dismissLoginNotice();
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
+        const submitData = {
+            ...guestFormData,
+            ...data
+        };
+        
         post(route('booking.store'), {
+            data: submitData,
             preserveScroll: true,
             onSuccess: (page) => {
                 // Redirect will be handled by backend
@@ -203,10 +173,6 @@ export default function CreateOptimizedBooking({
             }
         });
     };
-
-    // Calculate guest breakdown validation
-    const totalGuests = data.male_count + data.female_count + data.children_count;
-    const guestCountValid = totalGuests === bookingData.guest_count;
 
     useEffect(() => {
         return () => {
@@ -263,182 +229,30 @@ export default function CreateOptimizedBooking({
                             </Alert>
                         )}
 
-                        {/* Guest Information Form */}
+                        {/* Guest Details Form Component */}
+                        <GuestDetailsForm
+                            expectedGuestCount={bookingData.guest_count}
+                            initialMaleCount={sessionData?.male_count || 1}
+                            initialFemaleCount={sessionData?.female_count || 1}
+                            initialChildrenCount={sessionData?.children_count || 0}
+                            initialPrimaryGuest={{
+                                name: sessionData?.guest_name || existingUser?.name || '',
+                                email: sessionData?.guest_email || existingUser?.email || '',
+                                phone: sessionData?.guest_phone || existingUser?.phone || '',
+                                whatsapp: sessionData?.guest_whatsapp || existingUser?.phone || '',
+                            }}
+                            errors={errors}
+                            disabled={processing}
+                            onDataChange={setGuestFormData}
+                            isCheckingEmail={isCheckingEmail}
+                            onEmailChange={handleEmailChange}
+                            showLoginNotice={showLoginNotice}
+                        />
+
+                        {/* Special Requests & Submit */}
                         <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <User className="h-5 w-5" />
-                                    Guest Information
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
+                            <CardContent className="space-y-4 pt-6">
                                 <form onSubmit={handleSubmit} className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Name */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="guest_name">
-                                                Full Name <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input
-                                                id="guest_name"
-                                                type="text"
-                                                value={data.guest_name}
-                                                onChange={(e) => setData('guest_name', e.target.value)}
-                                                placeholder="Enter your full name"
-                                                className={errors.guest_name ? 'border-red-500' : ''}
-                                                required
-                                            />
-                                            {errors.guest_name && (
-                                                <p className="text-sm text-red-500">{errors.guest_name}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Email */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="guest_email">
-                                                Email Address <span className="text-red-500">*</span>
-                                            </Label>
-                                            <div className="relative">
-                                                <Input
-                                                    id="guest_email"
-                                                    type="email"
-                                                    value={data.guest_email}
-                                                    onChange={(e) => handleEmailChange(e.target.value)}
-                                                    placeholder="your@email.com"
-                                                    className={errors.guest_email ? 'border-red-500' : ''}
-                                                    required
-                                                />
-                                                {isCheckingEmail && (
-                                                    <RefreshCw className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-                                                )}
-                                            </div>
-                                            {errors.guest_email && (
-                                                <p className="text-sm text-red-500">{errors.guest_email}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Phone */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="guest_phone">
-                                                Phone Number <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input
-                                                id="guest_phone"
-                                                type="tel"
-                                                value={data.guest_phone}
-                                                onChange={(e) => setData('guest_phone', e.target.value)}
-                                                placeholder="+62 812-3456-7890"
-                                                className={errors.guest_phone ? 'border-red-500' : ''}
-                                                required
-                                            />
-                                            {errors.guest_phone && (
-                                                <p className="text-sm text-red-500">{errors.guest_phone}</p>
-                                            )}
-                                        </div>
-
-                                        {/* WhatsApp */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="guest_whatsapp">
-                                                WhatsApp Number
-                                            </Label>
-                                            <Input
-                                                id="guest_whatsapp"
-                                                type="tel"
-                                                value={data.guest_whatsapp}
-                                                onChange={(e) => setData('guest_whatsapp', e.target.value)}
-                                                placeholder="+62 812-3456-7890"
-                                                className={errors.guest_whatsapp ? 'border-red-500' : ''}
-                                            />
-                                            {errors.guest_whatsapp && (
-                                                <p className="text-sm text-red-500">{errors.guest_whatsapp}</p>
-                                            )}
-                                            <p className="text-xs text-muted-foreground">
-                                                For booking confirmations and updates
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {/* Guest Breakdown */}
-                                    <div className="space-y-4">
-                                        <div>
-                                            <Label className="text-base font-medium">
-                                                Guest Details <span className="text-red-500">*</span>
-                                            </Label>
-                                            <p className="text-sm text-muted-foreground">
-                                                Breakdown for {bookingData.guest_count} guests
-                                            </p>
-                                        </div>
-
-                                        <div className="grid grid-cols-3 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="male_count">Male Adults</Label>
-                                                <Select 
-                                                    value={data.male_count.toString()} 
-                                                    onValueChange={(value) => setData('male_count', parseInt(value))}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {Array.from({ length: bookingData.guest_count + 1 }, (_, i) => (
-                                                            <SelectItem key={i} value={i.toString()}>
-                                                                {i}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <Label htmlFor="female_count">Female Adults</Label>
-                                                <Select 
-                                                    value={data.female_count.toString()} 
-                                                    onValueChange={(value) => setData('female_count', parseInt(value))}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {Array.from({ length: bookingData.guest_count + 1 }, (_, i) => (
-                                                            <SelectItem key={i} value={i.toString()}>
-                                                                {i}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <Label htmlFor="children_count">Children</Label>
-                                                <Select 
-                                                    value={data.children_count.toString()} 
-                                                    onValueChange={(value) => setData('children_count', parseInt(value))}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {Array.from({ length: bookingData.guest_count + 1 }, (_, i) => (
-                                                            <SelectItem key={i} value={i.toString()}>
-                                                                {i}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-
-                                        {!guestCountValid && (
-                                            <Alert variant="destructive">
-                                                <AlertCircle className="h-4 w-4" />
-                                                <AlertDescription>
-                                                    Guest breakdown must total {bookingData.guest_count} guests. 
-                                                    Current total: {totalGuests}
-                                                </AlertDescription>
-                                            </Alert>
-                                        )}
-                                    </div>
-
                                     {/* Special Requests */}
                                     <div className="space-y-2">
                                         <Label htmlFor="special_requests">Special Requests</Label>
@@ -461,7 +275,7 @@ export default function CreateOptimizedBooking({
                                             type="submit" 
                                             size="lg" 
                                             className="w-full"
-                                            disabled={processing || !guestCountValid}
+                                            disabled={processing || !guestFormData.guest_name || !guestFormData.guest_email}
                                         >
                                             {processing ? (
                                                 <>
