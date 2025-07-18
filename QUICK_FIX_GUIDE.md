@@ -290,7 +290,8 @@ After applying these fixes:
 - ✅ No more "Unknown class Redis" error  
 - ✅ No more environment variable warnings
 - ✅ Application loads without 502 errors
-- ✅ Real-time features working (if using WebSocket)
+- ✅ WebSocket integrated in same container
+- ✅ Real-time notifications working at `/socket.io/`
 - ✅ Sessions and cache working properly
 
 **Total fix time: ~5-10 minutes** ⏱️

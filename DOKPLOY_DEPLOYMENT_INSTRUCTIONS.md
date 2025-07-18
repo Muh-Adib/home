@@ -150,8 +150,8 @@
 
 6. **Resources:**
    ```
-   Memory: 1GB
-   CPU: 1.0 cores
+   Memory: 1.5GB
+   CPU: 1.5 cores
    ```
 
 7. **Dependencies:**
@@ -161,55 +161,19 @@
 
 8. **Click Deploy**
 
-### D. Create WebSocket Service
+### D. WebSocket Configuration
 
-1. **Create Service → Application**
-2. **Configure WebSocket Service:**
-   ```
-   Service Name: homsjogja-websocket
-   Repository: your-github-repo-url
-   Branch: main
-   Build Pack: Dockerfile
-   Dockerfile: Dockerfile.websocket
-   ```
+WebSocket (Laravel Echo Server) sudah terintegrasi dalam aplikasi Laravel utama. Tidak perlu service terpisah.
 
-3. **Environment Variables:**
-   ```env
-   REDIS_HOST=homsjogja-redis
-   REDIS_PASSWORD=RedisPassword123!
-   AUTH_HOST=https://homsjogja.yourdomain.com
-   ```
+**Features:**
+- ✅ Laravel Echo Server berjalan di dalam container yang sama
+- ✅ Nginx proxy WebSocket di path `/socket.io/`
+- ✅ Menggunakan domain yang sama dengan aplikasi utama
+- ✅ Tidak perlu subdomain terpisah
 
-4. **Domain Configuration:**
-   ```
-   Domain: ws.homsjogja.yourdomain.com
-   SSL: Enable (Let's Encrypt)
-   ```
-
-5. **Traefik Labels:**
-   ```
-   traefik.enable=true
-   traefik.http.routers.homsjogja-ws.rule=Host(`ws.homsjogja.yourdomain.com`)
-   traefik.http.routers.homsjogja-ws.entrypoints=websecure
-   traefik.http.routers.homsjogja-ws.tls.certresolver=letsencrypt
-   traefik.http.services.homsjogja-ws.loadbalancer.server.port=6001
-   traefik.http.routers.homsjogja-ws.middlewares=websocket-headers
-   traefik.http.middlewares.websocket-headers.headers.customrequestheaders.Connection=upgrade
-   traefik.http.middlewares.websocket-headers.headers.customrequestheaders.Upgrade=websocket
-   ```
-
-6. **Resources:**
-   ```
-   Memory: 256MB
-   CPU: 0.5 cores
-   ```
-
-7. **Dependencies:**
-   ```
-   Depends On: homsjogja-redis
-   ```
-
-8. **Click Deploy**
+**URL Akses:**
+- **Main App**: `https://homsjogja.yourdomain.com`
+- **WebSocket**: `https://homsjogja.yourdomain.com/socket.io/`
 
 ## 🔄 Step 2: Post-Deployment Configuration
 
@@ -277,7 +241,7 @@
 
 2. **Test WebSocket Service:**
    ```bash
-   curl -I https://ws.homsjogja.yourdomain.com
+   curl -I https://homsjogja.yourdomain.com/socket.io/
    ```
 
 3. **Test Database Connection:**
@@ -343,18 +307,16 @@ You can also trigger deployment manually:
 
 ### A. DNS Setup
 
-Point your domains to Dokploy server:
+Point your domain to Dokploy server:
 
 ```
 A Record: homsjogja.yourdomain.com → YOUR_DOKPLOY_SERVER_IP
-A Record: ws.homsjogja.yourdomain.com → YOUR_DOKPLOY_SERVER_IP
 ```
 
 ### B. SSL Certificate
 
-Dokploy will automatically provision Let's Encrypt certificates for:
-- `https://homsjogja.yourdomain.com`
-- `https://ws.homsjogja.yourdomain.com`
+Dokploy will automatically provision Let's Encrypt certificate for:
+- `https://homsjogja.yourdomain.com` (includes WebSocket at `/socket.io/`)
 
 ## 🔍 Step 6: Monitoring & Maintenance
 
@@ -446,14 +408,14 @@ docker exec homsjogja-app supervisorctl restart queue-worker:*
 
 # Check service health
 curl -f https://homsjogja.yourdomain.com/health
-curl -f https://ws.homsjogja.yourdomain.com
+curl -f https://homsjogja.yourdomain.com/socket.io/
 ```
 
 ## ✅ Deployment Success Checklist
 
-- [ ] All 4 services deployed successfully
+- [ ] All 3 services deployed successfully (Database, Redis, App+WebSocket)
 - [ ] Main app accessible at `https://homsjogja.yourdomain.com`
-- [ ] WebSocket service accessible at `https://ws.homsjogja.yourdomain.com`
+- [ ] WebSocket service accessible at `https://homsjogja.yourdomain.com/socket.io/`
 - [ ] Database migrations completed
 - [ ] Session table created
 - [ ] Redis cache working

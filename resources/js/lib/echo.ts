@@ -25,18 +25,9 @@ function createEchoInstance(): Echo | null {
                 return 'http://localhost:6001';
             }
             
-            // Production - use dedicated WebSocket subdomain
-            const currentHost = window.location.hostname;
-            const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-            
-            // Replace main domain with WebSocket subdomain
-            if (currentHost.includes('homsjogja')) {
-                const wsHost = currentHost.replace(/^(.*\.)?homsjogja/, 'ws.homsjogja');
-                return `${protocol}//${wsHost}`;
-            }
-            
-            // Fallback for custom domains
-            return `${protocol}//ws.${currentHost}`;
+            // Production - use same domain with different path
+            // WebSocket will be proxied through nginx at /socket.io/
+            return window.location.origin;
         };
 
         const echo = new Echo({

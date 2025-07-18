@@ -35,6 +35,8 @@ RUN apk add --no-cache \
     curl \
     wget \
     git \
+    nodejs \
+    npm \
     libpng-dev \
     libjpeg-turbo-dev \
     freetype-dev \
@@ -90,6 +92,9 @@ COPY --chown=www:www . .
 # Copy built assets from node stage
 COPY --from=node-builder /app/public/build ./public/build
 
+# Install Laravel Echo Server globally
+RUN npm install -g laravel-echo-server@1.6.3
+
 # Install PHP dependencies (production optimized)
 RUN composer install \
     --no-dev \
@@ -116,6 +121,14 @@ COPY docker/nginx/dokploy.conf /etc/nginx/http.d/default.conf
 COPY docker/supervisor/dokploy.conf /etc/supervisor.d/supervisord.conf
 COPY docker/php/dokploy.ini /usr/local/etc/php/conf.d/custom.ini
 
+# Copy Laravel Echo Server configuration
+COPY laravel-echo-server.dokploy.json /var/www/html/laravel-echo-server.json
+
+# Create Laravel Echo Server database directory
+RUN mkdir -p /var/www/html/database && \
+    touch /var/www/html/database/laravel-echo-server.sqlite && \
+    chown -R www:www /var/www/html/database
+
 # Generate application key if .env doesn't exist
 RUN if [ ! -f .env ]; then cp .env.example .env; fi \
     && php artisan key:generate --force || echo "Key generation skipped"
@@ -132,8 +145,8 @@ RUN chown -R www:www /var/www/html \
     && chmod -R 755 /var/www/html/bootstrap/cache \
     && chmod +x /var/www/html/artisan
 
-# Expose HTTP port
-EXPOSE 80
+# Expose HTTP and WebSocket ports
+EXPOSE 80 6001
 
 # Health check for application readiness
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
