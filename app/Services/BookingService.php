@@ -30,13 +30,10 @@ class BookingService
      */
     public function createBooking(BookingRequest $request, ?User $user = null): Booking
     {
-        // Get property from request (property_id is added in controller)
-        $property = Property::findOrFail($request->propertyId);
-        
         // Use database transaction with row-level locking to prevent race conditions
-        return DB::transaction(function () use ($request, $property, $user) {
-            // Lock the property row to prevent concurrent modifications
-            $property = Property::lockForUpdate()->find($request->propertyId);
+        return DB::transaction(function () use ($request, $user) {
+            // Lock the property row to prevent concurrent modifications and fetch it only once
+            $property = Property::lockForUpdate()->findOrFail($request->propertyId);
             
             // Validate property availability within transaction
             if (!$this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate)) {

@@ -225,7 +225,7 @@ class PropertyController extends Controller
                 if (!in_array($dateStr, $bookedDates)) {
                     try {
                         $nextDate = $currentDate->copy()->addDay();
-                        $rateResult = $property->calculateRate($dateStr, $nextDate->format('Y-m-d'), $guestCount);
+                        $rateResult = $this->rateCalculationService->calculateRate($property, $dateStr, $nextDate->format('Y-m-d'), $guestCount)->toArray();
                         
                         $availabilityAndRates['rates'][$dateStr] = [
                             'base_rate' => $rateResult['base_amount'] / $rateResult['nights'],
@@ -308,8 +308,8 @@ class PropertyController extends Controller
         if ($checkIn && $checkOut) {
             $similarProperties->transform(function ($similarProperty) use ($checkIn, $checkOut, $guestCount) {
                 try {
-                    $rateCalculation = $similarProperty->calculateRate($checkIn, $checkOut, $guestCount);
-                    $similarProperty->current_rate_per_night = $rateCalculation['total_amount'] / $rateCalculation['nights'];
+                    $rateCalculation = $this->rateCalculationService->calculateRate($similarProperty, $checkIn, $checkOut, $guestCount);
+                    $similarProperty->current_rate_per_night = $rateCalculation->totalAmount / $rateCalculation->nights;
                     $similarProperty->formatted_current_rate = 'Rp ' . number_format($similarProperty->current_rate_per_night, 0, ',', '.');
                 } catch (\Exception $e) {
                     $similarProperty->formatted_current_rate = $similarProperty->formatted_base_rate;
@@ -368,7 +368,7 @@ class PropertyController extends Controller
         $guestCount = $request->get('guest_count', $property->capacity);
 
         try {
-            $rateCalculation = $property->calculateRate($checkIn, $checkOut, $guestCount);
+            $rateCalculation = $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount);
 
             return response()->json([
                 'success' => true,
@@ -377,13 +377,13 @@ class PropertyController extends Controller
                     'check_in' => $checkIn,
                     'check_out' => $checkOut,
                 ],
-                'calculation' => $rateCalculation,
+                'calculation' => $rateCalculation->toArray(),
                 'formatted' => [
-                    'base_amount' => 'Rp ' . number_format($rateCalculation['base_amount'], 0, ',', '.'),
-                    'weekend_premium' => 'Rp ' . number_format($rateCalculation['weekend_premium'], 0, ',', '.'),
-                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation['extra_bed_amount'], 0, ',', '.'),
-                    'cleaning_fee' => 'Rp ' . number_format($rateCalculation['cleaning_fee'], 0, ',', '.'),
-                    'total_amount' => 'Rp ' . number_format($rateCalculation['total_amount'], 0, ',', '.'),
+                    'base_amount' => 'Rp ' . number_format($rateCalculation->baseAmount, 0, ',', '.'),
+                    'weekend_premium' => 'Rp ' . number_format($rateCalculation->weekendPremium, 0, ',', '.'),
+                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation->extraBedAmount, 0, ',', '.'),
+                    'cleaning_fee' => 'Rp ' . number_format($rateCalculation->cleaningFee, 0, ',', '.'),
+                    'total_amount' => 'Rp ' . number_format($rateCalculation->totalAmount, 0, ',', '.'),
                 ]
             ]);
         } catch (\Exception $e) {
