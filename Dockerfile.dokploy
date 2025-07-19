@@ -36,7 +36,7 @@ RUN echo "=== Building frontend assets ===" && \
     ls -la public/build/
 
 # Production PHP stage
-FROM php:8.3-fpm-alpine
+FROM php:8.3-fpm AS php-stage
 
 # Install system dependencies (tanpa Redis karena akan menggunakan external Redis)
 RUN apk add --no-cache \
