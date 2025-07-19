@@ -8,3 +8,6 @@ import { twMerge } from 'tailwind-merge';
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
+
+// Re-export currency formatting utilities
+export { formatCurrency, formatNumber, formatCurrencyShort } from '@/utils/formatCurrency';

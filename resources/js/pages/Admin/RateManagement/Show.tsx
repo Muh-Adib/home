@@ -18,7 +18,7 @@ import {
     Settings,
     TrendingUp
 } from 'lucide-react';
-import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
+import AppLayout from '@/layouts/app-layout';
 import { Property, PropertySeasonalRate, RateCalendar } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -109,7 +109,7 @@ export default function RateManagementShow({ property, seasonalRates, rateCalend
     };
 
     return (
-        <AuthenticatedLayout>
+        <AppLayout>
             <Head title={`Rate Management - ${property.name}`} />
 
             <div className="py-6">
@@ -484,6 +484,6 @@ export default function RateManagementShow({ property, seasonalRates, rateCalend
                     </Card>
                 </div>
             </div>
-        </AuthenticatedLayout>
+        </AppLayout>
     );
 }

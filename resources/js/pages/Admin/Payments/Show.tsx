@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { formatCurrency } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -156,7 +157,7 @@ export default function PaymentShow() {
         }
     };
 
-    const formatCurrency = (amount: number) => `Rp ${amount.toLocaleString()}`;
+
     const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('id-ID', {
         weekday: 'long',
         year: 'numeric',

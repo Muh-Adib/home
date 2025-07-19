@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { 
   MapPin, 
@@ -56,13 +57,7 @@ export function PropertyCard({
 }: PropertyCardProps) {
   const coverImage = property.media?.find(m => m.is_cover)?.file_path || '/placeholder-property.jpg';
   
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+
 
   const getStatusColor = (status: string) => {
     switch (status) {

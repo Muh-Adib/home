@@ -18,7 +18,7 @@ import {
     RefreshCw
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { formatCurrency } from '@/utils/formatCurrency';
+import { formatCurrency } from '@/lib/utils';
 import { GuestDetailsForm } from '@/components/booking/GuestDetailsForm';
 import { useEmailUserDetection } from '@/hooks/use-email-user-detection';
 
