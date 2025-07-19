@@ -188,20 +188,64 @@ class RateCalculationService
     }
 
     /**
-     * Calculate rate with formatted response for API
+     * Calculate rate with formatted response for API (Frontend compatible)
      */
     public function calculateRateFormatted(Property $property, string $checkIn, string $checkOut, int $guestCount): array
     {
         try {
             $calculation = $this->calculateRate($property, $checkIn, $checkOut, $guestCount);
+            $calculationArray = $calculation->toArray();
             
             return [
                 'success' => true,
-                'rates' => $calculation->toArray(),
                 'property_id' => $property->id,
-                'check_in' => $checkIn,
-                'check_out' => $checkOut,
+                'dates' => [
+                    'check_in' => $checkIn,
+                    'check_out' => $checkOut,
+                ],
                 'guest_count' => $guestCount,
+                'calculation' => [
+                    'nights' => $calculation->nights,
+                    'weekday_nights' => $calculationArray['breakdown']['weekday_nights'] ?? 0,
+                    'weekend_nights' => $calculationArray['breakdown']['weekend_nights'] ?? 0,
+                    'seasonal_nights' => $calculationArray['breakdown']['seasonal_nights'] ?? 0,
+                    'base_amount' => $calculation->baseAmount,
+                    'total_base_amount' => $calculationArray['breakdown']['total_base_amount'] ?? $calculation->baseAmount,
+                    'weekend_premium' => $calculation->weekendPremium,
+                    'seasonal_premium' => $calculation->seasonalPremium,
+                    'extra_bed_amount' => $calculation->extraBedAmount,
+                    'cleaning_fee' => $calculation->cleaningFee,
+                    'minimum_stay_discount' => $calculationArray['breakdown']['minimum_stay_discount'] ?? 0,
+                    'subtotal' => $calculationArray['breakdown']['subtotal'] ?? 0,
+                    'tax_amount' => $calculation->taxAmount,
+                    'total_amount' => $calculation->totalAmount,
+                    'extra_beds' => $calculation->extraBeds,
+                    'rate_breakdown' => [
+                        'base_rate_per_night' => $property->base_rate,
+                        'weekend_premium_percent' => $property->weekend_premium_percent ?? 0,
+                        'peak_season_applied' => $calculation->seasonalPremium > 0,
+                        'long_weekend_applied' => false, // TODO: implement proper logic
+                        'seasonal_rates_applied' => $calculation->seasonalRatesApplied,
+                    ],
+                    'daily_breakdown' => $calculationArray['breakdown']['daily_breakdown'] ?? [],
+                    'summary' => $calculationArray['breakdown']['summary'] ?? [
+                        'average_nightly_rate' => $calculation->totalAmount / $calculation->nights,
+                        'total_nights' => $calculation->nights,
+                        'base_nights_rate' => $calculation->baseAmount,
+                        'total_premiums' => $calculation->weekendPremium + $calculation->seasonalPremium,
+                        'effective_discount' => $calculationArray['breakdown']['minimum_stay_discount'] ?? 0,
+                        'taxes_and_fees' => $calculation->taxAmount + $calculation->cleaningFee,
+                    ],
+                ],
+                'formatted' => [
+                    'base_amount' => 'Rp ' . number_format($calculation->baseAmount, 0, ',', '.'),
+                    'weekend_premium' => 'Rp ' . number_format($calculation->weekendPremium, 0, ',', '.'),
+                    'seasonal_premium' => 'Rp ' . number_format($calculation->seasonalPremium, 0, ',', '.'),
+                    'extra_bed_amount' => 'Rp ' . number_format($calculation->extraBedAmount, 0, ',', '.'),
+                    'cleaning_fee' => 'Rp ' . number_format($calculation->cleaningFee, 0, ',', '.'),
+                    'total_amount' => 'Rp ' . number_format($calculation->totalAmount, 0, ',', '.'),
+                    'per_night' => 'Rp ' . number_format($calculation->totalAmount / $calculation->nights, 0, ',', '.'),
+                ],
             ];
         } catch (\Exception $e) {
             Log::error('Rate calculation failed', [
@@ -214,11 +258,12 @@ class RateCalculationService
 
             return [
                 'success' => false,
-                'error_type' => 'calculation',
-                'message' => $e->getMessage(),
+                'error' => $e->getMessage(),
                 'property_id' => $property->id,
-                'check_in' => $checkIn,
-                'check_out' => $checkOut,
+                'dates' => [
+                    'check_in' => $checkIn,
+                    'check_out' => $checkOut,
+                ],
                 'guest_count' => $guestCount,
             ];
         }
