@@ -38,7 +38,57 @@ export DB_PORT=${DB_PORT:-3306}
 export REDIS_HOST=${REDIS_HOST:-redis}
 export REDIS_PORT=${REDIS_PORT:-6379}
 
+# Setup dynamic URL configuration
+echo "=== Setting up Dynamic Environment Configuration ==="
+
+# Update .env file dengan dynamic values
+if [ -f .env ]; then
+    # Update database configuration
+    sed -i "s/DB_HOST=.*/DB_HOST=${DB_HOST}/" .env
+    sed -i "s/DB_PORT=.*/DB_PORT=${DB_PORT}/" .env
+    sed -i "s/DB_DATABASE=.*/DB_DATABASE=${DB_DATABASE:-laravel}/" .env
+    sed -i "s/DB_USERNAME=.*/DB_USERNAME=${DB_USERNAME:-root}/" .env
+    if [ -n "$DB_PASSWORD" ]; then
+        sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${DB_PASSWORD}/" .env
+    fi
+
+    # Update Redis configuration
+    sed -i "s/REDIS_HOST=.*/REDIS_HOST=${REDIS_HOST}/" .env
+    sed -i "s/REDIS_PORT=.*/REDIS_PORT=${REDIS_PORT}/" .env
+    if [ -n "$REDIS_PASSWORD" ] && [ "$REDIS_PASSWORD" != "null" ]; then
+        sed -i "s/REDIS_PASSWORD=.*/REDIS_PASSWORD=${REDIS_PASSWORD}/" .env
+    fi
+
+    # Dynamic URL configuration - sangat penting untuk deployment
+    if [ -n "$APP_URL" ]; then
+        echo "Setting dynamic APP_URL to: $APP_URL"
+        sed -i "s|APP_URL=.*|APP_URL=${APP_URL}|" .env
+        
+        # Update asset URL untuk static files
+        if ! grep -q "ASSET_URL" .env; then
+            echo "ASSET_URL=${APP_URL}" >> .env
+        else
+            sed -i "s|ASSET_URL=.*|ASSET_URL=${APP_URL}|" .env
+        fi
+        
+        # Update mail domain berdasarkan APP_URL
+        DOMAIN=$(echo "$APP_URL" | sed 's|https\?://||' | sed 's|/.*||')
+        sed -i "s/MAIL_FROM_ADDRESS=.*/MAIL_FROM_ADDRESS=noreply@${DOMAIN}/" .env
+        echo "Mail domain set to: noreply@$DOMAIN"
+        
+        export APP_URL="${APP_URL}"
+    else
+        echo "WARNING: APP_URL tidak di-set, menggunakan default"
+    fi
+
+    # Update cache drivers untuk external services
+    sed -i "s/CACHE_DRIVER=.*/CACHE_DRIVER=redis/" .env
+    sed -i "s/SESSION_DRIVER=.*/SESSION_DRIVER=redis/" .env
+    sed -i "s/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=redis/" .env
+fi
+
 echo "=== Environment Configuration ==="
+echo "APP_URL: ${APP_URL:-not set}"
 echo "Database: $DB_HOST:$DB_PORT"
 echo "Redis: $REDIS_HOST:$REDIS_PORT"
 

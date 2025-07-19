@@ -129,14 +129,11 @@ COPY docker/nginx/dokploy.conf /etc/nginx/http.d/default.conf
 COPY docker/supervisor/dokploy.conf /etc/supervisor.d/supervisord.conf
 COPY docker/php/dokploy.ini /usr/local/etc/php/conf.d/custom.ini
 
-# Setup environment file untuk external services
+# Setup environment template (dynamic configuration akan dilakukan di startup)
 RUN if [ ! -f .env ]; then cp .env.example .env; fi && \
-    echo "=== Setting up environment for external services ===" && \
-    sed -i 's/DB_HOST=.*/DB_HOST=${DB_HOST:-mysql}/' .env && \
-    sed -i 's/REDIS_HOST=.*/REDIS_HOST=${REDIS_HOST:-redis}/' .env && \
-    sed -i 's/CACHE_DRIVER=.*/CACHE_DRIVER=redis/' .env && \
-    sed -i 's/SESSION_DRIVER=.*/SESSION_DRIVER=redis/' .env && \
-    sed -i 's/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=redis/' .env
+    echo "=== Preparing environment template for dynamic configuration ===" && \
+    echo "# Environment will be configured dynamically at startup" >> .env && \
+    echo "# APP_URL, DB_*, REDIS_* akan di-set dari environment variables" >> .env
 
 # Generate application key
 RUN php artisan key:generate --force || echo "Key generation skipped"

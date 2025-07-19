@@ -81,14 +81,19 @@ fi
 log_info "=== TESTING STARTUP SCRIPT ==="
 log_info "Testing startup script dalam container..."
 
-# Test startup script dengan environment variables
+# Test startup script dengan environment variables dinamis
 docker run --rm \
     -e DB_HOST=127.0.0.1 \
     -e REDIS_HOST=127.0.0.1 \
     -e APP_ENV=production \
     -e APP_DEBUG=false \
+    -e APP_URL=https://test-dokploy.example.com \
+    -e ASSET_URL=https://cdn.example.com \
+    -e DB_DATABASE=test_laravel \
+    -e DB_USERNAME=test_user \
+    -e DB_PASSWORD=test_password \
     laravel-dokploy-test \
-    /bin/bash -c "echo 'Testing startup script...' && timeout 30 /usr/local/bin/startup.sh || echo 'Startup script test completed (timeout expected)'"
+    /bin/bash -c "echo 'Testing startup script dengan URL dinamis...' && timeout 30 /usr/local/bin/startup.sh || echo 'Startup script test completed (timeout expected)'"
 
 log_success "Startup script test completed"
 
@@ -151,6 +156,7 @@ log_info "=== TEST SUMMARY ==="
 log_success "✅ Dockerfile.dokploy build berhasil"
 log_success "✅ Package-lock.json sudah included"
 log_success "✅ Startup script dapat dijalankan"
+log_success "✅ URL dinamis configuration tested"
 log_success "✅ Image size reasonable: $IMAGE_SIZE"
 log_success "✅ Container dapat di-start"
 

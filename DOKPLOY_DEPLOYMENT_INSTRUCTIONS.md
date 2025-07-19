@@ -48,12 +48,22 @@ REDIS_HOST=your-redis-host
 REDIS_PORT=6379
 REDIS_PASSWORD=your_redis_password_or_null
 
-# Application
+# Application (URL DINAMIS - Akan otomatis mengikuti domain Dokploy)
 APP_ENV=production
 APP_DEBUG=false
 APP_KEY=your_generated_key
-APP_URL=https://yourdomain.com
+APP_URL=https://your-dokploy-domain.com  # URL utama aplikasi
+ASSET_URL=https://your-dokploy-domain.com # Optional: URL untuk static assets
+
+# Mail (Domain akan otomatis di-set berdasarkan APP_URL)
+MAIL_FROM_ADDRESS=noreply@your-domain.com  # Akan otomatis di-generate dari APP_URL
 ```
+
+**⚠️ Penting**: URL akan secara otomatis dikonfigurasi berdasarkan environment variables di atas. Startup script akan:
+- Set APP_URL dari environment variable
+- Update domain email berdasarkan APP_URL
+- Konfigurasi asset URL untuk static files
+- Update WebSocket URL untuk real-time features
 
 ### 2. Build Configuration
 
@@ -134,6 +144,56 @@ docker exec -it your-container-name php artisan tinker --execute="Redis::ping();
 ```bash
 # Check if package-lock.json is included in build
 docker exec -it your-container-name ls -la package*
+```
+
+## Fitur URL Dinamis
+
+### 1. Automatic URL Configuration
+
+Aplikasi sudah dikonfigurasi untuk **URL dinamis** yang akan otomatis menyesuaikan dengan domain deployment:
+
+```bash
+# ✅ URL akan otomatis menyesuaikan berdasarkan environment variables
+APP_URL=https://your-dokploy-domain.com
+ASSET_URL=https://your-dokploy-domain.com  # Optional
+
+# ✅ Mail domain akan otomatis di-generate dari APP_URL
+# Jika APP_URL=https://app.example.com, maka mail akan jadi noreply@app.example.com
+
+# ✅ WebSocket URL akan otomatis mengikuti domain yang sama
+# Development: http://localhost:6001
+# Production: https://your-dokploy-domain.com (proxied via nginx)
+```
+
+### 2. Frontend Dynamic URL Support
+
+Frontend React sudah mendukung URL dinamis dengan utilities:
+
+```typescript
+import { buildUrl, buildAssetUrl, getWebSocketUrl } from '@/utils/url';
+
+// Build URL dinamis
+const apiUrl = buildUrl('/api/properties');
+
+// Build asset URL
+const imageUrl = buildAssetUrl('/storage/images/property.jpg');
+
+// Get WebSocket URL
+const wsUrl = getWebSocketUrl(); // Otomatis development/production
+```
+
+### 3. Laravel Helpers
+
+Backend Laravel menggunakan helper yang sudah support URL dinamis:
+
+```php
+// ✅ Otomatis menggunakan APP_URL dari .env
+$url = url('/dashboard');
+$assetUrl = asset('images/logo.png');
+$routeUrl = route('properties.index');
+
+// ✅ Email URLs otomatis menggunakan domain dari APP_URL
+$resetUrl = route('password.reset', ['token' => $token]);
 ```
 
 ## Optimasi Performance
