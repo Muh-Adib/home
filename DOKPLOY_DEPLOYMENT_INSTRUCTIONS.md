@@ -1,429 +1,167 @@
-# 🚀 Dokploy Deployment Instructions - Property Management System
+# Panduan Deployment Laravel ke Dokploy
 
-## 📋 Pre-Deployment Checklist
+## Perbaikan yang Dilakukan
 
-- [ ] Domain/subdomain ready (`homsjogja.yourdomain.com`, `ws.homsjogja.yourdomain.com`)
-- [ ] Dokploy server accessible and configured
-- [ ] GitHub repository connected to Dokploy
-- [ ] SSL certificates configured (Let's Encrypt)
-- [ ] DNS pointing to Dokploy server
+### 1. Dockerfile.dokploy yang Diperbaiki
 
-## 🏗️ Service Architecture
+**Masalah yang diperbaiki:**
+- ❌ Error `npm ci` karena package-lock.json di-exclude
+- ❌ Konfigurasi untuk Redis dan DB terpisah tidak optimal  
+- ❌ Build Node.js dependencies tidak reliable
+- ❌ Missing connectivity checks untuk external services
 
-```
-🌐 Internet
-    ↓
-📡 Traefik (Reverse Proxy)
-    ↓
-┌─────────────────────────────────────────────────────────┐
-│                    Dokploy Services                      │
-├─────────────────┬─────────────────┬─────────────────────┤
-│   MySQL DB      │   Redis Cache   │   Laravel App       │
-│   (Service 1)   │   (Service 2)   │   (Service 3)       │
-│                 │                 │   - Nginx           │
-│                 │                 │   - PHP-FPM         │
-│                 │                 │   - Queue Workers   │
-└─────────────────┴─────────────────┴─────────────────────┤
-                                    │   Socket.io Server  │
-                                    │   (Service 4)       │
-                                    └─────────────────────┘
-```
+**Solusi yang diimplementasikan:**
+- ✅ Menghapus `package-lock.json` dari `.dockerignore`
+- ✅ Menambahkan `netcat-openbsd` untuk connectivity testing
+- ✅ Improved error handling untuk npm install dengan fallback
+- ✅ Optimasi untuk external Redis dan Database
+- ✅ Startup script untuk handle migrations dan service connectivity
+- ✅ Menghapus Laravel Echo Server (untuk terpisah service)
 
-## 🔧 Step 1: Create Services in Dokploy Dashboard
-
-### A. Create MySQL Database Service
-
-1. **Login to Dokploy Dashboard**
-2. **Go to Services → Create Service → Database → MySQL**
-3. **Configure Database:**
-   ```
-   Service Name: homsjogja-db
-   Database Name: homsjogja_db
-   Username: homsjogja_user
-   Password: SecurePassword123!
-   Root Password: RootPassword123!
-   Version: 8.0
-   ```
-4. **Resources:**
-   ```
-   Memory: 512MB
-   CPU: 0.5 cores
-   ```
-5. **Volume Mount:**
-   ```
-   Volume: mysql_data
-   Mount Path: /var/lib/mysql
-   ```
-6. **Click Deploy**
-
-### B. Create Redis Service
-
-1. **Create Service → Database → Redis**
-2. **Configure Redis:**
-   ```
-   Service Name: homsjogja-redis
-   Password: RedisPassword123!
-   Version: 7-alpine
-   ```
-3. **Resources:**
-   ```
-   Memory: 256MB
-   CPU: 0.25 cores
-   ```
-4. **Volume Mount:**
-   ```
-   Volume: redis_data
-   Mount Path: /data
-   ```
-5. **Command Override:**
-   ```
-   redis-server --requirepass RedisPassword123! --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
-   ```
-6. **Click Deploy**
-
-### C. Create Laravel Application Service
-
-1. **Create Service → Application**
-2. **Configure Application:**
-   ```
-   Service Name: homsjogja-app
-   Repository: your-github-repo-url
-   Branch: main
-   Build Pack: Dockerfile
-   Dockerfile: Dockerfile.dokploy
-   ```
-
-3. **Environment Variables:**
-   ```env
-   APP_NAME=Homsjogja
-   APP_ENV=production
-   APP_DEBUG=false
-   APP_KEY=base64:2KP58EicMQP7tFSYjfXVyeBYmvrRF+62NIErENjPfck=
-   APP_URL=https://homsjogja.yourdomain.com
-   APP_TIMEZONE=Asia/Jakarta
-   
-   DB_CONNECTION=mysql
-   DB_HOST=homsjogja-db
-   DB_PORT=3306
-   DB_DATABASE=homsjogja_db
-   DB_USERNAME=homsjogja_user
-   DB_PASSWORD=SecurePassword123!
-   
-   REDIS_HOST=homsjogja-redis
-   REDIS_PASSWORD=RedisPassword123!
-   REDIS_PORT=6379
-   REDIS_CLIENT=phpredis
-   
-   SESSION_DRIVER=redis
-   CACHE_STORE=redis
-   QUEUE_CONNECTION=redis
-   BROADCAST_DRIVER=redis
-   
-   LOG_CHANNEL=stack
-   LOG_LEVEL=error
-   
-   MAIL_MAILER=smtp
-   MAIL_HOST=smtp.mailtrap.io
-   MAIL_PORT=2525
-   MAIL_USERNAME=null
-   MAIL_PASSWORD=null
-   MAIL_FROM_ADDRESS=noreply@homsjogja.com
-   MAIL_FROM_NAME=Homsjogja
-   
-   # Add all other variables from .env.dokploy
-   ```
-
-4. **Domain Configuration:**
-   ```
-   Domain: homsjogja.yourdomain.com
-   SSL: Enable (Let's Encrypt)
-   ```
-
-5. **Traefik Labels:**
-   ```
-   traefik.enable=true
-   traefik.http.routers.homsjogja-app.rule=Host(`homsjogja.yourdomain.com`)
-   traefik.http.routers.homsjogja-app.entrypoints=websecure
-   traefik.http.routers.homsjogja-app.tls.certresolver=letsencrypt
-   traefik.http.services.homsjogja-app.loadbalancer.server.port=80
-   ```
-
-6. **Resources:**
-   ```
-   Memory: 1.5GB
-   CPU: 1.5 cores
-   ```
-
-7. **Dependencies:**
-   ```
-   Depends On: homsjogja-db, homsjogja-redis
-   ```
-
-8. **Click Deploy**
-
-### D. WebSocket Configuration
-
-WebSocket (Laravel Echo Server) sudah terintegrasi dalam aplikasi Laravel utama. Tidak perlu service terpisah.
-
-**Features:**
-- ✅ Laravel Echo Server berjalan di dalam container yang sama
-- ✅ Nginx proxy WebSocket di path `/socket.io/`
-- ✅ Menggunakan domain yang sama dengan aplikasi utama
-- ✅ Tidak perlu subdomain terpisah
-
-**URL Akses:**
-- **Main App**: `https://homsjogja.yourdomain.com`
-- **WebSocket**: `https://homsjogja.yourdomain.com/socket.io/`
-
-## 🔄 Step 2: Post-Deployment Configuration
-
-### A. Database Setup
-
-1. **Access Laravel App Container:**
-   ```bash
-   # Via Dokploy console or SSH
-   docker exec -it homsjogja-app bash
-   ```
-
-2. **Run Migrations:**
-   ```bash
-   php artisan migrate --force
-   ```
-
-3. **Create Session Table:**
-   ```bash
-   php artisan session:table
-   php artisan migrate --force
-   ```
-
-4. **Seed Database (Optional):**
-   ```bash
-   php artisan db:seed --force
-   ```
-
-### B. Cache Optimization
-
-1. **Clear and Rebuild Cache:**
-   ```bash
-   php artisan optimize:clear
-   php artisan config:cache
-   php artisan route:cache
-   php artisan view:cache
-   php artisan event:cache
-   ```
-
-2. **Verify Queue Workers:**
-   ```bash
-   supervisorctl status
-   ```
-
-### C. Storage Setup
-
-1. **Create Storage Link:**
-   ```bash
-   php artisan storage:link
-   ```
-
-2. **Set Permissions:**
-   ```bash
-   chown -R www:www storage bootstrap/cache
-   chmod -R 755 storage bootstrap/cache
-   ```
-
-## 🧪 Step 3: Testing Deployment
-
-### A. Health Checks
-
-1. **Test Main Application:**
-   ```bash
-   curl -I https://homsjogja.yourdomain.com/health
-   ```
-
-2. **Test WebSocket Service:**
-   ```bash
-   curl -I https://homsjogja.yourdomain.com/socket.io/
-   ```
-
-3. **Test Database Connection:**
-   ```bash
-   docker exec homsjogja-app php artisan tinker --execute="DB::connection()->getPdo(); echo 'DB Connected';"
-   ```
-
-4. **Test Redis Connection:**
-   ```bash
-   docker exec homsjogja-app php artisan tinker --execute="Redis::ping(); echo 'Redis Connected';"
-   ```
-
-### B. WebSocket Testing
-
-1. **Test in Browser Console:**
-   ```javascript
-   // Open browser console on your app
-   // This should connect to WebSocket
-   window.Echo.connector.socket.connected; // Should return true
-   ```
-
-2. **Test Real-time Notifications:**
-   ```bash
-   # In Laravel app container
-   php artisan tinker
-   
-   # Test notification
-   $user = App\Models\User::first();
-   $user->notify(new App\Notifications\TestNotification());
-   ```
-
-## 🔄 Step 4: CI/CD Setup
-
-### A. GitHub Secrets
-
-Add these secrets to your GitHub repository:
+### 2. Files yang Diubah/Ditambahkan
 
 ```
-DOKPLOY_SERVER_URL: https://your-dokploy-server.com
-DOKPLOY_API_TOKEN: your-dokploy-api-token
+├── Dockerfile.dokploy          # ✅ Diperbaiki untuk external services
+├── .dockerignore              # ✅ Package-lock.json di-uncomment
+├── docker/scripts/startup.sh   # ✅ Baru: Startup script dengan connectivity check
+├── docker/supervisor/dokploy.conf # ✅ Dioptimasi tanpa Echo Server
+├── .env.dokploy               # ✅ Environment template untuk deployment
+└── docker-compose.dokploy.yml # ✅ Testing compose file
 ```
 
-### B. Auto-Deployment
+## Cara Deploy ke Dokploy
 
-The GitHub Actions workflow (`/.github/workflows/dokploy-deploy.yml`) will automatically:
+### 1. Environment Variables di Dokploy
 
-1. **Build application** on every push to `main`
-2. **Deploy services** in correct order
-3. **Run migrations** and cache optimization
-4. **Health checks** to verify deployment
-5. **Notification** of deployment status
-
-### C. Manual Deployment
-
-You can also trigger deployment manually:
-
-1. **Go to GitHub Actions**
-2. **Select "Deploy to Dokploy" workflow**
-3. **Click "Run workflow"**
-4. **Choose deployment target:** all, app, websocket, or database
-
-## 🎯 Step 5: Domain Configuration
-
-### A. DNS Setup
-
-Point your domain to Dokploy server:
-
-```
-A Record: homsjogja.yourdomain.com → YOUR_DOKPLOY_SERVER_IP
-```
-
-### B. SSL Certificate
-
-Dokploy will automatically provision Let's Encrypt certificate for:
-- `https://homsjogja.yourdomain.com` (includes WebSocket at `/socket.io/`)
-
-## 🔍 Step 6: Monitoring & Maintenance
-
-### A. Log Monitoring
+Set environment variables berikut di Dokploy dashboard:
 
 ```bash
-# Application logs
-docker logs -f homsjogja-app
+# Database (External MySQL Service)
+DB_HOST=your-mysql-host
+DB_PORT=3306
+DB_DATABASE=your_database_name
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
 
-# WebSocket logs
-docker logs -f homsjogja-websocket
+# Redis (External Redis Service)
+REDIS_HOST=your-redis-host
+REDIS_PORT=6379
+REDIS_PASSWORD=your_redis_password_or_null
 
-# Database logs
-docker logs -f homsjogja-db
-
-# Redis logs
-docker logs -f homsjogja-redis
+# Application
+APP_ENV=production
+APP_DEBUG=false
+APP_KEY=your_generated_key
+APP_URL=https://yourdomain.com
 ```
 
-### B. Performance Monitoring
+### 2. Build Configuration
 
-1. **Check Resource Usage:**
-   ```bash
-   docker stats homsjogja-app homsjogja-websocket homsjogja-db homsjogja-redis
-   ```
+Pastikan di Dokploy:
+- **Dockerfile**: `Dockerfile.dokploy`
+- **Build Context**: Root directory (`.`)
+- **Port**: `80`
 
-2. **Monitor WebSocket Connections:**
-   ```bash
-   docker exec homsjogja-websocket netstat -an | grep :6001
-   ```
+### 3. Database Setup (Sebelum Deploy)
 
-3. **Monitor Queue Workers:**
-   ```bash
-   docker exec homsjogja-app supervisorctl status
-   ```
+Jika menggunakan external database, pastikan:
 
-### C. Backup Strategy
+```sql
+-- Buat database dan user
+CREATE DATABASE your_database_name CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'your_username'@'%' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON your_database_name.* TO 'your_username'@'%';
+FLUSH PRIVILEGES;
+```
 
-1. **Database Backup:**
-   ```bash
-   docker exec homsjogja-db mysqldump -u homsjogja_user -pSecurePassword123! homsjogja_db > backup.sql
-   ```
+### 4. Redis Setup (Sebelum Deploy)
 
-2. **Redis Backup:**
-   ```bash
-   docker exec homsjogja-redis redis-cli --rdb /data/dump.rdb
-   ```
+Pastikan Redis service bisa diakses dari aplikasi Laravel dan konfigurasi:
+- Host dan port yang benar
+- Password jika ada
+- Network connectivity
 
-3. **Application Files:**
-   ```bash
-   # Backup storage directory
-   docker cp homsjogja-app:/var/www/html/storage ./storage-backup
-   ```
+## Testing Local (Opsional)
 
-## 🚨 Troubleshooting
-
-### Common Issues:
-
-1. **502 Error:**
-   - Check Nginx buffer settings in `docker/nginx/dokploy.conf`
-   - Verify PHP-FPM is running: `supervisorctl status php-fpm`
-
-2. **WebSocket Connection Failed:**
-   - Check domain `ws.homsjogja.yourdomain.com` resolves correctly
-   - Verify Traefik labels for WebSocket headers
-   - Check Redis connection in WebSocket container
-
-3. **Database Connection Failed:**
-   - Verify database service is running
-   - Check environment variables match database credentials
-   - Test connection: `docker exec homsjogja-app php artisan migrate:status`
-
-4. **Queue Jobs Not Processing:**
-   - Check queue workers: `supervisorctl status queue-worker`
-   - Verify Redis connection for queues
-   - Check Laravel logs: `docker exec homsjogja-app tail -f storage/logs/laravel.log`
-
-### Emergency Commands:
+Untuk testing Dockerfile sebelum deploy:
 
 ```bash
-# Restart all services
-docker restart homsjogja-app homsjogja-websocket homsjogja-db homsjogja-redis
+# Build dan test dengan external services
+docker-compose -f docker-compose.dokploy.yml up --build
 
-# Clear all cache
-docker exec homsjogja-app php artisan optimize:clear
+# Test hanya build image
+docker build -f Dockerfile.dokploy -t laravel-dokploy-test .
 
-# Reset queue workers
-docker exec homsjogja-app supervisorctl restart queue-worker:*
-
-# Check service health
-curl -f https://homsjogja.yourdomain.com/health
-curl -f https://homsjogja.yourdomain.com/socket.io/
+# Test startup script
+docker run --rm laravel-dokploy-test /usr/local/bin/startup.sh
 ```
 
-## ✅ Deployment Success Checklist
+## Monitoring dan Troubleshooting
 
-- [ ] All 3 services deployed successfully (Database, Redis, App+WebSocket)
-- [ ] Main app accessible at `https://homsjogja.yourdomain.com`
-- [ ] WebSocket service accessible at `https://homsjogja.yourdomain.com/socket.io/`
-- [ ] Database migrations completed
-- [ ] Session table created
-- [ ] Redis cache working
-- [ ] Queue workers running
-- [ ] WebSocket real-time notifications working
-- [ ] SSL certificates active
-- [ ] Health checks passing
-- [ ] CI/CD pipeline configured
-- [ ] Monitoring setup complete
+### 1. Health Check
 
-🎉 **Congratulations! Your Property Management System is now live on Dokploy with full separation of services and real-time WebSocket support!**
+Aplikasi memiliki endpoint health check di `/health`
+
+### 2. Logs untuk Debug
+
+```bash
+# Via Dokploy console atau Docker logs
+docker logs your-container-name
+
+# Specific logs dalam container
+docker exec -it your-container-name tail -f /var/log/nginx/error.log
+docker exec -it your-container-name tail -f /var/www/html/storage/logs/laravel.log
+```
+
+### 3. Common Issues
+
+**Issue**: Database connection failed
+```bash
+# Check environment variables
+docker exec -it your-container-name env | grep DB_
+
+# Test connection manually
+docker exec -it your-container-name php artisan migrate:status
+```
+
+**Issue**: Redis connection failed  
+```bash
+# Check Redis connectivity
+docker exec -it your-container-name php artisan tinker --execute="Redis::ping();"
+```
+
+**Issue**: npm ci still failing
+```bash
+# Check if package-lock.json is included in build
+docker exec -it your-container-name ls -la package*
+```
+
+## Optimasi Performance
+
+### 1. Laravel Cache
+
+Aplikasi akan otomatis cache config, routes, dan views saat startup.
+
+### 2. OPcache
+
+PHP OPcache sudah dikonfigurasi optimal untuk production.
+
+### 3. Nginx
+
+Konfigurasi nginx sudah include:
+- Gzip compression
+- Static file caching
+- Buffer optimization
+
+### 4. Supervisor
+
+Queue workers dan scheduler sudah dikonfigurasi optimal dengan supervisor.
+
+## Support
+
+Jika masih ada error saat deployment:
+
+1. Check Dokploy logs untuk detail error
+2. Verifikasi environment variables sudah benar
+3. Pastikan external services (DB, Redis) dapat diakses
+4. Check network connectivity antara services
