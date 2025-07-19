@@ -7,7 +7,7 @@ FROM node:20-alpine AS node-builder
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package*.json package-lock.json ./
 COPY tsconfig.json ./
 COPY vite.config.ts ./
 COPY tailwind.config.js ./
