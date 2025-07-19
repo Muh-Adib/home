@@ -71,17 +71,8 @@ class BookingController extends Controller
                 return redirect()->back()->withErrors(['error' => 'Properti tidak tersedia pada tanggal yang dipilih.']);
             }
 
-            // Hitung tarif berdasarkan tanggal & jumlah tamu
-            try {
-                $rateCalculation = $availabilityService->calculateRateFormatted($property, $startDate, $endDate, $guestCount);
-            } catch (\Exception $e) {
-                \Log::warning('Gagal menghitung tarif: ' . $e->getMessage());
-                return redirect()->back()->withErrors(['error' => 'Gagal menghitung tarif. Silakan coba tanggal lain.']);
-            }
-
             return Inertia::render('Booking/Create', [
                 'property' => $property->load(['amenities', 'media']),
-                'rateCalculation' => $rateCalculation,
                 'searchParams' => [
                     'check_in' => $startDate,
                     'check_out' => $endDate,

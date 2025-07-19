@@ -24,7 +24,6 @@ import {
     Home,
     Key,
     MapPin,
-    AlertCircle,
     Info,
     Phone
 } from 'lucide-react';

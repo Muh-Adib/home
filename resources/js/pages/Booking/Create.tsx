@@ -31,7 +31,6 @@ import {
     Mail,
     Key
 } from 'lucide-react';
-import { DateRange, getDefaultDateRange } from '@/components/ui/date-range';
 import { useTranslation } from 'react-i18next';
 
 interface Property {
@@ -80,9 +79,9 @@ interface BookingFormData {
     check_in_date: string;
     check_out_date: string;
     check_in_time: string;
-    guest_count_male: number;
-    guest_count_female: number;
-    guest_count_children: number;
+    guest_male: number;
+    guest_female: number;
+    guest_children: number;
     guest_name: string;
     guest_email: string;
     guest_phone: string;
@@ -124,9 +123,9 @@ interface BookingErrors {
     check_in_date?: string;
     check_out_date?: string;
     check_in_time?: string;
-    guest_count_male?: string;
-    guest_count_female?: string;
-    guest_count_children?: string;
+    guest_male?: string;
+    guest_female?: string;
+    guest_children?: string;
     guest_name?: string;
     guest_email?: string;
     guest_phone?: string;
@@ -163,12 +162,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
     const [emailCheckTimeout, setEmailCheckTimeout] = useState<NodeJS.Timeout | null>(null);
     const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 
-    // Calculate minimum stay for initial dates validation
-    const getMinimumStay = () => {
-        const today = new Date();
-        const isWeekend = today.getDay() === 0 || today.getDay() === 6;
-        return isWeekend ? property.min_stay_weekend : property.min_stay_weekday;
-    };
+
 
     // Auto-fill form data based on user login status and URL params
     const getInitialFormData = (): BookingFormData => {
@@ -179,9 +173,9 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
             check_in_date: urlCheckIn || '',
             check_out_date: urlCheckOut || '',
             check_in_time: '15:00',
-            guest_count_male: 2,
-            guest_count_female: 2,
-            guest_count_children: 0,
+            guest_male: 2,
+            guest_female: 2,
+            guest_children: 0,
             guest_name: user?.name || '',
             guest_email: user?.email || '',
             guest_phone: user?.phone || '',
@@ -224,10 +218,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
 
     // Calculate total guests whenever individual counts change
     useEffect(() => {
-        const total = data.guest_count_male + data.guest_count_female + data.guest_count_children;
+        const total = data.guest_male + data.guest_female + data.guest_children;
         setTotalGuests(total);
 
-        const totalForExtraBeds = Math.ceil(data.guest_count_male + data.guest_count_female + (data.guest_count_children * 0.5));
+        const totalForExtraBeds = Math.ceil(data.guest_male + data.guest_female + (data.guest_children * 0.5));
         
         // Calculate extra beds needed
         const extraBedsNeeded = Math.max(0, totalForExtraBeds - property.capacity);
@@ -238,7 +232,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
 
         // Auto-show guest details when total guests > 1
         setShowGuestDetails(total > 1);
-    }, [data.guest_count_male, data.guest_count_female, data.guest_count_children, data.guest_gender, property.capacity]);
+    }, [data.guest_male, data.guest_female, data.guest_children, data.guest_gender, property.capacity]);
 
     const generateGuestList = () => {
         // Gunakan fungsi sinkronisasi yang sudah dibuat
@@ -278,9 +272,9 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         // Update data dengan count yang baru
         setData(prev => ({
             ...prev,
-            guest_count_male: maleCount,
-            guest_count_female: femaleCount,
-            guest_count_children: childrenCount,
+            guest_male: maleCount,
+            guest_female: femaleCount,
+            guest_children: childrenCount,
         }));
 
         // Tampilkan feedback sinkronisasi
@@ -291,8 +285,8 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
     // Fungsi untuk menangani perubahan gender count dengan mempertahankan data guest yang ada
     const handleGenderCountChange = (genderType: 'male' | 'female' | 'children', newCount: number) => {
         // Update count terlebih dahulu
-        const countField = genderType === 'children' ? 'guest_count_children' : 
-                          genderType === 'male' ? 'guest_count_male' : 'guest_count_female';
+        const countField = genderType === 'children' ? 'guest_children' : 
+                          genderType === 'male' ? 'guest_male' : 'guest_female';
         
         setData((prev) => ({
             ...prev,
@@ -323,9 +317,9 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
 
         // Hitung kebutuhan guest berdasarkan count terbaru
         const updatedCounts = {
-            male: changedGenderType === 'male' ? newCount : data.guest_count_male,
-            female: changedGenderType === 'female' ? newCount : data.guest_count_female,
-            children: changedGenderType === 'children' ? newCount : data.guest_count_children,
+            male: changedGenderType === 'male' ? newCount : data.guest_male,
+            female: changedGenderType === 'female' ? newCount : data.guest_female,
+            children: changedGenderType === 'children' ? newCount : data.guest_children,
         };
 
         // Pisahkan guest yang ada berdasarkan kategori (kecuali primary)
@@ -410,7 +404,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         });
 
         // Add remaining male adults (excluding primary if primary is male)
-        const remainingMales = data.guest_count_male - (data.guest_gender === 'male' ? 1 : 0);
+        const remainingMales = data.guest_male - (data.guest_gender === 'male' ? 1 : 0);
         for (let i = 0; i < remainingMales; i++) {
             guests.push({
                 name: '',
@@ -421,7 +415,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         }
 
         // Add female adults (excluding primary if primary is female)
-        const remainingFemales = data.guest_count_female - (data.guest_gender === 'female' ? 1 : 0);
+        const remainingFemales = data.guest_female - (data.guest_gender === 'female' ? 1 : 0);
         for (let i = 0; i < remainingFemales; i++) {
             guests.push({
                 name: '',
@@ -432,7 +426,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
         }
 
         // Add children
-        for (let i = 0; i < data.guest_count_children; i++) {
+        for (let i = 0; i < data.guest_children; i++) {
             guests.push({
                 name: '',
                 gender: 'male', // Default, can be changed
@@ -766,7 +760,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                     <Alert>
                                                         <Clock className="h-4 w-4" />
                                                         <AlertDescription>
-                                                            Checking availability and calculating rates...
+                                                           {t('booking.checking_availability_and_calculating_rates')}
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
@@ -775,7 +769,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                     <Alert variant="destructive">
                                                         <AlertCircle className="h-4 w-4" />
                                                         <AlertDescription>
-                                                            Property is not available for selected dates. Please choose different dates.
+                                                           {t('booking.property_is_not_available_for_selected_dates')}
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
@@ -784,7 +778,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                     <Alert>
                                                         <CheckCircle className="h-4 w-4" />
                                                         <AlertDescription>
-                                                            Property is available! Total: Rp {rateCalculation.total_amount.toLocaleString()} for {rateCalculation.nights} nights.
+                                                           {t('booking.property_is_available')} Total: Rp {rateCalculation.total_amount.toLocaleString()} {t('booking.for')} {rateCalculation.nights} {t('booking.nights')}
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
@@ -797,50 +791,50 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                         <div>
                                             <div className="flex items-center gap-2 mb-4">
                                                 <Users className="h-5 w-5 text-blue-600" />
-                                                <h3 className="text-lg font-semibold">Guest Count</h3>
+                                                <h3 className="text-lg font-semibold">{t('booking.guest_count')}</h3>
                                             </div>
                                             
                                             <div className="grid grid-cols-3 gap-4 mb-4">
                                                 <div>
-                                                    <Label htmlFor="guest_count_male">Male Adults</Label>
+                                                    <Label htmlFor="guest_male">{t('booking.male_adults')}</Label>
                                                     <Input
-                                                        id="guest_count_male"
+                                                        id="guest_male"
                                                         type="number"
                                                         min="0"
-                                                        value={data.guest_count_male}
+                                                        value={data.guest_male}
                                                         onChange={(e) => handleGenderCountChange('male', parseInt(e.target.value) || 0)}
-                                                        className={bookingErrors.guest_count_male ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_male ? 'border-red-500' : ''}
                                                     />
-                                                    {bookingErrors.guest_count_male && (
-                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_count_male}</p>
+                                                    {bookingErrors.guest_male && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_male}</p>
                                                     )}
                                                 </div>
                                                 <div>
-                                                    <Label htmlFor="guest_count_female">Female Adults</Label>
+                                                    <Label htmlFor="guest_female">{t('booking.female_adults')}</Label>
                                                     <Input
-                                                        id="guest_count_female"
+                                                        id="guest_female"
                                                         type="number"
                                                         min="0"
-                                                        value={data.guest_count_female}
+                                                        value={data.guest_female}
                                                         onChange={(e) => handleGenderCountChange('female', parseInt(e.target.value) || 0)}
-                                                        className={bookingErrors.guest_count_female ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_female ? 'border-red-500' : ''}
                                                     />
-                                                    {bookingErrors.guest_count_female && (
-                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_count_female}</p>
+                                                    {bookingErrors.guest_female && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_female}</p>
                                                     )}
                                                 </div>
                                                 <div>
-                                                    <Label htmlFor="guest_count_children">Children (0-10)</Label>
+                                                    <Label htmlFor="guest_children">{t('booking.children_0_10')}</Label>
                                                     <Input
-                                                        id="guest_count_children"
+                                                        id="guest_children"
                                                         type="number"
                                                         min="0"
-                                                        value={data.guest_count_children}
+                                                        value={data.guest_children}
                                                         onChange={(e) => handleGenderCountChange('children', parseInt(e.target.value) || 0)}
-                                                        className={bookingErrors.guest_count_children ? 'border-red-500' : ''}
+                                                        className={bookingErrors.guest_children ? 'border-red-500' : ''}
                                                     />
-                                                    {bookingErrors.guest_count_children && (
-                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_count_children}</p>
+                                                    {bookingErrors.guest_children && (
+                                                        <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_children}</p>
                                                     )}
                                                 </div>
                                             </div>
@@ -848,19 +842,19 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                             {/* Guest Count Summary */}
                                             <div className="bg-slate-50 p-4 rounded-lg">
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <span className="font-medium">Total Guests:</span>
+                                                    <span className="font-medium">{t('booking.total_guests')}:</span>
                                                     <Badge variant={guestCountError ? "destructive" : "secondary"}>
                                                         {totalGuests} guests
                                                     </Badge>
                                                 </div>
                                                 <div className="text-sm text-gray-600">
-                                                    Property capacity: {property.capacity} - {property.capacity_max} guests
+                                                    {t('booking.property_capacity')}: {property.capacity} - {property.capacity_max} {t('booking.guests')}
                                                 </div>
                                                 
                                                 {extraBeds > 0 && (
                                                     <div className="mt-2 flex items-center gap-2 text-sm">
                                                         <Bed className="h-4 w-4 text-blue-600" />
-                                                        <span>Extra beds needed: {extraBeds}</span>
+                                                        <span>{t('booking.extra_beds_needed')}: {extraBeds}</span>
                                                         <span className="text-gray-600">
                                                             (+Rp {(extraBeds * property.extra_bed_rate).toLocaleString()}/night)
                                                         </span>
@@ -871,7 +865,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                     <Alert className="mt-2">
                                                         <AlertCircle className="h-4 w-4" />
                                                         <AlertDescription>
-                                                            Guest count exceeds maximum capacity ({property.capacity_max})
+                                                            {t('booking.guest_count_exceeds_maximum_capacity')} ({property.capacity_max})
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
@@ -880,7 +874,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                 <div className="mt-3 pt-3 border-t border-slate-200">
                                                     <div className="flex items-center gap-2 text-xs text-blue-600">
                                                         <Info className="h-3 w-3" />
-                                                        <span>Rincian tamu akan otomatis sinkron dengan rincian tamu di bawah</span>
+                                                        <span>{t('booking.guest_details_will_be_automatically_synchronized_with_the_details_below')}</span>
                                                     </div>
                                                     
                                                     {/* Sync Feedback */}
@@ -898,10 +892,10 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
 
                                         {/* Primary Guest Info */}
                                         <div>
-                                            <h3 className="text-lg font-semibold mb-4">Primary Guest Information</h3>
+                                            <h3 className="text-lg font-semibold mb-4">{t('booking.primary_guest_information')}</h3>
                                             <div className="grid md:grid-cols-3 gap-4">
                                                 <div>
-                                                    <Label htmlFor="guest_name">Full Name *</Label>
+                                                    <Label htmlFor="guest_name">{t('booking.full_name')} *</Label>
                                                     <Input
                                                         id="guest_name"
                                                         type="text"
@@ -917,7 +911,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                             }
                                                         }}
                                                         className={bookingErrors.guest_name ? 'border-red-500' : ''}
-                                                        placeholder="Enter full name"
+                                                        placeholder={t('booking.enter_full_name')}
                                                     />
                                                     {bookingErrors.guest_name && (
                                                         <p className="text-sm text-red-600 mt-1">{bookingErrors.guest_name}</p>
@@ -1024,7 +1018,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
 
                                         {/* Group Relationship */}
                                         <div>
-                                            <Label htmlFor="relationship_type">Group Relationship *</Label>
+                                            <Label htmlFor="relationship_type">{t('booking.group_relationship')} *</Label>
                                             <Select value={data.relationship_type} onValueChange={(value: any) => setData((prev) => ({
                                                 ...prev,
                                                 relationship_type: value
@@ -1049,7 +1043,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                         {totalGuests > 1 && (
                                             <div>
                                                 <div className="flex items-center justify-between mb-4">
-                                                    <h3 className="text-lg font-semibold">Guest Details</h3>
+                                                    <h3 className="text-lg font-semibold">{t('booking.guest_details')}</h3>
                                                     <Button
                                                         type="button"
                                                         variant="outline"
@@ -1057,7 +1051,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                         onClick={() => setShowGuestDetails(!showGuestDetails)}
                                                     >
                                                         <UserPlus className="h-4 w-4 mr-2" />
-                                                        {showGuestDetails ? 'Hide Details' : 'Add Guest Details'}
+                                                        {showGuestDetails ? t('booking.hide_details') : t('booking.add_guest_details')}
                                                     </Button>
                                                 </div>
 
@@ -1067,28 +1061,28 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                             <div key={index} className="border rounded-lg p-4 bg-white">
                                                                 <div className="flex items-center gap-2 mb-3">
                                                                     <User className="h-4 w-4 text-blue-600" />
-                                                                    <h4 className="font-medium">Guest {index + 2}</h4>
+                                                                    <h4 className="font-medium">{t('booking.guest')} {index + 2}</h4>
                                                                     <Badge variant="outline">
-                                                                        {guest.age_category === 'child' ? 'Child' : 
-                                                                         guest.gender === 'male' ? 'Male Adult' : 'Female Adult'}
+                                                                        {guest.age_category === 'child' ? t('booking.child') : 
+                                                                         guest.gender === 'male' ? t('booking.male_adult') : t('booking.female_adult')}
                                                                     </Badge>
                                                                 </div>
                                                                 
                                                                 <div className="grid md:grid-cols-3 gap-4">
                                                                     <div>
-                                                                        <Label>Full Name {guest.age_category === 'adult' ? '*' : ''}</Label>
+                                                                        <Label>{t('booking.full_name')} {guest.age_category === 'adult' ? '*' : ''}</Label>
                                                                         <Input
                                                                             value={guest.name}
                                                                             onChange={(e) => updateGuest(index + 1, 'name', e.target.value)}
-                                                                            placeholder="Enter guest name"
+                                                                            placeholder={t('booking.enter_guest_name')}
                                                                             className={guest.age_category === 'adult' && !guest.name ? 'border-red-500' : ''}
                                                                         />
                                                                         {guest.age_category === 'adult' && !guest.name && (
-                                                                            <p className="text-sm text-red-600 mt-1">Name is required for adult guests</p>
+                                                                            <p className="text-sm text-red-600 mt-1">{t('booking.name_is_required_for_adult_guests')}</p>
                                                                         )}
                                                                     </div>
                                                                     <div>
-                                                                        <Label>Gender *</Label>
+                                                                        <Label>{t('booking.gender')} *</Label>
                                                                         <Select 
                                                                             value={guest.gender} 
                                                                             onValueChange={(value: 'male' | 'female') => updateGuest(index + 1, 'gender', value)}
@@ -1102,11 +1096,11 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                                             </SelectContent>
                                                                         </Select>
                                                                         {!guest.gender && (
-                                                                            <p className="text-sm text-red-600 mt-1">Gender is required</p>
+                                                                            <p className="text-sm text-red-600 mt-1">{t('booking.gender_is_required')}</p>
                                                                         )}
                                                                     </div>
                                                                     <div>
-                                                                        <Label>Relationship to Primary Guest {guest.age_category === 'adult' ? '*' : ''}</Label>
+                                                                        <Label>{t('booking.relationship_to_primary_guest')} {guest.age_category === 'adult' ? '*' : ''}</Label>
                                                                         <Select 
                                                                             value={guest.relationship_to_primary} 
                                                                             onValueChange={(value) => updateGuest(index + 1, 'relationship_to_primary', value)}
@@ -1123,7 +1117,7 @@ export default function BookingCreate({ property, auth }: BookingCreateProps) {
                                                                             </SelectContent>
                                                                         </Select>
                                                                         {guest.age_category === 'adult' && !guest.relationship_to_primary && (
-                                                                            <p className="text-sm text-red-600 mt-1">Relationship is required for adult guests</p>
+                                                                            <p className="text-sm text-red-600 mt-1">{t('booking.relationship_is_required_for_adult_guests')}</p>
                                                                         )}
                                                                     </div>
                                                                 </div>
