@@ -57,6 +57,7 @@ RUN apk add --no-cache \
     oniguruma-dev \
     mysql-client \
     postgresql-client \
+    postgresql-dev \
     autoconf \
     g++ \
     make \
@@ -82,7 +83,7 @@ RUN pecl install redis && \
     php -m | grep redis
 
 # Clean up build tools
-RUN apk del autoconf g++ make pcre-dev
+RUN apk del autoconf g++ make pcre-dev postgresql-dev
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
