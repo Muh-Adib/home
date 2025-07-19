@@ -179,21 +179,14 @@ export interface Booking {
     source: string;
     created_at: string;
     updated_at: string;
-    //rate calculation
-    current_rate_calculation?: any;
+    // Rate calculation - updated for refactored services
+    current_rate_calculation?: RateCalculation;
     current_total_rate?: number;
     current_rate_per_night?: number;
     formatted_current_rate?: string;
     has_seasonal_rate?: boolean;
-    seasonal_rate_info?: {
-        name: string;
-        description: string;
-        rate_value: number;
-        rate_type: string;
-        start_date: string;
-        end_date: string;
-    }[];
-    rate_breakdown?: {};
+    seasonal_rate_info?: SeasonalRateInfo[];
+    rate_breakdown?: RateBreakdown;
 
     property?: Property;
     guests?: BookingGuest[];
@@ -597,4 +590,165 @@ export interface ExistingUser {
     name: string;
     email: string;
     phone: string;
+}
+
+// Rate Calculation Types - For refactored services
+export interface RateCalculation {
+    nights: number;
+    base_amount: number;
+    weekend_premium: number;
+    seasonal_premium: number;
+    extra_bed_amount: number;
+    cleaning_fee: number;
+    tax_amount: number;
+    total_amount: number;
+    extra_beds: number;
+    breakdown: RateBreakdown;
+    seasonal_rates_applied: SeasonalRateInfo[];
+}
+
+export interface RateBreakdown {
+    weekday_nights: number;
+    weekend_nights: number;
+    seasonal_nights: number;
+    total_base_amount: number;
+    minimum_stay_discount: number;
+    subtotal: number;
+    rate_breakdown: {
+        base_rate_per_night: number;
+        weekend_premium_percent: number;
+        peak_season_applied: boolean;
+        long_weekend_applied: boolean;
+        seasonal_rates_applied: SeasonalRateInfo[];
+    };
+    daily_breakdown: DailyRateBreakdown[];
+    summary: {
+        average_nightly_rate: number;
+        total_nights: number;
+        base_nights_rate: number;
+        total_premiums: number;
+        effective_discount: number;
+        taxes_and_fees: number;
+    };
+}
+
+export interface DailyRateBreakdown {
+    date: string;
+    day_name: string;
+    base_rate: number;
+    final_rate: number;
+    premiums: RatePremium[];
+    seasonal_rate?: {
+        name: string;
+        type: string;
+        value: number;
+    };
+}
+
+export interface RatePremium {
+    type: 'seasonal' | 'weekend' | 'holiday';
+    name: string;
+    description: string;
+    amount: number;
+    min_stay_nights?: number;
+}
+
+export interface SeasonalRateInfo {
+    name: string;
+    description: string;
+    rate_value: number;
+    rate_type: 'fixed' | 'percentage';
+    start_date: string;
+    end_date: string;
+    dates?: string[];
+    min_stay_nights?: number;
+}
+
+export interface PropertySeasonalRate {
+    id: number;
+    property_id: number;
+    name: string;
+    start_date: string;
+    end_date: string;
+    rate_type: 'fixed' | 'percentage';
+    rate_value: number;
+    min_stay_nights?: number;
+    applies_to_weekends_only: boolean;
+    is_active: boolean;
+    description?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+// Availability Types
+export interface AvailabilityResult {
+    success: boolean;
+    property_id: number;
+    check_in: string;
+    check_out: string;
+    available: boolean;
+    booked_dates: string[];
+    booked_periods: [string, string][];
+}
+
+export interface AvailabilityCalendar {
+    property_id: number;
+    period: {
+        start: string;
+        end: string;
+    };
+    calendar: AvailabilityMonth[];
+    total_booked_days: number;
+}
+
+export interface AvailabilityMonth {
+    year: number;
+    month: number;
+    month_name: string;
+    days: AvailabilityDay[];
+}
+
+export interface AvailabilityDay {
+    date: string;
+    day: number;
+    is_booked: boolean;
+    is_past: boolean;
+    is_weekend: boolean;
+}
+
+// Rate Management Types
+export interface RateCalendar {
+    property_id: number;
+    period: {
+        start: string;
+        end: string;
+    };
+    calendar: RateCalendarMonth[];
+    base_rates: {
+        base_rate: number;
+        weekend_premium_percent: number;
+        extra_bed_rate: number;
+        cleaning_fee: number;
+    };
+}
+
+export interface RateCalendarMonth {
+    year: number;
+    month: number;
+    month_name: string;
+    days: RateCalendarDay[];
+}
+
+export interface RateCalendarDay {
+    date: string;
+    day: number;
+    base_rate: number;
+    seasonal_rate?: {
+        name: string;
+        type: string;
+        value: number;
+        calculated_rate: number;
+    };
+    is_weekend: boolean;
+    weekend_premium: number;
 }

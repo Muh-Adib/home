@@ -6,6 +6,7 @@ use App\Models\Property;
 use App\Models\Amenity;
 use App\Models\User;
 use App\Services\AvailabilityService;
+use App\Services\RateCalculationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -18,10 +19,12 @@ use Illuminate\Support\Str;
 class PropertyController extends Controller
 {
     /**
-     * Constructor dengan dependency injection untuk AvailabilityService
+     * Constructor dengan dependency injection untuk services
      */
-    public function __construct(private AvailabilityService $availabilityService)
-    {
+    public function __construct(
+        private AvailabilityService $availabilityService,
+        private RateCalculationService $rateCalculationService
+    ) {
     }
 
     /**
@@ -105,16 +108,17 @@ class PropertyController extends Controller
         $checkOut = $request->get('check_out', now()->addDay()->toDateString());
         $guestCount = $request->get('guests', 2);
 
-        // Transform properties with rate calculation menggunakan AvailabilityService
+        // Transform properties with rate calculation menggunakan RateCalculationService
         $properties->getCollection()->transform(function ($property) use ($checkIn, $checkOut, $guestCount) {
             try {
-                $rateCalculation = $this->availabilityService->calculateRate($property, $checkIn, $checkOut, $guestCount);
-                $property->current_rate_calculation = $rateCalculation;
-                $property->current_total_rate = $rateCalculation['total_amount'];
-                $property->current_rate_per_night = $rateCalculation['total_amount'] / $rateCalculation['nights'];
+                $rateCalculation = $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount);
+                $rateCalculationArray = $rateCalculation->toArray();
+                $property->current_rate_calculation = $rateCalculationArray;
+                $property->current_total_rate = $rateCalculation->totalAmount;
+                $property->current_rate_per_night = $rateCalculation->totalAmount / $rateCalculation->nights;
                 $property->formatted_current_rate = 'Rp ' . number_format($property->current_rate_per_night, 0, ',', '.');
-                $property->has_seasonal_rate = $rateCalculation['seasonal_premium'] > 0;
-                $property->seasonal_rate_info = $rateCalculation['rate_breakdown']['seasonal_rates_applied'] ?? [];
+                $property->has_seasonal_rate = $rateCalculation->seasonalPremium > 0;
+                $property->seasonal_rate_info = $rateCalculation->breakdown['rate_breakdown']['seasonal_rates_applied'] ?? [];
             } catch (\Exception $e) {
                 // Fallback to base rate if calculation fails
                 $property->current_total_rate = $property->base_rate;
@@ -221,7 +225,7 @@ class PropertyController extends Controller
                 if (!in_array($dateStr, $bookedDates)) {
                     try {
                         $nextDate = $currentDate->copy()->addDay();
-                        $rateResult = $property->calculateRate($dateStr, $nextDate->format('Y-m-d'), $guestCount);
+                        $rateResult = $this->rateCalculationService->calculateRate($property, $dateStr, $nextDate->format('Y-m-d'), $guestCount)->toArray();
                         
                         $availabilityAndRates['rates'][$dateStr] = [
                             'base_rate' => $rateResult['base_amount'] / $rateResult['nights'],
@@ -244,17 +248,18 @@ class PropertyController extends Controller
             ]);
         }
 
-        // Calculate current rate if dates are provided menggunakan AvailabilityService
+        // Calculate current rate if dates are provided menggunakan RateCalculationService
         if ($checkIn && $checkOut) {
             try {
-                $rateCalculation = $this->availabilityService->calculateRate($property, $checkIn, $checkOut, $guestCount);
-                $property->current_rate_calculation = $rateCalculation;
-                $property->current_total_rate = $rateCalculation['total_amount'];
-                $property->current_rate_per_night = $rateCalculation['total_amount'] / $rateCalculation['nights'];
+                $rateCalculation = $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount);
+                $rateCalculationArray = $rateCalculation->toArray();
+                $property->current_rate_calculation = $rateCalculationArray;
+                $property->current_total_rate = $rateCalculation->totalAmount;
+                $property->current_rate_per_night = $rateCalculation->totalAmount / $rateCalculation->nights;
                 $property->formatted_current_rate = 'Rp ' . number_format($property->current_rate_per_night, 0, ',', '.');
-                $property->has_seasonal_rate = $rateCalculation['seasonal_premium'] > 0;
-                $property->seasonal_rate_info = $rateCalculation['rate_breakdown']['seasonal_rates_applied'] ?? [];
-                $property->rate_breakdown = $rateCalculation;
+                $property->has_seasonal_rate = $rateCalculation->seasonalPremium > 0;
+                $property->seasonal_rate_info = $rateCalculation->breakdown['rate_breakdown']['seasonal_rates_applied'] ?? [];
+                $property->rate_breakdown = $rateCalculationArray;
             } catch (\Exception $e) {
                 // Fallback to base rate if calculation fails
                 $property->current_total_rate = $property->base_rate;
@@ -303,8 +308,8 @@ class PropertyController extends Controller
         if ($checkIn && $checkOut) {
             $similarProperties->transform(function ($similarProperty) use ($checkIn, $checkOut, $guestCount) {
                 try {
-                    $rateCalculation = $similarProperty->calculateRate($checkIn, $checkOut, $guestCount);
-                    $similarProperty->current_rate_per_night = $rateCalculation['total_amount'] / $rateCalculation['nights'];
+                    $rateCalculation = $this->rateCalculationService->calculateRate($similarProperty, $checkIn, $checkOut, $guestCount);
+                    $similarProperty->current_rate_per_night = $rateCalculation->totalAmount / $rateCalculation->nights;
                     $similarProperty->formatted_current_rate = 'Rp ' . number_format($similarProperty->current_rate_per_night, 0, ',', '.');
                 } catch (\Exception $e) {
                     $similarProperty->formatted_current_rate = $similarProperty->formatted_base_rate;
@@ -363,7 +368,7 @@ class PropertyController extends Controller
         $guestCount = $request->get('guest_count', $property->capacity);
 
         try {
-            $rateCalculation = $property->calculateRate($checkIn, $checkOut, $guestCount);
+            $rateCalculation = $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount);
 
             return response()->json([
                 'success' => true,
@@ -372,13 +377,13 @@ class PropertyController extends Controller
                     'check_in' => $checkIn,
                     'check_out' => $checkOut,
                 ],
-                'calculation' => $rateCalculation,
+                'calculation' => $rateCalculation->toArray(),
                 'formatted' => [
-                    'base_amount' => 'Rp ' . number_format($rateCalculation['base_amount'], 0, ',', '.'),
-                    'weekend_premium' => 'Rp ' . number_format($rateCalculation['weekend_premium'], 0, ',', '.'),
-                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation['extra_bed_amount'], 0, ',', '.'),
-                    'cleaning_fee' => 'Rp ' . number_format($rateCalculation['cleaning_fee'], 0, ',', '.'),
-                    'total_amount' => 'Rp ' . number_format($rateCalculation['total_amount'], 0, ',', '.'),
+                    'base_amount' => 'Rp ' . number_format($rateCalculation->baseAmount, 0, ',', '.'),
+                    'weekend_premium' => 'Rp ' . number_format($rateCalculation->weekendPremium, 0, ',', '.'),
+                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation->extraBedAmount, 0, ',', '.'),
+                    'cleaning_fee' => 'Rp ' . number_format($rateCalculation->cleaningFee, 0, ',', '.'),
+                    'total_amount' => 'Rp ' . number_format($rateCalculation->totalAmount, 0, ',', '.'),
                 ]
             ]);
         } catch (\Exception $e) {

@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\Property;
 use App\Models\User;
 use App\Services\BookingService;
+use App\Services\RateCalculationService;
 use App\Events\BookingStatusChanged;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -42,10 +43,14 @@ use Carbon\Carbon;
 class BookingManagementController extends Controller
 {
     private BookingService $bookingService;
+    private RateCalculationService $rateCalculationService;
 
-    public function __construct(BookingService $bookingService)
-    {
+    public function __construct(
+        BookingService $bookingService,
+        RateCalculationService $rateCalculationService
+    ) {
         $this->bookingService = $bookingService;
+        $this->rateCalculationService = $rateCalculationService;
     }
 
     /**
@@ -313,7 +318,8 @@ class BookingManagementController extends Controller
         $property = Property::findOrFail($request->property_id);
         
         try {
-            $rateCalculation = $property->calculateRate(
+            $rateCalculation = $this->rateCalculationService->calculateRate(
+                $property,
                 $request->check_in,
                 $request->check_out,
                 $request->guest_count
@@ -321,11 +327,11 @@ class BookingManagementController extends Controller
             
             return response()->json([
                 'success' => true,
-                'calculation' => $rateCalculation,
+                'calculation' => $rateCalculation->toArray(),
                 'formatted' => [
-                    'base_amount' => 'Rp ' . number_format($rateCalculation['base_amount'], 0, ',', '.'),
-                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation['extra_bed_amount'], 0, ',', '.'),
-                    'total_amount' => 'Rp ' . number_format($rateCalculation['total_amount'], 0, ',', '.'),
+                    'base_amount' => 'Rp ' . number_format($rateCalculation->baseAmount, 0, ',', '.'),
+                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation->extraBedAmount, 0, ',', '.'),
+                    'total_amount' => 'Rp ' . number_format($rateCalculation->totalAmount, 0, ',', '.'),
                 ],
             ]);
         } catch (\Exception $e) {

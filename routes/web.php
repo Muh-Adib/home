@@ -198,7 +198,26 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
         Route::patch('{media}/featured', 'setFeatured')->name('featured');
     });
     
-    // Seasonal Rates Management
+    // Rate Management - New comprehensive rate management
+    Route::controller(App\Http\Controllers\Admin\RateManagementController::class)
+        ->prefix('rate-management')
+        ->name('rate-management.')
+        ->group(function () {
+            // Main rate management pages
+            Route::get('/', 'index')->name('index');
+            Route::get('/properties/{property}', 'show')->name('show');
+            
+            // API endpoints for rate operations
+            Route::post('/properties/{property}/seasonal-rates', 'createSeasonalRate')->name('seasonal-rates.create');
+            Route::put('/seasonal-rates/{seasonalRate}', 'updateSeasonalRate')->name('seasonal-rates.update');
+            Route::delete('/seasonal-rates/{seasonalRate}', 'deleteSeasonalRate')->name('seasonal-rates.delete');
+            
+            Route::put('/properties/{property}/base-rates', 'updateBaseRates')->name('base-rates.update');
+            Route::post('/properties/{property}/bulk-update', 'bulkUpdateRates')->name('bulk-update');
+            Route::get('/properties/{property}/calendar', 'getRateCalendar')->name('calendar');
+        });
+    
+    // Seasonal Rates Management (Legacy - keeping for backward compatibility)
     Route::controller(App\Http\Controllers\Admin\PropertySeasonalRateController::class)
         ->prefix('properties/{property}/seasonal-rates')
         ->name('properties.seasonal-rates.')
