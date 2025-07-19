@@ -6,6 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use App\Services\BookingService;
 use App\Services\RateCalculationService;
 use App\Services\AvailabilityService;
+use App\Services\RateService;
 use App\Repositories\BookingRepository;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,7 +20,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(BookingService::class, function ($app) {
             return new BookingService(
                 $app->make(BookingRepository::class),
-                $app->make(RateCalculationService::class)
+                $app->make(RateCalculationService::class),
+                $app->make(AvailabilityService::class)
             );
         });
 
@@ -31,6 +33,10 @@ class AppServiceProvider extends ServiceProvider
             return new AvailabilityService(
                 $app->make(RateCalculationService::class)
             );
+        });
+
+        $this->app->singleton(RateService::class, function ($app) {
+            return new RateService();
         });
 
         $this->app->singleton(BookingRepository::class, function ($app) {

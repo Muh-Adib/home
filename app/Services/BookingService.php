@@ -16,7 +16,8 @@ class BookingService
 {
     public function __construct(
         private BookingRepository $bookingRepository,
-        private RateCalculationService $rateCalculationService
+        private RateCalculationService $rateCalculationService,
+        private AvailabilityService $availabilityService
     ) {}
 
     /**
@@ -107,8 +108,7 @@ class BookingService
      */
     private function validatePropertyAvailability(Property $property, string $checkIn, string $checkOut): bool
     {
-        $availabilityService = app(\App\Services\AvailabilityService::class);
-        $availability = $availabilityService->checkAvailability($property, $checkIn, $checkOut);
+        $availability = $this->availabilityService->checkAvailability($property, $checkIn, $checkOut);
         
         return $availability['available'];
     }
@@ -126,8 +126,7 @@ class BookingService
      */
     public function getBookedDates(Property $property, string $checkIn, string $checkOut): array
     {
-        $availabilityService = app(\App\Services\AvailabilityService::class);
-        return $availabilityService->getBookedDatesInRange($property, $checkIn, $checkOut);
+        return $this->availabilityService->getBookedDatesInRange($property, $checkIn, $checkOut);
     }
 
     /**
