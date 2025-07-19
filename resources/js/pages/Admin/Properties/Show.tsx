@@ -1,6 +1,7 @@
 import React from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
+import { formatCurrency } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -68,8 +69,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
         { title: property.name, href: '' },
     ];
 
-    const formatCurrency = (value: number) => 
-        new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
+
 
     const getStatusColor = (status: string) => {
         switch (status) {

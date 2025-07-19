@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
+import { formatCurrency } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -145,9 +146,7 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
         }
     }, [booking.can_show_checkin, booking.check_in, booking.checkin_time_formatted]);
 
-    const formatCurrency = (amount: number) => {
-        return `Rp ${Number(amount).toLocaleString('id-ID')}`;
-    };
+
 
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('id-ID', {

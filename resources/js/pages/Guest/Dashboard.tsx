@@ -1,5 +1,6 @@
 import React from 'react';
 import AppLayout from '@/layouts/app-layout';
+import { formatCurrency } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -68,13 +69,7 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
         });
     };
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-        }).format(amount);
-    };
+
 
     const getBookingStatusBadge = (status: Booking['booking_status']) => {
         const statusConfig = {

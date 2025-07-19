@@ -1,4 +1,5 @@
 import AppLayout from '@/layouts/app-layout';
+import { formatCurrency } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -77,13 +78,7 @@ export default function PropertiesIndex({ properties, filters }: PropertiesIndex
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-        }).format(amount);
-    };
+
 
     // Check permissions for actions
     const canCreate = ['super_admin', 'property_owner', 'property_manager'].includes(auth.user.role);

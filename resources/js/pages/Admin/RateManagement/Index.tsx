@@ -15,7 +15,7 @@ import {
     Edit,
     Plus
 } from 'lucide-react';
-import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
+import AppLayout from '@/layouts/app-layout';
 import { Property, PropertySeasonalRate } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -83,7 +83,7 @@ export default function RateManagementIndex({ properties }: Props) {
     };
 
     return (
-        <AuthenticatedLayout>
+        <AppLayout>
             <Head title="Rate Management" />
 
             <div className="py-6">
@@ -313,6 +313,6 @@ export default function RateManagementIndex({ properties }: Props) {
                     )}
                 </div>
             </div>
-        </AuthenticatedLayout>
+        </AppLayout>
     );
 }
