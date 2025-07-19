@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Booking\CreateBookingRequest;
-use App\Services\BookingServiceRefactored;
+use App\Services\BookingService;
 use App\Services\RateCalculationService;
 
 use App\Models\Property;
@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\Log;
 class BookingController extends Controller
 {
     public function __construct(
-        private BookingServiceRefactored $bookingService,
+        private BookingService $bookingService,
         private RateCalculationService $rateCalculationService
     ) {}
 

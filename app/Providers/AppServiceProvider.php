@@ -3,7 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use App\Services\BookingServiceRefactored;
+use App\Services\BookingService;
 use App\Services\RateCalculationService;
 use App\Services\AvailabilityService;
 use App\Repositories\BookingRepository;
@@ -16,16 +16,20 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         // Register services for dependency injection
-        $this->app->singleton(BookingServiceRefactored::class, function ($app) {
-            return new BookingServiceRefactored(
+        $this->app->singleton(BookingService::class, function ($app) {
+            return new BookingService(
                 $app->make(BookingRepository::class),
                 $app->make(RateCalculationService::class)
             );
         });
 
         $this->app->singleton(RateCalculationService::class, function ($app) {
-            return new RateCalculationService(
-                $app->make(AvailabilityService::class)
+            return new RateCalculationService();
+        });
+
+        $this->app->singleton(AvailabilityService::class, function ($app) {
+            return new AvailabilityService(
+                $app->make(RateCalculationService::class)
             );
         });
 

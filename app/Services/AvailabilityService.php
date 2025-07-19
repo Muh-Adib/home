@@ -8,22 +8,21 @@ use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * AvailabilityService - Service untuk menangani logika availability dan rate calculation
+ * AvailabilityService - Service untuk menangani logika availability saja
  * 
- * FIXES:
- * 1. Memperbaiki logika overlap detection
- * 2. Menambahkan method untuk format frontend
- * 3. Konsistensi field names
- * 4. Validasi tanggal yang lebih robust
+ * REFACTORED:
+ * 1. Menghilangkan logic rate calculation (dipindah ke RateCalculationService)
+ * 2. Fokus hanya pada availability checking
+ * 3. Tidak lagi bergantung pada Property model untuk rate calculation
+ * 4. Clean separation of concerns
  */
 class AvailabilityService
 {
-    /**
-     * Create a new class instance.
-     */
-    public function __construct()
+    private RateCalculationService $rateCalculationService;
+
+    public function __construct(RateCalculationService $rateCalculationService)
     {
-        //
+        $this->rateCalculationService = $rateCalculationService;
     }
 
     /**
@@ -157,41 +156,8 @@ class AvailabilityService
     }
 
     /**
-     * Calculate property rate for given dates and guest count
-     * 
-     * @param Property $property
-     * @param string $checkIn
-     * @param string $checkOut
-     * @param int $guestCount
-     * @return array
-     * @throws \Exception
-     */
-    public function calculateRate(Property $property, string $checkIn, string $checkOut, int $guestCount): array
-    {
-        // Validate dates first
-        $dateValidation = $this->validateDates($checkIn, $checkOut);
-        if ($dateValidation) {
-            throw new \Exception(implode(', ', $dateValidation));
-        }
-        
-        // Validate guest count
-        if ($guestCount > $property->capacity_max) {
-            throw new \Exception("Guest count cannot exceed property maximum capacity ({$property->capacity_max})");
-        }
-
-        // Check availability
-        $availability = $this->checkAvailability($property, $checkIn, $checkOut);
-        
-        if (!$availability['available']) {
-            throw new \Exception('Property is not available for selected dates');
-        }
-
-        // Use Property model's existing calculateRate method
-        return $property->calculateRate($checkIn, $checkOut, $guestCount);
-    }
-
-    /**
      * Calculate rate with formatted response for API
+     * Now delegates to RateCalculationService
      * 
      * @param Property $property
      * @param string $checkIn
@@ -262,28 +228,8 @@ class AvailabilityService
             ];
         }
 
-        // Use Property model's existing calculateRate method
-        $calculation = $property->calculateRate($checkIn, $checkOut, $guestCount);
-        
-        return [
-            'success' => true,
-            'property_slug' => $property->slug,
-            'dates' => [
-                'check_in' => $checkIn,
-                'check_out' => $checkOut,
-            ],
-            'guest_count' => $guestCount,
-            'calculation' => $calculation,
-            'formatted' => [
-                'base_amount' => 'Rp ' . number_format($calculation['base_amount'], 0, ',', '.'),
-                'weekend_premium' => 'Rp ' . number_format($calculation['weekend_premium'], 0, ',', '.'),
-                'seasonal_premium' => 'Rp ' . number_format($calculation['seasonal_premium'], 0, ',', '.'),
-                'extra_bed_amount' => 'Rp ' . number_format($calculation['extra_bed_amount'], 0, ',', '.'),
-                'cleaning_fee' => 'Rp ' . number_format($calculation['cleaning_fee'], 0, ',', '.'),
-                'total_amount' => 'Rp ' . number_format($calculation['total_amount'], 0, ',', '.'),
-                'per_night' => 'Rp ' . number_format($calculation['total_amount'] / $calculation['nights'], 0, ',', '.'),
-            ]
-        ];
+        // Delegate rate calculation to RateCalculationService
+        return $this->rateCalculationService->calculateRateFormatted($property, $checkIn, $checkOut, $guestCount);
     }
 
     /**
