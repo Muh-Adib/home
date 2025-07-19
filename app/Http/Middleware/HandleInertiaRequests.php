@@ -47,6 +47,12 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'locale' => app()->getLocale(),
+            // URL dinamis untuk frontend
+            'app' => [
+                'url' => config('app.url'),
+                'asset_url' => config('app.asset_url', config('app.url')),
+                'env' => config('app.env'),
+            ],
             'ziggy' => fn (): array => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),

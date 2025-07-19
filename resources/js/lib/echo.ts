@@ -1,6 +1,7 @@
 import Echo from 'laravel-echo';
 import io from 'socket.io-client';
 import { createNotificationFallback } from './echo-fallback';
+import { getWebSocketUrl, isDevelopment } from '../utils/url';
 
 // Make Socket.IO client available globally for Echo
 declare global {
@@ -19,16 +20,7 @@ let echoInstance: Echo | null = null;
 // Enhanced Echo configuration with error handling
 function createEchoInstance(): Echo | null {
     try {
-        // Determine WebSocket URL based on environment
-        const getWebSocketUrl = () => {
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                return 'http://localhost:6001';
-            }
-            
-            // Production - use same domain with different path
-            // WebSocket will be proxied through nginx at /socket.io/
-            return window.location.origin;
-        };
+        // Get WebSocket URL dinamis dari utility function
 
         const echo = new Echo({
             broadcaster: 'socket.io',
