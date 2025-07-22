@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -13,33 +13,7 @@ import { format, addDays, differenceInDays } from 'date-fns';
 import { id } from 'date-fns/locale';
 
 // Custom CSS for range selection styling
-const customCalendarStyles = `
-  .rdp-day_range_start:not(.rdp-day_outside) {
-    background-color: #059669 !important;
-    color: white !important;
-    border: 2px solid #047857 !important;
-    font-weight: bold !important;
-  }
-  
-  .rdp-day_range_end:not(.rdp-day_outside) {
-    background-color: #059669 !important;
-    color: white !important;
-    border: 2px solid #047857 !important;
-    font-weight: bold !important;
-  }
-  
-  .rdp-day_range_middle:not(.rdp-day_outside) {
-    background-color: #10b981 !important;
-    color: white !important;
-    opacity: 0.6 !important;
-  }
-  
-  .rdp-day_selected:not(.rdp-day_outside) {
-    background-color: #059669 !important;
-    color: white !important;
-    font-weight: bold !important;
-  }
-`;
+// Hapus customCalendarStyles dan <style>
 
 interface DateRangeProps {
     startDate?: string;
@@ -110,7 +84,7 @@ export function DateRange({
         return undefined;
     });
     const [warning, setWarning] = useState<string | null>(null);
-    const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
+    // Hapus hoveredDate state dan logika terkait
 
     // Update local state when props change
     useEffect(() => {
@@ -131,6 +105,13 @@ export function DateRange({
     };
 
     const nights = calculateNights(dateRange?.from, dateRange?.to);
+
+    // Memo selectedRange agar tidak flicker
+    const selectedRange = useMemo(() => {
+        if (!dateRange?.from) return undefined;
+        if (!dateRange.to) return { from: dateRange.from, to: dateRange.from };
+        return dateRange;
+    }, [dateRange]);
 
     // Check if date is booked dengan logika bergeser untuk step 2
     const isDateBooked = (date: Date): boolean => {
@@ -180,7 +161,11 @@ export function DateRange({
         return defaultMinStay;
     };
 
-    const currentMinStay = dateRange?.from ? getMinimumStayForDate(dateRange.from) : minStayNights;
+    // Memo currentMinStay
+    const currentMinStay = useMemo(() => {
+        return dateRange?.from ? getMinimumStayForDate(dateRange.from) : minStayNights;
+    }, [dateRange?.from, minStayNights]);
+
     const isMinStayViolation = nights > 0 && nights < currentMinStay;
 
 
@@ -197,20 +182,6 @@ export function DateRange({
             currentDate = addDays(currentDate, 1);
         }
         return false;
-    };
-
-    // Get preview range based on hovered date
-    const getPreviewRange = (): DateRangeType | undefined => {
-        if (dateRange?.from && !dateRange?.to && hoveredDate) {
-            // Make sure hovered date is after start date
-            if (hoveredDate > dateRange.from) {
-                return {
-                    from: dateRange.from,
-                    to: hoveredDate
-                };
-            }
-        }
-        return dateRange;
     };
 
     // Handle date selection
@@ -353,9 +324,7 @@ export function DateRange({
         }
 
         if (dateRange.from && dateRange.to) {
-            const fromFormat = format(dateRange.from, compact ? 'd MMM' : 'd MMM yyyy', { locale: id });
-            const toFormat = format(dateRange.to, compact ? 'd MMM' : 'd MMM yyyy', { locale: id });
-            return `${fromFormat} - ${toFormat}`;
+            return formatDateRange(dateRange.from.toISOString(), dateRange.to.toISOString(),'id-ID');
         }
 
         // Hanya start date yang dipilih, tampilkan dengan indikator bahwa user masih memilih
@@ -412,72 +381,29 @@ export function DateRange({
         }
     };
 
+    // Memo disabledDates
     const minimumDate = minDate ? new Date(minDate) : new Date();
     const maximumDate = maxDate ? new Date(maxDate) : addDays(new Date(), 90);
-
-    const disabledDates = [
+    const disabledDates = useMemo(() => [
         { before: minimumDate },
         { after: maximumDate },
         (date: Date) => {
-            // Always disable individually booked dates
-            if (isDateBooked(date)) {
-                return true;
-            }
+            if (isDateBooked(date)) return true;
+            if (!dateRange?.from || dateRange.to) return false;
+            return date <= dateRange.from || differenceInDays(date, dateRange.from) > 30;
+        },
+    ], [minimumDate, maximumDate, isDateBooked, dateRange]);
 
-            // If selecting check-out (after check-in is selected)
-            if (dateRange?.from && !dateRange?.to) {
-                // Can't select same day as check-in (need at least 1 night)
-                if (date.getTime() === dateRange.from.getTime()) {
-                    return true;
-                }
-
-                // Can't select before check-in
-                if (date < dateRange.from) {
-                    return true;
-                }
-
-                // Don't allow more than 30 days after check-in
-                if (differenceInDays(date, dateRange.from) > 30) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-    ];
+    const calendarModifiers: Record<string, any> = {
+      booked: isDateBooked,
+    };
+    if (dateRange?.from) calendarModifiers.rangeStart = (d: Date) => d.getTime() === dateRange.from!.getTime();
+    if (dateRange?.to) calendarModifiers.rangeEnd = (d: Date) => d.getTime() === dateRange.to!.getTime();
 
 
     return (
         <div className={cn('w-full', className)}>
-            {/* Custom styles for calendar range selection */}
-            <style>{`
-                .rdp-day_range_start:not(.rdp-day_outside) {
-                    background-color: #059669 !important;
-                    color: white !important;
-                    border: 2px solid #047857 !important;
-                    font-weight: bold !important;
-                }
-                
-                .rdp-day_range_end:not(.rdp-day_outside) {
-                    background-color: #059669 !important;
-                    color: white !important;
-                    border: 2px solid #047857 !important;
-                    font-weight: bold !important;
-                }
-                
-                .rdp-day_range_middle:not(.rdp-day_outside) {
-                    background-color: #10b981 !important;
-                    color: white !important;
-                    opacity: 0.6 !important;
-                }
-                
-                .rdp-day_selected:not(.rdp-day_outside) {
-                    background-color: #059669 !important;
-                    color: white !important;
-                    font-weight: bold !important;
-                }
-            `}</style>
-            
+            {/* Hapus <style> bawaan */}
             <Popover
                 open={isOpen}
                 onOpenChange={(open) => {
@@ -584,62 +510,28 @@ export function DateRange({
                                 initialFocus
                                 mode="range"
                                 defaultMonth={dateRange?.from || new Date()}
-                                selected={getPreviewRange()}
+                                selected={selectedRange}
                                 onSelect={handleDateSelect}
                                 numberOfMonths={1}
                                 disabled={disabledDates}
-                                onDayMouseEnter={(date) => {
-                                    if (dateRange?.from && !dateRange?.to) {
-                                        // Hanya set hover jika tanggal valid untuk check-out
-                                        const isValidCheckout = date > dateRange.from &&
-                                            !isDateBooked(date) &&
-                                            differenceInDays(date, dateRange.from) <= 30 &&
-                                            !rangeContainsBookedDates(dateRange.from, date);
-                                        if (isValidCheckout) {
-                                            setHoveredDate(date);
-                                        }
-                                    }
-                                }}
-                                onDayMouseLeave={() => {
-                                    setHoveredDate(null);
-                                }}
-                                modifiers={{
-                                    booked: (date: Date) => isDateBooked(date),
-                                    hovered: (date: Date) => {
-                                        if (!dateRange?.from || dateRange?.to || !hoveredDate) return false;
-                                        return date > dateRange.from && date <= hoveredDate;
-                                    },
-                                    startSelected: (date: Date) => {
-                                        return dateRange?.from ? date.getTime() === dateRange.from.getTime() : false;
-                                    },
-                                    endSelected: (date: Date) => {
-                                        return dateRange?.to ? date.getTime() === dateRange.to.getTime() : false;
-                                    },
-                                }}
+                                modifiers={calendarModifiers}
                                 modifiersStyles={{
                                     booked: {
-                                        backgroundColor: '#f97316', // Orange-500
+                                        backgroundColor: '#f97316',
                                         color: 'white',
-                                        opacity: 0.8,
                                         textDecoration: 'line-through',
-                                        fontWeight: 'normal',
                                     },
-                                    hovered: {
-                                        backgroundColor: '#10b981', // Emerald-500 (green)
-                                        color: 'white',
-                                        opacity: 0.4,
-                                    },
-                                    startSelected: {
-                                        backgroundColor: '#059669', // Emerald-600 (darker green)
+                                    rangeStart: {
+                                        backgroundColor: '#059669',
                                         color: 'white',
                                         fontWeight: 'bold',
-                                        border: '2px solid #047857', // Emerald-700 border
+                                        border: '2px solid #047857',
                                     },
-                                    endSelected: {
-                                        backgroundColor: '#059669', // Emerald-600 (darker green)
+                                    rangeEnd: {
+                                        backgroundColor: '#059669',
                                         color: 'white',
                                         fontWeight: 'bold',
-                                        border: '2px solid #047857', // Emerald-700 border
+                                        border: '2px solid #047857',
                                     },
                                 }}
                                 className="rounded-md border-0 green-calendar-theme"
@@ -677,7 +569,7 @@ export function DateRange({
                                     onClick={() => {
                                         handleDateSelect(undefined);
                                         setWarning(null);
-                                        setHoveredDate(null);
+                                        // Hapus hoveredDate state dan logika terkait
                                     }}
                                 >
                                     Reset
@@ -736,6 +628,7 @@ export const formatDateRange = (startDate: string, endDate: string, locale: stri
     const end = new Date(endDate);
 
     const options: Intl.DateTimeFormatOptions = {
+        weekday: 'short',
         day: 'numeric',
         month: 'short',
         year: 'numeric'

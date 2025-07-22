@@ -108,6 +108,31 @@ const footerNavItems: (NavItem & { title: string, href: string, icon: LucideIcon
 export function AppSidebar() {
     const page = usePage<PageProps>();
     const { auth } = page.props;
+    
+    // Add null checking untuk auth.user
+    if (!auth?.user) {
+        return (
+            <Sidebar collapsible="icon" variant="inset">
+                <SidebarHeader>
+                    <SidebarMenu>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton size="lg" asChild>
+                                <Link href="/dashboard" prefetch>
+                                    <AppLogo />
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarHeader>
+                <SidebarContent>
+                    <div className="p-4 text-center text-muted-foreground">
+                        Loading...
+                    </div>
+                </SidebarContent>
+            </Sidebar>
+        );
+    }
+
     const navItems = getNavItemsForRole(auth.user.role);
 
     return (

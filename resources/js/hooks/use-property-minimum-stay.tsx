@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { AvailabilityData, PropertyWithDetails } from '@/types/property';
+import { addDays } from 'date-fns';
 
 interface UsePropertyMinimumStayProps {
   property: PropertyWithDetails;
@@ -25,8 +26,23 @@ export const usePropertyMinimumStay = ({
 
     const checkIn = new Date(checkInDate);
     const checkInDateStr = checkIn.toISOString().split('T')[0];
-    const checkInRate = availabilityData?.rates?.[checkInDateStr];
-    
+    const checkInRate = availabilityData?.rates?.[checkInDateStr]; 
+    const bookedDates = availabilityData?.booked_dates;
+    const isDateBooked = (date: Date): boolean => {
+      const dateStr = date.toISOString().split('T')[0];
+      return bookedDates?.includes(dateStr) || false;
+    };
+
+    //pengecekan booking yang sudah ada
+    if (isDateBooked(addDays(checkInDateStr, 1))) {
+      return {
+        minStay: 1,
+        reason: 'booked',
+        seasonalRateApplied: null
+      };
+    }
+
+    // Jika ada seasonal rate, return seasonal rate
     if (checkInRate && checkInRate.seasonal_premium > 0 && checkInRate.seasonal_rate_applied) {
       return {
         minStay: checkInRate.seasonal_rate_applied[0].min_stay_nights,
@@ -35,7 +51,8 @@ export const usePropertyMinimumStay = ({
       };
     }
 
-    const isWeekend = checkIn.getDay() === 0 || checkIn.getDay() === 6;
+    // Jika tidak ada seasonal rate, return weekend atau weekday
+    const isWeekend = checkIn.getDay() === 5 || checkIn.getDay() === 6 || checkIn.getDay() === 0;
     return {
       minStay: isWeekend ? property.min_stay_weekend : property.min_stay_weekday,
       reason: isWeekend ? 'weekend' : 'weekday',

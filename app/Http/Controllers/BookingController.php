@@ -6,6 +6,8 @@ use App\Http\Requests\Booking\CreateBookingRequest;
 use App\Services\BookingService;
 use App\Services\RateCalculationService;
 
+use App\Domain\Booking\ValueObjects\BookingRequest;
+
 use App\Models\Property;
 use App\Models\Booking;
 use Illuminate\Http\Request;
@@ -35,54 +37,47 @@ class BookingController extends Controller
     /**
      * Show booking creation form
      * 
-     * Route: GET /properties/{property:slug}/book
+     * Route: GET|POST /properties/{property:slug}/book
      * Property is automatically resolved by Laravel's route model binding
      */
-    public function create(Property $property)
+    public function create(Request $request, Property $property)
     {
-        // Ambil search params dari URL
-        $searchParams = request()->only(['check_in', 'check_out', 'guests']);
+        $user = auth()->user();
+        // Ambil data dari request (bisa dari POST atau GET)
+        $checkIn = $request->input('check_in');
+        $checkOut = $request->input('check_out');
+        $guests = $request->input('guests', 2);
 
-        // Validasi: semua search params wajib ada
-        if (
-            empty($searchParams['check_in']) ||
-            empty($searchParams['check_out']) ||
-            empty($searchParams['guests'])
-        ) {
-            return redirect()->back()->withErrors(['error' => 'Tanggal check-in, check-out, dan jumlah tamu wajib diisi.']);
-        }
+        // Fallback default jika tidak ada input
+        $today = now()->toDateString();
+        $tomorrow = now()->addDay()->toDateString();
 
-        $startDate = $searchParams['check_in'];
-        $endDate = $searchParams['check_out'];
-        $guestCount = $searchParams['guests'];
+        $initialFormData = [
+            'check_in_date' => $checkIn ?? $today,
+            'check_out_date' => $checkOut ?? $tomorrow,
+            'check_in_time' => '15:00',
+            'guest_male' => 2,
+            'guest_female' => 2,
+            'guest_children' => 0,
+            'guest_name' => $user->name ?? '',
+            'guest_email' => $user->email ?? '',
+            'guest_phone' => $user->phone ?? '',
+            'guest_country' => 'Indonesia',
+            'guest_id_number' => '',
+            'guest_gender' => $user->gender ?? 'male',
+            'relationship_type' => 'keluarga',
+            'special_requests' => '',
+            'dp_percentage' => 50,
+            'guests' => [],
+        ];
 
-        // Cek ketersediaan properti
-        $availabilityService = app(\App\Services\AvailabilityService::class);
-
-        try {
-            $availability = $availabilityService->checkAvailability($property, $startDate, $endDate);
-
-            // Jika tidak ada ketersediaan (misal: semua tanggal diblok), redirect back
-            if (
-                isset($availability['booked_dates']) &&
-                is_array($availability['booked_dates']) &&
-                count($availability['booked_dates']) > 0
-            ) {
-                return redirect()->back()->withErrors(['error' => 'Properti tidak tersedia pada tanggal yang dipilih.']);
-            }
-
-            return Inertia::render('Booking/Create', [
-                'property' => $property->load(['amenities', 'media']),
-                'searchParams' => [
-                    'check_in' => $startDate,
-                    'check_out' => $endDate,
-                    'guests' => $guestCount,
-                ],
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('Gagal mendapatkan data ketersediaan: ' . $e->getMessage());
-            return redirect()->back()->withErrors(['error' => 'Gagal mendapatkan data ketersediaan properti.']);
-        }
+        return Inertia::render('Booking/Create', [
+            'property' => $property->load(['amenities', 'media']),
+            'initialFormData' => $initialFormData,
+            'auth' => [
+                'user' => $user,
+            ],
+        ]);
     }
 
     /**
@@ -94,7 +89,7 @@ class BookingController extends Controller
     public function store(CreateBookingRequest $request, Property $property): RedirectResponse
     {
         $validated = $request->validated();
-        
+    
         // Check if user exists with email or phone
         $existingUser = \App\Models\User::where('email', $validated['guest_email'])
             ->orWhere('phone', $validated['guest_phone'])
@@ -178,17 +173,19 @@ class BookingController extends Controller
         try {
             // Ensure required fields are present and transform data for BookingService
             $bookingData = array_merge($data, [
-                'check_in_date' => $data['check_in'] ?? session('booking_data.check_in'),
-                'check_out_date' => $data['check_out'] ?? session('booking_data.check_out'),
+                'property_id' => $property->id,
+                'check_in_date' => $data['check_in_date'] ?? session('booking_data.check_in'),
+                'check_out_date' => $data['check_out_date'] ?? session('booking_data.check_out'),
                 'check_in_time' => $data['check_in_time'] ?? '14:00',
                 'guest_count_male' => $data['male_count'] ?? 1,
                 'guest_count_female' => $data['female_count'] ?? 1,
                 'guest_count_children' => $data['children_count'] ?? 0,
                 'relationship_type' => $data['relationship_type'] ?? 'family',
                 'guest_country' => $data['guest_country'] ?? 'Indonesia',
-                'guest_gender' => $data['guest_gender'] ?? 'prefer_not_to_say',
+                'guest_gender' => $data['guest_gender'] ?? 'male',
                 'special_requests' => $data['special_requests'] ?? '',
             ]);
+            
 
             // Create or find user if not authenticated
             $user = auth()->user();
@@ -200,7 +197,8 @@ class BookingController extends Controller
             }
             
             // Create booking using service with correct signature
-            $booking = $this->bookingService->createBooking($property, $bookingData, $user);
+            $bookingRequest = BookingRequest::fromArray($bookingData);
+            $booking = $this->bookingService->createBooking( $bookingRequest, $user);
             
             // Clear session data
             session()->forget(['booking_data', 'pending_booking_data']);

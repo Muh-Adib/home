@@ -75,6 +75,14 @@ class BookingRepository
             ->get();
     }
 
+    public function getUserBookings(\App\Models\User $user): Collection
+    {
+        return Booking::where('user_id', $user->id)
+            ->with(['property', 'payments'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+    }
+
     public function findOverlappingBookings(Property $property, string $checkIn, string $checkOut): Collection
     {
         return Booking::where('property_id', $property->id)

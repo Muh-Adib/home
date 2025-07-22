@@ -16,6 +16,7 @@ import { BookOpen, CreditCard, Folder, LayoutGrid, ListChecks, Menu, Search, Set
 import AppLogo from './app-logo';
 import LanguageSwitcher from '@/components/language-switcher';
 import { useTranslation } from 'react-i18next';
+import { useState, useEffect, useRef } from 'react';
 
 // Helper function to check if user is authenticated
 const isAuthenticated = (user: User | null): user is User => {
@@ -25,6 +26,11 @@ const isAuthenticated = (user: User | null): user is User => {
 // Helper function to check if user is guest
 const isGuest = (user: User | null): boolean => {
     return isAuthenticated(user) && user.role === 'guest';
+};
+
+// Helper function to check if current page is welcome page
+const isWelcomePage = (url: string): boolean => {
+    return url === '/' || url === route('home');
 };
 
 const getHeaderNavItemsForRole = (user: User | null): (NavItem & { title: string, href: string, icon: LucideIcon })[] => {
@@ -112,16 +118,72 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
     const { auth } = page.props;
     const getInitials = useInitials();
     const mainNavItems = getHeaderNavItemsForRole(auth.user);
+    const isWelcome = isWelcomePage(page.url);
     
+    // Scroll state for slide-up parallax header
+    const [isScrolled, setIsScrolled] = useState(false);
+    const [isHidden, setIsHidden] = useState(false);
+    const lastScrollY = useRef(0);
+    const ticking = useRef(false);
+
+    // Lightweight scroll handler using requestAnimationFrame
+    const updateHeader = () => {
+        const currentScrollY = window.scrollY;
+        
+        const scrollThreshold = window.innerHeight * 0.3;
+        
+        if (currentScrollY > scrollThreshold) {
+            setIsScrolled(true);
+            
+    
+                // Slide up when scrolling down, slide down when scrolling up
+                if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+                    setIsHidden(true);
+                } else {
+                    setIsHidden(false);
+                }
+            
+            
+        } else {
+            setIsScrolled(false);
+            setIsHidden(false);
+        }
+        
+        lastScrollY.current = currentScrollY;
+        ticking.current = false;
+    };
+
+    const handleScroll = () => {
+        if (!ticking.current) {
+            requestAnimationFrame(updateHeader);
+            ticking.current = true;
+        }
+    };
+
+    useEffect(() => {
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [isWelcome]);
+
     return (
         <>
-            <div className="border-sidebar-border/80 border-b">
+            <div className={cn(
+                "border-sidebar-border/80 border-b relative z-50 transition-transform duration-300 ease-out",
+                "sticky-header", // Always sticky for all pages
+                isScrolled && "scrolled",
+                !isScrolled && "not-scrolled",
+                isHidden && "slide-up" // GPU-only transform
+            )}>
                 <div className="mx-auto flex h-16 items-center px-4 md:max-w-7xl">
                     {/* Mobile Menu */}
                     <div className="lg:hidden">
                         <Sheet>
                             <SheetTrigger asChild>
-                                <Button variant="ghost" size="icon" className="mr-2 h-[34px] w-[34px]">
+                                <Button variant="ghost" size="icon" className={cn(
+                                    "mr-2 h-[34px] w-[34px]",
+                                    isWelcome && !isScrolled && "text-white hover:bg-white/20",
+                                    (isWelcome && isScrolled) || !isWelcome ? "text-gray-700 hover:bg-gray-100" : ""
+                                )}>
                                     <Menu className="h-5 w-5" />
                                 </Button>
                             </SheetTrigger>
@@ -129,7 +191,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                 <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                                 <SheetDescription className="sr-only">Main navigation menu for the application</SheetDescription>
                                 <SheetHeader className="flex flex-row items-center justify-start p-4 border-b">
-                                    <AppLogo />
+                                    <AppLogo transparent={!isScrolled && isWelcome} />
                                 </SheetHeader>
                                 <div className="flex h-full flex-1 flex-col space-y-4 p-4">
                                     <div className="flex h-full flex-col justify-between text-sm">
@@ -172,7 +234,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                         prefetch 
                         className="flex items-center space-x-2"
                     >
-                        <AppLogo />
+                        <AppLogo transparent={!isScrolled && isWelcome} />
                     </Link>
 
                     {/* Desktop Navigation */}
@@ -187,13 +249,18 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                                 navigationMenuTriggerStyle(),
                                                 page.url === item.href && activeItemStyles,
                                                 'h-9 cursor-pointer px-3',
+                                                isWelcome && !isScrolled && "text-white hover:bg-white/20 hover:text-white",
+                                                (isWelcome && isScrolled) || !isWelcome ? "text-gray-700 hover:bg-gray-100" : ""
                                             )}
                                         >
                                             {item.icon && <Icon iconNode={item.icon} className="mr-2 h-4 w-4" />}
                                             {t(`nav.${item.title}`)}
                                         </Link>
                                         {page.url === item.href && (
-                                            <div className="absolute bottom-0 left-0 h-0.5 w-full translate-y-px bg-black dark:bg-white"></div>
+                                            <div className={cn(
+                                                "absolute bottom-0 left-0 h-0.5 w-full translate-y-px",
+                                                isWelcome && !isScrolled ? "bg-white" : "bg-blue-600"
+                                            )}></div>
                                         )}
                                     </NavigationMenuItem>
                                 ))}
@@ -221,7 +288,11 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                                     href={item.href}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="group text-accent-foreground ring-offset-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring ml-1 inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent p-0 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                                                    className={cn(
+                                                        "group text-accent-foreground ring-offset-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring ml-1 inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent p-0 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+                                                        isWelcome && !isScrolled && "text-white hover:bg-white/20",
+                                                        (isWelcome && isScrolled) || !isWelcome ? "text-gray-700 hover:bg-gray-100" : ""
+                                                    )}
                                                 >
                                                     <span className="sr-only">{t(`nav.${item.title}`)}</span>
                                                     {item.icon && <Icon iconNode={item.icon} className="size-5 opacity-80 group-hover:opacity-100" />}
@@ -244,7 +315,11 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                             // Authenticated User - Show user dropdown menu
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="size-10 rounded-full p-1">
+                                    <Button variant="ghost" className={cn(
+                                        "size-10 rounded-full p-1",
+                                        isWelcome && !isScrolled && "text-white hover:bg-white/20 bg-transparent",
+                                        (isWelcome && isScrolled) || !isWelcome ? "text-gray-700 hover:bg-gray-100" : ""
+                                    )}>
                                         <Avatar className="size-8 overflow-hidden rounded-full">
                                             <AvatarImage src={auth.user.avatar} alt={auth.user.name} />
                                             <AvatarFallback className="rounded-lg bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white">
@@ -261,13 +336,20 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                             // Unauthenticated User - Show Login/Register buttons
                             <div className="flex items-center space-x-2">
                                 <Link href={route('login')}>
-                                    <Button variant="outline" size="sm" className="text-sm">
+                                    <Button variant="outline" size="sm" className={cn(
+                                        "text-sm",
+                                        isWelcome && !isScrolled && "border-white/30 bg-transparent text-white hover:bg-white/20 hover:border-white",
+                                        (isWelcome && isScrolled) || !isWelcome ? "border-gray-300 text-gray-700 hover:bg-gray-100" : ""
+                                    )}>
                                         <LogIn className="mr-2 h-4 w-4" />
                                         {t('nav.login')}
                                     </Button>
                                 </Link>
                                 <Link href={route('register')}>
-                                    <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm">
+                                    <Button size="sm" className={cn(
+                                        "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm",
+                                        isWelcome && "shadow-lg"
+                                    )}>
                                         <UserPlus className="mr-2 h-4 w-4" />
                                         {t('nav.register')}
                                     </Button>

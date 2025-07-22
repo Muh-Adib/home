@@ -68,14 +68,14 @@ export interface Property {
     file_name: string;
     file_path: string;
     file_type: 'image' | 'video' | 'document';
-  mime_type: string;
-  media_type: 'image' | 'video';
-  alt_text?: string;
-  description?: string;
-  display_order: number;
-  is_featured: boolean;
-  url: string;
-  thumbnail_url?: string;
+    mime_type: string;
+    media_type: 'image' | 'video';
+    alt_text?: string;
+    description?: string;
+    display_order: number;
+    is_featured: boolean;
+    url: string;
+    thumbnail_url?: string;
   }
   
   

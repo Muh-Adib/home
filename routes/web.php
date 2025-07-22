@@ -48,26 +48,9 @@ Route::get('/health', function () {
 Route::get('/', function () {
     $featuredProperties = \App\Models\Property::active()
         ->featured()
-        ->with(['coverImage'])
+        ->with(['media', 'amenities'])
         ->limit(6)
-        ->get()
-        ->map(function ($property) {
-            return [
-                'id' => $property->id,
-                'name' => $property->name,
-                'slug' => $property->slug,
-                'description' => $property->description,
-                'address' => $property->address,
-                'base_rate' => $property->base_rate,
-                'formatted_base_rate' => $property->formatted_base_rate,
-                'capacity' => $property->capacity,
-                'capacity_max' => $property->capacity_max,
-                'bedroom_count' => $property->bedroom_count,
-                'bathroom_count' => $property->bathroom_count,
-                'is_featured' => $property->is_featured,
-                'cover_image' => $property->coverImage->first()?->url,
-            ];
-        });
+        ->get();
 
     return Inertia::render('welcome', [
         'featuredProperties' => $featuredProperties,
@@ -82,7 +65,9 @@ Route::controller(PropertyController::class)->group(function () {
 
 // Public Booking Routes
 Route::controller(BookingController::class)->group(function () {
-    Route::get('/properties/{property:slug}/book', 'create')->name('bookings.create');
+    // Ubah booking create menjadi POST (atau GET+POST jika ingin support keduanya)
+    // Route::get('/properties/{property:slug}/book', 'create')->name('bookings.create'); // HAPUS
+    Route::post('/properties/{property:slug}/booking', 'create')->name('bookings.create'); // Gunakan GET+POST jika ingin support keduanya
     Route::post('/properties/{property:slug}/book', 'store')->name('bookings.store');
     Route::get('/booking/{booking:booking_number}/confirmation', 'confirmation')->name('bookings.confirmation');
 });

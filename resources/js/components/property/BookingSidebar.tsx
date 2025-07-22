@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -104,7 +104,7 @@ export function BookingSidebar({
                     
                     {/* Date Range Picker */}
                     <div className="space-y-3">
-                        <div>
+                        <div id="date-range">
                             <Label htmlFor="date-range">{t('booking.check_in_checkout_dates')}</Label>
                             <DateRange
                                 startDate={checkInDate}
@@ -324,40 +324,49 @@ export function BookingSidebar({
                     <div className="space-y-2">
                         <Button 
                             size="lg" 
-                            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50"
                             disabled={!canSubmit}
-                            asChild
+                            onClick={() => {
+                                if (canSubmit) {
+                                    router.post(`/properties/${property.slug}/booking`, {
+                                        check_in: checkInDate,
+                                        check_out: checkOutDate,
+                                        guests: guestCount
+                                    }, {
+                                        preserveScroll: true,
+                                        preserveState: false,
+                                        onError: (errors) => {
+                                            // Handle error
+                                            console.error('Booking error:', errors);
+                                        },
+                                        onSuccess: (page) => {
+                                            // Handle success
+                                            console.log('Booking successful');
+                                        }
+                                    });
+                                }
+                            }}
                         >
-                            <Link
-                                href={!canSubmit ? '#' : `/properties/${property.slug}/book?check_in=${checkInDate}&check_out=${checkOutDate}&guests=${guestCount}`}
-                            >
-                                {isCalculatingRate ? (
-                                    <>
-                                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                        {t('properties.calculating')}
-                                    </>
-                                ) : canSubmit ? (
-                                    <>
-                                        <CheckCircle className="h-4 w-4 mr-2" />
-                                        {t('properties.book_now')}
-                                    </>
-                                ) : (
-                                    <>
-                                        <Calculator className="h-4 w-4 mr-2" />
-                                        {t('properties.select_dates_to_book')}
-                                    </>
-                                )}
-                            </Link>
+                            {isCalculatingRate ? (
+                                <>
+                                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                    {t('properties.calculating')}
+                                </>
+                            ) : canSubmit ? (
+                                <>
+                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                    {t('properties.book_now')}
+                                </>
+                            ) : (
+                                <>
+                                    <Calculator className="h-4 w-4 mr-2" />
+                                    {t('properties.select_dates_to_book')}
+                                </>
+                            )}
                         </Button>
                     </div>
 
-                    {/* Additional Info */}
-                    <Alert>
-                        <Info className="h-4 w-4" />
-                        <AlertDescription className="text-xs">
-                            <strong>{t('properties.free_cancellation')}</strong> {t('properties.free_cancellation_desc')}
-                        </AlertDescription>
-                    </Alert>
+                   
                 </CardContent>
             </Card>
 

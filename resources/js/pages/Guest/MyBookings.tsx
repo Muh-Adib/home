@@ -126,7 +126,7 @@ interface MyBookingsProps {
     };
 }
 
-export default function MyBookings({ bookings, filters }: MyBookingsProps) {
+export default function MyBookings({ bookings = { data: [] }, filters = {} }: MyBookingsProps) {
     const { t } = useTranslation();
     const [localFilters, setLocalFilters] = useState({
         search: filters.search || '',
@@ -346,7 +346,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
 
                 {/* Bookings List */}
                 <div className="container mx-auto px-4 py-8">
-                    {bookings.data.length > 0 ? (
+                    { (bookings?.data?.length ?? 0) > 0 ? (
                         <div className="space-y-6">
                             {bookings.data.map((booking) => (
                                 <BookingCard 

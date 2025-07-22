@@ -6,20 +6,31 @@ export interface AppConfig {
     env: string;
 }
 
-// Get app configuration from Inertia shared data
-export const useAppConfig = (): AppConfig => {
-    const { props } = usePage();
-    return (props as any).app || {
+// Non-hook version untuk mendapatkan app config
+export const getAppConfig = (): AppConfig => {
+    // Fallback values jika tidak ada Inertia context
+    return {
         url: window.location.origin,
         asset_url: window.location.origin,
-        env: 'production'
+        env: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'local' : 'production'
     };
 };
 
-// Build URL dinamis berdasarkan environment
-export const buildUrl = (path: string = ''): string => {
-    const config = useAppConfig();
-    const baseUrl = config.url || window.location.origin;
+// Hook version untuk use dalam React components
+export const useAppConfig = (): AppConfig => {
+    try {
+        const { props } = usePage();
+        return (props as any).app || getAppConfig();
+    } catch (error) {
+        // Fallback jika hook tidak bisa digunakan
+        return getAppConfig();
+    }
+};
+
+// Build URL dinamis berdasarkan environment (non-hook version)
+export const buildUrl = (path: string = '', config?: AppConfig): string => {
+    const appConfig = config || getAppConfig();
+    const baseUrl = appConfig.url || window.location.origin;
     
     // Remove leading slash if exists
     const cleanPath = path.startsWith('/') ? path.substring(1) : path;
@@ -27,10 +38,10 @@ export const buildUrl = (path: string = ''): string => {
     return cleanPath ? `${baseUrl}/${cleanPath}` : baseUrl;
 };
 
-// Build asset URL untuk static files
-export const buildAssetUrl = (path: string): string => {
-    const config = useAppConfig();
-    const baseUrl = config.asset_url || config.url || window.location.origin;
+// Build asset URL untuk static files (non-hook version)
+export const buildAssetUrl = (path: string, config?: AppConfig): string => {
+    const appConfig = config || getAppConfig();
+    const baseUrl = appConfig.asset_url || appConfig.url || window.location.origin;
     
     // Remove leading slash if exists
     const cleanPath = path.startsWith('/') ? path.substring(1) : path;
@@ -38,9 +49,9 @@ export const buildAssetUrl = (path: string): string => {
     return `${baseUrl}/${cleanPath}`;
 };
 
-// Get WebSocket URL dinamis
-export const getWebSocketUrl = (): string => {
-    const config = useAppConfig();
+// Get WebSocket URL dinamis (non-hook version)
+export const getWebSocketUrl = (config?: AppConfig): string => {
+    const appConfig = config || getAppConfig();
     
     // Development environment
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -48,14 +59,14 @@ export const getWebSocketUrl = (): string => {
     }
     
     // Production - gunakan URL dari config atau fallback ke window.location
-    const baseUrl = config.url || window.location.origin;
+    const baseUrl = appConfig.url || window.location.origin;
     return baseUrl.replace(/^http/, 'http'); // Ensure proper protocol
 };
 
-// Check if we're in development
-export const isDevelopment = (): boolean => {
-    const config = useAppConfig();
-    return config.env === 'local' || 
+// Check if we're in development (non-hook version)
+export const isDevelopment = (config?: AppConfig): boolean => {
+    const appConfig = config || getAppConfig();
+    return appConfig.env === 'local' || 
            window.location.hostname === 'localhost' || 
            window.location.hostname === '127.0.0.1';
 };
@@ -83,6 +94,7 @@ export const buildFullUrl = (path: string = ''): string => {
 // Export default object dengan semua functions
 export default {
     useAppConfig,
+    getAppConfig,
     buildUrl,
     buildAssetUrl,
     getWebSocketUrl,

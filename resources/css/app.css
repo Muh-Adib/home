@@ -158,6 +158,168 @@
     }
 }
 
+/* Header Transparent Styles */
+.header-transparent {
+    background: transparent !important;
+    border-color: transparent !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.header-transparent .text-white {
+    color: white !important;
+}
+
+.header-transparent .hover\:bg-white\/20:hover {
+    background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.header-transparent .border-white\/30 {
+    border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Hero Section Styles */
+.hero-section {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-section .container {
+    padding-top: 5rem;
+    padding-bottom: 5rem;
+}
+
+/* Ensure hero content is properly spaced */
+.hero-content {
+    width: 100%;
+    max-width: 72rem;
+    margin: 0 auto;
+    text-align: center;
+}
+
+/* Responsive hero spacing */
+@media (max-width: 768px) {
+    .hero-section .container {
+        padding-top: 4rem;
+        padding-bottom: 4rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .hero-section .container {
+        padding-top: 6rem;
+        padding-bottom: 6rem;
+    }
+}
+
+/* Sticky Header Styles - Slide-up Parallax */
+.sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    transition: transform 0.3s ease-out;
+    will-change: transform;
+    isolation: isolate;
+}
+
+.sticky-header.scrolled {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    border-color: rgba(229, 231, 235, 1);
+}
+
+.sticky-header.not-scrolled {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* GPU-only slide-up transform - no repaints */
+.sticky-header.slide-up {
+    transform: translateY(-100%);
+}
+
+/* Ensure no white elements are left behind */
+.sticky-header * {
+    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Force background for all child elements when scrolled */
+.sticky-header.scrolled * {
+    background-color: transparent !important;
+}
+
+/* Specific fixes for common elements that might leave white traces */
+.sticky-header.scrolled button,
+.sticky-header.scrolled a,
+.sticky-header.scrolled div {
+    background-color: transparent !important;
+}
+
+.sticky-header.scrolled .bg-white {
+    background-color: transparent !important;
+}
+
+.sticky-header.scrolled .bg-sidebar {
+    background-color: transparent !important;
+}
+
+/* Smooth scroll behavior */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Prevent layout shift */
+body {
+    padding-top: 0;
+}
+
+/* Ensure proper stacking context */
+.sticky-header {
+    isolation: isolate;
+}
+
+/* Slideshow Background Styles */
+.slideshow-background {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    transition: all 1s ease-in-out;
+}
+
+.slideshow-overlay {
+    background: linear-gradient(
+        135deg,
+        rgba(0, 0, 0, 0.2) 0%,
+        rgba(0, 0, 0, 0) 50%,
+        rgba(0, 0, 0, 0.3) 100%
+    );
+}
+
+/* Slideshow Indicators */
+.slideshow-indicator {
+    transition: all 0.3s ease;
+}
+
+.slideshow-indicator.active {
+    transform: scale(1.25);
+}
+
+/* Hero Text Shadows */
+.hero-text-shadow {
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.hero-text-shadow-lg {
+    text-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
 /* Custom DateRange Calendar Theme - Green Colors */
 .green-calendar-theme .rdp-day_range_start:not(.rdp-day_outside) {
     background-color: #059669 !important;

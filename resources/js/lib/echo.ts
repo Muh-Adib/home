@@ -1,13 +1,12 @@
 import Echo from 'laravel-echo';
 import io from 'socket.io-client';
 import { createNotificationFallback } from './echo-fallback';
-import { getWebSocketUrl, isDevelopment } from '../utils/url';
 
 // Make Socket.IO client available globally for Echo
 declare global {
     interface Window {
         io: typeof io;
-        Echo: Echo | null;
+        Echo: Echo<any> | null;
         NotificationFallback: any;
     }
 }
@@ -15,16 +14,29 @@ declare global {
 // Setup Socket.IO for Laravel Echo
 window.io = io;
 
-let echoInstance: Echo | null = null;
+let echoInstance: Echo<any> | null = null;
+
+// Get WebSocket URL without using React hooks
+function getWebSocketUrlSafe(): string {
+    // Development environment
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'http://localhost:6001';
+    }
+    
+    // Production - gunakan URL dari window.location
+    const baseUrl = window.location.origin;
+    return baseUrl.replace(/^http/, 'http'); // Ensure proper protocol
+}
 
 // Enhanced Echo configuration with error handling
-function createEchoInstance(): Echo | null {
+function createEchoInstance(): Echo<any> | null {
     try {
-        // Get WebSocket URL dinamis dari utility function
+        // Get WebSocket URL dinamis dari utility function (non-hook version)
+        const wsUrl = getWebSocketUrlSafe();
 
         const echo = new Echo({
             broadcaster: 'socket.io',
-            host: getWebSocketUrl(),
+            host: wsUrl,
             // Auth configuration for private channels
             auth: {
                 headers: {
@@ -45,18 +57,21 @@ function createEchoInstance(): Echo | null {
             forceNew: false,
         });
 
-        // Connection event handlers
-        echo.connector.socket.on('connect', () => {
-            console.log('✅ Echo connected to server');
-        });
+        // Connection event handlers - check if socket exists
+        const socket = (echo.connector as any)?.socket;
+        if (socket) {
+            socket.on('connect', () => {
+                console.log('✅ Echo connected to server');
+            });
 
-        echo.connector.socket.on('disconnect', () => {
-            console.log('❌ Echo disconnected from server');
-        });
+            socket.on('disconnect', () => {
+                console.log('❌ Echo disconnected from server');
+            });
 
-        echo.connector.socket.on('connect_error', (error: any) => {
-            console.warn('🔄 Echo connection error, will use polling fallback:', error.message);
-        });
+            socket.on('connect_error', (error: any) => {
+                console.warn('🔄 Echo connection error, will use polling fallback:', error.message);
+            });
+        }
 
         return echo;
     } catch (error) {
@@ -65,14 +80,28 @@ function createEchoInstance(): Echo | null {
     }
 }
 
-// Initialize Echo with fallback
-function initializeEcho(): Echo | null {
+// Initialize Echo with fallback - delay initialization until DOM is ready
+function initializeEcho(): Echo<any> | null {
     try {
+        // Only initialize if we're in a browser environment
+        if (typeof window === 'undefined') {
+            return null;
+        }
+
+        // Wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                echoInstance = createEchoInstance();
+            });
+            return null;
+        }
+
         echoInstance = createEchoInstance();
         
         // Test connection after short delay
         setTimeout(() => {
-            if (echoInstance && !echoInstance.connector?.socket?.connected) {
+            const socket = (echoInstance?.connector as any)?.socket;
+            if (echoInstance && socket && !socket.connected) {
                 console.warn('🔄 Echo not connected after timeout, fallback will be used');
             }
         }, 5000);
@@ -84,16 +113,27 @@ function initializeEcho(): Echo | null {
     }
 }
 
-// Initialize Echo
-const echo = initializeEcho();
+// Initialize Echo when DOM is ready
+let echo: Echo<any> | null = null;
 
-// Make available globally
-window.Echo = echo;
-window.NotificationFallback = createNotificationFallback;
+if (typeof window !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            echo = initializeEcho();
+            window.Echo = echo;
+            window.NotificationFallback = createNotificationFallback;
+        });
+    } else {
+        echo = initializeEcho();
+        window.Echo = echo;
+        window.NotificationFallback = createNotificationFallback;
+    }
+}
 
 // Check if Echo is working
 export const isEchoAvailable = (): boolean => {
-    return echo?.connector?.socket?.connected || false;
+    const socket = (echo?.connector as any)?.socket;
+    return socket?.connected || false;
 };
 
 // Get Echo instance with fallback info

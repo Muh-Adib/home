@@ -34,7 +34,7 @@ class RegisteredUserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'phone' => 'nullable|string|max:20',
+            'phone' => 'required|string|max:20|unique:'.User::class,
             'gender' => 'nullable|in:male,female',
             'country' => 'required|string|max:100',
         ]);
@@ -70,7 +70,7 @@ class RegisteredUserController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
-            'phone' => 'required|string|max:20',
+            'phone' => 'required|string|max:20|unique:'.User::class,
             'gender' => 'nullable|in:male,female',
             'country' => 'nullable|string|max:100',
             'booking_data' => 'required|string',

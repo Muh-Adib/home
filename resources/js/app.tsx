@@ -3,7 +3,6 @@ import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { initializeTheme } from './hooks/use-appearance';
-import './lib/echo'; // Initialize enhanced Echo with fallback
 import './lib/i18n';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Homsjogja';
@@ -13,6 +12,13 @@ createInertiaApp({
     resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx')),
     setup({ el, App, props }) {
         const root = createRoot(el);
+
+        // Initialize Echo after React is set up
+        import('./lib/echo').then(() => {
+            console.log('✅ Echo initialized');
+        }).catch((error) => {
+            console.warn('⚠️ Echo initialization failed:', error);
+        });
 
         root.render(<App {...props} />);
     },
