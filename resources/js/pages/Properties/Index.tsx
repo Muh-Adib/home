@@ -24,6 +24,8 @@ import { getDefaultDateRange, formatDateRange } from '@/components/ui/date-range
 import { type BreadcrumbItem, type PageProps } from '@/types';
 import { useTranslation } from 'react-i18next';
 import PropertyCard, { type Property, type Amenity } from '@/components/PropertyCard';
+import AmenityItem from '@/components/AmenityItem';
+
 
 interface PropertiesIndexProps {
     properties: {
@@ -313,16 +315,19 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
                                                     {category.replace('_', ' ')}
                                                 </Label>
                                                 <div className="space-y-2 max-h-32 overflow-y-auto">
-                                                    {categoryAmenities.map(amenity => (
+                                                    {categoryAmenities.map((amenity, index) => (
                                                         <div key={amenity.id} className="flex items-center space-x-2">
                                                             <Checkbox
                                                                 id={`amenity-${amenity.id}`}
                                                                 checked={localFilters.selectedAmenities.includes(amenity.id.toString())}
                                                                 onCheckedChange={() => toggleAmenity(amenity.id.toString())}
                                                             />
-                                                            <Label htmlFor={`amenity-${amenity.id}`} className="text-sm">
-                                                                {amenity.icon} {amenity.name}
-                                                            </Label>
+                                                            <AmenityItem 
+                                                                key={`amenity-${amenity.id || amenity.name}-${index}`}
+                                                                amenity={amenity}
+                                                                variant="badge"
+                                                                showName={true}
+                                                            />
                                                         </div>
                                                     ))}
                                                 </div>

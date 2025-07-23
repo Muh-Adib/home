@@ -328,20 +328,16 @@ export function BookingSidebar({
                             disabled={!canSubmit}
                             onClick={() => {
                                 if (canSubmit) {
-                                    router.post(`/properties/${property.slug}/booking`, {
-                                        check_in: checkInDate,
-                                        check_out: checkOutDate,
-                                        guests: guestCount
-                                    }, {
+                                    // Gunakan router.visit untuk navigasi GET dengan parameter query string
+                                    router.visit(`/properties/${property.slug}/book?check_in=${checkInDate}&check_out=${checkOutDate}&guests=${guestCount}`, {
+                                        method: 'get',
                                         preserveScroll: true,
                                         preserveState: false,
                                         onError: (errors) => {
-                                            // Handle error
-                                            console.error('Booking error:', errors);
+                                            console.error('Terjadi kesalahan:', errors);
                                         },
-                                        onSuccess: (page) => {
-                                            // Handle success
-                                            console.log('Booking successful');
+                                        onSuccess: () => {
+                                            console.log('Berhasil menuju halaman booking');
                                         }
                                     });
                                 }

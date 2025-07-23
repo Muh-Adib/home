@@ -200,7 +200,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                                 <Link 
                                                     key={item.title} 
                                                     href={item.href} 
-                                                    className="flex items-center space-x-3 rounded-lg px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-medium"
+                                                    className="flex items-center space-x-3 rounded-lg px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-medium bg-transparent"
                                                 >
                                                     {item.icon && <Icon iconNode={item.icon} className="h-5 w-5" />}
                                                     <span>{t(`nav.${item.title}`)}</span>
@@ -249,7 +249,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                                 navigationMenuTriggerStyle(),
                                                 page.url === item.href && activeItemStyles,
                                                 'h-9 cursor-pointer px-3',
-                                                isWelcome && !isScrolled && "text-white hover:bg-white/20 hover:text-white",
+                                                isWelcome && !isScrolled && "text-white hover:bg-white/20 hover:text-white bg-transparent",
                                                 (isWelcome && isScrolled) || !isWelcome ? "text-gray-700 hover:bg-gray-100" : ""
                                             )}
                                         >
@@ -275,7 +275,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                             {isAuthenticated(auth.user) && !isGuest(auth.user) && (
                                 <NotificationBell 
                                     userId={auth.user.id} 
-                                    className="ml-1" 
+                                    className={cn("ml-1", isWelcome && !isScrolled && "text-white hover:bg-white/20 bg-transparent")} 
                                 />
                             )}
                             {isAuthenticated(auth.user) && (
@@ -308,7 +308,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                         </div>
                         
                         {/* Language Switcher */}
-                        <LanguageSwitcher />
+                        <LanguageSwitcher className={cn(isWelcome && !isScrolled && "text-white hover:bg-white/20 bg-transparent")} />
                         
                         {/* Conditional Rendering: User Menu vs Login/Register Buttons */}
                         {isAuthenticated(auth.user) ? (

@@ -67,7 +67,7 @@ Route::controller(PropertyController::class)->group(function () {
 Route::controller(BookingController::class)->group(function () {
     // Ubah booking create menjadi POST (atau GET+POST jika ingin support keduanya)
     // Route::get('/properties/{property:slug}/book', 'create')->name('bookings.create'); // HAPUS
-    Route::post('/properties/{property:slug}/booking', 'create')->name('bookings.create'); // Gunakan GET+POST jika ingin support keduanya
+    Route::get('/properties/{property:slug}/book', 'create')->name('bookings.create'); // Gunakan GET+POST jika ingin support keduanya
     Route::post('/properties/{property:slug}/book', 'store')->name('bookings.store');
     Route::get('/booking/{booking:booking_number}/confirmation', 'confirmation')->name('bookings.confirmation');
 });

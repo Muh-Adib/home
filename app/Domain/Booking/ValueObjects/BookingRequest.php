@@ -14,7 +14,7 @@ class BookingRequest
         public readonly string $checkInDate,
         public readonly string $checkOutDate,
         public readonly string $checkInTime,
-        
+                
         // Guest Information
         public readonly int $guestCount,
         public readonly int $guestMale,
@@ -27,6 +27,8 @@ class BookingRequest
         public readonly ?string $guestIdNumber,
         public readonly string $guestGender,
         public readonly string $relationshipType,
+        public readonly ?array $guests = [],
+
         
         // Booking Details
         public readonly ?string $specialRequests,
@@ -76,7 +78,8 @@ class BookingRequest
             'guest_id_number' => $this->guestIdNumber,
             'guest_gender' => $this->guestGender,
             'relationship_type' => $this->relationshipType,
-            
+            'guests' => $this->guests,
+
             // Booking Details
             'special_requests' => $this->specialRequests,
             'internal_notes' => $this->internalNotes,
@@ -110,7 +113,8 @@ class BookingRequest
             guestIdNumber: $data['guest_id_number'] ?? null,
             guestGender: $data['guest_gender'],
             relationshipType: $data['relationship_type'],
-            
+            guests: $data['guests'] ?? [],
+
             // Booking Details
             specialRequests: $data['special_requests'] ?? null,
             internalNotes: $data['internal_notes'] ?? null,

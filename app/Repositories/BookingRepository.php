@@ -13,6 +13,10 @@ class BookingRepository
     public function create(BookingRequest $request, Property $property, int $userId): Booking
     {
         $bookingNumber = $this->generateBookingNumber();
+        // ada perbedaan antara model booking dengan model bookingrequest 
+        // ratecalcualtian tidak ada di model booking
+        // kita tenyata butuh rincian dari ratecalculation untuk menghitung baik total, serta partisi data rate perhari untuk laporan bulanan
+
         
         return Booking::create([
             // Property and User Information
@@ -32,6 +36,7 @@ class BookingRepository
             'guest_female' => $request->guestFemale,
             'guest_children' => $request->guestChildren,
             'relationship_type' => $request->relationshipType,
+            'guests' => $request->guests,
             
             // Dates and Times
             'check_in' => $request->checkInDate,

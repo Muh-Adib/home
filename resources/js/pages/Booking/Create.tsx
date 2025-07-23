@@ -675,6 +675,9 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                             className="bg-gray-100 cursor-not-allowed text-center border-0 p-0 shadow-none focus:ring-0 focus:border-0"
                                                         />
                                                     </div>
+                                                    <div className="text-xs text-gray-500 mt-1">
+                                                        {data.check_in_time}
+                                                    </div>
                                                 </div>
                                                 <div className="flex flex-col items-center">
                                                     <div className="w-8 h-0.5 bg-gray-300"></div>
@@ -690,6 +693,9 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                             disabled
                                                             className="bg-gray-100 cursor-not-allowed text-center border-0 p-0 shadow-none focus:ring-0 focus:border-0"
                                                         />
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 mt-1">
+                                                        {property.check_out_time}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1187,7 +1193,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                     <CardContent className="px-4 sm:px-6">
                                         <div className="space-y-4">
                                             <div className="aspect-video bg-slate-200 rounded-lg overflow-hidden">
-                                                {property.media[0].url ? (
+                                                {property.media.length > 0 && property.media[0].url ? (
                                                     <img 
                                                         src={property.media[0].url} 
                                                         alt={property.name}

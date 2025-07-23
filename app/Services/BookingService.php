@@ -47,7 +47,8 @@ class BookingService
                 $request->checkOutDate,
                 $request->guestCount
             );
-
+            // ada perbedaan antara model booking dengan model bookingrequest 
+            // ratecalcualtian tidak ada di model booking
             // Create booking data array
             $bookingData = [
                 'property_id' => $property->id,
@@ -57,6 +58,7 @@ class BookingService
                 'guest_phone' => $request->guestPhone,
                 'check_in_date' => $request->checkInDate,
                 'check_out_date' => $request->checkOutDate,
+                'check_in_time' => $request->checkInTime,
                 'guest_count_adults' => $request->guestCount,
                 'guest_count_children' => 0, // Assuming no children for now
                 'special_requests' => $request->specialRequests ?? '',
@@ -65,6 +67,8 @@ class BookingService
                 'payment_status' => 'pending',
                 'rate_calculation' => $rateCalculation->toArray(),
             ];
+
+            $bookingData = BookingRequest::fromArray($bookingData);
 
             // Create booking using repository
             $booking = $this->bookingRepository->create($bookingData);

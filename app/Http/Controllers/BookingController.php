@@ -43,10 +43,14 @@ class BookingController extends Controller
     public function create(Request $request, Property $property)
     {
         $user = auth()->user();
-        // Ambil data dari request (bisa dari POST atau GET)
-        $checkIn = $request->input('check_in');
-        $checkOut = $request->input('check_out');
-        $guests = $request->input('guests', 2);
+        // Ambil data dari request (GET)
+        $checkIn = $request->query('check_in');
+        $checkOut = $request->query('check_out'); 
+        $guests = (int) $request->query('guests', 2); // Default 2 jika tidak ada
+
+        $guestMale = (int)($guests/2);
+        $guestFemale = (int)($guests/2);
+        $guestChildren = (int)($guests%2);
 
         // Fallback default jika tidak ada input
         $today = now()->toDateString();
@@ -56,9 +60,9 @@ class BookingController extends Controller
             'check_in_date' => $checkIn ?? $today,
             'check_out_date' => $checkOut ?? $tomorrow,
             'check_in_time' => '15:00',
-            'guest_male' => 2,
-            'guest_female' => 2,
-            'guest_children' => 0,
+            'guest_male' => $guestMale,
+            'guest_female' => $guestFemale,
+            'guest_children' => $guestChildren,
             'guest_name' => $user->name ?? '',
             'guest_email' => $user->email ?? '',
             'guest_phone' => $user->phone ?? '',
@@ -70,7 +74,7 @@ class BookingController extends Controller
             'dp_percentage' => 50,
             'guests' => [],
         ];
-
+       
         return Inertia::render('Booking/Create', [
             'property' => $property->load(['amenities', 'media']),
             'initialFormData' => $initialFormData,
@@ -170,20 +174,33 @@ class BookingController extends Controller
      */
     private function createBookingNormally(Property $property, array $data)
     {
+        
         try {
             // Ensure required fields are present and transform data for BookingService
             $bookingData = array_merge($data, [
                 'property_id' => $property->id,
+
                 'check_in_date' => $data['check_in_date'] ?? session('booking_data.check_in'),
                 'check_out_date' => $data['check_out_date'] ?? session('booking_data.check_out'),
-                'check_in_time' => $data['check_in_time'] ?? '14:00',
-                'guest_count_male' => $data['male_count'] ?? 1,
-                'guest_count_female' => $data['female_count'] ?? 1,
-                'guest_count_children' => $data['children_count'] ?? 0,
-                'relationship_type' => $data['relationship_type'] ?? 'family',
+                'check_in_time' => $data['check_in_time'] ?? '15:00',
+
+                'guest_name' => $data['guest_name'] ?? '',
+                'guest_email' => $data['guest_email'] ?? '',
+                'guest_phone' => $data['guest_phone'] ?? '',
                 'guest_country' => $data['guest_country'] ?? 'Indonesia',
+                'guest_id_number' => $data['guest_id_number'] ?? '',
                 'guest_gender' => $data['guest_gender'] ?? 'male',
+                'guest_count' => $data['guest_count'] ?? ($data['guest_male'] + $data['guest_female'] + $data['guest_children']),
+                'guest_male' => $data['guest_male'] ?? 1,
+                'guest_female' => $data['guest_female'] ?? 1,
+                'guest_children' => $data['guest_children'] ?? 0,                
+                'relationship_type' => $data['relationship_type'] ?? 'family',
+                'guests' => $data['guests'] ?? [],
+
+                
                 'special_requests' => $data['special_requests'] ?? '',
+                
+                'dp_percentage' => $data['dp_percentage'] ?? 50,
             ]);
             
 
@@ -310,7 +327,7 @@ class BookingController extends Controller
                 $request->get('check_out'),
                 $request->get('guest_count')
             );
-
+        
             return response()->json($result);
 
         } catch (\Illuminate\Validation\ValidationException $e) {

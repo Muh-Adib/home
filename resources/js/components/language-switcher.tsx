@@ -5,6 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from '@/components/ui/button';
 import { Globe, ChevronDown } from 'lucide-react';
 import { changeLanguage } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 
 interface Language {
   code: string;
@@ -25,7 +26,7 @@ const languages: Language[] = [
   }
 ];
 
-const LanguageSwitcher = () => {
+const LanguageSwitcher = ({className=''} : {className?: string}) => {
   const { i18n } = useTranslation();
 
   const currentLanguage = languages.find(lang => lang.code === i18n.language.substring(0, 2)) || languages[0];
@@ -59,7 +60,7 @@ const LanguageSwitcher = () => {
         <Button 
           variant="ghost" 
           size="sm" 
-          className="h-9 w-auto px-2 text-sm font-normal hover:bg-transparent hover:text-gray-700 border-gray-200 dark:border-gray-700"
+          className={cn("h-9 w-auto px-2 text-sm font-normal hover:bg-transparent hover:text-gray-700 border-gray-200 dark:border-gray-700", className)}
         >
           <Globe className="h-4 w-4 mr-2" />
           <span className="mr-1">{currentLanguage.flag}</span>
