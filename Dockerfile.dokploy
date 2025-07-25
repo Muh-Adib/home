@@ -1,5 +1,5 @@
-# Multi-stage Dockerfile untuk Dokploy Laravel App
-# Optimized untuk Property Management System dengan Redis dan DB terpisah
+# Multi-stage Dockerfile untuk Dokploy Laravel App dengan WebSocket Support
+# Optimized untuk Property Management System dengan Redis dan DB terpisah + Laravel Echo Server
 
 # Build stage untuk Node.js dependencies dan assets
 FROM node:20-alpine AS node-builder
@@ -7,7 +7,7 @@ FROM node:20-alpine AS node-builder
 WORKDIR /app
 
 # Install git untuk dependencies yang memerlukan
-RUN apk add --no-cache git
+RUN apk add --no-cache git python3 make g++
 
 # Copy package files untuk better layer caching
 COPY package*.json ./
@@ -18,6 +18,9 @@ RUN echo "=== Checking package files ===" && \
     echo "=== Installing Node dependencies ===" && \
     npm cache clean --force && \
     npm ci --legacy-peer-deps --verbose || npm install --legacy-peer-deps --verbose
+
+# Install Laravel Echo Server globally untuk WebSocket support
+RUN npm install -g laravel-echo-server@1.6.3
 
 # Copy konfigurasi build files
 COPY tsconfig.json ./
@@ -36,9 +39,9 @@ RUN echo "=== Building frontend assets ===" && \
     ls -la public/build/
 
 # Production PHP stage
-FROM php:8.3-fpm AS php-stage
+FROM php:8.3-fpm-alpine AS php-stage
 
-# Install system dependencies (tanpa Redis karena akan menggunakan external Redis)
+# Install system dependencies (termasuk Node.js untuk Laravel Echo Server)
 RUN apk add --no-cache \
     nginx \
     supervisor \
@@ -61,13 +64,17 @@ RUN apk add --no-cache \
     autoconf \
     g++ \
     make \
-    pcre-dev
+    pcre-dev \
+    nodejs \
+    npm \
+    sqlite
 
 # Install PHP extensions yang diperlukan
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
     docker-php-ext-install -j$(nproc) \
         pdo_mysql \
         pdo_pgsql \
+        pdo_sqlite \
         mbstring \
         exif \
         pcntl \
@@ -87,6 +94,9 @@ RUN apk del autoconf g++ make pcre-dev postgresql-dev
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Install Laravel Echo Server globally dalam production container
+RUN npm install -g laravel-echo-server@1.6.3 pm2
 
 # Create application user
 RUN addgroup -g 1000 www && \
@@ -121,30 +131,63 @@ RUN mkdir -p \
     /var/log/supervisor \
     /var/log/nginx \
     /var/cache/nginx \
-    /var/run/php && \
-    chown -R www:www storage bootstrap/cache && \
-    chmod -R 755 storage bootstrap/cache
+    /var/run/php \
+    /var/run/laravel-echo-server \
+    database/echo-server && \
+    chown -R www:www storage bootstrap/cache database && \
+    chmod -R 755 storage bootstrap/cache database
 
 # Copy optimized configuration files
 COPY docker/nginx/dokploy.conf /etc/nginx/http.d/default.conf
 COPY docker/supervisor/dokploy.conf /etc/supervisor.d/supervisord.conf
 COPY docker/php/dokploy.ini /usr/local/etc/php/conf.d/custom.ini
 
-# Setup environment template (dynamic configuration akan dilakukan di startup)
-RUN if [ ! -f .env ]; then cp .env.example .env; fi && \
-    echo "=== Preparing environment template for dynamic configuration ===" && \
-    echo "# Environment will be configured dynamically at startup" >> .env && \
-    echo "# APP_URL, DB_*, REDIS_* akan di-set dari environment variables" >> .env
+# Create production Laravel Echo Server configuration
+RUN echo '{ \
+    "authHost": "http://localhost", \
+    "authEndpoint": "/broadcasting/auth", \
+    "clients": [{ \
+        "appId": "homeapp", \
+        "key": "homeapp_key" \
+    }], \
+    "database": "sqlite", \
+    "databaseConfig": { \
+        "sqlite": { \
+            "databasePath": "/var/www/html/database/echo-server/laravel-echo-server.sqlite" \
+        } \
+    }, \
+    "devMode": false, \
+    "host": null, \
+    "port": "6001", \
+    "protocol": "http", \
+    "socketio": { \
+        "transports": ["websocket", "polling"], \
+        "allowEIO3": true, \
+        "cors": { \
+            "origin": "*", \
+            "methods": ["GET", "POST"], \
+            "credentials": true \
+        }, \
+        "pingTimeout": 60000, \
+        "pingInterval": 25000 \
+    }, \
+    "sslCertPath": "", \
+    "sslKeyPath": "", \
+    "sslCertChainPath": "", \
+    "sslPassphrase": "", \
+    "apiOriginAllow": { \
+        "allowCors": true, \
+        "allowOrigin": "*", \
+        "allowMethods": "GET,POST,PUT,DELETE,OPTIONS", \
+        "allowHeaders": "Origin,Content-Type,X-Auth-Token,X-Requested-With,Accept,Authorization,X-CSRF-TOKEN,X-Socket-Id,Cookie" \
+    } \
+}' > /var/www/html/laravel-echo-server.production.json
+
+# Setup environment template
+RUN if [ ! -f .env ]; then cp .env.example .env; fi
 
 # Generate application key
 RUN php artisan key:generate --force || echo "Key generation skipped"
-
-# Optimize Laravel untuk production dengan error handling
-RUN echo "=== Optimizing Laravel for production ===" && \
-    php artisan config:cache || echo "Config cache failed, continuing..." && \
-    php artisan route:cache || echo "Route cache failed, continuing..." && \
-    php artisan view:cache || echo "View cache failed, continuing..." && \
-    php artisan event:cache || echo "Event cache failed, continuing..."
 
 # Create storage link
 RUN php artisan storage:link || echo "Storage link failed, continuing..."
@@ -153,18 +196,19 @@ RUN php artisan storage:link || echo "Storage link failed, continuing..."
 RUN chown -R www:www /var/www/html && \
     chmod -R 755 /var/www/html/storage && \
     chmod -R 755 /var/www/html/bootstrap/cache && \
+    chmod -R 755 /var/www/html/database && \
     chmod +x /var/www/html/artisan
 
-# Create startup script untuk handle migrations dan seeding
+# Create enhanced startup script
 COPY docker/scripts/startup.sh /usr/local/bin/startup.sh
 RUN chmod +x /usr/local/bin/startup.sh
 
-# Expose HTTP port only (tidak perlu WebSocket jika terpisah)
-EXPOSE 80
+# Expose HTTP dan WebSocket ports
+EXPOSE 80 6001
 
-# Health check untuk application readiness
+# Health check yang comprehensive
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost/health || exit 1
+    CMD curl -f http://localhost/health && curl -f http://localhost:6001/socket.io/ || exit 1
 
-# Start dengan startup script yang akan handle migrations
+# Start dengan startup script yang akan handle migrations dan services
 CMD ["/usr/local/bin/startup.sh"]
