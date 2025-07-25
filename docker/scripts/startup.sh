@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Startup script untuk Dokploy deployment
-# Handles migrations, cache optimization, dan service startup dengan external Redis/DB
+# Enhanced Startup script untuk Dokploy deployment dengan WebSocket support
+# Handles migrations, cache optimization, Laravel Echo Server, dan service startup dengan external Redis/DB
 
 set -e
 
-echo "=== Laravel Dokploy Startup Script ==="
+echo "=== Laravel Dokploy Enhanced Startup Script ==="
 
 # Function untuk wait sampai service ready
 wait_for_service() {
@@ -58,6 +58,9 @@ if [ -f .env ]; then
     if [ -n "$REDIS_PASSWORD" ] && [ "$REDIS_PASSWORD" != "null" ]; then
         sed -i "s/REDIS_PASSWORD=.*/REDIS_PASSWORD=${REDIS_PASSWORD}/" .env
     fi
+    if [ -n "$REDIS_USERNAME" ] && [ "$REDIS_USERNAME" != "null" ]; then
+        sed -i "s/REDIS_USERNAME=.*/REDIS_USERNAME=${REDIS_USERNAME}/" .env
+    fi
 
     # Dynamic URL configuration - sangat penting untuk deployment
     if [ -n "$APP_URL" ]; then
@@ -69,6 +72,13 @@ if [ -f .env ]; then
             echo "ASSET_URL=${APP_URL}" >> .env
         else
             sed -i "s|ASSET_URL=.*|ASSET_URL=${APP_URL}|" .env
+        fi
+        
+        # Update Vite configuration untuk production
+        if ! grep -q "VITE_APP_URL" .env; then
+            echo "VITE_APP_URL=${APP_URL}" >> .env
+        else
+            sed -i "s|VITE_APP_URL=.*|VITE_APP_URL=${APP_URL}|" .env
         fi
         
         # Update mail domain berdasarkan APP_URL
@@ -85,6 +95,14 @@ if [ -f .env ]; then
     sed -i "s/CACHE_DRIVER=.*/CACHE_DRIVER=redis/" .env
     sed -i "s/SESSION_DRIVER=.*/SESSION_DRIVER=redis/" .env
     sed -i "s/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=redis/" .env
+    
+    # Enable broadcasting untuk WebSocket
+    sed -i "s/BROADCAST_CONNECTION=.*/BROADCAST_CONNECTION=redis/" .env
+    if ! grep -q "BROADCAST_DRIVER" .env; then
+        echo "BROADCAST_DRIVER=redis" >> .env
+    else
+        sed -i "s/BROADCAST_DRIVER=.*/BROADCAST_DRIVER=redis/" .env
+    fi
 fi
 
 echo "=== Environment Configuration ==="
@@ -141,10 +159,34 @@ fi
 echo "=== Setting up Storage Link ==="
 php artisan storage:link || echo "Storage link already exists or failed"
 
+# Setup Laravel Echo Server configuration dinamis
+echo "=== Configuring Laravel Echo Server ==="
+ECHO_CONFIG="/var/www/html/laravel-echo-server.production.json"
+
+if [ -n "$APP_URL" ]; then
+    # Update authHost di Laravel Echo Server config
+    AUTH_HOST=$(echo "$APP_URL" | sed 's|/$||') # Remove trailing slash
+    sed -i "s|\"authHost\": \".*\"|\"authHost\": \"${AUTH_HOST}\"|" "$ECHO_CONFIG"
+    echo "Laravel Echo Server authHost updated to: $AUTH_HOST"
+fi
+
+# Pastikan database directory untuk Echo Server exists
+mkdir -p /var/www/html/database/echo-server
+chown -R www:www /var/www/html/database/echo-server
+
 # Set proper permissions
 echo "=== Setting Final Permissions ==="
-chown -R www:www /var/www/html/storage /var/www/html/bootstrap/cache
-chmod -R 755 /var/www/html/storage /var/www/html/bootstrap/cache
+chown -R www:www /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
+chmod -R 755 /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
+
+# Create Laravel required job tables untuk queue jika belum ada
+echo "=== Setting up Queue Tables ==="
+php artisan queue:table --create || echo "Queue table already exists or creation failed"
+php artisan migrate --force || echo "Queue migration failed, continuing..."
+
+# Optimize for production after all setup
+echo "=== Final Production Optimizations ==="
+php artisan optimize || echo "Optimization failed, continuing..."
 
 # Start PHP-FPM in background
 echo "=== Starting PHP-FPM ==="
@@ -154,14 +196,26 @@ php-fpm -D
 echo "=== Starting Nginx ==="
 nginx
 
-# Start supervisor untuk manage processes
-echo "=== Starting Supervisor ==="
+# Test aplikasi readiness
+echo "=== Testing Application Readiness ==="
+sleep 5
+if curl -f http://localhost/health >/dev/null 2>&1; then
+    echo "✅ Application is ready to serve requests"
+else
+    echo "⚠️ Application health check failed, but continuing startup"
+fi
+
+# Start supervisor untuk manage processes (including Laravel Echo Server)
+echo "=== Starting Supervisor dengan WebSocket Support ==="
 echo "Application startup completed successfully!"
 echo "=== Services Status ==="
 echo "- PHP-FPM: Running"
-echo "- Nginx: Running"
+echo "- Nginx: Running" 
+echo "- Laravel Echo Server: Will start via Supervisor"
+echo "- Queue Workers: Will start via Supervisor"
 echo "- Database: $DB_HOST:$DB_PORT"
 echo "- Redis: $REDIS_HOST:$REDIS_PORT"
+echo "- WebSocket: http://localhost:6001"
 
 # Start supervisor in foreground untuk keep container running
 exec /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf -n
