@@ -295,20 +295,41 @@ export default function Calendar({ properties, currentProperty, currentMonth, ti
                                                                 Rate: Rp {dayData.current_rate.toLocaleString('id-ID')}
                                                             </div>
                                                             
-                                                            {dayData.bookings.map(booking => (
-                                                                <div
-                                                                    key={booking.id}
-                                                                    className="text-xs p-1 rounded bg-blue-100 border border-blue-200"
-                                                                >
-                                                                    <div className="font-medium truncate">
-                                                                        {booking.guest_name}
+                                                            {dayData.bookings.map(booking => {
+                                                                // Calculate booking duration
+                                                                const checkIn = new Date(booking.check_in_date);
+                                                                const checkOut = new Date(booking.check_out_date);
+                                                                const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+                                                                
+                                                                // Calculate if this booking starts on this date
+                                                                const isStartDate = date.toDateString() === checkIn.toDateString();
+                                                                
+                                                                if (!isStartDate) return null; // Only show booking on start date
+                                                                
+                                                                return (
+                                                                    <div
+                                                                        key={booking.id}
+                                                                        className="text-xs p-1 rounded bg-blue-100 border border-blue-200 cursor-pointer hover:bg-blue-200 transition-colors"
+                                                                        style={{
+                                                                            gridColumn: `span ${Math.min(nights, 7)}`, // Span multiple columns based on nights
+                                                                            width: `${nights * 100}%`, // Width based on nights
+                                                                            maxWidth: '100%'
+                                                                        }}
+                                                                        title={`${booking.guest_name} - ${nights} night${nights > 1 ? 's' : ''}`}
+                                                                    >
+                                                                        <div className="font-medium truncate">
+                                                                            {booking.guest_name}
+                                                                        </div>
+                                                                        <div className="text-gray-600 flex items-center gap-1">
+                                                                            <Users className="h-3 w-3" />
+                                                                            {booking.guest_count}
+                                                                        </div>
+                                                                        <div className="text-xs text-gray-500">
+                                                                            {nights} night{nights > 1 ? 's' : ''}
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="text-gray-600 flex items-center gap-1">
-                                                                        <Users className="h-3 w-3" />
-                                                                        {booking.guest_count}
-                                                                    </div>
-                                                                </div>
-                                                            ))}
+                                                                );
+                                                            })}
                                                         </div>
                                                     )}
                                                 </div>
