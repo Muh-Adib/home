@@ -10,9 +10,9 @@
     "database": "redis",
     "databaseConfig": {
         "redis": {
-            "host": "homsjogja-redis-qmihbb",
+            "host": "127.0.0.1",
             "port": 6379,
-            "password": "5vlcwpzc45g9mtho",
+            "password": "",
             "keyPrefix": "laravel_database_",
             "db": 0
         }

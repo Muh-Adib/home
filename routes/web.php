@@ -44,6 +44,12 @@ Route::get('/health', function () {
     ]);
 })->name('health');
 
+// Health check route untuk supervisor monitoring
+Route::get('/health', function () {
+    return response('healthy', 200)
+        ->header('Content-Type', 'text/plain');
+});
+
 // Homepage
 Route::get('/', function () {
     $featuredProperties = \App\Models\Property::active()

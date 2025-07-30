@@ -136,9 +136,9 @@ wait_for_services() {
     done
     log_success "Database is ready!"
     
-    # Wait for Redis
+    # Wait for Redis - perbaiki testing method
     log_info "Waiting for Redis at $(grep REDIS_HOST .env | cut -d'=' -f2):$(grep REDIS_PORT .env | cut -d'=' -f2)..."
-    until php artisan tinker --execute="echo Redis::connection()->ping();" 2>/dev/null; do
+    until php artisan tinker --execute="try { Redis::ping(); echo 'Redis OK'; } catch (Exception \$e) { echo 'Redis Error: ' . \$e->getMessage(); }" 2>/dev/null | grep -q "Redis OK"; do
         log_info "Redis not ready, waiting..."
         sleep 5
     done
@@ -204,78 +204,6 @@ setup_echo_server() {
         sed -i "s|\"authHost\": \".*\"|\"authHost\": \"$APP_URL\"|g" "$ECHO_CONFIG"
     fi
     
-    # Fix Redis configuration untuk Laravel Echo Server
-    log_info "Fixing Laravel Echo Server Redis configuration..."
-    cat > "$ECHO_CONFIG" << 'EOF'
-{
-    "authHost": "http://localhost:8080",
-    "authEndpoint": "/broadcasting/auth",
-    "clients": [
-        {
-            "appId": "homsjogja",
-            "key": "homsjogja_websocket_key"
-        }
-    ],
-    "database": "redis",
-    "databaseConfig": {
-        "redis": {
-            "host": "homsjogja-redis-qmihbb",
-            "port": 6379,
-            "password": "5vlcwpzc45g9mtho",
-            "keyPrefix": "laravel_database_",
-            "db": 0
-        }
-    },
-    "devMode": false,
-    "host": "localhost",
-    "port": 6002,
-    "protocol": "http",
-    "socketio": {
-        "transports": ["websocket", "polling"],
-        "allowEIO3": true,
-        "cors": {
-            "origin": "*",
-            "methods": ["GET", "POST"],
-            "credentials": true
-        },
-        "pingTimeout": 60000,
-        "pingInterval": 25000,
-        "maxHttpBufferSize": 1048576,
-        "allowUpgrades": true,
-        "upgradeTimeout": 30000,
-        "compression": true,
-        "httpCompression": true,
-        "cookie": {
-            "name": "laravel_echo_server",
-            "httpOnly": true,
-            "secure": false,
-            "sameSite": "lax"
-        }
-    },
-    "sslCertPath": "",
-    "sslKeyPath": "",
-    "sslCertChainPath": "",
-    "sslPassphrase": "",
-    "apiOriginAllow": {
-        "allowCors": true,
-        "allowOrigin": "*",
-        "allowMethods": "GET,POST,PUT,DELETE,OPTIONS",
-        "allowHeaders": "Origin,Content-Type,X-Auth-Token,X-Requested-With,Accept,Authorization,X-CSRF-TOKEN,X-Socket-Id,Cookie"
-    },
-    "referrers": [],
-    "subscribers": {
-        "http": true,
-        "redis": true
-    }
-}
-EOF
-    
-    # Update authHost if APP_URL is provided
-    if [ ! -z "$APP_URL" ]; then
-        log_info "Laravel Echo Server authHost updated to: $APP_URL"
-        sed -i "s|\"authHost\": \".*\"|\"authHost\": \"$APP_URL\"|g" "$ECHO_CONFIG"
-    fi
-    
     log_success "Laravel Echo Server configured"
 }
 
@@ -311,7 +239,7 @@ run_production_optimizations() {
 test_redis_connection() {
     log_info "Testing Redis connection..."
     
-    if php artisan tinker --execute="echo Redis::connection()->ping();" 2>/dev/null; then
+    if php artisan tinker --execute="try { Redis::ping(); echo 'Redis OK'; } catch (Exception \$e) { echo 'Redis Error: ' . \$e->getMessage(); }" 2>/dev/null | grep -q "Redis OK"; then
         log_success "Redis connection successful!"
     else
         log_error "Redis connection failed!"
@@ -418,6 +346,23 @@ start_supervisor() {
         find /etc -name "*supervisor*" -type f 2>/dev/null || log_warning "No supervisor config files found"
     fi
     
+    # Test supervisor configuration
+    log_info "Testing supervisor configuration..."
+    if /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf -t; then
+        log_success "Supervisor configuration is valid"
+    else
+        log_error "Supervisor configuration is invalid"
+        exit 1
+    fi
+    
+    # Check if Laravel Echo Server config exists
+    if [ -f "/var/www/html/laravel-echo-server.dokploy.json" ]; then
+        log_success "Laravel Echo Server config exists"
+    else
+        log_error "Laravel Echo Server config not found"
+        exit 1
+    fi
+    
     log_success "Application startup completed successfully!"
     
     # Log services status
@@ -430,8 +375,9 @@ start_supervisor() {
     log_info "- Redis: $(grep REDIS_HOST .env | cut -d'=' -f2):$(grep REDIS_PORT .env | cut -d'=' -f2)"
     log_info "- WebSocket: http://localhost:6002"
     
-    # Start supervisor dengan delay untuk memastikan semua service siap
-    sleep 5
+    # Start supervisor dengan delay yang lebih lama untuk memastikan semua service siap
+    log_info "Waiting 10 seconds before starting supervisor..."
+    sleep 10
     exec /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf
 }
 
