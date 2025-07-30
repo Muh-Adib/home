@@ -1,235 +1,350 @@
 #!/bin/bash
 
-# Enhanced Startup script untuk Dokploy deployment dengan WebSocket support
-# Handles migrations, cache optimization, Laravel Echo Server, dan service startup dengan external Redis/DB
+# Enhanced Production Startup Script untuk Dokploy Laravel App
+# Property Management System - Laravel 12 + React 18 + WebSocket
+# Optimized untuk Production Environment dengan External Services
 
-set -e
+set -euo pipefail
 
-echo "=== Laravel Dokploy Enhanced Startup Script ==="
+# Color codes untuk output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# Function untuk wait sampai service ready
+# Logging function
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Function untuk wait sampai service ready dengan timeout
 wait_for_service() {
     local host=$1
     local port=$2
     local service_name=$3
-    local max_attempts=30
+    local max_attempts=${4:-30}
     local attempt=1
     
-    echo "Waiting for $service_name at $host:$port..."
+    log_info "Waiting for $service_name at $host:$port..."
     
     while [ $attempt -le $max_attempts ]; do
-        if nc -z "$host" "$port" 2>/dev/null; then
-            echo "$service_name is ready!"
+        if timeout 5 bash -c "</dev/tcp/$host/$port" 2>/dev/null; then
+            log_success "$service_name is ready!"
             return 0
         fi
         
-        echo "Attempt $attempt/$max_attempts: $service_name not ready yet..."
+        log_info "Attempt $attempt/$max_attempts: $service_name not ready yet..."
         sleep 2
         attempt=$((attempt + 1))
     done
     
-    echo "WARNING: $service_name at $host:$port tidak ready setelah $max_attempts attempts"
+    log_warning "$service_name at $host:$port tidak ready setelah $max_attempts attempts"
     return 1
 }
 
-# Set environment variables dengan defaults
-export DB_HOST=${DB_HOST:-homsjogja-db-xsjalx}
-export DB_PORT=${DB_PORT:-3306}
-export DB_DATABASE=${DB_DATABASE:-homs-db}
-export DB_USERNAME=${DB_USERNAME:-homs-user}
-export DB_PASSWORD=${DB_PASSWORD:-jD8-AKHx2gFCQ5gx3ouRJ}
-export REDIS_HOST=${REDIS_HOST:-homsjogja-redis-qmihbb}
-export REDIS_PORT=${REDIS_PORT:-6379}
-export REDIS_PASSWORD=${REDIS_PASSWORD:-5vlcwpzc45g9mtho}
-export REDIS_DB=${REDIS_DB:-0}
-
-# Setup dynamic URL configuration
-echo "=== Setting up Dynamic Environment Configuration ==="
-
-# Update .env file dengan dynamic values
-if [ -f .env ]; then
-    # Update database configuration
-    sed -i "s/DB_HOST=.*/DB_HOST=${DB_HOST}/" .env
-    sed -i "s/DB_PORT=.*/DB_PORT=${DB_PORT}/" .env
-    sed -i "s/DB_DATABASE=.*/DB_DATABASE=${DB_DATABASE}/" .env
-    sed -i "s/DB_USERNAME=.*/DB_USERNAME=${DB_USERNAME}/" .env
-    sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${DB_PASSWORD}/" .env
-
-    # Update Redis configuration
-    sed -i "s/REDIS_HOST=.*/REDIS_HOST=${REDIS_HOST}/" .env
-    sed -i "s/REDIS_PORT=.*/REDIS_PORT=${REDIS_PORT}/" .env
-<<<<<<< HEAD
-    sed -i "s/REDIS_PASSWORD=.*/REDIS_PASSWORD=${REDIS_PASSWORD}/" .env
-    sed -i "s/REDIS_DB=.*/REDIS_DB=${REDIS_DB}/" .env
-
-    # Update broadcasting configuration
-    sed -i "s/BROADCAST_DRIVER=.*/BROADCAST_DRIVER=redis/" .env
-    sed -i "s/BROADCAST_CONNECTION=.*/BROADCAST_CONNECTION=default/" .env
-    sed -i "s/CACHE_DRIVER=.*/CACHE_DRIVER=redis/" .env
-    sed -i "s/SESSION_DRIVER=.*/SESSION_DRIVER=redis/" .env
-    sed -i "s/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=redis/" .env
-=======
-    if [ -n "$REDIS_PASSWORD" ] && [ "$REDIS_PASSWORD" != "null" ]; then
-        sed -i "s/REDIS_PASSWORD=.*/REDIS_PASSWORD=${REDIS_PASSWORD}/" .env
-    fi
-    if [ -n "$REDIS_USERNAME" ] && [ "$REDIS_USERNAME" != "null" ]; then
-        sed -i "s/REDIS_USERNAME=.*/REDIS_USERNAME=${REDIS_USERNAME}/" .env
-    fi
->>>>>>> 5331f991abf826e4b0182bd7108f859a81b2d6be
-
-    # Dynamic URL configuration - sangat penting untuk deployment
-    if [ -n "$APP_URL" ]; then
-        echo "Setting dynamic APP_URL to: $APP_URL"
-        sed -i "s|APP_URL=.*|APP_URL=${APP_URL}|" .env
-        
-        # Update asset URL untuk static files
-        if ! grep -q "ASSET_URL" .env; then
-            echo "ASSET_URL=${APP_URL}" >> .env
-        else
-            sed -i "s|ASSET_URL=.*|ASSET_URL=${APP_URL}|" .env
-        fi
-        
-        # Update Vite configuration untuk production
-        if ! grep -q "VITE_APP_URL" .env; then
-            echo "VITE_APP_URL=${APP_URL}" >> .env
-        else
-            sed -i "s|VITE_APP_URL=.*|VITE_APP_URL=${APP_URL}|" .env
-        fi
-        
-        # Update mail domain berdasarkan APP_URL
-        DOMAIN=$(echo "$APP_URL" | sed 's|https\?://||' | sed 's|/.*||')
-        sed -i "s/MAIL_FROM_ADDRESS=.*/MAIL_FROM_ADDRESS=noreply@${DOMAIN}/" .env
-        echo "Mail domain set to: noreply@$DOMAIN"
-        
-        export APP_URL="${APP_URL}"
+# Function untuk test database connection
+test_database_connection() {
+    log_info "Testing database connection..."
+    
+    if php artisan migrate:status >/dev/null 2>&1; then
+        log_success "Database connection successful!"
+        return 0
     else
-        echo "WARNING: APP_URL tidak di-set, menggunakan default"
+        log_error "Database connection failed!"
+        return 1
     fi
-<<<<<<< HEAD
-=======
+}
 
-    # Update cache drivers untuk external services
-    sed -i "s/CACHE_DRIVER=.*/CACHE_DRIVER=redis/" .env
-    sed -i "s/SESSION_DRIVER=.*/SESSION_DRIVER=redis/" .env
-    sed -i "s/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=redis/" .env
+# Function untuk test Redis connection
+test_redis_connection() {
+    log_info "Testing Redis connection..."
     
-    # Enable broadcasting untuk WebSocket
-    sed -i "s/BROADCAST_CONNECTION=.*/BROADCAST_CONNECTION=redis/" .env
-    if ! grep -q "BROADCAST_DRIVER" .env; then
-        echo "BROADCAST_DRIVER=redis" >> .env
+    if php artisan tinker --execute="Redis::ping();" >/dev/null 2>&1; then
+        log_success "Redis connection successful!"
+        return 0
     else
-        sed -i "s/BROADCAST_DRIVER=.*/BROADCAST_DRIVER=redis/" .env
+        log_warning "Redis connection failed, aplikasi akan berjalan tanpa Redis cache"
+        return 1
     fi
->>>>>>> 5331f991abf826e4b0182bd7108f859a81b2d6be
-fi
+}
 
-echo "=== Environment Configuration ==="
-echo "APP_URL: ${APP_URL:-not set}"
-echo "Database: $DB_HOST:$DB_PORT ($DB_DATABASE)"
-echo "Redis: $REDIS_HOST:$REDIS_PORT"
-
-# Wait for external services (dengan timeout)
-echo "=== Waiting for External Services ==="
-wait_for_service "$DB_HOST" "$DB_PORT" "Database" || echo "Continuing without DB connectivity check..."
-wait_for_service "$REDIS_HOST" "$REDIS_PORT" "Redis" || echo "Continuing without Redis connectivity check..."
-
-# Test database connection
-echo "=== Testing Database Connection ==="
-if php artisan migrate:status >/dev/null 2>&1; then
-    echo "Database connection successful!"
+# Function untuk run migrations dengan error handling
+run_migrations() {
+    log_info "Running database migrations..."
     
-    # Run migrations jika diperlukan
-    echo "=== Running Database Migrations ==="
-    php artisan migrate --force || echo "Migration failed, continuing..."
+    if php artisan migrate --force; then
+        log_success "Migrations completed successfully"
+        return 0
+    else
+        log_error "Migrations failed!"
+        return 1
+    fi
+}
+
+# Function untuk clear dan rebuild cache
+rebuild_cache() {
+    log_info "Clearing application cache..."
     
-    # Clear dan rebuild cache setelah migration
-    echo "=== Clearing Application Cache ==="
-    php artisan cache:clear || echo "Cache clear failed, continuing..."
-    php artisan config:clear || echo "Config clear failed, continuing..."
-    php artisan route:clear || echo "Route clear failed, continuing..."
-    php artisan view:clear || echo "View clear failed, continuing..."
+    # Clear all caches
+    php artisan cache:clear || log_warning "Cache clear failed"
+    php artisan config:clear || log_warning "Config clear failed"
+    php artisan route:clear || log_warning "Route clear failed"
+    php artisan view:clear || log_warning "View clear failed"
+    
+    log_info "Rebuilding production cache..."
     
     # Rebuild cache untuk production
-    echo "=== Rebuilding Production Cache ==="
-    php artisan config:cache || echo "Config cache failed, continuing..."
-    php artisan route:cache || echo "Route cache failed, continuing..."
-    php artisan view:cache || echo "View cache failed, continuing..."
-    php artisan event:cache || echo "Event cache failed, continuing..."
+    php artisan config:cache || log_warning "Config cache failed"
+    php artisan route:cache || log_warning "Route cache failed"
+    php artisan view:cache || log_warning "View cache failed"
+    php artisan event:cache || log_warning "Event cache failed"
     
-else
-    echo "WARNING: Database connection failed atau migrations tidak dapat dijalankan"
-fi
+    log_success "Cache rebuild completed"
+}
 
-# Test Redis connection
-echo "=== Testing Redis Connection ==="
-if php artisan tinker --execute="Redis::ping();" >/dev/null 2>&1; then
-    echo "Redis connection successful!"
-    php artisan cache:clear || echo "Redis cache clear failed, continuing..."
-else
-    echo "WARNING: Redis connection failed, aplikasi akan berjalan tanpa Redis cache"
-fi
+# Function untuk setup storage
+setup_storage() {
+    log_info "Setting up storage..."
+    
+    # Create required directories
+    mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views storage/app/public
+    
+    # Setup storage link
+    php artisan storage:link || log_warning "Storage link already exists or failed"
+    
+    # Set proper permissions
+    chown -R www:www storage bootstrap/cache database
+    chmod -R 755 storage bootstrap/cache database
+    
+    log_success "Storage setup completed"
+}
 
-# Setup storage link jika belum ada
-echo "=== Setting up Storage Link ==="
-php artisan storage:link || echo "Storage link already exists or failed"
+# Function untuk setup Laravel Echo Server
+setup_echo_server() {
+    log_info "Configuring Laravel Echo Server..."
+    
+    ECHO_CONFIG="/var/www/html/laravel-echo-server.production.json"
+    
+    if [ -n "${APP_URL:-}" ]; then
+        # Update authHost di Laravel Echo Server config
+        AUTH_HOST=$(echo "$APP_URL" | sed 's|/$||') # Remove trailing slash
+        sed -i "s|\"authHost\": \".*\"|\"authHost\": \"${AUTH_HOST}\"|" "$ECHO_CONFIG"
+        log_info "Laravel Echo Server authHost updated to: $AUTH_HOST"
+    fi
+    
+    # Pastikan database directory untuk Echo Server exists
+    mkdir -p /var/www/html/database/echo-server
+    chown -R www:www /var/www/html/database/echo-server
+    
+    log_success "Laravel Echo Server configured"
+}
 
-# Setup Laravel Echo Server configuration dinamis
-echo "=== Configuring Laravel Echo Server ==="
-ECHO_CONFIG="/var/www/html/laravel-echo-server.production.json"
+# Function untuk setup queue
+setup_queue() {
+    log_info "Setting up queue tables..."
+    
+    # Create Laravel required job tables untuk queue jika belum ada
+    php artisan queue:table --create || log_warning "Queue table already exists or creation failed"
+    php artisan migrate --force || log_warning "Queue migration failed"
+    
+    log_success "Queue setup completed"
+}
 
-if [ -n "$APP_URL" ]; then
-    # Update authHost di Laravel Echo Server config
-    AUTH_HOST=$(echo "$APP_URL" | sed 's|/$||') # Remove trailing slash
-    sed -i "s|\"authHost\": \".*\"|\"authHost\": \"${AUTH_HOST}\"|" "$ECHO_CONFIG"
-    echo "Laravel Echo Server authHost updated to: $AUTH_HOST"
-fi
+# Function untuk optimize production
+optimize_production() {
+    log_info "Running production optimizations..."
+    
+    # Optimize for production
+    php artisan optimize || log_warning "Optimization failed"
+    
+    # Clear and rebuild cache
+    rebuild_cache
+    
+    log_success "Production optimization completed"
+}
 
-# Pastikan database directory untuk Echo Server exists
-mkdir -p /var/www/html/database/echo-server
-chown -R www:www /var/www/html/database/echo-server
+# Function untuk test application readiness
+test_application() {
+    log_info "Testing application readiness..."
+    
+    sleep 5
+    
+    if curl -f http://localhost/health >/dev/null 2>&1; then
+        log_success "Application is ready to serve requests"
+        return 0
+    else
+        log_warning "Application health check failed, but continuing startup"
+        return 1
+    fi
+}
 
-# Set proper permissions
-echo "=== Setting Final Permissions ==="
-chown -R www:www /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
-chmod -R 755 /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
+# Main execution
+main() {
+    echo "=== Laravel Dokploy Production Startup Script ==="
+    echo "Property Management System - Laravel 12 + React 18 + WebSocket"
+    echo "=================================================="
+    
+    # Set environment variables dengan defaults
+    export DB_HOST=${DB_HOST:-homsjogja-db-xsjalx}
+    export DB_PORT=${DB_PORT:-3306}
+    export DB_DATABASE=${DB_DATABASE:-homs-db}
+    export DB_USERNAME=${DB_USERNAME:-homs-user}
+    export DB_PASSWORD=${DB_PASSWORD:-jD8-AKHx2gFCQ5gx3ouRJ}
+    export REDIS_HOST=${REDIS_HOST:-homsjogja-redis-qmihbb}
+    export REDIS_PORT=${REDIS_PORT:-6379}
+    export REDIS_PASSWORD=${REDIS_PASSWORD:-5vlcwpzc45g9mtho}
+    export REDIS_DB=${REDIS_DB:-0}
+    
+    # Setup dynamic URL configuration
+    log_info "Setting up Dynamic Environment Configuration"
+    
+    # Update .env file dengan dynamic values
+    if [ -f .env ]; then
+        # Update database configuration
+        sed -i "s/DB_HOST=.*/DB_HOST=${DB_HOST}/" .env
+        sed -i "s/DB_PORT=.*/DB_PORT=${DB_PORT}/" .env
+        sed -i "s/DB_DATABASE=.*/DB_DATABASE=${DB_DATABASE}/" .env
+        sed -i "s/DB_USERNAME=.*/DB_USERNAME=${DB_USERNAME}/" .env
+        sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${DB_PASSWORD}/" .env
 
-# Create Laravel required job tables untuk queue jika belum ada
-echo "=== Setting up Queue Tables ==="
-php artisan queue:table --create || echo "Queue table already exists or creation failed"
-php artisan migrate --force || echo "Queue migration failed, continuing..."
+        # Update Redis configuration
+        sed -i "s/REDIS_HOST=.*/REDIS_HOST=${REDIS_HOST}/" .env
+        sed -i "s/REDIS_PORT=.*/REDIS_PORT=${REDIS_PORT}/" .env
+        sed -i "s/REDIS_PASSWORD=.*/REDIS_PASSWORD=${REDIS_PASSWORD}/" .env
+        sed -i "s/REDIS_DB=.*/REDIS_DB=${REDIS_DB}/" .env
 
-# Optimize for production after all setup
-echo "=== Final Production Optimizations ==="
-php artisan optimize || echo "Optimization failed, continuing..."
+        # Update broadcasting configuration
+        sed -i "s/BROADCAST_DRIVER=.*/BROADCAST_DRIVER=redis/" .env
+        sed -i "s/BROADCAST_CONNECTION=.*/BROADCAST_CONNECTION=default/" .env
+        sed -i "s/CACHE_DRIVER=.*/CACHE_DRIVER=redis/" .env
+        sed -i "s/SESSION_DRIVER=.*/SESSION_DRIVER=redis/" .env
+        sed -i "s/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=redis/" .env
 
-# Start PHP-FPM in background
-echo "=== Starting PHP-FPM ==="
-php-fpm -D
+        # Dynamic URL configuration - sangat penting untuk deployment
+        if [ -n "${APP_URL:-}" ]; then
+            log_info "Setting dynamic APP_URL to: $APP_URL"
+            sed -i "s|APP_URL=.*|APP_URL=${APP_URL}|" .env
+            
+            # Update asset URL untuk static files
+            if ! grep -q "ASSET_URL" .env; then
+                echo "ASSET_URL=${APP_URL}" >> .env
+            else
+                sed -i "s|ASSET_URL=.*|ASSET_URL=${APP_URL}|" .env
+            fi
+            
+            # Update Vite configuration untuk production
+            if ! grep -q "VITE_APP_URL" .env; then
+                echo "VITE_APP_URL=${APP_URL}" >> .env
+            else
+                sed -i "s|VITE_APP_URL=.*|VITE_APP_URL=${APP_URL}|" .env
+            fi
+            
+            # Update mail domain berdasarkan APP_URL
+            DOMAIN=$(echo "$APP_URL" | sed 's|https\?://||' | sed 's|/.*||')
+            sed -i "s/MAIL_FROM_ADDRESS=.*/MAIL_FROM_ADDRESS=noreply@${DOMAIN}/" .env
+            log_info "Mail domain set to: noreply@$DOMAIN"
+            
+            export APP_URL="${APP_URL}"
+        else
+            log_warning "APP_URL tidak di-set, menggunakan default"
+        fi
 
-# Start nginx in background
-echo "=== Starting Nginx ==="
-nginx
+        # Update cache drivers untuk external services
+        sed -i "s/CACHE_DRIVER=.*/CACHE_DRIVER=redis/" .env
+        sed -i "s/SESSION_DRIVER=.*/SESSION_DRIVER=redis/" .env
+        sed -i "s/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=redis/" .env
+        
+        # Enable broadcasting untuk WebSocket
+        sed -i "s/BROADCAST_CONNECTION=.*/BROADCAST_CONNECTION=redis/" .env
+        if ! grep -q "BROADCAST_DRIVER" .env; then
+            echo "BROADCAST_DRIVER=redis" >> .env
+        else
+            sed -i "s/BROADCAST_DRIVER=.*/BROADCAST_DRIVER=redis/" .env
+        fi
+    fi
 
-# Test aplikasi readiness
-echo "=== Testing Application Readiness ==="
-sleep 5
-if curl -f http://localhost/health >/dev/null 2>&1; then
-    echo "✅ Application is ready to serve requests"
-else
-    echo "⚠️ Application health check failed, but continuing startup"
-fi
+    log_info "Environment Configuration:"
+    log_info "APP_URL: ${APP_URL:-not set}"
+    log_info "Database: $DB_HOST:$DB_PORT ($DB_DATABASE)"
+    log_info "Redis: $REDIS_HOST:$REDIS_PORT"
 
-# Start supervisor untuk manage processes (including Laravel Echo Server)
-echo "=== Starting Supervisor dengan WebSocket Support ==="
-echo "Application startup completed successfully!"
-echo "=== Services Status ==="
-echo "- PHP-FPM: Running"
-echo "- Nginx: Running" 
-echo "- Laravel Echo Server: Will start via Supervisor"
-echo "- Queue Workers: Will start via Supervisor"
-echo "- Database: $DB_HOST:$DB_PORT"
-echo "- Redis: $REDIS_HOST:$REDIS_PORT"
-echo "- WebSocket: http://localhost:6001"
+    # Wait for external services (dengan timeout)
+    log_info "Waiting for External Services"
+    wait_for_service "$DB_HOST" "$DB_PORT" "Database" || log_warning "Continuing without DB connectivity check..."
+    wait_for_service "$REDIS_HOST" "$REDIS_PORT" "Redis" || log_warning "Continuing without Redis connectivity check..."
 
-# Start supervisor in foreground untuk keep container running
-exec /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf -n
+    # Setup storage
+    setup_storage
+
+    # Test database connection
+    if test_database_connection; then
+        # Run migrations jika diperlukan
+        run_migrations
+        
+        # Setup queue
+        setup_queue
+        
+        # Setup Laravel Echo Server
+        setup_echo_server
+        
+        # Optimize for production
+        optimize_production
+    else
+        log_error "Database connection failed, cannot proceed with migrations"
+        # Continue anyway untuk development/testing
+    fi
+
+    # Test Redis connection
+    test_redis_connection
+
+    # Set proper permissions
+    log_info "Setting Final Permissions"
+    chown -R www:www /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
+    chmod -R 755 /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
+
+    # Start PHP-FPM in background
+    log_info "Starting PHP-FPM"
+    php-fpm -D
+
+    # Start nginx in background
+    log_info "Starting Nginx"
+    nginx
+
+    # Test aplikasi readiness
+    test_application
+
+    # Start supervisor untuk manage processes (including Laravel Echo Server)
+    log_info "Starting Supervisor dengan WebSocket Support"
+    log_success "Application startup completed successfully!"
+    
+    log_info "Services Status:"
+    log_info "- PHP-FPM: Running"
+    log_info "- Nginx: Running" 
+    log_info "- Laravel Echo Server: Will start via Supervisor"
+    log_info "- Queue Workers: Will start via Supervisor"
+    log_info "- Database: $DB_HOST:$DB_PORT"
+    log_info "- Redis: $REDIS_HOST:$REDIS_PORT"
+    log_info "- WebSocket: http://localhost:6001"
+
+    # Start supervisor in foreground untuk keep container running
+    exec /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf -n
+}
+
+# Trap untuk cleanup jika script di-interrupt
+trap 'log_error "Startup script interrupted"; exit 1' INT TERM
+
+# Run main function
+main "$@"
