@@ -264,6 +264,43 @@ optimize_production() {
 test_application() {
     log_info "Testing application readiness..."
     
+    # Debug: Check if nginx is running
+    log_info "Debug: Checking nginx process..."
+    ps aux | grep nginx || log_warning "No nginx process found"
+    
+    # Debug: Check if php-fpm is running
+    log_info "Debug: Checking php-fpm process..."
+    ps aux | grep php-fpm || log_warning "No php-fpm process found"
+    
+    # Debug: Check port usage
+    log_info "Debug: Checking port usage..."
+    netstat -tlnp | grep :8080 || log_warning "Port 8080 not in use"
+    netstat -tlnp | grep :9000 || log_warning "Port 9000 not in use"
+    
+    # Debug: Check nginx configuration
+    log_info "Debug: Testing nginx configuration..."
+    nginx -t || log_error "Nginx configuration test failed"
+    
+    # Debug: Check nginx error log
+    log_info "Debug: Checking nginx error log..."
+    if [ -f /var/log/nginx/error.log ]; then
+        tail -10 /var/log/nginx/error.log
+    else
+        log_warning "Nginx error log not found"
+    fi
+    
+    # Debug: Check nginx access log
+    log_info "Debug: Checking nginx access log..."
+    if [ -f /var/log/nginx/access.log ]; then
+        tail -5 /var/log/nginx/access.log
+    else
+        log_warning "Nginx access log not found"
+    fi
+    
+    # Debug: Check if nginx is listening
+    log_info "Debug: Testing nginx directly..."
+    curl -v http://localhost:8080/health 2>&1 || log_warning "Direct nginx test failed"
+    
     # Wait for nginx to start
     local max_attempts=30
     local attempt=1
@@ -275,11 +312,36 @@ test_application() {
         fi
         
         log_info "Waiting for application to be ready... (attempt $attempt/$max_attempts)"
+        
+        # Debug: Check process status every 5 attempts
+        if [ $((attempt % 5)) -eq 0 ]; then
+            log_info "Debug: Process status check..."
+            ps aux | grep -E "(nginx|php-fpm)" | head -5
+            netstat -tlnp | grep -E "(8080|9000)" || log_warning "No processes on expected ports"
+        fi
+        
         sleep 1
         attempt=$((attempt + 1))
     done
     
     log_error "Application failed to start within $max_attempts seconds"
+    
+    # Final debug: Show all relevant logs
+    log_error "Final debug information:"
+    log_error "=== Process Status ==="
+    ps aux | grep -E "(nginx|php-fpm)" || log_error "No nginx/php-fpm processes found"
+    
+    log_error "=== Port Status ==="
+    netstat -tlnp | grep -E "(8080|9000)" || log_error "No processes on expected ports"
+    
+    log_error "=== Nginx Configuration ==="
+    nginx -t || log_error "Nginx configuration is invalid"
+    
+    log_error "=== Recent Logs ==="
+    if [ -f /var/log/nginx/error.log ]; then
+        tail -20 /var/log/nginx/error.log
+    fi
+    
     return 1
 }
 
@@ -475,32 +537,115 @@ main() {
     chown -R www:www /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
     chmod -R 755 /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
 
+    # Debug: Check file permissions and structure
+    log_info "Debug: Checking file permissions and structure..."
+    
+    # Check if public directory exists
+    if [ -d "/var/www/html/public" ]; then
+        log_success "Public directory exists"
+        ls -la /var/www/html/public/ | head -5
+    else
+        log_error "Public directory not found"
+    fi
+    
+    # Check if index.php exists
+    if [ -f "/var/www/html/public/index.php" ]; then
+        log_success "index.php exists"
+    else
+        log_error "index.php not found"
+    fi
+    
+    # Check nginx configuration file
+    if [ -f "/etc/nginx/conf.d/default.conf" ]; then
+        log_success "Nginx config file exists"
+        cat /etc/nginx/conf.d/default.conf | head -10
+    else
+        log_error "Nginx config file not found"
+    fi
+    
+    # Check nginx error log directory
+    if [ -d "/var/log/nginx" ]; then
+        log_success "Nginx log directory exists"
+        ls -la /var/log/nginx/
+    else
+        log_error "Nginx log directory not found"
+    fi
+    
+    # Check PHP-FPM configuration
+    log_info "Debug: Checking PHP-FPM configuration..."
+    php-fpm -t || log_error "PHP-FPM configuration test failed"
+    
+    # Check if PHP-FPM socket/port is available
+    log_info "Debug: Checking PHP-FPM socket/port..."
+    netstat -tlnp | grep :9000 || log_warning "PHP-FPM not listening on port 9000"
+    
+    # Test PHP-FPM directly
+    log_info "Debug: Testing PHP-FPM directly..."
+    echo "<?php echo 'PHP-FPM is working'; ?>" > /tmp/test.php
+    REQUEST_METHOD=GET SCRIPT_NAME=/test.php SCRIPT_FILENAME=/tmp/test.php QUERY_STRING= REQUEST_URI=/test.php DOCUMENT_URI=/test.php DOCUMENT_ROOT=/tmp SERVER_PROTOCOL=HTTP/1.1 GATEWAY_INTERFACE=CGI/1.1 SERVER_SOFTWARE=nginx/1.21.0 REMOTE_ADDR=127.0.0.1 REMOTE_PORT=12345 SERVER_ADDR=127.0.0.1 SERVER_PORT=8080 SERVER_NAME=localhost REDIRECT_STATUS=200 HTTP_HOST=localhost:8080 HTTP_CONNECTION=keep-alive HTTP_UPGRADE_INSECURE_REQUESTS=1 HTTP_USER_AGENT=Mozilla/5.0 HTTP_ACCEPT=text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8 HTTP_ACCEPT_ENCODING=gzip, deflate HTTP_ACCEPT_LANGUAGE=en-US,en;q=0.9 cgi-fcgi -bind -connect 127.0.0.1:9000 /tmp/test.php || log_warning "PHP-FPM direct test failed"
+    
     # Start PHP-FPM in background
     log_info "Starting PHP-FPM"
-    php-fpm -D
-
-    # Start nginx in background
+    php-fpm -D || log_error "Failed to start PHP-FPM"
+    
+    # Debug: Check if PHP-FPM started
+    sleep 2
+    if pgrep php-fpm > /dev/null; then
+        log_success "PHP-FPM started successfully"
+    else
+        log_error "PHP-FPM failed to start"
+        ps aux | grep php-fpm || log_error "No PHP-FPM process found"
+    fi
+    
     log_info "Starting Nginx"
-    nginx
+    nginx || log_error "Failed to start Nginx"
+    
+    # Debug: Check if Nginx started
+    sleep 2
+    if pgrep nginx > /dev/null; then
+        log_success "Nginx started successfully"
+    else
+        log_error "Nginx failed to start"
+        ps aux | grep nginx || log_error "No Nginx process found"
+    fi
 
     # Test aplikasi readiness
     test_application
 
     # Start supervisor untuk manage processes (including Laravel Echo Server)
     log_info "Starting Supervisor dengan WebSocket Support"
-    log_success "Application startup completed successfully!"
     
+    # Debug: Check if supervisor is already running
+    log_info "Debug: Checking supervisor status..."
+    if pgrep supervisord > /dev/null; then
+        log_warning "Supervisor is already running, stopping it first"
+        pkill supervisord || true
+        sleep 3
+    fi
+    
+    # Debug: Check supervisor configuration
+    log_info "Debug: Testing supervisor configuration..."
+    if [ -f "/etc/supervisor/conf.d/supervisord.conf" ]; then
+        log_success "Supervisor config file exists"
+        head -20 /etc/supervisor/conf.d/supervisord.conf
+    else
+        log_error "Supervisor config file not found"
+    fi
+    
+    # Start supervisor in foreground untuk keep container running
+    log_success "Application startup completed successfully!"
     log_info "Services Status:"
     log_info "- PHP-FPM: Running"
-    log_info "- Nginx: Running" 
+    log_info "- Nginx: Running"
     log_info "- Laravel Echo Server: Will start via Supervisor"
     log_info "- Queue Workers: Will start via Supervisor"
     log_info "- Database: $DB_HOST:$DB_PORT"
     log_info "- Redis: $REDIS_HOST:$REDIS_PORT"
     log_info "- WebSocket: http://localhost:6002"
-
-    # Start supervisor in foreground untuk keep container running
-    exec /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf -n
+    
+    # Start supervisor dengan delay untuk memastikan semua service siap
+    sleep 5
+    exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
 }
 
 # Trap untuk cleanup jika script di-interrupt
