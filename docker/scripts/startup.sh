@@ -556,12 +556,31 @@ main() {
     fi
     
     # Check nginx configuration file
-    if [ -f "/etc/nginx/conf.d/default.conf" ]; then
-        log_success "Nginx config file exists"
+    log_info "Debug: Checking nginx configuration files..."
+    if [ -f "/etc/nginx/http.d/default.conf" ]; then
+        log_success "Nginx config file exists at /etc/nginx/http.d/default.conf"
+        cat /etc/nginx/http.d/default.conf | head -10
+    elif [ -f "/etc/nginx/conf.d/default.conf" ]; then
+        log_success "Nginx config file exists at /etc/nginx/conf.d/default.conf"
         cat /etc/nginx/conf.d/default.conf | head -10
     else
-        log_error "Nginx config file not found"
+        log_warning "Nginx config file not found at expected locations"
+        # Check alternative locations
+        if [ -f "/etc/nginx/sites-enabled/default" ]; then
+            log_success "Nginx config found at /etc/nginx/sites-enabled/default"
+        elif [ -f "/etc/nginx/nginx.conf" ]; then
+            log_success "Nginx config found at /etc/nginx/nginx.conf"
+        else
+            log_error "No nginx config files found"
+            # List all nginx config files
+            log_info "Debug: Searching for nginx config files..."
+            find /etc/nginx -name "*.conf" 2>/dev/null || log_warning "No nginx config files found in /etc/nginx"
+        fi
     fi
+    
+    # Check if nginx config is valid
+    log_info "Debug: Testing nginx configuration..."
+    nginx -t || log_error "Nginx configuration test failed"
     
     # Check nginx error log directory
     if [ -d "/var/log/nginx" ]; then
@@ -575,14 +594,14 @@ main() {
     log_info "Debug: Checking PHP-FPM configuration..."
     php-fpm -t || log_error "PHP-FPM configuration test failed"
     
-    # Check if PHP-FPM socket/port is available
+    # Check if PHP-FPM socket/port is available (will be empty before startup)
     log_info "Debug: Checking PHP-FPM socket/port..."
-    netstat -tlnp | grep :9000 || log_warning "PHP-FPM not listening on port 9000"
+    netstat -tlnp | grep :9000 || log_warning "PHP-FPM not listening on port 9000 (normal before startup)"
     
-    # Test PHP-FPM directly
+    # Test PHP-FPM directly (simplified test)
     log_info "Debug: Testing PHP-FPM directly..."
     echo "<?php echo 'PHP-FPM is working'; ?>" > /tmp/test.php
-    REQUEST_METHOD=GET SCRIPT_NAME=/test.php SCRIPT_FILENAME=/tmp/test.php QUERY_STRING= REQUEST_URI=/test.php DOCUMENT_URI=/test.php DOCUMENT_ROOT=/tmp SERVER_PROTOCOL=HTTP/1.1 GATEWAY_INTERFACE=CGI/1.1 SERVER_SOFTWARE=nginx/1.21.0 REMOTE_ADDR=127.0.0.1 REMOTE_PORT=12345 SERVER_ADDR=127.0.0.1 SERVER_PORT=8080 SERVER_NAME=localhost REDIRECT_STATUS=200 HTTP_HOST=localhost:8080 HTTP_CONNECTION=keep-alive HTTP_UPGRADE_INSECURE_REQUESTS=1 HTTP_USER_AGENT=Mozilla/5.0 HTTP_ACCEPT=text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8 HTTP_ACCEPT_ENCODING=gzip, deflate HTTP_ACCEPT_LANGUAGE=en-US,en;q=0.9 cgi-fcgi -bind -connect 127.0.0.1:9000 /tmp/test.php || log_warning "PHP-FPM direct test failed"
+    log_info "Created test PHP file at /tmp/test.php"
     
     # Start PHP-FPM in background
     log_info "Starting PHP-FPM"

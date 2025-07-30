@@ -120,11 +120,12 @@ fi
 
 ## 🔧 **Files yang Diperbaiki**
 
-### **1. `docker/nginx/default.conf`**
+### **1. `docker/nginx/dokploy.conf`**
 - ✅ **Changed port** - Dari 80 ke 8080
 - ✅ **Updated fastcgi_pass** - Dari app:9000 ke 127.0.0.1:9000
 - ✅ **Simplified configuration** - Removed complex rate limiting
 - ✅ **Added debug endpoint** - `/debug` untuk testing nginx
+- ✅ **Updated WebSocket proxy** - Dari port 6001 ke 6002
 
 ### **2. `docker/scripts/startup.sh`**
 - ✅ **Enhanced process cleanup** - Check dan kill port 8080 dan 6002 processes
@@ -145,6 +146,12 @@ fi
 - ✅ **Fixed keyPrefix issue** - Proper Redis config structure
 - ✅ **Changed host** - Dari 0.0.0.0 ke localhost untuk security
 - ✅ **Updated ports** - authHost ke 8080, port ke 6002
+
+### **5. `Dockerfile.dokploy`**
+- ✅ **Updated expose ports** - Dari 80/6001 ke 8080/6002
+- ✅ **Updated health check** - Menggunakan port 8080/6002
+- ✅ **Updated Laravel Echo Server config** - Menggunakan localhost dan port 6002
+- ✅ **Fixed nginx config path** - Menggunakan dokploy.conf yang benar
 
 ---
 

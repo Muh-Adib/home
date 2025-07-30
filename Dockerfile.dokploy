@@ -146,7 +146,7 @@ COPY docker/php/dokploy.ini /usr/local/etc/php/conf.d/custom.ini
 
 # Create production Laravel Echo Server configuration
 RUN echo '{ \
-    "authHost": "http://localhost", \
+    "authHost": "http://localhost:8080", \
     "authEndpoint": "/broadcasting/auth", \
     "clients": [{ \
         "appId": "homeapp", \
@@ -159,8 +159,8 @@ RUN echo '{ \
         } \
     }, \
     "devMode": false, \
-    "host": null, \
-    "port": "6001", \
+    "host": "localhost", \
+    "port": 6002, \
     "protocol": "http", \
     "socketio": { \
         "transports": ["websocket", "polling"], \
@@ -206,11 +206,11 @@ COPY docker/scripts/startup.sh /usr/local/bin/startup.sh
 RUN chmod +x /usr/local/bin/startup.sh
 
 # Expose HTTP dan WebSocket ports
-EXPOSE 80 6001
+EXPOSE 8080 6002
 
 # Health check yang comprehensive
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost/health && curl -f http://localhost:6001/socket.io/ || exit 1
+    CMD curl -f http://localhost:8080/health && curl -f http://localhost:6002/socket.io/ || exit 1
 
 # Start dengan startup script yang akan handle migrations dan services
 CMD ["/usr/local/bin/startup.sh"]
