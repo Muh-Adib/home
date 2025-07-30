@@ -67,7 +67,9 @@ RUN apk add --no-cache \
     pcre-dev \
     nodejs \
     npm \
-    sqlite
+    sqlite \
+    sqlite-dev \
+    pkgconfig
 
 # Install PHP extensions yang diperlukan
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
@@ -90,7 +92,7 @@ RUN pecl install redis && \
     php -m | grep redis
 
 # Clean up build tools
-RUN apk del autoconf g++ make pcre-dev postgresql-dev
+RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
