@@ -16,7 +16,6 @@
         "php82Packages.opcache",
         "nodejs_20",
         "nginx",
-        "redis",
         "supervisor",
         "curl",
         "netcat",
