@@ -153,6 +153,81 @@ setup_echo_server() {
     chown www:www "$ECHO_CONFIG"
     chmod 644 "$ECHO_CONFIG"
     
+    # Fix Redis configuration untuk Laravel Echo Server
+    log_info "Fixing Laravel Echo Server Redis configuration..."
+    
+    # Update Redis config dengan proper format
+    cat > "$ECHO_CONFIG" << 'EOF'
+{
+    "authHost": "http://localhost:80",
+    "authEndpoint": "/broadcasting/auth",
+    "clients": [
+        {
+            "appId": "homsjogja",
+            "key": "homsjogja_websocket_key"
+        }
+    ],
+    "database": "redis",
+    "databaseConfig": {
+        "redis": {
+            "host": "homsjogja-redis-qmihbb",
+            "port": 6379,
+            "password": "5vlcwpzc45g9mtho",
+            "keyPrefix": "laravel_database_",
+            "db": 0
+        }
+    },
+    "devMode": false,
+    "host": "localhost",
+    "port": 6001,
+    "protocol": "http",
+    "socketio": {
+        "transports": ["websocket", "polling"],
+        "allowEIO3": true,
+        "cors": {
+            "origin": "*",
+            "methods": ["GET", "POST"],
+            "credentials": true
+        },
+        "pingTimeout": 60000,
+        "pingInterval": 25000,
+        "maxHttpBufferSize": 1048576,
+        "allowUpgrades": true,
+        "upgradeTimeout": 30000,
+        "compression": true,
+        "httpCompression": true,
+        "cookie": {
+            "name": "laravel_echo_server",
+            "httpOnly": true,
+            "secure": false,
+            "sameSite": "lax"
+        }
+    },
+    "sslCertPath": "",
+    "sslKeyPath": "",
+    "sslCertChainPath": "",
+    "sslPassphrase": "",
+    "apiOriginAllow": {
+        "allowCors": true,
+        "allowOrigin": "*",
+        "allowMethods": "GET,POST,PUT,DELETE,OPTIONS",
+        "allowHeaders": "Origin,Content-Type,X-Auth-Token,X-Requested-With,Accept,Authorization,X-CSRF-TOKEN,X-Socket-Id,Cookie"
+    },
+    "referrers": [],
+    "subscribers": {
+        "http": true,
+        "redis": true
+    }
+}
+EOF
+    
+    # Update authHost jika APP_URL tersedia
+    if [ -n "${APP_URL:-}" ]; then
+        AUTH_HOST=$(echo "$APP_URL" | sed 's|/$||')
+        sed -i "s|\"authHost\": \".*\"|\"authHost\": \"${AUTH_HOST}\"|" "$ECHO_CONFIG"
+        log_info "Laravel Echo Server authHost updated to: $AUTH_HOST"
+    fi
+    
     log_success "Laravel Echo Server configured"
 }
 
@@ -160,9 +235,14 @@ setup_echo_server() {
 setup_queue() {
     log_info "Setting up queue tables..."
     
-    # Create Laravel required job tables untuk queue jika belum ada
-    php artisan queue:table --create || log_warning "Queue table already exists or creation failed"
-    php artisan migrate --force || log_warning "Queue migration failed"
+    # Check if queue table exists, if not create it
+    if ! php artisan migrate:status | grep -q "jobs"; then
+        log_info "Creating jobs table..."
+        php artisan make:migration create_jobs_table --create=jobs || log_warning "Jobs migration already exists"
+        php artisan migrate --force || log_warning "Jobs migration failed"
+    else
+        log_info "Jobs table already exists"
+    fi
     
     log_success "Queue setup completed"
 }
@@ -211,6 +291,13 @@ cleanup_existing_processes() {
     pkill -f laravel-echo-server || true
     sleep 2
     
+    # Check if port 80 is still in use
+    if netstat -tlnp 2>/dev/null | grep -q ":80 "; then
+        log_warning "Port 80 is still in use, trying to kill process"
+        fuser -k 80/tcp || true
+        sleep 3
+    fi
+    
     log_success "Process cleanup completed"
 }
 
@@ -234,6 +321,11 @@ setup_logs() {
     # Set permissions untuk log files
     chown www:www /var/log/supervisor/*.log
     chmod 644 /var/log/supervisor/*.log
+    
+    # Create PHP-FPM log directory
+    mkdir -p /var/log/php-fpm
+    chown www:www /var/log/php-fpm
+    chmod 755 /var/log/php-fpm
     
     log_success "Log directories setup completed"
 }
