@@ -14,19 +14,29 @@ nginx: [emerg] bind() to 0.0.0.0:80 failed (98: Address in use)
 ```
 **SOLUSI**: Changed port dari 80 ke 8080
 
-### **2. PHP-FPM Permission Error (Masih Terjadi)**
+### **2. Application Not Starting (NEW ISSUE)**
+```
+[INFO] Waiting for application to be ready... (attempt 1/30)
+[INFO] Waiting for application to be ready... (attempt 2/30)
+...
+[INFO] Waiting for application to be ready... (attempt 30/30)
+Application failed to start within 30 seconds
+```
+**SOLUSI**: Added comprehensive debug logging
+
+### **3. PHP-FPM Permission Error (Masih Terjadi)**
 ```
 [30-Jul-2025 10:02:56] ERROR: failed to open error_log (/proc/self/fd/2): Permission denied (13)
 [30-Jul-2025 10:02:56] ERROR: failed to post process the configuration
 [30-Jul-2025 10:02:56] ERROR: FPM initialization failed
 ```
 
-### **3. Laravel Echo Server Redis Config Error**
+### **4. Laravel Echo Server Redis Config Error**
 ```
 TypeError: Cannot read properties of undefined (reading 'keyPrefix')
 ```
 
-### **4. Queue Table Command Error**
+### **5. Queue Table Command Error**
 ```
 The "--create" option does not exist.
 ```
@@ -43,7 +53,17 @@ The "--create" option does not exist.
 - authHost: http://localhost:80 → http://localhost:8080
 ```
 
-### **2. Enhanced Process Cleanup**
+### **2. Enhanced Debug Logging**
+```bash
+# Added comprehensive debug untuk startup issues
+- Process status checking
+- Port usage verification
+- Configuration file validation
+- Log file analysis
+- Direct service testing
+```
+
+### **3. Enhanced Process Cleanup**
 ```bash
 # Added port 8080 dan 6002 check dan kill
 if netstat -tlnp 2>/dev/null | grep -q ":8080 "; then
@@ -59,14 +79,14 @@ if netstat -tlnp 2>/dev/null | grep -q ":6002 "; then
 fi
 ```
 
-### **3. PHP-FPM User Fix**
+### **4. PHP-FPM User Fix**
 ```ini
 # Changed PHP-FPM user dari www ke root
 [program:php-fpm]
 user=root
 ```
 
-### **4. Laravel Echo Server Redis Config Fix**
+### **5. Laravel Echo Server Redis Config Fix**
 ```json
 {
     "databaseConfig": {
@@ -84,7 +104,7 @@ user=root
 }
 ```
 
-### **5. Queue Table Setup Fix**
+### **6. Queue Table Setup Fix**
 ```bash
 # Check if queue table exists, if not create it
 if ! php artisan migrate:status | grep -q "jobs"; then
@@ -104,6 +124,7 @@ fi
 - ✅ **Changed port** - Dari 80 ke 8080
 - ✅ **Updated fastcgi_pass** - Dari app:9000 ke 127.0.0.1:9000
 - ✅ **Simplified configuration** - Removed complex rate limiting
+- ✅ **Added debug endpoint** - `/debug` untuk testing nginx
 
 ### **2. `docker/scripts/startup.sh`**
 - ✅ **Enhanced process cleanup** - Check dan kill port 8080 dan 6002 processes
@@ -111,6 +132,8 @@ fi
 - ✅ **Fixed queue table setup** - Proper migration check dan creation
 - ✅ **Enhanced log directory setup** - PHP-FPM log directory creation
 - ✅ **Updated health check** - Menggunakan port 8080
+- ✅ **Added comprehensive debug** - Process, port, config, log checking
+- ✅ **Enhanced service startup** - Better error handling dan verification
 
 ### **3. `docker/supervisor/supervisord.conf`**
 - ✅ **Fixed PHP-FPM user** - Changed dari www ke root untuk permission
@@ -144,7 +167,37 @@ server {
 }
 ```
 
-### **2. Enhanced Process Cleanup**
+### **2. Enhanced Debug Logging**
+```bash
+test_application() {
+    # Debug: Check if nginx is running
+    log_info "Debug: Checking nginx process..."
+    ps aux | grep nginx || log_warning "No nginx process found"
+    
+    # Debug: Check if php-fpm is running
+    log_info "Debug: Checking php-fpm process..."
+    ps aux | grep php-fpm || log_warning "No php-fpm process found"
+    
+    # Debug: Check port usage
+    log_info "Debug: Checking port usage..."
+    netstat -tlnp | grep :8080 || log_warning "Port 8080 not in use"
+    netstat -tlnp | grep :9000 || log_warning "Port 9000 not in use"
+    
+    # Debug: Check nginx configuration
+    log_info "Debug: Testing nginx configuration..."
+    nginx -t || log_error "Nginx configuration test failed"
+    
+    # Debug: Check nginx error log
+    log_info "Debug: Checking nginx error log..."
+    if [ -f /var/log/nginx/error.log ]; then
+        tail -10 /var/log/nginx/error.log
+    else
+        log_warning "Nginx error log not found"
+    fi
+}
+```
+
+### **3. Enhanced Process Cleanup**
 ```bash
 cleanup_existing_processes() {
     # Kill existing processes
@@ -168,7 +221,7 @@ cleanup_existing_processes() {
 }
 ```
 
-### **3. Laravel Echo Server Config Fix**
+### **4. Laravel Echo Server Config Fix**
 ```bash
 # Fix Redis configuration untuk Laravel Echo Server
 cat > "$ECHO_CONFIG" << 'EOF'
@@ -189,7 +242,7 @@ cat > "$ECHO_CONFIG" << 'EOF'
 EOF
 ```
 
-### **4. Queue Table Setup Fix**
+### **5. Queue Table Setup Fix**
 ```bash
 setup_queue() {
     # Check if queue table exists, if not create it
@@ -203,7 +256,7 @@ setup_queue() {
 }
 ```
 
-### **5. Enhanced Log Directory Setup**
+### **6. Enhanced Log Directory Setup**
 ```bash
 setup_logs() {
     # Create PHP-FPM log directory
@@ -251,6 +304,22 @@ php artisan migrate:status
 
 # Check if jobs table exists
 php artisan tinker --execute="echo Schema::hasTable('jobs') ? 'Jobs table exists' : 'Jobs table not found';"
+```
+
+### **4. Debug Application**
+```bash
+# Test nginx directly
+curl -v http://localhost:8080/debug
+
+# Test health endpoint
+curl -v http://localhost:8080/health
+
+# Check nginx logs
+tail -f /var/log/nginx/error.log
+tail -f /var/log/nginx/access.log
+
+# Check PHP-FPM logs
+tail -f /var/log/php-fpm/error.log
 ```
 
 ---
@@ -315,6 +384,27 @@ php artisan make:migration create_jobs_table --create=jobs
 php artisan migrate --force
 ```
 
+#### **6. Application Not Starting**
+```bash
+# Check nginx configuration
+nginx -t
+
+# Check nginx error logs
+tail -f /var/log/nginx/error.log
+
+# Check PHP-FPM configuration
+php-fpm -t
+
+# Check PHP-FPM logs
+tail -f /var/log/php-fpm/error.log
+
+# Test nginx directly
+curl -v http://localhost:8080/debug
+
+# Test PHP-FPM directly
+cgi-fcgi -bind -connect 127.0.0.1:9000 /tmp/test.php
+```
+
 ---
 
 ## 📋 **Configuration Details**
@@ -353,6 +443,19 @@ server {
     listen 8080;  // Changed dari 80
     server_name localhost;
     root /var/www/html/public;
+    
+    # Debug endpoint
+    location /debug {
+        return 200 "Nginx is working on port 8080\n";
+        add_header Content-Type text/plain;
+    }
+    
+    # Health check endpoint
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
     
     location / {
         try_files $uri $uri/ /index.php?$query_string;
@@ -406,6 +509,7 @@ cleanup_existing_processes() {
 - ✅ **Supervisor programs running** - All services started
 - ✅ **Security improved** - localhost instead of 0.0.0.0
 - ✅ **Port conflicts resolved** - Using 8080/6002 instead of 80/6001
+- ✅ **Debug logging enabled** - Comprehensive startup debugging
 
 ---
 
@@ -424,6 +528,10 @@ NGINX_LOG_LEVEL=error
 # Port configuration
 NGINX_PORT=8080
 ECHO_SERVER_PORT=6002
+
+# Debug configuration
+DEBUG_MODE=true
+LOG_LEVEL=debug
 ```
 
 ### **2. Process Management**
@@ -456,6 +564,10 @@ ps aux | grep laravel-echo-server
 # Check file permissions
 ls -la /var/log/php-fpm/
 ls -la /var/www/html/laravel-echo-server.dokploy.json
+
+# Test endpoints
+curl -v http://localhost:8080/debug
+curl -v http://localhost:8080/health
 ```
 
 ---
@@ -500,6 +612,10 @@ php-fpm -t
 
 # Test Nginx config
 nginx -t
+
+# Debug application
+curl -v http://localhost:8080/debug
+curl -v http://localhost:8080/health
 ```
 
 ---
@@ -514,7 +630,8 @@ Error startup telah diperbaiki dengan:
 - ✅ **Fixed queue table setup** - Proper migration handling
 - ✅ **Enhanced error handling** - Better logging dan debugging
 - ✅ **Security improvement** - localhost instead of 0.0.0.0
+- ✅ **Comprehensive debug logging** - Detailed startup debugging
 
 **📅 Last Updated**: 2025  
-**🔄 Version**: 2.3  
+**🔄 Version**: 2.4  
 **👤 Maintained By**: Development Team 
