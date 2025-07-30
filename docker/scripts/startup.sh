@@ -95,27 +95,10 @@ setup_logs() {
 # Cleanup existing processes
 cleanup_existing_processes() {
     log_info "Cleaning up existing processes..."
-    
-    # Kill existing processes
-    pkill -f nginx || true
-    pkill -f php-fpm || true
-    pkill -f laravel-echo-server || true
-    pkill -f supervisord || true
-    
-    # Check if port 8080 is still in use
-    if netstat -tlnp 2>/dev/null | grep -q ":8080 "; then
-        log_warning "Port 8080 is still in use, trying to kill process"
-        fuser -k 8080/tcp || true
-        sleep 3
-    fi
-    
-    # Check if port 6002 is still in use
-    if netstat -tlnp 2>/dev/null | grep -q ":6002 "; then
-        log_warning "Port 6002 is still in use, trying to kill process"
-        fuser -k 6002/tcp || true
-        sleep 3
-    fi
-    
+    # Kill existing processes lebih keras
+    pkill -9 nginx || true
+    pkill -9 php-fpm || true
+    sleep 2
     log_success "Process cleanup completed"
 }
 
@@ -396,14 +379,6 @@ set_final_permissions() {
     # Check PHP-FPM configuration
     log_info "Debug: Checking PHP-FPM configuration..."
     php-fpm -t || log_error "PHP-FPM configuration test failed"
-    
-    # Check PHP-FPM socket/port
-    log_info "Debug: Checking PHP-FPM socket/port..."
-    if netstat -tlnp 2>/dev/null | grep -q ":9000"; then
-        log_warning "PHP-FPM already listening on port 9000"
-    else
-        log_warning "PHP-FPM not listening on port 9000 (normal before startup)"
-    fi
     
     # Check supervisor configuration
     log_info "Debug: Testing supervisor configuration..."
