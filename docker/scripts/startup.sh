@@ -159,7 +159,7 @@ setup_echo_server() {
     # Update Redis config dengan proper format
     cat > "$ECHO_CONFIG" << 'EOF'
 {
-    "authHost": "http://localhost:80",
+    "authHost": "http://localhost:8080",
     "authEndpoint": "/broadcasting/auth",
     "clients": [
         {
@@ -179,7 +179,7 @@ setup_echo_server() {
     },
     "devMode": false,
     "host": "localhost",
-    "port": 6001,
+    "port": 6002,
     "protocol": "http",
     "socketio": {
         "transports": ["websocket", "polling"],
@@ -264,15 +264,23 @@ optimize_production() {
 test_application() {
     log_info "Testing application readiness..."
     
-    sleep 5
+    # Wait for nginx to start
+    local max_attempts=30
+    local attempt=1
     
-    if curl -f http://localhost/health >/dev/null 2>&1; then
-        log_success "Application is ready to serve requests"
-        return 0
-    else
-        log_warning "Application health check failed, but continuing startup"
-        return 1
-    fi
+    while [ $attempt -le $max_attempts ]; do
+        if curl -f -s http://localhost:8080/health > /dev/null 2>&1; then
+            log_success "Application is ready to serve requests"
+            return 0
+        fi
+        
+        log_info "Waiting for application to be ready... (attempt $attempt/$max_attempts)"
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+    
+    log_error "Application failed to start within $max_attempts seconds"
+    return 1
 }
 
 # Function untuk check dan kill existing processes
@@ -291,10 +299,17 @@ cleanup_existing_processes() {
     pkill -f laravel-echo-server || true
     sleep 2
     
-    # Check if port 80 is still in use
-    if netstat -tlnp 2>/dev/null | grep -q ":80 "; then
-        log_warning "Port 80 is still in use, trying to kill process"
-        fuser -k 80/tcp || true
+    # Check if port 8080 is still in use
+    if netstat -tlnp 2>/dev/null | grep -q ":8080 "; then
+        log_warning "Port 8080 is still in use, trying to kill process"
+        fuser -k 8080/tcp || true
+        sleep 3
+    fi
+    
+    # Check if port 6002 is still in use
+    if netstat -tlnp 2>/dev/null | grep -q ":6002 "; then
+        log_warning "Port 6002 is still in use, trying to kill process"
+        fuser -k 6002/tcp || true
         sleep 3
     fi
     
@@ -482,7 +497,7 @@ main() {
     log_info "- Queue Workers: Will start via Supervisor"
     log_info "- Database: $DB_HOST:$DB_PORT"
     log_info "- Redis: $REDIS_HOST:$REDIS_PORT"
-    log_info "- WebSocket: http://localhost:6001"
+    log_info "- WebSocket: http://localhost:6002"
 
     # Start supervisor in foreground untuk keep container running
     exec /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf -n

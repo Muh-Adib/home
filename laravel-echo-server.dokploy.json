@@ -1,5 +1,5 @@
 {
-    "authHost": "http://localhost:80",
+    "authHost": "http://localhost:8080",
     "authEndpoint": "/broadcasting/auth",
     "clients": [
         {
@@ -19,7 +19,7 @@
     },
     "devMode": false,
     "host": "localhost",
-    "port": 6001,
+    "port": 6002,
     "protocol": "http",
     "socketio": {
         "transports": ["websocket", "polling"],
