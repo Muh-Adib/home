@@ -119,10 +119,11 @@ class BookingCreatedNotification extends Notification implements ShouldQueue
      */
     public function broadcastOn(): array
     {
-        // Return generic admin channel since we don't have access to $notifiable here
-        // The actual filtering will be done by the broadcasting system
+        // Return channels for admin and staff notifications
         return [
             new \Illuminate\Broadcasting\Channel('admin-notifications'),
+            new \Illuminate\Broadcasting\Channel('staff-notifications'),
+            new \Illuminate\Broadcasting\PrivateChannel('user.' . $this->createdBy->id),
         ];
     }
 

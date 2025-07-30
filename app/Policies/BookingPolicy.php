@@ -36,6 +36,11 @@ class BookingPolicy
             return $booking->property->owner_id === $user->id;
         }
 
+        // user guest hanya dapat melihat booking mereka sendiri
+        if ($user->role === 'guest') {
+            return $booking->guest_email === $user->email;
+        }
+
         // Staff dapat melihat semua booking
         return in_array($user->role, [
             'property_manager', 
@@ -123,6 +128,7 @@ class BookingPolicy
         if ($user->role === 'property_owner') {
             return $booking->property->owner_id === $user->id;
         }
+        
 
         // Manager dan front desk dapat checkin
         return in_array($user->role, [
@@ -155,6 +161,28 @@ class BookingPolicy
     }
 
     /**
+     * Determine whether the user can reject bookings.
+     */
+    public function reject(User $user, Booking $booking): bool
+    {
+        // Super admin dapat reject semua
+        if ($user->role === 'super_admin') {
+            return true;
+        }
+
+        // Property owner hanya dapat reject booking properti mereka
+        if ($user->role === 'property_owner') {
+            return $booking->property->owner_id === $user->id;
+        }
+
+        // Manager dan front desk dapat reject
+        return in_array($user->role, [
+            'property_manager', 
+            'front_desk'
+        ]);
+    }
+
+    /**
      * Determine whether the user can cancel bookings.
      */
     public function cancel(User $user, Booking $booking): bool
@@ -169,8 +197,11 @@ class BookingPolicy
             return $booking->property->owner_id === $user->id;
         }
 
-        // Hanya manager yang dapat cancel booking
-        return $user->role === 'property_manager';
+        // Manager dan front desk dapat cancel booking
+        return in_array($user->role, [
+            'property_manager', 
+            'front_desk'
+        ]);
     }
 
     /**

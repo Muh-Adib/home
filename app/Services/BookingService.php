@@ -30,54 +30,87 @@ class BookingService
      */
     public function createBooking(BookingRequest $request, ?User $user = null): Booking
     {
-        // Use database transaction with row-level locking to prevent race conditions
         return DB::transaction(function () use ($request, $user) {
-            // Lock the property row to prevent concurrent modifications and fetch it only once
             $property = Property::lockForUpdate()->findOrFail($request->propertyId);
-            
-            // Validate property availability within transaction
+
             if (!$this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate)) {
                 throw new \Exception('Property tidak tersedia untuk tanggal yang dipilih.');
             }
 
-            // Calculate rate
+            // ✅ FIX: Handle null user properly
+            $userId = $user?->id;
+            if (!$userId) {
+                throw new \InvalidArgumentException('User is required for booking creation');
+            }
+
             $rateCalculation = $this->rateCalculationService->calculateRate(
                 $property,
                 $request->checkInDate,
                 $request->checkOutDate,
                 $request->guestCount
             );
-            // ada perbedaan antara model booking dengan model bookingrequest 
-            // ratecalcualtian tidak ada di model booking
-            // Create booking data array
-            $bookingData = [
-                'property_id' => $property->id,
-                'user_id' => $user?->id,
-                'guest_name' => $request->guestName,
-                'guest_email' => $request->guestEmail,
-                'guest_phone' => $request->guestPhone,
-                'check_in_date' => $request->checkInDate,
-                'check_out_date' => $request->checkOutDate,
-                'check_in_time' => $request->checkInTime,
-                'guest_count_adults' => $request->guestCount,
-                'guest_count_children' => 0, // Assuming no children for now
-                'special_requests' => $request->specialRequests ?? '',
-                'booking_status' => 'pending_verification',
-                'total_amount' => $rateCalculation->totalAmount,
-                'payment_status' => 'pending',
-                'rate_calculation' => $rateCalculation->toArray(),
-            ];
+            $request->setRateCalculation($rateCalculation->toArray());
+            $request->setTotalAmount($rateCalculation->totalAmount);
 
-            $bookingData = BookingRequest::fromArray($bookingData);
+            $booking = $this->bookingRepository->create($request, $property, $userId);
 
-            // Create booking using repository
-            $booking = $this->bookingRepository->create($bookingData);
+            // Insert ke booking_daily_revenue jika payment_status sudah 'paid'
+            if ($booking->payment_status === 'paid') {
+                $this->insertDailyRevenue($booking);
+            }
 
-            // Dispatch booking created event
-            event(new BookingCreated($booking));
+            event(new BookingCreated($booking, $user));
+            return $booking;
+        });
+    }
+
+    public function updateBooking(Booking $booking, BookingRequest $request): Booking
+    {
+        return DB::transaction(function () use ($booking, $request) {
+            $property = Property::lockForUpdate()->findOrFail($request->propertyId);
+
+            if (!$this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate)) {
+                throw new \Exception('Property tidak tersedia untuk tanggal yang dipilih.');
+            }
+
+            $rateCalculation = $this->rateCalculationService->calculateRate(
+                $property,
+                $request->checkInDate,
+                $request->checkOutDate,
+                $request->guestCount
+            );
+            $request->setRateCalculation($rateCalculation->toArray());
+            $request->setTotalAmount($rateCalculation->totalAmount);
+
+            $booking = $this->bookingRepository->update($booking, $request, $property);
+
+            // Hapus dan insert ulang daily revenue jika payment_status sudah 'paid'
+            \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+            if ($booking->payment_status === 'paid') {
+                $this->insertDailyRevenue($booking);
+            }
 
             return $booking;
         });
+    }
+
+    private function insertDailyRevenue(Booking $booking): void
+    {
+        $breakdown = $booking->rate_calculation['breakdown']['daily_breakdown'] ?? null;
+        if (!$breakdown) return;
+        foreach ($breakdown as $tanggal => $detail) {
+            if ($tanggal >= $booking->check_out) continue;
+            \App\Models\BookingDailyRevenue::updateOrCreate(
+                [
+                    'booking_id' => $booking->id,
+                    'tanggal' => $tanggal,
+                ],
+                [
+                    'property_id' => $booking->property_id,
+                    'amount' => $detail['final_rate'],
+                ]
+            );
+        }
     }
 
     /**
@@ -89,16 +122,30 @@ class BookingService
      */
     public function createBookingFromArray(Property $property, array $data, ?User $user = null): Booking
     {
-        // Convert array data to BookingRequest object
+        // ✅ FIX: Standardize field names to check_in/check_out
         $request = new BookingRequest(
             propertyId: $property->id,
-            checkInDate: $data['check_in_date'],
-            checkOutDate: $data['check_out_date'],
-            guestCount: $data['guest_count_adults'],
+            checkInDate: $data['check_in'] ?? $data['check_in_date'],
+            checkOutDate: $data['check_out'] ?? $data['check_out_date'],
+            checkInTime: $data['check_in_time'] ?? '15:00',
+            guestCount: $data['guest_count'] ?? $data['guest_count_adults'],
+            guestMale: $data['guest_male'] ?? 1,
+            guestFemale: $data['guest_female'] ?? 1,
+            guestChildren: $data['guest_children'] ?? 0,
             guestName: $data['guest_name'],
             guestEmail: $data['guest_email'],
             guestPhone: $data['guest_phone'],
-            specialRequests: $data['special_requests'] ?? null
+            guestCountry: $data['guest_country'] ?? 'Indonesia',
+            guestIdNumber: $data['guest_id_number'] ?? null,
+            guestGender: $data['guest_gender'] ?? 'male',
+            relationshipType: $data['relationship_type'] ?? 'keluarga',
+            guests: $data['guests'] ?? [],
+            specialRequests: $data['special_requests'] ?? null,
+            internalNotes: $data['internal_notes'] ?? null,
+            bookingStatus: $data['booking_status'] ?? 'pending_verification',
+            paymentStatus: $data['payment_status'] ?? 'dp_pending',
+            dpPercentage: $data['dp_percentage'] ?? 50,
+            autoConfirm: $data['auto_confirm'] ?? false
         );
 
         return $this->createBooking($request, $user);

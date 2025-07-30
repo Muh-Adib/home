@@ -57,8 +57,8 @@ class BookingController extends Controller
         $tomorrow = now()->addDay()->toDateString();
 
         $initialFormData = [
-            'check_in_date' => $checkIn ?? $today,
-            'check_out_date' => $checkOut ?? $tomorrow,
+            'check_in' => $checkIn ?? $today,
+            'check_out' => $checkOut ?? $tomorrow,
             'check_in_time' => '15:00',
             'guest_male' => $guestMale,
             'guest_female' => $guestFemale,
@@ -174,48 +174,77 @@ class BookingController extends Controller
      */
     private function createBookingNormally(Property $property, array $data)
     {
-        
         try {
-            // Ensure required fields are present and transform data for BookingService
-            $bookingData = array_merge($data, [
+            // ✅ FIX: Better field mapping and data preparation
+            $bookingData = [
                 'property_id' => $property->id,
-
-                'check_in_date' => $data['check_in_date'] ?? session('booking_data.check_in'),
-                'check_out_date' => $data['check_out_date'] ?? session('booking_data.check_out'),
+                
+                // ✅ FIX: Handle different date field names
+                'check_in' => $data['check_in'] ?? $data['check_in_date'] ?? session('booking_data.check_in'),
+                'check_out' => $data['check_out'] ?? $data['check_out_date'] ?? session('booking_data.check_out'),
                 'check_in_time' => $data['check_in_time'] ?? '15:00',
 
+                // ✅ FIX: Better guest count calculation
+                'guest_male' => (int)($data['guest_male'] ?? 1),
+                'guest_female' => (int)($data['guest_female'] ?? 1),
+                'guest_children' => (int)($data['guest_children'] ?? 0),
+                'guest_count' => (int)($data['guest_count'] ?? 
+                    ((int)($data['guest_male'] ?? 1) + (int)($data['guest_female'] ?? 1) + (int)($data['guest_children'] ?? 0))),
+                
+                // Guest information
                 'guest_name' => $data['guest_name'] ?? '',
                 'guest_email' => $data['guest_email'] ?? '',
                 'guest_phone' => $data['guest_phone'] ?? '',
                 'guest_country' => $data['guest_country'] ?? 'Indonesia',
                 'guest_id_number' => $data['guest_id_number'] ?? '',
                 'guest_gender' => $data['guest_gender'] ?? 'male',
-                'guest_count' => $data['guest_count'] ?? ($data['guest_male'] + $data['guest_female'] + $data['guest_children']),
-                'guest_male' => $data['guest_male'] ?? 1,
-                'guest_female' => $data['guest_female'] ?? 1,
-                'guest_children' => $data['guest_children'] ?? 0,                
-                'relationship_type' => $data['relationship_type'] ?? 'family',
+                'relationship_type' => $data['relationship_type'] ?? 'keluarga',
                 'guests' => $data['guests'] ?? [],
 
-                
+                // Booking details
                 'special_requests' => $data['special_requests'] ?? '',
-                
-                'dp_percentage' => $data['dp_percentage'] ?? 50,
-            ]);
-            
+                'internal_notes' => $data['internal_notes'] ?? '',
+                'booking_status' => $data['booking_status'] ?? 'pending_verification',
+                'payment_status' => $data['payment_status'] ?? 'dp_pending',
+                'dp_percentage' => (int)($data['dp_percentage'] ?? 50),
+                'auto_confirm' => (bool)($data['auto_confirm'] ?? false),
+            ];
+
+            // ✅ FIX: Validate required fields before proceeding
+            $requiredFields = ['guest_name', 'guest_email', 'guest_phone'];
+            foreach ($requiredFields as $field) {
+                if (empty($bookingData[$field])) {
+                    throw new \InvalidArgumentException("Field '{$field}' is required");
+                }
+            }
 
             // Create or find user if not authenticated
             $user = auth()->user();
             if (!$user) {
                 $user = $this->createOrFindUser($bookingData);
                 
-                // Auto-login the user for better UX
+                // ✅ AUTO LOGIN ENABLED: Auto-login new users immediately
                 auth()->login($user);
+                
+                \Illuminate\Support\Facades\Log::info('New user auto-logged in after booking', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'was_recently_created' => $user->wasRecentlyCreated,
+                ]);
             }
             
-            // Create booking using service with correct signature
-            $bookingRequest = BookingRequest::fromArray($bookingData);
-            $booking = $this->bookingService->createBooking( $bookingRequest, $user);
+            // ✅ FIX: Create booking using service with proper error handling
+            try {
+                $bookingRequest = BookingRequest::fromArray($bookingData);
+                $booking = $this->bookingService->createBooking($bookingRequest, $user);
+            } catch (\InvalidArgumentException $e) {
+                Log::error('BookingRequest validation failed', [
+                    'error' => $e->getMessage(),
+                    'data' => $bookingData,
+                    'user_id' => $user->id ?? null,
+                ]);
+                throw new \Exception('Invalid booking data: ' . $e->getMessage());
+            }
             
             // Clear session data
             session()->forget(['booking_data', 'pending_booking_data']);
@@ -228,6 +257,7 @@ class BookingController extends Controller
                 'user_id' => auth()->id(),
                 'property_id' => $property->id,
                 'property_slug' => $property->slug,
+                'data' => $data,
             ]);
 
             throw $e;
@@ -250,7 +280,7 @@ class BookingController extends Controller
             return $user;
         }
 
-        // Create new user with proper password
+        // ✅ AUTO LOGIN ENABLED: Create new user with auto login
         $password = \Illuminate\Support\Str::random(12); // Generate secure random password
         
         $user = \App\Models\User::create([
@@ -260,9 +290,10 @@ class BookingController extends Controller
             'password' => \Illuminate\Support\Facades\Hash::make($password),
             'role' => 'guest',
             'status' => 'active',
+            'email_verified_at' => now(), // Auto verify for immediate login
         ]);
 
-        // Send welcome email with password
+        // ✅ AUTO LOGIN: Send welcome email with password
         try {
             $user->notify(new \App\Notifications\GuestWelcomeNotification($password));
         } catch (\Exception $e) {
@@ -297,14 +328,43 @@ class BookingController extends Controller
      * Route: GET /my-bookings
      * User is automatically resolved by Laravel's route model binding
      */
-    public function myBookings(): Response
+    public function myBookings(Request $request): Response
     {
-        $bookings = $this->bookingService->getUserBookings(auth()->user());
+        $user = auth()->user();
+        
+        // ✅ FIX: Add pagination and filtering support
+        $query = Booking::where('guest_email', $user->email)
+            ->with(['property', 'payments']);
+        
+        // Search filter
+        if ($request->filled('search')) {
+            $search = $request->get('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('booking_number', 'like', "%{$search}%")
+                  ->orWhere('guest_name', 'like', "%{$search}%");
+            });
+        }
 
+        // Status filter
+        if ($request->filled('status')) {
+            $query->where('booking_status', $request->get('status'));
+        }
+
+        // Payment status filter
+        if ($request->filled('payment_status')) {
+            $query->where('payment_status', $request->get('payment_status'));
+        }
+
+        // ✅ FIX: Return paginated results like frontend expects
+        $bookings = $query->orderBy('created_at', 'desc')->paginate(10);
+        
         return Inertia::render('Guest/MyBookings', [
             'bookings' => $bookings,
+            'filters' => $request->only(['search', 'status', 'payment_status']),
         ]);
     }
+
+
 
     /**
      * Calculate rate (API)

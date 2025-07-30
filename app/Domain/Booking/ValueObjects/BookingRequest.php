@@ -6,6 +6,9 @@ use Carbon\Carbon;
 
 class BookingRequest
 {
+    public array $rateCalculation = [];
+    public float $totalAmount = 0;
+
     public function __construct(
         // Property Information
         public readonly int $propertyId,
@@ -29,7 +32,6 @@ class BookingRequest
         public readonly string $relationshipType,
         public readonly ?array $guests = [],
 
-        
         // Booking Details
         public readonly ?string $specialRequests,
         public readonly ?string $internalNotes,
@@ -62,8 +64,8 @@ class BookingRequest
             'property_id' => $this->propertyId,
             
             // Dates and Times
-            'check_in_date' => $this->checkInDate,
-            'check_out_date' => $this->checkOutDate,
+            'check_in' => $this->checkInDate,
+            'check_out' => $this->checkOutDate,
             'check_in_time' => $this->checkInTime,
             
             // Guest Information
@@ -92,36 +94,78 @@ class BookingRequest
 
     public static function fromArray(array $data): self
     {
-        return new self(
-            // Property Information
-            propertyId: $data['property_id'],
-            
-            // Dates and Times
-            checkInDate: $data['check_in_date'],
-            checkOutDate: $data['check_out_date'],
-            checkInTime: $data['check_in_time'],
-            
-            // Guest Information
-            guestCount: $data['guest_count'] ?? ($data['guest_male'] + $data['guest_female'] + $data['guest_children']),
-            guestMale: $data['guest_male'],
-            guestFemale: $data['guest_female'],
-            guestChildren: $data['guest_children'],
-            guestName: $data['guest_name'],
-            guestEmail: $data['guest_email'],
-            guestPhone: $data['guest_phone'],
-            guestCountry: $data['guest_country'],
-            guestIdNumber: $data['guest_id_number'] ?? null,
-            guestGender: $data['guest_gender'],
-            relationshipType: $data['relationship_type'],
-            guests: $data['guests'] ?? [],
+        // ✅ FIX: Better field mapping and validation
+        $required = ['property_id', 'check_in', 'check_out', 'guest_name', 'guest_email', 'guest_phone'];
+        foreach ($required as $field) {
+            if (!isset($data[$field]) || (is_string($data[$field]) && trim($data[$field]) === '')) {
+                throw new \InvalidArgumentException("Required field '{$field}' is missing or empty");
+            }
+        }
 
-            // Booking Details
+        // ✅ FIX: Handle different field name variations
+        $checkIn = $data['check_in'] ?? $data['check_in_date'] ?? null;
+        $checkOut = $data['check_out'] ?? $data['check_out_date'] ?? null;
+        $checkInTime = $data['check_in_time'] ?? '15:00';
+        
+        if (!$checkIn || !$checkOut) {
+            throw new \InvalidArgumentException("Check-in and check-out dates are required");
+        }
+
+        // ✅ FIX: Validate dates
+        if (!strtotime($checkIn) || !strtotime($checkOut)) {
+            throw new \InvalidArgumentException("Invalid date format in check_in or check_out");
+        }
+
+        if (strtotime($checkIn) >= strtotime($checkOut)) {
+            throw new \InvalidArgumentException("Check-out date must be after check-in date");
+        }
+
+        // ✅ FIX: Better guest count handling
+        $guestMale = (int)($data['guest_male'] ?? 0);
+        $guestFemale = (int)($data['guest_female'] ?? 0);
+        $guestChildren = (int)($data['guest_children'] ?? 0);
+        $totalGuests = $guestMale + $guestFemale + $guestChildren;
+        
+        if ($totalGuests <= 0) {
+            throw new \InvalidArgumentException("Total guest count must be greater than 0");
+        }
+
+        // ✅ FIX: Use total guests if guest_count not provided
+        $guestCount = (int)($data['guest_count'] ?? $totalGuests);
+
+        return new self(
+            propertyId: (int)$data['property_id'],
+            checkInDate: $checkIn,
+            checkOutDate: $checkOut,
+            checkInTime: $checkInTime,
+            guestCount: $guestCount,
+            guestMale: $guestMale,
+            guestFemale: $guestFemale,
+            guestChildren: $guestChildren,
+            guestName: trim($data['guest_name']),
+            guestEmail: trim($data['guest_email']),
+            guestPhone: trim($data['guest_phone']),
+            guestCountry: $data['guest_country'] ?? 'Indonesia',
+            guestIdNumber: $data['guest_id_number'] ?? null,
+            guestGender: $data['guest_gender'] ?? 'male',
+            relationshipType: $data['relationship_type'] ?? 'keluarga',
+            guests: $data['guests'] ?? [],
             specialRequests: $data['special_requests'] ?? null,
             internalNotes: $data['internal_notes'] ?? null,
             bookingStatus: $data['booking_status'] ?? 'pending_verification',
             paymentStatus: $data['payment_status'] ?? 'dp_pending',
-            dpPercentage: $data['dp_percentage'] ?? 50,
-            autoConfirm: $data['auto_confirm'] ?? false
+            dpPercentage: (int)($data['dp_percentage'] ?? 50),
+            autoConfirm: (bool)($data['auto_confirm'] ?? false)
         );
+    }
+
+    public function setRateCalculation(array $rateCalculation): void
+    {
+        $this->rateCalculation = $rateCalculation;
+    }
+
+    public function setTotalAmount(float $totalAmount): void
+    {
+        $this->totalAmount = $totalAmount;
     }
 } 

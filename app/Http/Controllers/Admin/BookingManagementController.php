@@ -231,23 +231,52 @@ class BookingManagementController extends Controller
         }
 
         try {
-            // Transform guest counts for BookingService
-            $bookingData = array_merge($validated, [
-                'guest_count_male' => $validated['guest_male'],
-                'guest_count_female' => $validated['guest_female'],
-                'guest_count_children' => $validated['guest_children'],
+            // ✅ FIX: Transform data to match BookingRequest format
+            $bookingData = [
+                'property_id' => $validated['property_id'],
+                'check_in' => $validated['check_in_date'],
+                'check_out' => $validated['check_out_date'],
+                'check_in_time' => '15:00',
                 'guest_count' => $validated['guest_male'] + $validated['guest_female'] + $validated['guest_children'],
-            ]);
-            
-            // Use BookingService to create the booking
-            $booking = $this->bookingService->createBooking($property, $bookingData, $user);
-            
-            // Additional admin-specific updates
-            $booking->update([
+                'guest_male' => $validated['guest_male'],
+                'guest_female' => $validated['guest_female'],
+                'guest_children' => $validated['guest_children'],
+                'guest_name' => $validated['guest_name'],
+                'guest_email' => $validated['guest_email'],
+                'guest_phone' => $validated['guest_phone'],
+                'guest_country' => $validated['guest_country'],
+                'guest_id_number' => $validated['guest_id_number'],
+                'guest_gender' => $validated['guest_gender'],
+                'relationship_type' => $validated['relationship_type'],
+                'guests' => $validated['guests'] ?? [],
+                'special_requests' => $validated['special_requests'],
+                'internal_notes' => $validated['internal_notes'],
                 'booking_status' => $validated['booking_status'],
                 'payment_status' => $validated['payment_status'],
-                'verification_status' => $validated['auto_confirm'] ? 'approved' : 'pending',
-                'internal_notes' => $validated['internal_notes'],
+                'dp_percentage' => $validated['dp_percentage'],
+                'auto_confirm' => $validated['auto_confirm'] ?? false,
+            ];
+
+            // Create or find user for booking
+            $guestUser = \App\Models\User::where('email', $validated['guest_email'])->first();
+            if (!$guestUser) {
+                $guestUser = \App\Models\User::create([
+                    'name' => $validated['guest_name'],
+                    'email' => $validated['guest_email'],
+                    'phone' => $validated['guest_phone'],
+                    'password' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(12)),
+                    'role' => 'guest',
+                    'status' => 'active',
+                    'email_verified_at' => now(), // Admin-created users are auto-verified
+                ]);
+            }
+            
+            // ✅ FIX: Use new BookingService with BookingRequest
+            $bookingRequest = \App\Domain\Booking\ValueObjects\BookingRequest::fromArray($bookingData);
+            $booking = $this->bookingService->createBooking($bookingRequest, $guestUser);
+            
+            // ✅ FIX: Admin-specific updates
+            $booking->update([
                 'created_by' => $user->id,
                 'source' => 'admin_manual',
             ]);
@@ -255,6 +284,7 @@ class BookingManagementController extends Controller
             // Auto-verify if requested
             if ($validated['auto_confirm']) {
                 $booking->update([
+                    'verification_status' => 'approved',
                     'verified_by' => $user->id,
                     'verified_at' => now(),
                 ]);
@@ -413,6 +443,29 @@ class BookingManagementController extends Controller
             ],
         ]);
     }
+
+    /**
+     * Display timeline view page
+     */
+    public function timelineView(Request $request): Response
+    {
+        $user = $request->user();
+        
+        // Get properties for filter
+        $propertiesQuery = Property::query();
+        if ($user->role === 'property_owner') {
+            $propertiesQuery->where('owner_id', $user->id);
+        }
+        $properties = $propertiesQuery->active()->get(['id', 'name']);
+        
+        return Inertia::render('Admin/Bookings/Timeline', [
+            'properties' => $properties,
+            'filters' => [
+                'start_date' => $request->get('start_date', now()->startOfMonth()->toDateString()),
+                'end_date' => $request->get('end_date', now()->addMonths(2)->endOfMonth()->toDateString()),
+            ]
+        ]);
+    }
     
     /**
      * Get property date range data (API)
@@ -518,7 +571,7 @@ class BookingManagementController extends Controller
      */
     private function canEditBooking(Booking $booking, User $user): bool
     {
-        // Super admin can edit all
+        // Super admin can edit all bookings including guest bookings
         if ($user->role === 'super_admin') {
             return true;
         }
@@ -567,14 +620,22 @@ class BookingManagementController extends Controller
             });
         }
 
-        // Status filter
+        // Status filter - exclude cancelled by default unless explicitly requested
         if ($request->filled('status')) {
             $query->where('booking_status', $request->get('status'));
+        } else {
+            // Exclude cancelled bookings by default
+            $query->where('booking_status', '!=', 'cancelled');
         }
 
         // Payment status filter
         if ($request->filled('payment_status')) {
             $query->where('payment_status', $request->get('payment_status'));
+        }
+
+        // Property filter
+        if ($request->filled('property_id')) {
+            $query->where('property_id', $request->get('property_id'));
         }
 
         // Date filter
@@ -588,16 +649,123 @@ class BookingManagementController extends Controller
 
         $bookings = $query->latest()->paginate(15);
 
+        // Get properties for filter dropdown
+        $propertiesQuery = Property::query();
+        
+        // Filter by property for property owners
+        if ($user->role === 'property_owner') {
+            $propertiesQuery->where('owner_id', $user->id);
+        }
+        
+        $properties = $propertiesQuery->active()->get(['id', 'name']);
+
         return Inertia::render('Admin/Bookings/Index', [
             'bookings' => $bookings,
+            'properties' => $properties,
             'filters' => [
                 'search' => $request->get('search'),
                 'status' => $request->get('status'),
                 'payment_status' => $request->get('payment_status'),
+                'property_id' => $request->get('property_id'),
                 'date_from' => $request->get('date_from'),
                 'date_to' => $request->get('date_to'),
             ]
         ]);
+    }
+
+    /**
+     * Show the form for editing the specified booking.
+     * 
+     * @param Booking $booking
+     * @return Response
+     */
+    public function edit(Booking $booking): Response
+    {
+        $this->authorize('update', $booking);
+
+        $booking->load([
+            'property',
+            'guests',
+            'services',
+            'payments.paymentMethod',
+            'workflow.processor'
+        ]);
+
+        // Get properties for dropdown
+        $properties = Property::active()->get(['id', 'name']);
+
+        return Inertia::render('Admin/Bookings/Edit', [
+            'booking' => $booking,
+            'properties' => $properties,
+        ]);
+    }
+
+    /**
+     * Update the specified booking.
+     * 
+     * @param Request $request
+     * @param Booking $booking
+     * @return RedirectResponse
+     */
+    public function update(Request $request, Booking $booking): RedirectResponse
+    {
+        $this->authorize('update', $booking);
+
+        $request->validate([
+            'guest_name' => 'required|string|max:255',
+            'guest_email' => 'required|email|max:255',
+            'guest_phone' => 'required|string|max:20',
+            'check_in' => 'required|date|after_or_equal:today',
+            'check_out' => 'required|date|after:check_in',
+            'guest_count' => 'required|integer|min:1',
+            'total_amount' => 'required|numeric|min:0',
+            'booking_status' => 'required|in:pending,confirmed,cancelled,completed',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            // Update booking
+            $booking->update([
+                'guest_name' => $request->guest_name,
+                'guest_email' => $request->guest_email,
+                'guest_phone' => $request->guest_phone,
+                'check_in' => $request->check_in,
+                'check_out' => $request->check_out,
+                'guest_count' => $request->guest_count,
+                'total_amount' => $request->total_amount,
+                'booking_status' => $request->booking_status,
+                'notes' => $request->notes,
+                'updated_by' => $request->user()->id,
+            ]);
+
+            // Create workflow entry
+            $booking->workflow()->create([
+                'step' => 'updated',
+                'status' => 'completed',
+                'processed_by' => $request->user()->id,
+                'processed_at' => now(),
+                'notes' => 'Booking updated by ' . $request->user()->name,
+            ]);
+
+            // Trigger status change event if status changed
+            if ($booking->wasChanged('booking_status')) {
+                event(new BookingStatusChanged($booking, $request->user()));
+            }
+
+            DB::commit();
+
+            return redirect()->route('admin.bookings.show', $booking->booking_number)
+                ->with('success', 'Booking berhasil diperbarui.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'Gagal memperbarui booking: ' . $e->getMessage()]);
+        }
     }
 
     /**
@@ -679,6 +847,58 @@ class BookingManagementController extends Controller
     }
 
     /**
+     * Reject booking with reason
+     * 
+     * @param Request $request
+     * @param Booking $booking
+     * @return RedirectResponse
+     */
+    public function reject(Request $request, Booking $booking): RedirectResponse
+    {
+        $this->authorize('reject', $booking);
+
+        $request->validate([
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $oldStatus = $booking->booking_status;
+            
+            $booking->update([
+                'verification_status' => 'rejected',
+                'booking_status' => 'cancelled',
+                'cancellation_reason' => $request->get('notes', 'Booking rejected by admin'),
+                'cancelled_by' => $request->user()->id,
+                'cancelled_at' => now(),
+            ]);
+
+            // Create workflow record
+            $booking->workflow()->create([
+                'step' => 'rejected',
+                'status' => 'completed',
+                'processed_by' => $request->user()->id,
+                'processed_at' => now(),
+                'notes' => $request->get('notes', 'Booking rejected by admin'),
+            ]);
+
+            DB::commit();
+
+            // Dispatch BookingStatusChanged event
+            event(new BookingStatusChanged($booking->load('property'), $oldStatus, 'cancelled', $request->user()));
+
+            return redirect()->back()
+                ->with('success', 'Booking rejected successfully.');
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            \Log::error('Booking rejection failed: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'Failed to reject booking. Please try again.');
+        }
+    }
+
+    /**
      * Cancel booking with reason
      * 
      * @param Request $request
@@ -687,7 +907,7 @@ class BookingManagementController extends Controller
      */
     public function cancel(Request $request, Booking $booking): RedirectResponse
     {
-        $this->authorize('update', $booking);
+        $this->authorize('cancel', $booking);
 
         $request->validate([
             'cancellation_reason' => 'required|string|max:1000',
@@ -855,7 +1075,7 @@ class BookingManagementController extends Controller
         
         if ($booking->payment_status !== 'fully_paid') {
             $message .= "• Silakan selesaikan pembayaran untuk konfirmasi booking\n";
-            $message .= "• Link pembayaran: " . route('payments.show', $booking->booking_number) . "\n\n";
+            $message .= "• Link pembayaran: " . route('payments.create', $booking->booking_number) . "\n\n";
         } else {
             $message .= "• Pembayaran telah lunas ✅\n";
             $message .= "• Informasi check-in akan tersedia di dashboard Anda\n";

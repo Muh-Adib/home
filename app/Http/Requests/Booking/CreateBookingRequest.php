@@ -17,15 +17,21 @@ class CreateBookingRequest extends FormRequest
     {
         // Property is resolved from route model binding, so we don't need property_id validation
         return [
-            'check_in_date' => 'required|date|after_or_equal:today',
-            'check_out_date' => 'required|date|after:check_in_date',
-            'check_in_time' => 'required|string|max:10',
+            // ✅ FIX: Handle different date field names
+            'check_in' => 'required|date|after_or_equal:today',
+            'check_out' => 'required|date|after:check_in',
+            'check_in_date' => 'nullable|date|after_or_equal:today', // Alternative field name
+            'check_out_date' => 'nullable|date|after:check_in_date', // Alternative field name
+            'check_in_time' => 'required|date_format:H:i',
+            
+            // Guest Information
             'guest_male' => 'required|integer|min:0',
             'guest_female' => 'required|integer|min:0',
             'guest_children' => 'required|integer|min:0',
+            'guest_count' => 'nullable|integer|min:1', // Optional, will be calculated
             'guest_name' => 'required|string|max:255',
             'guest_email' => 'required|email|max:255',
-            'guest_phone' => 'required|string|max:20',
+            'guest_phone' => 'required|regex:/^\+?[1-9][0-9]{7,14}$/|min:10|max:15',
             'guest_country' => 'required|string|max:100',
             'guest_id_number' => 'nullable|string|max:50',
             'guest_gender' => 'required|in:male,female',
@@ -36,6 +42,11 @@ class CreateBookingRequest extends FormRequest
             'payment_status' => 'nullable|in:dp_pending,dp_received,fully_paid|default:dp_pending',
             'dp_percentage' => 'required|integer|min:0|max:100',
             'auto_confirm' => 'boolean',
+            'guests' => 'nullable|array',
+            'guests.*.name' => 'nullable|string|max:255',
+            'guests.*.gender' => 'nullable|in:male,female',
+            'guests.*.age_category' => 'nullable|in:adult,child,infant',
+            'guests.*.relationship_to_primary' => 'nullable|string|max:255',
         ];
     }
 
@@ -44,13 +55,35 @@ class CreateBookingRequest extends FormRequest
         $validator->after(function ($validator) {
             $this->validateGuestCount($validator);
             $this->validatePropertyAvailability($validator);
-            $this->validateMinimumStay($validator);
+            $this->normalizePhoneNumber($validator);
+            $this->normalizeDateFields($validator);
+            //dimatikan sementara karena sudah ada di booking controller
+            //$this->validateMinimumStay($validator);
         });
+    }
+
+    private function normalizeDateFields($validator)
+    {
+        // ✅ FIX: Handle different date field names
+        $checkIn = $this->input('check_in') ?? $this->input('check_in_date');
+        $checkOut = $this->input('check_out') ?? $this->input('check_out_date');
+        
+        if ($checkIn && $checkOut) {
+            // Normalize to standard field names
+            $this->merge([
+                'check_in' => $checkIn,
+                'check_out' => $checkOut,
+            ]);
+        }
     }
 
     private function validateGuestCount($validator)
     {
-        $totalGuests = $this->input('guest_male') + $this->input('guest_female') + $this->input('guest_children');
+        // ✅ FIX: Handle different field names and calculate total
+        $guestMale = (int)$this->input('guest_male', 0);
+        $guestFemale = (int)$this->input('guest_female', 0);
+        $guestChildren = (int)$this->input('guest_children', 0);
+        $totalGuests = $guestMale + $guestFemale + $guestChildren;
         
         if ($totalGuests <= 0) {
             $validator->errors()->add('guest_count', 'Total tamu harus lebih dari 0.');
@@ -62,6 +95,11 @@ class CreateBookingRequest extends FormRequest
         if ($property && $totalGuests > $property->capacity_max) {
             $validator->errors()->add('guest_count', "Jumlah tamu melebihi kapasitas maksimal ({$property->capacity_max} orang).");
         }
+
+        // ✅ FIX: Set calculated guest_count if not provided
+        if (!$this->input('guest_count')) {
+            $this->merge(['guest_count' => $totalGuests]);
+        }
     }
 
     private function validatePropertyAvailability($validator)
@@ -72,8 +110,8 @@ class CreateBookingRequest extends FormRequest
             return;
         }
 
-        $checkIn = $this->input('check_in_date');
-        $checkOut = $this->input('check_out_date');
+        $checkIn = $this->input('check_in');
+        $checkOut = $this->input('check_out');
 
         // Skip validation if dates are not provided
         if (!$checkIn || !$checkOut) {
@@ -102,12 +140,12 @@ class CreateBookingRequest extends FormRequest
             return;
         }
 
-        $checkInDate = $this->input('check_in_date');
+        $checkInDate = $this->input('check_in');
         if (!$checkInDate) {
             return;
         }
 
-        $checkOutDate = $this->input('check_out_date');
+        $checkOutDate = $this->input('check_out');
         if (!$checkOutDate) {
             return;
         }
@@ -130,11 +168,38 @@ class CreateBookingRequest extends FormRequest
         }
     }
 
+    private function normalizePhoneNumber($validator)
+    {
+        $phone = $this->input('guest_phone');
+        if (!$phone) {
+            return;
+        }
+
+        // Remove any spaces, dashes, or other separators
+        $phone = preg_replace('/[\s\-\(\)]/', '', $phone);
+        
+        // Convert to international format
+        if (preg_match('/^0(\d{9,12})$/', $phone, $matches)) {
+            // Convert 08123456789 to 628123456789
+            $normalized = '62' . $matches[1];
+        } elseif (preg_match('/^62(\d{9,12})$/', $phone, $matches)) {
+            // Already in 62 format
+            $normalized = '62' . $matches[1];
+        } elseif (preg_match('/^\+(\d{9,12})$/', $phone, $matches)) {
+            // convert + to ''
+            $normalized = '' . $matches[1];
+        } else {
+            // Invalid format
+            return;
+        }
+        
+    }
+
     public function messages(): array
     {
         return [
-            'check_in_date.after_or_equal' => 'Tanggal check-in harus hari ini atau setelahnya.',
-            'check_out_date.after' => 'Tanggal check-out harus setelah tanggal check-in.',
+            'check_in.after_or_equal' => 'Tanggal check-in harus hari ini atau setelahnya.',
+            'check_out.after' => 'Tanggal check-out harus setelah tanggal check-in.',
             'guest_male.required' => 'Jumlah tamu pria harus diisi.',
             'guest_female.required' => 'Jumlah tamu wanita harus diisi.',
             'guest_children.required' => 'Jumlah tamu anak-anak harus diisi.',
@@ -142,6 +207,7 @@ class CreateBookingRequest extends FormRequest
             'guest_email.required' => 'Email tamu harus diisi.',
             'guest_email.email' => 'Format email tidak valid.',
             'guest_phone.required' => 'Nomor telepon tamu harus diisi.',
+            'guest_phone.regex' => 'Format nomor telepon tidak valid. Gunakan format: kode negara (62) + nomor telepon (8123456789)',
             'guest_country.required' => 'Negara asal tamu harus diisi.',
             'guest_gender.required' => 'Jenis kelamin tamu harus diisi.',
             'guest_gender.in' => 'Jenis kelamin harus pria atau wanita.',

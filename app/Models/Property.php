@@ -170,7 +170,8 @@ class Property extends Model
     public function scopeAvailableFor($query, $checkIn, $checkOut)
     {
         return $query->whereDoesntHave('bookings', function ($bookingQuery) use ($checkIn, $checkOut) {
-            $bookingQuery->where('booking_status', '!=', 'cancelled')
+            // ✅ FIX: Include all statuses that make property unavailable
+        $bookingQuery->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
                         ->where(function ($dateQuery) use ($checkIn, $checkOut) {
                             $dateQuery->whereBetween('check_in', [$checkIn, $checkOut])
                                      ->orWhereBetween('check_out', [$checkIn, $checkOut])
@@ -537,6 +538,84 @@ class Property extends Model
         return [
             'check_in' => $nextBooking->check_in,
             'guest_name' => $nextBooking->guest_name,
+        ];
+    }
+
+    /**
+     * Get comprehensive availability data for admin booking creation
+     * 
+     * @param string $startDate
+     * @param string $endDate
+     * @return array
+     */
+    public function getAvailabilityData(string $startDate, string $endDate): array
+    {
+        $startDateObj = \Carbon\Carbon::parse($startDate);
+        $endDateObj = \Carbon\Carbon::parse($endDate);
+        
+        // Get booked dates
+        $bookedDates = $this->getBookedDatesInRange($startDate, $endDate);
+        
+        // Generate daily rates for the entire period
+        $rates = [];
+        $currentDate = $startDateObj->copy();
+        
+        while ($currentDate->lt($endDateObj)) {
+            $dateString = $currentDate->format('Y-m-d');
+            $isWeekend = $currentDate->isWeekend();
+            
+            // Get seasonal rate if exists
+            $seasonalRate = $this->seasonalRates()
+                ->where('is_active', true)
+                ->where('start_date', '<=', $dateString)
+                ->where('end_date', '>=', $dateString)
+                ->orderBy('priority', 'desc')
+                ->first();
+            
+            $baseRate = $this->base_rate;
+            $seasonalPremium = 0;
+            
+            if ($seasonalRate) {
+                $seasonalPremium = $seasonalRate->calculatePremium($baseRate);
+            }
+            
+            $rates[$dateString] = [
+                'base_rate' => $baseRate,
+                'weekend_premium' => $isWeekend,
+                'seasonal_premium' => $seasonalPremium,
+                'is_weekend' => $isWeekend,
+                'seasonal_rate_applied' => $seasonalRate ? [
+                    'name' => $seasonalRate->name,
+                    'rate_type' => $seasonalRate->rate_type,
+                    'rate_value' => $seasonalRate->rate_value,
+                    'description' => $seasonalRate->description,
+                    'min_stay_nights' => $seasonalRate->min_stay_nights,
+                ] : null,
+            ];
+            
+            $currentDate->addDay();
+        }
+        
+        return [
+            'success' => true,
+            'property' => [
+                'id' => $this->id,
+                'name' => $this->name,
+                'base_rate' => $this->base_rate,
+                'capacity' => $this->capacity,
+                'capacity_max' => $this->capacity_max,
+                'cleaning_fee' => $this->cleaning_fee,
+                'extra_bed_rate' => $this->extra_bed_rate,
+                'weekend_premium_percent' => $this->weekend_premium_percent,
+            ],
+            'date_range' => [
+                'start' => $startDate,
+                'end' => $endDate,
+            ],
+            'booked_dates' => $bookedDates,
+            'availability_data' => [
+                'rates' => $rates,
+            ],
         ];
     }
 }

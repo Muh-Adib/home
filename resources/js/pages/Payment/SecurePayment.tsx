@@ -18,7 +18,9 @@ import {
     CheckCircle,
     AlertTriangle,
     Upload,
-    Download
+    Download,
+    Copy,
+    Check
 } from 'lucide-react';
 
 interface PaymentMethod {
@@ -45,28 +47,42 @@ interface Booking {
         address: string;
         cover_image?: string;
     };
-    check_in_date: string;
-    check_out_date: string;
+    check_in: string;
+    check_out: string;
     guest_count: number;
     total_amount: number;
     booking_status: string;
     payment_status: string;
     payment_token_expires_at: string;
+    nights?: number;
+    dp_amount?: number;
+    dp_percentage?: number;
+}
+
+interface PaymentInfo {
+    paidAmount: number;
+    dpAmount: number;
+    remainingAmount: number;
+    requiredAmount: number;
+    paymentType: 'dp' | 'remaining';
+    isDpComplete: boolean;
 }
 
 interface SecurePaymentProps {
     booking: Booking;
     paymentMethods: PaymentMethod[];
+    paymentInfo: PaymentInfo;
     token: string;
 }
 
-export default function SecurePayment({ booking, paymentMethods, token }: SecurePaymentProps) {
+export default function SecurePayment({ booking, paymentMethods, paymentInfo, token }: SecurePaymentProps) {
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
     const [showProofUpload, setShowProofUpload] = useState(false);
+    const [copiedField, setCopiedField] = useState<string | null>(null);
 
     const { data, setData, post, processing, errors } = useForm({
         payment_method_id: '',
-        amount: booking.total_amount,
+        amount: paymentInfo.requiredAmount,
         proof_of_payment: null as File | null,
         payment_notes: '',
     });
@@ -97,6 +113,16 @@ export default function SecurePayment({ booking, paymentMethods, token }: Secure
         setSelectedMethod(method);
         setData('payment_method_id', method.id.toString());
         setShowProofUpload(method.type === 'bank_transfer' || method.type === 'e_wallet');
+    };
+
+    const copyToClipboard = async (text: string, field: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedField(field);
+            setTimeout(() => setCopiedField(null), 2000);
+        } catch (err) {
+            console.error('Failed to copy: ', err);
+        }
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -179,11 +205,11 @@ export default function SecurePayment({ booking, paymentMethods, token }: Secure
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <p className="text-sm text-gray-600">Check-in</p>
-                                        <p className="font-semibold">{formatDate(booking.check_in_date)}</p>
+                                        <p className="font-semibold">{formatDate(booking.check_in)}</p>
                                     </div>
                                     <div>
                                         <p className="text-sm text-gray-600">Check-out</p>
-                                        <p className="font-semibold">{formatDate(booking.check_out_date)}</p>
+                                        <p className="font-semibold">{formatDate(booking.check_out)}</p>
                                     </div>
                                 </div>
 
@@ -201,6 +227,38 @@ export default function SecurePayment({ booking, paymentMethods, token }: Secure
                                         <p className="text-2xl font-bold text-blue-600">
                                             {formatCurrency(booking.total_amount)}
                                         </p>
+                                    </div>
+                                </div>
+
+                                {/* Payment Progress */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span>DP ({booking.dp_percentage}%)</span>
+                                        <span>{formatCurrency(paymentInfo.dpAmount)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span>Paid Amount</span>
+                                        <span className={paymentInfo.paidAmount > 0 ? 'text-green-600' : 'text-gray-500'}>
+                                            {formatCurrency(paymentInfo.paidAmount)}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span>Remaining</span>
+                                        <span className={paymentInfo.remainingAmount > 0 ? 'text-orange-600' : 'text-green-600'}>
+                                            {formatCurrency(paymentInfo.remainingAmount)}
+                                        </span>
+                                    </div>
+                                    
+                                    {/* Required Payment Amount */}
+                                    <div className="border-t pt-3">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-lg font-semibold">
+                                                {paymentInfo.paymentType === 'dp' ? 'DP Required' : 'Remaining Payment'}
+                                            </p>
+                                            <p className="text-xl font-bold text-red-600">
+                                                {formatCurrency(paymentInfo.requiredAmount)}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -293,6 +351,130 @@ export default function SecurePayment({ booking, paymentMethods, token }: Secure
                                                         <p className="text-sm text-gray-600 mt-2">
                                                             Scan this QR code with your e-wallet app
                                                         </p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Bank Transfer Information */}
+                                            {selectedMethod.type === 'bank_transfer' && (
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <Label>Payment Amount</Label>
+                                                        <div className="mt-2 flex items-center gap-2">
+                                                            <Input
+                                                                value={formatCurrency(paymentInfo.requiredAmount)}
+                                                                readOnly
+                                                                className="font-mono text-lg"
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => copyToClipboard(paymentInfo.requiredAmount.toString(), 'amount')}
+                                                                className="flex items-center gap-2"
+                                                            >
+                                                                {copiedField === 'amount' ? (
+                                                                    <>
+                                                                        <Check className="h-4 w-4" />
+                                                                        Copied!
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Copy className="h-4 w-4" />
+                                                                        Copy
+                                                                    </>
+                                                                )}
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <Label>Bank Account Information</Label>
+                                                        <div className="mt-2 space-y-2">
+                                                            <div className="p-3 bg-gray-50 rounded-lg">
+                                                                <div className="flex items-center justify-between">
+                                                                    <div>
+                                                                        <p className="text-sm text-gray-600">Bank Name</p>
+                                                                        <p className="font-medium">{selectedMethod.bank_name}</p>
+                                                                    </div>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => copyToClipboard(selectedMethod.bank_name || '', 'bank')}
+                                                                        className="flex items-center gap-2"
+                                                                    >
+                                                                        {copiedField === 'bank' ? (
+                                                                            <>
+                                                                                <Check className="h-4 w-4" />
+                                                                                Copied!
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <Copy className="h-4 w-4" />
+                                                                                Copy
+                                                                            </>
+                                                                        )}
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="p-3 bg-gray-50 rounded-lg">
+                                                                <div className="flex items-center justify-between">
+                                                                    <div>
+                                                                        <p className="text-sm text-gray-600">Account Number</p>
+                                                                        <p className="font-mono font-medium">{selectedMethod.account_number}</p>
+                                                                    </div>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => copyToClipboard(selectedMethod.account_number || '', 'account')}
+                                                                        className="flex items-center gap-2"
+                                                                    >
+                                                                        {copiedField === 'account' ? (
+                                                                            <>
+                                                                                <Check className="h-4 w-4" />
+                                                                                Copied!
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <Copy className="h-4 w-4" />
+                                                                                Copy
+                                                                            </>
+                                                                        )}
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="p-3 bg-gray-50 rounded-lg">
+                                                                <div className="flex items-center justify-between">
+                                                                    <div>
+                                                                        <p className="text-sm text-gray-600">Account Name</p>
+                                                                        <p className="font-medium">{selectedMethod.account_name}</p>
+                                                                    </div>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => copyToClipboard(selectedMethod.account_name || '', 'name')}
+                                                                        className="flex items-center gap-2"
+                                                                    >
+                                                                        {copiedField === 'name' ? (
+                                                                            <>
+                                                                                <Check className="h-4 w-4" />
+                                                                                Copied!
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <Copy className="h-4 w-4" />
+                                                                                Copy
+                                                                            </>
+                                                                        )}
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}

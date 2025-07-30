@@ -33,10 +33,15 @@ wait_for_service() {
 }
 
 # Set environment variables dengan defaults
-export DB_HOST=${DB_HOST:-mysql}
+export DB_HOST=${DB_HOST:-homsjogja-db-xsjalx}
 export DB_PORT=${DB_PORT:-3306}
-export REDIS_HOST=${REDIS_HOST:-redis}
+export DB_DATABASE=${DB_DATABASE:-homs-db}
+export DB_USERNAME=${DB_USERNAME:-homs-user}
+export DB_PASSWORD=${DB_PASSWORD:-jD8-AKHx2gFCQ5gx3ouRJ}
+export REDIS_HOST=${REDIS_HOST:-homsjogja-redis-qmihbb}
 export REDIS_PORT=${REDIS_PORT:-6379}
+export REDIS_PASSWORD=${REDIS_PASSWORD:-5vlcwpzc45g9mtho}
+export REDIS_DB=${REDIS_DB:-0}
 
 # Setup dynamic URL configuration
 echo "=== Setting up Dynamic Environment Configuration ==="
@@ -46,18 +51,22 @@ if [ -f .env ]; then
     # Update database configuration
     sed -i "s/DB_HOST=.*/DB_HOST=${DB_HOST}/" .env
     sed -i "s/DB_PORT=.*/DB_PORT=${DB_PORT}/" .env
-    sed -i "s/DB_DATABASE=.*/DB_DATABASE=${DB_DATABASE:-laravel}/" .env
-    sed -i "s/DB_USERNAME=.*/DB_USERNAME=${DB_USERNAME:-root}/" .env
-    if [ -n "$DB_PASSWORD" ]; then
-        sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${DB_PASSWORD}/" .env
-    fi
+    sed -i "s/DB_DATABASE=.*/DB_DATABASE=${DB_DATABASE}/" .env
+    sed -i "s/DB_USERNAME=.*/DB_USERNAME=${DB_USERNAME}/" .env
+    sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${DB_PASSWORD}/" .env
 
     # Update Redis configuration
     sed -i "s/REDIS_HOST=.*/REDIS_HOST=${REDIS_HOST}/" .env
     sed -i "s/REDIS_PORT=.*/REDIS_PORT=${REDIS_PORT}/" .env
-    if [ -n "$REDIS_PASSWORD" ] && [ "$REDIS_PASSWORD" != "null" ]; then
-        sed -i "s/REDIS_PASSWORD=.*/REDIS_PASSWORD=${REDIS_PASSWORD}/" .env
-    fi
+    sed -i "s/REDIS_PASSWORD=.*/REDIS_PASSWORD=${REDIS_PASSWORD}/" .env
+    sed -i "s/REDIS_DB=.*/REDIS_DB=${REDIS_DB}/" .env
+
+    # Update broadcasting configuration
+    sed -i "s/BROADCAST_DRIVER=.*/BROADCAST_DRIVER=redis/" .env
+    sed -i "s/BROADCAST_CONNECTION=.*/BROADCAST_CONNECTION=default/" .env
+    sed -i "s/CACHE_DRIVER=.*/CACHE_DRIVER=redis/" .env
+    sed -i "s/SESSION_DRIVER=.*/SESSION_DRIVER=redis/" .env
+    sed -i "s/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=redis/" .env
 
     # Dynamic URL configuration - sangat penting untuk deployment
     if [ -n "$APP_URL" ]; then
@@ -80,26 +89,17 @@ if [ -f .env ]; then
     else
         echo "WARNING: APP_URL tidak di-set, menggunakan default"
     fi
-
-    # Update cache drivers untuk external services
-    sed -i "s/CACHE_DRIVER=.*/CACHE_DRIVER=redis/" .env
-    sed -i "s/SESSION_DRIVER=.*/SESSION_DRIVER=redis/" .env
-    sed -i "s/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=redis/" .env
 fi
 
 echo "=== Environment Configuration ==="
 echo "APP_URL: ${APP_URL:-not set}"
-echo "Database: $DB_HOST:$DB_PORT"
+echo "Database: $DB_HOST:$DB_PORT ($DB_DATABASE)"
 echo "Redis: $REDIS_HOST:$REDIS_PORT"
 
 # Wait for external services (dengan timeout)
-if [ "$DB_HOST" != "localhost" ] && [ "$DB_HOST" != "127.0.0.1" ]; then
-    wait_for_service "$DB_HOST" "$DB_PORT" "Database" || echo "Continuing without DB connectivity check..."
-fi
-
-if [ "$REDIS_HOST" != "localhost" ] && [ "$REDIS_HOST" != "127.0.0.1" ]; then
-    wait_for_service "$REDIS_HOST" "$REDIS_PORT" "Redis" || echo "Continuing without Redis connectivity check..."
-fi
+echo "=== Waiting for External Services ==="
+wait_for_service "$DB_HOST" "$DB_PORT" "Database" || echo "Continuing without DB connectivity check..."
+wait_for_service "$REDIS_HOST" "$REDIS_PORT" "Redis" || echo "Continuing without Redis connectivity check..."
 
 # Test database connection
 echo "=== Testing Database Connection ==="

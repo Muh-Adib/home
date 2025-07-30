@@ -15,6 +15,7 @@ declare global {
 window.io = io;
 
 let echoInstance: Echo<any> | null = null;
+let isEchoAvailable = false;
 
 // Get WebSocket URL without using React hooks
 function getWebSocketUrlSafe(): string {
@@ -23,9 +24,24 @@ function getWebSocketUrlSafe(): string {
         return 'http://localhost:6001';
     }
     
-    // Production - gunakan URL dari window.location
+    // Production - gunakan URL dari window.location dengan port WebSocket
     const baseUrl = window.location.origin;
-    return baseUrl.replace(/^http/, 'http'); // Ensure proper protocol
+    const wsUrl = baseUrl.replace(/^http/, 'http').replace(/^https/, 'https');
+    return wsUrl.replace(/:\d+/, ':6001'); // Replace port with WebSocket port
+}
+
+// Test WebSocket connection
+async function testWebSocketConnection(url: string): Promise<boolean> {
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            mode: 'no-cors', // Avoid CORS issues
+        });
+        return true;
+    } catch (error) {
+        console.warn('WebSocket connection test failed:', error);
+        return false;
+    }
 }
 
 // Enhanced Echo configuration with error handling
@@ -33,6 +49,8 @@ function createEchoInstance(): Echo<any> | null {
     try {
         // Get WebSocket URL dinamis dari utility function (non-hook version)
         const wsUrl = getWebSocketUrlSafe();
+        
+        console.log('🔌 Creating Echo instance with URL:', wsUrl);
 
         const echo = new Echo({
             broadcaster: 'socket.io',
@@ -51,9 +69,9 @@ function createEchoInstance(): Echo<any> | null {
             upgrade: true,
             rememberUpgrade: true,
             reconnection: true,
-            reconnectionAttempts: 3, // Reduced attempts for faster fallback
+            reconnectionAttempts: 5, // Increased for production
             reconnectionDelay: 1000,
-            timeout: 10000, // Reduced timeout for faster fallback
+            timeout: 20000, // Increased timeout for production
             forceNew: false,
         });
 
@@ -62,20 +80,34 @@ function createEchoInstance(): Echo<any> | null {
         if (socket) {
             socket.on('connect', () => {
                 console.log('✅ Echo connected to server');
+                isEchoAvailable = true;
             });
 
             socket.on('disconnect', () => {
                 console.log('❌ Echo disconnected from server');
+                isEchoAvailable = false;
             });
 
             socket.on('connect_error', (error: any) => {
                 console.warn('🔄 Echo connection error, will use polling fallback:', error.message);
+                isEchoAvailable = false;
+            });
+
+            socket.on('reconnect', () => {
+                console.log('✅ Echo reconnected to server');
+                isEchoAvailable = true;
+            });
+
+            socket.on('reconnect_error', (error: any) => {
+                console.warn('🔄 Echo reconnection error:', error.message);
+                isEchoAvailable = false;
             });
         }
 
         return echo;
     } catch (error) {
         console.error('❌ Failed to create Echo instance:', error);
+        isEchoAvailable = false;
         return null;
     }
 }
@@ -83,68 +115,59 @@ function createEchoInstance(): Echo<any> | null {
 // Initialize Echo with fallback - delay initialization until DOM is ready
 function initializeEcho(): Echo<any> | null {
     try {
-        // Only initialize if we're in a browser environment
         if (typeof window === 'undefined') {
             return null;
         }
 
-        // Wait for DOM to be ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                echoInstance = createEchoInstance();
-            });
-            return null;
+        if (!echoInstance) {
+            echoInstance = createEchoInstance();
+            
+            // Test connection after a short delay
+            setTimeout(async () => {
+                if (echoInstance) {
+                    const wsUrl = getWebSocketUrlSafe();
+                    const isConnected = await testWebSocketConnection(wsUrl);
+                    
+                    if (!isConnected) {
+                        console.warn('🔄 WebSocket connection test failed, fallback will be used');
+                        isEchoAvailable = false;
+                    } else {
+                        console.log('✅ WebSocket connection test successful');
+                        isEchoAvailable = true;
+                    }
+                }
+            }, 2000);
         }
-
-        echoInstance = createEchoInstance();
-        
-        // Test connection after short delay
-        setTimeout(() => {
-            const socket = (echoInstance?.connector as any)?.socket;
-            if (echoInstance && socket && !socket.connected) {
-                console.warn('🔄 Echo not connected after timeout, fallback will be used');
-            }
-        }, 5000);
 
         return echoInstance;
     } catch (error) {
-        console.error('❌ Echo initialization failed:', error);
+        console.error('❌ Failed to initialize Echo:', error);
+        isEchoAvailable = false;
         return null;
     }
 }
 
-// Initialize Echo when DOM is ready
-let echo: Echo<any> | null = null;
-
-if (typeof window !== 'undefined') {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            echo = initializeEcho();
-            window.Echo = echo;
-            window.NotificationFallback = createNotificationFallback;
-        });
-    } else {
-        echo = initializeEcho();
-        window.Echo = echo;
-        window.NotificationFallback = createNotificationFallback;
-    }
+// Export functions untuk use di hooks
+export function getEcho(): { echo: Echo<any> | null; isAvailable: boolean } {
+    const echo = initializeEcho();
+    
+    // Check if Echo is actually working
+    const socket = (echo?.connector as any)?.socket;
+    const isSocketConnected = socket?.connected || false;
+    
+    // Update availability based on actual connection status
+    isEchoAvailable = isEchoAvailable && isSocketConnected;
+    
+    return { 
+        echo, 
+        isAvailable: isEchoAvailable 
+    };
 }
 
-// Check if Echo is working
-export const isEchoAvailable = (): boolean => {
-    const socket = (echo?.connector as any)?.socket;
-    return socket?.connected || false;
-};
+// Export default Echo instance untuk backward compatibility
+export default getEcho().echo;
 
-// Get Echo instance with fallback info
-export const getEcho = () => {
-    return {
-        echo,
-        isAvailable: isEchoAvailable(),
-        createFallback: createNotificationFallback,
-    };
-};
-
-// Export for use in React components
-export { echo };
-export default echo; 
+// Export utility functions
+export { createNotificationFallback };
+export { getWebSocketUrlSafe };
+export { testWebSocketConnection }; 

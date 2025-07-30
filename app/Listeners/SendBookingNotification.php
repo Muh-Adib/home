@@ -26,6 +26,9 @@ class SendBookingNotification implements ShouldQueue
      */
     public function handle(BookingCreated $event): void
     {
+        // Create workflow entry for the booking
+        $this->createWorkflowEntry($event->booking, $event->user);
+
         // Get users who should receive notifications
         $notifiableUsers = $this->getNotifiableUsers($event->booking);
 
@@ -36,16 +39,39 @@ class SendBookingNotification implements ShouldQueue
     }
 
     /**
+     * Create workflow entry for the booking
+     */
+    private function createWorkflowEntry($booking, $user): void
+    {
+        try {
+            $booking->workflow()->create([
+                'step' => 'submitted',
+                'status' => 'completed',
+                'processed_by' => $user?->id,
+                'processed_at' => now(),
+                'notes' => 'Booking created successfully',
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Failed to create workflow entry', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
      * Get users who should receive booking notifications
+     * Mengirim notifikasi ke semua admin dan staff yang aktif
      */
     private function getNotifiableUsers($booking): \Illuminate\Database\Eloquent\Collection
     {
-        // Get property managers, front desk staff, and super admins
+        // Get all admin and staff users who should receive booking notifications
         return User::whereIn('role', [
             'super_admin',
             'property_manager', 
             'front_desk',
-            'finance'
+            'finance',
+            'housekeeping'
         ])
         ->where('status', 'active')
         ->get();

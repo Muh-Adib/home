@@ -38,6 +38,8 @@ class BookingCreated implements ShouldBroadcast
         return [
             new PrivateChannel('user.' . $this->user->id),
             new Channel('bookings'),
+            new Channel('admin-notifications'),
+            new Channel('staff-notifications'),
         ];
     }
 

@@ -253,10 +253,13 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::post('bookings', 'store')->name('bookings.store');
         
         Route::get('bookings/{booking:booking_number}', 'show')->name('bookings.show');
-        Route::get('bookings/timeline', 'timeline')->name('bookings.timeline');
+        Route::get('bookings/{booking:booking_number}/edit', 'edit')->name('bookings.edit');
+        Route::put('bookings/{booking:booking_number}', 'update')->name('bookings.update');
+        Route::get('bookings/timeline', 'timelineView')->name('bookings.timeline');
         Route::get('bookings/timeline/{booking:booking_number}', 'timeline')->name('bookings.timeline.show');
         
         Route::patch('bookings/{booking:booking_number}/verify', 'verify')->name('bookings.verify');
+        Route::patch('bookings/{booking:booking_number}/reject', 'reject')->name('bookings.reject');
         Route::patch('bookings/{booking:booking_number}/cancel', 'cancel')->name('bookings.cancel');
         Route::patch('bookings/{booking:booking_number}/checkin', 'checkin')->name('bookings.checkin');
         Route::patch('bookings/{booking:booking_number}/checkout', 'checkout')->name('bookings.checkout');

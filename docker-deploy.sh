@@ -1,309 +1,381 @@
 #!/bin/bash
 
-# ===========================================
-# PROPERTY MANAGEMENT SYSTEM - DOCKER DEPLOYMENT SCRIPT
-# ===========================================
+# Deployment Script untuk Dokploy dengan Dockerfile langsung
+# Property Management System - Laravel 12 + React 18 + WebSocket
 
-set -e  # Exit on any error
+set -e
 
-# Colors for output
+# Color codes untuk output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Function to print colored output
-print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
+echo -e "${BLUE}🚀 Starting Dokploy Deployment with Dockerfile${NC}"
+echo "=================================================="
 
-print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
+# Configuration
+APP_NAME="homsjogja"
+DOCKERFILE="Dockerfile.dokploy"
+IMAGE_NAME="homsjogja-app"
+CONTAINER_NAME="homsjogja-container"
+APP_PORT="8080"
+WEBSOCKET_PORT="6001"
 
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
+# External Service Configuration
+DB_HOST="homsjogja-db-xsjalx"
+DB_PORT="3306"
+DB_DATABASE="homs-db"
+DB_USERNAME="homs-user"
+DB_PASSWORD="jD8-AKHx2gFCQ5gx3ouRJ"
 
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+REDIS_HOST="homsjogja-redis-qmihbb"
+REDIS_PORT="6379"
+REDIS_PASSWORD="5vlcwpzc45g9mtho"
 
-# Function to check if command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
+# Environment variables
+export APP_URL=${APP_URL:-"http://localhost:8080"}
+export DB_HOST=$DB_HOST
+export DB_PORT=$DB_PORT
+export DB_DATABASE=$DB_DATABASE
+export DB_USERNAME=$DB_USERNAME
+export DB_PASSWORD=$DB_PASSWORD
+export REDIS_HOST=$REDIS_HOST
+export REDIS_PORT=$REDIS_PORT
+export REDIS_PASSWORD=$REDIS_PASSWORD
 
-# Function to check if file exists
-file_exists() {
-    [ -f "$1" ]
-}
-
-# Function to check if directory exists
-dir_exists() {
-    [ -d "$1" ]
-}
-
-# ===========================================
-# PRE-DEPLOYMENT CHECKS
-# ===========================================
-
-print_status "Starting Docker deployment for Property Management System..."
-
-# Check if Docker is installed
-if ! command_exists docker; then
-    print_error "Docker is not installed. Please install Docker first."
-    exit 1
-fi
-
-# Check if Docker Compose is installed
-if ! command_exists docker-compose && ! docker compose version >/dev/null 2>&1; then
-    print_error "Docker Compose is not installed. Please install Docker Compose first."
-    exit 1
-fi
-
-# Check if required files exist
-required_files=(
-    "docker-compose.yml"
-    "Dockerfile"
-    "composer.json"
-    "package.json"
-)
-
-for file in "${required_files[@]}"; do
-    if ! file_exists "$file"; then
-        print_error "Required file not found: $file"
-        exit 1
-    fi
-done
-
-print_success "All required files found"
-
-# ===========================================
-# ENVIRONMENT SETUP
-# ===========================================
-
-print_status "Setting up environment..."
-
-# Create .env file if it doesn't exist
-if ! file_exists ".env"; then
-    print_warning ".env file not found. Creating from template..."
-    if file_exists "ENV_EXAMPLE.md"; then
-        cp ENV_EXAMPLE.md .env
-        print_success "Created .env from ENV_EXAMPLE.md"
-    else
-        print_error "ENV_EXAMPLE.md not found. Please create .env file manually."
-        exit 1
-    fi
-fi
-
-# Generate APP_KEY if not set
-if ! grep -q "APP_KEY=base64:" .env; then
-    print_warning "APP_KEY not set. Generating new key..."
-    # This will be done inside the container
-fi
-
-# ===========================================
-# DOCKER VOLUME SETUP
-# ===========================================
-
-print_status "Setting up Docker volumes..."
-
-# Create volume directories
-volume_dirs=(
-    "docker/volumes/mysql"
-    "docker/volumes/redis"
-    "docker/volumes/nginx/logs"
-    "docker/volumes/prometheus"
-    "docker/volumes/grafana"
-)
-
-for dir in "${volume_dirs[@]}"; do
-    if ! dir_exists "$dir"; then
-        mkdir -p "$dir"
-        print_success "Created directory: $dir"
-    fi
-done
-
-# Set proper permissions for volumes
-chmod -R 755 docker/volumes/ 2>/dev/null || true
-
-# ===========================================
-# DEPENDENCY INSTALLATION
-# ===========================================
-
-print_status "Installing dependencies..."
-
-# Check if composer.lock exists, if not install dependencies
-if ! file_exists "composer.lock"; then
-    print_warning "composer.lock not found. Installing PHP dependencies..."
-    if command_exists composer; then
-        composer install --no-dev --optimize-autoloader
-        print_success "PHP dependencies installed"
-    else
-        print_warning "Composer not found locally. Dependencies will be installed in container."
-    fi
-fi
-
-# Check if package-lock.json exists, if not install dependencies
-if ! file_exists "package-lock.json"; then
-    print_warning "package-lock.json not found. Installing Node.js dependencies..."
-    if command_exists npm; then
-        npm ci --only=production
-        print_success "Node.js dependencies installed"
-    else
-        print_warning "npm not found locally. Dependencies will be installed in container."
-    fi
-fi
-
-# ===========================================
-# DOCKER BUILD
-# ===========================================
-
-print_status "Building Docker images..."
-
-# Stop any running containers
-print_status "Stopping existing containers..."
-docker-compose down --remove-orphans 2>/dev/null || true
-
-# Remove old images to ensure fresh build
-print_status "Removing old images..."
-docker-compose down --rmi all --volumes --remove-orphans 2>/dev/null || true
-
-# Build images
-print_status "Building new images..."
-if docker-compose build --no-cache --pull; then
-    print_success "Docker images built successfully"
-else
-    print_error "Failed to build Docker images"
-    exit 1
-fi
-
-# ===========================================
-# CONTAINER STARTUP
-# ===========================================
-
-print_status "Starting containers..."
-
-# Start services
-if docker-compose up -d; then
-    print_success "Containers started successfully"
-else
-    print_error "Failed to start containers"
-    exit 1
-fi
-
-# ===========================================
-# HEALTH CHECKS
-# ===========================================
-
-print_status "Performing health checks..."
-
-# Wait for services to be ready
-print_status "Waiting for services to be ready..."
-sleep 30
-
-# Check container status
-print_status "Checking container status..."
-if docker-compose ps | grep -q "Up"; then
-    print_success "All containers are running"
-else
-    print_error "Some containers failed to start"
-    docker-compose logs
-    exit 1
-fi
-
-# ===========================================
-# LARAVEL SETUP
-# ===========================================
-
-print_status "Setting up Laravel application..."
-
-# Wait for database to be ready
-print_status "Waiting for database to be ready..."
-for i in {1..30}; do
-    if docker-compose exec -T db mysqladmin ping -h localhost -u root -psecret >/dev/null 2>&1; then
-        print_success "Database is ready"
-        break
-    fi
-    if [ $i -eq 30 ]; then
-        print_error "Database failed to start within timeout"
-        exit 1
-    fi
-    sleep 2
-done
-
-# Run Laravel setup commands
-print_status "Running Laravel setup commands..."
-
-# Generate APP_KEY if needed
-docker-compose exec -T app php artisan key:generate --force 2>/dev/null || true
-
-# Run migrations
-if docker-compose exec -T app php artisan migrate --force; then
-    print_success "Database migrations completed"
-else
-    print_warning "Migrations failed, but continuing..."
-fi
-
-# Run seeders
-if docker-compose exec -T app php artisan db:seed --force; then
-    print_success "Database seeders completed"
-else
-    print_warning "Seeders failed, but continuing..."
-fi
-
-# Clear and cache config
-docker-compose exec -T app php artisan config:clear 2>/dev/null || true
-docker-compose exec -T app php artisan config:cache 2>/dev/null || true
-
-# Clear and cache routes
-docker-compose exec -T app php artisan route:clear 2>/dev/null || true
-docker-compose exec -T app php artisan route:cache 2>/dev/null || true
-
-# Clear and cache views
-docker-compose exec -T app php artisan view:clear 2>/dev/null || true
-docker-compose exec -T app php artisan view:cache 2>/dev/null || true
-
-# Set proper permissions
-docker-compose exec -T app chown -R www:www /var/www/html/storage 2>/dev/null || true
-docker-compose exec -T app chmod -R 755 /var/www/html/storage 2>/dev/null || true
-docker-compose exec -T app chmod -R 755 /var/www/html/bootstrap/cache 2>/dev/null || true
-
-# ===========================================
-# FINAL STATUS
-# ===========================================
-
-print_status "Deployment completed successfully!"
-
-# Show container status
-print_status "Container status:"
-docker-compose ps
-
-# Show service URLs
-print_status "Service URLs:"
-echo "  - Application: http://localhost"
-echo "  - MailHog: http://localhost:8025"
-echo "  - Grafana (if enabled): http://localhost:3000"
-echo "  - Prometheus (if enabled): http://localhost:9090"
-
-# Show logs if there are any errors
-print_status "Recent logs:"
-docker-compose logs --tail=20
-
-print_success "Property Management System is now running!"
-print_status "You can access the application at: http://localhost"
-
-# ===========================================
-# USEFUL COMMANDS
-# ===========================================
-
+echo -e "${BLUE}📋 Configuration:${NC}"
+echo "- App URL: $APP_URL"
+echo "- Database: $DB_HOST:$DB_PORT"
+echo "- Redis: $REDIS_HOST:$REDIS_PORT"
+echo "- App Port: $APP_PORT"
+echo "- WebSocket Port: $WEBSOCKET_PORT"
 echo ""
-print_status "Useful commands:"
-echo "  - View logs: docker-compose logs -f"
-echo "  - Stop services: docker-compose down"
-echo "  - Restart services: docker-compose restart"
-echo "  - Access app container: docker-compose exec app sh"
-echo "  - Access database: docker-compose exec db mysql -u root -psecret property_management"
-echo "  - View container status: docker-compose ps" 
+
+# Function untuk check prerequisites
+check_prerequisites() {
+    echo -e "${BLUE}🔍 Checking prerequisites...${NC}"
+    
+    # Check Docker
+    if ! command -v docker &> /dev/null; then
+        echo -e "${RED}❌ Docker not found. Please install Docker first.${NC}"
+        exit 1
+    fi
+    
+    # Check if Dockerfile exists
+    if [ ! -f "$DOCKERFILE" ]; then
+        echo -e "${RED}❌ Dockerfile.dokploy not found!${NC}"
+        exit 1
+    fi
+    
+    echo -e "${GREEN}✅ Prerequisites check passed${NC}"
+}
+
+# Function untuk test external services
+test_external_services() {
+    echo -e "${BLUE}🔍 Testing external services...${NC}"
+    
+    # Test MySQL connection
+    echo "Testing MySQL connection..."
+    if nc -z "$DB_HOST" "$DB_PORT" 2>/dev/null; then
+        echo -e "${GREEN}✅ MySQL connection successful${NC}"
+    else
+        echo -e "${YELLOW}⚠️  MySQL connection failed - will continue anyway${NC}"
+    fi
+    
+    # Test Redis connection
+    echo "Testing Redis connection..."
+    if nc -z "$REDIS_HOST" "$REDIS_PORT" 2>/dev/null; then
+        echo -e "${GREEN}✅ Redis connection successful${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Redis connection failed - will continue anyway${NC}"
+    fi
+}
+
+# Function untuk build image
+build_image() {
+    echo -e "${BLUE}🏗️  Building Docker image...${NC}"
+    
+    # Remove existing image if exists
+    if docker image inspect "$IMAGE_NAME" &>/dev/null; then
+        echo "Removing existing image..."
+        docker rmi "$IMAGE_NAME" || true
+    fi
+    
+    # Build new image
+    echo "Building new image from $DOCKERFILE..."
+    docker build -f "$DOCKERFILE" -t "$IMAGE_NAME" .
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Image built successfully${NC}"
+    else
+        echo -e "${RED}❌ Image build failed${NC}"
+        exit 1
+    fi
+}
+
+# Function untuk stop existing container
+stop_container() {
+    echo -e "${BLUE}🛑 Stopping existing container...${NC}"
+    
+    if docker ps -q -f name="$CONTAINER_NAME" | grep -q .; then
+        echo "Stopping container $CONTAINER_NAME..."
+        docker stop "$CONTAINER_NAME" || true
+        docker rm "$CONTAINER_NAME" || true
+        echo -e "${GREEN}✅ Container stopped and removed${NC}"
+    else
+        echo "No existing container found"
+    fi
+}
+
+# Function untuk run container
+run_container() {
+    echo -e "${BLUE}🚀 Starting container...${NC}"
+    
+    # Create network if not exists
+    if ! docker network ls | grep -q "homsjogja-network"; then
+        echo "Creating network homsjogja-network..."
+        docker network create homsjogja-network || true
+    fi
+    
+    # Run container dengan environment variables
+    docker run -d \
+        --name "$CONTAINER_NAME" \
+        --network homsjogja-network \
+        -p "$APP_PORT:80" \
+        -p "$WEBSOCKET_PORT:6001" \
+        -e APP_ENV=production \
+        -e APP_DEBUG=false \
+        -e APP_URL="$APP_URL" \
+        -e DB_HOST="$DB_HOST" \
+        -e DB_PORT="$DB_PORT" \
+        -e DB_DATABASE="$DB_DATABASE" \
+        -e DB_USERNAME="$DB_USERNAME" \
+        -e DB_PASSWORD="$DB_PASSWORD" \
+        -e REDIS_HOST="$REDIS_HOST" \
+        -e REDIS_PORT="$REDIS_PORT" \
+        -e REDIS_PASSWORD="$REDIS_PASSWORD" \
+        -e REDIS_DB=0 \
+        -e BROADCAST_DRIVER=redis \
+        -e BROADCAST_CONNECTION=default \
+        -e CACHE_DRIVER=redis \
+        -e SESSION_DRIVER=redis \
+        -e QUEUE_CONNECTION=redis \
+        -e SOCKETIO_PORT=6001 \
+        -e SOCKETIO_HOST=0.0.0.0 \
+        -e NOTIFICATION_CHANNELS=database,broadcast \
+        -v "$(pwd)/storage:/var/www/html/storage" \
+        -v "$(pwd)/public/uploads:/var/www/html/storage/app/public" \
+        --restart unless-stopped \
+        "$IMAGE_NAME"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Container started successfully${NC}"
+    else
+        echo -e "${RED}❌ Container start failed${NC}"
+        exit 1
+    fi
+}
+
+# Function untuk wait for container ready
+wait_for_container() {
+    echo -e "${BLUE}⏳ Waiting for container to be ready...${NC}"
+    
+    # Wait for container to start
+    for i in {1..30}; do
+        if docker ps | grep -q "$CONTAINER_NAME"; then
+            echo -e "${GREEN}✅ Container is running${NC}"
+            break
+        fi
+        echo "Waiting for container to start... ($i/30)"
+        sleep 2
+    done
+    
+    # Wait for application to be ready
+    echo "Waiting for application to be ready..."
+    for i in {1..60}; do
+        if curl -f "http://localhost:$APP_PORT/health" 2>/dev/null; then
+            echo -e "${GREEN}✅ Application is ready${NC}"
+            return 0
+        fi
+        echo "Waiting for application... ($i/60)"
+        sleep 2
+    done
+    
+    echo -e "${YELLOW}⚠️  Application may not be fully ready yet${NC}"
+}
+
+# Function untuk run migrations
+run_migrations() {
+    echo -e "${BLUE}🗄️  Running database migrations...${NC}"
+    
+    # Run migrations
+    echo "Running migrations..."
+    docker exec "$CONTAINER_NAME" php artisan migrate --force || echo "Migration failed, continuing..."
+    
+    # Clear and rebuild cache
+    echo "Rebuilding cache..."
+    docker exec "$CONTAINER_NAME" php artisan config:cache || echo "Config cache failed"
+    docker exec "$CONTAINER_NAME" php artisan route:cache || echo "Route cache failed"
+    docker exec "$CONTAINER_NAME" php artisan view:cache || echo "View cache failed"
+    
+    echo -e "${GREEN}✅ Migrations and cache completed${NC}"
+}
+
+# Function untuk test deployment
+test_deployment() {
+    echo -e "${BLUE}🧪 Testing deployment...${NC}"
+    
+    # Test main application
+    echo "Testing main application..."
+    if curl -f "http://localhost:$APP_PORT" 2>/dev/null; then
+        echo -e "${GREEN}✅ Main application is accessible${NC}"
+    else
+        echo -e "${RED}❌ Main application is not accessible${NC}"
+        return 1
+    fi
+    
+    # Test health endpoint
+    echo "Testing health endpoint..."
+    if curl -f "http://localhost:$APP_PORT/health" 2>/dev/null; then
+        echo -e "${GREEN}✅ Health endpoint is working${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Health endpoint is not working${NC}"
+    fi
+    
+    # Test database connection
+    echo "Testing database connection..."
+    if docker exec "$CONTAINER_NAME" php artisan tinker --execute="DB::connection()->getPdo(); echo 'DB OK';" 2>/dev/null; then
+        echo -e "${GREEN}✅ Database connection is working${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Database connection failed${NC}"
+    fi
+    
+    # Test Redis connection
+    echo "Testing Redis connection..."
+    if docker exec "$CONTAINER_NAME" php artisan tinker --execute="Redis::ping(); echo 'Redis OK';" 2>/dev/null; then
+        echo -e "${GREEN}✅ Redis connection is working${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Redis connection failed${NC}"
+    fi
+}
+
+# Function untuk show logs
+show_logs() {
+    echo -e "${BLUE}📋 Recent logs:${NC}"
+    docker logs --tail=20 "$CONTAINER_NAME"
+}
+
+# Function untuk show status
+show_status() {
+    echo -e "${BLUE}📊 Deployment Status:${NC}"
+    echo "====================="
+    
+    # Show running container
+    echo "Container status:"
+    docker ps -f name="$CONTAINER_NAME"
+    
+    echo ""
+    
+    # Show service URLs
+    echo "Service URLs:"
+    echo "- Main Application: http://localhost:$APP_PORT"
+    echo "- Health Check: http://localhost:$APP_PORT/health"
+    
+    echo ""
+    
+    # Show external service status
+    echo "External Services:"
+    echo "- MySQL: $DB_HOST:$DB_PORT"
+    echo "- Redis: $REDIS_HOST:$REDIS_PORT"
+    
+    echo ""
+    
+    # Show container info
+    echo "Container Info:"
+    docker inspect --format='{{.State.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo "Container not found"
+}
+
+# Function untuk cleanup
+cleanup() {
+    echo -e "${BLUE}🧹 Cleaning up...${NC}"
+    
+    # Stop and remove container
+    stop_container
+    
+    # Remove image
+    if docker image inspect "$IMAGE_NAME" &>/dev/null; then
+        echo "Removing image..."
+        docker rmi "$IMAGE_NAME" || true
+    fi
+    
+    echo -e "${GREEN}✅ Cleanup completed${NC}"
+}
+
+# Main execution
+main() {
+    case "${1:-deploy}" in
+        "deploy")
+            check_prerequisites
+            test_external_services
+            build_image
+            stop_container
+            run_container
+            wait_for_container
+            run_migrations
+            test_deployment
+            show_status
+            ;;
+        "build")
+            check_prerequisites
+            build_image
+            ;;
+        "start")
+            run_container
+            wait_for_container
+            ;;
+        "stop")
+            stop_container
+            ;;
+        "restart")
+            stop_container
+            run_container
+            wait_for_container
+            ;;
+        "logs")
+            show_logs
+            ;;
+        "status")
+            show_status
+            ;;
+        "test")
+            test_deployment
+            ;;
+        "migrate")
+            run_migrations
+            ;;
+        "cleanup")
+            cleanup
+            ;;
+        *)
+            echo "Usage: $0 {deploy|build|start|stop|restart|logs|status|test|migrate|cleanup}"
+            echo ""
+            echo "Commands:"
+            echo "  deploy   - Full deployment (default)"
+            echo "  build    - Build Docker image only"
+            echo "  start    - Start container"
+            echo "  stop     - Stop container"
+            echo "  restart  - Restart container"
+            echo "  logs     - Show recent logs"
+            echo "  status   - Show deployment status"
+            echo "  test     - Test deployment"
+            echo "  migrate  - Run database migrations"
+            echo "  cleanup  - Remove container and image"
+            exit 1
+            ;;
+    esac
+}
+
+# Run main function
+main "$@" 

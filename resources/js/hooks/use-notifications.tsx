@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { router } from '@inertiajs/react';
 import { getEcho } from '@/lib/echo';
 import { createNotificationFallback } from '@/lib/echo-fallback';
@@ -56,6 +56,11 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
     
     const [isConnected, setIsConnected] = useState(false);
     const [connectionMode, setConnectionMode] = useState<'websocket' | 'polling' | 'disconnected'>('disconnected');
+    
+    // Refs untuk cleanup
+    const fallbackInstanceRef = useRef<any>(null);
+    const connectionCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const echoChannelsRef = useRef<any[]>([]);
 
     // Fetch notifications
     const fetchNotifications = useCallback(async () => {
@@ -208,11 +213,19 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
     const handleNewNotification = useCallback((notification: any) => {
         console.log('🔔 New notification received:', notification);
         
-        setState(prev => ({
-            ...prev,
-            notifications: [notification, ...prev.notifications],
-            unreadCount: prev.unreadCount + 1,
-        }));
+        // Check if notification already exists to avoid duplicates
+        setState(prev => {
+            const exists = prev.notifications.some(n => n.id === notification.id);
+            if (exists) {
+                return prev;
+            }
+            
+            return {
+                ...prev,
+                notifications: [notification, ...prev.notifications],
+                unreadCount: prev.unreadCount + 1,
+            };
+        });
         
         // Show browser notification if permission granted
         if ('Notification' in window && Notification.permission === 'granted') {
@@ -239,92 +252,162 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
         }
     }, []);
 
+    // Start polling fallback
+    const startPollingFallback = useCallback(() => {
+        if (!userId) return;
+        
+        console.log('📡 Starting polling fallback for notifications');
+        setConnectionMode('polling');
+        setIsConnected(true);
+        
+        // Stop existing fallback if any
+        if (fallbackInstanceRef.current) {
+            fallbackInstanceRef.current.stopPolling();
+        }
+        
+        // Create new fallback instance
+        fallbackInstanceRef.current = createNotificationFallback(userId);
+        fallbackInstanceRef.current.startPolling(handleNewNotification);
+    }, [userId, handleNewNotification]);
+
+    // Stop polling fallback
+    const stopPollingFallback = useCallback(() => {
+        if (fallbackInstanceRef.current) {
+            fallbackInstanceRef.current.stopPolling();
+            fallbackInstanceRef.current = null;
+        }
+    }, []);
+
     // Setup real-time listeners with WebSocket and polling fallback
     useEffect(() => {
         if (!userId) return;
 
         const { echo, isAvailable } = getEcho();
-        let fallbackInstance: any = null;
-        let connectionCheckInterval: NodeJS.Timeout;
+        let websocketConnected = false;
 
-        // Try WebSocket first
-        if (echo && isAvailable) {
+        // Function untuk setup WebSocket channels
+        const setupWebSocketChannels = () => {
+            if (!echo || !isAvailable) {
+                console.warn('🔄 WebSocket not available, using polling fallback');
+                startPollingFallback();
+                return;
+            }
+
             try {
-                const userChannel = echo.private(`user.${userId}`);
+                console.log('🔌 Setting up WebSocket channels...');
                 
-                userChannel.notification((notification: any) => {
-                    handleNewNotification(notification);
-                });
+                const channels = [
+                    echo.private(`user.${userId}`),
+                    echo.channel('admin-notifications'),
+                    echo.channel('staff-notifications')
+                ];
+                
+                echoChannelsRef.current = channels;
 
-                userChannel.subscribed(() => {
-                    setIsConnected(true);
-                    setConnectionMode('websocket');
-                    console.log('✅ WebSocket connected for notifications');
-                });
-
-                userChannel.error((error: any) => {
-                    console.warn('❌ WebSocket error, switching to polling:', error);
-                    setConnectionMode('polling');
+                // Setup event listeners for each channel
+                channels.forEach((channel, index) => {
+                    const channelName = index === 0 ? `user.${userId}` : 
+                                     index === 1 ? 'admin-notifications' : 'staff-notifications';
                     
-                    // Switch to polling fallback
-                    if (!fallbackInstance) {
-                        fallbackInstance = createNotificationFallback(userId);
-                        fallbackInstance.startPolling(handleNewNotification);
-                    }
+                    channel.notification((notification: any) => {
+                        console.log(`🔔 Notification from ${channelName}:`, notification);
+                        handleNewNotification(notification);
+                    });
+
+                    channel.subscribed(() => {
+                        console.log(`✅ Subscribed to ${channelName}`);
+                        if (index === 0) { // User channel
+                            setIsConnected(true);
+                            setConnectionMode('websocket');
+                            websocketConnected = true;
+                            
+                            // Stop polling if WebSocket is working
+                            stopPollingFallback();
+                        }
+                    });
+
+                    channel.error((error: any) => {
+                        console.warn(`❌ ${channelName} error:`, error);
+                        if (index === 0) { // User channel error
+                            setConnectionMode('polling');
+                            setIsConnected(false);
+                            websocketConnected = false;
+                            
+                            // Start polling fallback
+                            startPollingFallback();
+                        }
+                    });
                 });
 
-                // Monitor connection status
-                connectionCheckInterval = setInterval(() => {
-                    if (echo.connector?.socket?.connected) {
-                        setIsConnected(true);
-                        setConnectionMode('websocket');
-                    } else {
-                        setIsConnected(false);
-                        setConnectionMode('polling');
-                        
-                        // Start polling fallback if not already started
-                        if (!fallbackInstance) {
-                            fallbackInstance = createNotificationFallback(userId);
-                            fallbackInstance.startPolling(handleNewNotification);
-                        }
-                    }
-                }, 5000);
-
             } catch (error) {
-                console.warn('❌ WebSocket setup failed, using polling:', error);
+                console.error('❌ WebSocket setup failed:', error);
                 setConnectionMode('polling');
-            }
-        } else {
-            console.warn('🔄 WebSocket not available, using polling fallback');
-            setConnectionMode('polling');
-        }
-
-        // If WebSocket is not available or fails, use polling fallback
-        if (!echo || !isAvailable) {
-            fallbackInstance = createNotificationFallback(userId);
-            fallbackInstance.startPolling(handleNewNotification);
-            setIsConnected(true); // Polling is considered "connected"
-        }
-
-        // Cleanup
-        return () => {
-            if (connectionCheckInterval) {
-                clearInterval(connectionCheckInterval);
-            }
-            
-            if (fallbackInstance) {
-                fallbackInstance.stopPolling();
-            }
-            
-            try {
-                if (echo) {
-                    echo.leave(`user.${userId}`);
-                }
-            } catch (error) {
-                console.warn('Error leaving channel:', error);
+                startPollingFallback();
             }
         };
-    }, [userId, handleNewNotification]);
+
+        // Setup WebSocket channels
+        setupWebSocketChannels();
+
+        // Monitor connection status
+        connectionCheckIntervalRef.current = setInterval(() => {
+            if (echo && isAvailable) {
+                const socket = (echo.connector as any)?.socket;
+                const isSocketConnected = socket?.connected;
+                
+                if (isSocketConnected && !websocketConnected) {
+                    console.log('✅ WebSocket reconnected');
+                    setConnectionMode('websocket');
+                    setIsConnected(true);
+                    websocketConnected = true;
+                    stopPollingFallback();
+                } else if (!isSocketConnected && websocketConnected) {
+                    console.log('❌ WebSocket disconnected, switching to polling');
+                    setConnectionMode('polling');
+                    setIsConnected(false);
+                    websocketConnected = false;
+                    startPollingFallback();
+                }
+            } else {
+                // WebSocket not available, ensure polling is running
+                if (connectionMode !== 'polling') {
+                    console.log('🔄 WebSocket not available, ensuring polling is active');
+                    setConnectionMode('polling');
+                    startPollingFallback();
+                }
+            }
+        }, 5000);
+
+        // Cleanup function
+        return () => {
+            console.log('🧹 Cleaning up notification listeners');
+            
+            // Clear connection check interval
+            if (connectionCheckIntervalRef.current) {
+                clearInterval(connectionCheckIntervalRef.current);
+                connectionCheckIntervalRef.current = null;
+            }
+            
+            // Stop polling fallback
+            stopPollingFallback();
+            
+            // Leave WebSocket channels
+            try {
+                if (echo && echoChannelsRef.current.length > 0) {
+                    echoChannelsRef.current.forEach(channel => {
+                        try {
+                            channel.unsubscribe();
+                        } catch (error) {
+                            console.warn('Error unsubscribing from channel:', error);
+                        }
+                    });
+                    echoChannelsRef.current = [];
+                }
+            } catch (error) {
+                console.warn('Error leaving WebSocket channels:', error);
+            }
+        };
+    }, [userId, handleNewNotification, startPollingFallback, stopPollingFallback, connectionMode]);
 
     // Request notification permission on mount
     useEffect(() => {

@@ -1,289 +1,306 @@
-# 🚀 SUMMARY: Dokploy Deployment Setup Lengkap
+# 🚀 Dokploy Deployment Summary
 
-## ✅ MASALAH MYSQL YANG TELAH DIPERBAIKI
+## Property Management System - Laravel 12 + React 18 + WebSocket
 
-Error asli yang Anda alami:
-```
-[ERROR] [MY-010326] [Server] Fatal error: Can't open and lock privilege tables: Table 'mysql.user' doesn't exist
-```
-
-**✅ TELAH DIPERBAIKI DENGAN:**
-- MySQL initialization yang proper
-- Volume management yang optimal
-- Health check yang realistis
-- Konfigurasi yang sesuai untuk Dokploy
+Ringkasan lengkap konfigurasi deployment untuk aplikasi Property Management System menggunakan Dockerfile dengan external Redis dan MySQL services.
 
 ---
 
-## 📁 FILES YANG TELAH DIBUAT
+## 📋 Yang Telah Disiapkan
 
-### 🔧 Scripts Utama:
-1. **`fix-mysql-deployment.sh`** - Perbaikan MySQL deployment otomatis
-2. **`deploy-testing-dokploy.sh`** - Deployment testing dengan random domain
-3. **`deploy-to-dokploy.sh`** - Deployment production
-4. **`health-check-dokploy.sh`** - Health check monitoring
-5. **`quick-fix-dokploy.sh`** - Quick fixes untuk masalah umum
+### ✅ **Files yang Dibuat/Diupdate:**
 
-### 🐳 Docker Configurations:
-1. **`docker-compose.dokploy.yml`** - Optimized untuk production Dokploy
-2. **`docker-compose.testing.yml`** - Khusus untuk testing dengan random domain
-3. **`docker-compose.yml`** - Updated dengan perbaikan MySQL
+1. **`Dockerfile.dokploy`** - Multi-stage Docker build yang sudah optimal
+2. **`docker-deploy.sh`** - Script deployment untuk Linux/Mac
+3. **`deploy-dokploy.ps1`** - Script deployment untuk Windows PowerShell
+4. **`websocket-server.sh`** - Script untuk WebSocket server terpisah
+5. **`run-dokploy.sh`** - Script untuk menjalankan app + WebSocket bersama
+6. **`laravel-echo-server.dokploy.json`** - Konfigurasi WebSocket server
+7. **`env.dokploy.template`** - Template environment variables
+8. **`DOKPLOY_DEPLOYMENT_GUIDE.md`** - Panduan deployment lengkap
 
-### 📝 Environment Templates:
-1. **`.env.dokploy.template`** - Template environment production
-2. **`.env.testing`** - Auto-generated saat testing
+### ✅ **Konfigurasi External Services:**
 
-### 📚 Documentation:
-1. **`DOKPLOY_MYSQL_FIX.md`** - Troubleshooting MySQL lengkap
-2. **`DOKPLOY_QUICK_FIX.md`** - Solusi cepat
-3. **`DOKPLOY_DOMAIN_SETUP.md`** - Setup domain lengkap
-4. **`DOKPLOY_INTERFACE_GUIDE.md`** - Panduan interface
-5. **`DEPLOYMENT_SUMMARY.md`** - Summary ini
+- **MySQL Database**: `homsjogja-db-xsjalx:3306`
+  - Database: `homs-db`
+  - Username: `homs-user`
+  - Password: `jD8-AKHx2gFCQ5gx3ouRJ`
 
-### 🗄️ Database Files:
-1. **`docker/mysql-init/init.sql`** - MySQL initialization script
-2. **`docker/mysql/my.cnf.dokploy`** - MySQL config optimized
+- **Redis Cache**: `homsjogja-redis-qmihbb:6379`
+  - Password: `5vlcwpzc45g9mtho`
+  - Database: `0`
+
+### ✅ **WebSocket Configuration:**
+
+- **Laravel Echo Server** untuk real-time notifications
+- **Socket.io** client untuk frontend
+- **Redis** sebagai broadcasting backend
+- **Port 6001** untuk WebSocket connections
 
 ---
 
-## 🎯 **DEPLOYMENT WORKFLOW RECOMMENDED**
+## 🚀 Cara Deployment
 
-### 📋 **OPTION 1: Testing dengan Random Domain (RECOMMENDED)**
+### **Option 1: Windows PowerShell (Recommended)**
+```powershell
+# Full deployment
+.\deploy-dokploy.ps1 deploy
 
+# Check status
+.\deploy-dokploy.ps1 status
+
+# View logs
+.\deploy-dokploy.ps1 logs
+
+# Test deployment
+.\deploy-dokploy.ps1 test
+```
+
+### **Option 2: Linux/Mac Bash**
 ```bash
-# 1. Jalankan perbaikan MySQL (one-time setup)
-chmod +x fix-mysql-deployment.sh
-./fix-mysql-deployment.sh
+# Full deployment
+./docker-deploy.sh deploy
 
-# 2. Deploy testing dengan random domain
-chmod +x deploy-testing-dokploy.sh
-./deploy-testing-dokploy.sh
+# Check status
+./docker-deploy.sh status
 
-# 3. Setup domain di Dokploy Interface:
-#    - Tab "Domains" → Add Domain
-#    - Domain: test-homsjogja.local
-#    - Port: 80
-#    - Path: /
+# View logs
+./docker-deploy.sh logs
 
-# 4. Test deployment
-./test-deployment.sh
-
-# 5. Verify health
-./health-check-dokploy.sh
+# Test deployment
+./docker-deploy.sh test
 ```
 
-### 🌍 **OPTION 2: Langsung Production dengan homsjogja.com**
-
+### **Option 3: Manual Docker Commands**
 ```bash
-# 1. Setup DNS A record terlebih dahulu:
-#    app.homsjogja.com → [IP-SERVER-DOKPLOY]
+# Build image
+docker build -f Dockerfile.dokploy -t homsjogja-app .
 
-# 2. Jalankan perbaikan MySQL
-./fix-mysql-deployment.sh
-
-# 3. Deploy production
-./deploy-to-dokploy.sh
-
-# 4. Setup domain di Dokploy Interface:
-#    - Domain: app.homsjogja.com
-#    - Port: 80
-#    - Enable HTTPS (Let's Encrypt)
-
-# 5. Verify deployment
-./health-check-dokploy.sh
+# Run container
+docker run -d \
+  --name homsjogja-container \
+  -p 8080:80 \
+  -p 6001:6001 \
+  -e APP_ENV=production \
+  -e DB_HOST=homsjogja-db-xsjalx \
+  -e DB_DATABASE=homs-db \
+  -e DB_USERNAME=homs-user \
+  -e DB_PASSWORD=jD8-AKHx2gFCQ5gx3ouRJ \
+  -e REDIS_HOST=homsjogja-redis-qmihbb \
+  -e REDIS_PASSWORD=5vlcwpzc45g9mtho \
+  -e BROADCAST_DRIVER=redis \
+  -e CACHE_DRIVER=redis \
+  -e SESSION_DRIVER=redis \
+  -e QUEUE_CONNECTION=redis \
+  homsjogja-app
 ```
 
 ---
 
-## 🎛️ **INTERFACE DOKPLOY SETUP**
+## 🔧 Architecture Overview
 
-### Untuk Testing:
 ```
-Service Name: homsjogja-laravel-pms
-Docker Compose File: docker-compose.testing.yml
-Domain: test-homsjogja.local
-Port: 80
-HTTPS: Disabled (testing)
-```
-
-### Untuk Production:
-```
-Service Name: homsjogja-laravel-pms
-Docker Compose File: docker-compose.dokploy.yml
-Domain: app.homsjogja.com
-Port: 80
-HTTPS: Enabled (Let's Encrypt)
-```
-
-### Environment Variables (Set via Dokploy Interface):
-```env
-# Testing
-APP_ENV=testing
-APP_DEBUG=true
-APP_URL=http://test-homsjogja.local
-DB_DATABASE=property_management_test
-DB_PASSWORD=testing_secret_123
-
-# Production
-APP_ENV=production
-APP_DEBUG=false
-APP_URL=https://app.homsjogja.com
-DB_DATABASE=property_management
-DB_PASSWORD=[strong-password]
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Web Browser   │    │   Mobile App    │    │   Admin Panel   │
+└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
+          │                      │                      │
+          └──────────────────────┼──────────────────────┘
+                                 │
+                    ┌─────────────▼─────────────┐
+                    │    Docker Container       │
+                    │  ┌─────────────────────┐  │
+                    │  │   Nginx (Port 80)   │  │
+                    │  └─────────┬───────────┘  │
+                    │            │              │
+                    │  ┌─────────▼───────────┐  │
+                    │  │  PHP-FPM (Laravel) │  │
+                    │  └─────────┬───────────┘  │
+                    │            │              │
+                    │  ┌─────────▼───────────┐  │
+                    │  │ Laravel Echo Server │  │
+                    │  │   (Port 6001)       │  │
+                    │  └─────────────────────┘  │
+                    └─────────────┬─────────────┘
+                                  │
+                    ┌─────────────▼─────────────┐
+                    │    External Services      │
+                    │  ┌─────────┬───────────┐  │
+                    │  │  MySQL  │   Redis   │  │
+                    │  │  (DB)   │ (Cache)   │  │
+                    │  └─────────┴───────────┘  │
+                    └───────────────────────────┘
 ```
 
 ---
 
-## 🔍 **TROUBLESHOOTING QUICK REFERENCE**
+## 📊 Service URLs
 
-### Common Issues & Solutions:
+Setelah deployment berhasil, Anda dapat mengakses:
 
-| Issue | Quick Fix Command |
-|-------|-------------------|
-| MySQL Won't Start | `./quick-fix-dokploy.sh` |
-| Container Restart Loop | `./health-check-dokploy.sh` |
-| Domain Not Accessible | Check DNS + Dokploy interface |
-| SSL Certificate Error | Wait 2-5 minutes, check domain DNS |
-| Permission Denied | Check file permissions in containers |
+- **🌐 Main Application**: http://localhost:8080
+- **🔌 WebSocket Server**: http://localhost:6001
+- **❤️ Health Check**: http://localhost:8080/health
 
-### Log Monitoring:
+---
+
+## 🛠️ Available Commands
+
+### **Windows PowerShell:**
+```powershell
+.\deploy-dokploy.ps1 deploy    # Full deployment
+.\deploy-dokploy.ps1 build     # Build image only
+.\deploy-dokploy.ps1 start     # Start container
+.\deploy-dokploy.ps1 stop      # Stop container
+.\deploy-dokploy.ps1 restart   # Restart container
+.\deploy-dokploy.ps1 logs      # Show logs
+.\deploy-dokploy.ps1 status    # Show status
+.\deploy-dokploy.ps1 test      # Test deployment
+.\deploy-dokploy.ps1 migrate   # Run migrations
+.\deploy-dokploy.ps1 cleanup   # Remove everything
+```
+
+### **Linux/Mac Bash:**
 ```bash
-# All services
-docker-compose -f docker-compose.dokploy.yml logs
-
-# Specific service
-docker-compose -f docker-compose.dokploy.yml logs app
-docker-compose -f docker-compose.dokploy.yml logs db
-
-# Real-time monitoring
-docker-compose -f docker-compose.dokploy.yml logs -f
+./docker-deploy.sh deploy    # Full deployment
+./docker-deploy.sh build     # Build image only
+./docker-deploy.sh start     # Start container
+./docker-deploy.sh stop      # Stop container
+./docker-deploy.sh restart   # Restart container
+./docker-deploy.sh logs      # Show logs
+./docker-deploy.sh status    # Show status
+./docker-deploy.sh test      # Test deployment
+./docker-deploy.sh migrate   # Run migrations
+./docker-deploy.sh cleanup   # Remove everything
 ```
 
 ---
 
-## ✅ **SUCCESS INDICATORS**
+## 🔍 Troubleshooting
 
-Deployment berhasil jika:
+### **Common Issues:**
 
-### 📊 Container Health:
-- [ ] ✅ All containers running (no restart loop)
-- [ ] ✅ MySQL ping successful
-- [ ] ✅ Laravel application responding
-- [ ] ✅ Redis connection working
-
-### 🌐 Domain Access:
-- [ ] ✅ Domain accessible from browser
-- [ ] ✅ HTTPS working (production)
-- [ ] ✅ No 404/502 errors
-- [ ] ✅ Laravel welcome page or app interface
-
-### 🗄️ Database:
-- [ ] ✅ Migrations executed successfully
-- [ ] ✅ Database tables created
-- [ ] ✅ No MySQL errors in logs
-
-### 📈 Performance:
-- [ ] ✅ Response time < 2 seconds
-- [ ] ✅ CPU usage normal
-- [ ] ✅ Memory usage stable
-
----
-
-## 🆘 **EMERGENCY PROCEDURES**
-
-### Complete Reset:
+#### 1. Container Won't Start
 ```bash
-# 1. Full cleanup
-docker-compose down --volumes --rmi all
-docker system prune -a -f
+# Check Docker logs
+docker logs homsjogja-container
 
-# 2. Fresh start
-./fix-mysql-deployment.sh
-./deploy-to-dokploy.sh
-
-# 3. Verify
-./health-check-dokploy.sh
+# Check if image exists
+docker images | grep homsjogja
 ```
 
-### Quick MySQL Fix:
+#### 2. Database Connection Failed
 ```bash
-# Remove MySQL volume and restart
-docker volume rm $(docker volume ls -q | grep mysql)
-docker-compose -f docker-compose.dokploy.yml up -d db
-sleep 60
-docker-compose -f docker-compose.dokploy.yml up -d
+# Test external MySQL
+nc -zv homsjogja-db-xsjalx 3306
+
+# Check database connection in container
+docker exec homsjogja-container php artisan tinker --execute="DB::connection()->getPdo();"
 ```
 
-### Domain Issues:
+#### 3. Redis Connection Failed
 ```bash
-# Check DNS propagation
-dig app.homsjogja.com
-nslookup app.homsjogja.com
+# Test external Redis
+nc -zv homsjogja-redis-qmihbb 6379
 
-# Test local access
-curl -H "Host: app.homsjogja.com" http://localhost
+# Check Redis connection in container
+docker exec homsjogja-container php artisan tinker --execute="Redis::ping();"
 ```
 
----
-
-## 📞 **SUPPORT RESOURCES**
-
-### Documentation Files:
-- **Detailed MySQL Fix**: `DOKPLOY_MYSQL_FIX.md`
-- **Quick Solutions**: `DOKPLOY_QUICK_FIX.md`
-- **Domain Setup**: `DOKPLOY_DOMAIN_SETUP.md`
-- **Interface Guide**: `DOKPLOY_INTERFACE_GUIDE.md`
-
-### Useful Commands:
+#### 4. WebSocket Not Working
 ```bash
-# Health check
-./health-check-dokploy.sh
+# Check WebSocket server
+curl http://localhost:6001
 
-# Quick testing
-./test-deployment.sh
-
-# Emergency fix
-./quick-fix-dokploy.sh
-
-# Fresh deployment
-./deploy-to-dokploy.sh
+# Check WebSocket logs
+docker logs homsjogja-container | grep -i websocket
 ```
 
 ---
 
-## 🎉 **DEPLOYMENT STATUS: READY TO GO!**
+## 📈 Performance Features
 
-### ✅ **Masalah MySQL Error SOLVED**
-### ✅ **Dokploy Configuration OPTIMIZED**
-### ✅ **Domain Setup AUTOMATED**
-### ✅ **Monitoring Tools READY**
+### **Dockerfile Optimizations:**
+- ✅ **Multi-stage build** untuk mengurangi image size
+- ✅ **Production PHP configuration** dengan OPcache
+- ✅ **Nginx optimization** untuk static files
+- ✅ **Supervisor** untuk process management
 
----
-
-## 🚀 **NEXT STEPS UNTUK ANDA:**
-
-### Immediate Actions:
-1. **Run testing deployment:**
-   ```bash
-   ./deploy-testing-dokploy.sh
-   ```
-
-2. **Setup random domain di Dokploy interface:**
-   - Domain: test-homsjogja.local
-   - Port: 80
-
-3. **Verify everything works:**
-   ```bash
-   ./test-deployment.sh
-   ```
-
-### Production Migration:
-1. **Setup DNS A record**: app.homsjogja.com → server IP
-2. **Update domain di Dokploy**: app.homsjogja.com + HTTPS
-3. **Deploy production**: `./deploy-to-dokploy.sh`
+### **Application Optimizations:**
+- ✅ **Laravel cache** untuk config, routes, views
+- ✅ **Redis** untuk session, cache, queue
+- ✅ **WebSocket** untuk real-time notifications
+- ✅ **Asset optimization** dengan Vite build
 
 ---
 
-**🎯 Your Property Management System is now ready for stable deployment on Dokploy!**
+## 🔐 Security Features
 
-Semua masalah MySQL telah teratasi dan deployment workflow telah dioptimasi khusus untuk environment Dokploy Anda.
+### **Container Security:**
+- ✅ **Non-root user** (www:www)
+- ✅ **Read-only filesystem** untuk sensitive directories
+- ✅ **Security headers** di Nginx configuration
+
+### **Application Security:**
+- ✅ **Laravel security features** (CSRF, XSS protection)
+- ✅ **Input validation** dan sanitization
+- ✅ **SQL injection prevention** dengan Eloquent ORM
+- ✅ **Session security** dengan Redis
+
+---
+
+## 📞 Support & Documentation
+
+### **Documentation Files:**
+- `DOKPLOY_DEPLOYMENT_GUIDE.md` - Panduan lengkap
+- `Dockerfile.dokploy` - Docker build configuration
+- `docker-deploy.sh` - Linux/Mac deployment script
+- `deploy-dokploy.ps1` - Windows deployment script
+- `env.dokploy.template` - Environment template
+- `laravel-echo-server.dokploy.json` - WebSocket configuration
+
+### **Useful Commands:**
+```bash
+# Quick status check
+.\deploy-dokploy.ps1 status    # Windows
+./docker-deploy.sh status      # Linux/Mac
+
+# View recent logs
+.\deploy-dokploy.ps1 logs      # Windows
+./docker-deploy.sh logs        # Linux/Mac
+
+# Test all services
+.\deploy-dokploy.ps1 test      # Windows
+./docker-deploy.sh test        # Linux/Mac
+```
+
+---
+
+## 🎯 Success Metrics
+
+Setelah deployment berhasil, Anda akan melihat:
+
+- ✅ **Container starts successfully**
+- ✅ **Application accessible on port 8080**
+- ✅ **WebSocket server running on port 6001**
+- ✅ **Database connection established**
+- ✅ **Redis connection established**
+- ✅ **Health endpoint responding**
+- ✅ **Real-time notifications working**
+
+---
+
+## 🚀 Next Steps
+
+1. **Run deployment script** sesuai OS Anda
+2. **Verify all services** are running correctly
+3. **Test real-time notifications** di browser
+4. **Monitor performance** dan logs
+5. **Configure production environment** jika diperlukan
+
+---
+
+**📅 Last Updated**: 2025  
+**🔄 Version**: 1.0  
+**👤 Maintained By**: Development Team
+
+**🎯 Ready for Deployment!** 🚀

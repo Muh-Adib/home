@@ -288,6 +288,146 @@ class PaymentController extends Controller
         ]);
     }
 
+    /**
+     * Show secure payment form (token-based access)
+     */
+    public function securePayment(Booking $booking, string $token): Response
+    {
+        // Validate payment token
+        if (!$booking->isPaymentTokenValid($token)) {
+            return redirect()->route('my-bookings')
+                ->with('error', 'Invalid or expired payment link.');
+        }
+
+        // Calculate payment amounts
+        $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+        $dpAmount = $booking->dp_amount ?? ($booking->total_amount * 0.3); // Default 30% DP
+        $remainingAmount = $booking->total_amount - $paidAmount;
+        
+        // Determine payment type and amount
+        $paymentType = 'dp';
+        $requiredAmount = $dpAmount;
+        
+        if ($paidAmount >= $dpAmount) {
+            $paymentType = 'remaining';
+            $requiredAmount = $remainingAmount;
+        }
+
+        if ($remainingAmount <= 0) {
+            return redirect()->route('my-bookings')
+                ->with('info', 'This booking has been fully paid.');
+        }
+
+        // Get active payment methods
+        $paymentMethods = PaymentMethod::active()->get();
+
+        // Calculate nights
+        $checkIn = \Carbon\Carbon::parse($booking->check_in);
+        $checkOut = \Carbon\Carbon::parse($booking->check_out);
+        $nights = $checkIn->diffInDays($checkOut);
+
+        return Inertia::render('Payment/SecurePayment', [
+            'booking' => [
+                'id' => $booking->id,
+                'booking_number' => $booking->booking_number,
+                'property' => [
+                    'name' => $booking->property->name,
+                    'address' => $booking->property->address,
+                    'cover_image' => $booking->property->cover_image,
+                ],
+                'check_in' => $booking->check_in,
+                'check_out' => $booking->check_out,
+                'guest_count' => $booking->guest_count,
+                'total_amount' => $booking->total_amount,
+                'booking_status' => $booking->booking_status,
+                'payment_status' => $booking->payment_status,
+                'payment_token_expires_at' => $booking->payment_token_expires_at,
+                'nights' => $nights,
+                'dp_amount' => $dpAmount,
+                'dp_percentage' => $booking->dp_percentage ?? 30,
+            ],
+            'paymentMethods' => $paymentMethods,
+            'paymentInfo' => [
+                'paidAmount' => $paidAmount,
+                'dpAmount' => $dpAmount,
+                'remainingAmount' => $remainingAmount,
+                'requiredAmount' => $requiredAmount,
+                'paymentType' => $paymentType,
+                'isDpComplete' => $paidAmount >= $dpAmount,
+            ],
+            'token' => $token,
+        ]);
+    }
+
+    /**
+     * Store secure payment (token-based access)
+     */
+    public function securePaymentStore(Request $request, Booking $booking, string $token): RedirectResponse
+    {
+        // Validate payment token
+        if (!$booking->isPaymentTokenValid($token)) {
+            return redirect()->route('my-bookings')
+                ->with('error', 'Invalid or expired payment link.');
+        }
+
+        // Validate request
+        $request->validate([
+            'payment_method_id' => 'required|exists:payment_methods,id',
+            'amount' => 'required|numeric|min:1|max:' . $booking->total_amount,
+            'proof_of_payment' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'payment_notes' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            // Get payment method
+            $paymentMethod = PaymentMethod::findOrFail($request->payment_method_id);
+
+            // Upload proof of payment
+            $proofPath = $this->uploadAndOptimizePaymentProof($request->file('proof_of_payment'));
+
+            // Create payment record
+            $payment = Payment::create([
+                'booking_id' => $booking->id,
+                'payment_number' => Payment::generatePaymentNumber(),
+                'payment_method_id' => $request->payment_method_id,
+                'amount' => $request->amount,
+                'payment_type' => 'dp',
+                'payment_method' => $paymentMethod->type,
+                'payment_status' => 'pending',
+                'attachment_path' => $proofPath,
+                'verification_notes' => $request->payment_notes,
+                'payment_date' => now(),
+                'processed_by' => null, // Guest payment, no processor
+            ]);
+
+            // Update booking payment status
+            $booking->updatePaymentStatus();
+
+            // Clear payment token after successful payment
+            $booking->clearPaymentToken();
+
+            // Trigger payment created event
+            event(new PaymentCreated($payment, Auth::user()));
+
+            DB::commit();
+
+            return redirect()->route('my-bookings')
+                ->with('success', 'Payment submitted successfully. We will verify your payment within 24 hours.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Secure payment failed', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'Payment submission failed. Please try again.']);
+        }
+    }
 
     /**
      * Upload and optimize payment proof image

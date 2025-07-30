@@ -102,13 +102,13 @@ export default function BookingConfirmation({ booking, password }: BookingConfir
     const formatWhatsAppMessage = () => {
         const message = `Halo Admin, saya ingin bertanya tentang booking saya:
 
-📋 Booking Number: ${booking.booking_number}
-🏠 Property: ${booking.property.name}
-👤 Guest: ${booking.guest_name}
-📅 Check-in: ${formatDate(booking.check_in)}
-📅 Check-out: ${formatDate(booking.check_out)}
-👥 Guests: ${booking.guest_count} orang
-💰 Total: Rp ${(booking.total_amount || 0).toLocaleString()}
+Booking Number: ${booking.booking_number}
+Property: ${booking.property.name}
+Guest: ${booking.guest_name}
+Check-in: ${formatDate(booking.check_in)}
+Check-out: ${formatDate(booking.check_out)}
+Guests: ${booking.guest_count} orang
+Total: Rp ${(booking.total_amount || 0).toLocaleString()}
 
 Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
 

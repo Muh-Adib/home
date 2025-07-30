@@ -11,19 +11,34 @@ services:
     environment:
       - APP_ENV=production
       - APP_DEBUG=false
-      - DB_HOST=mysql
+      - APP_URL=${APP_URL:-http://localhost:8080}
+      
+      # External MySQL Configuration
+      - DB_HOST=homsjogja-db-xsjalx
       - DB_PORT=3306
-      - DB_DATABASE=laravel
-      - DB_USERNAME=laravel
-      - DB_PASSWORD=password
-      - REDIS_HOST=redis
+      - DB_DATABASE=homs-db
+      - DB_USERNAME=homs-user
+      - DB_PASSWORD=jD8-AKHx2gFCQ5gx3ouRJ
+      
+      # External Redis Configuration
+      - REDIS_HOST=homsjogja-redis-qmihbb
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=null
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - REDIS_PASSWORD=5vlcwpzc45g9mtho
+      - REDIS_DB=0
+      
+      # Broadcasting Configuration
+      - BROADCAST_DRIVER=redis
+      - BROADCAST_CONNECTION=default
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      
+      # WebSocket Configuration
+      - SOCKETIO_PORT=6001
+      - SOCKETIO_HOST=0.0.0.0
+      
+      # Notification Configuration
+      - NOTIFICATION_CHANNELS=database,broadcast
     volumes:
       - app_storage:/var/www/html/storage
       - app_uploads:/var/www/html/storage/app/public
@@ -37,59 +52,39 @@ services:
       retries: 3
       start_period: 60s
 
-  # MySQL Database (External simulation)
-  mysql:
-    image: mysql:8.0
+  # Laravel Echo Server untuk WebSocket
+  websocket:
+    image: node:20-alpine
+    working_dir: /app
+    ports:
+      - "6001:6001"
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: laravel
-      MYSQL_USER: laravel
-      MYSQL_PASSWORD: password
-    ports:
-      - "3306:3306"
+      - REDIS_HOST=homsjogja-redis-qmihbb
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=5vlcwpzc45g9mtho
+      - REDIS_DB=0
+      - AUTH_HOST=http://app:80
+      - AUTH_ENDPOINT=/broadcasting/auth
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./laravel-echo-server.dokploy.json:/app/laravel-echo-server.json:ro
     networks:
       - app_network
     restart: unless-stopped
+    depends_on:
+      - app
+    command: >
+      sh -c "
+        npm install -g laravel-echo-server &&
+        laravel-echo-server start --config=/app/laravel-echo-server.json
+      "
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
       start_period: 30s
-    command: >
-      --default-authentication-plugin=mysql_native_password
-      --innodb-buffer-pool-size=256M
-      --max-connections=100
-
-  # Redis Cache (External simulation)  
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - app_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    command: >
-      redis-server 
-      --maxmemory 128mb
-      --maxmemory-policy allkeys-lru
-      --save 900 1
 
 volumes:
-  mysql_data:
-    driver: local
-  redis_data:
-    driver: local
   app_storage:
     driver: local
   app_uploads:

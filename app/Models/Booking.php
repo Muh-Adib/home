@@ -83,6 +83,10 @@ class Booking extends Model
         'is_cleaned' => 'boolean',
     ];
 
+    protected $appends = [
+        'payment_link',
+    ];
+
     // Boot method untuk auto-generate booking number
     protected static function boot()
     {
@@ -440,6 +444,23 @@ class Booking extends Model
             'booking' => $this->booking_number,
             'token' => $this->payment_token
         ]);
+    }
+
+    /**
+     * Get payment link for frontend
+     */
+    protected function paymentLink(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                // Generate payment token if not exists
+                if (!$this->payment_token) {
+                    $this->generatePaymentToken();
+                }
+                
+                return $this->getSecurePaymentUrl();
+            }
+        );
     }
 
     /**

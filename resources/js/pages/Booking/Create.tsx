@@ -61,8 +61,8 @@ interface GuestDetail {
 }
 
 interface BookingFormData {
-    check_in_date: string;
-    check_out_date: string;
+    check_in: string;
+    check_out: string;
     check_in_time: string;
     guest_male: number;
     guest_female: number;
@@ -105,8 +105,8 @@ interface RateCalculation {
 }
 
 interface BookingErrors {
-    check_in_date?: string;
-    check_out_date?: string;
+    check_in?: string;
+    check_out?: string;
     check_in_time?: string;
     guest_male?: string;
     guest_female?: string;
@@ -397,8 +397,8 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
     const calculateRate = useCallback(async () => {
         try {
             const response = await fetch(`/api/properties/${property.slug}/calculate-rate?` + new URLSearchParams({
-                check_in: data.check_in_date,
-                check_out: data.check_out_date,
+                check_in: data.check_in,
+                check_out: data.check_out,
                 guest_count: totalGuests.toString(),
             }));
             
@@ -423,15 +423,15 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
             console.error('Error calculating rate:', error);
             setAvailabilityStatus('unavailable');
         }
-    }, [property.slug, data.check_in_date, data.check_out_date, totalGuests]);
+    }, [property.slug, data.check_in, data.check_out, totalGuests]);
 
     // Calculate rate when dates change
     useEffect(() => {
-        if (data.check_in_date && data.check_out_date) {
+        if (data.check_in && data.check_out) {
             setAvailabilityStatus('checking');
             calculateRate();
         }
-    }, [data.check_in_date, data.check_out_date, calculateRate]);
+    }, [data.check_in, data.check_out, calculateRate]);
 
     // Email checking function
     const checkEmailExists = useCallback(async (email: string) => {
@@ -541,6 +541,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
     ];
 
     const checkInTimeOptions = [
+        { value: '14:00', label: '14:00' },
         { value: '15:00', label: '15:00' },
         { value: '16:00', label: '16:00' },
         { value: '17:00', label: '17:00' },
@@ -586,8 +587,8 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
         
         if (!canSubmit) {
             console.warn('Form submission blocked - validation failed', {
-                hasCheckInDate: !!data.check_in_date,
-                hasCheckOutDate: !!data.check_out_date,
+                hasCheckInDate: !!data.check_in,
+                hasCheckOutDate: !!data.check_out,
                 guestCountError,
                 hasGuestName: !!data.guest_name?.trim(),
                 hasGuestEmail: !!data.guest_email?.trim(),
@@ -599,16 +600,46 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
             });
             return;
         }
+
+        // ✅ FIX: Prepare data with proper field mapping
+        const submitData = {
+            // ✅ FIX: Ensure proper date format (YYYY-MM-DD)
+            check_in: data.check_in,
+            check_out: data.check_out,
+            check_in_time: data.check_in_time || '15:00',
+            
+            // ✅ FIX: Ensure proper guest count calculation
+            guest_male: data.guest_male || 0,
+            guest_female: data.guest_female || 0,
+            guest_children: data.guest_children || 0,
+            guest_count: totalGuests,
+            
+            // Guest information
+            guest_name: data.guest_name?.trim() || '',
+            guest_email: data.guest_email?.trim() || '',
+            guest_phone: data.guest_phone?.trim() || '',
+            guest_country: data.guest_country || 'Indonesia',
+            guest_id_number: data.guest_id_number || '',
+            guest_gender: data.guest_gender || 'male',
+            relationship_type: data.relationship_type || 'keluarga',
+            
+            // Booking details
+            special_requests: data.special_requests || '',
+            dp_percentage: data.dp_percentage || 50,
+            guests: data.guests || [],
+        };
+
+        console.log('Submitting booking data:', submitData);
         
         // Always use the same booking route - backend will handle user registration if needed
-        post(`/properties/${property.slug}/book`, {
+        post(`/properties/${property.slug}/book`, submitData, {
             onStart: () => {
                 console.log('Starting booking submission...');
             },
-            onSuccess: (page) => {
+            onSuccess: (page: any) => {
                 console.log('Booking created successfully:', page);
             },
-            onError: (errors) => {
+            onError: (errors: any) => {
                 console.error('Booking creation failed:', errors);
             },
             onFinish: () => {
@@ -618,8 +649,8 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
     };
 
     const guestCountError = totalGuests > property.capacity_max;
-    const canSubmit = data.check_in_date && 
-                     data.check_out_date && 
+    const canSubmit = data.check_in && 
+                     data.check_out && 
                      !guestCountError && 
                      data.guest_name.trim() && 
                      data.guest_email.trim() && 
@@ -669,7 +700,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                         {/* Tampilkan tanggal, readonly */}
                                                         <Input
                                                             type="text"
-                                                            value={data.check_in_date ? new Date(data.check_in_date).toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                                                            value={data.check_in ? new Date(data.check_in).toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : ''}
                                                             readOnly
                                                             disabled
                                                             className="bg-gray-100 cursor-not-allowed text-center border-0 p-0 shadow-none focus:ring-0 focus:border-0"
@@ -681,14 +712,14 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                 </div>
                                                 <div className="flex flex-col items-center">
                                                     <div className="w-8 h-0.5 bg-gray-300"></div>
-                                                    <div className="text-xs text-gray-400 mt-1">{data.check_in_date && data.check_out_date ? `${rateCalculation?.nights || 0} malam` : ''}</div>
+                                                    <div className="text-xs text-gray-400 mt-1">{data.check_in && data.check_out ? `${rateCalculation?.nights || 0} malam` : ''}</div>
                                                 </div>
                                                 <div className="flex-1 text-center">
                                                     <div className="text-xs text-gray-500 mb-1">Check out</div>
                                                     <div className="font-semibold text-gray-800 text-sm">
                                                         <Input
                                                             type="text"
-                                                            value={data.check_out_date ? new Date(data.check_out_date).toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                                                            value={data.check_out ? new Date(data.check_out).toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : ''}
                                                             readOnly
                                                             disabled
                                                             className="bg-gray-100 cursor-not-allowed text-center border-0 p-0 shadow-none focus:ring-0 focus:border-0"
@@ -699,9 +730,9 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                     </div>
                                                 </div>
                                             </div>
-                                            {(bookingErrors.check_in_date || bookingErrors.check_out_date) && (
+                                            {(bookingErrors.check_in || bookingErrors.check_out) && (
                                                 <p className="text-sm text-red-600 mt-1">
-                                                    {bookingErrors.check_in_date || bookingErrors.check_out_date}
+                                                    {bookingErrors.check_in || bookingErrors.check_out}
                                                 </p>
                                             )}
                                         </div>
@@ -725,7 +756,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                         </div>
 
                                         {/* Availability Status */}
-                                        {data.check_in_date && data.check_out_date && (
+                                        {data.check_in && data.check_out && (
                                             <div className="mt-4">
                                                 {availabilityStatus === 'checking' && (
                                                     <Alert className="border-blue-200 bg-blue-50">
