@@ -1,514 +1,328 @@
-# 🚀 Dokploy Deployment Guide
+# 🚀 Dokploy Deployment Guide - Laravel dengan WebSocket Support
 
-## Property Management System - Laravel 12 + React 18 + WebSocket
+## 📋 Overview
 
-Panduan lengkap untuk deployment aplikasi Property Management System menggunakan Dockerfile dengan external Redis dan MySQL services.
+Panduan lengkap untuk deploy aplikasi Laravel Property Management System ke Dokploy dengan fitur:
+- ✅ Laravel Framework dengan Inertia.js React
+- ✅ MySQL Database (External Service)
+- ✅ Redis Cache/Queue/Session (External Service)  
+- ✅ Laravel Echo Server untuk WebSocket real-time
+- ✅ Multi-stage Docker build optimization
+- ✅ Supervisor process management
+- ✅ Nginx web server dengan optimasi production
 
----
+## 🛠️ Pre-requisites
 
-## 📋 Prerequisites
+### 1. Dokploy Setup
+- Dokploy server sudah terinstall dan berjalan
+- Access ke Dokploy dashboard
+- Git repository sudah terhubung ke Dokploy
 
-### System Requirements
-- Docker 20.10+
-- Docker Compose (optional, untuk development)
-- 4GB RAM minimum
-- 10GB disk space
+### 2. External Services
+Pastikan service berikut sudah tersedia di Dokploy:
 
-### External Services
-- **MySQL Database**: `homsjogja-db-xsjalx:3306`
-  - Database: `homs-db`
-  - Username: `homs-user`
-  - Password: `jD8-AKHx2gFCQ5gx3ouRJ`
-
-- **Redis Cache**: `homsjogja-redis-qmihbb:6379`
-  - Password: `5vlcwpzc45g9mtho`
-  - Database: `0`
-
----
-
-## 🏗️ Architecture Overview
-
+#### MySQL Database
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Web Browser   │    │   Mobile App    │    │   Admin Panel   │
-└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
-          │                      │                      │
-          └──────────────────────┼──────────────────────┘
-                                 │
-                    ┌─────────────▼─────────────┐
-                    │    Docker Container       │
-                    │  ┌─────────────────────┐  │
-                    │  │   Nginx (Port 80)   │  │
-                    │  └─────────┬───────────┘  │
-                    │            │              │
-                    │  ┌─────────▼───────────┐  │
-                    │  │  PHP-FPM (Laravel) │  │
-                    │  └─────────┬───────────┘  │
-                    │            │              │
-                    │  ┌─────────▼───────────┐  │
-                    │  │ Laravel Echo Server │  │
-                    │  │   (Port 6001)       │  │
-                    │  └─────────────────────┘  │
-                    └─────────────┬─────────────┘
-                                  │
-                    ┌─────────────▼─────────────┐
-                    │    External Services      │
-                    │  ┌─────────┬───────────┐  │
-                    │  │  MySQL  │   Redis   │  │
-                    │  │  (DB)   │ (Cache)   │  │
-                    │  └─────────┴───────────┘  │
-                    └───────────────────────────┘
+Service Name: homsjogja-db-xsjalx
+Database: homs-db
+Username: homs-user
+Password: jD8-AKHx2gFCQ5gx3ouRJ
+Port: 3306
 ```
 
----
-
-## 🚀 Quick Deployment
-
-### 1. Clone Repository
-```bash
-git clone <your-repo-url>
-cd home
+#### Redis Service
+```
+Service Name: homsjogja-redis-qmihbb
+Username: default
+Password: 5vlcwpzc45g9mtho
+Port: 6379
 ```
 
-### 2. Setup Environment
-```bash
-# Copy environment template
-cp env.dokploy.template .env
+## 📂 File Structure
 
-# Edit environment variables sesuai kebutuhan
-nano .env
-```
-
-### 3. Run Deployment
-```bash
-# Make script executable
-chmod +x docker-deploy.sh
-
-# Full deployment
-./docker-deploy.sh deploy
-```
-
-### 4. Verify Deployment
-```bash
-# Check status
-./docker-deploy.sh status
-
-# View logs
-./docker-deploy.sh logs
-
-# Test application
-curl http://localhost:8080/health
-```
-
----
-
-## 📁 File Structure
+File-file penting untuk deployment:
 
 ```
-home/
-├── Dockerfile.dokploy              # Multi-stage Docker build
-├── docker-deploy.sh               # Deployment script
-├── env.dokploy.template           # Environment template
-├── laravel-echo-server.dokploy.json # WebSocket config
+├── Dockerfile.dokploy              # Multi-stage Docker configuration
+├── .env.dokploy                    # Production environment template
+├── deploy-dokploy-production.sh    # Deployment preparation script
 ├── docker/
-│   ├── nginx/
-│   │   └── dokploy.conf          # Nginx configuration
-│   ├── php/
-│   │   └── dokploy.ini           # PHP configuration
-│   ├── supervisor/
-│   │   └── dokploy.conf          # Process management
-│   └── scripts/
-│       └── startup.sh            # Container startup script
-└── resources/
-    └── js/
-        └── lib/
-            └── echo.ts            # WebSocket client config
+│   ├── nginx/dokploy.conf          # Nginx configuration dengan WebSocket proxy
+│   ├── supervisor/dokploy.conf     # Process management dengan Echo Server
+│   ├── php/dokploy.ini            # PHP optimization untuk production
+│   └── scripts/startup.sh          # Enhanced startup script
+└── laravel-echo-server.production.json # WebSocket server config
 ```
 
----
+## 🚀 Deployment Steps
 
-## 🔧 Configuration Details
+### Step 1: Persiapan Repository
 
-### Dockerfile.dokploy
-- **Multi-stage build** untuk optimasi ukuran image
-- **Node.js stage** untuk build frontend assets
-- **PHP 8.3-FPM** dengan extensions yang diperlukan
-- **Nginx** untuk web server
-- **Supervisor** untuk process management
-
-### Environment Variables
 ```bash
-# Application
-APP_ENV=production
-APP_DEBUG=false
-APP_URL=http://localhost:8080
-
-# Database (External MySQL)
-DB_HOST=homsjogja-db-xsjalx
-DB_PORT=3306
-DB_DATABASE=homs-db
-DB_USERNAME=homs-user
-DB_PASSWORD=jD8-AKHx2gFCQ5gx3ouRJ
-
-# Redis (External)
-REDIS_HOST=homsjogja-redis-qmihbb
-REDIS_PORT=6379
-REDIS_PASSWORD=5vlcwpzc45g9mtho
-REDIS_DB=0
-
-# Broadcasting (WebSocket)
-BROADCAST_DRIVER=redis
-BROADCAST_CONNECTION=default
-CACHE_DRIVER=redis
-SESSION_DRIVER=redis
-QUEUE_CONNECTION=redis
-```
-
-### WebSocket Configuration
-- **Laravel Echo Server** untuk real-time notifications
-- **Socket.io** client untuk frontend
-- **Redis** sebagai broadcasting backend
-- **Port 6001** untuk WebSocket connections
-
----
-
-## 🛠️ Deployment Commands
-
-### Full Deployment
-```bash
-./docker-deploy.sh deploy
-```
-
-### Individual Commands
-```bash
-# Build image only
-./docker-deploy.sh build
-
-# Start container
-./docker-deploy.sh start
-
-# Stop container
-./docker-deploy.sh stop
-
-# Restart container
-./docker-deploy.sh restart
-
-# View logs
-./docker-deploy.sh logs
-
-# Check status
-./docker-deploy.sh status
-
-# Test deployment
-./docker-deploy.sh test
-
-# Run migrations
-./docker-deploy.sh migrate
-
-# Cleanup (remove container & image)
-./docker-deploy.sh cleanup
-```
-
----
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-#### 1. Container Won't Start
-```bash
-# Check container logs
-./docker-deploy.sh logs
-
-# Check container status
-docker ps -a
-
-# Check image exists
-docker images | grep homsjogja
-```
-
-#### 2. Database Connection Failed
-```bash
-# Test external MySQL connection
-nc -zv homsjogja-db-xsjalx 3306
-
-# Check database credentials
-docker exec homsjogja-container php artisan tinker --execute="DB::connection()->getPdo();"
-```
-
-#### 3. Redis Connection Failed
-```bash
-# Test external Redis connection
-nc -zv homsjogja-redis-qmihbb 6379
-
-# Check Redis connection
-docker exec homsjogja-container php artisan tinker --execute="Redis::ping();"
-```
-
-#### 4. WebSocket Not Working
-```bash
-# Check WebSocket server
-curl http://localhost:6001
-
-# Check WebSocket logs
-docker logs homsjogja-container | grep -i websocket
-```
-
-#### 5. Application Not Accessible
-```bash
-# Check if container is running
-docker ps | grep homsjogja
-
-# Check nginx logs
-docker exec homsjogja-container tail -f /var/log/nginx/error.log
-
-# Check PHP-FPM logs
-docker exec homsjogja-container tail -f /var/log/php-fpm.log
-```
-
-### Debug Commands
-
-#### Check Container Health
-```bash
-# Container status
-docker inspect homsjogja-container --format='{{.State.Status}}'
-
-# Resource usage
-docker stats homsjogja-container
-
-# Container processes
-docker exec homsjogja-container ps aux
-```
-
-#### Check Application Health
-```bash
-# Health endpoint
-curl http://localhost:8080/health
-
-# Application logs
-docker exec homsjogja-container tail -f /var/www/html/storage/logs/laravel.log
-
-# Laravel artisan commands
-docker exec homsjogja-container php artisan --version
-```
-
-#### Check External Services
-```bash
-# MySQL connection test
-docker exec homsjogja-container php artisan tinker --execute="DB::connection()->getPdo(); echo 'MySQL OK';"
-
-# Redis connection test
-docker exec homsjogja-container php artisan tinker --execute="Redis::ping(); echo 'Redis OK';"
-
-# WebSocket test
-curl -I http://localhost:6001
-```
-
----
-
-## 📊 Monitoring & Maintenance
-
-### Health Checks
-- **Application**: `http://localhost:8080/health`
-- **WebSocket**: `http://localhost:6001`
-- **Database**: Laravel artisan commands
-- **Redis**: Laravel artisan commands
-
-### Log Locations
-```bash
-# Application logs
-docker exec homsjogja-container tail -f /var/www/html/storage/logs/laravel.log
-
-# Nginx logs
-docker exec homsjogja-container tail -f /var/log/nginx/access.log
-docker exec homsjogja-container tail -f /var/log/nginx/error.log
-
-# PHP-FPM logs
-docker exec homsjogja-container tail -f /var/log/php-fpm.log
-
-# Supervisor logs
-docker exec homsjogja-container tail -f /var/log/supervisor/supervisord.log
-```
-
-### Backup Commands
-```bash
-# Database backup
-docker exec homsjogja-container php artisan tinker --execute="DB::connection()->getPdo();"
-
-# File backup
-docker cp homsjogja-container:/var/www/html/storage ./backup/storage
-
-# Configuration backup
-docker cp homsjogja-container:/var/www/html/.env ./backup/env
-```
-
----
-
-## 🔄 Update & Maintenance
-
-### Update Application
-```bash
-# Pull latest code
+# 1. Clone atau update repository
 git pull origin main
 
-# Rebuild and redeploy
-./docker-deploy.sh deploy
+# 2. Run deployment preparation script
+chmod +x deploy-dokploy-production.sh
+./deploy-dokploy-production.sh
+
+# 3. Review dan commit changes
+git add .
+git commit -m "feat: setup Dokploy production deployment dengan WebSocket support"
+git push origin main
 ```
 
-### Update Dependencies
+### Step 2: Konfigurasi Dokploy
+
+1. **Buat Application baru di Dokploy:**
+   - Type: `Docker`
+   - Source: Git Repository
+   - Build Path: `/`
+   - Dockerfile: `Dockerfile.dokploy`
+
+2. **Environment Variables:**
+   Set variable berikut di Dokploy dashboard:
+   ```env
+   APP_URL=https://your-domain.traefik.me
+   DB_HOST=homsjogja-db-xsjalx
+   DB_PORT=3306
+   DB_DATABASE=homs-db
+   DB_USERNAME=homs-user
+   DB_PASSWORD=jD8-AKHx2gFCQ5gx3ouRJ
+   REDIS_HOST=homsjogja-redis-qmihbb
+   REDIS_PORT=6379
+   REDIS_USERNAME=default
+   REDIS_PASSWORD=5vlcwpzc45g9mtho
+   ```
+
+3. **Port Configuration:**
+   - Main Port: `80` (HTTP)
+   - Additional Port: `6001` (WebSocket) - expose untuk testing
+
+4. **Domain Setup:**
+   - Configure domain sesuai APP_URL
+   - Enable HTTPS jika diperlukan
+
+### Step 3: Deploy
+
+1. **Trigger deployment dari Dokploy dashboard**
+2. **Monitor build logs** untuk memastikan:
+   - ✅ Dependencies installed successfully
+   - ✅ Frontend assets built
+   - ✅ Laravel optimizations completed
+   - ✅ Laravel Echo Server installed
+
+## 🔍 Verification & Testing
+
+### 1. Health Checks
+
 ```bash
-# Update PHP dependencies
-docker exec homsjogja-container composer update --no-dev
+# Basic application health
+curl https://your-domain.traefik.me/health
 
-# Update Node dependencies
-docker exec homsjogja-container npm update
+# WebSocket health (jika port 6001 exposed)
+curl https://your-domain.traefik.me:6001/socket.io/
 
-# Rebuild assets
-docker exec homsjogja-container npm run build
+# Response should be: HTTP 200 OK
 ```
 
-### Database Maintenance
+### 2. Database Connection
+
 ```bash
-# Run migrations
-./docker-deploy.sh migrate
-
-# Clear cache
-docker exec homsjogja-container php artisan cache:clear
-docker exec homsjogja-container php artisan config:clear
-docker exec homsjogja-container php artisan route:clear
-docker exec homsjogja-container php artisan view:clear
-
-# Rebuild cache
-docker exec homsjogja-container php artisan config:cache
-docker exec homsjogja-container php artisan route:cache
-docker exec homsjogja-container php artisan view:cache
+# Access container untuk testing
+docker exec -it <container-id> php artisan migrate:status
 ```
 
----
+### 3. Redis Connection
 
-## 🚨 Emergency Procedures
-
-### Container Crash Recovery
 ```bash
-# Stop and remove crashed container
-docker stop homsjogja-container
-docker rm homsjogja-container
-
-# Restart with fresh container
-./docker-deploy.sh start
+# Test Redis connection
+docker exec -it <container-id> php artisan tinker
+# Dalam tinker:
+# Redis::ping(); // Should return "PONG"
 ```
 
-### Database Recovery
+### 4. WebSocket Testing
+
+Open browser console dan test:
+```javascript
+// Test WebSocket connection
+const socket = io('https://your-domain.traefik.me:6001');
+socket.on('connect', () => {
+    console.log('✅ WebSocket connected');
+});
+socket.on('disconnect', () => {
+    console.log('❌ WebSocket disconnected');
+});
+```
+
+## 🎯 Production Optimizations
+
+### 1. Aplikasi Laravel
+- ✅ OPCache enabled dengan validation disabled
+- ✅ Config, routes, views cached
+- ✅ Autoloader optimized
+- ✅ Production environment set
+
+### 2. Nginx Configuration
+- ✅ Gzip compression enabled
+- ✅ Static file caching dengan long expiry
+- ✅ Buffer optimization untuk prevent "header too big"
+- ✅ WebSocket proxy untuk Laravel Echo Server
+
+### 3. Supervisor Process Management
+- ✅ PHP-FPM dengan optimal worker processes
+- ✅ Multiple Queue workers untuk better throughput
+- ✅ Laravel Scheduler replacement untuk cron
+- ✅ Laravel Echo Server untuk WebSocket
+- ✅ Health check monitors
+- ✅ Log cleanup automation
+
+### 4. Security Headers
+- ✅ X-Frame-Options, X-Content-Type-Options
+- ✅ X-XSS-Protection, Referrer-Policy
+- ✅ CORS configuration untuk WebSocket
+
+## 🐛 Troubleshooting
+
+### 1. Build Failures
+
+**Error: npm install failed**
 ```bash
-# Check database connection
-docker exec homsjogja-container php artisan migrate:status
+# Solution: Clear npm cache
+RUN npm cache clean --force
+```
 
-# Run migrations if needed
-./docker-deploy.sh migrate
+**Error: composer install failed**
+```bash
+# Check memory limits
+# Solution: Increase Docker build memory
+```
 
+### 2. Runtime Issues
+
+**Error: Database connection failed**
+```bash
+# Check:
+1. Service names correct (homsjogja-db-xsjalx)
+2. Network connectivity between containers
+3. Database credentials
+4. Database service is running
+```
+
+**Error: Redis connection failed**
+```bash
+# Check:
+1. Redis service name (homsjogja-redis-qmihbb)
+2. Redis password dan username
+3. Network connectivity
+4. Redis service is running
+```
+
+**Error: WebSocket tidak berfungsi**
+```bash
+# Check:
+1. Laravel Echo Server process running
+2. Port 6001 accessible
+3. CORS configuration
+4. Frontend Echo configuration
+```
+
+### 3. Performance Issues
+
+**High memory usage**
+```bash
+# Solutions:
+1. Reduce queue worker processes
+2. Optimize OPCache settings
+3. Monitor dengan supervisor logs
+```
+
+**Slow response times**
+```bash
+# Check:
+1. Database query optimization
+2. Redis cache hit rates
+3. Nginx access logs
+4. PHP-FPM slow logs
+```
+
+## 📊 Monitoring
+
+### 1. Application Logs
+```bash
+# Supervisor logs
+docker exec -it <container> supervisorctl status
+
+# Application logs
+docker exec -it <container> tail -f /var/www/html/storage/logs/laravel.log
+
+# Queue worker logs
+docker exec -it <container> tail -f /var/log/supervisor/queue-worker*
+```
+
+### 2. Service Health
+```bash
+# All services status
+docker exec -it <container> supervisorctl status all
+
+# Restart specific service
+docker exec -it <container> supervisorctl restart laravel-echo-server
+```
+
+### 3. Performance Monitoring
+```bash
+# PHP-FPM status
+curl https://your-domain.traefik.me/status
+
+# Nginx status
+docker exec -it <container> nginx -t
+```
+
+## 🔄 Updates & Maintenance
+
+### 1. Code Updates
+```bash
+# 1. Update repository
+git push origin main
+
+# 2. Dokploy auto-deploy triggers
+# 3. Monitor deployment in dashboard
+```
+
+### 2. Maintenance Tasks
+```bash
 # Clear application cache
-docker exec homsjogja-container php artisan cache:clear
+docker exec -it <container> php artisan cache:clear
+
+# Restart queue workers
+docker exec -it <container> supervisorctl restart queue-worker:*
+
+# Check disk usage
+docker exec -it <container> df -h
 ```
 
-### WebSocket Recovery
-```bash
-# Restart WebSocket server
-docker exec homsjogja-container supervisorctl restart laravel-echo-server
+## 🎉 Success Indicators
 
-# Check WebSocket status
-curl http://localhost:6001
-```
+Deployment berhasil jika:
+- ✅ Application responds di main domain
+- ✅ Health check returns 200
+- ✅ Database migrations completed
+- ✅ WebSocket connection established
+- ✅ Queue workers processing jobs
+- ✅ Static assets loading correctly
+- ✅ No errors dalam application logs
 
----
+## 📞 Support
 
-## 📈 Performance Optimization
-
-### Container Optimization
-- **Multi-stage build** untuk mengurangi image size
-- **Production PHP configuration** dengan OPcache
-- **Nginx optimization** untuk static files
-- **Supervisor** untuk process management
-
-### Application Optimization
-- **Laravel cache** untuk config, routes, views
-- **Redis** untuk session, cache, queue
-- **WebSocket** untuk real-time notifications
-- **Asset optimization** dengan Vite build
-
-### Monitoring
-- **Health checks** untuk semua services
-- **Log rotation** untuk disk space management
-- **Resource monitoring** dengan docker stats
-- **Error tracking** dengan Laravel logging
+Jika mengalami masalah:
+1. Check Dokploy deployment logs
+2. Review container logs
+3. Verify external service connectivity
+4. Test health endpoints
+5. Monitor supervisor process status
 
 ---
 
-## 🔐 Security Considerations
-
-### Container Security
-- **Non-root user** (www:www)
-- **Read-only filesystem** untuk sensitive directories
-- **Security headers** di Nginx configuration
-- **HTTPS enforcement** untuk production
-
-### Application Security
-- **Laravel security features** (CSRF, XSS protection)
-- **Input validation** dan sanitization
-- **SQL injection prevention** dengan Eloquent ORM
-- **Session security** dengan Redis
-
-### External Services Security
-- **Database credentials** management
-- **Redis password** protection
-- **Network isolation** dengan Docker networks
-- **SSL/TLS** untuk external communications
-
----
-
-## 📞 Support & Documentation
-
-### Useful Commands
-```bash
-# Quick status check
-./docker-deploy.sh status
-
-# View recent logs
-./docker-deploy.sh logs
-
-# Test all services
-./docker-deploy.sh test
-
-# Access container shell
-docker exec -it homsjogja-container sh
-
-# Laravel artisan commands
-docker exec homsjogja-container php artisan list
-```
-
-### Documentation Files
-- `DOKPLOY_DEPLOYMENT_GUIDE.md` - This guide
-- `Dockerfile.dokploy` - Docker build configuration
-- `docker-deploy.sh` - Deployment script
-- `env.dokploy.template` - Environment template
-- `laravel-echo-server.dokploy.json` - WebSocket configuration
-
-### Contact Information
-- **Technical Issues**: Check logs dan troubleshooting guide
-- **Configuration**: Review environment variables
-- **Performance**: Monitor resource usage
-- **Security**: Follow security best practices
-
----
-
-**🎯 Success Metrics:**
-- ✅ Container starts successfully
-- ✅ Application accessible on port 8080
-- ✅ WebSocket server running on port 6001
-- ✅ Database connection established
-- ✅ Redis connection established
-- ✅ Health endpoint responding
-- ✅ Real-time notifications working
-
-**📅 Last Updated**: 2025  
-**🔄 Version**: 1.0  
-**👤 Maintained By**: Development Team
+**Last Updated:** January 2025  
+**Version:** 1.0 dengan WebSocket Support
