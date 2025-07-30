@@ -22,6 +22,9 @@
         "procps",
         "sqlite",
         "pkg-config"
+      ],
+      "cmds": [
+        "chmod +x nixpacks-simple-startup.sh"
       ]
     },
     "install": {
@@ -43,7 +46,7 @@
     }
   },
   "start": {
-    "cmd": "/usr/local/bin/startup.sh"
+    "cmd": "./nixpacks-simple-startup.sh"
   },
   "variables": {
     "PHP_FPM_USER": "root",

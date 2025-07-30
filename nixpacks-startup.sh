@@ -48,6 +48,9 @@ main() {
     start_services
     
     log_success "Application startup completed successfully!"
+    
+    # Keep container running
+    wait
 }
 
 # Setup environment variables
@@ -174,7 +177,4 @@ start_services() {
 trap 'log_info "Shutting down..."; exit 0' SIGTERM SIGINT
 
 # Run main function
-main "$@"
-
-# Keep container running
-wait 
+main "$@" 

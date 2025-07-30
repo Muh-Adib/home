@@ -39,8 +39,13 @@ cmds = [
     "php artisan view:cache"
 ]
 
+[phases.setup]
+cmds = [
+    "chmod +x nixpacks-simple-startup.sh"
+]
+
 [start]
-cmd = "/usr/local/bin/startup.sh"
+cmd = "./nixpacks-simple-startup.sh"
 
 [variables]
 PHP_FPM_USER = "root"
