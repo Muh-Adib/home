@@ -128,14 +128,14 @@ curl https://your-domain.traefik.me:6001/socket.io/
 
 ### 2. Database Connection
 
-```bash
+   ```bash
 # Access container untuk testing
 docker exec -it <container-id> php artisan migrate:status
-```
+   ```
 
 ### 3. Redis Connection
 
-```bash
+   ```bash
 # Test Redis connection
 docker exec -it <container-id> php artisan tinker
 # Dalam tinker:
@@ -188,21 +188,21 @@ socket.on('disconnect', () => {
 ### 1. Build Failures
 
 **Error: npm install failed**
-```bash
+   ```bash
 # Solution: Clear npm cache
 RUN npm cache clean --force
-```
+   ```
 
 **Error: composer install failed**
-```bash
+   ```bash
 # Check memory limits
 # Solution: Increase Docker build memory
-```
+   ```
 
 ### 2. Runtime Issues
 
 **Error: Database connection failed**
-```bash
+   ```bash
 # Check:
 1. Service names correct (homsjogja-db-xsjalx)
 2. Network connectivity between containers
@@ -211,7 +211,7 @@ RUN npm cache clean --force
 ```
 
 **Error: Redis connection failed**
-```bash
+   ```bash
 # Check:
 1. Redis service name (homsjogja-redis-qmihbb)
 2. Redis password dan username
@@ -262,7 +262,7 @@ docker exec -it <container> tail -f /var/log/supervisor/queue-worker*
 ```
 
 ### 2. Service Health
-```bash
+   ```bash
 # All services status
 docker exec -it <container> supervisorctl status all
 
@@ -271,7 +271,7 @@ docker exec -it <container> supervisorctl restart laravel-echo-server
 ```
 
 ### 3. Performance Monitoring
-```bash
+   ```bash
 # PHP-FPM status
 curl https://your-domain.traefik.me/status
 

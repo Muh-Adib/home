@@ -116,6 +116,53 @@ else
 fi
 ```
 
+### **7. Supervisor-Only Management (NEW)**
+```bash
+# Semua service dikelola oleh Supervisor
+# Tidak ada lagi manual starting Nginx/PHP-FPM
+# Supervisor akan restart service jika crash
+# Monitoring dan logging terpusat
+# Menghindari duplikasi proses
+
+start_supervisor() {
+    log_info "Starting Supervisor dengan WebSocket Support"
+    
+    # Debug: Check supervisor status
+    log_info "Debug: Checking supervisor status..."
+    
+    # Debug: Test supervisor configuration
+    log_info "Debug: Testing supervisor configuration..."
+    if [ -f "/etc/supervisor.d/supervisord.conf" ]; then
+        log_success "Supervisor config file exists at /etc/supervisor.d/supervisord.conf"
+        head -20 /etc/supervisor.d/supervisord.conf
+    elif [ -f "/etc/supervisor/conf.d/supervisord.conf" ]; then
+        log_success "Supervisor config file exists at /etc/supervisor/conf.d/supervisord.conf"
+        head -20 /etc/supervisor/conf.d/supervisord.conf
+    else
+        log_error "Supervisor config file not found"
+        # List all supervisor config files
+        log_info "Debug: Searching for supervisor config files..."
+        find /etc -name "*supervisor*" -type f 2>/dev/null || log_warning "No supervisor config files found"
+    fi
+    
+    log_success "Application startup completed successfully!"
+    
+    # Log services status
+    log_info "Services Status:"
+    log_info "- PHP-FPM: Will start via Supervisor"
+    log_info "- Nginx: Will start via Supervisor"
+    log_info "- Laravel Echo Server: Will start via Supervisor"
+    log_info "- Queue Workers: Will start via Supervisor"
+    log_info "- Database: $(grep DB_HOST .env | cut -d'=' -f2):$(grep DB_PORT .env | cut -d'=' -f2)"
+    log_info "- Redis: $(grep REDIS_HOST .env | cut -d'=' -f2):$(grep REDIS_PORT .env | cut -d'=' -f2)"
+    log_info "- WebSocket: http://localhost:6002"
+    
+    # Start supervisor dengan delay untuk memastikan semua service siap
+    sleep 5
+    exec /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf
+}
+```
+
 ---
 
 ## 🔧 **Files yang Diperbaiki**
@@ -136,6 +183,11 @@ fi
 - ✅ **Added comprehensive debug** - Process, port, config, log checking
 - ✅ **Enhanced service startup** - Better error handling dan verification
 - ✅ **Fixed supervisor config path** - Menggunakan /etc/supervisor.d/supervisord.conf
+- ✅ **Supervisor-only management** - Semua service (Nginx, PHP-FPM, Echo Server) dikelola oleh Supervisor
+- ✅ **Removed manual service starting** - Tidak ada lagi manual start Nginx/PHP-FPM
+- ✅ **Clean process management** - Supervisor restart service jika crash
+- ✅ **Centralized monitoring** - Logging dan monitoring terpusat
+- ✅ **No process duplication** - Menghindari duplikasi proses
 
 ### **3. `docker/supervisor/dokploy.conf`**
 - ✅ **Fixed PHP-FPM user** - Changed dari www ke root untuk permission

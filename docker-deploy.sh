@@ -60,9 +60,9 @@ check_prerequisites() {
     # Check Docker
     if ! command -v docker &> /dev/null; then
         echo -e "${RED}❌ Docker not found. Please install Docker first.${NC}"
-        exit 1
-    fi
-    
+    exit 1
+fi
+
     # Check if Dockerfile exists
     if [ ! -f "$DOCKERFILE" ]; then
         echo -e "${RED}❌ Dockerfile.dokploy not found!${NC}"
@@ -174,8 +174,8 @@ run_container() {
         echo -e "${GREEN}✅ Container started successfully${NC}"
     else
         echo -e "${RED}❌ Container start failed${NC}"
-        exit 1
-    fi
+    exit 1
+fi
 }
 
 # Function untuk wait for container ready
@@ -183,11 +183,11 @@ wait_for_container() {
     echo -e "${BLUE}⏳ Waiting for container to be ready...${NC}"
     
     # Wait for container to start
-    for i in {1..30}; do
+for i in {1..30}; do
         if docker ps | grep -q "$CONTAINER_NAME"; then
             echo -e "${GREEN}✅ Container is running${NC}"
-            break
-        fi
+        break
+    fi
         echo "Waiting for container to start... ($i/30)"
         sleep 2
     done
@@ -200,17 +200,17 @@ wait_for_container() {
             return 0
         fi
         echo "Waiting for application... ($i/60)"
-        sleep 2
-    done
-    
+    sleep 2
+done
+
     echo -e "${YELLOW}⚠️  Application may not be fully ready yet${NC}"
 }
 
 # Function untuk run migrations
 run_migrations() {
     echo -e "${BLUE}🗄️  Running database migrations...${NC}"
-    
-    # Run migrations
+
+# Run migrations
     echo "Running migrations..."
     docker exec "$CONTAINER_NAME" php artisan migrate --force || echo "Migration failed, continuing..."
     
@@ -360,7 +360,7 @@ main() {
             ;;
         *)
             echo "Usage: $0 {deploy|build|start|stop|restart|logs|status|test|migrate|cleanup}"
-            echo ""
+echo ""
             echo "Commands:"
             echo "  deploy   - Full deployment (default)"
             echo "  build    - Build Docker image only"

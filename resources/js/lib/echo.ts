@@ -120,7 +120,7 @@ function initializeEcho(): Echo<any> | null {
         }
 
         if (!echoInstance) {
-            echoInstance = createEchoInstance();
+                echoInstance = createEchoInstance();
             
             // Test connection after a short delay
             setTimeout(async () => {
@@ -158,8 +158,8 @@ export function getEcho(): { echo: Echo<any> | null; isAvailable: boolean } {
     // Update availability based on actual connection status
     isEchoAvailable = isEchoAvailable && isSocketConnected;
     
-    return { 
-        echo, 
+    return {
+        echo,
         isAvailable: isEchoAvailable 
     };
 }

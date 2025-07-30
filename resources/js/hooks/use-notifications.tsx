@@ -221,9 +221,9 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
             }
             
             return {
-                ...prev,
-                notifications: [notification, ...prev.notifications],
-                unreadCount: prev.unreadCount + 1,
+            ...prev,
+            notifications: [notification, ...prev.notifications],
+            unreadCount: prev.unreadCount + 1,
             };
         });
         
@@ -311,14 +311,14 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
                     
                     channel.notification((notification: any) => {
                         console.log(`🔔 Notification from ${channelName}:`, notification);
-                        handleNewNotification(notification);
-                    });
+                    handleNewNotification(notification);
+                });
 
                     channel.subscribed(() => {
                         console.log(`✅ Subscribed to ${channelName}`);
                         if (index === 0) { // User channel
-                            setIsConnected(true);
-                            setConnectionMode('websocket');
+                    setIsConnected(true);
+                    setConnectionMode('websocket');
                             websocketConnected = true;
                             
                             // Stop polling if WebSocket is working
@@ -329,7 +329,7 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
                     channel.error((error: any) => {
                         console.warn(`❌ ${channelName} error:`, error);
                         if (index === 0) { // User channel error
-                            setConnectionMode('polling');
+                    setConnectionMode('polling');
                             setIsConnected(false);
                             websocketConnected = false;
                             
@@ -367,12 +367,12 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
                     setIsConnected(false);
                     websocketConnected = false;
                     startPollingFallback();
-                }
-            } else {
+            }
+        } else {
                 // WebSocket not available, ensure polling is running
                 if (connectionMode !== 'polling') {
                     console.log('🔄 WebSocket not available, ensuring polling is active');
-                    setConnectionMode('polling');
+            setConnectionMode('polling');
                     startPollingFallback();
                 }
             }
