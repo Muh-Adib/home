@@ -644,11 +644,17 @@ main() {
     
     # Debug: Check supervisor configuration
     log_info "Debug: Testing supervisor configuration..."
-    if [ -f "/etc/supervisor/conf.d/supervisord.conf" ]; then
-        log_success "Supervisor config file exists"
+    if [ -f "/etc/supervisor.d/supervisord.conf" ]; then
+        log_success "Supervisor config file exists at /etc/supervisor.d/supervisord.conf"
+        head -20 /etc/supervisor.d/supervisord.conf
+    elif [ -f "/etc/supervisor/conf.d/supervisord.conf" ]; then
+        log_success "Supervisor config file exists at /etc/supervisor/conf.d/supervisord.conf"
         head -20 /etc/supervisor/conf.d/supervisord.conf
     else
         log_error "Supervisor config file not found"
+        # List all supervisor config files
+        log_info "Debug: Searching for supervisor config files..."
+        find /etc -name "*supervisor*" -type f 2>/dev/null || log_warning "No supervisor config files found"
     fi
     
     # Start supervisor in foreground untuk keep container running
@@ -664,7 +670,7 @@ main() {
     
     # Start supervisor dengan delay untuk memastikan semua service siap
     sleep 5
-    exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+    exec /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf
 }
 
 # Trap untuk cleanup jika script di-interrupt

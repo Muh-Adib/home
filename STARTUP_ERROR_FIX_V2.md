@@ -135,11 +135,13 @@ fi
 - ✅ **Updated health check** - Menggunakan port 8080
 - ✅ **Added comprehensive debug** - Process, port, config, log checking
 - ✅ **Enhanced service startup** - Better error handling dan verification
+- ✅ **Fixed supervisor config path** - Menggunakan /etc/supervisor.d/supervisord.conf
 
-### **3. `docker/supervisor/supervisord.conf`**
+### **3. `docker/supervisor/dokploy.conf`**
 - ✅ **Fixed PHP-FPM user** - Changed dari www ke root untuk permission
 - ✅ **Updated websocket health check** - Menggunakan port 6002
 - ✅ **Enhanced error handling** - Better process management
+- ✅ **Fixed Laravel Echo Server config path** - Menggunakan dokploy.json yang benar
 
 ### **4. `laravel-echo-server.dokploy.json`**
 - ✅ **Fixed Redis configuration** - Proper port format (integer)
