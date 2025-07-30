@@ -136,7 +136,7 @@ setup_storage() {
 setup_echo_server() {
     log_info "Configuring Laravel Echo Server..."
     
-    ECHO_CONFIG="/var/www/html/laravel-echo-server.production.json"
+    ECHO_CONFIG="/var/www/html/laravel-echo-server.dokploy.json"
     
     if [ -n "${APP_URL:-}" ]; then
         # Update authHost di Laravel Echo Server config
@@ -148,6 +148,10 @@ setup_echo_server() {
     # Pastikan database directory untuk Echo Server exists
     mkdir -p /var/www/html/database/echo-server
     chown -R www:www /var/www/html/database/echo-server
+    
+    # Set proper permissions untuk Echo Server config
+    chown www:www "$ECHO_CONFIG"
+    chmod 644 "$ECHO_CONFIG"
     
     log_success "Laravel Echo Server configured"
 }
@@ -191,6 +195,49 @@ test_application() {
     fi
 }
 
+# Function untuk check dan kill existing processes
+cleanup_existing_processes() {
+    log_info "Cleaning up existing processes..."
+    
+    # Kill existing nginx processes
+    pkill -f nginx || true
+    sleep 2
+    
+    # Kill existing php-fpm processes
+    pkill -f php-fpm || true
+    sleep 2
+    
+    # Kill existing laravel-echo-server processes
+    pkill -f laravel-echo-server || true
+    sleep 2
+    
+    log_success "Process cleanup completed"
+}
+
+# Function untuk setup log directories
+setup_logs() {
+    log_info "Setting up log directories..."
+    
+    # Create log directories
+    mkdir -p /var/log/supervisor /var/log/nginx /var/log/php-fpm
+    
+    # Set proper permissions
+    chown -R www:www /var/log/supervisor
+    chmod -R 755 /var/log/supervisor
+    
+    # Create log files jika belum ada
+    touch /var/log/supervisor/supervisord.log
+    touch /var/log/supervisor/php-fpm.log
+    touch /var/log/supervisor/nginx.log
+    touch /var/log/supervisor/echo-server.log
+    
+    # Set permissions untuk log files
+    chown www:www /var/log/supervisor/*.log
+    chmod 644 /var/log/supervisor/*.log
+    
+    log_success "Log directories setup completed"
+}
+
 # Main execution
 main() {
     echo "=== Laravel Dokploy Production Startup Script ==="
@@ -207,6 +254,12 @@ main() {
     export REDIS_PORT=${REDIS_PORT:-6379}
     export REDIS_PASSWORD=${REDIS_PASSWORD:-5vlcwpzc45g9mtho}
     export REDIS_DB=${REDIS_DB:-0}
+    
+    # Setup log directories
+    setup_logs
+    
+    # Cleanup existing processes
+    cleanup_existing_processes
     
     # Setup dynamic URL configuration
     log_info "Setting up Dynamic Environment Configuration"
