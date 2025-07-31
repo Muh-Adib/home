@@ -599,6 +599,22 @@ start_supervisor() {
         exit 1
     fi
     
+    # Test PHP-FPM socket/port accessibility
+    log_info "Testing PHP-FPM accessibility..."
+    if netstat -tlnp 2>/dev/null | grep -q ":9000"; then
+        log_success "PHP-FPM is listening on port 9000"
+    else
+        log_warning "PHP-FPM not listening on port 9000 yet (will be available after supervisor start)"
+    fi
+    
+    # Test if PHP-FPM can be reached by nginx
+    log_info "Testing PHP-FPM connectivity from nginx perspective..."
+    if curl -f http://localhost:8080/debug >/dev/null 2>&1; then
+        log_success "Nginx can serve static content"
+    else
+        log_warning "Nginx not accessible yet (will be available after supervisor start)"
+    fi
+    
     # Test health endpoint
     log_info "Testing health endpoint..."
     if curl -f http://localhost:8080/health >/dev/null 2>&1; then
@@ -686,6 +702,12 @@ start_supervisor() {
     log_info "📝 Port Configuration for Domain:"
     log_info "   - Set your domain to point to port 8080"
     log_info "   - WebSocket connections will use port 6002"
+    log_info ""
+    log_info "🔍 Troubleshooting:"
+    log_info "   - Check PHP-FPM logs: docker logs <container> | grep php-fpm"
+    log_info "   - Check Nginx logs: docker logs <container> | grep nginx"
+    log_info "   - Test PHP-FPM: curl -f http://localhost:8080/health"
+    log_info "   - Test WebSocket: curl -f http://localhost:6002/"
     log_info "=================================================="
     
     # Start supervisor dengan delay yang lebih lama untuk memastikan semua service siap
