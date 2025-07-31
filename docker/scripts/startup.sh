@@ -36,6 +36,12 @@ main() {
     log_info "=== Laravel Dokploy Production Startup Script ==="
     log_info "Property Management System - Laravel 12 + React 18 + WebSocket"
     log_info "=================================================="
+    log_info "📋 PORT CONFIGURATION SUMMARY:"
+    log_info "   🖥️  Main App (Nginx): Port 8080"
+    log_info "   🔌 WebSocket (Echo): Port 6002"
+    log_info "   🗄️  Database: External Service"
+    log_info "   🔴 Redis: External Service"
+    log_info "=================================================="
     
     # Setup log directories
     setup_logs
@@ -206,6 +212,25 @@ setup_environment() {
     log_info "APP_URL: $(grep APP_URL .env | cut -d'=' -f2)"
     log_info "Database: $(grep DB_HOST .env | cut -d'=' -f2):$(grep DB_PORT .env | cut -d'=' -f2) ($(grep DB_DATABASE .env | cut -d'=' -f2))"
     log_info "Redis: $(grep REDIS_HOST .env | cut -d'=' -f2):$(grep REDIS_PORT .env | cut -d'=' -f2)"
+    
+    # Display domain configuration information
+    log_info "=================================================="
+    log_info "🌐 DOMAIN CONFIGURATION FOR DOKPLOY"
+    log_info "=================================================="
+    log_info "📝 Set your domain in Dokploy to point to:"
+    log_info "   🎯 Target Port: 8080"
+    log_info "   🔗 Protocol: HTTP/HTTPS"
+    log_info "   🌍 Domain: Your custom domain"
+    log_info ""
+    log_info "📋 Dokploy Environment Variables:"
+    log_info "   ✅ APP_URL: $APP_URL"
+    log_info "   ✅ DB_HOST: $DB_HOST"
+    log_info "   ✅ REDIS_HOST: $REDIS_HOST"
+    log_info ""
+    log_info "🔧 Internal Service Ports:"
+    log_info "   🖥️  Nginx (Main App): 8080"
+    log_info "   🔌 Laravel Echo (WebSocket): 6002"
+    log_info "=================================================="
 }
 
 # Wait for external services
@@ -383,6 +408,10 @@ setup_echo_server() {
         # Show Redis configuration from file
         REDIS_HOST_FROM_FILE=$(grep '"host"' "$ECHO_CONFIG" | cut -d'"' -f4)
         log_info "Redis Host in config file: $REDIS_HOST_FROM_FILE"
+        
+        # Show full configuration for debugging
+        log_info "Laravel Echo Server configuration:"
+        cat "$ECHO_CONFIG" | head -20
     else
         log_error "Laravel Echo Server config file not found"
         exit 1
@@ -601,6 +630,17 @@ start_supervisor() {
                 log_warning "Laravel Echo Server port 6002 not accessible yet"
             fi
             
+            # Test socket.io endpoint
+            if curl -f http://localhost:6002/socket.io/ >/dev/null 2>&1; then
+                log_success "Laravel Echo Server socket.io endpoint is accessible"
+            else
+                log_warning "Laravel Echo Server socket.io endpoint not accessible yet"
+            fi
+            
+            # Test with verbose output
+            log_info "Testing Laravel Echo Server response with verbose output:"
+            curl -v http://localhost:6002/ 2>&1 | head -10
+            
             kill $ECHO_PID 2>/dev/null || true
         else
             log_warning "Laravel Echo Server startup test failed (will be managed by supervisor)"
@@ -621,6 +661,32 @@ start_supervisor() {
     log_info "- Database: $(grep DB_HOST .env | cut -d'=' -f2):$(grep DB_PORT .env | cut -d'=' -f2)"
     log_info "- Redis: $(grep REDIS_HOST .env | cut -d'=' -f2):$(grep REDIS_PORT .env | cut -d'=' -f2)"
     log_info "- WebSocket: http://localhost:6002"
+    
+    # Display access information
+    log_info "=================================================="
+    log_info "🚀 APPLICATION ACCESS INFORMATION"
+    log_info "=================================================="
+    log_info "🌐 Main Application:"
+    log_info "   - Internal: http://localhost:8080"
+    log_info "   - External: https://app.homsjogja.com"
+    log_info "   - Health Check: http://localhost:8080/health"
+    log_info ""
+    log_info "🔌 WebSocket Server:"
+    log_info "   - Internal: http://localhost:6002"
+    log_info "   - Socket.IO: http://localhost:6002/socket.io/"
+    log_info ""
+    log_info "📊 Admin Access:"
+    log_info "   - Login: https://app.homsjogja.com/login"
+    log_info "   - Admin Panel: https://app.homsjogja.com/admin"
+    log_info ""
+    log_info "🔧 Development/Testing:"
+    log_info "   - Local Testing: http://localhost:8080"
+    log_info "   - WebSocket Testing: http://localhost:6002"
+    log_info ""
+    log_info "📝 Port Configuration for Domain:"
+    log_info "   - Set your domain to point to port 8080"
+    log_info "   - WebSocket connections will use port 6002"
+    log_info "=================================================="
     
     # Start supervisor dengan delay yang lebih lama untuk memastikan semua service siap
     log_info "Waiting 10 seconds before starting supervisor..."
