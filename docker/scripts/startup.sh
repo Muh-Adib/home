@@ -117,6 +117,11 @@ setup_environment() {
         sed -i "s|MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=noreply@$MAIL_DOMAIN|g" .env
     fi
     
+    # Clear and rebuild config cache to ensure .env changes are loaded
+    log_info "Clearing and rebuilding config cache..."
+    php artisan config:clear
+    php artisan config:cache
+    
     # Log environment configuration
     log_info "Environment Configuration:"
     log_info "APP_URL: $(grep APP_URL .env | cut -d'=' -f2)"
@@ -128,6 +133,13 @@ setup_environment() {
 wait_for_services() {
     log_info "Waiting for External Services"
     
+    # Debug: Show Redis configuration
+    log_info "Debug: Redis configuration from .env:"
+    log_info "REDIS_HOST: $(grep REDIS_HOST .env | cut -d'=' -f2)"
+    log_info "REDIS_PORT: $(grep REDIS_PORT .env | cut -d'=' -f2)"
+    log_info "REDIS_PASSWORD: $(grep REDIS_PASSWORD .env | cut -d'=' -f2)"
+    log_info "REDIS_USERNAME: $(grep REDIS_USERNAME .env | cut -d'=' -f2)"
+    
     # Wait for database
     log_info "Waiting for Database at $(grep DB_HOST .env | cut -d'=' -f2):$(grep DB_PORT .env | cut -d'=' -f2)..."
     until php artisan tinker --execute="echo 'Database connection test';" 2>/dev/null; do
@@ -136,9 +148,9 @@ wait_for_services() {
     done
     log_success "Database is ready!"
     
-    # Wait for Redis - perbaiki testing method
+    # Wait for Redis - perbaiki testing method dengan config yang benar
     log_info "Waiting for Redis at $(grep REDIS_HOST .env | cut -d'=' -f2):$(grep REDIS_PORT .env | cut -d'=' -f2)..."
-    until php artisan tinker --execute="try { Redis::ping(); echo 'Redis OK'; } catch (Exception \$e) { echo 'Redis Error: ' . \$e->getMessage(); }" 2>/dev/null | grep -q "Redis OK"; do
+    until php artisan tinker --execute="try { \$redis = new Redis(); \$redis->connect(config('database.redis.default.host'), config('database.redis.default.port')); if(config('database.redis.default.password')) { \$redis->auth(config('database.redis.default.password')); } \$redis->ping(); echo 'Redis OK'; } catch (Exception \$e) { echo 'Redis Error: ' . \$e->getMessage(); }" 2>/dev/null | grep -q "Redis OK"; do
         log_info "Redis not ready, waiting..."
         sleep 5
     done
@@ -171,7 +183,63 @@ test_database_connection() {
 run_migrations() {
     log_info "Running database migrations..."
     
-    php artisan migrate --force || log_warning "Migrations failed or nothing to migrate"
+    # Ensure database connection is ready
+    log_info "Ensuring database connection is ready..."
+    until php artisan tinker --execute="echo 'Database ready for migrations';" 2>/dev/null; do
+        log_info "Database not ready for migrations, waiting..."
+        sleep 3
+    done
+    
+    # Check if users table exists
+    log_info "Checking if users table exists..."
+    if php artisan tinker --execute="try { echo Schema::hasTable('users') ? 'USERS_TABLE_EXISTS' : 'USERS_TABLE_NOT_FOUND'; } catch (Exception \$e) { echo 'TABLE_CHECK_ERROR'; }" 2>/dev/null | grep -q "USERS_TABLE_EXISTS"; then
+        log_info "Users table exists, checking for superadmin..."
+        
+        # Check if superadmin exists
+        log_info "Checking for superadmin user..."
+        if php artisan tinker --execute="try { echo User::where('email', 'admin@homsjogja.com')->exists() ? 'SUPERADMIN_EXISTS' : 'SUPERADMIN_NOT_FOUND'; } catch (Exception \$e) { echo 'SUPERADMIN_CHECK_ERROR'; }" 2>/dev/null | grep -q "SUPERADMIN_EXISTS"; then
+            log_info "Superadmin user found, running normal migrations..."
+            php artisan migrate --force || log_warning "Migrations failed or nothing to migrate"
+        else
+            log_warning "Superadmin user not found, running fresh migrations with seeding..."
+            log_info "Starting fresh migration and seeding process..."
+            php artisan migrate:fresh --seed --force
+            if [ $? -eq 0 ]; then
+                log_success "Fresh migration and seeding completed successfully"
+                
+                # Verify superadmin was created
+                log_info "Verifying superadmin user was created..."
+                if php artisan tinker --execute="try { echo User::where('email', 'admin@homsjogja.com')->exists() ? 'SUPERADMIN_CREATED' : 'SUPERADMIN_NOT_CREATED'; } catch (Exception \$e) { echo 'SUPERADMIN_VERIFY_ERROR'; }" 2>/dev/null | grep -q "SUPERADMIN_CREATED"; then
+                    log_success "Superadmin user verified successfully"
+                else
+                    log_error "Superadmin user was not created properly"
+                    exit 1
+                fi
+            else
+                log_error "Fresh migration failed"
+                exit 1
+            fi
+        fi
+    else
+        log_warning "Users table not found, running fresh migrations with seeding..."
+        log_info "Starting fresh migration and seeding process..."
+        php artisan migrate:fresh --seed --force
+        if [ $? -eq 0 ]; then
+            log_success "Fresh migration and seeding completed successfully"
+            
+            # Verify superadmin was created
+            log_info "Verifying superadmin user was created..."
+            if php artisan tinker --execute="try { echo User::where('email', 'admin@homsjogja.com')->exists() ? 'SUPERADMIN_CREATED' : 'SUPERADMIN_NOT_CREATED'; } catch (Exception \$e) { echo 'SUPERADMIN_VERIFY_ERROR'; }" 2>/dev/null | grep -q "SUPERADMIN_CREATED"; then
+                log_success "Superadmin user verified successfully"
+            else
+                log_error "Superadmin user was not created properly"
+                exit 1
+            fi
+        else
+            log_error "Fresh migration failed"
+            exit 1
+        fi
+    fi
     
     log_success "Migrations completed successfully"
 }
@@ -203,6 +271,25 @@ setup_echo_server() {
         log_info "Laravel Echo Server authHost updated to: $APP_URL"
         sed -i "s|\"authHost\": \".*\"|\"authHost\": \"$APP_URL\"|g" "$ECHO_CONFIG"
     fi
+    
+    # Update Redis configuration in Laravel Echo Server config
+    REDIS_HOST=$(grep REDIS_HOST .env | cut -d'=' -f2)
+    REDIS_PASSWORD=$(grep REDIS_PASSWORD .env | cut -d'=' -f2)
+    REDIS_USERNAME=$(grep REDIS_USERNAME .env | cut -d'=' -f2)
+    
+    log_info "Updating Laravel Echo Server Redis configuration:"
+    log_info "Redis Host: $REDIS_HOST"
+    log_info "Redis Username: $REDIS_USERNAME"
+    log_info "Redis Password: ${REDIS_PASSWORD:0:4}***"
+    
+    # Update Redis host
+    sed -i "s|PLACEHOLDER_REDIS_HOST|$REDIS_HOST|g" "$ECHO_CONFIG"
+    
+    # Update Redis password
+    sed -i "s|PLACEHOLDER_REDIS_PASSWORD|$REDIS_PASSWORD|g" "$ECHO_CONFIG"
+    
+    # Update Redis username
+    sed -i "s|PLACEHOLDER_REDIS_USERNAME|$REDIS_USERNAME|g" "$ECHO_CONFIG"
     
     log_success "Laravel Echo Server configured"
 }
@@ -239,7 +326,11 @@ run_production_optimizations() {
 test_redis_connection() {
     log_info "Testing Redis connection..."
     
-    if php artisan tinker --execute="try { Redis::ping(); echo 'Redis OK'; } catch (Exception \$e) { echo 'Redis Error: ' . \$e->getMessage(); }" 2>/dev/null | grep -q "Redis OK"; then
+    # Debug: Show Laravel Redis configuration
+    log_info "Debug: Laravel Redis configuration:"
+    php artisan tinker --execute="echo 'Redis Host: ' . config('database.redis.default.host'); echo 'Redis Port: ' . config('database.redis.default.port'); echo 'Redis Password: ' . (config('database.redis.default.password') ? 'SET' : 'NOT SET');" 2>/dev/null
+    
+    if php artisan tinker --execute="try { \$redis = new Redis(); \$redis->connect(config('database.redis.default.host'), config('database.redis.default.port')); if(config('database.redis.default.password')) { \$redis->auth(config('database.redis.default.password')); } \$redis->ping(); echo 'Redis OK'; } catch (Exception \$e) { echo 'Redis Error: ' . \$e->getMessage(); }" 2>/dev/null | grep -q "Redis OK"; then
         log_success "Redis connection successful!"
     else
         log_error "Redis connection failed!"

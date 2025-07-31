@@ -18,7 +18,7 @@ class UserSeeder extends Seeder
             // Super Admin
             [
                 'name' => 'Super Admin',
-                'email' => 'admin@pms.com',
+                'email' => 'admin@homsjogja.com',
                 'password' => Hash::make('password'),
                 'phone' => '+6281234567890',
                 'role' => 'super_admin',
@@ -29,7 +29,7 @@ class UserSeeder extends Seeder
             // Property Owner
             [
                 'name' => 'Indah Arini Puspitasari',
-                'email' => 'owner@pms.com',
+                'email' => 'owner@homsjogja.com',
                 'password' => Hash::make('password'),
                 'phone' => '+6281234567891',
                 'role' => 'property_owner',
@@ -40,7 +40,7 @@ class UserSeeder extends Seeder
             // Property Manager
             [
                 'name' => 'Faisal Hadi',
-                'email' => 'manager@pms.com',
+                'email' => 'manager@homsjogja.com',
                 'password' => Hash::make('password'),
                 'phone' => '+6281234567892',
                 'role' => 'property_manager',
@@ -51,7 +51,7 @@ class UserSeeder extends Seeder
             // Front Desk Staff
             [
                 'name' => 'Mike Front Desk',
-                'email' => 'frontdesk@pms.com',
+                'email' => 'frontdesk@homsjogja.com',
                 'password' => Hash::make('password'),
                 'phone' => '+6281234567893',
                 'role' => 'front_desk',
@@ -62,7 +62,7 @@ class UserSeeder extends Seeder
             // Finance Staff
             [
                 'name' => 'Sarah Finance',
-                'email' => 'finance@pms.com',
+                'email' => 'finance@homsjogja.com',
                 'password' => Hash::make('password'),
                 'phone' => '+6281234567894',
                 'role' => 'finance',
@@ -73,7 +73,7 @@ class UserSeeder extends Seeder
             // Housekeeping Staff
             [
                 'name' => 'Lisa Housekeeping',
-                'email' => 'housekeeping@pms.com',
+                'email' => 'housekeeping@homsjogja.com',
                 'password' => Hash::make('password'),
                 'phone' => '+6281234567895',
                 'role' => 'housekeeping',
@@ -84,7 +84,7 @@ class UserSeeder extends Seeder
             // Demo Guest
             [
                 'name' => 'Demo Guest',
-                'email' => 'guest@pms.com',
+                'email' => 'guest@homsjogja.com',
                 'password' => Hash::make('password'),
                 'phone' => '+6281234567896',
                 'role' => 'guest',

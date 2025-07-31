@@ -10,9 +10,10 @@
     "database": "redis",
     "databaseConfig": {
         "redis": {
-            "host": "127.0.0.1",
+            "host": "PLACEHOLDER_REDIS_HOST",
             "port": 6379,
-            "password": "",
+            "password": "PLACEHOLDER_REDIS_PASSWORD",
+            "username": "PLACEHOLDER_REDIS_USERNAME",
             "keyPrefix": "laravel_database_",
             "db": 0
         }
