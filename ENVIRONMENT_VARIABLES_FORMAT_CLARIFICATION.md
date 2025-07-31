@@ -47,14 +47,72 @@ echo $DB_HOST
 }
 ```
 
+### Dockerfile Build Arguments
+```dockerfile
+# Set build arguments for Dokploy
+ARG APP_URL
+ARG DB_HOST
+ARG DB_DATABASE
+ARG DB_USERNAME
+ARG DB_PASSWORD
+ARG REDIS_HOST
+ARG REDIS_PASSWORD
+ARG REDIS_PORT
+ARG REDIS_USERNAME
+
+# Set environment variables for build
+ENV APP_URL=$APP_URL
+ENV DB_HOST=$DB_HOST
+ENV DB_DATABASE=$DB_DATABASE
+ENV DB_USERNAME=$DB_USERNAME
+ENV DB_PASSWORD=$DB_PASSWORD
+ENV REDIS_HOST=$REDIS_HOST
+ENV REDIS_PASSWORD=$REDIS_PASSWORD
+ENV REDIS_PORT=$REDIS_PORT
+ENV REDIS_USERNAME=$REDIS_USERNAME
+```
+
+### Docker Build Command
+```bash
+# Build dengan build arguments
+docker build \
+  --build-arg APP_URL="https://app.homsjogja.com" \
+  --build-arg DB_HOST="homsjogja-db-xsjalx" \
+  --build-arg DB_DATABASE="homs-db" \
+  --build-arg DB_USERNAME="homs-user" \
+  --build-arg DB_PASSWORD="jD8-AKHx2gFCQ5gx3ouRJ" \
+  --build-arg REDIS_HOST="homsjogja-redis-qmihbb" \
+  --build-arg REDIS_PASSWORD="5vlcwpzc45g9mtho" \
+  --build-arg REDIS_PORT="6379" \
+  --build-arg REDIS_USERNAME="default" \
+  -f Dockerfile.dokploy \
+  -t homsjogja:latest \
+  .
+```
+
 ### Docker Run Command
 ```bash
-# Dokploy akan otomatis resolve ${{project.VARIABLE}} ke actual values
+# Run container dengan environment variables
 docker run -d \
-  -e APP_URL=https://app.homsjogja.com \
-  -e DB_HOST=homsjogja-db-xsjalx \
-  -e REDIS_HOST=homsjogja-redis-qmihbb \
-  <image_name>
+  --name homsjogja-app \
+  -p 8080:8080 \
+  -p 6002:6002 \
+  -e APP_URL="https://app.homsjogja.com" \
+  -e DB_HOST="homsjogja-db-xsjalx" \
+  -e DB_DATABASE="homs-db" \
+  -e DB_USERNAME="homs-user" \
+  -e DB_PASSWORD="jD8-AKHx2gFCQ5gx3ouRJ" \
+  -e REDIS_HOST="homsjogja-redis-qmihbb" \
+  -e REDIS_PASSWORD="5vlcwpzc45g9mtho" \
+  -e REDIS_PORT="6379" \
+  -e REDIS_USERNAME="default" \
+  -e APP_ENV="production" \
+  -e APP_DEBUG="false" \
+  -e CACHE_DRIVER="redis" \
+  -e SESSION_DRIVER="redis" \
+  -e QUEUE_CONNECTION="redis" \
+  -e BROADCAST_CONNECTION="redis" \
+  homsjogja:latest
 ```
 
 ### Bash Script (startup.sh)
@@ -80,15 +138,23 @@ ${{project.DB_HOST}} → homsjogja-db-xsjalx
 ${{project.REDIS_HOST}} → homsjogja-redis-qmihbb
 ```
 
-### 2. Docker Container
+### 2. Docker Build
 ```
-Dokploy resolves variables
-${{project.APP_URL}} → $APP_URL=https://app.homsjogja.com
-${{project.DB_HOST}} → $DB_HOST=homsjogja-db-xsjalx
-${{project.REDIS_HOST}} → $REDIS_HOST=homsjogja-redis-qmihbb
+Build Arguments
+--build-arg APP_URL=value → ARG APP_URL → ENV APP_URL=value
+--build-arg DB_HOST=value → ARG DB_HOST → ENV DB_HOST=value
+--build-arg REDIS_HOST=value → ARG REDIS_HOST → ENV REDIS_HOST=value
 ```
 
-### 3. Bash Script
+### 3. Docker Container
+```
+Runtime Environment Variables
+-e APP_URL=value → $APP_URL=value
+-e DB_HOST=value → $DB_HOST=value
+-e REDIS_HOST=value → $REDIS_HOST=value
+```
+
+### 4. Bash Script
 ```
 Container environment variables
 $APP_URL → https://app.homsjogja.com
@@ -156,6 +222,120 @@ fi
 
 ---
 
+## 🚀 QUICK DEPLOYMENT SCRIPTS
+
+### Bash Script (run-dokploy-with-env.sh)
+```bash
+#!/bin/bash
+# Environment Variables Configuration
+APP_URL="https://homsjogja-testfull-qrndqp-b17540-213-210-36-24.traefik.me"
+DB_HOST="homsjogja-db-xsjalx"
+DB_DATABASE="homs-db"
+DB_USERNAME="homs-user"
+DB_PASSWORD="jD8-AKHx2gFCQ5gx3ouRJ"
+REDIS_HOST="homsjogja-redis-qmihbb"
+REDIS_PASSWORD="5vlcwpzc45g9mtho"
+REDIS_PORT="6379"
+REDIS_USERNAME="default"
+
+# Build image with build arguments
+docker build \
+  --build-arg APP_URL="$APP_URL" \
+  --build-arg DB_HOST="$DB_HOST" \
+  --build-arg DB_DATABASE="$DB_DATABASE" \
+  --build-arg DB_USERNAME="$DB_USERNAME" \
+  --build-arg DB_PASSWORD="$DB_PASSWORD" \
+  --build-arg REDIS_HOST="$REDIS_HOST" \
+  --build-arg REDIS_PASSWORD="$REDIS_PASSWORD" \
+  --build-arg REDIS_PORT="$REDIS_PORT" \
+  --build-arg REDIS_USERNAME="$REDIS_USERNAME" \
+  -f Dockerfile.dokploy \
+  -t homsjogja:latest \
+  .
+
+# Run container with environment variables
+docker run -d \
+  --name homsjogja-app \
+  -p 8080:8080 \
+  -p 6002:6002 \
+  -e APP_URL="$APP_URL" \
+  -e DB_HOST="$DB_HOST" \
+  -e DB_DATABASE="$DB_DATABASE" \
+  -e DB_USERNAME="$DB_USERNAME" \
+  -e DB_PASSWORD="$DB_PASSWORD" \
+  -e REDIS_HOST="$REDIS_HOST" \
+  -e REDIS_PASSWORD="$REDIS_PASSWORD" \
+  -e REDIS_PORT="$REDIS_PORT" \
+  -e REDIS_USERNAME="$REDIS_USERNAME" \
+  -e APP_ENV="production" \
+  -e APP_DEBUG="false" \
+  -e CACHE_DRIVER="redis" \
+  -e SESSION_DRIVER="redis" \
+  -e QUEUE_CONNECTION="redis" \
+  -e BROADCAST_CONNECTION="redis" \
+  homsjogja:latest
+```
+
+### PowerShell Script (run-dokploy-with-env.ps1)
+```powershell
+# Environment Variables Configuration
+$APP_URL = "https://homsjogja-testfull-qrndqp-b17540-213-210-36-24.traefik.me"
+$DB_HOST = "homsjogja-db-xsjalx"
+$DB_DATABASE = "homs-db"
+$DB_USERNAME = "homs-user"
+$DB_PASSWORD = "jD8-AKHx2gFCQ5gx3ouRJ"
+$REDIS_HOST = "homsjogja-redis-qmihbb"
+$REDIS_PASSWORD = "5vlcwpzc45g9mtho"
+$REDIS_PORT = "6379"
+$REDIS_USERNAME = "default"
+
+# Build image with build arguments
+$buildArgs = @(
+    "--build-arg", "APP_URL=$APP_URL",
+    "--build-arg", "DB_HOST=$DB_HOST",
+    "--build-arg", "DB_DATABASE=$DB_DATABASE",
+    "--build-arg", "DB_USERNAME=$DB_USERNAME",
+    "--build-arg", "DB_PASSWORD=$DB_PASSWORD",
+    "--build-arg", "REDIS_HOST=$REDIS_HOST",
+    "--build-arg", "REDIS_PASSWORD=$REDIS_PASSWORD",
+    "--build-arg", "REDIS_PORT=$REDIS_PORT",
+    "--build-arg", "REDIS_USERNAME=$REDIS_USERNAME",
+    "-f", "Dockerfile.dokploy",
+    "-t", "homsjogja:latest",
+    "."
+)
+
+docker build $buildArgs
+
+# Run container with environment variables
+$runArgs = @(
+    "run", "-d",
+    "--name", "homsjogja-app",
+    "-p", "8080:8080",
+    "-p", "6002:6002",
+    "-e", "APP_URL=$APP_URL",
+    "-e", "DB_HOST=$DB_HOST",
+    "-e", "DB_DATABASE=$DB_DATABASE",
+    "-e", "DB_USERNAME=$DB_USERNAME",
+    "-e", "DB_PASSWORD=$DB_PASSWORD",
+    "-e", "REDIS_HOST=$REDIS_HOST",
+    "-e", "REDIS_PASSWORD=$REDIS_PASSWORD",
+    "-e", "REDIS_PORT=$REDIS_PORT",
+    "-e", "REDIS_USERNAME=$REDIS_USERNAME",
+    "-e", "APP_ENV=production",
+    "-e", "APP_DEBUG=false",
+    "-e", "CACHE_DRIVER=redis",
+    "-e", "SESSION_DRIVER=redis",
+    "-e", "QUEUE_CONNECTION=redis",
+    "-e", "BROADCAST_CONNECTION=redis",
+    "homsjogja:latest"
+)
+
+docker $runArgs
+```
+
+---
+
 ## ⚠️ COMMON ERRORS & SOLUTIONS
 
 ### Error: "bad substitution"
@@ -185,6 +365,20 @@ docker run -e ${{project.APP_URL}}=value
 docker run -e APP_URL=https://app.homsjogja.com
 ```
 
+### Error: Build arguments not passed
+```bash
+# ❌ SALAH - Build tanpa arguments
+docker build -f Dockerfile.dokploy -t image:latest .
+
+# ✅ BENAR - Build dengan arguments
+docker build \
+  --build-arg APP_URL="https://app.homsjogja.com" \
+  --build-arg DB_HOST="homsjogja-db-xsjalx" \
+  -f Dockerfile.dokploy \
+  -t image:latest \
+  .
+```
+
 ---
 
 ## 🎯 BEST PRACTICES
@@ -194,17 +388,27 @@ docker run -e APP_URL=https://app.homsjogja.com
 - ✅ Dokploy akan otomatis resolve ke actual values
 - ✅ Variables akan tersedia di container sebagai `$VARIABLE`
 
-### 2. Bash Scripts
+### 2. Docker Build
+- ✅ Gunakan `--build-arg` untuk build time variables
+- ✅ Set `ARG` dan `ENV` di Dockerfile
+- ✅ Pass semua required variables saat build
+
+### 3. Docker Run
+- ✅ Gunakan `-e` untuk runtime environment variables
+- ✅ Pass semua required variables saat run
+- ✅ Set production environment variables
+
+### 4. Bash Scripts
 - ✅ Gunakan `$VARIABLE` di bash scripts
 - ✅ Check if variable exists: `[ ! -z "$VARIABLE" ]`
 - ✅ Provide default values jika variable tidak ada
 
-### 3. Docker Commands
+### 5. Docker Commands
 - ✅ Gunakan actual values di docker run commands
 - ✅ Dokploy akan handle variable resolution otomatis
 - ✅ Test dengan actual values untuk development
 
-### 4. Documentation
+### 6. Documentation
 - ✅ Dokumentasikan format yang benar untuk setiap context
 - ✅ Berikan contoh yang jelas
 - ✅ Jelaskan flow environment variables
@@ -216,7 +420,8 @@ docker run -e APP_URL=https://app.homsjogja.com
 | Context | Format | Example | Notes |
 |---------|--------|---------|-------|
 | Dokploy Config | `${{project.VARIABLE}}` | `${{project.APP_URL}}` | Dokploy akan resolve |
-| Docker Run | `$VARIABLE=value` | `-e APP_URL=https://app.homsjogja.com` | Actual values |
+| Docker Build | `--build-arg VARIABLE=value` | `--build-arg APP_URL=https://app.homsjogja.com` | Build time variables |
+| Docker Run | `-e VARIABLE=value` | `-e APP_URL=https://app.homsjogja.com` | Runtime variables |
 | Bash Script | `$VARIABLE` | `echo $APP_URL` | Container environment |
 | .env File | `VARIABLE=value` | `APP_URL=https://app.homsjogja.com` | Laravel config |
 
