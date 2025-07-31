@@ -231,8 +231,14 @@ wait_for_services() {
 setup_storage() {
     log_info "Setting up storage..."
     
+    # Remove existing storage link if exists
+    if [ -L "/var/www/html/public/storage" ]; then
+        log_info "Removing existing storage link..."
+        rm -f /var/www/html/public/storage
+    fi
+    
     # Create storage link
-    php artisan storage:link || log_warning "Storage link already exists"
+    php artisan storage:link || log_warning "Storage link creation failed"
     
     log_success "Storage setup completed"
 }
@@ -360,6 +366,18 @@ setup_echo_server() {
     
     # Update Redis username
     sed -i "s|PLACEHOLDER_REDIS_USERNAME|$REDIS_USERNAME|g" "$ECHO_CONFIG"
+    
+    # Verify Laravel Echo Server configuration
+    log_info "Verifying Laravel Echo Server configuration..."
+    if [ -f "$ECHO_CONFIG" ]; then
+        log_success "Laravel Echo Server config file exists"
+        # Show Redis configuration from file
+        REDIS_HOST_FROM_FILE=$(grep '"host"' "$ECHO_CONFIG" | cut -d'"' -f4)
+        log_info "Redis Host in config file: $REDIS_HOST_FROM_FILE"
+    else
+        log_error "Laravel Echo Server config file not found"
+        exit 1
+    fi
     
     log_success "Laravel Echo Server configured"
 }
@@ -522,6 +540,33 @@ start_supervisor() {
     else
         log_error "Laravel Echo Server config not found"
         exit 1
+    fi
+    
+    # Test service readiness
+    log_info "Testing service readiness..."
+    
+    # Test nginx configuration
+    if nginx -t >/dev/null 2>&1; then
+        log_success "Nginx configuration is valid"
+    else
+        log_error "Nginx configuration is invalid"
+        exit 1
+    fi
+    
+    # Test PHP-FPM configuration
+    if php-fpm -t >/dev/null 2>&1; then
+        log_success "PHP-FPM configuration is valid"
+    else
+        log_error "PHP-FPM configuration is invalid"
+        exit 1
+    fi
+    
+    # Test health endpoint
+    log_info "Testing health endpoint..."
+    if curl -f http://localhost:8080/health >/dev/null 2>&1; then
+        log_success "Health endpoint is accessible"
+    else
+        log_warning "Health endpoint not accessible yet (will be available after supervisor start)"
     fi
     
     log_success "Application startup completed successfully!"
