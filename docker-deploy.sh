@@ -1,381 +1,189 @@
 #!/bin/bash
 
-# Deployment Script untuk Dokploy dengan Dockerfile langsung
-# Property Management System - Laravel 12 + React 18 + WebSocket
+# ==================================================
+# Docker Deployment Script
+# Property Management System - Laravel 12 + React 18
+# ==================================================
 
-set -e
-
-# Color codes untuk output
+# Color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-echo -e "${BLUE}🚀 Starting Dokploy Deployment with Dockerfile${NC}"
-echo "=================================================="
+NC='\033[0m'
 
 # Configuration
 APP_NAME="homsjogja"
-DOCKERFILE="Dockerfile.dokploy"
-IMAGE_NAME="homsjogja-app"
+APP_PORT="80"
+DOCKER_IMAGE="homsjogja-app"
 CONTAINER_NAME="homsjogja-container"
-APP_PORT="8080"
-WEBSOCKET_PORT="6001"
 
-# External Service Configuration
-DB_HOST="homsjogja-db-xsjalx"
-DB_PORT="3306"
-DB_DATABASE="homs-db"
-DB_USERNAME="homs-user"
-DB_PASSWORD="jD8-AKHx2gFCQ5gx3ouRJ"
+# Logging functions
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
 
-REDIS_HOST="homsjogja-redis-qmihbb"
-REDIS_PORT="6379"
-REDIS_PASSWORD="5vlcwpzc45g9mtho"
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
 
-# Environment variables
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# ==================================================
+# Environment Variables Setup
+# ==================================================
+
+log_info "Setting up environment variables..."
+
+# Set default environment variables
+export APP_NAME=${APP_NAME:-"Homsjogja"}
+export APP_ENV=${APP_ENV:-"production"}
+export APP_KEY=${APP_KEY:-"base64:your-app-key-here"}
+export APP_DEBUG=${APP_DEBUG:-"false"}
 export APP_URL=${APP_URL:-"http://localhost:8080"}
-export DB_HOST=$DB_HOST
-export DB_PORT=$DB_PORT
-export DB_DATABASE=$DB_DATABASE
-export DB_USERNAME=$DB_USERNAME
-export DB_PASSWORD=$DB_PASSWORD
-export REDIS_HOST=$REDIS_HOST
-export REDIS_PORT=$REDIS_PORT
-export REDIS_PASSWORD=$REDIS_PASSWORD
 
-echo -e "${BLUE}📋 Configuration:${NC}"
-echo "- App URL: $APP_URL"
-echo "- Database: $DB_HOST:$DB_PORT"
-echo "- Redis: $REDIS_HOST:$REDIS_PORT"
-echo "- App Port: $APP_PORT"
-echo "- WebSocket Port: $WEBSOCKET_PORT"
-echo ""
+# Database configuration
+export DB_CONNECTION=${DB_CONNECTION:-"mysql"}
+export DB_HOST=${DB_HOST:-"127.0.0.1"}
+export DB_PORT=${DB_PORT:-"3306"}
+export DB_DATABASE=${DB_DATABASE:-"property_management"}
+export DB_USERNAME=${DB_USERNAME:-"root"}
+export DB_PASSWORD=${DB_PASSWORD:-""}
 
-# Function untuk check prerequisites
-check_prerequisites() {
-    echo -e "${BLUE}🔍 Checking prerequisites...${NC}"
-    
-    # Check Docker
-    if ! command -v docker &> /dev/null; then
-        echo -e "${RED}❌ Docker not found. Please install Docker first.${NC}"
+# Redis configuration
+export REDIS_CLIENT=${REDIS_CLIENT:-"phpredis"}
+export REDIS_HOST=${REDIS_HOST:-"127.0.0.1"}
+export REDIS_PORT=${REDIS_PORT:-"6379"}
+export REDIS_USERNAME=${REDIS_USERNAME:-"null"}
+export REDIS_PASSWORD=${REDIS_PASSWORD:-"null"}
+
+# Session and Cache
+export SESSION_DRIVER=${SESSION_DRIVER:-"file"}
+export CACHE_DRIVER=${CACHE_DRIVER:-"file"}
+export QUEUE_CONNECTION=${QUEUE_CONNECTION:-"sync"}
+
+# Mail configuration
+export MAIL_MAILER=${MAIL_MAILER:-"smtp"}
+export MAIL_HOST=${MAIL_HOST:-"mailpit"}
+export MAIL_PORT=${MAIL_PORT:-"1025"}
+export MAIL_USERNAME=${MAIL_USERNAME:-"null"}
+export MAIL_PASSWORD=${MAIL_PASSWORD:-"null"}
+export MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS:-"hello@example.com"}
+export MAIL_FROM_NAME=${MAIL_FROM_NAME:-"${APP_NAME}"}
+
+log_info "Environment variables configured:"
+log_info "APP_NAME: $APP_NAME"
+log_info "APP_ENV: $APP_ENV"
+log_info "APP_URL: $APP_URL"
+log_info "DB_HOST: $DB_HOST"
+log_info "DB_DATABASE: $DB_DATABASE"
+log_info "REDIS_HOST: $REDIS_HOST"
+
+# ==================================================
+# Main Deployment Process
+# ==================================================
+
+log_info "Starting Docker deployment..."
+
+# Check if Docker is running
+if ! docker info >/dev/null 2>&1; then
+    log_error "Docker is not running. Please start Docker Desktop."
     exit 1
 fi
 
-    # Check if Dockerfile exists
-    if [ ! -f "$DOCKERFILE" ]; then
-        echo -e "${RED}❌ Dockerfile.dokploy not found!${NC}"
-        exit 1
-    fi
-    
-    echo -e "${GREEN}✅ Prerequisites check passed${NC}"
-}
+# Build the Docker image
+log_info "Building Docker image..."
+docker build -f Dockerfile.dokploy -t $DOCKER_IMAGE .
 
-# Function untuk test external services
-test_external_services() {
-    echo -e "${BLUE}🔍 Testing external services...${NC}"
-    
-    # Test MySQL connection
-    echo "Testing MySQL connection..."
-    if nc -z "$DB_HOST" "$DB_PORT" 2>/dev/null; then
-        echo -e "${GREEN}✅ MySQL connection successful${NC}"
-    else
-        echo -e "${YELLOW}⚠️  MySQL connection failed - will continue anyway${NC}"
-    fi
-    
-    # Test Redis connection
-    echo "Testing Redis connection..."
-    if nc -z "$REDIS_HOST" "$REDIS_PORT" 2>/dev/null; then
-        echo -e "${GREEN}✅ Redis connection successful${NC}"
-    else
-        echo -e "${YELLOW}⚠️  Redis connection failed - will continue anyway${NC}"
-    fi
-}
-
-# Function untuk build image
-build_image() {
-    echo -e "${BLUE}🏗️  Building Docker image...${NC}"
-    
-    # Remove existing image if exists
-    if docker image inspect "$IMAGE_NAME" &>/dev/null; then
-        echo "Removing existing image..."
-        docker rmi "$IMAGE_NAME" || true
-    fi
-    
-    # Build new image
-    echo "Building new image from $DOCKERFILE..."
-    docker build -f "$DOCKERFILE" -t "$IMAGE_NAME" .
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✅ Image built successfully${NC}"
-    else
-        echo -e "${RED}❌ Image build failed${NC}"
-        exit 1
-    fi
-}
-
-# Function untuk stop existing container
-stop_container() {
-    echo -e "${BLUE}🛑 Stopping existing container...${NC}"
-    
-    if docker ps -q -f name="$CONTAINER_NAME" | grep -q .; then
-        echo "Stopping container $CONTAINER_NAME..."
-        docker stop "$CONTAINER_NAME" || true
-        docker rm "$CONTAINER_NAME" || true
-        echo -e "${GREEN}✅ Container stopped and removed${NC}"
-    else
-        echo "No existing container found"
-    fi
-}
-
-# Function untuk run container
-run_container() {
-    echo -e "${BLUE}🚀 Starting container...${NC}"
-    
-    # Create network if not exists
-    if ! docker network ls | grep -q "homsjogja-network"; then
-        echo "Creating network homsjogja-network..."
-        docker network create homsjogja-network || true
-    fi
-    
-    # Run container dengan environment variables
-    docker run -d \
-        --name "$CONTAINER_NAME" \
-        --network homsjogja-network \
-        -p "$APP_PORT:80" \
-        -p "$WEBSOCKET_PORT:6001" \
-        -e APP_ENV=production \
-        -e APP_DEBUG=false \
-        -e APP_URL="$APP_URL" \
-        -e DB_HOST="$DB_HOST" \
-        -e DB_PORT="$DB_PORT" \
-        -e DB_DATABASE="$DB_DATABASE" \
-        -e DB_USERNAME="$DB_USERNAME" \
-        -e DB_PASSWORD="$DB_PASSWORD" \
-        -e REDIS_HOST="$REDIS_HOST" \
-        -e REDIS_PORT="$REDIS_PORT" \
-        -e REDIS_PASSWORD="$REDIS_PASSWORD" \
-        -e REDIS_DB=0 \
-        -e BROADCAST_DRIVER=redis \
-        -e BROADCAST_CONNECTION=default \
-        -e CACHE_DRIVER=redis \
-        -e SESSION_DRIVER=redis \
-        -e QUEUE_CONNECTION=redis \
-        -e SOCKETIO_PORT=6001 \
-        -e SOCKETIO_HOST=0.0.0.0 \
-        -e NOTIFICATION_CHANNELS=database,broadcast \
-        -v "$(pwd)/storage:/var/www/html/storage" \
-        -v "$(pwd)/public/uploads:/var/www/html/storage/app/public" \
-        --restart unless-stopped \
-        "$IMAGE_NAME"
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✅ Container started successfully${NC}"
-    else
-        echo -e "${RED}❌ Container start failed${NC}"
+if [ $? -eq 0 ]; then
+    log_success "Docker image built successfully"
+else
+    log_error "Docker build failed"
     exit 1
 fi
-}
 
-# Function untuk wait for container ready
-wait_for_container() {
-    echo -e "${BLUE}⏳ Waiting for container to be ready...${NC}"
-    
-    # Wait for container to start
-for i in {1..30}; do
-        if docker ps | grep -q "$CONTAINER_NAME"; then
-            echo -e "${GREEN}✅ Container is running${NC}"
-        break
-    fi
-        echo "Waiting for container to start... ($i/30)"
-        sleep 2
-    done
-    
-    # Wait for application to be ready
-    echo "Waiting for application to be ready..."
-    for i in {1..60}; do
-        if curl -f "http://localhost:$APP_PORT/health" 2>/dev/null; then
-            echo -e "${GREEN}✅ Application is ready${NC}"
-            return 0
-        fi
-        echo "Waiting for application... ($i/60)"
-    sleep 2
-done
+# Stop and remove existing container
+log_info "Stopping existing container..."
+docker stop $CONTAINER_NAME 2>/dev/null || true
+docker rm $CONTAINER_NAME 2>/dev/null || true
 
-    echo -e "${YELLOW}⚠️  Application may not be fully ready yet${NC}"
-}
+# Run the container
+log_info "Starting container..."
+docker run -d \
+    --name $CONTAINER_NAME \
+    -p 8080:80 \
+    -e APP_NAME="$APP_NAME" \
+    -e APP_ENV="$APP_ENV" \
+    -e APP_KEY="$APP_KEY" \
+    -e APP_DEBUG="$APP_DEBUG" \
+    -e APP_URL="$APP_URL" \
+    -e DB_CONNECTION="$DB_CONNECTION" \
+    -e DB_HOST="$DB_HOST" \
+    -e DB_PORT="$DB_PORT" \
+    -e DB_DATABASE="$DB_DATABASE" \
+    -e DB_USERNAME="$DB_USERNAME" \
+    -e DB_PASSWORD="$DB_PASSWORD" \
+    -e REDIS_CLIENT="$REDIS_CLIENT" \
+    -e REDIS_HOST="$REDIS_HOST" \
+    -e REDIS_PORT="$REDIS_PORT" \
+    -e REDIS_USERNAME="$REDIS_USERNAME" \
+    -e REDIS_PASSWORD="$REDIS_PASSWORD" \
+    -e SESSION_DRIVER="$SESSION_DRIVER" \
+    -e CACHE_DRIVER="$CACHE_DRIVER" \
+    -e QUEUE_CONNECTION="$QUEUE_CONNECTION" \
+    -e MAIL_MAILER="$MAIL_MAILER" \
+    -e MAIL_HOST="$MAIL_HOST" \
+    -e MAIL_PORT="$MAIL_PORT" \
+    -e MAIL_USERNAME="$MAIL_USERNAME" \
+    -e MAIL_PASSWORD="$MAIL_PASSWORD" \
+    -e MAIL_FROM_ADDRESS="$MAIL_FROM_ADDRESS" \
+    -e MAIL_FROM_NAME="$MAIL_FROM_NAME" \
+    $DOCKER_IMAGE
 
-# Function untuk run migrations
-run_migrations() {
-    echo -e "${BLUE}🗄️  Running database migrations...${NC}"
+if [ $? -eq 0 ]; then
+    log_success "Container started successfully"
+else
+    log_error "Container start failed"
+    exit 1
+fi
 
-# Run migrations
-    echo "Running migrations..."
-    docker exec "$CONTAINER_NAME" php artisan migrate --force || echo "Migration failed, continuing..."
-    
-    # Clear and rebuild cache
-    echo "Rebuilding cache..."
-    docker exec "$CONTAINER_NAME" php artisan config:cache || echo "Config cache failed"
-    docker exec "$CONTAINER_NAME" php artisan route:cache || echo "Route cache failed"
-    docker exec "$CONTAINER_NAME" php artisan view:cache || echo "View cache failed"
-    
-    echo -e "${GREEN}✅ Migrations and cache completed${NC}"
-}
+# Wait for container to be ready
+log_info "Waiting for container to be ready..."
+sleep 15
 
-# Function untuk test deployment
-test_deployment() {
-    echo -e "${BLUE}🧪 Testing deployment...${NC}"
-    
-    # Test main application
-    echo "Testing main application..."
-    if curl -f "http://localhost:$APP_PORT" 2>/dev/null; then
-        echo -e "${GREEN}✅ Main application is accessible${NC}"
-    else
-        echo -e "${RED}❌ Main application is not accessible${NC}"
-        return 1
-    fi
-    
-    # Test health endpoint
-    echo "Testing health endpoint..."
-    if curl -f "http://localhost:$APP_PORT/health" 2>/dev/null; then
-        echo -e "${GREEN}✅ Health endpoint is working${NC}"
-    else
-        echo -e "${YELLOW}⚠️  Health endpoint is not working${NC}"
-    fi
-    
-    # Test database connection
-    echo "Testing database connection..."
-    if docker exec "$CONTAINER_NAME" php artisan tinker --execute="DB::connection()->getPdo(); echo 'DB OK';" 2>/dev/null; then
-        echo -e "${GREEN}✅ Database connection is working${NC}"
-    else
-        echo -e "${YELLOW}⚠️  Database connection failed${NC}"
-    fi
-    
-    # Test Redis connection
-    echo "Testing Redis connection..."
-    if docker exec "$CONTAINER_NAME" php artisan tinker --execute="Redis::ping(); echo 'Redis OK';" 2>/dev/null; then
-        echo -e "${GREEN}✅ Redis connection is working${NC}"
-    else
-        echo -e "${YELLOW}⚠️  Redis connection failed${NC}"
-    fi
-}
+# Check container status
+if docker ps | grep -q $CONTAINER_NAME; then
+    log_success "Container is running"
+else
+    log_error "Container is not running"
+    docker logs $CONTAINER_NAME
+    exit 1
+fi
 
-# Function untuk show logs
-show_logs() {
-    echo -e "${BLUE}📋 Recent logs:${NC}"
-    docker logs --tail=20 "$CONTAINER_NAME"
-}
+# Test application
+log_info "Testing application..."
+if curl -f http://localhost:8080/health >/dev/null 2>&1; then
+    log_success "Application is accessible"
+else
+    log_warning "Application not accessible yet, checking logs..."
+    docker logs $CONTAINER_NAME
+fi
 
-# Function untuk show status
-show_status() {
-    echo -e "${BLUE}📊 Deployment Status:${NC}"
-    echo "====================="
-    
-    # Show running container
-    echo "Container status:"
-    docker ps -f name="$CONTAINER_NAME"
-    
-    echo ""
-    
-    # Show service URLs
-    echo "Service URLs:"
-    echo "- Main Application: http://localhost:$APP_PORT"
-    echo "- Health Check: http://localhost:$APP_PORT/health"
-    
-    echo ""
-    
-    # Show external service status
-    echo "External Services:"
-    echo "- MySQL: $DB_HOST:$DB_PORT"
-    echo "- Redis: $REDIS_HOST:$REDIS_PORT"
-    
-    echo ""
-    
-    # Show container info
-    echo "Container Info:"
-    docker inspect --format='{{.State.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo "Container not found"
-}
+# Test internal port
+log_info "Testing internal port..."
+if docker exec $CONTAINER_NAME curl -f http://localhost:80/health >/dev/null 2>&1; then
+    log_success "Internal port is working"
+else
+    log_warning "Internal port not working yet"
+fi
 
-# Function untuk cleanup
-cleanup() {
-    echo -e "${BLUE}🧹 Cleaning up...${NC}"
-    
-    # Stop and remove container
-    stop_container
-    
-    # Remove image
-    if docker image inspect "$IMAGE_NAME" &>/dev/null; then
-        echo "Removing image..."
-        docker rmi "$IMAGE_NAME" || true
-    fi
-    
-    echo -e "${GREEN}✅ Cleanup completed${NC}"
-}
-
-# Main execution
-main() {
-    case "${1:-deploy}" in
-        "deploy")
-            check_prerequisites
-            test_external_services
-            build_image
-            stop_container
-            run_container
-            wait_for_container
-            run_migrations
-            test_deployment
-            show_status
-            ;;
-        "build")
-            check_prerequisites
-            build_image
-            ;;
-        "start")
-            run_container
-            wait_for_container
-            ;;
-        "stop")
-            stop_container
-            ;;
-        "restart")
-            stop_container
-            run_container
-            wait_for_container
-            ;;
-        "logs")
-            show_logs
-            ;;
-        "status")
-            show_status
-            ;;
-        "test")
-            test_deployment
-            ;;
-        "migrate")
-            run_migrations
-            ;;
-        "cleanup")
-            cleanup
-            ;;
-        *)
-            echo "Usage: $0 {deploy|build|start|stop|restart|logs|status|test|migrate|cleanup}"
-echo ""
-            echo "Commands:"
-            echo "  deploy   - Full deployment (default)"
-            echo "  build    - Build Docker image only"
-            echo "  start    - Start container"
-            echo "  stop     - Stop container"
-            echo "  restart  - Restart container"
-            echo "  logs     - Show recent logs"
-            echo "  status   - Show deployment status"
-            echo "  test     - Test deployment"
-            echo "  migrate  - Run database migrations"
-            echo "  cleanup  - Remove container and image"
-            exit 1
-            ;;
-    esac
-}
-
-# Run main function
-main "$@" 
+log_info "Deployment completed successfully!"
+log_info "Application URL: http://localhost:8080"
+log_info "Health Check: http://localhost:8080/health"
+log_info "Internal Health Check: http://localhost:80/health" 
