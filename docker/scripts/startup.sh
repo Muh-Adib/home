@@ -708,12 +708,80 @@ start_supervisor() {
     log_info "   - Check Nginx logs: docker logs <container> | grep nginx"
     log_info "   - Test PHP-FPM: curl -f http://localhost:8080/health"
     log_info "   - Test WebSocket: curl -f http://localhost:6002/"
+    log_info ""
+    log_info "⚠️  IMPORTANT: Port Publishing Required"
     log_info "=================================================="
+    log_info "🔧 For external access, ensure ports are published:"
+    log_info "   - Main App: -p 8080:8080"
+    log_info "   - WebSocket: -p 6002:6002 (if needed)"
+    log_info ""
+    log_info "📋 Dokploy Configuration:"
+    log_info "   - Set Port Mapping: 8080:8080"
+    log_info "   - Domain: app.homsjogja.com → Port 8080"
+    log_info ""
+    log_info "🔍 If still can't access externally:"
+    log_info "   1. Check Dokploy port mapping"
+    log_info "   2. Verify domain points to correct port"
+    log_info "   3. Test with: curl -f http://localhost:8080/health"
+    log_info "   4. Check container logs for errors"
+    log_info "=================================================="
+    
+    # Test external accessibility
+    test_external_access
     
     # Start supervisor dengan delay yang lebih lama untuk memastikan semua service siap
     log_info "Waiting 10 seconds before starting supervisor..."
     sleep 10
     exec /usr/bin/supervisord -c /etc/supervisor.d/supervisord.conf
+}
+
+# Test external accessibility
+test_external_access() {
+    log_info "Testing external accessibility..."
+    
+    # Test if port 8080 is accessible from outside
+    if netstat -tlnp 2>/dev/null | grep -q ":8080"; then
+        log_success "Port 8080 is listening"
+        
+        # Test if nginx is serving content
+        if curl -f http://localhost:8080/health >/dev/null 2>&1; then
+            log_success "Nginx is serving content on port 8080"
+        else
+            log_warning "Nginx not serving content on port 8080"
+        fi
+    else
+        log_warning "Port 8080 not listening (will be available after supervisor start)"
+    fi
+    
+    # Test if port 6002 is accessible from outside
+    if netstat -tlnp 2>/dev/null | grep -q ":6002"; then
+        log_success "Port 6002 is listening"
+        
+        # Test if Laravel Echo Server is serving content
+        if curl -f http://localhost:6002/ >/dev/null 2>&1; then
+            log_success "Laravel Echo Server is serving content on port 6002"
+        else
+            log_warning "Laravel Echo Server not serving content on port 6002"
+        fi
+    else
+        log_warning "Port 6002 not listening (will be available after supervisor start)"
+    fi
+    
+    # Show port publishing information
+    log_info "=================================================="
+    log_info "🔧 PORT PUBLISHING STATUS"
+    log_info "=================================================="
+    log_info "📊 Current Port Status:"
+    netstat -tlnp 2>/dev/null | grep -E ":(8080|6002)" || log_warning "No ports 8080/6002 found listening"
+    log_info ""
+    log_info "🔍 External Access Requirements:"
+    log_info "   - Port 8080 must be published to host"
+    log_info "   - Port 6002 must be published to host (for WebSocket)"
+    log_info ""
+    log_info "📋 Dokploy Configuration Needed:"
+    log_info "   - Port Mapping: 8080:8080"
+    log_info "   - Domain: app.homsjogja.com → Port 8080"
+    log_info "=================================================="
 }
 
 # Run main function
