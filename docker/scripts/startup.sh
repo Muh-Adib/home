@@ -31,11 +31,65 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Handle Dokploy container rotation
+handle_dokploy_rotation() {
+    log_info "=================================================="
+    log_info "🔄 DOKPLOY CONTAINER ROTATION HANDLING"
+    log_info "=================================================="
+    
+    # Get current container info
+    CONTAINER_ID=$(hostname)
+    CONTAINER_NAME=$(cat /proc/1/cgroup | grep -o 'docker/[^/]*' | head -1 | cut -d'/' -f2)
+    
+    log_info "📊 Container Information:"
+    log_info "   - Container ID: $CONTAINER_ID"
+    log_info "   - Container Name: $CONTAINER_NAME"
+    log_info "   - Hostname: $(hostname)"
+    
+    # Check if we're in Dokploy environment
+    if [ -n "$DOKPLOY_ENV" ] || [ -n "$DOKPLOY_APP_ID" ]; then
+        log_info "✅ Running in Dokploy environment"
+        log_info "   - Dokploy App ID: $DOKPLOY_APP_ID"
+        log_info "   - Dokploy Environment: $DOKPLOY_ENV"
+        
+        # Set persistent service discovery
+        log_info "🔧 Setting up persistent service discovery..."
+        
+        # Create service identifier file
+        echo "$CONTAINER_ID" > /tmp/current_container_id
+        echo "$(date)" > /tmp/container_start_time
+        
+        log_info "   - Service ID: $CONTAINER_ID"
+        log_info "   - Start Time: $(date)"
+        
+    else
+        log_info "⚠️  Not in Dokploy environment (local development)"
+    fi
+    
+    # Check for previous container logs
+    if [ -f "/tmp/previous_container_id" ]; then
+        PREVIOUS_ID=$(cat /tmp/previous_container_id)
+        log_info "🔄 Container rotation detected:"
+        log_info "   - Previous Container: $PREVIOUS_ID"
+        log_info "   - Current Container: $CONTAINER_ID"
+    fi
+    
+    # Save current container ID for next rotation
+    echo "$CONTAINER_ID" > /tmp/previous_container_id
+    
+    log_info "=================================================="
+}
+
 # Main startup function
 main() {
     log_info "=== Laravel Dokploy Production Startup Script ==="
     log_info "Property Management System - Laravel 12 + React 18 + WebSocket"
     log_info "=================================================="
+    
+    # Handle Dokploy container rotation
+    handle_dokploy_rotation
+    
+    # Display port configuration summary
     log_info "📋 PORT CONFIGURATION SUMMARY:"
     log_info "   🖥️  Main App (Nginx): Port 8080"
     log_info "   🔌 WebSocket (Echo): Port 6002"
@@ -719,11 +773,25 @@ start_supervisor() {
     log_info "   - Set Port Mapping: 8080:8080"
     log_info "   - Domain: app.homsjogja.com → Port 8080"
     log_info ""
+    log_info "🔄 DOKPLOY CONTAINER ROTATION:"
+    log_info "=================================================="
+    log_info "🔧 Dokploy uses container rotation - containers restart automatically"
+    log_info "   - Container ID changes on each rotation"
+    log_info "   - Port mapping should be persistent"
+    log_info "   - Service discovery handles rotation"
+    log_info ""
+    log_info "📋 Dokploy Settings for Container Rotation:"
+    log_info "   - Enable persistent port mapping"
+    log_info "   - Set health check endpoint: /health"
+    log_info "   - Configure load balancer for rotation"
+    log_info "   - Use service name, not container ID"
+    log_info ""
     log_info "🔍 If still can't access externally:"
     log_info "   1. Check Dokploy port mapping"
     log_info "   2. Verify domain points to correct port"
     log_info "   3. Test with: curl -f http://localhost:8080/health"
     log_info "   4. Check container logs for errors"
+    log_info "   5. Check Dokploy load balancer configuration"
     log_info "=================================================="
     
     # Test external accessibility
