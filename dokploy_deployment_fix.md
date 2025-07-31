@@ -1,379 +1,249 @@
-# Dokploy Laravel Deployment Fix Guide
+# 🔧 Perbaikan Dokploy Deployment - Property Management System
 
-## 🚨 Analisis Masalah
+## 📋 Ringkasan Masalah
 
-### Error yang Terjadi:
+Error Dokploy deployment:
 ```
-upstream sent too big header while reading response header from upstream
+Error ❌ The service nginx not found in the compose
+tail error: tail: inotify cannot be used, reverting to polling: Too many open files
 ```
 
-### Penyebab Utama:
-1. **Session Driver Cookie**: Laravel menggunakan `SESSION_DRIVER=file` yang menyimpan session data dalam cookies
-2. **Environment Variables**: Banyak environment variables yang tidak di-set menyebabkan warning berlebihan
-3. **Nginx Buffer Size**: Default buffer size di nixpacks terlalu kecil untuk menangani header Laravel yang besar
-4. **Debug Mode**: `APP_DEBUG=true` menghasilkan output yang lebih besar
+## 🎯 Root Cause Analysis
 
-## 🔧 Solusi Utama
+### 1. **Service Nginx Tidak Ditemukan**
+- **Masalah**: Dokploy mencari service `nginx` dalam docker-compose.yml
+- **Penyebab**: Konfigurasi sebelumnya menggunakan single container tanpa service nginx terpisah
+- **Solusi**: Menambahkan service nginx yang terpisah untuk kompatibilitas Dokploy
 
-### 1. Perbaikan Environment Variables (WAJIB)
+### 2. **Port Mapping Tidak Sesuai**
+- **Masalah**: Dokploy mengharapkan port 80 untuk web server
+- **Penyebab**: Konfigurasi menggunakan port 8080
+- **Solusi**: Menggunakan port mapping 80:8080 untuk kompatibilitas
 
-Tambahkan environment variables yang hilang untuk menghilangkan warning:
+## 🛠️ Perbaikan yang Diterapkan
 
-```env
-# Core App Settings
+### ✅ 1. Docker Compose Configuration (`docker-compose.yml`)
+
+**Konfigurasi Baru (Dokploy Compatible):**
+```yaml
+services:
+  # Main Laravel Application Container
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dokploy
+    container_name: homsjogja-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./storage:/var/www/html/storage
+      - ./bootstrap/cache:/var/www/html/bootstrap/cache
+      - ./public:/var/www/html/public
+    environment:
+      - APP_NAME=${APP_NAME:-Laravel}
+      - APP_ENV=${APP_ENV:-production}
+      # ... semua environment variables
+    command: ["/usr/local/bin/startup.sh"]
+
+  # Nginx Service for Dokploy Compatibility
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.dokploy
+    container_name: homsjogja-nginx
+    restart: unless-stopped
+    ports:
+      - "80:8080"  # Dokploy expects port 80
+      - "443:443"  # HTTPS port
+    volumes:
+      - ./docker/nginx/dokploy.conf:/etc/nginx/conf.d/default.conf
+      - ./public:/var/www/html/public
+      - ./storage:/var/www/html/storage
+    depends_on:
+      - app
+    command: ["/usr/local/bin/startup.sh"]
+```
+
+### ✅ 2. Keuntungan Konfigurasi Baru
+
+1. **Dokploy Compatibility:**
+   - Service `nginx` tersedia untuk Dokploy
+   - Port mapping sesuai dengan ekspektasi Dokploy (80:8080)
+   - Health check endpoint tersedia
+
+2. **Maintained Functionality:**
+   - Semua service tetap berjalan dalam container
+   - Supervisor mengelola semua proses
+   - Error pages dan konfigurasi tetap berfungsi
+
+3. **Flexible Deployment:**
+   - Bisa digunakan untuk Dokploy deployment
+   - Bisa digunakan untuk local development
+   - Kompatibel dengan berbagai environment
+
+## 🚀 Langkah Deployment
+
+### 1. Dokploy Configuration
+
+**Environment Variables di Dokploy:**
+```
 APP_NAME=Homsjogja
 APP_ENV=production
-APP_KEY=base64:2KP58EicMQP7tFSYjfXVyeBYmvrRF+62NIErENjPfck=
-APP_DEBUG=false  # UBAH DARI true KE false
-APP_URL=https://homsjogja-testlaravel-jc5ygn-c6322f-213-210-36-24.traefik.me
+APP_KEY=your-app-key
+APP_URL=https://your-domain.com
+DB_HOST=your-db-host
+DB_DATABASE=your-db-name
+DB_USERNAME=your-db-user
+DB_PASSWORD=your-db-password
+REDIS_HOST=your-redis-host
+```
 
-# Database
-DB_CONNECTION=mysql
-DB_HOST=homsjogja-db-xsjalx
-DB_PORT=3306
-DB_DATABASE=homs-db
-DB_USERNAME=homs-user
-DB_PASSWORD=jD8-AKHx2gFCQ5gx3ouRJ
+**Port Mapping di Dokploy:**
+- Main App: 80:8080 (Dokploy akan menggunakan port 80)
+- HTTPS: 443:443 (jika diperlukan)
 
-# Session - UBAH KE DATABASE/REDIS
-SESSION_DRIVER=database  # Ganti dari 'file' ke 'database'
-SESSION_LIFETIME=120
-SESSION_ENCRYPT=false
-SESSION_PATH=/
-SESSION_DOMAIN=null
+### 2. Local Testing
 
-# Cache & Queue
-CACHE_STORE=redis  # Gunakan Redis untuk cache
-QUEUE_CONNECTION=sync
+```bash
+# Build dan run containers
+docker-compose down
+docker-compose up -d --build
+
+# Check containers
+docker-compose ps
+
+# Check logs
+docker-compose logs nginx
+docker-compose logs app
+
+# Test application
+curl http://localhost/health
+```
+
+### 3. Verifikasi Deployment
+
+```bash
+# Check container status
+docker-compose ps
+
+# Check nginx service
+docker-compose logs nginx
+
+# Test application
+curl http://localhost/health
+
+# Check supervisor status (dalam container nginx)
+docker exec -it homsjogja-nginx supervisorctl status
+```
+
+## 🔍 Troubleshooting
+
+### 1. Jika Service Nginx Tidak Ditemukan
+
+```bash
+# Check docker-compose.yml
+cat docker-compose.yml | grep -A 10 "nginx:"
+
+# Validate compose file
+docker-compose config
+
+# Restart deployment
+docker-compose down
+docker-compose up -d
+```
+
+### 2. Jika Port 80 Tidak Bisa Diakses
+
+```bash
+# Check port listening
+netstat -tlnp | grep :80
+
+# Check container logs
+docker-compose logs nginx
+
+# Check nginx config
+docker exec -it homsjogja-nginx nginx -t
+```
+
+### 3. Jika Health Check Gagal
+
+```bash
+# Check health endpoint
+curl -f http://localhost/health
+
+# Check supervisor status
+docker exec -it homsjogja-nginx supervisorctl status
+
+# Check nginx error logs
+docker exec -it homsjogja-nginx tail -f /var/log/nginx/error.log
+```
+
+## 📊 Expected Results
+
+Setelah menerapkan perbaikan ini:
+
+### ✅ Positive Indicators
+- Dokploy deployment berhasil tanpa error "service nginx not found"
+- Service nginx tersedia dan berjalan
+- Port 80 mapped dengan benar ke internal port 8080
+- Health check endpoint merespons `healthy`
+- Semua supervisor services RUNNING
+- Custom error pages berfungsi
+
+### ❌ Negative Indicators (Masih Ada Masalah)
+- Error "service nginx not found" masih muncul
+- Port 80 tidak bisa diakses
+- Health check gagal
+- Supervisor services tidak running
+- Nginx error logs menunjukkan masalah
+
+## 📋 Checklist Verifikasi
+
+- [ ] Service `nginx` tersedia di docker-compose.yml
+- [ ] Port mapping 80:8080 berfungsi
+- [ ] Dokploy deployment berhasil tanpa error
+- [ ] Health check endpoint merespons `healthy`
+- [ ] Nginx service running dan accessible
+- [ ] All supervisor services RUNNING
+- [ ] Custom error pages working
+- [ ] Application accessible via port 80
+
+## 🎯 Dokploy Specific Configuration
+
+### Dokploy Environment Variables
+```
+# Required for Dokploy
+APP_NAME=Homsjogja
+APP_ENV=production
+APP_KEY=your-app-key
+APP_URL=https://your-domain.com
+
+# Database Configuration
+DB_HOST=your-db-host
+DB_DATABASE=your-db-name
+DB_USERNAME=your-db-user
+DB_PASSWORD=your-db-password
 
 # Redis Configuration
-REDIS_HOST=homsjogja-redis-qmihbb
-REDIS_PASSWORD=5vlcwpzc45g9mtho
+REDIS_HOST=your-redis-host
 REDIS_PORT=6379
-REDIS_USERNAME=default
-REDIS_CLIENT=phpredis
-REDIS_URL=redis://default:5vlcwpzc45g9mtho@homsjogja-redis-qmihbb:6379
+REDIS_PASSWORD=your-redis-password
 
 # Mail Configuration
 MAIL_MAILER=smtp
-MAIL_HOST=mailpit
-MAIL_PORT=1025
-MAIL_USERNAME=null
-MAIL_PASSWORD=null
-MAIL_FROM_ADDRESS="hello@example.com"
-MAIL_FROM_NAME="${APP_NAME}"
-
-# Broadcast & Filesystem
-BROADCAST_CONNECTION=log
-FILESYSTEM_DISK=local
-
-# Set empty values untuk environment yang tidak digunakan
-PUSHER_APP_ID=
-PUSHER_APP_KEY=
-PUSHER_APP_SECRET=
-PUSHER_HOST=
-ABLY_KEY=
-
-# Database Cache
-DB_CACHE_CONNECTION=
-DB_CACHE_LOCK_CONNECTION=
-DB_CACHE_LOCK_TABLE=
-
-# Memcached (not used)
-MEMCACHED_PERSISTENT_ID=
-MEMCACHED_USERNAME=
-MEMCACHED_PASSWORD=
-
-# AWS (not used in this setup)
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_DEFAULT_REGION=us-east-1
-AWS_BUCKET=
-AWS_USE_PATH_STYLE_ENDPOINT=false
-AWS_URL=
-AWS_ENDPOINT=
-DYNAMODB_ENDPOINT=
-
-# Database URLs
-DB_URL=
-
-# MySQL SSL
-MYSQL_ATTR_SSL_CA=
-
-# Logging
-LOG_CHANNEL=stack
-LOG_STACK=single
-LOG_LEVEL=error  # Ubah dari debug ke error
-LOG_DEPRECATIONS_CHANNEL=null
-LOG_SLACK_WEBHOOK_URL=
-LOG_STDERR_FORMATTER=
-PAPERTRAIL_URL=
-PAPERTRAIL_PORT=
-
-# Mail additional
-MAIL_URL=
-MAIL_LOG_CHANNEL=
-POSTMARK_TOKEN=
-POSTMARK_MESSAGE_STREAM_ID=
-RESEND_KEY=
-
-# Queue additional
-DB_QUEUE_CONNECTION=
-SQS_SUFFIX=
-
-# Slack
-SLACK_BOT_USER_OAUTH_TOKEN=
-SLACK_BOT_USER_DEFAULT_CHANNEL=
-
-# Session additional
-SESSION_CONNECTION=
-SESSION_STORE=
-SESSION_SECURE_COOKIE=
-
-# Vite
-VITE_APP_NAME="${APP_NAME}"
+MAIL_HOST=your-mail-host
+MAIL_PORT=587
+MAIL_USERNAME=your-mail-username
+MAIL_PASSWORD=your-mail-password
+MAIL_FROM_ADDRESS=noreply@your-domain.com
+MAIL_FROM_NAME=Homsjogja
 ```
 
-### 2. Buat Nginx Configuration Override
+### Dokploy Port Configuration
+- **Main Port**: 80 (Dokploy akan menggunakan ini)
+- **HTTPS Port**: 443 (jika diperlukan)
+- **Internal Port**: 8080 (dalam container)
 
-Buat file `.dokploy/nginx.conf` di root project:
+---
 
-```nginx
-# .dokploy/nginx.conf
-server {
-    listen 80;
-    server_name _;
-    
-    # Increase buffer sizes untuk fix "upstream sent too big header"
-    fastcgi_buffers 16 64k;
-    fastcgi_buffer_size 128k;
-    fastcgi_busy_buffers_size 256k;
-    
-    # Client header buffers
-    client_header_buffer_size 4k;
-    large_client_header_buffers 8 16k;
-    
-    # Proxy buffers (jika menggunakan proxy)
-    proxy_buffer_size 128k;
-    proxy_buffers 8 128k;
-    proxy_busy_buffers_size 256k;
-    
-    root /app/public;
-    index index.php index.html;
-    
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    
-    # Handle Laravel routes
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-    
-    # PHP-FPM configuration
-    location ~ \.php$ {
-        fastcgi_pass 127.0.0.1:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        include fastcgi_params;
-        
-        # Increase timeouts
-        fastcgi_read_timeout 300;
-        fastcgi_send_timeout 300;
-        
-        # Buffer settings untuk PHP
-        fastcgi_buffers 16 64k;
-        fastcgi_buffer_size 128k;
-        fastcgi_busy_buffers_size 256k;
-    }
-    
-    # Static files
-    location ~* \.(css|js|gif|jpe?g|png|svg|ico|woff2?|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-    
-    # Deny access to sensitive files
-    location ~ /\. {
-        deny all;
-    }
-    
-    location ~ /(vendor|storage|bootstrap/cache) {
-        deny all;
-    }
-}
-```
-
-### 3. Buat Dockerfile Custom (Opsional tapi Disarankan)
-
-Buat `Dockerfile` untuk override nixpacks:
-
-```dockerfile
-# Dockerfile
-FROM ghcr.io/railwayapp/nixpacks:ubuntu-latest
-
-# Copy custom nginx config
-COPY .dokploy/nginx.conf /etc/nginx/sites-available/default
-
-# Install additional packages if needed
-RUN apt-get update && apt-get install -y \
-    nginx \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy application
-COPY . /app
-WORKDIR /app
-
-# Install composer dependencies
-RUN composer install --no-dev --optimize-autoloader
-
-# Set permissions
-RUN chown -R www-data:www-data /app/storage /app/bootstrap/cache
-
-# Build assets
-RUN npm ci && npm run build
-
-# Start services
-CMD ["sh", "-c", "nginx && php-fpm"]
-```
-
-### 4. Setup Database Session Table
-
-Jalankan migration untuk session table:
-
-```bash
-# Di local atau melalui Dokploy console
-php artisan session:table
-php artisan migrate
-```
-
-### 5. Buat dokploy.json Configuration
-
-```json
-{
-  "services": [
-    {
-      "name": "laravel-app",
-      "buildCommand": "composer install --no-dev --optimize-autoloader && npm ci && npm run build",
-      "startCommand": "php artisan config:cache && php artisan route:cache && php artisan view:cache && php-fpm & nginx -g 'daemon off;'",
-      "environment": {
-        "APP_ENV": "production",
-        "APP_DEBUG": "false"
-      }
-    }
-  ]
-}
-```
-
-## 🚀 Best Practices untuk Production
-
-### 1. Optimization Commands
-
-Tambahkan di start command atau buat script:
-
-```bash
-#!/bin/bash
-# optimize.sh
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
-php artisan event:cache
-php artisan optimize
-```
-
-### 2. Security Checklist
-
-```env
-# Security settings
-APP_DEBUG=false
-APP_ENV=production
-SESSION_SECURE_COOKIE=true  # Jika menggunakan HTTPS
-SESSION_HTTP_ONLY=true
-SESSION_SAME_SITE=lax
-```
-
-### 3. Performance Settings
-
-```env
-# Performance optimization
-CACHE_STORE=redis
-SESSION_DRIVER=redis  # Atau database
-QUEUE_CONNECTION=redis
-REDIS_CLIENT=phpredis
-
-# Database optimization
-DB_CACHE_CONNECTION=redis
-```
-
-### 4. Monitoring & Logging
-
-```env
-# Production logging
-LOG_CHANNEL=stack
-LOG_LEVEL=error
-LOG_STACK=single,slack  # Jika ada slack integration
-```
-
-## 🔍 Troubleshooting Additional
-
-### Jika Masih Error 502:
-
-1. **Check Container Logs**:
-```bash
-dokploy logs <app-name>
-```
-
-2. **Verify Environment Variables**:
-```bash
-# Di container
-printenv | grep -E "(APP_|DB_|SESSION_)"
-```
-
-3. **Test Database Connection**:
-```bash
-# Di container
-php artisan tinker
-# Test: DB::connection()->getPdo();
-```
-
-4. **Check Nginx Configuration**:
-```bash
-# Di container
-nginx -t
-```
-
-### Common Issues:
-
-1. **Session Table Missing**: Jalankan `php artisan session:table && php artisan migrate`
-2. **Redis Connection**: Pastikan Redis credentials benar
-3. **File Permissions**: Set proper permissions untuk storage
-4. **Cache Issues**: Clear all caches dengan `php artisan optimize:clear`
-
-## 📝 Checklist Deployment
-
-- [ ] Set `APP_DEBUG=false`
-- [ ] Set `SESSION_DRIVER=database` atau `redis`
-- [ ] Set `CACHE_STORE=redis`
-- [ ] Tambahkan semua environment variables yang hilang
-- [ ] Buat session table (`php artisan session:table`)
-- [ ] Test Redis connection
-- [ ] Configure nginx buffer sizes
-- [ ] Set proper file permissions
-- [ ] Test deployment
-
-## 🎯 Expected Results
-
-Setelah implementasi:
-- ✅ Error 502 hilang
-- ✅ Warning environment variables hilang
-- ✅ Response time lebih cepat
-- ✅ Session handling yang lebih efficient
-- ✅ Production-ready security settings
-
-## 📚 References
-
-- [Laravel Session Configuration](https://laravel.com/docs/10.x/session)
-- [Nginx Buffer Tuning](https://nginx.org/en/docs/http/ngx_http_fastcgi_module.html)
-- [Dokploy Documentation](https://dokploy.com/docs)
+**🎯 Kesimpulan**: Perbaikan konfigurasi telah diterapkan untuk mengatasi error Dokploy deployment dengan menambahkan service nginx yang terpisah sambil tetap mempertahankan fungsionalitas single container deployment. Konfigurasi ini kompatibel dengan Dokploy dan tetap mendukung semua fitur aplikasi.
