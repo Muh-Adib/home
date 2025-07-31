@@ -98,6 +98,15 @@ cleanup_existing_processes() {
     # Kill existing processes lebih keras
     pkill -9 nginx || true
     pkill -9 php-fpm || true
+    pkill -9 laravel-echo-server || true
+    
+    # Check if port 6002 is in use
+    if netstat -tlnp 2>/dev/null | grep -q ":6002 "; then
+        log_warning "Port 6002 is still in use, trying to kill process"
+        fuser -k 6002/tcp || true
+        sleep 3
+    fi
+    
     sleep 2
     log_success "Process cleanup completed"
 }
@@ -567,6 +576,38 @@ start_supervisor() {
         log_success "Health endpoint is accessible"
     else
         log_warning "Health endpoint not accessible yet (will be available after supervisor start)"
+    fi
+    
+    # Test Laravel Echo Server configuration
+    log_info "Testing Laravel Echo Server configuration..."
+    if [ -f "/var/www/html/laravel-echo-server.dokploy.json" ]; then
+        log_success "Laravel Echo Server config file exists"
+        # Show Redis configuration from file
+        REDIS_HOST_FROM_FILE=$(grep '"host"' "/var/www/html/laravel-echo-server.dokploy.json" | cut -d'"' -f4)
+        log_info "Redis Host in Laravel Echo Server config: $REDIS_HOST_FROM_FILE"
+        
+        # Test if Laravel Echo Server can start manually
+        log_info "Testing Laravel Echo Server startup..."
+        timeout 10s /usr/local/bin/laravel-echo-server start --config=/var/www/html/laravel-echo-server.dokploy.json --force >/dev/null 2>&1 &
+        ECHO_PID=$!
+        sleep 3
+        if kill -0 $ECHO_PID 2>/dev/null; then
+            log_success "Laravel Echo Server can start successfully"
+            
+            # Test if port 6002 is accessible
+            if curl -f http://localhost:6002/ >/dev/null 2>&1; then
+                log_success "Laravel Echo Server port 6002 is accessible"
+            else
+                log_warning "Laravel Echo Server port 6002 not accessible yet"
+            fi
+            
+            kill $ECHO_PID 2>/dev/null || true
+        else
+            log_warning "Laravel Echo Server startup test failed (will be managed by supervisor)"
+        fi
+    else
+        log_error "Laravel Echo Server config file not found"
+        exit 1
     fi
     
     log_success "Application startup completed successfully!"
