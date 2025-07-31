@@ -106,6 +106,24 @@ cleanup_existing_processes() {
 setup_environment() {
     log_info "Setting up Dynamic Environment Configuration"
     
+    # Debug: Show environment variables from Dokploy
+    log_info "Debug: Environment variables from Dokploy:"
+    log_info "APP_URL: $APP_URL"
+    log_info "DB_HOST: $DB_HOST"
+    log_info "DB_DATABASE: $DB_DATABASE"
+    log_info "REDIS_HOST: $REDIS_HOST"
+    log_info "REDIS_PASSWORD: ${REDIS_PASSWORD:0:4}***"
+    
+    # Check if critical environment variables are set
+    if [ -z "$DB_HOST" ] || [ -z "$REDIS_HOST" ]; then
+        log_warning "Critical environment variables not set by Dokploy!"
+        log_warning "DB_HOST: $DB_HOST"
+        log_warning "REDIS_HOST: $REDIS_HOST"
+        log_warning "Using default values from .env file"
+    else
+        log_info "Environment variables from Dokploy detected successfully"
+    fi
+    
     # Update APP_URL if provided
     if [ ! -z "$APP_URL" ]; then
         log_info "Setting dynamic APP_URL to: $APP_URL"
@@ -115,6 +133,58 @@ setup_environment() {
         MAIL_DOMAIN=$(echo $APP_URL | sed 's|https://||' | sed 's|http://||')
         log_info "Mail domain set to: noreply@$MAIL_DOMAIN"
         sed -i "s|MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=noreply@$MAIL_DOMAIN|g" .env
+    fi
+    
+    # Update Database configuration from environment variables
+    if [ ! -z "$DB_HOST" ]; then
+        log_info "Setting DB_HOST to: $DB_HOST"
+        sed -i "s|DB_HOST=.*|DB_HOST=$DB_HOST|g" .env
+    fi
+    
+    if [ ! -z "$DB_PORT" ]; then
+        log_info "Setting DB_PORT to: $DB_PORT"
+        sed -i "s|DB_PORT=.*|DB_PORT=$DB_PORT|g" .env
+    fi
+    
+    if [ ! -z "$DB_DATABASE" ]; then
+        log_info "Setting DB_DATABASE to: $DB_DATABASE"
+        sed -i "s|DB_DATABASE=.*|DB_DATABASE=$DB_DATABASE|g" .env
+    fi
+    
+    if [ ! -z "$DB_USERNAME" ]; then
+        log_info "Setting DB_USERNAME to: $DB_USERNAME"
+        sed -i "s|DB_USERNAME=.*|DB_USERNAME=$DB_USERNAME|g" .env
+    fi
+    
+    if [ ! -z "$DB_PASSWORD" ]; then
+        log_info "Setting DB_PASSWORD to: $DB_PASSWORD"
+        sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASSWORD|g" .env
+    fi
+    
+    # Update Redis configuration from environment variables
+    if [ ! -z "$REDIS_HOST" ]; then
+        log_info "Setting REDIS_HOST to: $REDIS_HOST"
+        sed -i "s|REDIS_HOST=.*|REDIS_HOST=$REDIS_HOST|g" .env
+    fi
+    
+    if [ ! -z "$REDIS_PORT" ]; then
+        log_info "Setting REDIS_PORT to: $REDIS_PORT"
+        sed -i "s|REDIS_PORT=.*|REDIS_PORT=$REDIS_PORT|g" .env
+    fi
+    
+    if [ ! -z "$REDIS_PASSWORD" ]; then
+        log_info "Setting REDIS_PASSWORD to: $REDIS_PASSWORD"
+        sed -i "s|REDIS_PASSWORD=.*|REDIS_PASSWORD=$REDIS_PASSWORD|g" .env
+    fi
+    
+    if [ ! -z "$REDIS_USERNAME" ]; then
+        log_info "Setting REDIS_USERNAME to: $REDIS_USERNAME"
+        sed -i "s|REDIS_USERNAME=.*|REDIS_USERNAME=$REDIS_USERNAME|g" .env
+    fi
+    
+    if [ ! -z "$REDIS_URL" ]; then
+        log_info "Setting REDIS_URL to: $REDIS_URL"
+        sed -i "s|REDIS_URL=.*|REDIS_URL=$REDIS_URL|g" .env
     fi
     
     # Clear and rebuild config cache to ensure .env changes are loaded
