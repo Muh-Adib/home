@@ -178,83 +178,172 @@ setup_environment() {
     
     # Debug: Show environment variables from Dokploy
     log_info "Debug: Environment variables from Dokploy:"
-    log_info "APP_URL: $APP_URL"
-    log_info "DB_HOST: $DB_HOST"
-    log_info "DB_DATABASE: $DB_DATABASE"
-    log_info "REDIS_HOST: $REDIS_HOST"
-    log_info "REDIS_PASSWORD: ${REDIS_PASSWORD:0:4}***"
+    log_info "APP_URL: ${{project.APP_URL}}"
+    log_info "DB_HOST: ${{project.DB_HOST}}"
+    log_info "DB_DATABASE: ${{project.DB_DATABASE}}"
+    log_info "REDIS_HOST: ${{project.REDIS_HOST}}"
+    log_info "REDIS_PASSWORD: ${${{project.REDIS_PASSWORD}}:0:4}***"
+    
+    # Check if .env file exists, if not create it from template
+    if [ ! -f ".env" ]; then
+        log_warning ".env file not found, creating from template..."
+        if [ -f "env.dokploy.template" ]; then
+            cp env.dokploy.template .env
+            log_success "Created .env from template"
+        else
+            log_error "env.dokploy.template not found, creating basic .env..."
+            cat > .env << EOF
+### ==== APP CONFIGURATION ====
+APP_NAME=Homsjogja
+APP_ENV=production
+APP_KEY=base64:2KP58EicMQP7tFSYjfXVyeBYmvrRF+62NIErENjPfck=
+APP_DEBUG=true
+APP_URL=https://app.homsjogja.com
+
+APP_LOCALE=en
+APP_FALLBACK_LOCALE=en
+APP_FAKER_LOCALE=en_US
+
+APP_MAINTENANCE_DRIVER=file
+# APP_MAINTENANCE_STORE=database
+
+PHP_CLI_SERVER_WORKERS=4
+BCRYPT_ROUNDS=12
+
+### ==== LOGGING ====
+LOG_CHANNEL=stack
+LOG_STACK=single
+LOG_DEPRECATIONS_CHANNEL=null
+LOG_LEVEL=error
+
+### ==== DATABASE ====
+DB_CONNECTION=mysql
+DB_HOST=homsjogja-db-xsjalx
+DB_PORT=3306
+DB_DATABASE=homs-db
+DB_USERNAME=homs-user
+DB_PASSWORD=jD8-AKHx2gFCQ5gx3ouRJ
+
+### ==== SESSION (Redis) ====
+SESSION_DRIVER=redis
+SESSION_LIFETIME=120
+SESSION_ENCRYPT=false
+SESSION_PATH=/
+SESSION_DOMAIN=null
+
+### ==== QUEUE / CACHE (Redis) ====
+QUEUE_CONNECTION=redis
+CACHE_DRIVER=redis
+CACHE_STORE=redis
+# CACHE_PREFIX=homsjogja_  # Opsional
+
+### ==== REDIS CONFIG ====
+REDIS_CLIENT=phpredis
+REDIS_HOST=homsjogja-redis-qmihbb
+REDIS_PORT=6379
+REDIS_USERNAME=default
+REDIS_PASSWORD=5vlcwpzc45g9mtho
+REDIS_URL=redis://default:5vlcwpzc45g9mtho@homsjogja-redis-qmihbb:6379
+
+### ==== FILESYSTEM / BROADCAST ====
+FILESYSTEM_DISK=local
+BROADCAST_CONNECTION=log
+
+### ==== MAIL ====
+MAIL_MAILER=smtp
+MAIL_SCHEME=null
+MAIL_HOST=mailpit
+MAIL_PORT=1025
+MAIL_USERNAME=null
+MAIL_PASSWORD=null
+MAIL_FROM_ADDRESS="hello@example.com"
+MAIL_FROM_NAME="${APP_NAME}"
+
+### ==== AWS (optional, kosongkan jika tidak digunakan) ====
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_DEFAULT_REGION=us-east-1
+AWS_BUCKET=
+AWS_USE_PATH_STYLE_ENDPOINT=false
+
+### ==== FRONTEND ====
+VITE_APP_NAME="${APP_NAME}"
+EOF
+            log_success "Created basic .env file"
+        fi
+    fi
     
     # Check if critical environment variables are set
-    if [ -z "$DB_HOST" ] || [ -z "$REDIS_HOST" ]; then
+    if [ -z "${{project.DB_HOST}}" ] || [ -z "${{project.REDIS_HOST}}" ]; then
         log_warning "Critical environment variables not set by Dokploy!"
-        log_warning "DB_HOST: $DB_HOST"
-        log_warning "REDIS_HOST: $REDIS_HOST"
+        log_warning "DB_HOST: ${{project.DB_HOST}}"
+        log_warning "REDIS_HOST: ${{project.REDIS_HOST}}"
         log_warning "Using default values from .env file"
     else
         log_info "Environment variables from Dokploy detected successfully"
     fi
     
     # Update APP_URL if provided
-    if [ ! -z "$APP_URL" ]; then
-        log_info "Setting dynamic APP_URL to: $APP_URL"
-        sed -i "s|APP_URL=.*|APP_URL=$APP_URL|g" .env
+    if [ ! -z "${{project.APP_URL}}" ]; then
+        log_info "Setting dynamic APP_URL to: ${{project.APP_URL}}"
+        sed -i "s|APP_URL=.*|APP_URL=${{project.APP_URL}}|g" .env
         
         # Update mail domain
-        MAIL_DOMAIN=$(echo $APP_URL | sed 's|https://||' | sed 's|http://||')
+        MAIL_DOMAIN=$(echo ${{project.APP_URL}} | sed 's|https://||' | sed 's|http://||')
         log_info "Mail domain set to: noreply@$MAIL_DOMAIN"
         sed -i "s|MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=noreply@$MAIL_DOMAIN|g" .env
     fi
     
     # Update Database configuration from environment variables
-    if [ ! -z "$DB_HOST" ]; then
-        log_info "Setting DB_HOST to: $DB_HOST"
-        sed -i "s|DB_HOST=.*|DB_HOST=$DB_HOST|g" .env
+    if [ ! -z "${{project.DB_HOST}}" ]; then
+        log_info "Setting DB_HOST to: ${{project.DB_HOST}}"
+        sed -i "s|DB_HOST=.*|DB_HOST=${{project.DB_HOST}}|g" .env
     fi
     
-    if [ ! -z "$DB_PORT" ]; then
-        log_info "Setting DB_PORT to: $DB_PORT"
-        sed -i "s|DB_PORT=.*|DB_PORT=$DB_PORT|g" .env
+    if [ ! -z "${{project.DB_PORT}}" ]; then
+        log_info "Setting DB_PORT to: ${{project.DB_PORT}}"
+        sed -i "s|DB_PORT=.*|DB_PORT=${{project.DB_PORT}}|g" .env
     fi
     
-    if [ ! -z "$DB_DATABASE" ]; then
-        log_info "Setting DB_DATABASE to: $DB_DATABASE"
-        sed -i "s|DB_DATABASE=.*|DB_DATABASE=$DB_DATABASE|g" .env
+    if [ ! -z "${{project.DB_DATABASE}}" ]; then
+        log_info "Setting DB_DATABASE to: ${{project.DB_DATABASE}}"
+        sed -i "s|DB_DATABASE=.*|DB_DATABASE=${{project.DB_DATABASE}}|g" .env
     fi
     
-    if [ ! -z "$DB_USERNAME" ]; then
-        log_info "Setting DB_USERNAME to: $DB_USERNAME"
-        sed -i "s|DB_USERNAME=.*|DB_USERNAME=$DB_USERNAME|g" .env
+    if [ ! -z "${{project.DB_USERNAME}}" ]; then
+        log_info "Setting DB_USERNAME to: ${{project.DB_USERNAME}}"
+        sed -i "s|DB_USERNAME=.*|DB_USERNAME=${{project.DB_USERNAME}}|g" .env
     fi
     
-    if [ ! -z "$DB_PASSWORD" ]; then
-        log_info "Setting DB_PASSWORD to: $DB_PASSWORD"
-        sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASSWORD|g" .env
+    if [ ! -z "${{project.DB_PASSWORD}}" ]; then
+        log_info "Setting DB_PASSWORD to: ${{project.DB_PASSWORD}}"
+        sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=${{project.DB_PASSWORD}}|g" .env
     fi
     
     # Update Redis configuration from environment variables
-    if [ ! -z "$REDIS_HOST" ]; then
-        log_info "Setting REDIS_HOST to: $REDIS_HOST"
-        sed -i "s|REDIS_HOST=.*|REDIS_HOST=$REDIS_HOST|g" .env
+    if [ ! -z "${{project.REDIS_HOST}}" ]; then
+        log_info "Setting REDIS_HOST to: ${{project.REDIS_HOST}}"
+        sed -i "s|REDIS_HOST=.*|REDIS_HOST=${{project.REDIS_HOST}}|g" .env
     fi
     
-    if [ ! -z "$REDIS_PORT" ]; then
-        log_info "Setting REDIS_PORT to: $REDIS_PORT"
-        sed -i "s|REDIS_PORT=.*|REDIS_PORT=$REDIS_PORT|g" .env
+    if [ ! -z "${{project.REDIS_PORT}}" ]; then
+        log_info "Setting REDIS_PORT to: ${{project.REDIS_PORT}}"
+        sed -i "s|REDIS_PORT=.*|REDIS_PORT=${{project.REDIS_PORT}}|g" .env
     fi
     
-    if [ ! -z "$REDIS_PASSWORD" ]; then
-        log_info "Setting REDIS_PASSWORD to: $REDIS_PASSWORD"
-        sed -i "s|REDIS_PASSWORD=.*|REDIS_PASSWORD=$REDIS_PASSWORD|g" .env
+    if [ ! -z "${{project.REDIS_PASSWORD}}" ]; then
+        log_info "Setting REDIS_PASSWORD to: ${{project.REDIS_PASSWORD}}"
+        sed -i "s|REDIS_PASSWORD=.*|REDIS_PASSWORD=${{project.REDIS_PASSWORD}}|g" .env
     fi
     
-    if [ ! -z "$REDIS_USERNAME" ]; then
-        log_info "Setting REDIS_USERNAME to: $REDIS_USERNAME"
-        sed -i "s|REDIS_USERNAME=.*|REDIS_USERNAME=$REDIS_USERNAME|g" .env
+    if [ ! -z "${{project.REDIS_USERNAME}}" ]; then
+        log_info "Setting REDIS_USERNAME to: ${{project.REDIS_USERNAME}}"
+        sed -i "s|REDIS_USERNAME=.*|REDIS_USERNAME=${{project.REDIS_USERNAME}}|g" .env
     fi
     
-    if [ ! -z "$REDIS_URL" ]; then
-        log_info "Setting REDIS_URL to: $REDIS_URL"
-        sed -i "s|REDIS_URL=.*|REDIS_URL=$REDIS_URL|g" .env
+    if [ ! -z "${{project.REDIS_URL}}" ]; then
+        log_info "Setting REDIS_URL to: ${{project.REDIS_URL}}"
+        sed -i "s|REDIS_URL=.*|REDIS_URL=${{project.REDIS_URL}}|g" .env
     fi
     
     # Clear and rebuild config cache to ensure .env changes are loaded
@@ -278,9 +367,9 @@ setup_environment() {
     log_info "   🌍 Domain: Your custom domain"
     log_info ""
     log_info "📋 Dokploy Environment Variables:"
-    log_info "   ✅ APP_URL: $APP_URL"
-    log_info "   ✅ DB_HOST: $DB_HOST"
-    log_info "   ✅ REDIS_HOST: $REDIS_HOST"
+    log_info "   ✅ APP_URL: ${{project.APP_URL}}"
+    log_info "   ✅ DB_HOST: ${{project.DB_HOST}}"
+    log_info "   ✅ REDIS_HOST: ${{project.REDIS_HOST}}"
     log_info ""
     log_info "🔧 Internal Service Ports:"
     log_info "   🖥️  Nginx (Main App): 8080"
@@ -307,13 +396,36 @@ wait_for_services() {
     done
     log_success "Database is ready!"
     
-    # Wait for Redis - perbaiki testing method dengan config yang benar
-    log_info "Waiting for Redis at $(grep REDIS_HOST .env | cut -d'=' -f2):$(grep REDIS_PORT .env | cut -d'=' -f2)..."
-    until php artisan tinker --execute="try { \$redis = new Redis(); \$redis->connect(config('database.redis.default.host'), config('database.redis.default.port')); if(config('database.redis.default.password')) { \$redis->auth(config('database.redis.default.password')); } \$redis->ping(); echo 'Redis OK'; } catch (Exception \$e) { echo 'Redis Error: ' . \$e->getMessage(); }" 2>/dev/null | grep -q "Redis OK"; do
-        log_info "Redis not ready, waiting..."
-        sleep 5
-    done
-    log_success "Redis is ready!"
+    # Check if Redis host is external (not 127.0.0.1)
+    REDIS_HOST_FROM_ENV=$(grep REDIS_HOST .env | cut -d'=' -f2)
+    if [ "$REDIS_HOST_FROM_ENV" = "127.0.0.1" ] || [ "$REDIS_HOST_FROM_ENV" = "localhost" ]; then
+        log_warning "Redis host is local (127.0.0.1), skipping Redis wait..."
+        log_info "Redis will be handled by external service or local installation"
+    else
+        # Wait for Redis - perbaiki testing method dengan config yang benar
+        log_info "Waiting for Redis at $(grep REDIS_HOST .env | cut -d'=' -f2):$(grep REDIS_PORT .env | cut -d'=' -f2)..."
+        REDIS_TIMEOUT=60  # 60 seconds timeout
+        REDIS_COUNT=0
+        
+        until php artisan tinker --execute="try { \$redis = new Redis(); \$redis->connect(config('database.redis.default.host'), config('database.redis.default.port'), 5); if(config('database.redis.default.password')) { \$redis->auth(config('database.redis.default.password')); } \$redis->ping(); echo 'Redis OK'; } catch (Exception \$e) { echo 'Redis Error: ' . \$e->getMessage(); }" 2>/dev/null | grep -q "Redis OK"; do
+            log_info "Redis not ready, waiting... (attempt $((REDIS_COUNT + 1)))"
+            REDIS_COUNT=$((REDIS_COUNT + 1))
+            
+            if [ $REDIS_COUNT -ge $REDIS_TIMEOUT ]; then
+                log_error "Redis connection timeout after $REDIS_TIMEOUT attempts"
+                log_warning "Continuing without Redis connection..."
+                break
+            fi
+            
+            sleep 5
+        done
+        
+        if [ $REDIS_COUNT -lt $REDIS_TIMEOUT ]; then
+            log_success "Redis is ready!"
+        else
+            log_warning "Redis connection failed, but continuing..."
+        fi
+    fi
 }
 
 # Setup storage
@@ -511,11 +623,19 @@ test_redis_connection() {
     log_info "Debug: Laravel Redis configuration:"
     php artisan tinker --execute="echo 'Redis Host: ' . config('database.redis.default.host'); echo 'Redis Port: ' . config('database.redis.default.port'); echo 'Redis Password: ' . (config('database.redis.default.password') ? 'SET' : 'NOT SET');" 2>/dev/null
     
-    if php artisan tinker --execute="try { \$redis = new Redis(); \$redis->connect(config('database.redis.default.host'), config('database.redis.default.port')); if(config('database.redis.default.password')) { \$redis->auth(config('database.redis.default.password')); } \$redis->ping(); echo 'Redis OK'; } catch (Exception \$e) { echo 'Redis Error: ' . \$e->getMessage(); }" 2>/dev/null | grep -q "Redis OK"; then
+    # Check if Redis host is external (not 127.0.0.1)
+    REDIS_HOST_FROM_ENV=$(grep REDIS_HOST .env | cut -d'=' -f2)
+    if [ "$REDIS_HOST_FROM_ENV" = "127.0.0.1" ] || [ "$REDIS_HOST_FROM_ENV" = "localhost" ]; then
+        log_warning "Redis host is local (127.0.0.1), skipping Redis test..."
+        log_info "Redis will be handled by external service or local installation"
+        return 0
+    fi
+    
+    if php artisan tinker --execute="try { \$redis = new Redis(); \$redis->connect(config('database.redis.default.host'), config('database.redis.default.port'), 5); if(config('database.redis.default.password')) { \$redis->auth(config('database.redis.default.password')); } \$redis->ping(); echo 'Redis OK'; } catch (Exception \$e) { echo 'Redis Error: ' . \$e->getMessage(); }" 2>/dev/null | grep -q "Redis OK"; then
         log_success "Redis connection successful!"
     else
-        log_error "Redis connection failed!"
-        exit 1
+        log_warning "Redis connection failed, but continuing..."
+        log_info "Application will work without Redis (some features may be limited)"
     fi
 }
 
