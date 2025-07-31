@@ -178,11 +178,11 @@ setup_environment() {
     
     # Debug: Show environment variables from Dokploy
     log_info "Debug: Environment variables from Dokploy:"
-    log_info "APP_URL: ${{project.APP_URL}}"
-    log_info "DB_HOST: ${{project.DB_HOST}}"
-    log_info "DB_DATABASE: ${{project.DB_DATABASE}}"
-    log_info "REDIS_HOST: ${{project.REDIS_HOST}}"
-    log_info "REDIS_PASSWORD: ${${{project.REDIS_PASSWORD}}:0:4}***"
+    log_info "APP_URL: $APP_URL"
+    log_info "DB_HOST: $DB_HOST"
+    log_info "DB_DATABASE: $DB_DATABASE"
+    log_info "REDIS_HOST: $REDIS_HOST"
+    log_info "REDIS_PASSWORD: ${REDIS_PASSWORD:0:4}***"
     
     # Check if .env file exists, if not create it from template
     if [ ! -f ".env" ]; then
@@ -274,76 +274,76 @@ EOF
     fi
     
     # Check if critical environment variables are set
-    if [ -z "${{project.DB_HOST}}" ] || [ -z "${{project.REDIS_HOST}}" ]; then
+    if [ -z "$DB_HOST" ] || [ -z "$REDIS_HOST" ]; then
         log_warning "Critical environment variables not set by Dokploy!"
-        log_warning "DB_HOST: ${{project.DB_HOST}}"
-        log_warning "REDIS_HOST: ${{project.REDIS_HOST}}"
+        log_warning "DB_HOST: $DB_HOST"
+        log_warning "REDIS_HOST: $REDIS_HOST"
         log_warning "Using default values from .env file"
     else
         log_info "Environment variables from Dokploy detected successfully"
     fi
     
     # Update APP_URL if provided
-    if [ ! -z "${{project.APP_URL}}" ]; then
-        log_info "Setting dynamic APP_URL to: ${{project.APP_URL}}"
-        sed -i "s|APP_URL=.*|APP_URL=${{project.APP_URL}}|g" .env
+    if [ ! -z "$APP_URL" ]; then
+        log_info "Setting dynamic APP_URL to: $APP_URL"
+        sed -i "s|APP_URL=.*|APP_URL=$APP_URL|g" .env
         
         # Update mail domain
-        MAIL_DOMAIN=$(echo ${{project.APP_URL}} | sed 's|https://||' | sed 's|http://||')
+        MAIL_DOMAIN=$(echo $APP_URL | sed 's|https://||' | sed 's|http://||')
         log_info "Mail domain set to: noreply@$MAIL_DOMAIN"
         sed -i "s|MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=noreply@$MAIL_DOMAIN|g" .env
     fi
     
     # Update Database configuration from environment variables
-    if [ ! -z "${{project.DB_HOST}}" ]; then
-        log_info "Setting DB_HOST to: ${{project.DB_HOST}}"
-        sed -i "s|DB_HOST=.*|DB_HOST=${{project.DB_HOST}}|g" .env
+    if [ ! -z "$DB_HOST" ]; then
+        log_info "Setting DB_HOST to: $DB_HOST"
+        sed -i "s|DB_HOST=.*|DB_HOST=$DB_HOST|g" .env
     fi
     
-    if [ ! -z "${{project.DB_PORT}}" ]; then
-        log_info "Setting DB_PORT to: ${{project.DB_PORT}}"
-        sed -i "s|DB_PORT=.*|DB_PORT=${{project.DB_PORT}}|g" .env
+    if [ ! -z "$DB_PORT" ]; then
+        log_info "Setting DB_PORT to: $DB_PORT"
+        sed -i "s|DB_PORT=.*|DB_PORT=$DB_PORT|g" .env
     fi
     
-    if [ ! -z "${{project.DB_DATABASE}}" ]; then
-        log_info "Setting DB_DATABASE to: ${{project.DB_DATABASE}}"
-        sed -i "s|DB_DATABASE=.*|DB_DATABASE=${{project.DB_DATABASE}}|g" .env
+    if [ ! -z "$DB_DATABASE" ]; then
+        log_info "Setting DB_DATABASE to: $DB_DATABASE"
+        sed -i "s|DB_DATABASE=.*|DB_DATABASE=$DB_DATABASE|g" .env
     fi
     
-    if [ ! -z "${{project.DB_USERNAME}}" ]; then
-        log_info "Setting DB_USERNAME to: ${{project.DB_USERNAME}}"
-        sed -i "s|DB_USERNAME=.*|DB_USERNAME=${{project.DB_USERNAME}}|g" .env
+    if [ ! -z "$DB_USERNAME" ]; then
+        log_info "Setting DB_USERNAME to: $DB_USERNAME"
+        sed -i "s|DB_USERNAME=.*|DB_USERNAME=$DB_USERNAME|g" .env
     fi
     
-    if [ ! -z "${{project.DB_PASSWORD}}" ]; then
-        log_info "Setting DB_PASSWORD to: ${{project.DB_PASSWORD}}"
-        sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=${{project.DB_PASSWORD}}|g" .env
+    if [ ! -z "$DB_PASSWORD" ]; then
+        log_info "Setting DB_PASSWORD to: $DB_PASSWORD"
+        sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASSWORD|g" .env
     fi
     
     # Update Redis configuration from environment variables
-    if [ ! -z "${{project.REDIS_HOST}}" ]; then
-        log_info "Setting REDIS_HOST to: ${{project.REDIS_HOST}}"
-        sed -i "s|REDIS_HOST=.*|REDIS_HOST=${{project.REDIS_HOST}}|g" .env
+    if [ ! -z "$REDIS_HOST" ]; then
+        log_info "Setting REDIS_HOST to: $REDIS_HOST"
+        sed -i "s|REDIS_HOST=.*|REDIS_HOST=$REDIS_HOST|g" .env
     fi
     
-    if [ ! -z "${{project.REDIS_PORT}}" ]; then
-        log_info "Setting REDIS_PORT to: ${{project.REDIS_PORT}}"
-        sed -i "s|REDIS_PORT=.*|REDIS_PORT=${{project.REDIS_PORT}}|g" .env
+    if [ ! -z "$REDIS_PORT" ]; then
+        log_info "Setting REDIS_PORT to: $REDIS_PORT"
+        sed -i "s|REDIS_PORT=.*|REDIS_PORT=$REDIS_PORT|g" .env
     fi
     
-    if [ ! -z "${{project.REDIS_PASSWORD}}" ]; then
-        log_info "Setting REDIS_PASSWORD to: ${{project.REDIS_PASSWORD}}"
-        sed -i "s|REDIS_PASSWORD=.*|REDIS_PASSWORD=${{project.REDIS_PASSWORD}}|g" .env
+    if [ ! -z "$REDIS_PASSWORD" ]; then
+        log_info "Setting REDIS_PASSWORD to: $REDIS_PASSWORD"
+        sed -i "s|REDIS_PASSWORD=.*|REDIS_PASSWORD=$REDIS_PASSWORD|g" .env
     fi
     
-    if [ ! -z "${{project.REDIS_USERNAME}}" ]; then
-        log_info "Setting REDIS_USERNAME to: ${{project.REDIS_USERNAME}}"
-        sed -i "s|REDIS_USERNAME=.*|REDIS_USERNAME=${{project.REDIS_USERNAME}}|g" .env
+    if [ ! -z "$REDIS_USERNAME" ]; then
+        log_info "Setting REDIS_USERNAME to: $REDIS_USERNAME"
+        sed -i "s|REDIS_USERNAME=.*|REDIS_USERNAME=$REDIS_USERNAME|g" .env
     fi
     
-    if [ ! -z "${{project.REDIS_URL}}" ]; then
-        log_info "Setting REDIS_URL to: ${{project.REDIS_URL}}"
-        sed -i "s|REDIS_URL=.*|REDIS_URL=${{project.REDIS_URL}}|g" .env
+    if [ ! -z "$REDIS_URL" ]; then
+        log_info "Setting REDIS_URL to: $REDIS_URL"
+        sed -i "s|REDIS_URL=.*|REDIS_URL=$REDIS_URL|g" .env
     fi
     
     # Clear and rebuild config cache to ensure .env changes are loaded
@@ -367,9 +367,9 @@ EOF
     log_info "   🌍 Domain: Your custom domain"
     log_info ""
     log_info "📋 Dokploy Environment Variables:"
-    log_info "   ✅ APP_URL: ${{project.APP_URL}}"
-    log_info "   ✅ DB_HOST: ${{project.DB_HOST}}"
-    log_info "   ✅ REDIS_HOST: ${{project.REDIS_HOST}}"
+    log_info "   ✅ APP_URL: $APP_URL"
+    log_info "   ✅ DB_HOST: $DB_HOST"
+    log_info "   ✅ REDIS_HOST: $REDIS_HOST"
     log_info ""
     log_info "🔧 Internal Service Ports:"
     log_info "   🖥️  Nginx (Main App): 8080"

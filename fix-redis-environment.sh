@@ -44,11 +44,11 @@ fi
 
 # Check current environment variables
 log_info "Current Environment Variables:"
-log_info "APP_URL: ${{project.APP_URL}}"
-log_info "DB_HOST: ${{project.DB_HOST}}"
-log_info "DB_DATABASE: ${{project.DB_DATABASE}}"
-log_info "REDIS_HOST: ${{project.REDIS_HOST}}"
-log_info "REDIS_PASSWORD: ${${{project.REDIS_PASSWORD}}:0:4}***"
+log_info "APP_URL: $APP_URL"
+log_info "DB_HOST: $DB_HOST"
+log_info "DB_DATABASE: $DB_DATABASE"
+log_info "REDIS_HOST: $REDIS_HOST"
+log_info "REDIS_PASSWORD: ${REDIS_PASSWORD:0:4}***"
 
 # Check if .env file exists
 if [ -f ".env" ]; then
@@ -65,23 +65,23 @@ fi
 log_info "Setting up .env file with correct Redis configuration..."
 
 # Check if environment variables are set by Dokploy
-if [ ! -z "${{project.REDIS_HOST}}" ]; then
+if [ ! -z "$REDIS_HOST" ]; then
     log_info "Dokploy Redis configuration detected:"
-    log_info "REDIS_HOST: ${{project.REDIS_HOST}}"
-    log_info "REDIS_PORT: ${{project.REDIS_PORT}}"
-    log_info "REDIS_PASSWORD: ${${{project.REDIS_PASSWORD}}:0:4}***"
+    log_info "REDIS_HOST: $REDIS_HOST"
+    log_info "REDIS_PORT: $REDIS_PORT"
+    log_info "REDIS_PASSWORD: ${REDIS_PASSWORD:0:4}***"
     
     # Update .env file with Dokploy values
     if [ -f ".env" ]; then
-        sed -i "s|REDIS_HOST=.*|REDIS_HOST=${{project.REDIS_HOST}}|g" .env
-        if [ ! -z "${{project.REDIS_PORT}}" ]; then
-            sed -i "s|REDIS_PORT=.*|REDIS_PORT=${{project.REDIS_PORT}}|g" .env
+        sed -i "s|REDIS_HOST=.*|REDIS_HOST=$REDIS_HOST|g" .env
+        if [ ! -z "$REDIS_PORT" ]; then
+            sed -i "s|REDIS_PORT=.*|REDIS_PORT=$REDIS_PORT|g" .env
         fi
-        if [ ! -z "${{project.REDIS_PASSWORD}}" ]; then
-            sed -i "s|REDIS_PASSWORD=.*|REDIS_PASSWORD=${{project.REDIS_PASSWORD}}|g" .env
+        if [ ! -z "$REDIS_PASSWORD" ]; then
+            sed -i "s|REDIS_PASSWORD=.*|REDIS_PASSWORD=$REDIS_PASSWORD|g" .env
         fi
-        if [ ! -z "${{project.REDIS_USERNAME}}" ]; then
-            sed -i "s|REDIS_USERNAME=.*|REDIS_USERNAME=${{project.REDIS_USERNAME}}|g" .env
+        if [ ! -z "$REDIS_USERNAME" ]; then
+            sed -i "s|REDIS_USERNAME=.*|REDIS_USERNAME=$REDIS_USERNAME|g" .env
         fi
         log_success "Updated .env with Dokploy Redis configuration"
     else
