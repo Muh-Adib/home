@@ -15,9 +15,6 @@ services:
     environment:
       - APP_ENV=production
       - APP_DEBUG=false
-    ports:
-      - "3000:8080"
-      - "6002:6002"
     networks:
       - homsjogja-network
     healthcheck:

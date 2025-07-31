@@ -767,7 +767,7 @@ start_supervisor() {
     log_info "⚠️  IMPORTANT: Port Publishing Required"
     log_info "=================================================="
     log_info "🔧 For external access, ensure ports are published:"
-    log_info "   - Main App: -p 3000:8080"
+    log_info "   - Main App: -p 9000:8080"
     log_info "   - Nginx: -p 8080:80"
     log_info "   - WebSocket: -p 6002:6002 (if needed)"
     log_info ""
