@@ -295,7 +295,8 @@ RUN chown -R www:www /var/www/html && \
 
 # Create enhanced startup script
 COPY docker/scripts/startup.sh /usr/local/bin/startup.sh
-RUN chmod +x /usr/local/bin/startup.sh
+COPY docker/scripts/update-echo-config.sh /usr/local/bin/update-echo-config.sh
+RUN chmod +x /usr/local/bin/startup.sh /usr/local/bin/update-echo-config.sh
 
 # Expose HTTP dan WebSocket ports
 EXPOSE 8080 6002
