@@ -24,9 +24,9 @@ at /app/.nixpacks/nixpkgs-e24b4c09e963677b1beea49d411cd315a024ad3a.nix:19:133
 Did you mean one of mysqli, mysqlnd or pgsql?
 ```
 
-**Penyebab**: Masih ada referensi ke `mysql` di dalam dependencies yang di-generate oleh Nixpacks.
+**Penyebab**: PHP extensions yang bermasalah di Nixpacks repository, termasuk `php83Extensions.mysql` dan `php83Extensions.redis`.
 
-**Solusi**: Gunakan konfigurasi minimal tanpa PHP extensions yang bermasalah.
+**Solusi**: Hapus semua PHP extensions dan gunakan konfigurasi minimal hanya dengan core dependencies.
 
 ---
 
@@ -37,10 +37,18 @@ Did you mean one of mysqli, mysqlnd or pgsql?
 # Sebelum (ERROR)
 "composer"
 "php83Extensions.mysql"
+"php83Extensions.redis"
+"php83Extensions.opcache"
+"php83Extensions.gd"
+"php83Extensions.zip"
+"php83Extensions.intl"
+"php83Extensions.mbstring"
+"php83Extensions.bcmath"
+"php83Extensions.pcntl"
 
 # Sesudah (FIXED)
 "php83Packages.composer"
-# Gunakan konfigurasi minimal tanpa PHP extensions yang bermasalah
+# Hapus semua PHP extensions dan gunakan konfigurasi minimal
 ```
 
 ### **2. Tambahkan Error Handling**
@@ -171,7 +179,7 @@ nixPkgs = [
 ]
 ```
 
-#### **Option 3: Minimal Configuration (RECOMMENDED)**
+#### **Option 3: Minimal Configuration (WORKING)**
 ```toml
 [phases.setup]
 nixPkgs = [
