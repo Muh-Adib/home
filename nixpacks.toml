@@ -1,7 +1,7 @@
 [phases.setup]
 nixPkgs = [
     "nginx",
-    "supervisor", 
+    "python3Packages.supervisor", 
     "nodejs_20",
     "php83",
     "php83Packages.composer",
@@ -41,7 +41,7 @@ cmd = "bash dokploy/scripts/startup.sh"
 APP_NAME = "HomsJogja"
 APP_ENV = "production"
 APP_DEBUG = "false"
-APP_URL = "https://app.yourdomain.com"
+APP_URL = "https://app.homsjogja.com"
 APP_KEY = "base64:your-generated-key-here"
 APP_TIMEZONE = "Asia/Jakarta"
 
@@ -103,5 +103,5 @@ SESSION_LIFETIME = "120"
 CACHE_PREFIX = "homsjogja_cache_"
 
 # Security Configuration
-SANCTUM_STATEFUL_DOMAINS = "app.yourdomain.com"
-SESSION_DOMAIN = ".yourdomain.com"
+SANCTUM_STATEFUL_DOMAINS = "app.homsjogja.com"
+SESSION_DOMAIN = ".homsjogja.com"
