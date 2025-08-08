@@ -1,7 +1,7 @@
 [phases.setup]
 nixPkgs = [
     "nginx",
-    "python3Packages.supervisor", 
+    "supervisor", 
     "nodejs_20",
     "php83",
     "php83Packages.composer",
