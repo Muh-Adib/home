@@ -12,7 +12,6 @@ nixPkgs = [
 
 [phases.install]
 cmds = [
-    "npm install -g laravel-echo-server@1.6.3",
     "composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts",
     "npm ci --legacy-peer-deps"
 ]
@@ -20,7 +19,6 @@ cmds = [
 [phases.build]
 cmds = [
     "npm run build",
-    "php artisan key:generate --force || echo 'Key generation skipped'",
     "php artisan storage:link || echo 'Storage link skipped'",
     "php artisan config:cache || echo 'Config cache failed'",
     "php artisan route:cache || echo 'Route cache failed'",
@@ -30,79 +28,8 @@ cmds = [
     "chown -R www-data:www-data storage bootstrap/cache || echo 'Ownership setting failed'",
     "mkdir -p /etc/nginx /etc/supervisor/conf.d /var/log/supervisor",
     "cp dokploy/config/nginx.conf /etc/nginx/nginx.conf || echo 'Nginx config copy failed'",
-    "cp dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf || echo 'Supervisor config copy failed'",
-    "cp dokploy/config/laravel-echo-server.dokploy.json /app/laravel-echo-server.json || echo 'Echo server config copy failed'"
+    "cp dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf || echo 'Supervisor config copy failed'"
 ]
 
 [start]
 cmd = "bash dokploy/scripts/startup.sh"
-
-[variables]
-# Application Configuration
-APP_NAME = "HomsJogja"
-APP_ENV = "production"
-APP_DEBUG = "false"
-APP_URL = "https://app.homsjogja.com"
-APP_KEY = "base64:your-generated-key-here"
-APP_TIMEZONE = "Asia/Jakarta"
-
-# Database Configuration
-DB_CONNECTION = "mysql"
-DB_HOST = "homsjogja-mysql-7hwczo"
-DB_PORT = "3306"
-DB_DATABASE = "homsjogja"
-DB_USERNAME = "homsjogja"
-DB_PASSWORD = "hhmnyxuowt41ghk0"
-
-# Redis Configuration
-REDIS_HOST = "homsjogja-redis-kqzqov"
-REDIS_PASSWORD = "tzwr97nbicqh5w6e"
-REDIS_PORT = "6379"
-REDIS_DB = "0"
-
-# Broadcasting Configuration
-BROADCAST_DRIVER = "redis"
-CACHE_DRIVER = "redis"
-QUEUE_CONNECTION = "redis"
-SESSION_DRIVER = "redis"
-SESSION_LIFETIME = "120"
-
-# Pusher Configuration
-PUSHER_APP_ID = "your-app-id"
-PUSHER_APP_KEY = "your-app-key"
-PUSHER_APP_SECRET = "your-app-secret"
-PUSHER_HOST = ""
-PUSHER_PORT = "443"
-PUSHER_SCHEME = "https"
-PUSHER_APP_CLUSTER = "mt1"
-
-# Mail Configuration
-MAIL_MAILER = "smtp"
-MAIL_HOST = "smtp.mailtrap.io"
-MAIL_PORT = "2525"
-MAIL_USERNAME = "null"
-MAIL_PASSWORD = "null"
-MAIL_ENCRYPTION = "null"
-MAIL_FROM_ADDRESS = "hello@example.com"
-MAIL_FROM_NAME = "HomsJogja"
-
-# Logging Configuration
-LOG_CHANNEL = "stack"
-LOG_DEPRECATIONS_CHANNEL = "null"
-LOG_LEVEL = "warning"
-
-# File System Configuration
-FILESYSTEM_DISK = "local"
-
-# Queue Configuration
-QUEUE_FAILED_DRIVER = "database-uuids"
-
-# Session Configuration
-SESSION_LIFETIME = "120"
-
-# Cache Configuration
-CACHE_PREFIX = "homsjogja_cache_"
-
-# Security Configuration
-SANCTUM_STATEFUL_DOMAINS = "app.homsjogja.com"
-SESSION_DOMAIN = ".homsjogja.com"

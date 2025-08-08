@@ -7,25 +7,14 @@ set -e
 
 echo "🚀 Starting Property Management System..."
 
-# Load environment variables
-echo "🌍 Loading environment variables..."
-if [ -f ".env" ]; then
-    export $(cat .env | grep -v '^#' | xargs)
-    echo "✅ Environment variables loaded from .env"
-else
-    echo "⚠️ .env file not found, using system environment variables"
-    # Create .env from template if exists
-    if [ -f "dokploy/config/env.nixpacks.template" ]; then
-        cp dokploy/config/env.nixpacks.template .env
-        echo "✅ .env file created from template"
-        export $(cat .env | grep -v '^#' | xargs)
-    fi
-fi
+# Rely on Dokploy-provided environment variables (do not create or load .env)
+echo "🌍 Using Dokploy environment variables (no .env creation)"
 
 # Create necessary directories
 echo "📁 Creating necessary directories..."
 mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
 mkdir -p /var/log/supervisor /etc/supervisor/conf.d /etc/nginx
+mkdir -p /var/log/nginx /run
 
 # Set proper permissions
 echo "🔐 Setting proper permissions..."
@@ -45,6 +34,62 @@ if [ -f "/app/dokploy/config/nginx.conf" ]; then
         mkdir -p /etc/nginx
         cp /app/dokploy/config/nginx.conf /etc/nginx/nginx.conf
         echo "✅ Nginx configuration copied after creating directory"
+    fi
+    # Ensure mime.types exists to prevent nginx startup failure
+    if [ ! -f "/etc/nginx/mime.types" ]; then
+        cat > /etc/nginx/mime.types <<'EOF'
+ types {
+     text/html                             html htm shtml;
+     text/css                              css;
+     text/xml                              xml;
+     image/gif                             gif;
+     image/jpeg                            jpeg jpg;
+     application/javascript                js;
+     application/atom+xml                  atom;
+     application/rss+xml                   rss;
+
+     text/mathml                           mml;
+     text/plain                            txt;
+     text/vnd.sun.j2me.app-descriptor      jad;
+     text/vnd.wap.wml                      wml;
+     text/x-component                      htc;
+
+     image/png                             png;
+     image/tiff                            tif tiff;
+     image/vnd.wap.wbmp                    wbmp;
+     image/x-icon                          ico;
+     image/x-jng                           jng;
+     image/bmp                             bmp;
+     image/svg+xml                         svg svgz;
+     image/webp                            webp;
+
+     application/json                      json;
+     application/xml                       xml xsl;
+     application/xhtml+xml                 xhtml;
+     application/pdf                       pdf;
+     application/msword                    doc;
+     application/vnd.ms-excel              xls;
+     application/vnd.ms-powerpoint         ppt;
+     application/vnd.wap.wmlc              wmlc;
+     application/x-shockwave-flash         swf;
+     application/java-archive              jar war ear;
+     application/zip                       zip;
+     application/x-gzip                    gz tgz;
+     application/x-bittorrent              torrent;
+     application/x-7z-compressed           7z;
+
+     audio/mpeg                            mp3;
+     audio/x-realaudio                     ra;
+
+     video/mpeg                            mpeg mpg;
+     video/quicktime                       mov;
+     video/x-flv                           flv;
+     video/x-msvideo                       avi;
+     video/x-ms-wmv                        wmv;
+     video/mp4                             mp4;
+ }
+EOF
+        echo "✅ Created default /etc/nginx/mime.types"
     fi
 else
     echo "⚠️ Nginx config not found at /app/dokploy/config/nginx.conf"
@@ -70,12 +115,11 @@ if [ -f "/app/dokploy/config/laravel-echo-server.dokploy.json" ]; then
     cp /app/dokploy/config/laravel-echo-server.dokploy.json /app/laravel-echo-server.json
     echo "✅ Laravel Echo Server configuration copied"
 else
-    echo "⚠️ Laravel Echo Server config not found"
+    echo "⚠️ Laravel Echo Server config not found, proceeding with env-based config"
 fi
 
 # Run Laravel commands with environment variables
 echo "🔧 Running Laravel setup commands..."
-php artisan key:generate --force || echo "Key generation skipped"
 php artisan storage:link || echo "Storage link skipped"
 php artisan config:cache || echo "Config cache failed"
 php artisan route:cache || echo "Route cache failed"
