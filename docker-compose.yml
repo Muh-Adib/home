@@ -3,7 +3,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile.dokploy
+      dockerfile: Dockerfile
     container_name: homsjogja-app
     restart: unless-stopped
     working_dir: /var/www/html

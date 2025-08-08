@@ -1,62 +1,83 @@
-# Property Management System Dockerfile
-# Multi-stage build for optimal production image
+# Multi-stage Dockerfile untuk Dokploy Laravel App dengan WebSocket Support
+# Optimized untuk Property Management System dengan Redis dan DB terpisah + Laravel Echo Server
 
-# Build stage for Node.js dependencies and assets
+# Build stage untuk Node.js dependencies dan assets
 FROM node:20-alpine AS node-builder
+
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json package-lock.json ./
+# Install git untuk dependencies yang memerlukan
+RUN apk add --no-cache git python3 make g++
+
+# Copy package files untuk better layer caching
+COPY package*.json ./
+
+# Check files dan install Node dependencies dengan error handling
+RUN echo "=== Checking package files ===" && \
+    ls -la package* && \
+    echo "=== Installing Node dependencies ===" && \
+    npm cache clean --force && \
+    npm ci --legacy-peer-deps --verbose || npm install --legacy-peer-deps --verbose
+
+# Install Laravel Echo Server globally untuk WebSocket support
+RUN npm install -g laravel-echo-server@1.6.3
+
+# Copy konfigurasi build files
 COPY tsconfig.json ./
 COPY vite.config.ts ./
 COPY tailwind.config.js ./
 COPY components.json ./
 
-# Install dependencies with fallback strategy
-RUN npm cache clean --force || true \
-    && (npm ci --legacy-peer-deps || npm install --legacy-peer-deps) \
-    && npm list || echo "Some dependency warnings, continuing..."
-
-# Copy source code
+# Copy source code untuk building
 COPY resources/ ./resources/
 COPY public/ ./public/
 
-# Build assets
-RUN npm run build
+# Build frontend assets
+RUN echo "=== Building frontend assets ===" && \
+    npm run build && \
+    echo "=== Build completed ===" && \
+    ls -la public/build/
 
 # Production PHP stage
-FROM php:8.3-fpm-alpine AS php-base
+FROM php:8.3-fpm-alpine AS php-stage
 
-# Install system dependencies including build tools for Redis
+# Install system dependencies (termasuk Node.js untuk Laravel Echo Server)
 RUN apk add --no-cache \
-    git \
+    nginx \
+    supervisor \
     curl \
+    wget \
+    bash \
+    git \
+    netcat-openbsd \
     libpng-dev \
     libjpeg-turbo-dev \
     freetype-dev \
     libzip-dev \
     zip \
     unzip \
-    oniguruma-dev \
     icu-dev \
-    postgresql-dev \
+    oniguruma-dev \
     mysql-client \
     postgresql-client \
-    redis \
-    supervisor \
-    nginx \
+    postgresql-dev \
     autoconf \
     g++ \
     make \
-    pcre-dev
+    pcre-dev \
+    nodejs \
+    npm \
+    sqlite \
+    sqlite-dev \
+    pkgconfig
 
-# Install PHP extensions
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) \
-        pdo \
+# Install PHP extensions yang diperlukan
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
+    docker-php-ext-install -j$(nproc) \
         pdo_mysql \
         pdo_pgsql \
+        pdo_sqlite \
         mbstring \
         exif \
         pcntl \
@@ -66,11 +87,19 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         intl \
         opcache
 
-# Install Redis extension BEFORE purging build tools
-RUN pecl install redis && docker-php-ext-enable redis
+# Install Redis extension untuk koneksi ke external Redis
+RUN pecl install redis && \
+    docker-php-ext-enable redis && \
+    php -m | grep redis
+
+# Clean up build tools
+RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Install Laravel Echo Server globally dalam production container
+RUN npm install -g laravel-echo-server@1.6.3 pm2
 
 # Create application user
 RUN addgroup -g 1000 www && \
@@ -79,57 +108,72 @@ RUN addgroup -g 1000 www && \
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy application code FIRST (including artisan file)
-COPY . .
+# Copy application code dengan proper ownership
+COPY --chown=www:www . .
 
-# Copy built assets from node stage
+# Copy built assets dari node stage
 COPY --from=node-builder /app/public/build ./public/build
 
-# Set proper permissions
-RUN chown -R www:www /var/www/html \
-    && chmod -R 755 /var/www/html/storage \
-    && chmod -R 755 /var/www/html/bootstrap/cache
+# Install PHP dependencies (production optimized)
+RUN composer install \
+    --no-dev \
+    --optimize-autoloader \
+    --no-interaction \
+    --no-progress \
+    --prefer-dist && \
+    composer dump-autoload --optimize
 
-# Create required directories
-RUN mkdir -p /var/log/supervisor \
-    && mkdir -p /var/run/php \
-    && mkdir -p /var/www/html/storage/logs \
-    && mkdir -p /var/www/html/storage/framework/cache \
-    && mkdir -p /var/www/html/storage/framework/sessions \
-    && mkdir -p /var/www/html/storage/framework/views \
-    && mkdir -p /etc/supervisor.d
+# Create required directories dengan proper permissions
+RUN mkdir -p \
+    storage/logs \
+    storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/views \
+    storage/app/public \
+    bootstrap/cache \
+    /var/log/supervisor \
+    /var/log/nginx \
+    /var/cache/nginx \
+    /var/run/php \
+    /var/run/laravel-echo-server \
+    database/echo-server && \
+    chown -R www:www storage bootstrap/cache database && \
+    chmod -R 755 storage bootstrap/cache database
 
-# Copy configuration files if they exist
-RUN if [ -f docker/php/php.ini ]; then cp docker/php/php.ini /usr/local/etc/php/conf.d/custom.ini; fi
-RUN if [ -f docker/php/opcache.ini ]; then cp docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini; fi
-RUN if [ -f docker/nginx/nginx.conf ]; then cp docker/nginx/nginx.conf /etc/nginx/nginx.conf; fi
-RUN if [ -f docker/nginx/default.conf ]; then cp docker/nginx/default.conf /etc/nginx/http.d/default.conf; fi
+# Copy optimized configuration files
+#COPY docker/nginx/dokploy.conf /etc/nginx/http.d/default.conf
+#COPY docker/supervisor/dokploy.conf /etc/supervisor.d/supervisord.conf
+#COPY docker/php/dokploy.ini /usr/local/etc/php/conf.d/custom.ini
 
-# Copy and setup supervisor configuration
-COPY docker/supervisor/init-supervisor.sh /usr/local/bin/init-supervisor.sh
-RUN chmod +x /usr/local/bin/init-supervisor.sh
+# Copy Laravel Echo Server configuration
+COPY laravel-echo-server.dokploy.json /var/www/html/laravel-echo-server.dokploy.json
 
-# Install PHP dependencies AFTER copying application code
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+# Setup environment template
+RUN if [ ! -f .env ]; then cp .env.example .env; fi
 
-# Create .env file if it doesn't exist and generate application key
-RUN if [ ! -f .env ]; then cp .env.example .env; fi \
-    && php artisan key:generate --force || echo "Key generation failed, continuing..."
+# Generate application key
+RUN php artisan key:generate --force || echo "Key generation skipped"
 
-# Optimize Laravel for production (with error handling)
-RUN php artisan config:cache || echo "Config cache failed, continuing..." \
-    && php artisan route:cache || echo "Route cache failed, continuing..." \
-    && php artisan view:cache || echo "View cache failed, continuing..."
+# Create storage link
+RUN php artisan storage:link || echo "Storage link failed, continuing..."
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:80/health || exit 1
+# Set final permissions
+RUN chown -R www:www /var/www/html && \
+    chmod -R 755 /var/www/html/storage && \
+    chmod -R 755 /var/www/html/bootstrap/cache && \
+    chmod -R 755 /var/www/html/database && \
+    chmod +x /var/www/html/artisan
 
-# Expose ports
-EXPOSE 80 443
+# Create enhanced startup script
+COPY docker/scripts/startup.sh /usr/local/bin/startup.sh
+RUN chmod +x /usr/local/bin/startup.sh
 
-# Switch to non-root user
-USER www
+# Expose HTTP dan WebSocket ports
+EXPOSE 80 3000
 
-# Start supervisor using initialization script
-CMD ["/usr/local/bin/init-supervisor.sh"]
+# Health check yang comprehensive
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost/health && curl -f http://localhost:3000/socket.io/ || exit 1
+
+# Start dengan startup script yang akan handle migrations dan services
+CMD ["/usr/local/bin/startup.sh"]

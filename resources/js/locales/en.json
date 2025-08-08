@@ -423,11 +423,6 @@
     "success_title": "Payment Submitted Successfully!",
     "success_description": "Your payment has been received and is being processed",
     "amount_paid": "Amount Paid",
-    "status": {
-      "pending_verification": "Pending Verification",
-      "verified": "Verified",
-      "rejected": "Rejected"
-    },
     "submitted": "Submitted",
     "what_happens_next": "What Happens Next?",
     "verification_process": "Verification Process",
@@ -481,7 +476,6 @@
       "manage_description": "Manage your property listings and details",
       "add_property": "Add Property",
       "search_placeholder": "Search properties...",
-      "status": "Status",
       "all_status": "All Status",
       "status": {
         "active": "Active",

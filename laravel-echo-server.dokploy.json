@@ -1,30 +1,31 @@
 {
-    "authHost": "http://localhost:80",
+    "authHost": "${APP_URL}",
     "authEndpoint": "/broadcasting/auth",
     "clients": [
         {
-            "appId": "homsjogja",
-            "key": "your-pusher-key"
+            "appId": "${PUSHER_APP_ID}",
+            "key": "${PUSHER_APP_KEY}"
         }
     ],
     "database": "redis",
     "databaseConfig": {
         "redis": {
-            "host": "127.0.0.1",
-            "port": "6379",
-            "password": null,
-            "db": 0
+            "host": "${REDIS_HOST}",
+            "port": "${REDIS_PORT}",
+            "password": "${REDIS_PASSWORD}",
+            "db": "${REDIS_DB}"
         }
     },
     "devMode": false,
-    "host": "127.0.0.1",
-    "port": "6002",
+    "host": "0.0.0.0",
+    "port": "6001",
     "protocol": "http",
-    "socketio": {},
-    "sslCertPath": "",
-    "sslKeyPath": "",
-    "sslCertChainPath": "",
-    "sslPassphrase": "",
+    "socketio": {
+        "cors": {
+            "origin": "*",
+            "methods": ["GET", "POST"]
+        }
+    },
     "apiOriginAllow": {
         "allowCors": true,
         "allowOrigin": "*",
