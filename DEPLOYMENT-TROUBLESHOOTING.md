@@ -20,13 +20,13 @@ at /app/.nixpacks/nixpkgs-e24b4c09e963677b1beea49d411cd315a024ad3a.nix:19:14
 
 ```
 error: attribute 'mysql' missing
-at /app/.nixpacks/nixpkgs-e24b4c09e963677b1beea49d411cd315a024ad3a.nix:19:141
+at /app/.nixpacks/nixpkgs-e24b4c09e963677b1beea49d411cd315a024ad3a.nix:19:133
 Did you mean one of mysqli, mysqlnd or pgsql?
 ```
 
-**Penyebab**: Package `mysql80` tidak tersedia di Nixpacks repository.
+**Penyebab**: Masih ada referensi ke `mysql` di dalam dependencies yang di-generate oleh Nixpacks.
 
-**Solusi**: Hapus `mysql80` dari dependencies karena kita menggunakan external MySQL.
+**Solusi**: Gunakan konfigurasi minimal tanpa PHP extensions yang bermasalah.
 
 ---
 
@@ -36,11 +36,11 @@ Did you mean one of mysqli, mysqlnd or pgsql?
 ```toml
 # Sebelum (ERROR)
 "composer"
-"mysql80"
+"php83Extensions.mysql"
 
 # Sesudah (FIXED)
 "php83Packages.composer"
-# mysql80 dihapus karena menggunakan external MySQL
+# Gunakan konfigurasi minimal tanpa PHP extensions yang bermasalah
 ```
 
 ### **2. Tambahkan Error Handling**
@@ -171,7 +171,7 @@ nixPkgs = [
 ]
 ```
 
-#### **Option 3: Minimal Configuration**
+#### **Option 3: Minimal Configuration (RECOMMENDED)**
 ```toml
 [phases.setup]
 nixPkgs = [
@@ -179,7 +179,10 @@ nixPkgs = [
     "supervisor", 
     "nodejs_20",
     "php83",
-    "php83Packages.composer"
+    "php83Packages.composer",
+    "curl",
+    "git",
+    "bash"
 ]
 
 [phases.install]
@@ -192,8 +195,14 @@ cmds = [
 [phases.build]
 cmds = [
     "npm run build",
+    "php artisan key:generate --force || echo 'Key generation skipped'",
+    "php artisan storage:link || echo 'Storage link skipped'",
+    "php artisan config:cache || echo 'Config cache failed'",
+    "php artisan route:cache || echo 'Route cache failed'",
+    "php artisan view:cache || echo 'View cache failed'",
     "mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache",
-    "chmod -R 755 storage bootstrap/cache"
+    "chmod -R 755 storage bootstrap/cache || echo 'Permission setting failed'",
+    "chown -R www-data:www-data storage bootstrap/cache || echo 'Ownership setting failed'"
 ]
 
 [start]
