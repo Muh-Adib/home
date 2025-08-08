@@ -14,8 +14,6 @@ nixPkgs = [
     "php83Extensions.bcmath",
     "php83Extensions.pcntl",
     "php83Packages.composer",
-    "redis",
-    "mysql80",
     "curl",
     "git",
     "bash"

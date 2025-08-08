@@ -5,7 +5,7 @@
 
 ## ❌ **ERROR YANG TERJADI**
 
-### **Error: undefined variable 'composer'**
+### **Error 1: undefined variable 'composer'**
 
 ```
 error: undefined variable 'composer'
@@ -16,6 +16,18 @@ at /app/.nixpacks/nixpkgs-e24b4c09e963677b1beea49d411cd315a024ad3a.nix:19:14
 
 **Solusi**: Gunakan `php83Packages.composer` sebagai gantinya.
 
+### **Error 2: attribute 'mysql' missing**
+
+```
+error: attribute 'mysql' missing
+at /app/.nixpacks/nixpkgs-e24b4c09e963677b1beea49d411cd315a024ad3a.nix:19:141
+Did you mean one of mysqli, mysqlnd or pgsql?
+```
+
+**Penyebab**: Package `mysql80` tidak tersedia di Nixpacks repository.
+
+**Solusi**: Hapus `mysql80` dari dependencies karena kita menggunakan external MySQL.
+
 ---
 
 ## 🔧 **SOLUSI YANG SUDAH DITERAPKAN**
@@ -24,9 +36,11 @@ at /app/.nixpacks/nixpkgs-e24b4c09e963677b1beea49d411cd315a024ad3a.nix:19:14
 ```toml
 # Sebelum (ERROR)
 "composer"
+"mysql80"
 
 # Sesudah (FIXED)
 "php83Packages.composer"
+# mysql80 dihapus karena menggunakan external MySQL
 ```
 
 ### **2. Tambahkan Error Handling**
