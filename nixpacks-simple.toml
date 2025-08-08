@@ -14,8 +14,6 @@ nixPkgs = [
     "php83Extensions.bcmath",
     "php83Extensions.pcntl",
     "php83Packages.composer",
-    "redis",
-    "mysql80",
     "curl",
     "git",
     "bash"
@@ -36,6 +34,7 @@ cmds = [
     "php artisan config:cache || echo 'Config cache failed'",
     "php artisan route:cache || echo 'Route cache failed'",
     "php artisan view:cache || echo 'View cache failed'",
+    "mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache",
     "chmod -R 755 storage bootstrap/cache || echo 'Permission setting failed'",
     "chown -R www-data:www-data storage bootstrap/cache || echo 'Ownership setting failed'"
 ]
