@@ -14,30 +14,63 @@ if [ -f ".env" ]; then
     echo "✅ Environment variables loaded from .env"
 else
     echo "⚠️ .env file not found, using system environment variables"
+    # Create .env from template if exists
+    if [ -f "dokploy/config/env.nixpacks.template" ]; then
+        cp dokploy/config/env.nixpacks.template .env
+        echo "✅ .env file created from template"
+        export $(cat .env | grep -v '^#' | xargs)
+    fi
 fi
 
 # Create necessary directories
+echo "📁 Creating necessary directories..."
 mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
-mkdir -p /var/log/supervisor /etc/supervisor/conf.d
+mkdir -p /var/log/supervisor /etc/supervisor/conf.d /etc/nginx
 
 # Set proper permissions
+echo "🔐 Setting proper permissions..."
 chmod -R 755 storage bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
 
-# Copy configuration files (if not already copied during build)
-if [ ! -f "/etc/nginx/nginx.conf" ] && [ -f "/app/dokploy/config/nginx.conf" ]; then
-    cp /app/dokploy/config/nginx.conf /etc/nginx/nginx.conf
-    echo "✅ Nginx configuration copied"
+# Copy configuration files with better error handling
+echo "📋 Copying configuration files..."
+
+# Copy Nginx configuration
+if [ -f "/app/dokploy/config/nginx.conf" ]; then
+    if [ -d "/etc/nginx" ]; then
+        cp /app/dokploy/config/nginx.conf /etc/nginx/nginx.conf
+        echo "✅ Nginx configuration copied"
+    else
+        echo "⚠️ /etc/nginx directory not found, creating..."
+        mkdir -p /etc/nginx
+        cp /app/dokploy/config/nginx.conf /etc/nginx/nginx.conf
+        echo "✅ Nginx configuration copied after creating directory"
+    fi
+else
+    echo "⚠️ Nginx config not found at /app/dokploy/config/nginx.conf"
 fi
 
-if [ ! -f "/etc/supervisor/conf.d/supervisord.conf" ] && [ -f "/app/dokploy/config/supervisord.conf" ]; then
-    cp /app/dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-    echo "✅ Supervisor configuration copied"
+# Copy Supervisor configuration
+if [ -f "/app/dokploy/config/supervisord.conf" ]; then
+    if [ -d "/etc/supervisor/conf.d" ]; then
+        cp /app/dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+        echo "✅ Supervisor configuration copied"
+    else
+        echo "⚠️ /etc/supervisor/conf.d directory not found, creating..."
+        mkdir -p /etc/supervisor/conf.d
+        cp /app/dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+        echo "✅ Supervisor configuration copied after creating directory"
+    fi
+else
+    echo "⚠️ Supervisor config not found at /app/dokploy/config/supervisord.conf"
 fi
 
-if [ ! -f "/app/laravel-echo-server.json" ] && [ -f "/app/dokploy/config/laravel-echo-server.dokploy.json" ]; then
+# Copy Laravel Echo Server configuration
+if [ -f "/app/dokploy/config/laravel-echo-server.dokploy.json" ]; then
     cp /app/dokploy/config/laravel-echo-server.dokploy.json /app/laravel-echo-server.json
     echo "✅ Laravel Echo Server configuration copied"
+else
+    echo "⚠️ Laravel Echo Server config not found"
 fi
 
 # Run Laravel commands with environment variables

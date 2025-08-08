@@ -28,6 +28,7 @@ cmds = [
     "mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache",
     "chmod -R 755 storage bootstrap/cache || echo 'Permission setting failed'",
     "chown -R www-data:www-data storage bootstrap/cache || echo 'Ownership setting failed'",
+    "mkdir -p /etc/nginx /etc/supervisor/conf.d /var/log/supervisor",
     "cp dokploy/config/nginx.conf /etc/nginx/nginx.conf || echo 'Nginx config copy failed'",
     "cp dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf || echo 'Supervisor config copy failed'",
     "cp dokploy/config/laravel-echo-server.dokploy.json /app/laravel-echo-server.json || echo 'Echo server config copy failed'"

@@ -1,10 +1,10 @@
 {
-    "authHost": "https://app.yourdomain.com",
+    "authHost": "https://app.homsjogja.com",
     "authEndpoint": "/broadcasting/auth",
     "clients": [
         {
-            "appId": "your-app-id",
-            "key": "your-app-key"
+            "appId": "homsjogja-app-id",
+            "key": "homsjogja-app-key"
         }
     ],
     "database": "redis",
