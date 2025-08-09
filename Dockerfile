@@ -2,15 +2,14 @@
 # Property Management System - Laravel 12 + React + WebSocket
 # Optimized untuk Dokploy dengan Redis dan DB terpisah
 
-# Build stage untuk Node.js dependencies dan assets
+# 1) Build stage for frontend assets
 FROM node:20-alpine AS node-builder
 
 WORKDIR /app
 
-# Install git untuk dependencies yang memerlukan
 RUN apk add --no-cache git python3 make g++
 
-# Copy package files untuk better layer caching
+# Cache deps
 COPY package*.json ./
 
 # Install Node dependencies dengan error handling
@@ -18,23 +17,18 @@ RUN echo "=== Installing Node dependencies ===" && \
     npm cache clean --force && \
     npm ci --legacy-peer-deps --verbose || npm install --legacy-peer-deps --verbose
 
-# Install Laravel Echo Server globally untuk WebSocket support
-RUN npm install -g laravel-echo-server@1.6.3
-
-# Copy konfigurasi build files
+# Build inputs
 COPY tsconfig.json ./
 COPY vite.config.ts ./
 COPY tailwind.config.js ./
 COPY components.json ./
 
-# Copy source code untuk building
+# Source for build
 COPY resources/ ./resources/
 COPY public/ ./public/
 
-# Build frontend assets
-RUN echo "=== Building frontend assets ===" && \
-    npm run build && \
-    echo "=== Build completed ===" && \
+# Build assets
+RUN npm run build && \
     ls -la public/build/
 
 # Production PHP stage dengan Nixpacks compatibility
@@ -71,7 +65,7 @@ RUN apk add --no-cache \
     pkgconfig \
     coreutils
 
-# Install PHP extensions yang diperlukan
+# PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
     docker-php-ext-install -j$(nproc) \
         pdo_mysql \
@@ -86,43 +80,27 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
         intl \
         opcache
 
-# Install Redis extension untuk koneksi ke external Redis
+# Install and enable Redis extension (safe)
 RUN pecl install redis && \
     docker-php-ext-enable redis && \
-    php -m | grep redis
+    php -m | grep -q redis
 
-# Clean up build tools
-RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev
+# Cleanup build tools
+RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev || true
 
-# Install Composer
+# Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Install Laravel Echo Server globally dalam production container
-RUN npm install -g laravel-echo-server@1.6.3 pm2
+# Workdir consistent with Nixpacks configs (nginx root and supervisor use /app)
+WORKDIR /app
 
-# Create application user
-RUN addgroup -g 1000 www && \
-    adduser -u 1000 -G www -s /bin/sh -D www
+# Copy application code
+COPY . .
 
-# Set working directory
-WORKDIR /var/www/html
-
-# Copy application code dengan proper ownership
-COPY --chown=www:www . .
-
-# Copy built assets dari node stage
+# Copy built assets from node stage
 COPY --from=node-builder /app/public/build ./public/build
 
-# Install PHP dependencies (production optimized)
-RUN composer install \
-    --no-dev \
-    --optimize-autoloader \
-    --no-interaction \
-    --no-progress \
-    --prefer-dist && \
-    composer dump-autoload --optimize
-
-# Create required directories dengan proper permissions
+# Ensure required directories and permissions
 RUN mkdir -p \
     storage/logs \
     storage/framework/cache \
@@ -172,7 +150,7 @@ RUN chown -R www:www /var/www/html && \
 # Expose HTTP dan WebSocket ports
 EXPOSE 80 3000 6001
 
-# Health check yang comprehensive
+# Healthcheck via Nginx root
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost/health && curl -f http://localhost:6001/socket.io/ || exit 1
 

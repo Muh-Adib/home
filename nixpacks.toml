@@ -13,6 +13,7 @@ nixPkgs = [
 
 [phases.install]
 cmds = [
+    "composer update predis/predis --no-dev --no-interaction --prefer-dist --no-scripts || true",
     "composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts",
     "npm ci --legacy-peer-deps"
 ]
