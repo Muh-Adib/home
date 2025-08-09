@@ -28,6 +28,7 @@
 - Proper exit functions (exit_with_error, exit_with_success)
 - Graceful degradation untuk non-critical failures
 - Comprehensive health checks
+- Integration dengan generate-echo-config-simple.sh
 ```
 
 ### 2. **nixpacks.toml** (UPDATED)
@@ -37,7 +38,7 @@
 cmd = "bash dokploy/scripts/safe-startup.sh"  # Ganti dari startup.sh
 ```
 
-### 3. **Dockerfile.nixpacks** (NEW)
+### 3. **Dockerfile** (UPDATED)
 ```dockerfile
 # Fitur:
 - Multi-stage build (Node.js + PHP)
@@ -45,6 +46,7 @@ cmd = "bash dokploy/scripts/safe-startup.sh"  # Ganti dari startup.sh
 - Health checks yang comprehensive
 - Error handling yang graceful
 - Security best practices
+- Integration dengan generate-echo-config-simple.sh
 ```
 
 ### 4. **dokploy/scripts/test-safe-startup.sh** (NEW)
@@ -53,6 +55,7 @@ cmd = "bash dokploy/scripts/safe-startup.sh"  # Ganti dari startup.sh
 - Validasi syntax dan permissions
 - Test integration dengan nixpacks
 - Test Dockerfile configuration
+- Test generate-echo-config-simple.sh integration
 - Backup procedure validation
 ```
 

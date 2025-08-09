@@ -78,7 +78,15 @@ else
     log_error "Script missing logging functions"
 fi
 
-# 7. Test exit functions
+# 7. Test generate-echo-config-simple.sh integration
+log_info "🔧 Testing generate-echo-config-simple.sh integration..."
+if grep -q "generate-echo-config-simple.sh" dokploy/scripts/safe-startup.sh; then
+    log_success "Script integrates with generate-echo-config-simple.sh"
+else
+    log_error "Script missing generate-echo-config-simple.sh integration"
+fi
+
+# 8. Test exit functions
 log_info "🔧 Testing exit functions..."
 if grep -q "exit_with_error\|exit_with_success" dokploy/scripts/safe-startup.sh; then
     log_success "Script has proper exit functions"
@@ -86,7 +94,7 @@ else
     log_error "Script missing exit functions"
 fi
 
-# 8. Test nixpacks integration
+# 9. Test nixpacks integration
 log_info "🔧 Testing nixpacks integration..."
 if grep -q "safe-startup.sh" nixpacks.toml; then
     log_success "Nixpacks configured to use safe startup"
@@ -94,19 +102,24 @@ else
     log_error "Nixpacks not configured for safe startup"
 fi
 
-# 9. Test Dockerfile integration
+# 10. Test Dockerfile integration
 log_info "🔧 Testing Dockerfile integration..."
-if [ -f "Dockerfile.nixpacks" ]; then
-    if grep -q "safe-startup.sh" Dockerfile.nixpacks; then
+if [ -f "Dockerfile" ]; then
+    if grep -q "safe-startup.sh" Dockerfile; then
         log_success "Dockerfile configured for safe startup"
     else
         log_error "Dockerfile not configured for safe startup"
     fi
+    if grep -q "generate-echo-config-simple.sh" Dockerfile; then
+        log_success "Dockerfile includes generate-echo-config-simple.sh"
+    else
+        log_error "Dockerfile missing generate-echo-config-simple.sh"
+    fi
 else
-    log_warning "Dockerfile.nixpacks not found"
+    log_warning "Dockerfile not found"
 fi
 
-# 10. Test backup procedure
+# 11. Test backup procedure
 log_info "🔧 Testing backup procedure..."
 if [ -f "dokploy/scripts/startup.sh" ]; then
     log_success "Original startup script exists (can be backed up)"
@@ -124,6 +137,7 @@ echo "- Script syntax: ✅"
 echo "- Error handling: ✅"
 echo "- Timeout protection: ✅"
 echo "- Logging functions: ✅"
+echo "- generate-echo-config-simple.sh integration: ✅"
 echo "- Exit functions: ✅"
 echo "- Nixpacks integration: ✅"
 echo "- Dockerfile integration: ✅"

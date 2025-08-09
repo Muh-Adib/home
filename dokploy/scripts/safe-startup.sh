@@ -66,34 +66,29 @@ touch storage/logs/laravel.log || exit_with_error "Failed to create log file"
 chmod 666 storage/logs/laravel.log || log_warning "Failed to set log permissions"
 chown www-data:www-data storage/logs/laravel.log 2>/dev/null || log_warning "Failed to set log ownership"
 
-# Generate Laravel Echo Server config
+# Generate Laravel Echo Server config using the dedicated script
 log_info "🔧 Generating Laravel Echo Server config..."
-if [ -f "dokploy/scripts/generate-echo-config-simple.sh" ]; then
+if [ -f "/usr/local/bin/generate-echo-config-simple.sh" ]; then
+    log_info "Using generate-echo-config-simple.sh script from /usr/local/bin"
+    bash /usr/local/bin/generate-echo-config-simple.sh || log_warning "Echo config generation failed"
+elif [ -f "dokploy/scripts/generate-echo-config-simple.sh" ]; then
+    log_info "Using generate-echo-config-simple.sh script from dokploy/scripts"
     bash dokploy/scripts/generate-echo-config-simple.sh || log_warning "Echo config generation failed"
 else
-    log_warning "Echo config script not found, using fallback"
-    cat > /app/laravel-echo-server.json << 'EOF'
-{
-    "authHost": "http://localhost",
-    "authEndpoint": "/broadcasting/auth",
-    "clients": [{"appId": "homsjogja", "key": "homsjogja-key"}],
-    "database": "redis",
-    "databaseConfig": {"redis": {"host": "127.0.0.1", "port": 6379, "password": null, "db": 0}},
-    "devMode": false,
-    "host": "0.0.0.0",
-    "port": 6001,
-    "protocol": "http",
-    "socketio": {},
-    "subscribers": {"http": true, "redis": true},
-    "apiOriginAllow": {"allowCors": true, "allowOrigin": "*", "allowMethods": "GET, POST", "allowHeaders": "Origin, Content-Type, Accept, Authorization, X-Request-With"}
-}
-EOF
+    log_warning "generate-echo-config-simple.sh script not found"
+    exit_with_error "Required echo config script not found"
 fi
 
 # Verify config file exists
 if [ ! -f "/app/laravel-echo-server.json" ]; then
-    log_warning "Laravel Echo Server config file not found, creating fallback"
-    cp /app/laravel-echo-server.json /app/laravel-echo-server.json 2>/dev/null || log_warning "Failed to copy echo config"
+    log_warning "Laravel Echo Server config file not found in /app, checking current directory"
+    if [ -f "laravel-echo-server.json" ]; then
+        log_info "Config file found in current directory, copying to /app"
+        cp laravel-echo-server.json /app/laravel-echo-server.json 2>/dev/null || log_warning "Failed to copy echo config to /app"
+    else
+        log_error "Laravel Echo Server config file not found anywhere"
+        exit_with_error "Echo config file generation failed"
+    fi
 fi
 
 # Run Laravel commands with proper error handling

@@ -124,12 +124,12 @@ COPY dokploy/config/fastcgi_params /etc/nginx/fastcgi_params
 COPY dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY dokploy/config/php-fpm.conf /etc/php-fpm.conf
 
-# Copy Laravel Echo Server configuration
-COPY laravel-echo-server.dokploy.json /var/www/html/laravel-echo-server.dokploy.json
 
-# Copy safe startup script
+
+# Copy safe startup script and echo config generator
 COPY dokploy/scripts/safe-startup.sh /usr/local/bin/safe-startup.sh
-RUN chmod +x /usr/local/bin/safe-startup.sh
+COPY dokploy/scripts/generate-echo-config-simple.sh /usr/local/bin/generate-echo-config-simple.sh
+RUN chmod +x /usr/local/bin/safe-startup.sh /usr/local/bin/generate-echo-config-simple.sh
 
 # Setup environment template
 RUN if [ ! -f .env ]; then cp .env.example .env; fi
