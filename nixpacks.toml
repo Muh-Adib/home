@@ -21,9 +21,11 @@ cmds = [
 [phases.build]
 cmds = [
     "npm run build",
+    "addgroup -g 1000 www || true",
+    "adduser -u 1000 -G www -s /bin/sh -D www || true",
     "mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache",
     "chmod -R 755 storage bootstrap/cache",
-    "chown -R www-data:www-data storage bootstrap/cache",
+    "chown -R www:www storage bootstrap/cache",
     "mkdir -p /etc/nginx /etc/supervisor/conf.d /var/log/supervisor",
     "cp dokploy/config/nginx.conf /etc/nginx/nginx.conf",
     "cp dokploy/config/mime.types /etc/nginx/mime.types",

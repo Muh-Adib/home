@@ -100,6 +100,10 @@ COPY . .
 # Copy built assets from node stage
 COPY --from=node-builder /app/public/build ./public/build
 
+# Create application user first
+RUN addgroup -g 1000 www && \
+    adduser -u 1000 -G www -s /bin/sh -D www
+
 # Ensure required directories and permissions
 RUN mkdir -p \
     storage/logs \
@@ -141,11 +145,11 @@ RUN php artisan key:generate --force || echo "Key generation skipped"
 RUN php artisan storage:link || echo "Storage link failed, continuing..."
 
 # Set final permissions
-RUN chown -R www:www /var/www/html && \
-    chmod -R 755 /var/www/html/storage && \
-    chmod -R 755 /var/www/html/bootstrap/cache && \
-    chmod -R 755 /var/www/html/database && \
-    chmod +x /var/www/html/artisan
+RUN chown -R www:www /app && \
+    chmod -R 755 /app/storage && \
+    chmod -R 755 /app/bootstrap/cache && \
+    chmod -R 755 /app/database && \
+    chmod +x /app/artisan
 
 # Expose HTTP dan WebSocket ports
 EXPOSE 80 3000 6001

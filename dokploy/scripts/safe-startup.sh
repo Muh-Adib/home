@@ -58,13 +58,13 @@ mkdir -p /var/log/nginx /run || exit_with_error "Failed to create log directorie
 # Set proper permissions with error handling
 log_info "🔐 Setting proper permissions..."
 chmod -R 777 storage bootstrap/cache || log_warning "Failed to set storage permissions"
-chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || log_warning "Failed to set ownership (may be expected in container)"
+chown -R www:www storage bootstrap/cache 2>/dev/null || log_warning "Failed to set ownership (may be expected in container)"
 
 # Create log file with proper permissions
 log_info "📝 Creating log files..."
 touch storage/logs/laravel.log || exit_with_error "Failed to create log file"
 chmod 666 storage/logs/laravel.log || log_warning "Failed to set log permissions"
-chown www-data:www-data storage/logs/laravel.log 2>/dev/null || log_warning "Failed to set log ownership"
+chown www:www storage/logs/laravel.log 2>/dev/null || log_warning "Failed to set log ownership"
 
 # Generate Laravel Echo Server config using the dedicated script
 log_info "🔧 Generating Laravel Echo Server config..."
