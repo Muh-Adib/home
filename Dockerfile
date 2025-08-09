@@ -90,6 +90,7 @@ RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev || true
 
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+ENV COMPOSER_ALLOW_SUPERUSER=1
 
 # Workdir consistent with Nixpacks configs (nginx root and supervisor use /app)
 WORKDIR /app
@@ -99,6 +100,9 @@ COPY . .
 
 # Copy built assets from node stage
 COPY --from=node-builder /app/public/build ./public/build
+
+# Install PHP dependencies (must be before any artisan command)
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist || (composer clear-cache && composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist)
 
 # Create application user first
 RUN addgroup -g 1000 www && \
