@@ -82,37 +82,23 @@ types {
     video/quicktime                       mov;
     video/webm                            webm;
     video/x-flv                           flv;
-    video/x-m4v                           m4v;
     video/x-ms-asf                        asx asf;
     video/x-ms-wmv                        wmv;
     video/x-msvideo                       avi;
 
     # Web fonts
-    font/woff                             woff;
-    font/woff2                            woff2;
-    application/font-woff                 woff;
-    application/font-woff2                woff2;
     application/x-font-ttf                ttf ttc;
     font/opentype                         otf;
-    application/x-font-otf                otf;
 
     # Laravel specific
     application/x-httpd-php               php;
     application/x-httpd-php-source        phps;
-
-    # React/Vue/Angular specific
-    text/javascript                       js;
-    application/javascript                js;
-    application/json                      json;
-    text/css                              css;
-    image/svg+xml                         svg;
 
     # API specific
     application/vnd.api+json              json;
     application/ld+json                   jsonld;
 
     # Security
-    application/x-x509-ca-cert            crt;
     application/x-pkcs12                  p12 pfx;
     application/x-pkcs7-certificates      p7b spc;
     application/x-pkcs7-certreqresp       p7r;
@@ -123,22 +109,15 @@ types {
     application/x-gzip                    gz;
     application/x-bzip2                   bz2;
     application/x-tar                     tar;
-    application/x-zip                     zip;
 
     # Database
     application/x-sql                     sql;
-    text/x-sql                            sql;
 
     # Markdown
     text/markdown                         md markdown;
 
     # YAML
     application/x-yaml                    yml yaml;
-    text/yaml                             yml yaml;
-
-    # XML
-    application/xml                       xml;
-    text/xml                              xml;
 
     # CSV
     text/csv                              csv;
@@ -151,11 +130,9 @@ types {
 
     # Shell scripts
     application/x-sh                      sh;
-    text/x-sh                             sh;
 
     # Python
     text/x-python                         py;
-    application/x-python-code             py;
 
     # Java
     text/x-java-source                    java;
@@ -166,13 +143,8 @@ types {
     text/x-c++                            cpp cc cxx;
     text/x-c-header                       h hh;
 
-    # PHP
-    application/x-httpd-php               php;
-    text/x-php                            php;
-
     # Ruby
     text/x-ruby                           rb;
-    application/x-ruby                    rb;
 
     # Go
     text/x-go                             go;
@@ -182,7 +154,6 @@ types {
 
     # TypeScript
     application/typescript                ts;
-    text/x-typescript                     ts;
 
     # JSX
     text/jsx                              jsx;
@@ -202,18 +173,12 @@ types {
     # WebAssembly
     application/wasm                      wasm;
 
-    # WebP
-    image/webp                            webp;
-
     # AVIF
     image/avif                            avif;
 
     # HEIC
     image/heic                            heic;
     image/heif                            heif;
-
-    # ICO
-    image/x-icon                          ico;
 
     # Favicon
     image/x-icon                          favicon.ico;
