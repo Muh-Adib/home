@@ -2,31 +2,53 @@ types {
     text/html                             html htm shtml;
     text/css                              css;
     text/xml                              xml;
-    image/gif                             gif;
-    image/jpeg                            jpeg jpg;
-    application/javascript                 js;
-    application/atom+xml                  atom;
-    application/rss+xml                   rss;
-
     text/mathml                           mml;
-    text/plain                             txt;
+    text/plain                            txt log conf config ini robots.txt .htaccess .htpasswd;
     text/vnd.sun.j2me.app-descriptor      jad;
     text/vnd.wap.wml                      wml;
     text/x-component                      htc;
+    text/markdown                         md markdown;
+    text/csv                              csv;
+    text/x-python                         py;
+    text/x-java-source                    java;
+    text/x-c                              c;
+    text/x-c++                            cpp cc cxx;
+    text/x-c-header                       h hh;
+    text/x-ruby                           rb;
+    text/x-go                             go;
+    text/x-rust                           rs;
+    text/x-typescript                     ts;
+    text/jsx                              jsx;
+    text/tsx                              tsx;
+    text/x-vue                            vue;
+    text/x-svelte                         svelte;
 
+    image/gif                             gif;
+    image/jpeg                            jpeg jpg;
     image/png                             png;
     image/tiff                            tif tiff;
     image/vnd.wap.wbmp                    wbmp;
-    image/x-icon                          ico;
+    image/x-icon                          ico favicon.ico;
     image/x-jng                           jng;
     image/x-ms-bmp                        bmp;
     image/svg+xml                         svg svgz;
     image/webp                            webp;
+    image/avif                            avif;
+    image/heic                            heic;
+    image/heif                            heif;
 
+    application/javascript                js sw.js;
+    application/atom+xml                  atom;
+    application/rss+xml                   rss;
+    application/json                      json;
+    application/ld+json                   jsonld;
+    application/xml                       sitemap.xml;
     application/font-woff                 woff;
     application/font-woff2                woff2;
+    application/x-font-ttf                ttf ttc;
+    font/opentype                         otf;
     application/java-archive              jar war ear;
-    application/json                      json;
+    application/x-java-class              class;
     application/mac-binhex40              hqx;
     application/msword                    doc;
     application/pdf                       pdf;
@@ -39,6 +61,9 @@ types {
     application/vnd.wap.wmlc              wmlc;
     application/vnd.google-earth.kml+xml  kml;
     application/vnd.google-earth.kmz      kmz;
+    application/vnd.openxmlformats-officedocument.wordprocessingml.document    docx;
+    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet         xlsx;
+    application/vnd.openxmlformats-officedocument.presentationml.presentation pptx;
     application/x-7z-compressed           7z;
     application/x-cocoa                   cco;
     application/x-java-archive-diff       jardiff;
@@ -57,16 +82,23 @@ types {
     application/xhtml+xml                 xhtml;
     application/xspf+xml                  xspf;
     application/zip                       zip;
-
-    application/octet-stream              bin exe dll;
-    application/octet-stream              deb;
-    application/octet-stream              dmg;
-    application/octet-stream              iso img;
-    application/octet-stream              msi msp msm;
-
-    application/vnd.openxmlformats-officedocument.wordprocessingml.document    docx;
-    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet         xlsx;
-    application/vnd.openxmlformats-officedocument.presentationml.presentation pptx;
+    application/x-gzip                    gz;
+    application/x-bzip2                   bz2;
+    application/x-tar                     tar;
+    application/x-sql                     sql;
+    application/x-yaml                    yml yaml;
+    application/x-sh                      sh;
+    application/x-httpd-php               php;
+    application/x-httpd-php-source        phps;
+    application/x-pkcs12                  p12 pfx;
+    application/x-pkcs7-certificates      p7b spc;
+    application/x-pkcs7-certreqresp       p7r;
+    application/x-pkcs7-mime              p7c p7m;
+    application/x-pkcs7-signature         p7s;
+    application/graphql                   graphql gql;
+    application/wasm                      wasm;
+    application/manifest+json             webmanifest;
+    application/octet-stream              bin exe dll deb dmg iso img msi msp msm *;
 
     audio/midi                            mid midi kar;
     audio/mpeg                            mp3;
@@ -85,120 +117,4 @@ types {
     video/x-ms-asf                        asx asf;
     video/x-ms-wmv                        wmv;
     video/x-msvideo                       avi;
-
-    # Web fonts
-    application/x-font-ttf                ttf ttc;
-    font/opentype                         otf;
-
-    # Laravel specific
-    application/x-httpd-php               php;
-    application/x-httpd-php-source        phps;
-
-    # API specific
-    application/vnd.api+json              json;
-    application/ld+json                   jsonld;
-
-    # Security
-    application/x-pkcs12                  p12 pfx;
-    application/x-pkcs7-certificates      p7b spc;
-    application/x-pkcs7-certreqresp       p7r;
-    application/x-pkcs7-mime              p7c p7m;
-    application/x-pkcs7-signature         p7s;
-
-    # Archive
-    application/x-gzip                    gz;
-    application/x-bzip2                   bz2;
-    application/x-tar                     tar;
-
-    # Database
-    application/x-sql                     sql;
-
-    # Markdown
-    text/markdown                         md markdown;
-
-    # YAML
-    application/x-yaml                    yml yaml;
-
-    # CSV
-    text/csv                              csv;
-
-    # Log files
-    text/plain                            log;
-
-    # Config files
-    text/plain                            conf config ini;
-
-    # Shell scripts
-    application/x-sh                      sh;
-
-    # Python
-    text/x-python                         py;
-
-    # Java
-    text/x-java-source                    java;
-    application/x-java-class              class;
-
-    # C/C++
-    text/x-c                              c;
-    text/x-c++                            cpp cc cxx;
-    text/x-c-header                       h hh;
-
-    # Ruby
-    text/x-ruby                           rb;
-
-    # Go
-    text/x-go                             go;
-
-    # Rust
-    text/x-rust                           rs;
-
-    # TypeScript
-    application/typescript                ts;
-
-    # JSX
-    text/jsx                              jsx;
-
-    # TSX
-    text/tsx                              tsx;
-
-    # Vue
-    text/x-vue                            vue;
-
-    # Svelte
-    text/x-svelte                         svelte;
-
-    # GraphQL
-    application/graphql                   graphql gql;
-
-    # WebAssembly
-    application/wasm                      wasm;
-
-    # AVIF
-    image/avif                            avif;
-
-    # HEIC
-    image/heic                            heic;
-    image/heif                            heif;
-
-    # Favicon
-    image/x-icon                          favicon.ico;
-
-    # Manifest
-    application/manifest+json             webmanifest;
-
-    # Service Worker
-    application/javascript                sw.js;
-
-    # Robots
-    text/plain                            robots.txt;
-
-    # Sitemap
-    application/xml                       sitemap.xml;
-
-    # Security
-    text/plain                            .htaccess;
-    text/plain                            .htpasswd;
-
-    # Default fallback
-    application/octet-stream              *;
 }

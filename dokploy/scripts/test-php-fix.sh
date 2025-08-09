@@ -27,26 +27,26 @@ log_error() {
 
 # 1. Test nginx config has correct SCRIPT_FILENAME
 log_info "🔧 Testing nginx SCRIPT_FILENAME..."
-if grep -q "fastcgi_param SCRIPT_FILENAME \$realpath_root" dokploy/config/nginx.conf; then
-    log_success "Nginx uses realpath_root for SCRIPT_FILENAME"
+if grep -q "fastcgi_param SCRIPT_FILENAME \$document_root" dokploy/config/nginx.conf; then
+    log_success "Nginx uses document_root for SCRIPT_FILENAME"
 else
-    log_error "Nginx not using realpath_root for SCRIPT_FILENAME"
+    log_error "Nginx not using document_root for SCRIPT_FILENAME"
 fi
 
-# 2. Test nginx config has realpath_root directive
-log_info "🔧 Testing nginx realpath_root directive..."
-if grep -q "realpath_root /app/public;" dokploy/config/nginx.conf; then
-    log_success "Nginx has realpath_root directive"
+# 2. Test nginx config has root directive
+log_info "🔧 Testing nginx root directive..."
+if grep -q "root /app/public;" dokploy/config/nginx.conf; then
+    log_success "Nginx has root directive"
 else
-    log_error "Nginx missing realpath_root directive"
+    log_error "Nginx missing root directive"
 fi
 
 # 3. Test fastcgi_params has correct SCRIPT_FILENAME
 log_info "🔧 Testing fastcgi_params SCRIPT_FILENAME..."
-if grep -q "fastcgi_param  SCRIPT_FILENAME    \$realpath_root" dokploy/config/fastcgi_params; then
-    log_success "fastcgi_params uses realpath_root"
+if grep -q "fastcgi_param  SCRIPT_FILENAME    \$document_root" dokploy/config/fastcgi_params; then
+    log_success "fastcgi_params uses document_root"
 else
-    log_error "fastcgi_params not using realpath_root"
+    log_error "fastcgi_params not using document_root"
 fi
 
 # 4. Test fastcgi_params has no problematic PHP_VALUE
@@ -86,9 +86,9 @@ echo ""
 echo -e "${GREEN}[SUCCESS]${NC} 🎉 PHP configuration test completed!"
 echo ""
 echo "📋 SUMMARY:"
-echo "- Nginx SCRIPT_FILENAME: $(grep -q "realpath_root" dokploy/config/nginx.conf && echo "✅" || echo "❌")"
-echo "- Nginx realpath_root: $(grep -q "realpath_root /app/public" dokploy/config/nginx.conf && echo "✅" || echo "❌")"
-echo "- fastcgi_params SCRIPT_FILENAME: $(grep -q "realpath_root" dokploy/config/fastcgi_params && echo "✅" || echo "❌")"
+echo "- Nginx SCRIPT_FILENAME: $(grep -q "document_root" dokploy/config/nginx.conf && echo "✅" || echo "❌")"
+echo "- Nginx root directive: $(grep -q "root /app/public" dokploy/config/nginx.conf && echo "✅" || echo "❌")"
+echo "- fastcgi_params SCRIPT_FILENAME: $(grep -q "document_root" dokploy/config/fastcgi_params && echo "✅" || echo "❌")"
 echo "- PHP_VALUE fix: $(grep -q "^fastcgi_param.*auto_append_file=/dev/null" dokploy/config/fastcgi_params && echo "❌" || echo "✅")"
 echo "- Laravel public: $(ls public/index.php > /dev/null 2>&1 && echo "✅" || echo "❌")"
 echo "- fastcgi_params copy: $(grep -q "fastcgi_params" nixpacks.toml && echo "✅" || echo "❌")"
