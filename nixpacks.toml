@@ -19,16 +19,13 @@ cmds = [
 [phases.build]
 cmds = [
     "npm run build",
-    "php artisan storage:link || echo 'Storage link skipped'",
-    "php artisan config:cache || echo 'Config cache failed'",
-    "php artisan route:cache || echo 'Route cache failed'",
-    "php artisan view:cache || echo 'View cache failed'",
     "mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache",
-    "chmod -R 755 storage bootstrap/cache || echo 'Permission setting failed'",
-    "chown -R www-data:www-data storage bootstrap/cache || echo 'Ownership setting failed'",
+    "chmod -R 755 storage bootstrap/cache",
+    "chown -R www-data:www-data storage bootstrap/cache",
     "mkdir -p /etc/nginx /etc/supervisor/conf.d /var/log/supervisor",
-    "cp dokploy/config/nginx.conf /etc/nginx/nginx.conf || echo 'Nginx config copy failed'",
-    "cp dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf || echo 'Supervisor config copy failed'"
+    "cp dokploy/config/nginx.conf /etc/nginx/nginx.conf",
+    "cp dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf",
+    "cp dokploy/config/php-fpm.conf /etc/php-fpm.conf"
 ]
 
 [start]

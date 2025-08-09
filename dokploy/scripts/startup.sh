@@ -118,12 +118,25 @@ else
     echo "⚠️ Laravel Echo Server config not found, proceeding with env-based config"
 fi
 
-# Run Laravel commands with environment variables
-echo "🔧 Running Laravel setup commands..."
+# Run Laravel commands with environment variables (RUNTIME)
+echo "🔧 Running Laravel setup commands with Dokploy environment variables..."
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+
+# Run migrations if needed
+echo "🔧 Running migrations..."
+php artisan migrate:fresh --seed --force || echo "Migration skipped"
+
+# Create storage link
+echo "🔧 Creating storage link..."
 php artisan storage:link || echo "Storage link skipped"
-php artisan config:cache || echo "Config cache failed"
-php artisan route:cache || echo "Route cache failed"
-php artisan view:cache || echo "View cache failed"
+
+# Cache configurations (now with proper environment variables)
+echo "🔧 Caching configurations..."
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
 
 # Test external connections with environment variables
 echo "🔍 Testing external connections..."
