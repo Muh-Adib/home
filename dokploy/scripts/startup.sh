@@ -54,19 +54,51 @@ else
 fi
 
 # Copy custom nginx.conf ke lokasi default Nixpacks Nginx
-NIX_NGINX_CONF=$(find /nix/store -type f -path '*/nginx-*/conf/nginx.conf' | head -n 1)
-if [ -n "$NIX_NGINX_CONF" ]; then
+NIX_NGINX_CONF=$(find /nix/store -type f -name "nginx.conf" -path "*/nginx-*/conf/nginx.conf" 2>/dev/null | head -n 1)
+NIX_MIME_TYPES=$(find /nix/store -name mime.types | head -n 1)
+
+if [ -f "$NIX_NGINX_CONF" ]; then
+    # Replace mime.types path in nginx.conf
+    sed -i "s|include /etc/nginx/mime.types;|include $NIX_MIME_TYPES;|g" /app/dokploy/config/nginx.conf
+    
+    # Copy modified nginx.conf
     cp /app/dokploy/config/nginx.conf "$NIX_NGINX_CONF"
-    echo "✅ Custom nginx.conf copied to $NIX_NGINX_CONF"
+    echo "✅ Custom nginx.conf copied to $NIX_NGINX_CONF with updated mime.types path"
 else
     echo "⚠️ Default Nginx config not found in /nix/store"
 fi
 
 # Pastikan mime.types juga sesuai
-NIX_MIME_TYPES=$(find /nix/store -name mime.types | head -n 1)
 if [ -n "$NIX_MIME_TYPES" ]; then
-    cp "$NIX_MIME_TYPES" /etc/nginx/mime.types
-    echo "✅ mime.types copied"
+    # Buat temporary file untuk validasi
+    TMP_MIME="/tmp/mime.types.tmp"
+    cp "$NIX_MIME_TYPES" "$TMP_MIME"
+    
+    # Pastikan file diakhiri dengan } yang proper
+    if ! grep -q '^}$' "$TMP_MIME"; then
+        echo "}" >> "$TMP_MIME"
+    fi
+    
+    # Validasi syntax nginx
+    if nginx -t -c "$TMP_MIME" > /dev/null 2>&1; then
+        cp "$TMP_MIME" /etc/nginx/mime.types
+        echo "✅ Valid mime.types copied"
+    else
+        echo "⚠️ Invalid mime.types detected, using nginx default"
+        cp /etc/nginx/mime.types.default /etc/nginx/mime.types 2>/dev/null || {
+            # Jika default tidak ada, gunakan dari nginx package
+            NGINX_PKG_MIME=$(find /nix/store -path '*/nginx/conf/mime.types' | head -n 1)
+            if [ -n "$NGINX_PKG_MIME" ]; then
+                cp "$NGINX_PKG_MIME" /etc/nginx/mime.types
+                echo "✅ Using nginx package mime.types"
+            fi
+        }
+    fi
+    
+    # Cleanup
+    rm -f "$TMP_MIME"
+else
+    echo "⚠️ mime.types not found in /nix/store"
 fi
 
 # Run Laravel commands with environment variables (RUNTIME)
