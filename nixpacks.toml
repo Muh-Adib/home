@@ -34,8 +34,6 @@ cmds = [
     "cp dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf",
     "cp dokploy/config/php-fpm.conf /etc/php-fpm.conf",
 
-    # Copy mime.types from nginx package only
-    "cp $(find /nix/store -path '*/nginx-*/mime.types' | head -n 1) /etc/nginx/mime.types",
     "cp dokploy/config/nginx.conf $(find /nix/store -type f -path '*/nginx-*/conf/nginx.conf' | head -n 1)",
 
     # Make echo config script executable
