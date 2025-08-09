@@ -113,10 +113,21 @@ fi
 echo "🔍 Testing Redis..."
 if php -m | grep -q redis; then
     echo "✅ Redis extension installed"
+    
+    # Test Redis connection with environment variables
+    echo "🔍 Testing Redis connection to external service..."
+    REDIS_HOST=${REDIS_HOST:-"127.0.0.1"}
+    REDIS_PORT=${REDIS_PORT:-"6379"}
+    echo "Using Redis: ${REDIS_HOST}:${REDIS_PORT}"
+    
     if php artisan tinker --execute="Redis::connection()->ping();" > /dev/null 2>&1; then
         echo "✅ Redis connection successful"
     else
-        echo "⚠️ Redis connection failed"
+        echo "⚠️ Redis connection failed - check REDIS_HOST and REDIS_PORT"
+        echo "Current Redis config:"
+        echo "  - REDIS_HOST: ${REDIS_HOST}"
+        echo "  - REDIS_PORT: ${REDIS_PORT}"
+        echo "  - REDIS_PASSWORD: ${REDIS_PASSWORD:-'not set'}"
     fi
 else
     echo "❌ Redis extension not installed"
