@@ -53,6 +53,22 @@ else
     echo "✅ Laravel Echo Server config file exists"
 fi
 
+# Copy custom nginx.conf ke lokasi default Nixpacks Nginx
+NIX_NGINX_CONF=$(find /nix/store -type f -path '*/nginx-*/conf/nginx.conf' | head -n 1)
+if [ -n "$NIX_NGINX_CONF" ]; then
+    cp /app/dokploy/config/nginx.conf "$NIX_NGINX_CONF"
+    echo "✅ Custom nginx.conf copied to $NIX_NGINX_CONF"
+else
+    echo "⚠️ Default Nginx config not found in /nix/store"
+fi
+
+# Pastikan mime.types juga sesuai
+NIX_MIME_TYPES=$(find /nix/store -name mime.types | head -n 1)
+if [ -n "$NIX_MIME_TYPES" ]; then
+    cp "$NIX_MIME_TYPES" /etc/nginx/mime.types
+    echo "✅ mime.types copied"
+fi
+
 # Run Laravel commands with environment variables (RUNTIME)
 echo "🔧 Running Laravel setup commands with Dokploy environment variables..."
 
