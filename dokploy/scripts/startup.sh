@@ -18,8 +18,14 @@ mkdir -p /var/log/nginx /run
 
 # Set proper permissions
 echo "🔐 Setting proper permissions..."
-chmod -R 755 storage bootstrap/cache
+chmod -R 777 storage bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
+
+# Create log file with proper permissions
+echo "📝 Creating log files..."
+touch storage/logs/laravel.log
+chmod 666 storage/logs/laravel.log
+chown www-data:www-data storage/logs/laravel.log 2>/dev/null || true
 
 # Configuration files are already copied in build phase
 echo "📋 Configuration files already copied in build phase"
@@ -103,10 +109,17 @@ else
     echo "⚠️ Database connection failed"
 fi
 
-if php artisan tinker --execute="Redis::connection()->ping();" > /dev/null 2>&1; then
-    echo "✅ Redis connection successful"
+# Test Redis extension and connection
+echo "🔍 Testing Redis..."
+if php -m | grep -q redis; then
+    echo "✅ Redis extension installed"
+    if php artisan tinker --execute="Redis::connection()->ping();" > /dev/null 2>&1; then
+        echo "✅ Redis connection successful"
+    else
+        echo "⚠️ Redis connection failed"
+    fi
 else
-    echo "⚠️ Redis connection failed"
+    echo "❌ Redis extension not installed"
 fi
 
 echo "🎉 Startup completed successfully!"

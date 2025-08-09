@@ -1,10 +1,11 @@
 [phases.setup]
 nixPkgs = [
     "nginx",
-    "python3Packages.supervisor", 
+    "python3Packages.supervisor",
     "nodejs_20",
     "php83",
     "php83Packages.composer",
+    "php83Extensions.redis",
     "curl",
     "git",
     "bash"
