@@ -1,48 +1,36 @@
-# Multi-stage Dockerfile untuk Dokploy Laravel App dengan WebSocket Support
-# Optimized untuk Property Management System dengan Redis dan DB terpisah + Laravel Echo Server
+# Multi-stage Dockerfile for Laravel + Nginx + Supervisor + WebSocket (Dokploy)
+# Uses Node builder for assets and PHP 8.3 FPM with PECL Redis extension
 
-# Build stage untuk Node.js dependencies dan assets
+# 1) Build stage for frontend assets
 FROM node:20-alpine AS node-builder
-
 
 WORKDIR /app
 
-# Install git untuk dependencies yang memerlukan
 RUN apk add --no-cache git python3 make g++
 
-# Copy package files untuk better layer caching
+# Cache deps
 COPY package*.json ./
-
-# Check files dan install Node dependencies dengan error handling
-RUN echo "=== Checking package files ===" && \
-    ls -la package* && \
-    echo "=== Installing Node dependencies ===" && \
-    npm cache clean --force && \
+RUN npm cache clean --force && \
     npm ci --legacy-peer-deps --verbose || npm install --legacy-peer-deps --verbose
 
-# Install Laravel Echo Server globally untuk WebSocket support
-RUN npm install -g laravel-echo-server@1.6.3
-
-# Copy konfigurasi build files
+# Build inputs
 COPY tsconfig.json ./
 COPY vite.config.ts ./
 COPY tailwind.config.js ./
 COPY components.json ./
 
-# Copy source code untuk building
+# Source for build
 COPY resources/ ./resources/
 COPY public/ ./public/
 
-# Build frontend assets
-RUN echo "=== Building frontend assets ===" && \
-    npm run build && \
-    echo "=== Build completed ===" && \
+# Build assets
+RUN npm run build && \
     ls -la public/build/
 
-# Production PHP stage
+# 2) Production stage with PHP + Nginx + Supervisor
 FROM php:8.3-fpm-alpine AS php-stage
 
-# Install system dependencies (termasuk Node.js untuk Laravel Echo Server)
+# System deps (include Node for npx laravel-echo-server)
 RUN apk add --no-cache \
     nginx \
     supervisor \
@@ -72,7 +60,7 @@ RUN apk add --no-cache \
     sqlite-dev \
     pkgconfig
 
-# Install PHP extensions yang diperlukan
+# PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
     docker-php-ext-install -j$(nproc) \
         pdo_mysql \
@@ -87,43 +75,27 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
         intl \
         opcache
 
-# Install Redis extension untuk koneksi ke external Redis
+# Install and enable Redis extension (safe)
 RUN pecl install redis && \
     docker-php-ext-enable redis && \
-    php -m | grep redis
+    php -m | grep -q redis
 
-# Clean up build tools
-RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev
+# Cleanup build tools
+RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev || true
 
-# Install Composer
+# Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Install Laravel Echo Server globally dalam production container
-RUN npm install -g laravel-echo-server@1.6.3 pm2
+# Workdir consistent with Nixpacks configs (nginx root and supervisor use /app)
+WORKDIR /app
 
-# Create application user
-RUN addgroup -g 1000 www && \
-    adduser -u 1000 -G www -s /bin/sh -D www
+# Copy application code
+COPY . .
 
-# Set working directory
-WORKDIR /var/www/html
-
-# Copy application code dengan proper ownership
-COPY --chown=www:www . .
-
-# Copy built assets dari node stage
+# Copy built assets from node stage
 COPY --from=node-builder /app/public/build ./public/build
 
-# Install PHP dependencies (production optimized)
-RUN composer install \
-    --no-dev \
-    --optimize-autoloader \
-    --no-interaction \
-    --no-progress \
-    --prefer-dist && \
-    composer dump-autoload --optimize
-
-# Create required directories dengan proper permissions
+# Ensure required directories and permissions
 RUN mkdir -p \
     storage/logs \
     storage/framework/cache \
@@ -134,46 +106,38 @@ RUN mkdir -p \
     /var/log/supervisor \
     /var/log/nginx \
     /var/cache/nginx \
-    /var/run/php \
-    /var/run/laravel-echo-server \
-    database/echo-server && \
-    chown -R www:www storage bootstrap/cache database && \
-    chmod -R 755 storage bootstrap/cache database
+    /run \
+    /var/run/php && \
+    chmod -R 755 storage bootstrap/cache || true
 
-# Copy optimized configuration files
-#COPY docker/nginx/dokploy.conf /etc/nginx/http.d/default.conf
-#COPY docker/supervisor/dokploy.conf /etc/supervisor.d/supervisord.conf
-#COPY docker/php/dokploy.ini /usr/local/etc/php/conf.d/custom.ini
+# Install PHP dependencies (production)
+RUN composer install \
+    --no-dev \
+    --optimize-autoloader \
+    --no-interaction \
+    --no-progress \
+    --prefer-dist && \
+    composer dump-autoload --optimize
 
-# Copy Laravel Echo Server configuration
-COPY laravel-echo-server.dokploy.json /var/www/html/laravel-echo-server.dokploy.json
+# Place Nginx and Supervisor configs from dokploy/config
+COPY dokploy/config/nginx.conf /etc/nginx/nginx.conf
+COPY dokploy/config/mime.types /etc/nginx/mime.types
+COPY dokploy/config/fastcgi_params /etc/nginx/fastcgi_params
+COPY dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Setup environment template
-RUN if [ ! -f .env ]; then cp .env.example .env; fi
+# We keep php-fpm runtime config under repo path as referenced by supervisor
+# (supervisor runs: php-fpm -F --fpm-config /app/dokploy/config/php-fpm.conf)
 
-# Generate application key
-RUN php artisan key:generate --force || echo "Key generation skipped"
-
-# Create storage link
-RUN php artisan storage:link || echo "Storage link failed, continuing..."
-
-# Set final permissions
-RUN chown -R www:www /var/www/html && \
-    chmod -R 755 /var/www/html/storage && \
-    chmod -R 755 /var/www/html/bootstrap/cache && \
-    chmod -R 755 /var/www/html/database && \
-    chmod +x /var/www/html/artisan
-
-# Create enhanced startup script
-COPY docker/scripts/startup.sh /usr/local/bin/startup.sh
+# Correct startup script from dokploy (not docker/)
+COPY dokploy/scripts/startup.sh /usr/local/bin/startup.sh
 RUN chmod +x /usr/local/bin/startup.sh
 
-# Expose HTTP dan WebSocket ports
-EXPOSE 80 3000
+# Expose HTTP and WebSocket ports
+EXPOSE 80 6001
 
-# Health check yang comprehensive
+# Healthcheck via Nginx root
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost/health && curl -f http://localhost:3000/socket.io/ || exit 1
+    CMD curl -f http://localhost/ || exit 1
 
-# Start dengan startup script yang akan handle migrations dan services
+# Entrypoint runs Supervisor which starts php-fpm, nginx, and websocket
 CMD ["/usr/local/bin/startup.sh"]
