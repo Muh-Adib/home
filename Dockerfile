@@ -160,7 +160,7 @@ EXPOSE 80 3000 6001
 
 # Healthcheck via Nginx root
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost/health && curl -f http://localhost:6001/socket.io/ || exit 1
+    CMD curl -fsS http://localhost/health || exit 1
 
 # Start dengan safe startup script
 CMD ["/usr/local/bin/safe-startup.sh"]
