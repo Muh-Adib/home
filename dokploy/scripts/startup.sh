@@ -28,6 +28,31 @@ echo "📋 Configuration files already copied in build phase"
 echo "🔧 Generating Laravel Echo Server config..."
 bash dokploy/scripts/generate-echo-config-simple.sh
 
+# Verify config file exists
+if [ ! -f "/app/laravel-echo-server.json" ]; then
+    echo "❌ Laravel Echo Server config file not found!"
+    echo "Creating fallback config..."
+    cat > /app/laravel-echo-server.json << 'EOF'
+{
+    "authHost": "http://localhost",
+    "authEndpoint": "/broadcasting/auth",
+    "clients": [{"appId": "homsjogja", "key": "homsjogja-key"}],
+    "database": "redis",
+    "databaseConfig": {"redis": {"host": "127.0.0.1", "port": 6379, "password": null, "db": 0}},
+    "devMode": false,
+    "host": "0.0.0.0",
+    "port": 6001,
+    "protocol": "http",
+    "socketio": {},
+    "subscribers": {"http": true, "redis": true},
+    "apiOriginAllow": {"allowCors": true, "allowOrigin": "*", "allowMethods": "GET, POST", "allowHeaders": "Origin, Content-Type, Accept, Authorization, X-Request-With"}
+}
+EOF
+    echo "✅ Fallback config created"
+else
+    echo "✅ Laravel Echo Server config file exists"
+fi
+
 # Run Laravel commands with environment variables (RUNTIME)
 echo "🔧 Running Laravel setup commands with Dokploy environment variables..."
 

@@ -16,8 +16,13 @@ REDIS_DB=${REDIS_DB:-0}
 echo "Using REDIS_HOST: ${REDIS_HOST}"
 echo "Using REDIS_PORT: ${REDIS_PORT}"
 
-# Create config file
-cat > laravel-echo-server.json << 'CONFIG_EOF'
+# Create config file (works in both local and production)
+CONFIG_PATH="/app/laravel-echo-server.json"
+if [ ! -d "/app" ]; then
+    CONFIG_PATH="laravel-echo-server.json"
+fi
+
+cat > "$CONFIG_PATH" << 'CONFIG_EOF'
 {
     "authHost": "http://localhost",
     "authEndpoint": "/broadcasting/auth",
@@ -59,10 +64,15 @@ cat > laravel-echo-server.json << 'CONFIG_EOF'
 CONFIG_EOF
 
 # Replace placeholders with actual values
-sed -i "s/REDIS_HOST_PLACEHOLDER/${REDIS_HOST}/g" laravel-echo-server.json
-sed -i "s/REDIS_PORT_PLACEHOLDER/${REDIS_PORT}/g" laravel-echo-server.json
-sed -i "s/REDIS_PASSWORD_PLACEHOLDER/${REDIS_PASSWORD}/g" laravel-echo-server.json
-sed -i "s/REDIS_DB_PLACEHOLDER/${REDIS_DB}/g" laravel-echo-server.json
+sed -i "s/REDIS_HOST_PLACEHOLDER/${REDIS_HOST}/g" "$CONFIG_PATH"
+sed -i "s/REDIS_PORT_PLACEHOLDER/${REDIS_PORT}/g" "$CONFIG_PATH"
+sed -i "s/REDIS_PASSWORD_PLACEHOLDER/${REDIS_PASSWORD}/g" "$CONFIG_PATH"
+sed -i "s/REDIS_DB_PLACEHOLDER/${REDIS_DB}/g" "$CONFIG_PATH"
 
 echo "✅ Laravel Echo Server config generated!"
-echo "Config file: laravel-echo-server.json"
+echo "Config file: $CONFIG_PATH"
+
+# Debug: Show config content
+echo "🔍 Debug: Config file content:"
+cat "$CONFIG_PATH" | head -10
+echo "..."
