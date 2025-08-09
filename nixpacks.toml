@@ -24,6 +24,7 @@ cmds = [
     "chown -R www-data:www-data storage bootstrap/cache",
     "mkdir -p /etc/nginx /etc/supervisor/conf.d /var/log/supervisor",
     "cp dokploy/config/nginx.conf /etc/nginx/nginx.conf",
+    "cp dokploy/config/mime.types /etc/nginx/mime.types",
     "cp dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf",
     "cp dokploy/config/php-fpm.conf /etc/php-fpm.conf",
     "chmod +x dokploy/scripts/generate-echo-config-simple.sh"
