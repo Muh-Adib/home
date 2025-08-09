@@ -10,9 +10,9 @@
     "database": "redis",
     "databaseConfig": {
         "redis": {
-            "host": "test-host",
+            "host": "test-redis-host",
             "port": 6380,
-            "password": null,
+            "password": "test-password",
             "db": 0
         }
     },

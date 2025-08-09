@@ -4,7 +4,7 @@ fastcgi_param  CONTENT_TYPE       $content_type;
 fastcgi_param  CONTENT_LENGTH     $content_length;
 
 fastcgi_param  SCRIPT_NAME        $fastcgi_script_name;
-fastcgi_param  SCRIPT_FILENAME    $document_root$fastcgi_script_name;
+fastcgi_param  SCRIPT_FILENAME    $realpath_root$fastcgi_script_name;
 fastcgi_param  REQUEST_URI        $request_uri;
 fastcgi_param  DOCUMENT_URI       $document_uri;
 fastcgi_param  DOCUMENT_ROOT      $document_root;
@@ -23,13 +23,13 @@ fastcgi_param  SERVER_NAME        $server_name;
 
 fastcgi_param  REDIRECT_STATUS    200;
 
-# PHP specific
-fastcgi_param  PHP_VALUE          "auto_append_file=/dev/null";
-fastcgi_param  PHP_ADMIN_VALUE    "auto_prepend_file=/dev/null";
+# PHP specific - Disabled to prevent /dev/null errors
+# fastcgi_param  PHP_VALUE          "auto_append_file=/dev/null";
+# fastcgi_param  PHP_ADMIN_VALUE    "auto_prepend_file=/dev/null";
 
 # Laravel specific
 fastcgi_param  PATH_INFO          $fastcgi_path_info;
-fastcgi_param  PATH_TRANSLATED    $document_root$fastcgi_path_info;
+fastcgi_param  PATH_TRANSLATED    $realpath_root$fastcgi_path_info;
 
 # Security headers
 fastcgi_param  HTTP_HOST          $http_host;

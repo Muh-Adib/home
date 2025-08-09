@@ -37,7 +37,7 @@ cat > "$CONFIG_PATH" << 'CONFIG_EOF'
         "redis": {
             "host": "REDIS_HOST_PLACEHOLDER",
             "port": REDIS_PORT_PLACEHOLDER,
-            "password": REDIS_PASSWORD_PLACEHOLDER,
+            "password": "REDIS_PASSWORD_PLACEHOLDER",
             "db": REDIS_DB_PLACEHOLDER
         }
     },
