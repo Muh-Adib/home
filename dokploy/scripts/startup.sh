@@ -109,127 +109,145 @@ else
     echo "⚠️ Database connection failed"
 fi
 
-# Test Redis extension and connection
-echo "🔍 Testing Redis extension and connection..."
-
-# Check if Redis extension is loaded
-if php -m | grep -q redis; then
-    echo "✅ Redis extension installed and loaded"
-    REDIS_VERSION=$(php -r "echo phpversion('redis');" 2>/dev/null || echo "unknown")
-    echo "  - Redis extension version: $REDIS_VERSION"
-    
-    # Test Redis class availability
-    if php -r "echo class_exists('Redis') ? 'OK' : 'FAIL';" 2>/dev/null | grep -q "OK"; then
-        echo "✅ Redis class is available"
-        
-        # Test Redis connection with environment variables
-        echo "🔍 Testing Redis connection to external service..."
-        REDIS_HOST=${REDIS_HOST:-"127.0.0.1"}
-        REDIS_PORT=${REDIS_PORT:-"6379"}
-        echo "Using Redis: ${REDIS_HOST}:${REDIS_PORT}"
-        
-        if php artisan tinker --execute="Redis::connection()->ping();" > /dev/null 2>&1; then
-            echo "✅ Redis connection successful"
-        else
-            echo "⚠️ Redis connection failed - check REDIS_HOST and REDIS_PORT"
-            echo "Current Redis config:"
-            echo "  - REDIS_HOST: ${REDIS_HOST}"
-            echo "  - REDIS_PORT: ${REDIS_PORT}"
-            echo "  - REDIS_PASSWORD: ${REDIS_PASSWORD:-'not set'}"
-        fi
+# Test Redis client and connection
+echo "🔍 Testing Redis client and connection..."
+REDIS_CLIENT=${REDIS_CLIENT:-phpredis}
+if [ "$REDIS_CLIENT" = "predis" ]; then
+    echo "✅ Using Predis client - PHP Redis extension not required"
+    REDIS_HOST=${REDIS_HOST:-"127.0.0.1"}
+    REDIS_PORT=${REDIS_PORT:-"6379"}
+    echo "Using Redis: ${REDIS_HOST}:${REDIS_PORT}"
+    if php artisan tinker --execute="Redis::connection()->ping();" > /dev/null 2>&1; then
+        echo "✅ Redis connection successful (Predis)"
     else
-        echo "❌ Redis class not available despite extension being loaded"
+        echo "⚠️ Redis connection failed (Predis) - check REDIS_HOST and REDIS_PORT"
+        echo "Current Redis config:"
+        echo "  - REDIS_HOST: ${REDIS_HOST}"
+        echo "  - REDIS_PORT: ${REDIS_PORT}"
+        echo "  - REDIS_PASSWORD: ${REDIS_PASSWORD:-'not set'}"
     fi
 else
-    echo "❌ Redis extension not installed or not loaded"
-    echo "  - This means nixpacks build didn't install Redis extension properly"
-    echo "  - Check nixpacks build logs for Redis extension installation"
-    echo "  - Available PHP modules:"
-    php -m | head -10 | tr '\n' ' '
-    echo ""
-    
-    # Run detailed Redis diagnosis and force install if needed
-    echo "🔍 Running detailed Redis diagnosis..."
-    if [ -f "dokploy/scripts/diagnose-redis-extension.sh" ]; then
-        echo "Running diagnose-redis-extension.sh..."
-        bash dokploy/scripts/diagnose-redis-extension.sh
-    else
-        echo "Diagnosis script not found, running manual checks..."
+    echo "🔍 Testing Redis extension and connection..."
+
+    # Check if Redis extension is loaded
+    if php -m | grep -q redis; then
+        echo "✅ Redis extension installed and loaded"
+        REDIS_VERSION=$(php -r "echo phpversion('redis');" 2>/dev/null || echo "unknown")
+        echo "  - Redis extension version: $REDIS_VERSION"
         
-        # Manual Redis diagnosis
-        echo "📋 MANUAL REDIS DIAGNOSIS:"
-        echo "1. Checking nixpacks.toml Redis extension..."
-        if grep -q "php83Extensions.redis" nixpacks.toml; then
-            echo "   ✅ Redis extension included in nixpacks.toml"
-        else
-            echo "   ❌ Redis extension missing from nixpacks.toml"
-        fi
-        
-        echo "2. Checking PHP installation..."
-        if command -v php &> /dev/null; then
-            PHP_VERSION=$(php -v | head -n1 | cut -d' ' -f2)
-            echo "   ✅ PHP installed: $PHP_VERSION"
-        else
-            echo "   ❌ PHP not installed"
-        fi
-        
-        echo "3. Checking PHP modules..."
-        PHP_MODULES=$(php -m)
-        if echo "$PHP_MODULES" | grep -q redis; then
-            echo "   ✅ Redis extension is loaded"
-        else
-            echo "   ❌ Redis extension is NOT loaded"
-            echo "   Available modules (first 10):"
-            echo "$PHP_MODULES" | head -10
-        fi
-        
-        echo "4. Checking Redis class availability..."
+        # Test Redis class availability
         if php -r "echo class_exists('Redis') ? 'OK' : 'FAIL';" 2>/dev/null | grep -q "OK"; then
-            echo "   ✅ Redis class is available"
-        else
-            echo "   ❌ Redis class is NOT available"
-        fi
-        
-        echo "5. Checking environment variables..."
-        REDIS_HOST=${REDIS_HOST:-"127.0.0.1"}
-        REDIS_PORT=${REDIS_PORT:-"6379"}
-        echo "   - REDIS_HOST: $REDIS_HOST"
-        echo "   - REDIS_PORT: $REDIS_PORT"
-        echo "   - REDIS_PASSWORD: ${REDIS_PASSWORD:-'not set'}"
-        
-        echo "6. Checking Laravel Redis configuration..."
-        if [ -f "config/database.php" ]; then
-            if grep -q "REDIS_HOST" config/database.php; then
-                echo "   ✅ Laravel Redis config uses environment variables"
+            echo "✅ Redis class is available"
+            
+            # Test Redis connection with environment variables
+            echo "🔍 Testing Redis connection to external service..."
+            REDIS_HOST=${REDIS_HOST:-"127.0.0.1"}
+            REDIS_PORT=${REDIS_PORT:-"6379"}
+            echo "Using Redis: ${REDIS_HOST}:${REDIS_PORT}"
+            
+            if php artisan tinker --execute="Redis::connection()->ping();" > /dev/null 2>&1; then
+                echo "✅ Redis connection successful"
             else
-                echo "   ❌ Laravel Redis config not using environment variables"
+                echo "⚠️ Redis connection failed - check REDIS_HOST and REDIS_PORT"
+                echo "Current Redis config:"
+                echo "  - REDIS_HOST: ${REDIS_HOST}"
+                echo "  - REDIS_PORT: ${REDIS_PORT}"
+                echo "  - REDIS_PASSWORD: ${REDIS_PASSWORD:-'not set'}"
             fi
         else
-            echo "   ❌ Laravel database config not found"
+            echo "❌ Redis class not available despite extension being loaded"
         fi
-    fi
-    
-    # Try to force install Redis extension if not available
-    echo "🔧 Attempting to force install Redis extension..."
-    if [ -f "dokploy/scripts/force-redis-install.sh" ]; then
-        echo "Running force-redis-install.sh..."
-        bash dokploy/scripts/force-redis-install.sh
     else
-        echo "Force install script not found"
-    fi
-    
-    # If Redis is still not available, fix session and cache issues
-    echo "🔧 Checking if Redis is still not available..."
-    if ! php -m | grep -q redis || ! php -r "echo class_exists('Redis') ? 'OK' : 'FAIL';" 2>/dev/null | grep -q "OK"; then
-        echo "⚠️ Redis extension still not available, fixing session and cache issues..."
-        if [ -f "dokploy/scripts/fix-session-cache-redis.sh" ]; then
-            echo "Running fix-session-cache-redis.sh..."
-            bash dokploy/scripts/fix-session-cache-redis.sh
+        echo "❌ Redis extension not installed or not loaded"
+        echo "  - This means nixpacks build didn't install Redis extension properly"
+        echo "  - Check nixpacks build logs for Redis extension installation"
+        echo "  - Available PHP modules:"
+        php -m | head -10 | tr '\n' ' '
+        echo ""
+        
+        # Run detailed Redis diagnosis and force install if needed
+        echo "🔍 Running detailed Redis diagnosis..."
+        if [ -f "dokploy/scripts/diagnose-redis-extension.sh" ]; then
+            echo "Running diagnose-redis-extension.sh..."
+            bash dokploy/scripts/diagnose-redis-extension.sh
         else
-            echo "Fix session/cache script not found"
+            echo "Diagnosis script not found, running manual checks..."
+            
+            # Manual Redis diagnosis
+            echo "📋 MANUAL REDIS DIAGNOSIS:"
+            echo "1. Checking nixpacks.toml Redis extension..."
+            if grep -q "php83Extensions.redis" nixpacks.toml; then
+                echo "   ✅ Redis extension included in nixpacks.toml"
+            else
+                echo "   ❌ Redis extension missing from nixpacks.toml"
+            fi
+            
+            echo "2. Checking PHP installation..."
+            if command -v php &> /dev/null; then
+                PHP_VERSION=$(php -v | head -n1 | cut -d' ' -f2)
+                echo "   ✅ PHP installed: $PHP_VERSION"
+            else
+                echo "   ❌ PHP not installed"
+            fi
+            
+            echo "3. Checking PHP modules..."
+            PHP_MODULES=$(php -m)
+            if echo "$PHP_MODULES" | grep -q redis; then
+                echo "   ✅ Redis extension is loaded"
+            else
+                echo "   ❌ Redis extension is NOT loaded"
+                echo "   Available modules (first 10):"
+                echo "$PHP_MODULES" | head -10
+            fi
+            
+            echo "4. Checking Redis class availability..."
+            if php -r "echo class_exists('Redis') ? 'OK' : 'FAIL';" 2>/dev/null | grep -q "OK"; then
+                echo "   ✅ Redis class is available"
+            else
+                echo "   ❌ Redis class is NOT available"
+            fi
+            
+            echo "5. Checking environment variables..."
+            REDIS_HOST=${REDIS_HOST:-"127.0.0.1"}
+            REDIS_PORT=${REDIS_PORT:-"6379"}
+            echo "   - REDIS_HOST: $REDIS_HOST"
+            echo "   - REDIS_PORT: $REDIS_PORT"
+            echo "   - REDIS_PASSWORD: ${REDIS_PASSWORD:-'not set'}"
+            
+            echo "6. Checking Laravel Redis configuration..."
+            if [ -f "config/database.php" ]; then
+                if grep -q "REDIS_HOST" config/database.php; then
+                    echo "   ✅ Laravel Redis config uses environment variables"
+                else
+                    echo "   ❌ Laravel Redis config not using environment variables"
+                fi
+            else
+                echo "   ❌ Laravel database config not found"
+            fi
         fi
-    else
-        echo "✅ Redis extension is now available"
+        
+        # Try to force install Redis extension if not available
+        echo "🔧 Attempting to force install Redis extension..."
+        if [ -f "dokploy/scripts/force-redis-install.sh" ]; then
+            echo "Running force-redis-install.sh..."
+            bash dokploy/scripts/force-redis-install.sh
+        else
+            echo "Force install script not found"
+        fi
+        
+        # If Redis is still not available, fix session and cache issues
+        echo "🔧 Checking if Redis is still not available..."
+        if ! php -m | grep -q redis || ! php -r "echo class_exists('Redis') ? 'OK' : 'FAIL';" 2>/dev/null | grep -q "OK"; then
+            echo "⚠️ Redis extension still not available, fixing session and cache issues..."
+            if [ -f "dokploy/scripts/fix-session-cache-redis.sh" ]; then
+                echo "Running fix-session-cache-redis.sh..."
+                bash dokploy/scripts/fix-session-cache-redis.sh
+            else
+                echo "Fix session/cache script not found"
+            fi
+        else
+            echo "✅ Redis extension is now available"
+        fi
     fi
 fi
 
