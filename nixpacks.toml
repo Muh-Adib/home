@@ -18,16 +18,28 @@ cmds = [
 
 [phases.build]
 cmds = [
+    # Build assets
     "npm run build",
+
+    # Laravel storage permissions
     "mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache",
     "chmod -R 755 storage bootstrap/cache",
     "chown -R www-data:www-data storage bootstrap/cache",
-    "mkdir -p /etc/nginx /etc/supervisor/conf.d /var/log/supervisor",
+
+    # Prepare system config directories
+    "mkdir -p /etc/nginx /etc/supervisor/conf.d /var/log/supervisor /run/php",
+
+    # Copy configs
     "cp dokploy/config/nginx.conf /etc/nginx/nginx.conf",
     "cp dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf",
     "cp dokploy/config/php-fpm.conf /etc/php-fpm.conf",
-    "chmod +x dokploy/scripts/generate-echo-config-simple.sh",
-    "cp $(find /nix/store -name mime.types | head -n 1) /etc/nginx/mime.types"
+
+    # Copy mime.types from nginx package only
+    "cp $(find /nix/store -path '*/nginx-*/mime.types' | head -n 1) /etc/nginx/mime.types",
+    "cp dokploy/config/nginx.conf $(find /nix/store -type f -path '*/nginx-*/conf/nginx.conf' | head -n 1)",
+
+    # Make echo config script executable
+    "chmod +x dokploy/scripts/generate-echo-config-simple.sh"
 ]
 
 [start]
