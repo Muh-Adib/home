@@ -33,4 +33,4 @@ cmds = [
 ]
 
 [start]
-cmd = "bash dokploy/scripts/startup.sh"
+cmd = "bash dokploy/scripts/safe-startup.sh"
