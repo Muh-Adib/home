@@ -1,0 +1,6 @@
+{
+    "redis": {
+        "host": "test-redis-host",
+        "port": 6380
+    }
+}

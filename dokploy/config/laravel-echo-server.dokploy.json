@@ -1,45 +1,38 @@
 {
-    "authHost": "https://app.homsjogja.com",
+    "authHost": "http://localhost",
     "authEndpoint": "/broadcasting/auth",
     "clients": [
         {
-            "appId": "homsjogja-app-id",
-            "key": "homsjogja-app-key"
+            "appId": "homsjogja",
+            "key": "homsjogja-key"
         }
     ],
     "database": "redis",
     "databaseConfig": {
         "redis": {
-            "host": "homsjogja-redis-kqzqov",
-            "port": "6379",
-            "password": "tzwr97nbicqh5w6e"
-        },
-        "sqlite": {
-            "databasePath": "/database/laravel-echo-server.sqlite"
+            "host": "127.0.0.1",
+            "port": 6379,
+            "password": null,
+            "db": 0
         }
     },
     "devMode": false,
     "host": "0.0.0.0",
-    "port": "6001",
+    "port": 6001,
     "protocol": "http",
-    "socketio": {
-        "cors": {
-            "origin": "*",
-            "methods": ["GET", "POST"]
-        }
-    },
+    "socketio": {},
     "sslCertPath": "",
     "sslKeyPath": "",
     "sslCertChainPath": "",
-    "sslPassphrase": null,
+    "sslPassphrase": "",
     "subscribers": {
         "http": true,
         "redis": true
     },
     "apiOriginAllow": {
-        "allowCors": false,
-        "allowOrigin": "",
-        "allowMethods": "",
-        "allowHeaders": ""
+        "allowCors": true,
+        "allowOrigin": "*",
+        "allowMethods": "GET, POST",
+        "allowHeaders": "Origin, Content-Type, Accept, Authorization, X-Request-With"
     }
 }

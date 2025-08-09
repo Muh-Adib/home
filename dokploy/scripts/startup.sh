@@ -21,112 +21,36 @@ echo "🔐 Setting proper permissions..."
 chmod -R 755 storage bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
 
-# Copy configuration files with better error handling
-echo "📋 Copying configuration files..."
+# Configuration files are already copied in build phase
+echo "📋 Configuration files already copied in build phase"
 
-# Copy Nginx configuration
-if [ -f "/app/dokploy/config/nginx.conf" ]; then
-    if [ -d "/etc/nginx" ]; then
-        cp /app/dokploy/config/nginx.conf /etc/nginx/nginx.conf
-        echo "✅ Nginx configuration copied"
-    else
-        echo "⚠️ /etc/nginx directory not found, creating..."
-        mkdir -p /etc/nginx
-        cp /app/dokploy/config/nginx.conf /etc/nginx/nginx.conf
-        echo "✅ Nginx configuration copied after creating directory"
-    fi
-    # Ensure mime.types exists to prevent nginx startup failure
-    if [ ! -f "/etc/nginx/mime.types" ]; then
-        cat > /etc/nginx/mime.types <<'EOF'
- types {
-     text/html                             html htm shtml;
-     text/css                              css;
-     text/xml                              xml;
-     image/gif                             gif;
-     image/jpeg                            jpeg jpg;
-     application/javascript                js;
-     application/atom+xml                  atom;
-     application/rss+xml                   rss;
-
-     text/mathml                           mml;
-     text/plain                            txt;
-     text/vnd.sun.j2me.app-descriptor      jad;
-     text/vnd.wap.wml                      wml;
-     text/x-component                      htc;
-
-     image/png                             png;
-     image/tiff                            tif tiff;
-     image/vnd.wap.wbmp                    wbmp;
-     image/x-icon                          ico;
-     image/x-jng                           jng;
-     image/bmp                             bmp;
-     image/svg+xml                         svg svgz;
-     image/webp                            webp;
-
-     application/json                      json;
-     application/xml                       xml xsl;
-     application/xhtml+xml                 xhtml;
-     application/pdf                       pdf;
-     application/msword                    doc;
-     application/vnd.ms-excel              xls;
-     application/vnd.ms-powerpoint         ppt;
-     application/vnd.wap.wmlc              wmlc;
-     application/x-shockwave-flash         swf;
-     application/java-archive              jar war ear;
-     application/zip                       zip;
-     application/x-gzip                    gz tgz;
-     application/x-bittorrent              torrent;
-     application/x-7z-compressed           7z;
-
-     audio/mpeg                            mp3;
-     audio/x-realaudio                     ra;
-
-     video/mpeg                            mpeg mpg;
-     video/quicktime                       mov;
-     video/x-flv                           flv;
-     video/x-msvideo                       avi;
-     video/x-ms-wmv                        wmv;
-     video/mp4                             mp4;
- }
-EOF
-        echo "✅ Created default /etc/nginx/mime.types"
-    fi
-else
-    echo "⚠️ Nginx config not found at /app/dokploy/config/nginx.conf"
-fi
-
-# Copy Supervisor configuration
-if [ -f "/app/dokploy/config/supervisord.conf" ]; then
-    if [ -d "/etc/supervisor/conf.d" ]; then
-        cp /app/dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-        echo "✅ Supervisor configuration copied"
-    else
-        echo "⚠️ /etc/supervisor/conf.d directory not found, creating..."
-        mkdir -p /etc/supervisor/conf.d
-        cp /app/dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-        echo "✅ Supervisor configuration copied after creating directory"
-    fi
-else
-    echo "⚠️ Supervisor config not found at /app/dokploy/config/supervisord.conf"
-fi
-
-# Copy Laravel Echo Server configuration
-if [ -f "/app/dokploy/config/laravel-echo-server.dokploy.json" ]; then
-    cp /app/dokploy/config/laravel-echo-server.dokploy.json /app/laravel-echo-server.json
-    echo "✅ Laravel Echo Server configuration copied"
-else
-    echo "⚠️ Laravel Echo Server config not found, proceeding with env-based config"
-fi
+# Generate Laravel Echo Server config with environment variables
+echo "🔧 Generating Laravel Echo Server config..."
+bash dokploy/scripts/generate-echo-config-simple.sh
 
 # Run Laravel commands with environment variables (RUNTIME)
 echo "🔧 Running Laravel setup commands with Dokploy environment variables..."
-php artisan config:clear
-php artisan route:clear
-php artisan view:clear
+
+# Ensure Laravel is properly installed
+if [ ! -f "artisan" ]; then
+    echo "❌ Laravel not found - redeploy needed"
+    exit 1
+fi
+
+# Clear Laravel caches first
+php artisan config:clear || echo "Config clear failed"
+php artisan route:clear || echo "Route clear failed"
+php artisan view:clear || echo "View clear failed"
+
+# Ensure public/index.php exists
+if [ ! -f "public/index.php" ]; then
+    echo "❌ Laravel index.php not found - redeploy needed"
+    exit 1
+fi
 
 # Run migrations if needed
 echo "🔧 Running migrations..."
-php artisan migrate:fresh --seed --force || echo "Migration skipped"
+php artisan migrate --force || echo "Migration skipped"
 
 # Create storage link
 echo "🔧 Creating storage link..."
@@ -137,6 +61,14 @@ echo "🔧 Caching configurations..."
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
+
+# Test Laravel application
+echo "🔧 Testing Laravel application..."
+if php artisan --version > /dev/null 2>&1; then
+    echo "✅ Laravel application is working"
+else
+    echo "❌ Laravel application not working"
+fi
 
 # Test external connections with environment variables
 echo "🔍 Testing external connections..."
