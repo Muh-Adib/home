@@ -157,16 +157,10 @@ echo "🔧 Upgrading Laravel Echo Server..."
 echo "🔧 Generating supervisor configuration..."
 /usr/local/bin/generate-supervisor-config.sh
 
-# Debug WebSocket if needed
-if [ "${DEBUG_WEBSOCKET:-false}" = "true" ]; then
-    echo "🔍 Debugging WebSocket configuration..."
-    /usr/local/bin/debug-websocket.sh
-fi
-
-# Fix WebSocket issues if needed
-if [ "${FIX_WEBSOCKET:-false}" = "true" ]; then
-    echo "🔧 Fixing WebSocket issues..."
-    /usr/local/bin/fix-websocket-issues.sh
+# Verify proxy configuration if needed
+if [ "${VERIFY_PROXY:-false}" = "true" ]; then
+    echo "🔍 Verifying proxy configuration..."
+    /usr/local/bin/verify-proxy-config.sh
 fi
 
 # Verify config file exists

@@ -144,30 +144,13 @@ COPY dokploy/config/php-fpm.conf /etc/php-fpm.conf
 # Copy scripts
 COPY dokploy/scripts/safe-startup.sh /usr/local/bin/safe-startup.sh
 COPY dokploy/scripts/generate-echo-config-simple.sh /usr/local/bin/generate-echo-config-simple.sh
-COPY dokploy/scripts/generate-ssl-cert.sh /usr/local/bin/generate-ssl-cert.sh
-COPY dokploy/scripts/ensure-ssl-cert.sh /usr/local/bin/ensure-ssl-cert.sh
-COPY dokploy/scripts/test-https-fix.sh /usr/local/bin/test-https-fix.sh
-COPY dokploy/scripts/enable-https.sh /usr/local/bin/enable-https.sh
-COPY dokploy/scripts/verify-ssl-cert.sh /usr/local/bin/verify-ssl-cert.sh
-COPY dokploy/scripts/upgrade-echo-server.sh /usr/local/bin/upgrade-echo-server.sh
-COPY dokploy/scripts/test-websocket-fix.sh /usr/local/bin/test-websocket-fix.sh
-COPY dokploy/scripts/debug-websocket.sh /usr/local/bin/debug-websocket.sh
+COPY dokploy/scripts/verify-proxy-config.sh /usr/local/bin/verify-proxy-config.sh
 COPY dokploy/scripts/generate-supervisor-config.sh /usr/local/bin/generate-supervisor-config.sh
-COPY dokploy/scripts/fix-websocket-issues.sh /usr/local/bin/fix-websocket-issues.sh
-RUN chmod +x /usr/local/bin/safe-startup.sh /usr/local/bin/generate-echo-config-simple.sh /usr/local/bin/generate-ssl-cert.sh /usr/local/bin/ensure-ssl-cert.sh /usr/local/bin/test-https-fix.sh /usr/local/bin/enable-https.sh /usr/local/bin/verify-ssl-cert.sh /usr/local/bin/add-https-server.sh /usr/local/bin/update-echo-config.sh /usr/local/bin/upgrade-echo-server.sh /usr/local/bin/test-websocket-fix.sh /usr/local/bin/debug-websocket.sh /usr/local/bin/generate-supervisor-config.sh /usr/local/bin/fix-websocket-issues.sh
+RUN chmod +x /usr/local/bin/safe-startup.sh /usr/local/bin/generate-echo-config-simple.sh /usr/local/bin/verify-proxy-config.sh /usr/local/bin/generate-supervisor-config.sh
 
-# Generate SSL certificate during build (self-signed for development)
-RUN echo "🔐 Generating SSL certificate during build..." && \
-    /usr/local/bin/ensure-ssl-cert.sh && \
-    echo "✅ SSL certificate generated successfully"
-
-# Copy SSL certificates to persistent location
-RUN mkdir -p /app/ssl && \
-    cp /etc/ssl/certs/ssl-cert.pem /app/ssl/ssl-cert.pem && \
-    cp /etc/ssl/private/ssl-cert.key /app/ssl/ssl-cert.key && \
-    chmod 644 /app/ssl/ssl-cert.pem && \
-    chmod 600 /app/ssl/ssl-cert.key && \
-    echo "✅ SSL certificates copied to persistent location"
+# Setup Dokploy environment (HTTP only, Traefik handles SSL)
+RUN echo "🌐 Setting up Dokploy environment (HTTP only)..." && \
+    echo "✅ Dokploy environment configured for Traefik + Nginx internal"
 
 # Setup environment template
 RUN if [ ! -f .env ]; then cp .env.example .env; fi
