@@ -2,7 +2,7 @@
 
 # 🚀 SAFE STARTUP SCRIPT
 # Property Management System - Laravel 12 + React + WebSocket
-# Enhanced with proper error handling and no looping
+# Dokploy + Traefik Environment (HTTP only, no SSL handling)
 
 set -euo pipefail
 
@@ -42,125 +42,75 @@ exit_with_success() {
     exit 0
 }
 
-echo "🚀 Starting Property Management System (Safe Mode)..."
+echo "🚀 Starting Property Management System (Dokploy + Traefik Mode)..."
 
 # Check if we're in the right directory
 if [ ! -f "artisan" ]; then
     exit_with_error "Laravel artisan not found - invalid deployment"
 fi
 
-# SSL Certificate Check and Generation
-log_info "🔐 Checking SSL certificate..."
-SSL_CERT="/app/ssl/ssl-cert.pem"
-SSL_KEY="/app/ssl/ssl-cert.key"
-SSL_CERT_SYSTEM="/etc/ssl/certs/ssl-cert.pem"
-SSL_KEY_SYSTEM="/etc/ssl/private/ssl-cert.key"
+# Dokploy Environment Setup (HTTP only, Traefik handles SSL)
+log_info "🌐 Setting up Dokploy environment (HTTP only, Traefik handles SSL)..."
 
-if [ -f "/usr/local/bin/ensure-ssl-cert.sh" ]; then
-    log_info "Running SSL certificate check and generation..."
-    /usr/local/bin/ensure-ssl-cert.sh || log_warning "SSL certificate check/generation failed"
-else
-    log_warning "SSL certificate ensure script not found, using basic check..."
-    if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
-        log_warning "SSL certificate not found in persistent location, checking system location..."
-        if [ -f "$SSL_CERT_SYSTEM" ] && [ -f "$SSL_KEY_SYSTEM" ]; then
-            log_info "SSL certificate found in system location, copying to persistent location..."
-            mkdir -p /app/ssl
-            cp "$SSL_CERT_SYSTEM" "$SSL_CERT"
-            cp "$SSL_KEY_SYSTEM" "$SSL_KEY"
-            chmod 644 "$SSL_CERT"
-            chmod 600 "$SSL_KEY"
-            log_success "SSL certificate copied to persistent location"
-        else
-            log_warning "SSL certificate not found anywhere, generating new one..."
-            if [ -f "/usr/local/bin/generate-ssl-cert.sh" ]; then
-                /usr/local/bin/generate-ssl-cert.sh || log_warning "SSL certificate generation failed"
-            else
-                log_warning "SSL certificate generation script not found"
-            fi
-        fi
-    else
-        log_success "SSL certificate found in persistent location"
-        # Check certificate expiration
-        if command -v openssl >/dev/null 2>&1; then
-            EXPIRY=$(openssl x509 -in "$SSL_CERT" -noout -enddate 2>/dev/null | cut -d= -f2)
-            log_info "SSL certificate expires: $EXPIRY"
-        fi
-    fi
-fi
-
-# Ensure composer dependencies are installed if missing
-if [ ! -f "vendor/autoload.php" ]; then
-    log_info "🔧 vendor/autoload.php missing, running composer install..."
-    export COMPOSER_ALLOW_SUPERUSER=1
-    if ! composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist; then
-        log_warning "Composer install failed, clearing cache and retrying..."
-        composer clear-cache || true
-        composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist || exit_with_error "Composer install failed"
-    fi
-fi
-
-# Create necessary directories with error handling
+# Create necessary directories
 log_info "📁 Creating necessary directories..."
-mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache || exit_with_error "Failed to create storage directories"
-mkdir -p /var/log/supervisor /etc/supervisor/conf.d /etc/nginx || exit_with_error "Failed to create system directories"
-mkdir -p /var/log/nginx /run || exit_with_error "Failed to create log directories"
-mkdir -p /etc/ssl/certs /etc/ssl/private || log_warning "Failed to create SSL directories"
+mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
+mkdir -p /var/log/supervisor /etc/supervisor/conf.d /etc/nginx
+mkdir -p /var/log/nginx /run
 
-# Set proper permissions with error handling
+# Set proper permissions
 log_info "🔐 Setting proper permissions..."
-chmod -R 777 storage bootstrap/cache || log_warning "Failed to set storage permissions"
-chown -R www:www storage bootstrap/cache 2>/dev/null || log_warning "Failed to set ownership (may be expected in container)"
-
-# Set SSL certificate permissions
-if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
-    chmod 644 "$SSL_CERT" 2>/dev/null || log_warning "Failed to set SSL certificate permissions"
-    chmod 600 "$SSL_KEY" 2>/dev/null || log_warning "Failed to set SSL key permissions"
-    log_success "SSL certificate permissions set"
-    
-    # Ensure system location has the certificate for nginx
-    if [ ! -f "$SSL_CERT_SYSTEM" ] || [ ! -f "$SSL_KEY_SYSTEM" ]; then
-        log_info "Copying SSL certificate to system location for nginx..."
-        mkdir -p /etc/ssl/certs /etc/ssl/private
-        cp "$SSL_CERT" "$SSL_CERT_SYSTEM"
-        cp "$SSL_KEY" "$SSL_KEY_SYSTEM"
-        chmod 644 "$SSL_CERT_SYSTEM" 2>/dev/null || log_warning "Failed to set system SSL certificate permissions"
-        chmod 600 "$SSL_KEY_SYSTEM" 2>/dev/null || log_warning "Failed to set system SSL key permissions"
-        log_success "SSL certificate copied to system location"
-    fi
-fi
+chmod -R 777 storage bootstrap/cache
+chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
 
 # Create log file with proper permissions
 log_info "📝 Creating log files..."
-touch storage/logs/laravel.log || exit_with_error "Failed to create log file"
-chmod 666 storage/logs/laravel.log || log_warning "Failed to set log permissions"
-chown www:www storage/logs/laravel.log 2>/dev/null || log_warning "Failed to set log ownership"
+touch storage/logs/laravel.log
+chmod 666 storage/logs/laravel.log
+chown www-data:www-data storage/logs/laravel.log 2>/dev/null || true
 
-# Generate Laravel Echo Server config using the dedicated script
+# Generate Laravel Echo Server config
 log_info "🔧 Generating Laravel Echo Server config..."
 if [ -f "/usr/local/bin/generate-echo-config-simple.sh" ]; then
     log_info "Using generate-echo-config-simple.sh script from /usr/local/bin"
-    bash /usr/local/bin/generate-echo-config-simple.sh || log_warning "Echo config generation failed"
-elif [ -f "dokploy/scripts/generate-echo-config-simple.sh" ]; then
-    log_info "Using generate-echo-config-simple.sh script from dokploy/scripts"
-    bash dokploy/scripts/generate-echo-config-simple.sh || log_warning "Echo config generation failed"
+    /usr/local/bin/generate-echo-config-simple.sh
 else
-    log_warning "generate-echo-config-simple.sh script not found"
-    exit_with_error "Required echo config script not found"
+    log_warning "Echo config script not found, creating fallback config..."
+    cat > /app/laravel-echo-server.json << 'EOF'
+{
+    "authHost": "http://localhost",
+    "authEndpoint": "/broadcasting/auth",
+    "clients": [{"appId": "homsjogja", "key": "homsjogja-key"}],
+    "database": "redis",
+    "databaseConfig": {"redis": {"host": "127.0.0.1", "port": 6379, "password": null, "db": 0}},
+    "devMode": false,
+    "host": "0.0.0.0",
+    "port": 6001,
+    "protocol": "http",
+    "socketio": {},
+    "subscribers": {"http": true, "redis": true},
+    "apiOriginAllow": {"allowCors": true, "allowOrigin": "*", "allowMethods": "GET, POST", "allowHeaders": "Origin, Content-Type, Accept, Authorization, X-Request-With"}
+}
+EOF
+    log_success "Fallback config created"
 fi
 
-# Upgrade Laravel Echo Server to latest version
-echo "🔧 Upgrading Laravel Echo Server..."
-/usr/local/bin/upgrade-echo-server.sh
-
 # Generate supervisor configuration
-echo "🔧 Generating supervisor configuration..."
-/usr/local/bin/generate-supervisor-config.sh
+log_info "🔧 Generating supervisor configuration..."
+if [ -f "/usr/local/bin/generate-supervisor-config.sh" ]; then
+    /usr/local/bin/generate-supervisor-config.sh
+else
+    log_warning "Supervisor config script not found, using default config"
+fi
 
 # Verify proxy configuration if needed
 if [ "${VERIFY_PROXY:-false}" = "true" ]; then
-    echo "🔍 Verifying proxy configuration..."
-    /usr/local/bin/verify-proxy-config.sh
+    log_info "🔍 Verifying proxy configuration..."
+    if [ -f "/usr/local/bin/verify-proxy-config.sh" ]; then
+        /usr/local/bin/verify-proxy-config.sh
+    else
+        log_warning "Proxy verification script not found"
+    fi
 fi
 
 # Verify config file exists
@@ -261,26 +211,13 @@ if php -m | grep -q redis; then
     fi
 else
     log_warning "Redis extension not installed or not loaded"
-    log_info "Available PHP modules (first 10):"
+    log_info "Available PHP modules:"
     php -m | head -10 | tr '\n' ' '
     echo ""
 fi
 
-# Test HTTPS configuration if available
-log_info "🔐 Testing HTTPS configuration..."
-if [ -f "/usr/local/bin/test-https-fix.sh" ]; then
-    log_info "Running HTTPS configuration test..."
-    /usr/local/bin/test-https-fix.sh || log_warning "HTTPS configuration test failed"
-else
-    log_warning "HTTPS test script not found"
-fi
-
-log_success "Startup completed successfully!"
+log_success "🎉 Startup completed successfully!"
 log_info "Starting Supervisor..."
 
-# Start Supervisor with proper error handling
-if [ -f "/etc/supervisor/conf.d/supervisord.conf" ]; then
-    exec supervisord -c /etc/supervisor/conf.d/supervisord.conf
-else
-    exit_with_error "Supervisor config not found"
-fi
+# Start Supervisor
+exec supervisord -c /etc/supervisor/conf.d/supervisord.conf
