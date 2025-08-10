@@ -62,17 +62,29 @@ function createEchoInstance(): Echo<any> | null {
                     'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`,
                 },
             },
-            // Socket.IO client options (updated for latest version)
+            // Socket.IO client options (modern v4.x configuration)
             client: io,
             // Additional options for better connection handling
-            transports: ['websocket', 'polling'],
+            transports: ['websocket', 'polling'], // Start with websocket for v4.x
             upgrade: true,
             rememberUpgrade: true,
             reconnection: true,
-            reconnectionAttempts: 5, // Increased for production
+            reconnectionAttempts: 5,
             reconnectionDelay: 1000,
-            timeout: 20000, // Increased timeout for production
+            timeout: 20000,
             forceNew: false,
+            // Socket.IO v4.x modern options
+            path: '/socket.io',
+            autoConnect: true,
+            // Enable modern features
+            multiplex: true,
+            // Better error handling
+            rejectUnauthorized: false,
+            // Additional v4.x options
+            withCredentials: true,
+            extraHeaders: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
         });
 
         // Connection event handlers - check if socket exists

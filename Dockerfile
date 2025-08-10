@@ -150,7 +150,10 @@ COPY dokploy/scripts/test-https-fix.sh /usr/local/bin/test-https-fix.sh
 COPY dokploy/scripts/enable-https.sh /usr/local/bin/enable-https.sh
 COPY dokploy/scripts/verify-ssl-cert.sh /usr/local/bin/verify-ssl-cert.sh
 COPY dokploy/scripts/add-https-server.sh /usr/local/bin/add-https-server.sh
-RUN chmod +x /usr/local/bin/safe-startup.sh /usr/local/bin/generate-echo-config-simple.sh /usr/local/bin/generate-ssl-cert.sh /usr/local/bin/ensure-ssl-cert.sh /usr/local/bin/test-https-fix.sh /usr/local/bin/enable-https.sh /usr/local/bin/verify-ssl-cert.sh /usr/local/bin/add-https-server.sh
+COPY dokploy/scripts/update-echo-config.sh /usr/local/bin/update-echo-config.sh
+COPY dokploy/scripts/upgrade-echo-server.sh /usr/local/bin/upgrade-echo-server.sh
+COPY dokploy/scripts/test-websocket-fix.sh /usr/local/bin/test-websocket-fix.sh
+RUN chmod +x /usr/local/bin/safe-startup.sh /usr/local/bin/generate-echo-config-simple.sh /usr/local/bin/generate-ssl-cert.sh /usr/local/bin/ensure-ssl-cert.sh /usr/local/bin/test-https-fix.sh /usr/local/bin/enable-https.sh /usr/local/bin/verify-ssl-cert.sh /usr/local/bin/add-https-server.sh /usr/local/bin/update-echo-config.sh /usr/local/bin/upgrade-echo-server.sh /usr/local/bin/test-websocket-fix.sh
 
 # Generate SSL certificate during build (self-signed for development)
 RUN echo "🔐 Generating SSL certificate during build..." && \

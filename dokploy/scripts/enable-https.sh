@@ -114,6 +114,13 @@ else
     log_warning "add-https-server.sh script not found"
 fi
 
+if [ -f "/usr/local/bin/update-echo-config.sh" ]; then
+    log_info "Updating Echo Server configuration for HTTPS..."
+    /usr/local/bin/update-echo-config.sh || log_warning "Echo Server configuration update failed"
+else
+    log_warning "update-echo-config.sh script not found"
+fi
+
 if [ -f "/usr/local/bin/test-https-fix.sh" ]; then
     log_info "Running HTTPS configuration test..."
     /usr/local/bin/test-https-fix.sh || log_warning "HTTPS configuration test failed"

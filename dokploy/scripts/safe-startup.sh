@@ -149,6 +149,18 @@ else
     exit_with_error "Required echo config script not found"
 fi
 
+# Upgrade Laravel Echo Server to support Socket.IO v4.x
+log_info "🚀 Upgrading Laravel Echo Server for Socket.IO v4.x compatibility..."
+if [ -f "/usr/local/bin/upgrade-echo-server.sh" ]; then
+    log_info "Using upgrade-echo-server.sh script from /usr/local/bin"
+    bash /usr/local/bin/upgrade-echo-server.sh || log_warning "Echo Server upgrade failed"
+elif [ -f "dokploy/scripts/upgrade-echo-server.sh" ]; then
+    log_info "Using upgrade-echo-server.sh script from dokploy/scripts"
+    bash dokploy/scripts/upgrade-echo-server.sh || log_warning "Echo Server upgrade failed"
+else
+    log_warning "upgrade-echo-server.sh script not found"
+fi
+
 # Verify config file exists
 if [ ! -f "/app/laravel-echo-server.json" ]; then
     log_warning "Laravel Echo Server config file not found in /app, checking current directory"

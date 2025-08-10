@@ -45,7 +45,19 @@ cat > "$CONFIG_PATH" << 'CONFIG_EOF'
     "host": "0.0.0.0",
     "port": 6001,
     "protocol": "http",
-    "socketio": {},
+    "socketio": {
+        "cors": {
+            "origin": "*",
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "credentials": true,
+            "allowedHeaders": ["Content-Type", "Authorization", "X-CSRF-TOKEN", "X-Requested-With"]
+        },
+        "allowEIO3": false,
+        "allowEIO4": true,
+        "allowRequest": function(req, callback) {
+            callback(null, true);
+        }
+    },
     "sslCertPath": "",
     "sslKeyPath": "",
     "sslCertChainPath": "",
@@ -57,8 +69,8 @@ cat > "$CONFIG_PATH" << 'CONFIG_EOF'
     "apiOriginAllow": {
         "allowCors": true,
         "allowOrigin": "*",
-        "allowMethods": "GET, POST",
-        "allowHeaders": "Origin, Content-Type, Accept, Authorization, X-Request-With"
+        "allowMethods": "GET, POST, PUT, DELETE, OPTIONS",
+        "allowHeaders": "Origin, Content-Type, Accept, Authorization, X-Request-With, X-CSRF-TOKEN"
     }
 }
 CONFIG_EOF
