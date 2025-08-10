@@ -149,16 +149,24 @@ else
     exit_with_error "Required echo config script not found"
 fi
 
-# Upgrade Laravel Echo Server to support Socket.IO v4.x
-log_info "🚀 Upgrading Laravel Echo Server for Socket.IO v4.x compatibility..."
-if [ -f "/usr/local/bin/upgrade-echo-server.sh" ]; then
-    log_info "Using upgrade-echo-server.sh script from /usr/local/bin"
-    bash /usr/local/bin/upgrade-echo-server.sh || log_warning "Echo Server upgrade failed"
-elif [ -f "dokploy/scripts/upgrade-echo-server.sh" ]; then
-    log_info "Using upgrade-echo-server.sh script from dokploy/scripts"
-    bash dokploy/scripts/upgrade-echo-server.sh || log_warning "Echo Server upgrade failed"
-else
-    log_warning "upgrade-echo-server.sh script not found"
+# Upgrade Laravel Echo Server to latest version
+echo "🔧 Upgrading Laravel Echo Server..."
+/usr/local/bin/upgrade-echo-server.sh
+
+# Generate supervisor configuration
+echo "🔧 Generating supervisor configuration..."
+/usr/local/bin/generate-supervisor-config.sh
+
+# Debug WebSocket if needed
+if [ "${DEBUG_WEBSOCKET:-false}" = "true" ]; then
+    echo "🔍 Debugging WebSocket configuration..."
+    /usr/local/bin/debug-websocket.sh
+fi
+
+# Fix WebSocket issues if needed
+if [ "${FIX_WEBSOCKET:-false}" = "true" ]; then
+    echo "🔧 Fixing WebSocket issues..."
+    /usr/local/bin/fix-websocket-issues.sh
 fi
 
 # Verify config file exists
