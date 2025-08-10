@@ -31,9 +31,11 @@ log_error() {
 
 echo "🔐 Ensuring SSL Certificate is Available and Valid..."
 
-# SSL certificate paths
-SSL_CERT="/etc/ssl/certs/ssl-cert.pem"
-SSL_KEY="/etc/ssl/private/ssl-cert.key"
+# SSL certificate paths (persistent location)
+SSL_CERT="/app/ssl/ssl-cert.pem"
+SSL_KEY="/app/ssl/ssl-cert.key"
+SSL_CERT_SYSTEM="/etc/ssl/certs/ssl-cert.pem"
+SSL_KEY_SYSTEM="/etc/ssl/private/ssl-cert.key"
 
 # Function to check if certificate is valid
 check_certificate_validity() {
@@ -79,12 +81,12 @@ generate_new_certificate() {
     log_info "Generating new SSL certificate..."
     
     # Create SSL directories if they don't exist
-    mkdir -p /etc/ssl/certs /etc/ssl/private
+    mkdir -p /etc/ssl/certs /etc/ssl/private /app/ssl
     
-    # Generate self-signed certificate
+    # Generate self-signed certificate to system location first
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout "$SSL_KEY" \
-        -out "$SSL_CERT" \
+        -keyout "$SSL_KEY_SYSTEM" \
+        -out "$SSL_CERT_SYSTEM" \
         -subj "/C=ID/ST=Yogyakarta/L=Yogyakarta/O=HomsJogja/OU=IT/CN=app.homsjogja.com" \
         -addext "subjectAltName=DNS:app.homsjogja.com,DNS:localhost,IP:127.0.0.1" \
         2>/dev/null || {
@@ -92,9 +94,15 @@ generate_new_certificate() {
         return 1
     }
     
+    # Copy to persistent location
+    cp "$SSL_CERT_SYSTEM" "$SSL_CERT"
+    cp "$SSL_KEY_SYSTEM" "$SSL_KEY"
+    
     # Set proper permissions
     chmod 644 "$SSL_CERT" 2>/dev/null || log_warning "Failed to set certificate permissions"
     chmod 600 "$SSL_KEY" 2>/dev/null || log_warning "Failed to set key permissions"
+    chmod 644 "$SSL_CERT_SYSTEM" 2>/dev/null || log_warning "Failed to set system certificate permissions"
+    chmod 600 "$SSL_KEY_SYSTEM" 2>/dev/null || log_warning "Failed to set system key permissions"
     
     log_success "SSL certificate generated successfully"
     return 0
@@ -102,16 +110,39 @@ generate_new_certificate() {
 
 # Main logic
 main() {
-    # Check if both certificate and key exist
+    # Check if both certificate and key exist in persistent location
     if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
-        log_warning "SSL certificate or key not found"
-        generate_new_certificate
-        return $?
+        log_warning "SSL certificate or key not found in persistent location"
+        
+        # Check if certificate exists in system location
+        if [ -f "$SSL_CERT_SYSTEM" ] && [ -f "$SSL_KEY_SYSTEM" ]; then
+            log_info "SSL certificate found in system location, copying to persistent location"
+            mkdir -p /app/ssl
+            cp "$SSL_CERT_SYSTEM" "$SSL_CERT"
+            cp "$SSL_KEY_SYSTEM" "$SSL_KEY"
+            chmod 644 "$SSL_CERT"
+            chmod 600 "$SSL_KEY"
+            log_success "SSL certificate copied to persistent location"
+        else
+            generate_new_certificate
+            return $?
+        fi
     fi
     
     # Check certificate validity
     if check_certificate_validity "$SSL_CERT"; then
         log_success "SSL certificate is valid and ready"
+        
+        # Ensure system location has the certificate
+        if [ ! -f "$SSL_CERT_SYSTEM" ] || [ ! -f "$SSL_KEY_SYSTEM" ]; then
+            log_info "Copying certificate to system location for nginx"
+            mkdir -p /etc/ssl/certs /etc/ssl/private
+            cp "$SSL_CERT" "$SSL_CERT_SYSTEM"
+            cp "$SSL_KEY" "$SSL_KEY_SYSTEM"
+            chmod 644 "$SSL_CERT_SYSTEM"
+            chmod 600 "$SSL_KEY_SYSTEM"
+        fi
+        
         return 0
     else
         log_warning "SSL certificate is invalid or expired, generating new one"

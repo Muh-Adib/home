@@ -147,12 +147,22 @@ COPY dokploy/scripts/generate-echo-config-simple.sh /usr/local/bin/generate-echo
 COPY dokploy/scripts/generate-ssl-cert.sh /usr/local/bin/generate-ssl-cert.sh
 COPY dokploy/scripts/ensure-ssl-cert.sh /usr/local/bin/ensure-ssl-cert.sh
 COPY dokploy/scripts/test-https-fix.sh /usr/local/bin/test-https-fix.sh
-RUN chmod +x /usr/local/bin/safe-startup.sh /usr/local/bin/generate-echo-config-simple.sh /usr/local/bin/generate-ssl-cert.sh /usr/local/bin/ensure-ssl-cert.sh /usr/local/bin/test-https-fix.sh
+COPY dokploy/scripts/enable-https.sh /usr/local/bin/enable-https.sh
+COPY dokploy/scripts/verify-ssl-cert.sh /usr/local/bin/verify-ssl-cert.sh
+RUN chmod +x /usr/local/bin/safe-startup.sh /usr/local/bin/generate-echo-config-simple.sh /usr/local/bin/generate-ssl-cert.sh /usr/local/bin/ensure-ssl-cert.sh /usr/local/bin/test-https-fix.sh /usr/local/bin/enable-https.sh /usr/local/bin/verify-ssl-cert.sh
 
 # Generate SSL certificate during build (self-signed for development)
 RUN echo "🔐 Generating SSL certificate during build..." && \
     /usr/local/bin/ensure-ssl-cert.sh && \
     echo "✅ SSL certificate generated successfully"
+
+# Copy SSL certificates to persistent location
+RUN mkdir -p /app/ssl && \
+    cp /etc/ssl/certs/ssl-cert.pem /app/ssl/ssl-cert.pem && \
+    cp /etc/ssl/private/ssl-cert.key /app/ssl/ssl-cert.key && \
+    chmod 644 /app/ssl/ssl-cert.pem && \
+    chmod 600 /app/ssl/ssl-cert.key && \
+    echo "✅ SSL certificates copied to persistent location"
 
 # Setup environment template
 RUN if [ ! -f .env ]; then cp .env.example .env; fi

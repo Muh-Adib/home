@@ -51,8 +51,10 @@ fi
 
 # SSL Certificate Check and Generation
 log_info "🔐 Checking SSL certificate..."
-SSL_CERT="/etc/ssl/certs/ssl-cert.pem"
-SSL_KEY="/etc/ssl/private/ssl-cert.key"
+SSL_CERT="/app/ssl/ssl-cert.pem"
+SSL_KEY="/app/ssl/ssl-cert.key"
+SSL_CERT_SYSTEM="/etc/ssl/certs/ssl-cert.pem"
+SSL_KEY_SYSTEM="/etc/ssl/private/ssl-cert.key"
 
 if [ -f "/usr/local/bin/ensure-ssl-cert.sh" ]; then
     log_info "Running SSL certificate check and generation..."
@@ -60,14 +62,25 @@ if [ -f "/usr/local/bin/ensure-ssl-cert.sh" ]; then
 else
     log_warning "SSL certificate ensure script not found, using basic check..."
     if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
-        log_warning "SSL certificate not found, generating new one..."
-        if [ -f "/usr/local/bin/generate-ssl-cert.sh" ]; then
-            /usr/local/bin/generate-ssl-cert.sh || log_warning "SSL certificate generation failed"
+        log_warning "SSL certificate not found in persistent location, checking system location..."
+        if [ -f "$SSL_CERT_SYSTEM" ] && [ -f "$SSL_KEY_SYSTEM" ]; then
+            log_info "SSL certificate found in system location, copying to persistent location..."
+            mkdir -p /app/ssl
+            cp "$SSL_CERT_SYSTEM" "$SSL_CERT"
+            cp "$SSL_KEY_SYSTEM" "$SSL_KEY"
+            chmod 644 "$SSL_CERT"
+            chmod 600 "$SSL_KEY"
+            log_success "SSL certificate copied to persistent location"
         else
-            log_warning "SSL certificate generation script not found"
+            log_warning "SSL certificate not found anywhere, generating new one..."
+            if [ -f "/usr/local/bin/generate-ssl-cert.sh" ]; then
+                /usr/local/bin/generate-ssl-cert.sh || log_warning "SSL certificate generation failed"
+            else
+                log_warning "SSL certificate generation script not found"
+            fi
         fi
     else
-        log_success "SSL certificate found"
+        log_success "SSL certificate found in persistent location"
         # Check certificate expiration
         if command -v openssl >/dev/null 2>&1; then
             EXPIRY=$(openssl x509 -in "$SSL_CERT" -noout -enddate 2>/dev/null | cut -d= -f2)
@@ -104,6 +117,17 @@ if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
     chmod 644 "$SSL_CERT" 2>/dev/null || log_warning "Failed to set SSL certificate permissions"
     chmod 600 "$SSL_KEY" 2>/dev/null || log_warning "Failed to set SSL key permissions"
     log_success "SSL certificate permissions set"
+    
+    # Ensure system location has the certificate for nginx
+    if [ ! -f "$SSL_CERT_SYSTEM" ] || [ ! -f "$SSL_KEY_SYSTEM" ]; then
+        log_info "Copying SSL certificate to system location for nginx..."
+        mkdir -p /etc/ssl/certs /etc/ssl/private
+        cp "$SSL_CERT" "$SSL_CERT_SYSTEM"
+        cp "$SSL_KEY" "$SSL_KEY_SYSTEM"
+        chmod 644 "$SSL_CERT_SYSTEM" 2>/dev/null || log_warning "Failed to set system SSL certificate permissions"
+        chmod 600 "$SSL_KEY_SYSTEM" 2>/dev/null || log_warning "Failed to set system SSL key permissions"
+        log_success "SSL certificate copied to system location"
+    fi
 fi
 
 # Create log file with proper permissions
