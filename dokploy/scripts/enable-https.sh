@@ -107,8 +107,16 @@ fi
 
 # Test HTTPS configuration
 log_info "Testing HTTPS configuration..."
+if [ -f "/usr/local/bin/add-https-server.sh" ]; then
+    log_info "Adding HTTPS server block to nginx..."
+    /usr/local/bin/add-https-server.sh || log_warning "HTTPS server block addition failed"
+else
+    log_warning "add-https-server.sh script not found"
+fi
+
 if [ -f "/usr/local/bin/test-https-fix.sh" ]; then
-    /usr/local/bin/test-https-fix.sh
+    log_info "Running HTTPS configuration test..."
+    /usr/local/bin/test-https-fix.sh || log_warning "HTTPS configuration test failed"
 else
     log_warning "HTTPS test script not found"
 fi
