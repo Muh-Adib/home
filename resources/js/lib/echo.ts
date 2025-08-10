@@ -26,7 +26,8 @@ function getWebSocketUrlSafe(): string {
     
     // Production - gunakan URL dari window.location dengan port WebSocket
     const baseUrl = window.location.origin;
-    const wsUrl = baseUrl.replace(/^http/, 'http').replace(/^https/, 'https');
+    // Force HTTPS for WebSocket in production
+    const wsUrl = baseUrl.replace(/^http:/, 'https:').replace(/^https:/, 'https:');
     return wsUrl.replace(/:\d+/, ':6001'); // Replace port with WebSocket port
 }
 
