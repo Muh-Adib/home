@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
+      - traefik-acme:/etc/traefik/acme
+      - traefik-logs:/var/log/traefik
+    networks:
+      - dokploy_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.yourdomain.com`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.middlewares=traefik-auth"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=admin:$$2y$$10$$hashed_password_here"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+
+  # Dokploy application (example)
+  # dokploy-app:
+  #   image: your-dokploy-app:latest
+  #   container_name: dokploy-app
+  #   restart: unless-stopped
+  #   environment:
+  #     - APP_URL=https://yourdomain.com
+  #     - ASSET_URL=https://yourdomain.com
+  #   networks:
+  #     - dokploy_network
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.dokploy.rule=Host(`yourdomain.com`)"
+  #     - "traefik.http.routers.dokploy.entrypoints=websecure"
+  #     - "traefik.http.routers.dokploy.tls.certresolver=letsencrypt"
+  #     - "traefik.http.routers.dokploy.middlewares=dokploy-headers"
+  #     - "traefik.http.middlewares.dokploy-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+  #     - "traefik.http.middlewares.dokploy-headers.headers.customrequestheaders.X-Forwarded-Host=yourdomain.com"
+  #     - "traefik.http.middlewares.dokploy-headers.headers.customrequestheaders.X-Forwarded-Port=443"
+  #     - "traefik.http.services.dokploy.loadbalancer.server.port=80"
+
+volumes:
+  traefik-acme:
+  traefik-logs:
+
+networks:
+  dokploy_network:
+    external: true

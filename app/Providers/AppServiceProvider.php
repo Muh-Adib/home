@@ -50,8 +50,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Force HTTPS URLs in production only if explicitly configured
-        if (app()->environment('production') && config('app.force_https', false)) {
+        // Force HTTPS URLs when X-Forwarded-Proto is https (Traefik -> Nginx -> Laravel)
+        if (request()->header('x-forwarded-proto') === 'https') {
+            URL::forceScheme('https');
+        }
+        
+        // Fallback: Force HTTPS in production if APP_URL is https
+        if (app()->environment('production') && 
+            config('app.url') && 
+            str_starts_with(config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
     }

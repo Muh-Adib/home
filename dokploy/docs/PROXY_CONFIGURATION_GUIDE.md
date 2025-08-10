@@ -11,9 +11,9 @@ Client (HTTPS) → Traefik (TLS Termination) → Nginx (HTTP) → Laravel (HTTPS
 ```
 
 ### Layer Responsibilities:
-- **Traefik**: TLS termination, SSL certificate management
-- **Nginx Internal**: Reverse proxy, header forwarding, static file serving
-- **Laravel**: Application logic, URL generation, HTTPS detection
+- **Traefik**: TLS termination, SSL certificate management, header forwarding
+- **Nginx Internal**: HTTP only, reverse proxy, static file serving
+- **Laravel**: Application logic, HTTPS detection from headers, asset URL generation
 
 ## ⚙️ Configuration Components
 
@@ -44,8 +44,15 @@ return [
 
 ### 2. Nginx Configuration (`dokploy/config/nginx.conf`)
 
-#### Trusted Proxies Setup:
+#### Key Changes for Dokploy + Traefik:
 ```nginx
+# HTTP Only - No SSL handling (Traefik handles SSL)
+server {
+    listen 80;
+    server_name _;
+    # No SSL configuration needed
+}
+
 # Trusted Proxies Configuration for Dokploy
 set_real_ip_from 10.0.0.0/8;
 set_real_ip_from 172.16.0.0/12;
@@ -57,7 +64,7 @@ real_ip_recursive on;
 
 #### PHP-FPM Proxy Headers:
 ```nginx
-# Dokploy Proxy Headers - Ensure HTTPS detection
+# Dokploy Proxy Headers - Ensure HTTPS detection from Traefik
 fastcgi_param HTTP_X_FORWARDED_PROTO $http_x_forwarded_proto;
 fastcgi_param HTTP_X_FORWARDED_HOST $http_x_forwarded_host;
 fastcgi_param HTTP_X_FORWARDED_PORT $http_x_forwarded_port;
@@ -88,7 +95,26 @@ location /socket.io/ {
 }
 ```
 
-### 3. FastCGI Parameters (`dokploy/config/fastcgi_params`)
+### 3. Laravel AppServiceProvider (`app/Providers/AppServiceProvider.php`)
+
+```php
+public function boot(): void
+{
+    // Force HTTPS URLs when X-Forwarded-Proto is https (Traefik -> Nginx -> Laravel)
+    if (request()->header('x-forwarded-proto') === 'https') {
+        URL::forceScheme('https');
+    }
+    
+    // Fallback: Force HTTPS in production if APP_URL is https
+    if (app()->environment('production') && 
+        config('app.url') && 
+        str_starts_with(config('app.url'), 'https://')) {
+        URL::forceScheme('https');
+    }
+}
+```
+
+### 4. FastCGI Parameters (`dokploy/config/fastcgi_params`)
 
 ```nginx
 # Proxy headers for Laravel

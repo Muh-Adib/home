@@ -1,0 +1,83 @@
+# Traefik Configuration for Dokploy Environment
+# This file should be used on the VPS hosting Dokploy
+
+api:
+  dashboard: true
+  insecure: false
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entrypoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: dokploy_network
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: admin@yourdomain.com
+      storage: /etc/traefik/acme/acme.json
+      httpChallenge:
+        entryPoint: web
+
+# Global middleware for forwarding headers
+http:
+  middlewares:
+    secure-headers:
+      headers:
+        frameDeny: true
+        sslRedirect: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+    forwarded-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+          X-Forwarded-Host: "{{ .Host }}"
+          X-Forwarded-Port: "443"
+
+# Example service configuration
+# This should be configured based on your domain
+# services:
+#   dokploy-app:
+#     loadBalancer:
+#       servers:
+#         - url: "http://your-dokploy-container:80"
+#     middlewares:
+#       - forwarded-headers
+#       - secure-headers
+
+# Example router configuration
+# http:
+#   routers:
+#     dokploy-app:
+#       rule: "Host(`yourdomain.com`)"
+#       service: dokploy-app
+#       tls:
+#         certResolver: letsencrypt
+#       middlewares:
+#         - forwarded-headers
+#         - secure-headers
+
+log:
+  level: INFO
+
+accessLog: {}
