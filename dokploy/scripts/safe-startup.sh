@@ -49,6 +49,17 @@ if [ ! -f "artisan" ]; then
     exit_with_error "Laravel artisan not found - invalid deployment"
 fi
 
+# Ensure composer dependencies are installed if missing
+if [ ! -f "vendor/autoload.php" ]; then
+    log_info "🔧 vendor/autoload.php missing, running composer install..."
+    export COMPOSER_ALLOW_SUPERUSER=1
+    if ! composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist; then
+        log_warning "Composer install failed, clearing cache and retrying..."
+        composer clear-cache || true
+        composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist || exit_with_error "Composer install failed"
+    fi
+fi
+
 # Create necessary directories with error handling
 log_info "📁 Creating necessary directories..."
 mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache || exit_with_error "Failed to create storage directories"
