@@ -37,4 +37,14 @@ export default defineConfig({
         target: 'es2020',
         minify: 'esbuild',
     },
+    server: {
+        host: '0.0.0.0',
+        hmr: {
+            host: 'app.homsjogja.com',
+            protocol: 'wss',
+        },
+    },
+    preview: {
+        host: '0.0.0.0',
+    },
 });

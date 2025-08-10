@@ -63,7 +63,8 @@ RUN apk add --no-cache \
     sqlite \
     sqlite-dev \
     pkgconfig \
-    coreutils
+    coreutils \
+    openssl
 
 # PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
@@ -127,7 +128,9 @@ RUN mkdir -p \
     /var/cache/nginx \
     /var/run/php \
     /var/run/laravel-echo-server \
-    database/echo-server && \
+    database/echo-server \
+    /etc/ssl/certs \
+    /etc/ssl/private && \
     chown -R www:www storage bootstrap/cache database && \
     chmod -R 755 storage bootstrap/cache database
 
@@ -138,12 +141,18 @@ COPY dokploy/config/fastcgi_params /etc/nginx/fastcgi_params
 COPY dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY dokploy/config/php-fpm.conf /etc/php-fpm.conf
 
-
-
 # Copy safe startup script and echo config generator
 COPY dokploy/scripts/safe-startup.sh /usr/local/bin/safe-startup.sh
 COPY dokploy/scripts/generate-echo-config-simple.sh /usr/local/bin/generate-echo-config-simple.sh
-RUN chmod +x /usr/local/bin/safe-startup.sh /usr/local/bin/generate-echo-config-simple.sh
+COPY dokploy/scripts/generate-ssl-cert.sh /usr/local/bin/generate-ssl-cert.sh
+COPY dokploy/scripts/ensure-ssl-cert.sh /usr/local/bin/ensure-ssl-cert.sh
+COPY dokploy/scripts/test-https-fix.sh /usr/local/bin/test-https-fix.sh
+RUN chmod +x /usr/local/bin/safe-startup.sh /usr/local/bin/generate-echo-config-simple.sh /usr/local/bin/generate-ssl-cert.sh /usr/local/bin/ensure-ssl-cert.sh /usr/local/bin/test-https-fix.sh
+
+# Generate SSL certificate during build (self-signed for development)
+RUN echo "🔐 Generating SSL certificate during build..." && \
+    /usr/local/bin/ensure-ssl-cert.sh && \
+    echo "✅ SSL certificate generated successfully"
 
 # Setup environment template
 RUN if [ ! -f .env ]; then cp .env.example .env; fi
@@ -161,8 +170,8 @@ RUN chown -R www:www /app && \
     chmod -R 755 /app/database && \
     chmod +x /app/artisan
 
-# Expose HTTP dan WebSocket ports
-EXPOSE 80 3000 6001
+# Expose HTTP, HTTPS dan WebSocket ports
+EXPOSE 80 443 3000 6001
 
 # Healthcheck via Nginx root
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

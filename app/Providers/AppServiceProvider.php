@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\URL;
 use App\Services\BookingService;
 use App\Services\RateCalculationService;
 use App\Services\AvailabilityService;
@@ -49,6 +50,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Force HTTPS URLs in production
+        if (app()->environment('production') && config('app.force_https', false)) {
+            URL::forceScheme('https');
+        }
     }
 }

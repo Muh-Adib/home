@@ -49,6 +49,33 @@ if [ ! -f "artisan" ]; then
     exit_with_error "Laravel artisan not found - invalid deployment"
 fi
 
+# SSL Certificate Check and Generation
+log_info "🔐 Checking SSL certificate..."
+SSL_CERT="/etc/ssl/certs/ssl-cert.pem"
+SSL_KEY="/etc/ssl/private/ssl-cert.key"
+
+if [ -f "/usr/local/bin/ensure-ssl-cert.sh" ]; then
+    log_info "Running SSL certificate check and generation..."
+    /usr/local/bin/ensure-ssl-cert.sh || log_warning "SSL certificate check/generation failed"
+else
+    log_warning "SSL certificate ensure script not found, using basic check..."
+    if [ ! -f "$SSL_CERT" ] || [ ! -f "$SSL_KEY" ]; then
+        log_warning "SSL certificate not found, generating new one..."
+        if [ -f "/usr/local/bin/generate-ssl-cert.sh" ]; then
+            /usr/local/bin/generate-ssl-cert.sh || log_warning "SSL certificate generation failed"
+        else
+            log_warning "SSL certificate generation script not found"
+        fi
+    else
+        log_success "SSL certificate found"
+        # Check certificate expiration
+        if command -v openssl >/dev/null 2>&1; then
+            EXPIRY=$(openssl x509 -in "$SSL_CERT" -noout -enddate 2>/dev/null | cut -d= -f2)
+            log_info "SSL certificate expires: $EXPIRY"
+        fi
+    fi
+fi
+
 # Ensure composer dependencies are installed if missing
 if [ ! -f "vendor/autoload.php" ]; then
     log_info "🔧 vendor/autoload.php missing, running composer install..."
@@ -65,11 +92,19 @@ log_info "📁 Creating necessary directories..."
 mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache || exit_with_error "Failed to create storage directories"
 mkdir -p /var/log/supervisor /etc/supervisor/conf.d /etc/nginx || exit_with_error "Failed to create system directories"
 mkdir -p /var/log/nginx /run || exit_with_error "Failed to create log directories"
+mkdir -p /etc/ssl/certs /etc/ssl/private || log_warning "Failed to create SSL directories"
 
 # Set proper permissions with error handling
 log_info "🔐 Setting proper permissions..."
 chmod -R 777 storage bootstrap/cache || log_warning "Failed to set storage permissions"
 chown -R www:www storage bootstrap/cache 2>/dev/null || log_warning "Failed to set ownership (may be expected in container)"
+
+# Set SSL certificate permissions
+if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
+    chmod 644 "$SSL_CERT" 2>/dev/null || log_warning "Failed to set SSL certificate permissions"
+    chmod 600 "$SSL_KEY" 2>/dev/null || log_warning "Failed to set SSL key permissions"
+    log_success "SSL certificate permissions set"
+fi
 
 # Create log file with proper permissions
 log_info "📝 Creating log files..."
@@ -191,6 +226,15 @@ else
     log_info "Available PHP modules (first 10):"
     php -m | head -10 | tr '\n' ' '
     echo ""
+fi
+
+# Test HTTPS configuration if available
+log_info "🔐 Testing HTTPS configuration..."
+if [ -f "/usr/local/bin/test-https-fix.sh" ]; then
+    log_info "Running HTTPS configuration test..."
+    /usr/local/bin/test-https-fix.sh || log_warning "HTTPS configuration test failed"
+else
+    log_warning "HTTPS test script not found"
 fi
 
 log_success "Startup completed successfully!"
