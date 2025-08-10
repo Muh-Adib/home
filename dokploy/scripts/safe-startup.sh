@@ -94,44 +94,54 @@ fi
 # Run Laravel commands with proper error handling
 log_info "🔧 Running Laravel setup commands..."
 
-# Clear Laravel caches (non-critical)
-php artisan config:clear 2>/dev/null || log_warning "Config clear failed"
-php artisan route:clear 2>/dev/null || log_warning "Route clear failed"
-php artisan view:clear 2>/dev/null || log_warning "View clear failed"
+# Check if vendor directory exists
+if [ ! -d "vendor" ]; then
+    log_warning "Vendor directory not found - Laravel dependencies not installed"
+    log_warning "Skipping Laravel commands until dependencies are installed"
+else
+    # Clear Laravel caches (non-critical)
+    php artisan config:clear 2>/dev/null || log_warning "Config clear failed"
+    php artisan route:clear 2>/dev/null || log_warning "Route clear failed"
+    php artisan view:clear 2>/dev/null || log_warning "View clear failed"
 
-# Ensure public/index.php exists
-if [ ! -f "public/index.php" ]; then
-    exit_with_error "Laravel index.php not found - invalid deployment"
+    # Ensure public/index.php exists
+    if [ ! -f "public/index.php" ]; then
+        exit_with_error "Laravel index.php not found - invalid deployment"
+    fi
+
+    # Run migrations with timeout
+    log_info "🔧 Running migrations..."
+    timeout 300 php artisan migrate --force 2>/dev/null || log_warning "Migration failed or timed out"
+
+    # Create storage link
+    log_info "🔧 Creating storage link..."
+    php artisan storage:link 2>/dev/null || log_warning "Storage link failed"
+
+    # Cache configurations with timeout
+    log_info "🔧 Caching configurations..."
+    timeout 300 php artisan config:cache 2>/dev/null || log_warning "Config cache failed"
+    timeout 300 php artisan route:cache 2>/dev/null || log_warning "Route cache failed"
+    timeout 300 php artisan view:cache 2>/dev/null || log_warning "View cache failed"
 fi
-
-# Run migrations with timeout
-log_info "🔧 Running migrations..."
-timeout 300 php artisan migrate --force 2>/dev/null || log_warning "Migration failed or timed out"
-
-# Create storage link
-log_info "🔧 Creating storage link..."
-php artisan storage:link 2>/dev/null || log_warning "Storage link failed"
-
-# Cache configurations with timeout
-log_info "🔧 Caching configurations..."
-timeout 300 php artisan config:cache 2>/dev/null || log_warning "Config cache failed"
-timeout 300 php artisan route:cache 2>/dev/null || log_warning "Route cache failed"
-timeout 300 php artisan view:cache 2>/dev/null || log_warning "View cache failed"
 
 # Test Laravel application
 log_info "🔧 Testing Laravel application..."
-if timeout 30 php artisan --version > /dev/null 2>&1; then
-    log_success "Laravel application is working"
-else
-    log_warning "Laravel application test failed"
-fi
+if [ -d "vendor" ]; then
+    if timeout 30 php artisan --version > /dev/null 2>&1; then
+        log_success "Laravel application is working"
+    else
+        log_warning "Laravel application test failed"
+    fi
 
-# Test external connections with timeout
-log_info "🔍 Testing external connections..."
-if timeout 30 php artisan tinker --execute="DB::connection()->getPdo();" > /dev/null 2>&1; then
-    log_success "Database connection successful"
+    # Test external connections with timeout
+    log_info "🔍 Testing external connections..."
+    if timeout 30 php artisan tinker --execute="DB::connection()->getPdo();" > /dev/null 2>&1; then
+        log_success "Database connection successful"
+    else
+        log_warning "Database connection failed"
+    fi
 else
-    log_warning "Database connection failed"
+    log_warning "Vendor directory not found - skipping Laravel application tests"
 fi
 
 # Test Redis extension and connection with timeout

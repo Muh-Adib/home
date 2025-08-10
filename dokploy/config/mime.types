@@ -107,7 +107,6 @@ types {
     audio/wav                             wav;
 
     video/3gpp                            3gpp 3gp;
-    video/mp2t                            ts;
     video/mp4                             mp4 m4v f4v f4p;
     video/mpeg                            mpeg mpg;
     video/ogg                             ogv;
