@@ -20,7 +20,7 @@ import {
     ExternalLink
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { Property } from '@/components/PropertyCard';
+import type { Property } from '@/types/property';
 
 interface BookingSidebarProps {
     property: Property;
@@ -93,10 +93,10 @@ export function BookingSidebar({
 
     return (
         <div className="space-y-6">
-            <Card className="md:sticky md:top-6">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <CalendarIcon className="h-5 w-5" />
+            <Card className="md:sticky md:top-6 shadow-xl border-0 bg-gradient-to-br from-background to-muted/30">
+                <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/20">
+                    <CardTitle className="flex items-center gap-2 text-foreground">
+                        <CalendarIcon className="h-5 w-5 text-primary" />
                         {t('properties.book_your_stay')}
                     </CardTitle>
                 </CardHeader>
@@ -236,86 +236,75 @@ export function BookingSidebar({
 
                         {isRateReady && rateCalculation && (
                             <div className="space-y-4">
-                                {/* Main Price Display */}
-                                <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                                    <div className="text-3xl font-bold text-blue-600">
-                                        {rateCalculation.formatted.total_amount}
-                                    </div>
-                                    <div className="text-sm text-gray-600 mt-1">
-                                        {t('properties.for')} {rateCalculation.nights} {t('booking.nights')} • {rateCalculation.formatted.per_night}/{t('booking.night')}
-                                    </div>
+                                {/* Fake Discount Calculation */}
+                                {/* Fake Discount Calculation */}
+                                {(() => {
+                                    const originalPrice = rateCalculation.total_amount;
+                                    const inflatedPrice = Math.round(originalPrice * 1.17); // Naikkan 17%
+                                    const discountAmount = inflatedPrice - originalPrice;
+                                    const discountPercentage = Math.round((discountAmount / inflatedPrice) * 100);
                                     
-                                    {hasSeasonalPremium && (
-                                        <div className="text-xs text-green-600 mt-2 flex items-center justify-center">
-                                            <Sparkles className="h-3 w-3 mr-1" />
-                                            {t('properties.special_seasonal_rates')}
-                                        </div>
-                                    )}
-                                    
-                                    {hasWeekendPremium && (
-                                        <div className="text-xs text-amber-600 mt-1 flex items-center justify-center">
-                                            <Tag className="h-3 w-3 mr-1" />
-                                            {t('properties.weekend_premium_included')}
-                                        </div>
-                                    )}
-                                    
-                                    {/* Minimum Stay Info */}
-                                    <div className="text-xs text-gray-500 mt-2 flex items-center justify-center">
-                                        <Clock className="h-3 w-3 mr-1" />
-                                        Minimum stay: {effectiveMinStay.minStay} malam
-                                        {effectiveMinStay.reason === 'seasonal_rate' && (
-                                            <span className="ml-1">({effectiveMinStay.seasonalRateApplied?.[0].name})</span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Rate Breakdown */}
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <span>{t('properties.base_rate')} ({rateCalculation.nights} {t('booking.nights')})</span>
-                                        <span>Rp {rateCalculation.base_amount.toLocaleString()}</span>
-                                    </div>
-                                    
-                                    {rateCalculation.weekend_premium > 0 && (
-                                        <div className="flex justify-between text-amber-600">
-                                            <span>{t('properties.weekend_premium')}</span>
-                                            <span>+Rp {rateCalculation.weekend_premium.toLocaleString()}</span>
-                                        </div>
-                                    )}
-                                    
-                                    {rateCalculation.seasonal_premium > 0 && (
-                                        <div className="text-green-600">
-                                            <div className="flex justify-between">
-                                                <span>{t('properties.seasonal_premium')}</span>
-                                                <span>+Rp {rateCalculation.seasonal_premium.toLocaleString()}</span>
+                                    return (
+                                        <>
+                                            {/* Main Price Display with Fake Discount */}
+                                            <div className="text-center p-4 bg-gradient-to-br from-red-50 to-pink-50 rounded-lg border border-red-200 relative overflow-hidden">
+                                                {/* Discount Badge */}
+                                                <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full transform rotate-12 shadow-lg">
+                                                    -{discountPercentage}%
+                                                </div>
+                                                
+                                                {/* Original Price (Crossed Out) */}
+                                                <div className="text-lg text-gray-500 line-through mb-1">
+                                                    Rp {inflatedPrice.toLocaleString()}
+                                                </div>
+                                                
+                                                {/* Discounted Price */}
+                                                <div className="text-3xl font-bold text-red-600">
+                                                    Rp {originalPrice.toLocaleString()}
+                                                </div>
+                                                
+                                                {/* Savings Info */}
+                                                <div className="text-sm text-green-600 font-semibold mt-1">
+                                                    Hemat Rp {discountAmount.toLocaleString()}!
+                                                </div>
+                                                
+                                                <div className="text-sm text-gray-600 mt-1">
+                                                    {t('properties.for')} {rateCalculation.nights} {t('booking.nights')} • Rp {Math.round(originalPrice / rateCalculation.nights).toLocaleString()}/{t('booking.night')}
+                                                </div>
+                                                
+                                                {/* Limited Time Offer */}
+                                                <div className="text-xs text-red-600 mt-2 font-semibold animate-pulse">
+                                                    ⏰ Penawaran Terbatas! Berakhir dalam 23:59:45
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
-                                    
-                                    {rateCalculation.extra_bed_amount > 0 && (
-                                        <div className="flex justify-between">
-                                            <span>{t('properties.extra_beds')} ({rateCalculation.extra_beds})</span>
-                                            <span>+Rp {rateCalculation.extra_bed_amount.toLocaleString()}</span>
-                                        </div>
-                                    )}
-                                    
-                                    <div className="flex justify-between">
-                                        <span>{t('properties.cleaning_fee')}</span>
-                                        <span>Rp {rateCalculation.cleaning_fee.toLocaleString()}</span>
-                                    </div>
-                                    
-                                    <div className="flex justify-between">
-                                        <span>{t('properties.tax')}</span>
-                                        <span>Rp {rateCalculation.tax_amount.toLocaleString()}</span>
-                                    </div>
-                                    
-                                    <Separator />
-                                    
-                                    <div className="flex justify-between font-semibold text-base">
-                                        <span>{t('properties.total')}</span>
-                                        <span>Rp {rateCalculation.total_amount.toLocaleString()}</span>
-                                    </div>
-                                </div>
+                                            
+                                            {hasSeasonalPremium && (
+                                                <div className="text-xs text-green-600 mt-2 flex items-center justify-center">
+                                                    <Sparkles className="h-3 w-3 mr-1" />
+                                                    {t('properties.special_seasonal_rates')}
+                                                </div>
+                                            )}
+                                            
+                                            {hasWeekendPremium && (
+                                                <div className="text-xs text-amber-600 mt-1 flex items-center justify-center">
+                                                    <Tag className="h-3 w-3 mr-1" />
+                                                    {t('properties.weekend_premium_included')}
+                                                </div>
+                                            )}
+                                            
+                                            {/* Minimum Stay Info */}
+                                            <div className="text-xs text-gray-500 mt-2 flex items-center justify-center">
+                                                <Clock className="h-3 w-3 mr-1" />
+                                                Minimum stay: {effectiveMinStay.minStay} malam
+                                                {effectiveMinStay.reason === 'seasonal_rate' && (
+                                                    <span className="ml-1">({effectiveMinStay.seasonalRateApplied?.[0].name})</span>
+                                                )}
+                                            </div>
+                                        </>
+                                    );
+                                })()}
+
+
                             </div>
                         )}
                     </div>
@@ -324,7 +313,7 @@ export function BookingSidebar({
                     <div className="space-y-2">
                         <Button 
                             size="lg" 
-                            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50"
+                            className="w-full bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 disabled:opacity-50 shadow-lg"
                             disabled={!canSubmit}
                             onClick={() => {
                                 if (canSubmit) {
@@ -362,7 +351,6 @@ export function BookingSidebar({
                         </Button>
                     </div>
 
-                   
                 </CardContent>
             </Card>
 

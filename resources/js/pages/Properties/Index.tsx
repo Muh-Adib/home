@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import GuestLayout from '@/layouts/guest-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,15 +15,15 @@ import {
     SlidersHorizontal,
     X,
     Calendar,
-    ArrowUpDown,
-    Grid3X3,
-    List
+    ArrowUpDown
 } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 import { getDefaultDateRange, formatDateRange } from '@/components/ui/date-range';
 import { type BreadcrumbItem, type PageProps } from '@/types';
 import { useTranslation } from 'react-i18next';
-import PropertyCard, { type Property, type Amenity } from '@/components/PropertyCard';
+import PropertyCardEnhanced from '@/components/ui/property-card-enhanced';
+import { type Property } from '@/types/property';
+import { type Amenity } from '@/types';
 import AmenityItem from '@/components/AmenityItem';
 
 
@@ -52,7 +52,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
     const page = usePage<PageProps>();
     const { t } = useTranslation();
     const [showFilters, setShowFilters] = useState(false);
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
 
     // Get default date range
     const defaultDates = getDefaultDateRange(1);
@@ -71,17 +71,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
         { title: t('nav.browse_properties'), href: route('properties.index') }
     ];
 
-    // Build property detail URL with current filters
-    const buildPropertyUrl = (property: Property) => {
-        const baseUrl = `/properties/${property.slug}`;
-        const params = new URLSearchParams();
-        
-        if (localFilters.checkIn) params.append('check_in', localFilters.checkIn);
-        if (localFilters.checkOut) params.append('check_out', localFilters.checkOut);
-        if (localFilters.guests) params.append('guests', localFilters.guests.toString());
-        
-        return params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
-    };
+
 
     const handleSearch = () => {
         const params: any = {};
@@ -147,8 +137,8 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
     }, []); // Empty dependency array means this runs once on mount
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-                            <Head title={`${t('properties.browse_title')} - Homsjogja`} />
+        <GuestLayout>
+            <Head title={`${t('properties.browse_title')} - Homsjogja`} />
 
             <div className="space-y-6 p-4 md:p-6">
                 {/* Header */}
@@ -183,24 +173,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
                             )}
                         </Button>
                         
-                        <div className="flex border rounded-lg">
-                            <Button
-                                variant={viewMode === 'grid' ? "default" : "ghost"}
-                                size="sm"
-                                onClick={() => setViewMode('grid')}
-                                className="rounded-r-none"
-                            >
-                                <Grid3X3 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                                variant={viewMode === 'list' ? "default" : "ghost"}
-                                size="sm"
-                                onClick={() => setViewMode('list')}
-                                className="rounded-l-none"
-                            >
-                                <List className="h-4 w-4" />
-                            </Button>
-                        </div>
+
                     </div>
                 </div>
 
@@ -215,7 +188,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
                     <CardContent className="space-y-4">
                         <div className="flex flex-col lg:flex-row gap-4">
                             <div className="flex-1 relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     placeholder={t('properties.search_placeholder')}
                                     value={localFilters.search}
@@ -302,7 +275,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
                                                 step={1}
                                                 className="w-full"
                                             />
-                                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                            <div className="flex justify-between text-xs text-muted-foreground mt-1">
                                                 <span>1</span>
                                                 <span>20+</span>
                                             </div>
@@ -349,29 +322,24 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
                     </CardContent>
                 </Card>
 
-                {/* Properties Grid/List */}
+                {/* Properties Grid */}
                 {properties.data.length > 0 ? (
-                    <div className={viewMode === 'grid' 
-                        ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" 
-                        : "space-y-6"
-                    }>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {properties.data.map((property) => (
-                            <PropertyCard 
+                            <PropertyCardEnhanced 
                                 key={property.id} 
-                                property={property} 
-                                viewMode={viewMode}
-                                buildPropertyUrl={buildPropertyUrl}
+                                property={property}
                             />
                         ))}
                     </div>
                 ) : (
                     <Card className="text-center py-16">
                         <CardContent>
-                            <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                            <Building2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                            <h3 className="text-lg font-semibold text-foreground mb-2">
                                 {t('properties.no_properties')}
                             </h3>
-                            <p className="text-gray-600 mb-6">
+                            <p className="text-muted-foreground mb-6">
                                 {t('properties.no_properties_description')}
                             </p>
                             <Button onClick={clearFilters} variant="outline">
@@ -392,7 +360,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
                             </Link>
                         )}
                         
-                        <span className="px-4 py-2 text-sm text-gray-600">
+                        <span className="px-4 py-2 text-sm text-muted-foreground">
                             {t('pagination.page_of', { current: properties.current_page, total: properties.last_page })}
                         </span>
                         
@@ -406,6 +374,6 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
                     </div>
                 )}
             </div>
-        </AppLayout>
+        </GuestLayout>
     );
 } 

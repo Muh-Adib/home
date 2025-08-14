@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import GuestLayout from '@/layouts/guest-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -259,7 +259,7 @@ export default function PaymentCreate({ booking, paymentMethods, pendingAmount, 
 
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <GuestLayout>
             <Head title={`${t('payment.create_payment')} - ${booking.booking_number}`} />
             
             <div className="space-y-6 p-4 md:p-6">
@@ -296,21 +296,21 @@ export default function PaymentCreate({ booking, paymentMethods, pendingAmount, 
                             <CardContent>
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-center">
-                                        <span className="text-gray-600">{t('payment.total_booking')}:</span>
+                                        <span className="text-muted-foreground">{t('payment.total_booking')}:</span>
                                         <span className="font-medium">Rp {(booking.total_amount).toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
-                                        <span className="text-gray-600">{t('payment.already_paid')}:</span>
+                                        <span className="text-muted-foreground">{t('payment.already_paid')}:</span>
                                         <span className="font-medium text-green-600">Rp {paidAmount.toLocaleString()}</span>
                                     </div>
                                     <Separator />
                                     <div className="flex justify-between items-center">
-                                        <span className="text-gray-600">{t('payment.remaining_amount')}:</span>
+                                        <span className="text-muted-foreground">{t('payment.remaining_amount')}:</span>
                                         <span className="text-2xl font-bold text-blue-600">Rp {pendingAmount.toLocaleString()}</span>
                                     </div>
 
                                     {booking.payment_status === 'dp_pending' && (<div className="flex justify-between items-center">
-                                        <span className="text-gray-600">{t('payment.type.down_payment')}:</span>
+                                        <span className="text-muted-foreground">{t('payment.type.down_payment')}:</span>
                                         <span className="text-2xl font-bold text-blue-600">Rp {((pendingAmount)*booking.dp_percentage/100).toLocaleString()}</span>
                                     </div>)}
                                     
@@ -716,7 +716,7 @@ export default function PaymentCreate({ booking, paymentMethods, pendingAmount, 
                         </Card>
                     </div>
                 </div>
-            </div>
-        </AppLayout>
-    );
+                    </div>
+    </GuestLayout>
+);
 } 

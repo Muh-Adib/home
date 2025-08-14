@@ -47,10 +47,10 @@ export default function VerifyEmail({ status }: VerifyEmailProps) {
 
                 {/* Instructions */}
                 <div className="text-center space-y-4">
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                    <h3 className="text-lg font-medium text-foreground">
                         {t('auth.check_your_email')}
                     </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+                    <p className="text-sm text-muted-foreground leading-relaxed">
                         {t('auth.email_verification_sent')}
                     </p>
                 </div>

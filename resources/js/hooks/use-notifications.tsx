@@ -349,30 +349,30 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
         // Setup WebSocket channels
         setupWebSocketChannels();
 
-        // Monitor connection status
+        // Monitor connection status for Pusher
         connectionCheckIntervalRef.current = setInterval(() => {
             if (echo && isAvailable) {
-                const socket = (echo.connector as any)?.socket;
-                const isSocketConnected = socket?.connected;
+                const pusher = (echo.connector as any)?.pusher;
+                const isPusherConnected = pusher?.connection?.state === 'connected';
                 
-                if (isSocketConnected && !websocketConnected) {
-                    console.log('✅ WebSocket reconnected');
+                if (isPusherConnected && !websocketConnected) {
+                    console.log('✅ Pusher reconnected');
                     setConnectionMode('websocket');
                     setIsConnected(true);
                     websocketConnected = true;
                     stopPollingFallback();
-                } else if (!isSocketConnected && websocketConnected) {
-                    console.log('❌ WebSocket disconnected, switching to polling');
+                } else if (!isPusherConnected && websocketConnected) {
+                    console.log('❌ Pusher disconnected, switching to polling');
                     setConnectionMode('polling');
                     setIsConnected(false);
                     websocketConnected = false;
                     startPollingFallback();
-            }
-        } else {
+                }
+            } else {
                 // WebSocket not available, ensure polling is running
                 if (connectionMode !== 'polling') {
                     console.log('🔄 WebSocket not available, ensuring polling is active');
-            setConnectionMode('polling');
+                    setConnectionMode('polling');
                     startPollingFallback();
                 }
             }

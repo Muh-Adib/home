@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Head, Link, useForm, usePage, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import GuestLayout from '@/layouts/guest-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -149,12 +149,12 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
     // Type assertion for errors to match BookingErrors interface
     const bookingErrors = errors as BookingErrors;
 
-    // Calculate fake discount (20% markup from final rate)
+    // Calculate fake discount (17% markup from final rate)
     const calculateDiscountPrice = () => {
         if (!rateCalculation) return null;
         
         const finalRate = rateCalculation.total_amount;
-        const originalPrice = finalRate * 1.2; // 20% markup
+        const originalPrice = finalRate * 1.17; // 17% markup
         const discountAmount = originalPrice - finalRate;
         const discountPercent = Math.round((discountAmount / originalPrice) * 100);
         
@@ -632,7 +632,8 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
         console.log('Submitting booking data:', submitData);
         
         // Always use the same booking route - backend will handle user registration if needed
-        post(`/properties/${property.slug}/book`, submitData, {
+        post(`/properties/${property.slug}/book`, {
+            ...submitData,
             onStart: () => {
                 console.log('Starting booking submission...');
             },
@@ -661,14 +662,14 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                      rateCalculation !== null;
 
     return (
-        <AppLayout>
+        <GuestLayout>
             <Head title={`${t('booking.book_your_stay')} ${property.name} - Property Management System`} />
             
-            <div className="min-h-screen bg-slate-50">
+            <div className="min-h-screen bg-background">
                 {/* Header */}
-                <div className="bg-white border-b">
+                <div className="bg-card border-b border-border">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                        <Link href={`/properties/${property.slug}`} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+                        <Link href={`/properties/${property.slug}`} className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
                             <ArrowLeft className="h-4 w-4" />
                             {t('booking.back_to_property')}
                         </Link>
@@ -679,10 +680,10 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
                         {/* Booking Form */}
                         <div className="xl:col-span-2">
-                            <Card className="shadow-sm">
-                                <CardHeader className="pb-4">
+                            <Card className="shadow-lg border-0 bg-gradient-to-br from-card to-muted/30">
+                                <CardHeader className="pb-4 bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/20">
                                     <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                                        <Calendar className="h-5 w-5 text-blue-600" />
+                                        <Calendar className="h-5 w-5 text-primary" />
                                         {t('booking.book_your_stay')}
                                     </CardTitle>
                                 </CardHeader>
@@ -693,39 +694,39 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                         {/* Dates */}
                                         <div className="space-y-3">
                                             <Label className="text-base font-medium">{t('booking.check_in_checkout_dates')}</Label>
-                                            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border">
+                                            <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg border border-border">
                                                 <div className="flex-1 text-center">
-                                                    <div className="text-xs text-gray-500 mb-1">Check in</div>
-                                                    <div className="font-semibold text-gray-800 text-sm">
+                                                                            <div className="text-xs text-muted-foreground mb-1">Check in</div>
+                        <div className="font-semibold text-foreground text-sm">
                                                         {/* Tampilkan tanggal, readonly */}
                                                         <Input
                                                             type="text"
                                                             value={data.check_in ? new Date(data.check_in).toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : ''}
                                                             readOnly
                                                             disabled
-                                                            className="bg-gray-100 cursor-not-allowed text-center border-0 p-0 shadow-none focus:ring-0 focus:border-0"
+                                                            className="bg-muted cursor-not-allowed text-center border-0 p-0 shadow-none focus:ring-0 focus:border-0 text-foreground"
                                                         />
                                                     </div>
-                                                    <div className="text-xs text-gray-500 mt-1">
+                                                    <div className="text-xs text-muted-foreground mt-1">
                                                         {data.check_in_time}
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-col items-center">
-                                                    <div className="w-8 h-0.5 bg-gray-300"></div>
-                                                    <div className="text-xs text-gray-400 mt-1">{data.check_in && data.check_out ? `${rateCalculation?.nights || 0} malam` : ''}</div>
+                                                    <div className="w-8 h-0.5 bg-border"></div>
+                                                    <div className="text-xs text-muted-foreground mt-1">{data.check_in && data.check_out ? `${rateCalculation?.nights || 0} malam` : ''}</div>
                                                 </div>
                                                 <div className="flex-1 text-center">
-                                                    <div className="text-xs text-gray-500 mb-1">Check out</div>
-                                                    <div className="font-semibold text-gray-800 text-sm">
+                                                    <div className="text-xs text-muted-foreground mb-1">Check out</div>
+                                                    <div className="font-semibold text-foreground text-sm">
                                                         <Input
                                                             type="text"
                                                             value={data.check_out ? new Date(data.check_out).toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : ''}
                                                             readOnly
                                                             disabled
-                                                            className="bg-gray-100 cursor-not-allowed text-center border-0 p-0 shadow-none focus:ring-0 focus:border-0"
+                                                            className="bg-muted cursor-not-allowed text-center border-0 p-0 shadow-none focus:ring-0 focus:border-0 text-foreground"
                                                         />
                                                     </div>
-                                                    <div className="text-xs text-gray-500 mt-1">
+                                                    <div className="text-xs text-muted-foreground mt-1">
                                                         {property.check_out_time}
                                                     </div>
                                                 </div>
@@ -759,27 +760,27 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                         {data.check_in && data.check_out && (
                                             <div className="mt-4">
                                                 {availabilityStatus === 'checking' && (
-                                                    <Alert className="border-blue-200 bg-blue-50">
-                                                        <Clock className="h-4 w-4 text-blue-600" />
-                                                        <AlertDescription className="text-blue-800">
+                                                    <Alert className="border-primary/20 bg-primary/10">
+                                                        <Clock className="h-4 w-4 text-primary" />
+                                                        <AlertDescription className="text-primary">
                                                            {t('booking.checking_availability')}
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
                                                 
                                                 {availabilityStatus === 'unavailable' && (
-                                                    <Alert variant="destructive" className="border-red-200 bg-red-50">
+                                                    <Alert variant="destructive" className="border-red-500/20 bg-red-500/10">
                                                         <AlertCircle className="h-4 w-4" />
-                                                        <AlertDescription className="text-red-800">
+                                                        <AlertDescription className="text-red-600">
                                                            {t('booking.property_unavailable')}
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
                                                 
                                                 {availabilityStatus === 'available' && rateCalculation && (
-                                                    <Alert className="border-green-200 bg-green-50">
+                                                    <Alert className="border-green-500/20 bg-green-500/10">
                                                         <CheckCircle className="h-4 w-4 text-green-600" />
-                                                        <AlertDescription className="text-green-800">
+                                                        <AlertDescription className="text-green-600">
                                                            {t('booking.property_available',{total: rateCalculation.total_amount.toLocaleString(), nights: rateCalculation.nights})}
                                                         </AlertDescription>
                                                     </Alert>
@@ -792,11 +793,11 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                         {/* Guest Count */}
                                         <div className="space-y-4">
                                             <div className="flex items-center gap-2">
-                                                <Users className="h-5 w-5 text-blue-600" />
-                                                <h3 className="text-lg font-semibold">{t('booking.guest_count')}</h3>
+                                                <Users className="h-5 w-5 text-primary" />
+                                                <h3 className="text-lg font-semibold text-foreground">{t('booking.guest_count')}</h3>
                                             </div>
                                             
-                                            <div className="grid grid-cols-3 sm:grid-cols-3 gap-4 bg-slate-50 p-4 sm:p-6 rounded-lg border ">
+                                            <div className="grid grid-cols-3 sm:grid-cols-3 gap-4 bg-muted/50 p-4 sm:p-6 rounded-lg border border-border">
                                                 <div className="space-y-2">
                                                     <Label htmlFor="guest_male" className="text-sm font-medium">{t('booking.male_adults')}</Label>
                                                     <Input
@@ -842,46 +843,46 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                             </div>
 
                                             {/* Guest Count Summary */}
-                                            <div className="bg-slate-50 p-4 sm:p-6 rounded-lg border">
+                                            <div className="bg-muted/50 p-4 sm:p-6 rounded-lg border border-border">
                                                 <div className="flex items-center justify-between mb-3">
                                                     <span className="font-medium text-base">{t('booking.total_guests')}:</span>
                                                     <Badge variant={guestCountError ? "destructive" : "secondary"} className="text-sm px-3 py-1">
                                                         {totalGuests} guests
                                                     </Badge>
                                                 </div>
-                                                <div className="text-sm text-gray-600 mb-3">
+                                                <div className="text-sm text-muted-foreground mb-3">
                                                     {t('booking.property_capacity')}: {property.capacity} - {property.capacity_max} {t('booking.guests')}
                                                 </div>
                                                 
                                                 {extraBeds > 0 && (
-                                                    <div className="flex items-center gap-2 text-sm mb-3 p-2 bg-blue-50 rounded">
-                                                        <Bed className="h-4 w-4 text-blue-600" />
-                                                        <span className="font-medium">{t('booking.extra_beds_needed')}: {extraBeds}</span>
-                                                        <span className="text-gray-600">
+                                                    <div className="flex items-center gap-2 text-sm mb-3 p-2 bg-primary/10 rounded border border-primary/20">
+                                                        <Bed className="h-4 w-4 text-primary" />
+                                                        <span className="font-medium text-foreground">{t('booking.extra_beds_needed')}: {extraBeds}</span>
+                                                        <span className="text-muted-foreground">
                                                             (+Rp {(extraBeds * property.extra_bed_rate).toLocaleString()}/night)
                                                         </span>
                                                     </div>
                                                 )}
                                                 
                                                 {guestCountError && (
-                                                    <Alert className="mt-3 border-red-200 bg-red-50">
+                                                    <Alert className="mt-3 border-red-500/20 bg-red-500/10">
                                                         <AlertCircle className="h-4 w-4" />
-                                                        <AlertDescription className="text-red-800">
+                                                        <AlertDescription className="text-red-600">
                                                             {t('booking.guest_count_exceeds',{max: property.capacity_max})}
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
 
                                                 {/* Sync Info */}
-                                                <div className="mt-4 pt-3 border-t border-slate-200">
-                                                    <div className="flex items-start gap-2 text-xs text-blue-600 overflow-wrap">
+                                                <div className="mt-4 pt-3 border-t border-border">
+                                                    <div className="flex items-start gap-2 text-xs text-primary overflow-wrap">
                                                         <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
                                                         <span>{t('booking.sync_info')}</span>
                                                     </div>
                                                     
                                                     {/* Sync Feedback */}
                                                     {syncFeedback && (
-                                                        <div className="mt-3 flex items-center gap-2 text-xs text-green-600 bg-green-50 p-3 rounded">
+                                                        <div className="mt-3 flex items-center gap-2 text-xs text-green-600 bg-green-500/10 p-3 rounded border border-green-500/20">
                                                             <CheckCircle className="h-3 w-3" />
                                                             <span>{syncFeedback}</span>
                                                         </div>
@@ -894,10 +895,10 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
 
                                         {/* Primary Guest Info */}
                                         <div className="space-y-4">
-                                            <h3 className="text-lg font-semibold">{t('booking.primary_guest')}</h3>
+                                            <h3 className="text-lg font-semibold text-foreground">{t('booking.primary_guest')}</h3>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="guest_name" className="text-sm font-medium">{t('booking.full_name')} *</Label>
+                                                    <Label htmlFor="guest_name" className="text-sm font-medium text-foreground">{t('booking.full_name')} *</Label>
                                                     <Input
                                                         id="guest_name"
                                                         type="text"
@@ -920,7 +921,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                     )}
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="guest_gender" className="text-sm font-medium">{t('booking.gender')} *</Label>
+                                                    <Label htmlFor="guest_gender" className="text-sm font-medium text-foreground">{t('booking.gender')} *</Label>
                                                     <Select 
                                                         value={data.guest_gender} 
                                                         onValueChange={(value: 'male' | 'female') => {
@@ -947,7 +948,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                     )}
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="guest_phone" className="text-sm font-medium">{t('booking.phone_number')}*</Label>
+                                                    <Label htmlFor="guest_phone" className="text-sm font-medium text-foreground">{t('booking.phone_number')}*</Label>
                                                     <Input
                                                         id="guest_phone"
                                                         type="tel"
@@ -972,7 +973,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                             </div>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="guest_email" className="text-sm font-medium">{t('booking.email_address')} *</Label>
+                                                    <Label htmlFor="guest_email" className="text-sm font-medium text-foreground">{t('booking.email_address')} *</Label>
                                                     <Input
                                                         id="guest_email"
                                                         type="email"
@@ -995,7 +996,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                     )}
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="guest_country" className="text-sm font-medium">{t('booking.country')} *</Label>
+                                                    <Label htmlFor="guest_country" className="text-sm font-medium text-foreground">{t('booking.country')} *</Label>
                                                     <Select value={data.guest_country} onValueChange={(value: any) => setData((prev) => ({
                                                         ...prev,
                                                         guest_country: value
@@ -1020,7 +1021,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
 
                                         {/* Group Relationship */}
                                         <div className="space-y-3">
-                                            <Label htmlFor="relationship_type" className="text-base font-medium">{t('booking.guest_relationship')} *</Label>
+                                            <Label htmlFor="relationship_type" className="text-base font-medium text-foreground">{t('booking.guest_relationship')} *</Label>
                                             <Select value={data.relationship_type} onValueChange={(value: any) => setData((prev) => ({
                                                 ...prev,
                                                 relationship_type: value
@@ -1045,7 +1046,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                         {totalGuests > 1 && (
                                             <div className="space-y-4">
                                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                                    <h3 className="text-lg font-semibold">{t('booking.guest_details')}</h3>
+                                                    <h3 className="text-lg font-semibold text-foreground">{t('booking.guest_details')}</h3>
                                                     <Button
                                                         type="button"
                                                         variant="outline"
@@ -1059,13 +1060,13 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                 </div>
 
                                                 {showGuestDetails && (
-                                                    <div className="space-y-4 border rounded-lg p-4 sm:p-6 bg-gray-50">
+                                                    <div className="space-y-4 border rounded-lg p-4 sm:p-6 bg-muted/50 border-border">
                                                         {data.guests.slice(1).map((guest, index) => (
-                                                            <div key={index} className="border rounded-lg p-4 sm:p-6 bg-white">
+                                                            <div key={index} className="border rounded-lg p-4 sm:p-6 bg-card border-border">
                                                                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
                                                                     <div className="flex items-center gap-2">
-                                                                        <User className="h-4 w-4 text-blue-600" />
-                                                                        <h4 className="font-medium">{t('booking.guest_num',{number: index + 2})}</h4>
+                                                                        <User className="h-4 w-4 text-primary" />
+                                                                        <h4 className="font-medium text-foreground">{t('booking.guest_num',{number: index + 2})}</h4>
                                                                     </div>
                                                                     <Badge variant="outline" className="w-fit">
                                                                         {guest.age_category === 'child' ? t('booking.child') : 
@@ -1075,7 +1076,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                                 
                                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                                                     <div className="space-y-2">
-                                                                        <Label className="text-sm font-medium">{t('booking.full_name')} {guest.age_category === 'adult' ? '*' : ''}</Label>
+                                                                        <Label className="text-sm font-medium text-foreground">{t('booking.full_name')} {guest.age_category === 'adult' ? '*' : ''}</Label>
                                                                         <Input
                                                                             value={guest.name}
                                                                             onChange={(e) => updateGuest(index + 1, 'name', e.target.value)}
@@ -1087,7 +1088,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                                         )}
                                                                     </div>
                                                                     <div className="space-y-2">
-                                                                        <Label className="text-sm font-medium">{t('booking.gender')} *</Label>
+                                                                        <Label className="text-sm font-medium text-foreground">{t('booking.gender')} *</Label>
                                                                         <Select 
                                                                             value={guest.gender} 
                                                                             onValueChange={(value: 'male' | 'female') => updateGuest(index + 1, 'gender', value)}
@@ -1105,7 +1106,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                                         )}
                                                                     </div>
                                                                     <div className="space-y-2">
-                                                                        <Label className="text-sm font-medium">{t('booking.relationship_to_primary')} {guest.age_category === 'adult' ? '*' : ''}</Label>
+                                                                        <Label className="text-sm font-medium text-foreground">{t('booking.relationship_to_primary')} {guest.age_category === 'adult' ? '*' : ''}</Label>
                                                                         <Select 
                                                                             value={guest.relationship_to_primary} 
                                                                             onValueChange={(value) => updateGuest(index + 1, 'relationship_to_primary', value)}
@@ -1138,8 +1139,8 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                         {/* Down Payment Options */}
                                         <div className="space-y-4">
                                             <div className="flex items-center gap-2">
-                                                <CreditCard className="h-5 w-5 text-blue-600" />
-                                                <h3 className="text-lg font-semibold">Payment Option</h3>
+                                                <CreditCard className="h-5 w-5 text-primary" />
+                                                <h3 className="text-lg font-semibold text-foreground">Payment Option</h3>
                                             </div>
                                             
                                             <div className="grid gap-3">
@@ -1148,8 +1149,8 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                         key={option.value}
                                                         className={`border rounded-lg p-4 sm:p-6 cursor-pointer transition-colors ${
                                                             data.dp_percentage === option.value
-                                                                ? 'border-blue-500 bg-blue-50'
-                                                                : 'border-gray-200 hover:border-gray-300'
+                                                                ? 'border-primary bg-primary/10'
+                                                                : 'border-border hover:border-primary/50'
                                                         }`}
                                                         onClick={() => setData((prev) => ({
                                                             ...prev,
@@ -1158,8 +1159,8 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                     >
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex-1">
-                                                                <div className="font-medium text-base">{option.label}</div>
-                                                                <div className="text-sm text-gray-600 mt-1">{option.description}</div>
+                                                                <div className="font-medium text-base text-foreground">{option.label}</div>
+                                                                <div className="text-sm text-muted-foreground mt-1">{option.description}</div>
                                                             </div>
                                                             <div className="flex items-center ml-4">
                                                                 <input
@@ -1171,7 +1172,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                                         ...prev,
                                                                         dp_percentage: option.value
                                                                     }))}
-                                                                    className="text-blue-600 w-4 h-4"
+                                                                    className="text-primary w-4 h-4"
                                                                 />
                                                             </div>
                                                         </div>
@@ -1182,7 +1183,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
 
                                         {/* Special Requests */}
                                         <div className="space-y-3">
-                                            <Label htmlFor="special_requests" className="text-base font-medium">Special Requests (Optional)</Label>
+                                            <Label htmlFor="special_requests" className="text-base font-medium text-foreground">Special Requests (Optional)</Label>
                                             <Textarea
                                                 id="special_requests"
                                                 value={data.special_requests}
@@ -1217,13 +1218,13 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                         <div className="xl:col-span-1">
                             <div className="sticky top-4 space-y-4 sm:space-y-6">
                                 {/* Property Info */}
-                                <Card className="shadow-sm">
-                                    <CardHeader className="pb-4">
-                                        <CardTitle className="text-lg">{t('booking.your_booking')}</CardTitle>
+                                <Card className="shadow-lg border-0 bg-gradient-to-br from-card to-muted/30">
+                                    <CardHeader className="pb-4 bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/20">
+                                        <CardTitle className="text-lg text-foreground">{t('booking.your_booking')}</CardTitle>
                                     </CardHeader>
                                     <CardContent className="px-4 sm:px-6">
                                         <div className="space-y-4">
-                                            <div className="aspect-video bg-slate-200 rounded-lg overflow-hidden">
+                                            <div className="aspect-video bg-muted/50 rounded-lg overflow-hidden border border-border">
                                                 {property.media.length > 0 && property.media[0].url ? (
                                                     <img 
                                                         src={property.media[0].url} 
@@ -1231,15 +1232,15 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                         className="w-full h-full object-cover"
                                                     />
                                                 ) : (
-                                                    <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-                                                        <Building2 className="h-8 w-8 text-blue-400" />
+                                                    <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                                                        <Building2 className="h-8 w-8 text-primary/60" />
                                                     </div>
                                                 )}
                                             </div>
                                             
                                             <div>
                                                 <h3 className="font-semibold">{property.name}</h3>
-                                                <div className="flex items-center text-sm text-gray-600 mt-1">
+                                                <div className="flex items-center text-sm text-muted-foreground mt-1">
                                                     <MapPin className="h-4 w-4 mr-1" />
                                                     {property.address}
                                                 </div>
@@ -1250,11 +1251,11 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
 
                                 {/* Rate Calculation */}
                                 {rateCalculation && (
-                                    <Card className="shadow-lg border-0">
-                                        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:p-6">
+                                    <Card className="shadow-xl border-0 bg-gradient-to-br from-card to-muted/30">
+                                        <CardHeader className="bg-gradient-to-r from-red-50 to-pink-50 p-4 sm:p-6 border-b border-red-200">
                                             <div className="flex items-center justify-between">
-                                                <CardTitle className="flex items-center gap-2">
-                                                    <Tag className="h-5 w-5" />
+                                                <CardTitle className="flex items-center gap-2 text-foreground">
+                                                    <Tag className="h-5 w-5 text-red-600" />
                                                     Total Price
                                                 </CardTitle>
                                                 {discountInfo && (
@@ -1266,98 +1267,98 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                             </div>
                                             {/* Show discount prices */}
                                             {discountInfo && (
-                                                <div className="space-y-1 mt-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-lg text-gray-400 line-through">
-                                                            Rp {discountInfo.original_price.toLocaleString()}
-                                                        </span>
-                                                        <Badge variant="destructive" className="text-xs">
-                                                            -{discountInfo.discount_percent}%
-                                                        </Badge>
+                                                                                                    <div className="space-y-1 mt-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-lg text-muted-foreground line-through">
+                                                                Rp {discountInfo.original_price.toLocaleString()}
+                                                            </span>
+                                                            <Badge variant="destructive" className="text-xs">
+                                                                -{discountInfo.discount_percent}%
+                                                            </Badge>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-3xl font-bold text-red-600">
+                                                                Rp {discountInfo.final_price.toLocaleString()}
+                                                            </span>
+                                                            <span className="text-muted-foreground ml-1">total</span>
+                                                        </div>
+                                                        <div className="text-sm text-muted-foreground">
+                                                            (Rp {Math.round(discountInfo.final_price / discountInfo.nights).toLocaleString()}/night)
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <span className="text-3xl font-bold text-red-600">
-                                                            Rp {discountInfo.final_price.toLocaleString()}
-                                                        </span>
-                                                        <span className="text-gray-600 ml-1">total</span>
-                                                    </div>
-                                                    <div className="text-sm text-gray-600">
-                                                        (Rp {Math.round(discountInfo.final_price / discountInfo.nights).toLocaleString()}/night)
-                                                    </div>
-                                                </div>
                                             )}
                                         </CardHeader>
                                         <CardContent className="px-4 sm:px-6">
                                             <div className="space-y-4">
-                                                <div className="space-y-3 text-sm">
-                                                    {/* Discount Price Display */}
-                                                    {discountInfo && (
-                                                        <>
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="text-gray-600">Original Price</span>
-                                                                <span className="text-gray-400 line-through">
-                                                                    Rp {discountInfo.original_price.toLocaleString()}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex justify-between items-center">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-gray-600">Discount</span>
-                                                                    <Badge variant="destructive" className="text-xs">
-                                                                        {discountInfo.discount_percent}% OFF
-                                                                    </Badge>
+                                                                                                    <div className="space-y-3 text-sm">
+                                                        {/* Discount Price Display */}
+                                                        {discountInfo && (
+                                                            <>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-muted-foreground">Original Price</span>
+                                                                    <span className="text-muted-foreground line-through">
+                                                                        Rp {discountInfo.original_price.toLocaleString()}
+                                                                    </span>
                                                                 </div>
-                                                                <span className="text-red-600 font-medium">
-                                                                    -Rp {discountInfo.discount_amount.toLocaleString()}
+                                                                <div className="flex justify-between items-center">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-muted-foreground">Discount</span>
+                                                                        <Badge variant="destructive" className="text-xs">
+                                                                            {discountInfo.discount_percent}% OFF
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <span className="text-red-600 font-medium">
+                                                                        -Rp {discountInfo.discount_amount.toLocaleString()}
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        )}
+
+                                                        {/* Additional Fees */}
+                                                        {rateCalculation.extra_bed_amount > 0 && (
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-muted-foreground">Extra beds ({extraBeds})</span>
+                                                                <span className="font-medium text-foreground">
+                                                                    Included
                                                                 </span>
                                                             </div>
-                                                        </>
-                                                    )}
-
-                                                    {/* Additional Fees */}
-                                                    {rateCalculation.extra_bed_amount > 0 && (
+                                                        )}
+                                                        
                                                         <div className="flex justify-between items-center">
-                                                            <span className="text-gray-600">Extra beds ({extraBeds})</span>
-                                                            <span className="font-medium">
-                                                                Included
+                                                            <span className="text-muted-foreground">Cleaning fee</span>
+                                                            <span className="font-medium text-foreground">Included</span>
+                                                        </div>
+
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-muted-foreground">Taxes & fees</span>
+                                                            <span className="font-medium text-foreground">Included</span>
+                                                        </div>
+                                                        
+                                                        <Separator />
+                                                        
+                                                        {/* Final Total */}
+                                                        <div className="flex justify-between items-center text-lg font-bold">
+                                                            <span className="text-foreground">Total</span>
+                                                            <span className="text-red-600">
+                                                                Rp {rateCalculation.total_amount.toLocaleString()}
                                                             </span>
                                                         </div>
-                                                    )}
-                                                    
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-gray-600">Cleaning fee</span>
-                                                        <span className="font-medium">Included</span>
-                                                    </div>
 
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-gray-600">Taxes & fees</span>
-                                                        <span className="font-medium">Included</span>
+                                                        <div className="text-center text-xs text-green-600 bg-green-500/10 p-3 rounded border border-green-500/20">
+                                                            ✓ All-inclusive price, no hidden fees
+                                                        </div>
                                                     </div>
-                                                    
-                                                    <Separator />
-                                                    
-                                                    {/* Final Total */}
-                                                    <div className="flex justify-between items-center text-lg font-bold">
-                                                        <span>Total</span>
-                                                        <span className="text-blue-600">
-                                                            Rp {rateCalculation.total_amount.toLocaleString()}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="text-center text-xs text-green-600 bg-green-50 p-3 rounded">
-                                                        ✓ All-inclusive price, no hidden fees
-                                                    </div>
-                                                </div>
                                                 
                                                 <Separator />
                                                 
                                                 <div className="space-y-2">
                                                     <div className="flex justify-between">
-                                                        <span>Down Payment ({data.dp_percentage}%)</span>
-                                                        <span className="font-medium">
+                                                        <span className="text-foreground">Down Payment ({data.dp_percentage}%)</span>
+                                                        <span className="font-medium text-foreground">
                                                             Rp {(rateCalculation.total_amount * data.dp_percentage / 100).toLocaleString()}
                                                         </span>
                                                     </div>
-                                                    <div className="flex justify-between text-sm text-gray-600">
+                                                    <div className="flex justify-between text-sm text-muted-foreground">
                                                         <span>Remaining</span>
                                                         <span>
                                                             Rp {(rateCalculation.total_amount * (100 - data.dp_percentage) / 100).toLocaleString()}
@@ -1372,7 +1373,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                         </div>
                     </div>
                 </div>
-            </div>
-        </AppLayout>
-    );
+                    </div>
+    </GuestLayout>
+);
 } 

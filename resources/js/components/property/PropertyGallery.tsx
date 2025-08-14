@@ -38,10 +38,13 @@ export function PropertyGallery({
 
     if (!hasImages) {
         return (
-            <Card className="overflow-hidden">
+            <Card className="overflow-hidden shadow-xl border-0">
                 <CardContent className="p-0">
-                    <div className="aspect-[16/10] bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-                        <Building2 className="h-20 w-20 text-blue-400" />
+                    <div className="aspect-[16/10] bg-gradient-to-br from-primary/20 via-primary/10 to-background flex items-center justify-center">
+                        <div className="text-center">
+                            <Building2 className="h-24 w-24 text-primary/60 mx-auto mb-4" />
+                            <p className="text-muted-foreground font-medium">No images available</p>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -49,10 +52,10 @@ export function PropertyGallery({
     }
 
     return (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden shadow-xl border-0">
             <CardContent className="p-0">
                 <div className="relative">
-                    <div className="aspect-[16/10] bg-gray-200">
+                    <div className="aspect-[16/10] bg-gradient-to-br from-muted/50 to-background">
                         {currentImage ? (
                             <img 
                                 src={currentImage.url}
@@ -60,8 +63,8 @@ export function PropertyGallery({
                                 className="w-full h-full object-cover"
                             />
                         ) : (
-                            <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-                                <Building2 className="h-20 w-20 text-blue-400" />
+                            <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-background flex items-center justify-center">
+                                <Building2 className="h-24 w-24 text-primary/60" />
                             </div>
                         )}
                     </div>
@@ -72,25 +75,25 @@ export function PropertyGallery({
                             <Button
                                 variant="secondary"
                                 size="sm"
-                                className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white"
+                                className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-background/90 hover:bg-background shadow-lg border border-border/50 backdrop-blur-sm"
                                 onClick={prevImage}
                             >
-                                <ChevronLeft className="h-4 w-4" />
+                                <ChevronLeft className="h-5 w-5 text-foreground" />
                             </Button>
                             <Button
                                 variant="secondary"
                                 size="sm"
-                                className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white"
+                                className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-background/90 hover:bg-background shadow-lg border border-border/50 backdrop-blur-sm"
                                 onClick={nextImage}
                             >
-                                <ChevronRight className="h-4 w-4" />
+                                <ChevronRight className="h-5 w-5 text-foreground" />
                             </Button>
                         </>
                     )}
                     
                     {/* Image Counter */}
                     {hasMultipleImages && (
-                        <div className="absolute bottom-4 right-4 bg-black/60 text-white px-3 py-1 rounded-full text-sm">
+                        <div className="absolute bottom-4 right-4 bg-background/90 text-foreground px-4 py-2 rounded-full text-sm font-semibold shadow-lg border border-border/50 backdrop-blur-sm">
                             {imageCounter}
                         </div>
                     )}

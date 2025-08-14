@@ -1,6 +1,6 @@
 import React from 'react';
 import { Head, Link } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import GuestLayout from '@/layouts/guest-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -114,7 +114,7 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <GuestLayout>
             <Head title={`${t('payment.success_title')} - ${booking.booking_number}`} />
             
             <div className="space-y-6 p-4 md:p-6">
@@ -123,8 +123,8 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
                     <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <CheckCircle className="h-8 w-8 text-green-600" />
                     </div>
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('payment.success_title')}</h1>
-                    <p className="text-gray-600">{t('payment.success_description')}</p>
+                                    <h1 className="text-3xl font-bold text-foreground mb-2">{t('payment.success_title')}</h1>
+                <p className="text-muted-foreground">{t('payment.success_description')}</p>
                 </div>
 
                 <div className="grid lg:grid-cols-3 gap-8">
@@ -332,7 +332,7 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
                         </div>
                     </div>
                 </div>
-            </div>
-        </AppLayout>
-    );
+                    </div>
+    </GuestLayout>
+);
 } 

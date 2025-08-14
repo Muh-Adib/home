@@ -421,7 +421,7 @@ export function DateRange({
                         variant="outline"
                         className={cn(
                             "w-full justify-between text-left font-normal transition-all duration-200",
-                            "border-input hover:border-primary/50 focus:border-primary",
+                            "border-input hover:border-primary/50 focus:border-primary bg-card",
                             !dateRange && "text-muted-foreground",
                             getButtonHeight(),
                             disabled && "opacity-50 cursor-not-allowed",
@@ -499,9 +499,9 @@ export function DateRange({
                         )}
 
                         {warning && !error && (
-                            <Alert className="mb-3 border-orange-200 bg-orange-50">
-                                <AlertCircle className="h-4 w-4 text-orange-600" />
-                                <AlertDescription className="text-orange-700">{warning}</AlertDescription>
+                            <Alert className="mb-3 border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/20">
+                                <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                                <AlertDescription className="text-orange-700 dark:text-orange-300">{warning}</AlertDescription>
                             </Alert>
                         )}
 
@@ -516,25 +516,31 @@ export function DateRange({
                                 disabled={disabledDates}
                                 modifiers={calendarModifiers}
                                 modifiersStyles={{
+                                    selected: {
+                                        backgroundColor: 'hsl(var(--primary))',
+                                        color: 'hsl(var(--primary-foreground))',
+                                        fontWeight: 'bold',
+                                        border: '2px solid hsl(var(--primary))',
+                                    },
                                     booked: {
-                                        backgroundColor: '#f97316',
-                                        color: 'white',
+                                        backgroundColor: 'hsl(var(--destructive))',
+                                        color: 'hsl(var(--destructive-foreground))',
                                         textDecoration: 'line-through',
                                     },
                                     rangeStart: {
-                                        backgroundColor: '#059669',
-                                        color: 'white',
+                                        backgroundColor: 'hsl(var(--primary))',
+                                        color: 'hsl(var(--primary-foreground))',
                                         fontWeight: 'bold',
-                                        border: '2px solid #047857',
+                                        border: '2px solid hsl(var(--primary))',
                                     },
                                     rangeEnd: {
-                                        backgroundColor: '#059669',
-                                        color: 'white',
+                                        backgroundColor: 'hsl(var(--primary))',
+                                        color: 'hsl(var(--primary-foreground))',
                                         fontWeight: 'bold',
-                                        border: '2px solid #047857',
+                                        border: '2px solid hsl(var(--primary))',
                                     },
                                 }}
-                                className="rounded-md border-0 green-calendar-theme"
+                                className="rounded-md border-0"
                                 locale={id}
                             />
                         )}
@@ -555,9 +561,9 @@ export function DateRange({
                                     </div>
                                 )}
                                 {dateRange?.from && dateRange?.to && !error && !warning && (
-                                    <span className="text-green-600 font-medium">
-                                        ✓ {nights} malam terpilih
-                                    </span>
+                                                                    <span className="text-green-600 dark:text-green-400 font-medium">
+                                    ✓ {nights} malam terpilih
+                                </span>
                                 )}
                             </div>
 
@@ -579,15 +585,15 @@ export function DateRange({
 
                         <div className="flex items-center gap-4 mt-2 pt-2 border-t text-xs">
                             <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 rounded" style={{ backgroundColor: '#f97316', opacity: 0.8 }}></div>
+                                <div className="w-3 h-3 rounded bg-orange-500 opacity-80"></div>
                                 <span>Dipesan</span>
                             </div>
                             <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 rounded" style={{ backgroundColor: '#059669', border: '1px solid #047857' }}></div>
+                                <div className="w-3 h-3 rounded bg-green-600 border border-green-700"></div>
                                 <span>Dipilih</span>
                             </div>
                             <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 rounded" style={{ backgroundColor: '#10b981', opacity: 0.4 }}></div>
+                                <div className="w-3 h-3 rounded bg-green-500 opacity-40"></div>
                                 <span>Preview</span>
                             </div>
                             <div className="flex items-center gap-1">
@@ -597,9 +603,9 @@ export function DateRange({
                         </div>
 
                         {dateRange?.from && dateRange?.to && !isMinStayViolation && !error && !warning && (
-                            <Alert className="mt-2 border-green-200 bg-green-50">
-                                <CheckCircle className="h-4 w-4 text-green-600" />
-                                <AlertDescription className="text-green-700">
+                            <Alert className="mt-2 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
+                                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                <AlertDescription className="text-green-700 dark:text-green-300">
                                     Pilihan {nights} malam valid untuk reservasi
                                 </AlertDescription>
                             </Alert>

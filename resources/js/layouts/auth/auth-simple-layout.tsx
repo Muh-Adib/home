@@ -13,13 +13,7 @@ export default function AuthSimpleLayout({ children, title, description }: Props
     const { t } = useTranslation();
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-            {/* Background decoration */}
-            <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-gradient-to-br from-blue-400/20 to-purple-400/20 blur-3xl"></div>
-                <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-gradient-to-tr from-indigo-400/20 to-pink-400/20 blur-3xl"></div>
-            </div>
-
+        <div className="min-h-screen bg-background">
             <div className="relative flex min-h-screen flex-col items-center justify-center p-6 md:p-10">
                 <div className="w-full max-w-md">
                     <div className="flex flex-col gap-8">
@@ -36,23 +30,23 @@ export default function AuthSimpleLayout({ children, title, description }: Props
                             </Link>
 
                             <div className="space-y-3 text-center">
-                                <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                                <h1 className="text-2xl font-bold tracking-tight text-foreground">
                                     {title}
                                 </h1>
-                                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed">
+                                <p className="text-muted-foreground text-sm leading-relaxed">
                                     {description}
                                 </p>
                             </div>
                         </div>
 
                         {/* Form Container */}
-                        <div className="rounded-2xl bg-white/80 backdrop-blur-sm p-8 shadow-xl ring-1 ring-gray-200/50 dark:bg-gray-800/80 dark:ring-gray-700/50">
+                        <div className="rounded-2xl bg-card p-8 shadow-lg border border-border">
                             {children}
                         </div>
 
                         {/* Footer */}
                         <div className="text-center">
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <p className="text-xs text-muted-foreground">
                                 {t('auth.all_rights_reserved')}
                             </p>
                         </div>

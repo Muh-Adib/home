@@ -480,26 +480,35 @@
   "admin": {
     "properties": {
         "map_not_available": "Peta tidak tersedia",
-      "my_properties": "Properti Saya",
-      "manage_description": "Kelola daftar properti dan detail Anda",
-      "add_property": "Tambah Properti",
-      "search_placeholder": "Cari properti...",
-      "all_status": "Semua Status",
-      "status": {
-        "active": "Aktif",
-        "inactive": "Tidak Aktif",
-        "maintenance": "Pemeliharaan"
-      },
-      "featured": "Unggulan",
-      "properties_list": "Daftar Properti",
-      "total_properties": "total properti",
-      "location": "Lokasi",
-      "rate": "Tarif",
-      "bedrooms": "Kamar Tidur",
-      "bathrooms": "Kamar Mandi",
-      "guests": "Tamu",
-      "preview_public": "Pratinjau Publik",
-      "delete_confirm": "Apakah Anda yakin ingin menghapus \"{{name}}\"?"
+        "my_properties": "Properti Saya",
+        "manage_description": "Kelola daftar properti dan detail Anda",
+        "add_property": "Tambah Properti",
+        "filters": "Filter",
+        "search": "Cari",
+        "search_placeholder": "Cari properti...",
+        "statuss": "Status",
+        "all_status": "Semua Status",
+        "status": {
+          "active": "Aktif",
+          "inactive": "Tidak Aktif",
+          "maintenance": "Pemeliharaan"
+        },
+        "apply_filters": "Terapkan Filter",
+        "list_title": "Daftar Properti",
+        "name": "Nama",
+        "location": "Lokasi",
+        "capacity": "Kapasitas",
+        "rate": "Tarif",
+        "actions": "Aksi",
+        "featured": "Unggulan",
+        "properties_list": "Daftar Properti",
+        "total_properties": "total properti",
+        
+        "bedrooms": "Kamar Tidur",
+        "bathrooms": "Kamar Mandi",
+        "guests": "Tamu",
+        "preview_public": "Pratinjau Publik",
+        "delete_confirm": "Apakah Anda yakin ingin menghapus \"{{name}}\"?"
     }
   },
   "properties": {

@@ -118,7 +118,7 @@ export default function DateRangePicker({
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-3 bg-white">
+                <div className="p-3">
                     <div className="flex items-center justify-between mb-4">
                         <Button
                             variant="ghost"

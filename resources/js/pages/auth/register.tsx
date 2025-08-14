@@ -148,11 +148,11 @@ export default function Register() {
             <form className="space-y-6" onSubmit={submit}>
                 {/* Name Field */}
                 <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label htmlFor="name" className="text-sm font-medium text-foreground">
                         {t('auth.full_name')}
                     </Label>
                     <div className="relative">
-                        <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             id="name"
                             type="text"
@@ -173,7 +173,7 @@ export default function Register() {
                 {/* Gender and Country Row */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label htmlFor="gender" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <Label htmlFor="gender" className="text-sm font-medium text-foreground">
                             {t('auth.gender')}
                         </Label>
                         <Select value={data.gender} onValueChange={(value) => setData('gender', value)}>
@@ -189,11 +189,11 @@ export default function Register() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="country" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <Label htmlFor="country" className="text-sm font-medium text-foreground">
                             {t('auth.country')}
                         </Label>
                         <div className="relative">
-                            <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Select value={data.country} onValueChange={handleCountryChange}>
                                 <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                                     <SelectValue placeholder={t('auth.select_country')} />
@@ -213,7 +213,7 @@ export default function Register() {
 
                 {/* Phone Number Field */}
                 <div className="space-y-2">
-                    <Label htmlFor="phone" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label htmlFor="phone" className="text-sm font-medium text-foreground">
                         {t('auth.phone')}
                     </Label>
                     <div className="flex gap-2">
@@ -235,7 +235,7 @@ export default function Register() {
                             </Select>
                         </div>
                         <div className="flex-1 relative">
-                            <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 id="phone"
                                 type="tel"
@@ -255,11 +255,11 @@ export default function Register() {
                 
                 {/* Email Field */}
                 <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label htmlFor="email" className="text-sm font-medium text-foreground">
                         {t('auth.email_address')}
                     </Label>
                     <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             id="email"
                             type="email"
@@ -279,11 +279,11 @@ export default function Register() {
                 {/* Password Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <Label htmlFor="password" className="text-sm font-medium text-foreground">
                             {t('auth.password')}
                         </Label>
                         <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 id="password"
                                 type={showPassword ? 'text' : 'password'}
@@ -294,12 +294,12 @@ export default function Register() {
                                 onChange={(e) => setData('password', e.target.value)}
                                 disabled={processing}
                                 placeholder={t('auth.create_password')}
-                                className="pl-10 pr-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                className="pl-10 pr-10 h-12 border-border focus:border-primary focus:ring-primary bg-background text-foreground"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                             >
                                 {showPassword ? (
                                     <EyeOff className="h-4 w-4" />
@@ -312,11 +312,11 @@ export default function Register() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="password_confirmation" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <Label htmlFor="password_confirmation" className="text-sm font-medium text-foreground">
                             {t('auth.confirm_password')}
                         </Label>
                         <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 id="password_confirmation"
                                 type={showConfirmPassword ? 'text' : 'password'}
@@ -327,12 +327,12 @@ export default function Register() {
                                 onChange={(e) => setData('password_confirmation', e.target.value)}
                                 disabled={processing}
                                 placeholder={t('auth.confirm_your_password')}
-                                className="pl-10 pr-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                className="pl-10 pr-10 h-12 border-border focus:border-primary focus:ring-primary bg-background text-foreground"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                             >
                                 {showConfirmPassword ? (
                                     <EyeOff className="h-4 w-4" />

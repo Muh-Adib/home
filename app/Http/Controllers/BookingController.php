@@ -481,15 +481,16 @@ class BookingController extends Controller
                 $request->get('check_out')
             );
 
-            // Get rate calculation
-            $rateCalculation = $availabilityService->calculateRateFormatted(
+            // Get rate calculation using RateCalculationService directly
+            $rateCalculationService = app(\App\Services\RateCalculationService::class);
+            $rateCalculation = $rateCalculationService->calculateRateFormatted(
                 $property,
                 $request->get('check_in'),
                 $request->get('check_out'),
                 $request->get('guest_count')
             );
 
-            // Format response for frontend
+            // Format response for frontend with comprehensive data
             $response = [
                 'success' => true,
                 'property_id' => $property->id,
@@ -501,8 +502,10 @@ class BookingController extends Controller
                 'guest_count' => $request->get('guest_count'),
                 'booked_dates' => $availability['booked_dates'] ?? [],
                 'booked_periods' => $availability['booked_periods'] ?? [],
-                'rates' => $rateCalculation && $rateCalculation['success'] ? $rateCalculation['rates'] ?? [] : [],
+                'rates' => $rateCalculation && $rateCalculation['success'] ? $rateCalculation['calculation'] ?? [] : [],
                 'property_info' => [
+                    'id' => $property->id,
+                    'name' => $property->name,
                     'base_rate' => $property->base_rate,
                     'capacity' => $property->capacity,
                     'capacity_max' => $property->capacity_max,
@@ -510,6 +513,12 @@ class BookingController extends Controller
                     'extra_bed_rate' => $property->extra_bed_rate,
                     'weekend_premium_percent' => $property->weekend_premium_percent,
                 ],
+                'availability' => [
+                    'available' => $availability['available'] ?? false,
+                    'booked_dates' => $availability['booked_dates'] ?? [],
+                    'booked_periods' => $availability['booked_periods'] ?? [],
+                ],
+                'rate_calculation' => $rateCalculation && $rateCalculation['success'] ? $rateCalculation : null,
             ];
 
             return response()->json($response);

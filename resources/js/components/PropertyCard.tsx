@@ -190,18 +190,45 @@ export default function PropertyCard({
         )
     );
     
-    // Price display component
-    const PriceDisplay = ({ size = 'base' }) => (
-        !hidePrice && (
+    // Price display component with fake discount
+    const PriceDisplay = ({ size = 'base' }) => {
+        if (hidePrice) return null;
+        
+        // Calculate fake discount
+        const currentRate = property.current_rate || property.base_rate || 0;
+        const inflatedRate = Math.round(currentRate * 1.17); // Naikkan 17%
+        const discountAmount = inflatedRate - currentRate;
+        const discountPercentage = Math.round((discountAmount / inflatedRate) * 100);
+        
+        return (
             <div className={cn(classNames?.price)}>
                 <div className="flex items-baseline">
+                    {/* Original Price (Crossed Out) */}
                     <span className={cn(
-                        "font-bold text-blue-600",
+                        "text-gray-500 line-through mr-2",
+                        size === 'large' ? "text-lg" : "text-base"
+                    )}>
+                        Rp {inflatedRate.toLocaleString()}
+                    </span>
+                    
+                    {/* Discounted Price */}
+                    <span className={cn(
+                        "font-bold text-red-600",
                         size === 'large' ? "text-2xl" : "text-xl"
                     )}>
-                        {property.formatted_current_rate || property.formatted_base_rate}
+                        Rp {currentRate.toLocaleString()}
                     </span>
                     <span className="text-gray-600 text-sm ml-1">/{t('common.per_night')}</span>
+                </div>
+                
+                {/* Discount Badge */}
+                <div className="flex items-center mt-1">
+                    <Badge variant="destructive" className="text-xs mr-2">
+                        -{discountPercentage}%
+                    </Badge>
+                    <span className="text-xs text-green-600 font-semibold">
+                        Hemat Rp {discountAmount.toLocaleString()}
+                    </span>
                 </div>
                 
                 {property.has_seasonal_rate && property.seasonal_rate_info && (
@@ -211,8 +238,8 @@ export default function PropertyCard({
                     </div>
                 )}
             </div>
-        )
-    );
+        );
+    };
     
     // Action button component
     const ActionButton = () => {
@@ -226,7 +253,7 @@ export default function PropertyCard({
                 <Button 
                     size={viewMode === 'grid' ? "sm" : "default"} 
                     className={cn(
-                        "bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-700",
+                        "bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700",
                         classNames?.button
                     )}
                 >
@@ -240,7 +267,7 @@ export default function PropertyCard({
                 <Button 
                     size={viewMode === 'list' ? "default" : "sm"} 
                     className={cn(
-                        "bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-700",
+                        "bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700",
                         classNames?.button
                     )}
                 >

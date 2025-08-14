@@ -1,5 +1,5 @@
 import React from 'react';
-import AppLayout from '@/layouts/app-layout';
+import GuestLayout from '@/layouts/guest-layout';
 import { formatCurrency } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -118,7 +118,7 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <GuestLayout>
                             <Head title={`${t('nav.dashboard')} - Homsjogja`} />
             
             <div className="space-y-6 p-4 md:p-6">
@@ -288,9 +288,29 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                                                 <span className="text-muted-foreground">
                                                     {booking.guest_count} guests • {booking.nights} nights
                                                 </span>
-                                                <span className="font-medium text-lg">
-                                                    {formatCurrency(booking.total_amount)}
-                                                </span>
+                                                <div className="text-right">
+                                                    {/* Fake Discount for Booking Display */}
+                                                    {(() => {
+                                                        const originalPrice = booking.total_amount;
+                                                        const inflatedPrice = Math.round(originalPrice * 1.17);
+                                                        const discountAmount = inflatedPrice - originalPrice;
+                                                        const discountPercentage = Math.round((discountAmount / inflatedPrice) * 100);
+                                                        
+                                                        return (
+                                                            <>
+                                                                <div className="text-xs text-muted-foreground line-through">
+                                                                    {formatCurrency(inflatedPrice)}
+                                                                </div>
+                                                                <div className="font-medium text-lg text-red-600">
+                                                                    {formatCurrency(originalPrice)}
+                                                                </div>
+                                                                <div className="text-xs text-green-600 font-semibold">
+                                                                    Hemat {formatCurrency(discountAmount)}
+                                                                </div>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -418,7 +438,7 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
                         </CardContent>
                     </Card>
                 )}
-            </div>
-        </AppLayout>
-    );
+                    </div>
+    </GuestLayout>
+);
 } 

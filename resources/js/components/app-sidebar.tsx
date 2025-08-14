@@ -23,97 +23,172 @@ import {
     Sparkles,
     ClipboardList,
     CheckCircle,
-    MapPin
+    MapPin,
+    TrendingUp,
+    Bell,
+    HelpCircle,
+    LogOut
 } from 'lucide-react';
 import AppLogo from './app-logo';
 import { NotificationBell } from './notifications/notification-bell';
 import { useTranslation } from 'react-i18next';
 
-// Helper function untuk role-based navigation
-const getNavItemsForRole = (userRole: User['role']): (NavItem & { title: string, href: string, icon: LucideIcon })[] => {
-    const baseItems = [
-        { title: 'dashboard', href: '/dashboard', icon: LayoutGrid },
-    ];
-
-    const roleBasedItems: Record<User['role'], (NavItem & { title: string, href: string, icon: LucideIcon })[]> = {
-        super_admin: [
-            ...baseItems,
-            { title: 'properties', href: '/admin/properties', icon: Building2 },
-            { title: 'rate_management', href: '/admin/rate-management', icon: DollarSign },
-            { title: 'bookings', href: '/admin/bookings', icon: Calendar },
-            { title: 'payments', href: '/admin/payments', icon: CreditCard },
-            { title: 'users', href: '/admin/users', icon: Users },
-            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
-            { title: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
-            { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
-            { title: 'reports', href: '/admin/reports', icon: BarChart3 },
-            { title: 'amenities', href: '/admin/amenities', icon: Package },
-            { title: 'settings', href: '/admin/settings', icon: Settings },
+// Helper function untuk role-based navigation dengan grouping yang lebih baik
+const getNavItemsForRole = (userRole: User['role']): {
+    main: (NavItem & { title: string, href: string, icon: LucideIcon })[];
+    management: (NavItem & { title: string, href: string, icon: LucideIcon })[];
+    operations: (NavItem & { title: string, href: string, icon: LucideIcon })[];
+    analytics: (NavItem & { title: string, href: string, icon: LucideIcon })[];
+} => {
+    const baseItems = {
+        main: [
+            { title: 'dashboard', href: '/dashboard', icon: LayoutGrid },
         ],
-        property_owner: [
-            ...baseItems,
-            { title: 'my_properties', href: '/admin/properties', icon: Building2 },
-            { title: 'rate_management', href: '/admin/rate-management', icon: DollarSign },
-            { title: 'bookings', href: '/admin/bookings', icon: Calendar },
-            { title: 'payments', href: '/admin/payments', icon: CreditCard },
-            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
-            { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
-            { title: 'reports', href: '/admin/reports', icon: BarChart3 },
-        ],
-        property_manager: [
-            ...baseItems,
-            { title: 'properties', href: '/admin/properties', icon: Building2 },
-            { title: 'rate_management', href: '/admin/rate-management', icon: DollarSign },
-            { title: 'bookings', href: '/admin/bookings', icon: Calendar },
-            { title: 'payments', href: '/admin/payments', icon: CreditCard },
-            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
-            { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
-            { title: 'reports', href: '/admin/reports', icon: BarChart3 },
-        ],
-        front_desk: [
-            ...baseItems,
-            { title: 'bookings', href: '/admin/bookings', icon: Calendar },
-            { title: 'check_in_out', href: '/admin/checkin', icon: Shield },
-            { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
-        ],
-        finance: [
-            ...baseItems,
-            { title: 'payments', href: '/admin/payments', icon: CreditCard },
-            { title: 'financial_reports', href: '/admin/reports/financial', icon: DollarSign },
-            { title: 'expenses', href: '/admin/expenses', icon: FileText },
-        ],
-        housekeeping: [
-            ...baseItems,
-            { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
-            { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
-            { title: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
-            { title: 'room_status', href: '/admin/rooms', icon: Wrench },
-            { title: 'maintenance', href: '/admin/maintenance', icon: Settings },
-        ],
-        guest: [
-            { title: 'browse_properties', href: '/properties', icon: Home },
-            { title: 'my_bookings', href: '/my-bookings', icon: Calendar },
-            { title: 'my_payments', href: '/my-payments', icon: CreditCard },
-        ],
+        management: [],
+        operations: [],
+        analytics: []
     };
 
-    return roleBasedItems[userRole] || baseItems;
+    const roleBasedItems: Partial<Record<User['role'], {
+        main?: (NavItem & { title: string, href: string, icon: LucideIcon })[];
+        management?: (NavItem & { title: string, href: string, icon: LucideIcon })[];
+        operations?: (NavItem & { title: string, href: string, icon: LucideIcon })[];
+        analytics?: (NavItem & { title: string, href: string, icon: LucideIcon })[];
+    }>> = {
+        super_admin: {
+            main: [
+                { title: 'dashboard', href: '/dashboard', icon: LayoutGrid },
+            ],
+            management: [
+                { title: 'properties', href: '/admin/properties', icon: Building2 },
+                { title: 'users', href: '/admin/users', icon: Users },
+                { title: 'amenities', href: '/admin/amenities', icon: Package },
+            ],
+            operations: [
+                { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+                { title: 'payments', href: '/admin/payments', icon: CreditCard },
+                { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+                { title: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
+                { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
+            ],
+            analytics: [
+                { title: 'rate_management', href: '/admin/rate-management', icon: DollarSign },
+                { title: 'reports', href: '/admin/reports', icon: BarChart3 },
+                { title: 'settings', href: '/admin/settings', icon: Settings },
+            ]
+        },
+        property_owner: {
+            main: [
+                { title: 'dashboard', href: '/dashboard', icon: LayoutGrid },
+            ],
+            management: [
+                { title: 'my_properties', href: '/admin/properties', icon: Building2 },
+            ],
+            operations: [
+                { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+                { title: 'payments', href: '/admin/payments', icon: CreditCard },
+                { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+                { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
+            ],
+            analytics: [
+                { title: 'rate_management', href: '/admin/rate-management', icon: DollarSign },
+                { title: 'reports', href: '/admin/reports', icon: BarChart3 },
+            ]
+        },
+        property_manager: {
+            main: [
+                { title: 'dashboard', href: '/dashboard', icon: LayoutGrid },
+            ],
+            management: [
+                { title: 'properties', href: '/admin/properties', icon: Building2 },
+            ],
+            operations: [
+                { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+                { title: 'payments', href: '/admin/payments', icon: CreditCard },
+                { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+                { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
+            ],
+            analytics: [
+                { title: 'rate_management', href: '/admin/rate-management', icon: DollarSign },
+                { title: 'reports', href: '/admin/reports', icon: BarChart3 },
+            ]
+        },
+        front_desk: {
+            main: [
+                { title: 'dashboard', href: '/dashboard', icon: LayoutGrid },
+            ],
+            management: [],
+            operations: [
+                { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+                { title: 'check_in_out', href: '/admin/checkin', icon: Shield },
+                { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
+            ],
+            analytics: []
+        },
+        finance: {
+            main: [
+                { title: 'dashboard', href: '/dashboard', icon: LayoutGrid },
+            ],
+            management: [],
+            operations: [
+                { title: 'payments', href: '/admin/payments', icon: CreditCard },
+            ],
+            analytics: [
+                { title: 'financial_reports', href: '/admin/reports/financial', icon: DollarSign },
+                { title: 'expenses', href: '/admin/expenses', icon: FileText },
+            ]
+        },
+        housekeeping: {
+            main: [
+                { title: 'dashboard', href: '/dashboard', icon: LayoutGrid },
+            ],
+            management: [],
+            operations: [
+                { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
+                { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
+                { title: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
+                { title: 'room_status', href: '/admin/rooms', icon: Wrench },
+                { title: 'maintenance', href: '/admin/maintenance', icon: Settings },
+            ],
+            analytics: []
+        },
+        guest: {
+            main: [
+                { title: 'browse_properties', href: '/properties', icon: Home },
+                { title: 'my_bookings', href: '/my-bookings', icon: Calendar },
+                { title: 'my_payments', href: '/my-payments', icon: CreditCard },
+            ],
+            management: [],
+            operations: [],
+            analytics: []
+        },
+    };
+
+    const roleItems = roleBasedItems[userRole] || {};
+
+    return {
+        main: roleItems.main ?? baseItems.main,
+        management: roleItems.management ?? baseItems.management,
+        operations: roleItems.operations ?? baseItems.operations,
+        analytics: roleItems.analytics ?? baseItems.analytics,
+    };
 };
 
 const footerNavItems: (NavItem & { title: string, href: string, icon: LucideIcon })[] = [
     { title: 'documentation', href: '/help', icon: FileText },
-    { title: 'support', href: '/support', icon: Settings },
+    { title: 'support', href: '/support', icon: HelpCircle },
 ];
 
 export function AppSidebar() {
     const page = usePage<PageProps>();
     const { auth } = page.props;
+    const { t } = useTranslation();
     
     // Add null checking untuk auth.user
     if (!auth?.user) {
         return (
-            <Sidebar collapsible="icon" variant="inset">
-                <SidebarHeader>
+            <Sidebar collapsible="icon" variant="inset" className="border-r border-gray-200">
+                <SidebarHeader className="border-b border-gray-200">
                     <SidebarMenu>
                         <SidebarMenuItem>
                             <SidebarMenuButton size="lg" asChild>
@@ -126,7 +201,10 @@ export function AppSidebar() {
                 </SidebarHeader>
                 <SidebarContent>
                     <div className="p-4 text-center text-muted-foreground">
-                        Loading...
+                        <div className="animate-pulse">
+                            <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                            <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+                        </div>
                     </div>
                 </SidebarContent>
             </Sidebar>
@@ -136,11 +214,11 @@ export function AppSidebar() {
     const navItems = getNavItemsForRole(auth.user.role);
 
     return (
-        <Sidebar collapsible="icon" variant="inset">
-            <SidebarHeader>
+        <Sidebar collapsible="icon" variant="inset" className="border-r border-gray-200 bg-white">
+            <SidebarHeader className="border-b border-gray-200 bg-gray-50/50">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
+                        <SidebarMenuButton size="lg" asChild className="hover:bg-gray-100">
                             <Link href="/dashboard" prefetch>
                                 <AppLogo />
                             </Link>
@@ -149,21 +227,69 @@ export function AppSidebar() {
                 </SidebarMenu>
             </SidebarHeader>
 
-            <SidebarContent>
-                <NavMain items={navItems} />
+            <SidebarContent className="py-4">
+                {/* Main Navigation */}
+                {navItems.main.length > 0 && (
+                    <div className="mb-6">
+                        <NavMain items={navItems.main} />
+                    </div>
+                )}
+
+                {/* Management Section */}
+                {navItems.management.length > 0 && (
+                    <div className="mb-6">
+                        <div className="px-3 mb-2">
+                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                Management
+                            </h3>
+                        </div>
+                        <NavMain items={navItems.management} />
+                    </div>
+                )}
+
+                {/* Operations Section */}
+                {navItems.operations.length > 0 && (
+                    <div className="mb-6">
+                        <div className="px-3 mb-2">
+                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                Operations
+                            </h3>
+                        </div>
+                        <NavMain items={navItems.operations} />
+                    </div>
+                )}
+
+                {/* Analytics Section */}
+                {navItems.analytics.length > 0 && (
+                    <div className="mb-6">
+                        <div className="px-3 mb-2">
+                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                Analytics
+                            </h3>
+                        </div>
+                        <NavMain items={navItems.analytics} />
+                    </div>
+                )}
             </SidebarContent>
 
-            <SidebarFooter>
-                <NavFooter items={footerNavItems} className="mt-auto" /> 
-                {/* Notification Bell - Show for all authenticated users except guests */}
-                 {auth.user.role !== 'guest' && (
-                                <NotificationBell 
-                                    userId={auth.user.id} 
-                                    className="ml-1" 
-                                />
-                            )}
-                <NavUser />
-                
+            <SidebarFooter className="border-t border-gray-200 bg-gray-50/50">
+                <div className="p-4 space-y-3">
+                    {/* Notification Bell - Show for all authenticated users except guests */}
+                    {auth.user.role !== 'guest' && (
+                        <div className="flex items-center justify-center">
+                            <NotificationBell 
+                                userId={auth.user.id} 
+                                className="w-full"
+                            />
+                        </div>
+                    )}
+                    
+                    {/* Footer Navigation */}
+                    <NavFooter items={footerNavItems} className="mb-3" />
+                    
+                    {/* User Section */}
+                    <NavUser />
+                </div>
             </SidebarFooter>
         </Sidebar>
     );

@@ -36,7 +36,7 @@ import {
     MessageSquare
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import AppLayout from '@/layouts/app-layout';
+import GuestLayout from '@/layouts/guest-layout';
 import { BreadcrumbItem } from '@/types';
 
 interface Property {
@@ -126,7 +126,7 @@ interface MyBookingsProps {
     };
 }
 
-export default function MyBookings({ bookings = { data: [] }, filters = {} }: MyBookingsProps) {
+export default function MyBookings({ bookings, filters }: MyBookingsProps) {
     const { t } = useTranslation();
     const [localFilters, setLocalFilters] = useState({
         search: filters.search || '',
@@ -256,7 +256,7 @@ export default function MyBookings({ bookings = { data: [] }, filters = {} }: My
     console.log(bookings);
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <GuestLayout>
                             <Head title={`${t('nav.my_bookings')} - Homsjogja`} />
 
             <div className="min-h-screen bg-slate-50">
@@ -265,8 +265,8 @@ export default function MyBookings({ bookings = { data: [] }, filters = {} }: My
                     <div className="container mx-auto px-4 py-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                <h1 className="text-3xl font-bold text-gray-900">{t('nav.my_bookings')}</h1>
-                                <p className="text-gray-600 mt-1">
+                                                <h1 className="text-3xl font-bold text-foreground">{t('nav.my_bookings')}</h1>
+                <p className="text-muted-foreground mt-1">
                                     {bookings.total} {t('nav.bookings').toLowerCase()} total
                                 </p>
                             </div>
@@ -289,7 +289,7 @@ export default function MyBookings({ bookings = { data: [] }, filters = {} }: My
                         {/* Search & Filter Bar */}
                         <div className="flex flex-col lg:flex-row gap-4">
                             <div className="flex-1 relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     placeholder={t('Search by booking number or property name...')}
                                     value={localFilters.search}
@@ -366,7 +366,7 @@ export default function MyBookings({ bookings = { data: [] }, filters = {} }: My
                                             </Link>
                                         )}
 
-                                        <span className="px-4 py-2 text-sm text-gray-600">
+                                        <span className="px-4 py-2 text-sm text-muted-foreground">
                                             {t('Page')} {bookings.current_page} {t('of')} {bookings.last_page}
                                         </span>
 
@@ -382,11 +382,11 @@ export default function MyBookings({ bookings = { data: [] }, filters = {} }: My
                     ) : (
                         <Card>
                             <CardContent className="text-center py-12">
-                                <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                                <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                                    {t('No bookings found')}
-                                </h3>
-                                <p className="text-gray-500 mb-4">
+                                                    <Calendar className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-foreground mb-2">
+                        {t('No bookings found')}
+                    </h3>
+                    <p className="text-muted-foreground mb-4">
                                     {filters.search || filters.status || filters.payment_status
                                         ? t('Try adjusting your search criteria or filters')
                                         : t('You haven\'t made any bookings yet')
@@ -617,7 +617,7 @@ export default function MyBookings({ bookings = { data: [] }, filters = {} }: My
                         )}
                     </DialogContent>
                 </Dialog>
-            </div>
-        </AppLayout>
-    );
+                    </div>
+    </GuestLayout>
+);
 } 

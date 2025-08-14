@@ -51,11 +51,11 @@ export default function ForgotPassword({ status }: ForgotPasswordProps) {
             <form className="space-y-6" onSubmit={submit}>
                 {/* Email Field */}
                 <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label htmlFor="email" className="text-sm font-medium text-foreground">
                         {t('auth.email_address')}
                     </Label>
                     <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             id="email"
                             type="email"

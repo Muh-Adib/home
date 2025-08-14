@@ -16,78 +16,78 @@ export const PropertyOverview: React.FC<PropertyOverviewProps> = ({ property, fo
   return (
     <div className="space-y-6">
       {/* Description */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
+      <Card className="shadow-lg border-0 bg-gradient-to-br from-background to-muted/30">
+        <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/20">
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Building2 className="h-5 w-5 text-primary" />
             {t('properties.description')}
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+        <CardContent className="p-6">
+          <p className="text-foreground leading-relaxed whitespace-pre-wrap text-lg">
             {property.description}
           </p>
         </CardContent>
       </Card>
 
       {/* Property Features */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('properties.property_features')}</CardTitle>
+      <Card className="shadow-lg border-0 bg-gradient-to-br from-background to-muted/30">
+        <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/20">
+          <CardTitle className="text-foreground">{t('properties.property_features')}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <Users className="h-8 w-8 mx-auto mb-2 text-blue-600" />
-              <p className="font-semibold">{property.capacity}-{property.capacity_max}</p>
-              <p className="text-sm text-gray-600">{t('booking.guests')}</p>
+            <div className="text-center p-4 bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg border border-primary/20 hover:shadow-md transition-all duration-200">
+              <Users className="h-8 w-8 mx-auto mb-2 text-primary" />
+              <p className="font-semibold text-foreground">{property.capacity}-{property.capacity_max}</p>
+              <p className="text-sm text-muted-foreground">{t('booking.guests')}</p>
             </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <Bed className="h-8 w-8 mx-auto mb-2 text-blue-600" />
-              <p className="font-semibold">{property.bedroom_count}</p>
-              <p className="text-sm text-gray-600">{t('properties.bedrooms')}</p>
+            <div className="text-center p-4 bg-gradient-to-br from-blue-500/10 to-blue-500/5 rounded-lg border border-blue-500/20 hover:shadow-md transition-all duration-200">
+              <Bed className="h-8 w-8 mx-auto mb-2 text-blue-500" />
+              <p className="font-semibold text-foreground">{property.bedroom_count}</p>
+              <p className="text-sm text-muted-foreground">{t('properties.bedrooms')}</p>
             </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <Bath className="h-8 w-8 mx-auto mb-2 text-blue-600" />
-              <p className="font-semibold">{property.bathroom_count}</p>
-              <p className="text-sm text-gray-600">{t('properties.bathrooms')}</p>
+            <div className="text-center p-4 bg-gradient-to-br from-green-500/10 to-green-500/5 rounded-lg border border-green-500/20 hover:shadow-md transition-all duration-200">
+              <Bath className="h-8 w-8 mx-auto mb-2 text-green-500" />
+              <p className="font-semibold text-foreground">{property.bathroom_count}</p>
+              <p className="text-sm text-muted-foreground">{t('properties.bathrooms')}</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Check-in Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
+      <Card className="shadow-lg border-0 bg-gradient-to-br from-background to-muted/30">
+        <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/20">
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Clock className="h-5 w-5 text-primary" />
             {t('properties.check_in_information')}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium text-gray-600">{t('properties.check_in_time')}</Label>
-              <p className="text-lg font-semibold">{formatTime(property.check_in_time)}</p>
+        <CardContent className="space-y-6 p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-4 bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg border border-primary/20">
+              <Label className="text-sm font-medium text-muted-foreground">{t('properties.check_in_time')}</Label>
+              <p className="text-xl font-semibold text-foreground">{formatTime(property.check_in_time)}</p>
             </div>
-            <div>
-              <Label className="text-sm font-medium text-gray-600">{t('properties.check_out_time')}</Label>
-              <p className="text-lg font-semibold">{formatTime(property.check_out_time)}</p>
+            <div className="p-4 bg-gradient-to-br from-blue-500/10 to-blue-500/5 rounded-lg border border-blue-500/20">
+              <Label className="text-sm font-medium text-muted-foreground">{t('properties.check_out_time')}</Label>
+              <p className="text-xl font-semibold text-foreground">{formatTime(property.check_out_time)}</p>
             </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label className="text-sm font-medium text-gray-600">{t('properties.minimum_stay_weekday')}</Label>
-              <p className="font-semibold">{property.min_stay_weekday} {t('booking.nights')}</p>
+            <div className="p-4 bg-gradient-to-br from-green-500/10 to-green-500/5 rounded-lg border border-green-500/20">
+              <Label className="text-sm font-medium text-muted-foreground">{t('properties.minimum_stay_weekday')}</Label>
+              <p className="text-lg font-semibold text-foreground">{property.min_stay_weekday} {t('booking.nights')}</p>
             </div>
-            <div>
-              <Label className="text-sm font-medium text-gray-600">{t('properties.minimum_stay_weekend')}</Label>
-              <p className="font-semibold">{property.min_stay_weekend} {t('booking.nights')}</p>
+            <div className="p-4 bg-gradient-to-br from-orange-500/10 to-orange-500/5 rounded-lg border border-orange-500/20">
+              <Label className="text-sm font-medium text-muted-foreground">{t('properties.minimum_stay_weekend')}</Label>
+              <p className="text-lg font-semibold text-foreground">{property.min_stay_weekend} {t('booking.nights')}</p>
             </div>
-            <div>
-              <Label className="text-sm font-medium text-gray-600">{t('properties.minimum_stay_peak')}</Label>
-              <p className="font-semibold">{property.min_stay_peak} {t('booking.nights')}</p>
+            <div className="p-4 bg-gradient-to-br from-red-500/10 to-red-500/5 rounded-lg border border-red-500/20">
+              <Label className="text-sm font-medium text-muted-foreground">{t('properties.minimum_stay_peak')}</Label>
+              <p className="text-lg font-semibold text-foreground">{property.min_stay_peak} {t('booking.nights')}</p>
             </div>
           </div>
         </CardContent>

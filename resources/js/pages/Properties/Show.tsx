@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback } from 'react';
 import { Head } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import GuestLayout from '@/layouts/guest-layout';
 import { useTranslation } from 'react-i18next';
 import { PropertyGallery } from '@/components/property/PropertyGallery';
 import { BookingSidebar } from '@/components/property/BookingSidebar';
@@ -66,7 +66,7 @@ export default function PropertyShow({
   // Initial rate calculation when searchParams are provided
   useEffect(() => {
     if (searchParams.check_in && searchParams.check_out && availabilityData) {
-      console.log('🚀 Initial rate calculation from searchParams:', {
+      console.log('Initial rate calculation from searchParams:', {
         checkIn: searchParams.check_in,
         checkOut: searchParams.check_out,
         guests: searchParams.guests || 2
@@ -102,18 +102,21 @@ export default function PropertyShow({
   }, [state.checkInDate, state.checkOutDate, state.guestCount]);
 
   return (
-    <AppLayout>
+    <GuestLayout>
       <Head title={property.name} />
       
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           
           <PropertyHeader property={property} />
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
             
             {/* Main Content */}
-            <div className="xl:col-span-2 space-y-8">
+            <div className="xl:col-span-2 space-y-8 relative">
+              {/* Decorative background elements */}
+              <div className="absolute -top-4 -left-4 w-32 h-32 bg-primary/5 rounded-full blur-3xl"></div>
+              <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl"></div>
               
               {/* Image Gallery */}
               <PropertyGallery
@@ -125,9 +128,6 @@ export default function PropertyShow({
 
               {/* Property Details Tabs */}
               <PropertyTabs property={property} formatTime={formatTime} />
-
-              {/* Similar Properties */}
-              <SimilarProperties properties={similarProperties} />
             </div>
 
             {/* Booking Sidebar */}
@@ -152,8 +152,17 @@ export default function PropertyShow({
               isRateReady={isRateReady}
             />
           </div>
+
+          {/* Similar Properties - Full Width After Booking */}
+          <div className="mt-16 relative">
+            {/* Decorative background elements for similar properties section */}
+            <div className="absolute -top-8 -left-8 w-40 h-40 bg-primary/5 rounded-full blur-3xl"></div>
+            <div className="absolute -bottom-8 -right-8 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl"></div>
+            
+            <SimilarProperties properties={similarProperties} />
+          </div>
         </div>
       </div>
-    </AppLayout>
+    </GuestLayout>
   );
 }

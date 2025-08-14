@@ -51,24 +51,24 @@ export default function AmenityItem({
     
     if (variant === 'list') {
         return (
-            <div className={cn("flex items-center gap-2", className)}>
-                <IconComponent className={cn("h-4 w-4 text-gray-600", iconClassName)} />
-                {showName && <span className="text-sm">{amenity.name}</span>}
+            <div className={cn("flex items-center gap-3 p-3 bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg border border-primary/20 hover:shadow-md transition-all duration-200", className)}>
+                <IconComponent className={cn("h-5 w-5 text-primary", iconClassName)} />
+                {showName && <span className="text-sm font-medium text-foreground">{amenity.name}</span>}
             </div>
         );
     }
     
     if (variant === 'card') {
         return (
-            <div className={cn("flex items-center space-x-3 p-3 bg-gray-50 rounded-lg", className)}>
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                    <IconComponent className={cn("h-4 w-4 text-blue-600", iconClassName)} />
+            <div className={cn("flex items-center space-x-3 p-4 bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg border border-primary/20 hover:shadow-lg transition-all duration-200", className)}>
+                <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
+                    <IconComponent className={cn("h-5 w-5 text-primary", iconClassName)} />
                 </div>
                 {showName && (
                     <div className="flex-1">
-                        <div className="font-medium text-gray-900">{amenity.name}</div>
+                        <div className="font-semibold text-foreground">{amenity.name}</div>
                         {amenity.description && (
-                            <div className="text-sm text-gray-500 mt-1">{amenity.description}</div>
+                            <div className="text-sm text-muted-foreground mt-1">{amenity.description}</div>
                         )}
                     </div>
                 )}

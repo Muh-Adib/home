@@ -30,7 +30,7 @@ import {
     User,
     MapPin
 } from 'lucide-react';
-import AppLayout from '@/layouts/app-layout';
+import GuestLayout from '@/layouts/guest-layout';
 import { useTranslation } from 'react-i18next';
 import { PageProps, BreadcrumbItem } from '@/types';
 
@@ -189,8 +189,8 @@ export default function MyPayments({ payments, filters }: MyPaymentsProps) {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-                            <Head title={`${t('payment.title')} - Homsjogja`} />
+        <GuestLayout>
+        <Head title={`${t('payment.title')} - Homsjogja`} />
 
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
@@ -198,8 +198,8 @@ export default function MyPayments({ payments, filters }: MyPaymentsProps) {
                     <div className="container mx-auto px-4 py-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                <h1 className="text-3xl font-bold text-gray-900">{t('payment.title')}</h1>
-                                <p className="text-gray-600 mt-1">
+                                                <h1 className="text-3xl font-bold text-foreground">{t('payment.title')}</h1>
+                <p className="text-muted-foreground mt-1">
                                     {payments.total} {t('payment.payment_history').toLowerCase()}
                                 </p>
                             </div>
@@ -222,7 +222,7 @@ export default function MyPayments({ payments, filters }: MyPaymentsProps) {
                         {/* Search & Filter Bar */}
                         <div className="flex flex-col lg:flex-row gap-4">
                             <div className="flex-1 relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     placeholder={t('payment.filter.search_placeholder')}
                                     value={localFilters.search}
@@ -306,7 +306,7 @@ export default function MyPayments({ payments, filters }: MyPaymentsProps) {
                                                         {payment.booking.booking_number}
                                                     </h4>
                                                 </Link>
-                                                <div className="flex items-center text-sm text-gray-600 mt-1">
+                                                <div className="flex items-center text-sm text-muted-foreground mt-1">
                                                     <Building2 className="h-4 w-4 mr-1" />
                                                     <span>{payment.booking.property.name}</span>
                                                 </div>
@@ -639,6 +639,6 @@ export default function MyPayments({ payments, filters }: MyPaymentsProps) {
                     </DialogContent>
                 </Dialog>
             </div>
-        </AppLayout>
-    );
+    </GuestLayout>
+);
 } 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -109,6 +109,63 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
         });
     };
 
+    const [timeLeft, setTimeLeft] = useState<{
+        hours: number;
+        minutes: number;
+        seconds: number;
+    } | null>(null);
+
+    useEffect(() => {
+        const calculateTimeLeft = () => {
+            const expiryTime = new Date(booking.payment_token_expires_at).getTime();
+            const now = new Date().getTime();
+            const difference = expiryTime - now;
+
+            if (difference <= 0) {
+                setTimeLeft(null);
+                return;
+            }
+
+            const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+            setTimeLeft({ hours, minutes, seconds });
+        };
+
+        // Hitung waktu tersisa saat pertama kali komponen dimuat
+        calculateTimeLeft();
+
+        // Update setiap detik
+        const timer = setInterval(() => {
+            calculateTimeLeft();
+        }, 1000);
+
+        // Cleanup interval saat komponen unmount
+        return () => clearInterval(timer);
+    }, [booking.payment_token_expires_at]);
+
+    const renderCountdown = () => {
+        if (!timeLeft) return null;
+
+        return (
+            <div className="bg-yellow-50 p-4 rounded-lg mb-4">
+                <div className="flex items-center gap-2 text-yellow-800">
+                    <Clock className="h-5 w-5" />
+                    <span className="font-medium">Waktu Pembayaran Tersisa:</span>
+                </div>
+                <div className="text-2xl font-bold text-yellow-900 mt-2">
+                    {String(timeLeft.hours).padStart(2, '0')}:
+                    {String(timeLeft.minutes).padStart(2, '0')}:
+                    {String(timeLeft.seconds).padStart(2, '0')}
+                </div>
+                <p className="text-sm text-yellow-700 mt-1">
+                    Silakan selesaikan pembayaran sebelum waktu habis
+                </p>
+            </div>
+        );
+    };
+
     const handleMethodSelect = (method: PaymentMethod) => {
         setSelectedMethod(method);
         setData('payment_method_id', method.id.toString());
@@ -149,7 +206,7 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                         <CardContent className="text-center py-8">
                             <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
                             <h2 className="text-xl font-semibold text-red-700 mb-2">Payment Link Expired</h2>
-                            <p className="text-gray-600 mb-4">
+                            <p className="text-muted-foreground mb-4">
                                 This payment link has expired. Please contact our support team for assistance.
                             </p>
                             <Button variant="outline" onClick={() => window.history.back()}>
@@ -189,14 +246,14 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div>
-                                    <p className="text-sm text-gray-600">Booking Number</p>
+                                    <p className="text-sm text-muted-foreground">Booking Number</p>
                                     <p className="font-semibold">{booking.booking_number}</p>
                                 </div>
 
                                 <div>
-                                    <p className="text-sm text-gray-600">Property</p>
-                                    <p className="font-semibold">{booking.property.name}</p>
-                                    <div className="flex items-center text-sm text-gray-600 mt-1">
+                                                            <p className="text-sm text-muted-foreground">Property</p>
+                        <p className="font-semibold">{booking.property.name}</p>
+                        <div className="flex items-center text-sm text-muted-foreground mt-1">
                                         <MapPin className="h-4 w-4 mr-1" />
                                         <span>{booking.property.address}</span>
                                     </div>
@@ -204,17 +261,17 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <p className="text-sm text-gray-600">Check-in</p>
+                                        <p className="text-sm text-muted-foreground">Check-in</p>
                                         <p className="font-semibold">{formatDate(booking.check_in)}</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-gray-600">Check-out</p>
+                                        <p className="text-sm text-muted-foreground">Check-out</p>
                                         <p className="font-semibold">{formatDate(booking.check_out)}</p>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <p className="text-sm text-gray-600">Guests</p>
+                                    <p className="text-sm text-muted-foreground">Guests</p>
                                     <div className="flex items-center gap-1">
                                         <Users className="h-4 w-4" />
                                         <span className="font-semibold">{booking.guest_count} guests</span>
@@ -226,6 +283,15 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                         <p className="text-lg font-semibold">Total Amount</p>
                                         <p className="text-2xl font-bold text-blue-600">
                                             {formatCurrency(booking.total_amount)}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="border-t pt-4">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-lg font-semibold">Payment Deadline</p>
+                                        <p className="text-2xl font-bold text-blue-600">
+                                            {formatDateTime(booking.payment_token_expires_at)}
                                         </p>
                                     </div>
                                 </div>

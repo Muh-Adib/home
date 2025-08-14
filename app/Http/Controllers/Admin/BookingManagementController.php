@@ -278,7 +278,8 @@ class BookingManagementController extends Controller
             // ✅ FIX: Admin-specific updates
             $booking->update([
                 'created_by' => $user->id,
-                'source' => 'admin_manual',
+                // Use allowed enum values only; mark admin source via created_by and logs
+                'source' => $request->get('source', 'direct'),
             ]);
 
             // Auto-verify if requested
@@ -362,6 +363,73 @@ class BookingManagementController extends Controller
                     'base_amount' => 'Rp ' . number_format($rateCalculation->baseAmount, 0, ',', '.'),
                     'extra_bed_amount' => 'Rp ' . number_format($rateCalculation->extraBedAmount, 0, ',', '.'),
                     'total_amount' => 'Rp ' . number_format($rateCalculation->totalAmount, 0, ',', '.'),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 400);
+        }
+    }
+    
+    /**
+     * Get availability and rates combined for admin (single endpoint)
+     */
+    public function availabilityAndRates(Request $request)
+    {
+        $request->validate([
+            'property_id' => 'required|exists:properties,id',
+            'check_in' => 'required|date',
+            'check_out' => 'required|date|after:check_in',
+            'guest_count' => 'required|integer|min:1',
+        ]);
+        
+        $property = Property::findOrFail($request->property_id);
+        
+        try {
+            // Availability
+            $availabilityService = app(\App\Services\AvailabilityService::class);
+            $availability = $availabilityService->checkAvailability(
+                $property,
+                $request->check_in,
+                $request->check_out
+            );
+            
+            // Rate calculation
+            $rateCalculation = $this->rateCalculationService->calculateRate(
+                $property,
+                $request->check_in,
+                $request->check_out,
+                (int) $request->guest_count
+            );
+            
+            return response()->json([
+                'success' => true,
+                'property' => [
+                    'id' => $property->id,
+                    'name' => $property->name,
+                    'base_rate' => $property->base_rate,
+                    'capacity' => $property->capacity,
+                    'capacity_max' => $property->capacity_max,
+                    'cleaning_fee' => $property->cleaning_fee,
+                    'extra_bed_rate' => $property->extra_bed_rate,
+                    'weekend_premium_percent' => $property->weekend_premium_percent,
+                ],
+                'date_range' => [
+                    'start' => $request->check_in,
+                    'end' => $request->check_out,
+                ],
+                'guest_count' => (int) $request->guest_count,
+                'availability' => $availability,
+                'booked_dates' => $availability['booked_dates'] ?? [],
+                'booked_periods' => $availability['booked_periods'] ?? [],
+                'calculation' => $rateCalculation->toArray(),
+                'formatted' => [
+                    'base_amount' => 'Rp ' . number_format($rateCalculation->baseAmount, 0, ',', '.'),
+                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation->extraBedAmount, 0, ',', '.'),
+                    'total_amount' => 'Rp ' . number_format($rateCalculation->totalAmount, 0, ',', '.'),
+                    'per_night' => 'Rp ' . number_format(($rateCalculation->totalAmount / max($rateCalculation->nights, 1)), 0, ',', '.'),
                 ],
             ]);
         } catch (\Exception $e) {
@@ -468,7 +536,7 @@ class BookingManagementController extends Controller
     }
     
     /**
-     * Get property date range data (API)
+     * Get property date range data for admin booking creation
      */
     public function getPropertyDateRange(Request $request)
     {
@@ -483,8 +551,9 @@ class BookingManagementController extends Controller
         $endDate = $request->get('end_date', now()->addMonths(3)->toDateString());
         
         try {
-            // Get availability data
-            $availabilityData = $property->getAvailabilityData($startDate, $endDate);
+            // Get availability data using AvailabilityService
+            $availabilityService = app(\App\Services\AvailabilityService::class);
+            $availability = $availabilityService->checkAvailability($property, $startDate, $endDate);
             
             // Get booked dates
             $bookedDates = Booking::where('property_id', $property->id)
@@ -537,7 +606,7 @@ class BookingManagementController extends Controller
                     'end' => $endDate,
                 ],
                 'booked_dates' => $bookedDates,
-                'availability_data' => $availabilityData,
+                'availability_data' => $availability,
                 'seasonal_rates' => $seasonalRates,
             ]);
             

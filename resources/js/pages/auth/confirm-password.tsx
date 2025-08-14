@@ -49,11 +49,11 @@ export default function ConfirmPassword() {
                 <form className="space-y-6" onSubmit={submit}>
                     {/* Password Field */}
                     <div className="space-y-2">
-                        <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <Label htmlFor="password" className="text-sm font-medium text-foreground">
                             {t('auth.password')}
                         </Label>
                         <div className="relative">
-                            <Shield className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <Shield className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 id="password"
                                 type={showPassword ? 'text' : 'password'}
@@ -69,7 +69,7 @@ export default function ConfirmPassword() {
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                             >
                                 {showPassword ? (
                                     <EyeOff className="h-4 w-4" />

@@ -54,11 +54,11 @@ export default function Login({ status, canResetPassword }: LoginProps) {
             <form className="space-y-6" onSubmit={submit}>
                 {/* Email Field */}
                 <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label htmlFor="email" className="text-sm font-medium text-foreground">
                         {t('auth.email_address')}
                     </Label>
                     <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             id="email"
                             type="email"
@@ -78,7 +78,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                 {/* Password Field */}
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                        <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <Label htmlFor="password" className="text-sm font-medium text-foreground">
                             {t('auth.password')}
                         </Label>
                         {canResetPassword && (
@@ -92,7 +92,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         )}
                     </div>
                     <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             id="password"
                             type={showPassword ? 'text' : 'password'}
@@ -107,7 +107,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
                             {showPassword ? (
                                 <EyeOff className="h-4 w-4" />
@@ -131,7 +131,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                     />
                     <Label 
                         htmlFor="remember" 
-                        className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+                        className="text-sm text-foreground cursor-pointer"
                     >
                         {t('auth.remember_me_30_days')}
                     </Label>
@@ -160,7 +160,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         <div className="w-full border-t border-gray-200 dark:border-gray-600"></div>
                     </div>
                     <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-white px-2 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                        <span className="bg-background px-2 text-muted-foreground">
                             {t('auth.or_continue_with')}
                         </span>
                     </div>
@@ -195,7 +195,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
 
                 {/* Sign Up Link */}
                 <div className="text-center">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                            <p className="text-sm text-muted-foreground">
                         {t('auth.no_account')}{' '}
                         <TextLink 
                             href={route('register')} 

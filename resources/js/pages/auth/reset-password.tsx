@@ -52,11 +52,11 @@ export default function ResetPassword({ email, token }: ResetPasswordProps) {
 
                 {/* Password Field */}
                 <div className="space-y-2">
-                    <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label htmlFor="password" className="text-sm font-medium text-foreground">
                         {t('auth.new_password')}
                     </Label>
                     <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             id="password"
                             type={showPassword ? 'text' : 'password'}
@@ -67,12 +67,12 @@ export default function ResetPassword({ email, token }: ResetPasswordProps) {
                             value={data.password}
                             onChange={(e) => setData('password', e.target.value)}
                             placeholder={t('auth.enter_new_password')}
-                            className="pl-10 pr-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            className="pl-10 pr-10 h-12 border-border focus:border-primary focus:ring-primary bg-background text-foreground"
                         />
                         <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
                             {showPassword ? (
                                 <EyeOff className="h-4 w-4" />
@@ -86,11 +86,11 @@ export default function ResetPassword({ email, token }: ResetPasswordProps) {
 
                 {/* Confirm Password Field */}
                 <div className="space-y-2">
-                    <Label htmlFor="password_confirmation" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label htmlFor="password_confirmation" className="text-sm font-medium text-foreground">
                         {t('auth.confirm_new_password')}
                     </Label>
                     <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             id="password_confirmation"
                             type={showConfirmPassword ? 'text' : 'password'}
@@ -100,12 +100,12 @@ export default function ResetPassword({ email, token }: ResetPasswordProps) {
                             value={data.password_confirmation}
                             onChange={(e) => setData('password_confirmation', e.target.value)}
                             placeholder={t('auth.enter_confirm_password')}
-                            className="pl-10 pr-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            className="pl-10 pr-10 h-12 border-border focus:border-primary focus:ring-primary bg-background text-foreground"
                         />
                         <button
                             type="button"
                             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
                             {showConfirmPassword ? (
                                 <EyeOff className="h-4 w-4" />

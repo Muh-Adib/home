@@ -39,7 +39,10 @@ import {
     Calendar,
     TrendingUp,
     Zap,
-    Loader2
+    Loader2,
+    Plus,
+    X,
+    Trash2
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { type BreadcrumbItem } from '@/types';
@@ -72,6 +75,10 @@ interface GuestDetail {
     relationship_to_primary: string;
     phone?: string;
     email?: string;
+    id_number?: string;
+    emergency_contact_name?: string;
+    emergency_contact_phone?: string;
+    notes?: string;
 }
 
 interface RateCalculation {
@@ -111,6 +118,12 @@ interface AvailabilityData {
         rates: Record<string, any>;
     };
     seasonal_rates?: Record<string, any>;
+    availability?: {
+        available: boolean;
+        booked_dates: string[];
+        booked_periods: string[][];
+    };
+    rate_calculation?: any;
 }
 
 interface CreateBookingProps {
@@ -159,17 +172,28 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         payment_status: 'fully_paid' as 'dp_pending' | 'dp_received' | 'fully_paid',
         dp_percentage: 100,
         auto_confirm: true,
+        check_in_time: '15:00',
+        source: 'direct' as 'direct' | 'phone' | 'walk_in' | 'ota',
     });
+
+    // Separate state for guest details
+    const [guestDetails, setGuestDetails] = useState<GuestDetail[]>([]);
 
     // Calculate total guests
     const totalGuests = useMemo(() => {
-        return data.guest_male + data.guest_female + data.guest_children;
+        const male = Number(data.guest_male) || 0;
+        const female = Number(data.guest_female) || 0;
+        const children = Number(data.guest_children) || 0;
+        return male + female + children;
     }, [data.guest_male, data.guest_female, data.guest_children]);
 
     // Calculate extra beds needed
     const extraBeds = useMemo(() => {
         if (!currentProperty) return 0;
-        const totalForExtraBeds = Math.ceil(data.guest_male + data.guest_female + Math.ceil((data.guest_children - currentProperty.capacity) * 0.5));
+        const male = Number(data.guest_male) || 0;
+        const female = Number(data.guest_female) || 0;
+        const children = Number(data.guest_children) || 0;
+        const totalForExtraBeds = Math.ceil(male + female + Math.ceil((children - currentProperty.capacity) * 0.5));
         return Math.max(0, totalForExtraBeds - currentProperty.capacity);
     }, [currentProperty, data.guest_male, data.guest_female, data.guest_children]);
 
@@ -185,9 +209,10 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         setAvailabilityStatus(null);
         setAvailabilityError(null);
         
-        // Load property date range data
+        // Load property date range data and availability
         if (property) {
             loadPropertyDateRange(property.id);
+            loadPropertyAvailabilityAndRatesAdmin(property.id);
             
             // Update capacity if needed
             if (totalGuests > property.capacity_max) {
@@ -198,6 +223,68 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         }
     };
 
+    // Load property availability and rates data (same as customer booking show page)
+    const loadPropertyAvailabilityAndRatesAdmin = async (propertyId: number) => {
+        try {
+            const startDate = new Date().toISOString().split('T')[0];
+            const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            
+            // Use ADMIN endpoint with property_id
+            const response = await fetch(`/admin/api/admin/booking-management/availability-and-rates`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    property_id: propertyId,
+                    check_in: startDate,
+                    check_out: endDate,
+                    guest_count: totalGuests,
+                }),
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    // Update availability data with comprehensive data from customer API
+                    setAvailabilityData({
+                        success: true,
+                        property: {
+                            id: data.property?.id || propertyId,
+                            name: data.property?.name || '',
+                            base_rate: data.property?.base_rate || 0,
+                            capacity: data.property?.capacity || 0,
+                            capacity_max: data.property?.capacity_max || 0,
+                            cleaning_fee: data.property?.cleaning_fee || 0,
+                            extra_bed_rate: data.property?.extra_bed_rate || 0,
+                            weekend_premium_percent: data.property?.weekend_premium_percent || 0,
+                        },
+                        date_range: {
+                            start: startDate,
+                            end: endDate,
+                        },
+                        booked_dates: data.booked_dates || [],
+                        availability_data: { rates: data.calculation || {} },
+                        seasonal_rates: {},
+                        availability: data.availability || {},
+                        rate_calculation: { success: true, calculation: data.calculation, formatted: data.formatted },
+                    });
+                    setAvailabilityError(null);
+                } else {
+                    setAvailabilityError(data.error || 'Failed to load availability and rates data');
+                }
+            } else {
+                setAvailabilityError('Failed to load availability and rates data');
+            }
+        } catch (error) {
+            console.error('Error loading property availability and rates:', error);
+            setAvailabilityError('Network error loading availability and rates data');
+        }
+    };
+
     // Load property date range data with better error handling
     const loadPropertyDateRange = async (propertyId: number) => {
         setIsLoadingAvailability(true);
@@ -205,11 +292,14 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             const startDate = new Date().toISOString().split('T')[0];
             const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             
+            // Use the same API pattern as customer booking show page
             const response = await fetch(`/admin/api/admin/booking-management/property-date-range?property_id=${propertyId}&start_date=${startDate}&end_date=${endDate}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
                 },
             });
             
@@ -240,11 +330,14 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         setAvailabilityError(null);
         
         try {
+            // Use the same API pattern as customer booking show page
             const response = await fetch('/admin/api/admin/booking-management/check-availability', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
                 },
                 body: JSON.stringify({
                     property_id: propertyId,
@@ -276,11 +369,14 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         }
 
         try {
+            // Use the same API pattern as customer booking show page
             const response = await fetch('/admin/api/admin/booking-management/calculate-rate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
                 },
                 body: JSON.stringify({
                     property_id: currentProperty.id,
@@ -338,24 +434,102 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         if (startDate && endDate && currentProperty) {
             setIsCalculatingRate(true);
             
-            // Check availability first
-            checkAvailability(currentProperty.id, startDate, endDate);
-            
-            // Calculate rate with delay for better UX
-            setTimeout(async () => {
+            // Use the same API pattern as customer booking show page
+            const checkAvailabilityAndRate = async () => {
                 try {
-                    const calculation = await calculateRateFromBackendData(startDate, endDate);
-                    setRateCalculation(calculation);
+                    // Check availability using ADMIN API
+                    const availabilityResponse = await fetch(`/admin/api/admin/booking-management/availability-and-rates`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            property_id: currentProperty.id,
+                            check_in: startDate,
+                            check_out: endDate,
+                            guest_count: totalGuests,
+                        }),
+                    });
+                    
+                    if (availabilityResponse.ok) {
+                        const availabilityData = await availabilityResponse.json();
+                        
+                        if (availabilityData.success) {
+                            // Check if dates are available
+                            const isAvailable = !availabilityData.booked_dates || availabilityData.booked_dates.length === 0;
+                            setAvailabilityStatus(isAvailable ? 'available' : 'unavailable');
+                            
+                            if (!isAvailable) {
+                                setAvailabilityError('Property tidak tersedia untuk tanggal yang dipilih');
+                                setIsCalculatingRate(false);
+                                return;
+                            }
+                            
+                            // Calculate rate using ADMIN API
+                            const rateResponse = await fetch(`/admin/api/admin/booking-management/calculate-rate`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'Accept': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    property_id: currentProperty.id,
+                                    check_in: startDate,
+                                    check_out: endDate,
+                                    guest_count: totalGuests,
+                                }),
+                            });
+                            
+                            if (rateResponse.ok) {
+                                const rateData = await rateResponse.json();
+                                
+                                if (rateData.success) {
+                                    const calculation = rateData.calculation || rateData;
+                                    setRateCalculation({
+                                        nights: calculation.nights,
+                                        base_amount: calculation.base_amount,
+                                        weekend_premium: calculation.weekend_premium || 0,
+                                        seasonal_premium: calculation.seasonal_premium || 0,
+                                        extra_bed_amount: calculation.extra_bed_amount || 0,
+                                        cleaning_fee: calculation.cleaning_fee || 0,
+                                        tax_amount: calculation.tax_amount || 0,
+                                        total_amount: calculation.total_amount,
+                                        extra_beds: calculation.extra_beds || 0,
+                                        formatted: {
+                                            total_amount: 'Rp ' + calculation.total_amount.toLocaleString('id-ID'),
+                                            per_night: 'Rp ' + Math.round(calculation.total_amount / calculation.nights).toLocaleString('id-ID')
+                                        }
+                                    });
                     setRateError(null);
+                                } else {
+                                    setRateError(rateData.message || 'Rate calculation failed');
+                                }
+                            } else {
+                                setRateError('Failed to calculate rate');
+                            }
+                        } else {
+                            setAvailabilityError(availabilityData.message || 'Failed to check availability');
+                        }
+                    } else {
+                        setAvailabilityError('Failed to check availability');
+                    }
                 } catch (error) {
                     setRateCalculation(null);
                     setRateError(error instanceof Error ? error.message : 'Error calculating rate');
                 } finally {
                     setIsCalculatingRate(false);
                 }
-            }, 500);
+            };
+            
+            // Execute with delay for better UX
+            setTimeout(checkAvailabilityAndRate, 300);
         }
-    }, [calculateRateFromBackendData, currentProperty, setData, checkAvailability]);
+    }, [currentProperty, setData, totalGuests]);
 
     // Handle guest count changes with real-time recalculation
     const handleGenderCountChange = (genderType: 'male' | 'female' | 'children', newCount: number) => {
@@ -368,9 +542,50 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         if (data.check_in_date && data.check_out_date && currentProperty) {
             setTimeout(async () => {
                 try {
-                    const calculation = await calculateRateFromBackendData(data.check_in_date, data.check_out_date);
-                    setRateCalculation(calculation);
+                    // Use ADMIN API for rate calculation
+                    const response = await fetch(`/admin/api/admin/booking-management/calculate-rate`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            property_id: currentProperty.id,
+                            check_in: data.check_in_date,
+                            check_out: data.check_out_date,
+                            guest_count: totalGuests,
+                        }),
+                    });
+                    
+                    if (response.ok) {
+                        const rateData = await response.json();
+                        
+                        if (rateData.success) {
+                            const calculation = rateData.calculation || rateData;
+                            setRateCalculation({
+                                nights: calculation.nights,
+                                base_amount: calculation.base_amount,
+                                weekend_premium: calculation.weekend_premium || 0,
+                                seasonal_premium: calculation.seasonal_premium || 0,
+                                extra_bed_amount: calculation.extra_bed_amount || 0,
+                                cleaning_fee: calculation.cleaning_fee || 0,
+                                tax_amount: calculation.tax_amount || 0,
+                                total_amount: calculation.total_amount,
+                                extra_beds: calculation.extra_beds || 0,
+                                formatted: {
+                                    total_amount: 'Rp ' + calculation.total_amount.toLocaleString('id-ID'),
+                                    per_night: 'Rp ' + Math.round(calculation.total_amount / calculation.nights).toLocaleString('id-ID')
+                                }
+                            });
                     setRateError(null);
+                        } else {
+                            setRateError(rateData.message || 'Rate calculation failed');
+                        }
+                    } else {
+                        setRateError('Failed to calculate rate');
+                    }
                 } catch (error) {
                     setRateCalculation(null);
                     setRateError(error instanceof Error ? error.message : 'Error calculating rate');
@@ -379,10 +594,116 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         }
     };
 
+    // Load initial availability data if selectedProperty exists
+    useEffect(() => {
+        if (selectedProperty && !availabilityData) {
+            loadPropertyAvailabilityAndRatesAdmin(selectedProperty.id);
+        }
+    }, [selectedProperty]);
+
     // Auto-generate guest list when counts change
     useEffect(() => {
         setShowGuestDetails(totalGuests > 1);
-    }, [totalGuests]);
+        
+        // Auto-generate guest details based on counts
+        if (totalGuests > 1) {
+            const newGuestDetails: GuestDetail[] = [];
+            let guestIndex = 0;
+            
+            // Add male guests
+            for (let i = 0; i < (Number(data.guest_male) || 0); i++) {
+                newGuestDetails.push({
+                    id: guestIndex++,
+                    name: `Male Guest ${i + 1}`,
+                    gender: 'male',
+                    age_category: 'adult',
+                    relationship_to_primary: i === 0 ? 'primary' : 'additional',
+                    phone: '',
+                    email: '',
+                    id_number: '',
+                    emergency_contact_name: '',
+                    emergency_contact_phone: '',
+                    notes: ''
+                });
+            }
+            
+            // Add female guests
+            for (let i = 0; i < (Number(data.guest_female) || 0); i++) {
+                newGuestDetails.push({
+                    id: guestIndex++,
+                    name: `Female Guest ${i + 1}`,
+                    gender: 'female',
+                    age_category: 'adult',
+                    relationship_to_primary: i === 0 ? 'primary' : 'additional',
+                    phone: '',
+                    email: '',
+                    id_number: '',
+                    emergency_contact_name: '',
+                    emergency_contact_phone: '',
+                    notes: ''
+                });
+            }
+            
+            // Add children
+            for (let i = 0; i < (Number(data.guest_children) || 0); i++) {
+                newGuestDetails.push({
+                    id: guestIndex++,
+                    name: `Child ${i + 1}`,
+                    gender: 'male', // Default, can be changed
+                    age_category: 'child',
+                    relationship_to_primary: 'child',
+                    phone: '',
+                    email: '',
+                    id_number: '',
+                    emergency_contact_name: '',
+                    emergency_contact_phone: '',
+                    notes: ''
+                });
+            }
+            
+            setGuestDetails(newGuestDetails);
+        } else {
+            setGuestDetails([]);
+        }
+    }, [totalGuests, data.guest_male, data.guest_female, data.guest_children]);
+
+    // Guest detail management functions
+    const updateGuestDetail = (index: number, field: keyof GuestDetail, value: any) => {
+        const updatedGuests = [...guestDetails];
+        updatedGuests[index] = { ...updatedGuests[index], [field]: value };
+        setGuestDetails(updatedGuests);
+    };
+
+    const removeGuestDetail = (index: number) => {
+        const updatedGuests = guestDetails.filter((_, i) => i !== index);
+        setGuestDetails(updatedGuests);
+        
+        // Update counts
+        const maleCount = updatedGuests.filter(g => g.gender === 'male' && g.age_category === 'adult').length;
+        const femaleCount = updatedGuests.filter(g => g.gender === 'female' && g.age_category === 'adult').length;
+        const childrenCount = updatedGuests.filter(g => g.age_category === 'child').length;
+        
+        setData('guest_male', maleCount);
+        setData('guest_female', femaleCount);
+        setData('guest_children', childrenCount);
+    };
+
+    const addGuestDetail = () => {
+        const newGuest: GuestDetail = {
+            id: Date.now(),
+            name: '',
+            gender: 'male',
+            age_category: 'adult',
+            relationship_to_primary: 'additional',
+            phone: '',
+            email: '',
+            id_number: '',
+            emergency_contact_name: '',
+            emergency_contact_phone: '',
+            notes: ''
+        };
+        setGuestDetails([...guestDetails, newGuest]);
+    };
 
     // Format currency
     const formatCurrency = (amount: number) => {
@@ -418,8 +739,26 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                      data.guest_phone.trim() && 
                      data.guest_country && 
                      totalGuests > 0 && 
-                     rateCalculation !== null &&
-                     availabilityStatus === 'available';
+                     (!showGuestDetails || guestDetails.every(guest => guest.name.trim()));
+
+    // Validation messages
+    const validationMessages = useMemo(() => {
+        const messages: string[] = [];
+        
+        if (!data.property_id) messages.push('Property harus dipilih');
+        if (!data.check_in_date) messages.push('Check-in date harus diisi');
+        if (!data.check_out_date) messages.push('Check-out date harus diisi');
+        if (!data.guest_name.trim()) messages.push('Nama tamu utama harus diisi');
+        if (!data.guest_email.trim()) messages.push('Email tamu utama harus diisi');
+        if (!data.guest_phone.trim()) messages.push('Nomor telepon tamu utama harus diisi');
+        if (totalGuests === 0) messages.push('Jumlah tamu minimal 1');
+        // Info: availability/rate akan dicek ulang di backend. Submit tetap diizinkan.
+        if (showGuestDetails && guestDetails.some(guest => !guest.name.trim())) {
+            messages.push('Semua nama tamu harus diisi');
+        }
+        
+        return messages;
+    }, [data, totalGuests, rateCalculation, availabilityStatus, showGuestDetails, guestDetails]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -428,13 +767,29 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             return;
         }
         
+        // Prepare form data with guest details
+        const formData = {
+            ...data,
+            guests: guestDetails,
+            guest_count: totalGuests,
+        };
+        
+        // Update form data before submission
+        Object.keys(formData).forEach(key => {
+            setData(key as any, formData[key as keyof typeof formData]);
+        });
+        
         post(route('admin.booking-management.store'), {
             onSuccess: () => {
                 // Redirect to bookings list
                 router.visit(route('admin.booking-management.index'));
             },
-            onError: (errors) => {
+            onError: (errors: any) => {
                 console.error('Booking creation failed:', errors);
+                // Optionally surface server error
+                if (errors.error) {
+                    setSyncFeedback(errors.error);
+                }
             }
         });
     };
@@ -472,6 +827,28 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
+                                {syncFeedback && (
+                                    <Alert variant="destructive" className="mb-4">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertTitle>Submission Error</AlertTitle>
+                                        <AlertDescription>{syncFeedback}</AlertDescription>
+                                    </Alert>
+                                )}
+                                {/* Validation Alert */}
+                                {validationMessages.length > 0 && (
+                                    <Alert variant="destructive" className="mb-6">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertTitle>Validation Errors</AlertTitle>
+                                        <AlertDescription>
+                                            <ul className="list-disc list-inside space-y-1">
+                                                {validationMessages.map((message, index) => (
+                                                    <li key={index}>{message}</li>
+                                                ))}
+                                            </ul>
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+
                                 <form onSubmit={handleSubmit} className="space-y-6">
                                     {/* Property Selection */}
                                     <div>
@@ -547,6 +924,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                 start: "Check-in",
                                                 end: "Check-out"
                                             }}
+                                            autoTrigger={true}
+                                            triggerDelay={300}
                                         />
                                         {(errors.check_in_date || errors.check_out_date) && (
                                             <p className="text-sm text-red-600 mt-1">
@@ -583,6 +962,16 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
+                                            </div>
+                                        )}
+
+                                        {/* Debug Information */}
+                                        {process.env.NODE_ENV === 'development' && availabilityData && (
+                                            <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                                                <div className="font-semibold">Debug Info:</div>
+                                                <div>Booked Dates: {availabilityData.booked_dates?.length || 0}</div>
+                                                <div>Property ID: {availabilityData.property?.id}</div>
+                                                <div>Date Range: {availabilityData.date_range?.start} - {availabilityData.date_range?.end}</div>
                                             </div>
                                         )}
 
@@ -677,9 +1066,176 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
                                     <Separator />
 
+                                    {/* Guest Details Management */}
+                                    {showGuestDetails && guestDetails.length > 0 && (
+                                        <div>
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h3 className="text-lg font-semibold">Guest Details</h3>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={addGuestDetail}
+                                                >
+                                                    <Plus className="h-4 w-4 mr-2" />
+                                                    Add Guest
+                                                </Button>
+                                            </div>
+                                            
+                                            <div className="space-y-4">
+                                                {guestDetails.map((guest, index) => (
+                                                    <Card key={guest.id || index} className="border-l-4 border-l-blue-500">
+                                                        <CardHeader className="pb-3">
+                                                            <div className="flex items-center justify-between">
+                                                                <CardTitle className="text-base">
+                                                                    {guest.relationship_to_primary === 'primary' ? 'Primary Guest' : 
+                                                                     guest.age_category === 'child' ? 'Child Guest' : 'Additional Guest'}
+                                                                </CardTitle>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => removeGuestDetail(index)}
+                                                    className="text-red-600 hover:text-red-700"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <div className="grid md:grid-cols-3 gap-4">
+                                                <div>
+                                                    <Label>Full Name *</Label>
+                                                    <Input
+                                                        value={guest.name}
+                                                        onChange={(e) => updateGuestDetail(index, 'name', e.target.value)}
+                                                        placeholder="Enter full name"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label>Gender</Label>
+                                                    <Select 
+                                                        value={guest.gender} 
+                                                        onValueChange={(value: 'male' | 'female') => updateGuestDetail(index, 'gender', value)}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="male">Male</SelectItem>
+                                                            <SelectItem value="female">Female</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <Label>Age Category</Label>
+                                                    <Select 
+                                                        value={guest.age_category} 
+                                                        onValueChange={(value: 'adult' | 'child' | 'infant') => updateGuestDetail(index, 'age_category', value)}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="adult">Adult</SelectItem>
+                                                            <SelectItem value="child">Child</SelectItem>
+                                                            <SelectItem value="infant">Infant</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <Label>Phone Number</Label>
+                                                    <Input
+                                                        value={guest.phone || ''}
+                                                        onChange={(e) => updateGuestDetail(index, 'phone', e.target.value)}
+                                                        placeholder="+62xxx"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label>Email Address</Label>
+                                                    <Input
+                                                        value={guest.email || ''}
+                                                        onChange={(e) => updateGuestDetail(index, 'email', e.target.value)}
+                                                        placeholder="guest@example.com"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <Label>ID Number</Label>
+                                                    <Input
+                                                        value={guest.id_number || ''}
+                                                        onChange={(e) => updateGuestDetail(index, 'id_number', e.target.value)}
+                                                        placeholder="KTP/Passport number"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label>Relationship to Primary</Label>
+                                                    <Select 
+                                                        value={guest.relationship_to_primary} 
+                                                        onValueChange={(value) => updateGuestDetail(index, 'relationship_to_primary', value)}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="primary">Primary Guest</SelectItem>
+                                                            <SelectItem value="spouse">Spouse</SelectItem>
+                                                            <SelectItem value="child">Child</SelectItem>
+                                                            <SelectItem value="parent">Parent</SelectItem>
+                                                            <SelectItem value="sibling">Sibling</SelectItem>
+                                                            <SelectItem value="friend">Friend</SelectItem>
+                                                            <SelectItem value="colleague">Colleague</SelectItem>
+                                                            <SelectItem value="additional">Additional Guest</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <Label>Emergency Contact Name</Label>
+                                                    <Input
+                                                        value={guest.emergency_contact_name || ''}
+                                                        onChange={(e) => updateGuestDetail(index, 'emergency_contact_name', e.target.value)}
+                                                        placeholder="Emergency contact name"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label>Emergency Contact Phone</Label>
+                                                    <Input
+                                                        value={guest.emergency_contact_phone || ''}
+                                                        onChange={(e) => updateGuestDetail(index, 'emergency_contact_phone', e.target.value)}
+                                                        placeholder="+62xxx"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <Label>Notes</Label>
+                                                <Textarea
+                                                    value={guest.notes || ''}
+                                                    onChange={(e) => updateGuestDetail(index, 'notes', e.target.value)}
+                                                    placeholder="Special requirements or notes..."
+                                                    rows={2}
+                                                />
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                                    <Separator />
+
                                     {/* Primary Guest Info */}
                                     <div>
-                                        <h3 className="text-lg font-semibold mb-4">Primary Guest</h3>
+                                        <h3 className="text-lg font-semibold mb-4">Primary Guest Information</h3>
                                         <div className="grid md:grid-cols-3 gap-4">
                                             <div>
                                                 <Label htmlFor="guest_name">Full Name *</Label>
@@ -806,7 +1362,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                     {/* Booking Settings */}
                                     <div>
                                         <h3 className="text-lg font-semibold mb-4">Booking Settings</h3>
-                                        <div className="grid md:grid-cols-2 gap-4">
+                                        <div className="grid md:grid-cols-3 gap-4">
                                             <div>
                                                 <Label htmlFor="booking_status">Booking Status *</Label>
                                                 <Select value={data.booking_status} onValueChange={(value: any) => setData('booking_status', value)}>
@@ -829,6 +1385,51 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         <SelectItem value="dp_pending">DP Pending</SelectItem>
                                                         <SelectItem value="dp_received">DP Received</SelectItem>
                                                         <SelectItem value="fully_paid">Fully Paid</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="source">Booking Source</Label>
+                                                <Select value={data.source} onValueChange={(value: any) => setData('source', value)}>
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="direct">Direct</SelectItem>
+                                                        <SelectItem value="phone">Phone</SelectItem>
+                                                        <SelectItem value="walk_in">Walk-in</SelectItem>
+                                                        <SelectItem value="ota">OTA</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid md:grid-cols-2 gap-4 mt-4">
+                                            <div>
+                                                <Label htmlFor="dp_percentage">Down Payment Percentage</Label>
+                                                <Select value={data.dp_percentage.toString()} onValueChange={(value: any) => setData('dp_percentage', parseInt(value))}>
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="30">30%</SelectItem>
+                                                        <SelectItem value="50">50%</SelectItem>
+                                                        <SelectItem value="70">70%</SelectItem>
+                                                        <SelectItem value="100">100% (Full Payment)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="check_in_time">Check-in Time</Label>
+                                                <Select value={data.check_in_time} onValueChange={(value: any) => setData('check_in_time', value)}>
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="14:00">2:00 PM</SelectItem>
+                                                        <SelectItem value="15:00">3:00 PM</SelectItem>
+                                                        <SelectItem value="16:00">4:00 PM</SelectItem>
+                                                        <SelectItem value="17:00">5:00 PM</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
@@ -873,7 +1474,17 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                             disabled={!canSubmit || processing}
                                             className="flex-1"
                                         >
-                                            {processing ? 'Creating...' : 'Create Booking'}
+                                            {processing ? (
+                                                <>
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    Creating Booking...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <UserPlus className="h-4 w-4 mr-2" />
+                                                    Create Booking
+                                                </>
+                                            )}
                                         </Button>
                                     </div>
                                 </form>
@@ -883,6 +1494,51 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
                     {/* Enhanced Rate Calculation Sidebar */}
                     <div className="space-y-6">
+                        {/* Guest Summary Card */}
+                        {showGuestDetails && guestDetails.length > 0 && (
+                            <Card className="md:sticky md:top-6">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Users className="h-5 w-5" />
+                                        Guest Summary
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <span>Total Guests:</span>
+                                            <Badge variant="secondary">{totalGuests}</Badge>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span>Male Adults:</span>
+                                            <span>{guestDetails.filter(g => g.gender === 'male' && g.age_category === 'adult').length}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span>Female Adults:</span>
+                                            <span>{guestDetails.filter(g => g.gender === 'female' && g.age_category === 'adult').length}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span>Children:</span>
+                                            <span>{guestDetails.filter(g => g.age_category === 'child').length}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span>Infants:</span>
+                                            <span>{guestDetails.filter(g => g.age_category === 'infant').length}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    {extraBeds > 0 && currentProperty && (
+                                        <div className="pt-2 border-t">
+                                            <div className="flex items-center gap-2 text-sm text-blue-600">
+                                                <Bed className="h-4 w-4" />
+                                                <span>Extra beds needed: {extraBeds}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+
                         <Card className="md:sticky md:top-6">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
@@ -997,7 +1653,59 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Booking Summary Card */}
+                        {currentProperty && data.check_in_date && data.check_out_date && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Info className="h-5 w-5" />
+                                        Booking Summary
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                            <span>Property:</span>
+                                            <span className="font-medium">{currentProperty.name}</span>
                     </div>
+                                        <div className="flex justify-between">
+                                            <span>Check-in:</span>
+                                            <span>{formatDate(data.check_in_date)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Check-out:</span>
+                                            <span>{formatDate(data.check_out_date)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Nights:</span>
+                                            <span>{rateCalculation?.nights || 0}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Primary Guest:</span>
+                                            <span className="font-medium">{data.guest_name || 'Not set'}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Status:</span>
+                                            <Badge variant={data.booking_status === 'confirmed' ? 'default' : 'secondary'}>
+                                                {data.booking_status === 'confirmed' ? 'Confirmed' : 'Pending Verification'}
+                                            </Badge>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Payment:</span>
+                                            <Badge variant={
+                                                data.payment_status === 'fully_paid' ? 'default' : 
+                                                data.payment_status === 'dp_received' ? 'secondary' : 'destructive'
+                                            }>
+                                                {data.payment_status === 'fully_paid' ? 'Fully Paid' : 
+                                                 data.payment_status === 'dp_received' ? 'DP Received' : 'DP Pending'}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                                                     </div>
                 </div>
             </div>
         </AppLayout>

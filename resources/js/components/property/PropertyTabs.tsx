@@ -17,11 +17,11 @@ export const PropertyTabs: React.FC<PropertyTabsProps> = ({ property, formatTime
 
   return (
     <Tabs defaultValue="overview" className="w-full">
-      <TabsList className="grid w-full grid-cols-4">
-        <TabsTrigger value="overview">{t('properties.overview')}</TabsTrigger>
-        <TabsTrigger value="amenities">{t('properties.amenities')}</TabsTrigger>
-        <TabsTrigger value="policies">{t('properties.policies')}</TabsTrigger>
-        <TabsTrigger value="location">{t('properties.location')}</TabsTrigger>
+      <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 rounded-lg">
+        <TabsTrigger value="overview" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md">{t('properties.overview')}</TabsTrigger>
+        <TabsTrigger value="amenities" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md">{t('properties.amenities')}</TabsTrigger>
+        <TabsTrigger value="policies" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md">{t('properties.policies')}</TabsTrigger>
+        <TabsTrigger value="location" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md">{t('properties.location')}</TabsTrigger>
       </TabsList>
       
       <TabsContent value="overview" className="space-y-6">

@@ -21,21 +21,21 @@ export const PropertyAmenities: React.FC<PropertyAmenitiesProps> = ({ amenities 
   }, {}) || {};
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
+    <Card className="shadow-lg border-0 bg-gradient-to-br from-background to-muted/30">
+      <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/20">
+        <CardTitle className="text-foreground">
           {t('properties.amenities')} ({amenities?.length || 0})
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-6">
         {Object.keys(amenitiesByCategory).length > 0 ? (
-          <div className="space-y-6">
+          <div className="space-y-8">
             {Object.entries(amenitiesByCategory).map(([category, categoryAmenities]) => (
-              <div key={category}>
-                <h3 className="text-lg font-semibold mb-3 capitalize">
+              <div key={category} className="p-4 bg-muted/30 rounded-lg border border-border/50">
+                <h3 className="text-xl font-semibold mb-4 capitalize text-foreground border-b border-primary/20 pb-2">
                   {category.replace('_', ' ')}
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {categoryAmenities.map((amenity) => (
                     <AmenityItem 
                       key={amenity.id}
@@ -49,9 +49,9 @@ export const PropertyAmenities: React.FC<PropertyAmenitiesProps> = ({ amenities 
             ))}
           </div>
         ) : (
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
+          <Alert className="bg-muted/50 border-primary/20">
+            <Info className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-foreground">
               {t('properties.no_amenities_info')}
             </AlertDescription>
           </Alert>

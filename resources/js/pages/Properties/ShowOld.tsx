@@ -37,7 +37,9 @@ import {
 import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import AmenityItem from '@/components/AmenityItem';
-import PropertyCard, { type Property, type Amenity } from '@/components/PropertyCard';
+import PropertyCardEnhanced from '@/components/ui/property-card-enhanced';
+import { type Property } from '@/types/property';
+import { type Amenity } from '@/types';
 import { type PageProps } from '@/types';
 
 interface PropertyShowProps extends PageProps {
@@ -466,18 +468,18 @@ const calculateEffectiveMinStay = useCallback((checkIn: string, checkOut: string
                     
                     {/* Breadcrumb & Header */}
                     <div className="mb-6">
-                        <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                             <Link href="/properties" className="hover:text-blue-600 transition-colors">
                                 {t('properties.properties')}
                             </Link>
                             <span>›</span>
-                            <span className="text-gray-900 font-medium">{property.name}</span>
+                            <span className="text-foreground font-medium">{property.name}</span>
                         </div>
                         
                         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                             <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-2">
-                                    <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+                                    <h1 className="text-3xl md:text-4xl font-bold text-foreground">
                                         {property.name}
                                     </h1>
                                     {property.is_featured && (
@@ -488,12 +490,12 @@ const calculateEffectiveMinStay = useCallback((checkIn: string, checkOut: string
                                     )}
                                 </div>
                                 
-                                <div className="flex items-center text-gray-600 mb-3">
+                                <div className="flex items-center text-muted-foreground mb-3">
                                     <MapPin className="h-4 w-4 mr-2" />
                                     <span>{property.address}</span>
                                 </div>
                                 
-                                <div className="flex items-center gap-6 text-sm text-gray-600">
+                                <div className="flex items-center gap-6 text-sm text-muted-foreground">
                                     <div className="flex items-center gap-1">
                                         <Users className="h-4 w-4" />
                                         <span>{property.capacity}-{property.capacity_max} {t('booking.guests')}</span>
@@ -846,11 +848,9 @@ const calculateEffectiveMinStay = useCallback((checkIn: string, checkOut: string
                                     <CardContent>
                                         <div className="grid grid-cols-2 gap-4">
                                             {similarProperties.slice(0, 4).map((similarProperty) => (
-                                                <PropertyCard 
+                                                <PropertyCardEnhanced 
                                                     key={similarProperty.slug}
                                                     property={similarProperty}
-                                                    viewMode="grid"
-                                                    maxAmenities={3}
                                                     className="shadow-sm"
                                                 />
                                             ))}

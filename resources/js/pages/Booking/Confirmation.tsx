@@ -133,8 +133,8 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                     <div className="container mx-auto px-4 py-6">
                         <div className="text-center">
                             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                            <h1 className="text-3xl font-bold text-gray-900">{t('booking.confirmation.title')}</h1>
-                            <p className="text-gray-600 mt-2">
+                                            <h1 className="text-3xl font-bold text-foreground">{t('booking.confirmation.title')}</h1>
+                <p className="text-muted-foreground mt-2">
                                 {t('booking.confirmation.subtitle')}
                             </p>
                         </div>
@@ -167,11 +167,11 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                     <CardContent className="space-y-4">
                                         <div className="grid md:grid-cols-2 gap-4">
                                             <div>
-                                                <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.booking_code')}</Label>
+                                                <Label className="text-sm font-medium text-muted-foreground">{t('booking.confirmation.booking_code')}</Label>
                                                 <p className="text-lg font-mono font-semibold">{booking.booking_number}</p>
                                             </div>
                                             <div>
-                                                <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.booking_date')}</Label>
+                                                <Label className="text-sm font-medium text-muted-foreground">{t('booking.confirmation.booking_date')}</Label>
                                                 <p>{formatDate(booking.created_at)}</p>
                                             </div>
                                         </div>
@@ -183,14 +183,14 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                                 <Calendar className="h-5 w-5 text-blue-600" />
                                                 <div>
                                                     <p className="text-sm font-medium">{t('booking.confirmation.check_in')}</p>
-                                                    <p className="text-sm text-gray-600">{formatDate(booking.check_in)}</p>
+                                                    <p className="text-sm text-muted-foreground">{formatDate(booking.check_in)}</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <Calendar className="h-5 w-5 text-blue-600" />
                                                 <div>
                                                     <p className="text-sm font-medium">{t('booking.confirmation.check_out')}</p>
-                                                    <p className="text-sm text-gray-600">{formatDate(booking.check_out)}</p>
+                                                    <p className="text-sm text-muted-foreground">{formatDate(booking.check_out)}</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -199,7 +199,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                             <Clock className="h-5 w-5 text-blue-600" />
                                             <div>
                                                 <p className="text-sm font-medium">{t('booking.confirmation.duration')}</p>
-                                                <p className="text-sm text-gray-600">{nights} {t('booking.confirmation.nights')}</p>
+                                                <p className="text-sm text-muted-foreground">{nights} {t('booking.confirmation.nights')}</p>
                                             </div>
                                         </div>
 
@@ -209,7 +209,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                             <Users className="h-5 w-5 text-blue-600" />
                                             <div>
                                                 <p className="text-sm font-medium">{t('booking.confirmation.guests')}</p>
-                                                <p className="text-sm text-gray-600">
+                                                <p className="text-sm text-muted-foreground">
                                                     {booking.guest_count} {t('booking.confirmation.guests_total')}: 
                                                     {booking.guest_male} {t('booking.confirmation.male')}, 
                                                     {booking.guest_female} {t('booking.confirmation.female')}
@@ -223,7 +223,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                                 <Separator />
                                                 <div>
                                                     <p className="text-sm font-medium mb-2">{t('booking.confirmation.special_requests')}</p>
-                                                    <p className="text-sm text-gray-600 bg-slate-50 p-3 rounded-lg">
+                                                    <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
                                                         {booking.special_requests}
                                                     </p>
                                                 </div>
@@ -240,31 +240,31 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                     <CardContent className="space-y-4">
                                         <div className="grid md:grid-cols-2 gap-4">
                                             <div>
-                                                <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.full_name')}</Label>
+                                                <Label className="text-sm font-medium text-muted-foreground">{t('booking.confirmation.full_name')}</Label>
                                                 <p>{booking.guest_name}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <Phone className="h-4 w-4 text-gray-600" />
+                                                <Phone className="h-4 w-4 text-muted-foreground" />
                                                 <div>
-                                                    <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.phone')}</Label>
+                                                    <Label className="text-sm font-medium text-muted-foreground">{t('booking.confirmation.phone')}</Label>
                                                     <p>{booking.guest_phone}</p>
                                                 </div>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Mail className="h-4 w-4 text-gray-600" />
+                                            <Mail className="h-4 w-4 text-muted-foreground" />
                                             <div>
-                                                <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.email')}</Label>
+                                                <Label className="text-sm font-medium text-muted-foreground">{t('booking.confirmation.email')}</Label>
                                                 <p>{booking.guest_email}</p>
                                             </div>
                                         </div>
                                         {password && (
                                         <div className="flex items-center gap-2">
-                                            <Lock className="h-4 w-4 text-gray-600" />
+                                            <Lock className="h-4 w-4 text-muted-foreground" />
                                             <div>
-                                                <Label className="text-sm font-medium text-gray-600">{t('booking.confirmation.password')}</Label>
+                                                <Label className="text-sm font-medium text-muted-foreground">{t('booking.confirmation.password')}</Label>
                                                 <p>{password}</p>
-                                                <p className="text-xs text-gray-500">
+                                                <p className="text-xs text-muted-foreground">
                                                     <span className="font-bold">{t('booking.confirmation.note')}:</span> {t('booking.confirmation.password_note')}
                                                 </p>
                                             </div>
@@ -299,7 +299,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                             
                                             <div>
                                                 <h3 className="font-semibold">{booking.property.name}</h3>
-                                                <div className="flex items-center text-sm text-gray-600 mt-1">
+                                                <div className="flex items-center text-sm text-muted-foreground mt-1">
                                                     <MapPin className="h-4 w-4 mr-1" />
                                                     {booking.property.address}
                                                 </div>
@@ -330,7 +330,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                                 <span>Rp {(booking.dp_amount || 0).toLocaleString()}</span>
                                             </div>
                                             
-                                            <div className="flex justify-between text-gray-600">
+                                            <div className="flex justify-between text-muted-foreground">
                                                 <span>{t('booking.confirmation.remaining_balance')}</span>
                                                 <span>Rp {(booking.remaining_amount || 0).toLocaleString()}</span>
                                             </div>
@@ -385,6 +385,14 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                     {booking.booking_status === 'pending_verification' && (
                                         <Alert>
                                             <Clock className="h-4 w-4" />
+                                            {/**
+                                             * jika booking status pending_verification maka kita akan menampilkan tombol untuk melakukan konfirmasi booking ke whatsapp admin.
+                                             * jika booking status confirmed maka kita akan menampilkan tombol untuk melakukan pembayaran dp.
+                                             * jika booking status paid maka kita akan menampilkan tombol menuju halaman my-bookings.
+                                             * jika booking status expired maka kita akan menampilkan tombol untuk melakukan konfirmasi booking ke whatsapp admin.
+                                             * jika booking status expired maka kita akan menampilkan alert dengan pesan "Verifikasi sedang diproses. Silakan tunggu beberapa saat."
+                                             */
+                                            }
                                             <AlertDescription>
                                                 {t('booking.confirmation.verification_pending')}
                                             </AlertDescription>
@@ -411,7 +419,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                         </Button>
                                     </Link>
                                     
-                                    <Link href="/" className="block">
+                                    <Link href="/my-bookings" className="block">
                                         <Button variant="ghost" className="w-full">
                                             {t('booking.confirmation.back_to_home')}
                                         </Button>

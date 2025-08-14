@@ -16,6 +16,9 @@ export default defineConfig({
     ],
     esbuild: {
         jsx: 'automatic',
+        drop: ['console', 'debugger'],
+        // Tambahan konfigurasi untuk mengatasi EPIPE error
+        target: 'es2020',
     },
     resolve: {
         alias: {
@@ -36,5 +39,17 @@ export default defineConfig({
         },
         target: 'es2020',
         minify: 'esbuild',
+    },
+    // Tambahan konfigurasi server untuk stabilitas
+    server: {
+        hmr: {
+            overlay: false, // Disable error overlay yang bisa menyebabkan crash
+        },
+        watch: {
+            usePolling: true, // Gunakan polling untuk file watching yang lebih stabil
+        },
+    },
+    optimizeDeps: {
+        force: true, // Force re-optimization
     },
 });
