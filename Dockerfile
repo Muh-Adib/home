@@ -146,13 +146,13 @@ COPY dokploy/scripts/generate-echo-config-simple.sh /usr/local/bin/generate-echo
 RUN chmod +x /usr/local/bin/safe-startup.sh /usr/local/bin/generate-echo-config-simple.sh
 
 # Setup environment template
-RUN if [ ! -f .env ]; then cp .env.example .env; fi
+#RUN if [ ! -f .env ]; then cp .env.example .env; fi
 
 # Generate application key (only if vendor exists)
-RUN if [ -d "vendor" ]; then php artisan key:generate --force || echo "Key generation skipped"; else echo "Vendor directory not found, skipping key generation"; fi
+#RUN if [ -d "vendor" ]; then php artisan key:generate --force || echo "Key generation skipped"; else echo "Vendor directory not found, skipping key generation"; fi
 
 # Create storage link (only if vendor exists)
-RUN if [ -d "vendor" ]; then php artisan storage:link || echo "Storage link failed, continuing..."; else echo "Vendor directory not found, skipping storage link"; fi
+# RUN if [ -d "vendor" ]; then php artisan storage:link || echo "Storage link failed, continuing..."; else echo "Vendor directory not found, skipping storage link"; fi
 
 # Set final permissions
 RUN chown -R www:www /app && \
