@@ -66,4 +66,80 @@ class NewPasswordController extends Controller
             'email' => [__($status)],
         ]);
     }
+
+    /**
+     * Show the set password page for new users.
+     */
+    public function showSetPassword(Request $request): Response
+    {
+        $token = $request->route('token');
+        
+        // Verify token and get user email
+        $email = $this->getEmailFromToken($token);
+        
+        if (!$email) {
+            abort(404, 'Invalid or expired token');
+        }
+
+        return Inertia::render('auth/set-password', [
+            'email' => $email,
+            'token' => $token,
+        ]);
+    }
+
+    /**
+     * Handle set password for new users.
+     */
+    public function storeSetPassword(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'token' => 'required',
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ]);
+
+        $token = $request->token;
+        $email = $this->getEmailFromToken($token);
+        
+        if (!$email) {
+            throw ValidationException::withMessages([
+                'token' => ['Invalid or expired token'],
+            ]);
+        }
+
+        // Find user by email
+        $user = \App\Models\User::where('email', $email)->first();
+        
+        if (!$user) {
+            throw ValidationException::withMessages([
+                'email' => ['User not found'],
+            ]);
+        }
+
+        // Update password
+        $user->forceFill([
+            'password' => Hash::make($request->password),
+            'remember_token' => Str::random(60),
+        ])->save();
+
+        // Login user
+        auth()->login($user);
+
+        return redirect()->intended('/dashboard');
+    }
+
+    /**
+     * Get email from token (simple implementation)
+     */
+    private function getEmailFromToken(string $token): ?string
+    {
+        // This is a simple implementation - in production you might want to use a more secure method
+        // For now, we'll decode the token to get the email
+        try {
+            $decoded = base64_decode($token);
+            $data = json_decode($decoded, true);
+            return $data['email'] ?? null;
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
 }

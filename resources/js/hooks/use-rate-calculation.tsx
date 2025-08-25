@@ -207,7 +207,7 @@ export function useRateCalculation({
 
             // Calculate subtotal and tax
             const subtotal = baseAmount + weekendPremium + seasonalPremium + extraBedAmount + cleaningFee;
-            const taxAmount = subtotal * 0.11;
+            const taxAmount = 0; // Tax removed - set to 0
             const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
 
             // Sanity check for unreasonable amounts
@@ -235,7 +235,7 @@ export function useRateCalculation({
             console.log(`  🛏️ Extra Bed Amount: Rp ${extraBedAmount.toLocaleString('id-ID')} (${extraBedAmount})`);
             console.log(`  🧹 Cleaning Fee: Rp ${cleaningFee.toLocaleString('id-ID')} (${cleaningFee})`);
             console.log(`  ➕ Subtotal: Rp ${subtotal.toLocaleString('id-ID')} (${subtotal})`);
-            console.log(`  🏛️ Tax 11%: Rp ${taxAmount.toLocaleString('id-ID')} (${taxAmount})`);
+            console.log(`  🏛️ Tax 0%: Rp ${taxAmount.toLocaleString('id-ID')} (${taxAmount})`);
             console.log(`  🎯 FINAL TOTAL: Rp ${totalAmount.toLocaleString('id-ID')} (${totalAmount})`);
 
             return {

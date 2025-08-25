@@ -67,20 +67,6 @@ interface Property {
     media?: any[];
 }
 
-interface GuestDetail {
-    id?: number;
-    name: string;
-    gender: 'male' | 'female';
-    age_category: 'adult' | 'child' | 'infant';
-    relationship_to_primary: string;
-    phone?: string;
-    email?: string;
-    id_number?: string;
-    emergency_contact_name?: string;
-    emergency_contact_phone?: string;
-    notes?: string;
-}
-
 interface RateCalculation {
     nights: number;
     base_amount: number;
@@ -145,7 +131,6 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     const [rateCalculation, setRateCalculation] = useState<RateCalculation | null>(null);
     const [isCalculatingRate, setIsCalculatingRate] = useState(false);
     const [rateError, setRateError] = useState<string | null>(null);
-    const [showGuestDetails, setShowGuestDetails] = useState(false);
     const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
     const [availabilityData, setAvailabilityData] = useState<AvailabilityData | null>(initialAvailabilityData || null);
     const [availabilityStatus, setAvailabilityStatus] = useState<'checking' | 'available' | 'unavailable' | null>(null);
@@ -175,9 +160,6 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         check_in_time: '15:00',
         source: 'direct' as 'direct' | 'phone' | 'walk_in' | 'ota',
     });
-
-    // Separate state for guest details
-    const [guestDetails, setGuestDetails] = useState<GuestDetail[]>([]);
 
     // Calculate total guests
     const totalGuests = useMemo(() => {
@@ -603,107 +585,9 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
     // Auto-generate guest list when counts change
     useEffect(() => {
-        setShowGuestDetails(totalGuests > 1);
-        
-        // Auto-generate guest details based on counts
-        if (totalGuests > 1) {
-            const newGuestDetails: GuestDetail[] = [];
-            let guestIndex = 0;
-            
-            // Add male guests
-            for (let i = 0; i < (Number(data.guest_male) || 0); i++) {
-                newGuestDetails.push({
-                    id: guestIndex++,
-                    name: `Male Guest ${i + 1}`,
-                    gender: 'male',
-                    age_category: 'adult',
-                    relationship_to_primary: i === 0 ? 'primary' : 'additional',
-                    phone: '',
-                    email: '',
-                    id_number: '',
-                    emergency_contact_name: '',
-                    emergency_contact_phone: '',
-                    notes: ''
-                });
-            }
-            
-            // Add female guests
-            for (let i = 0; i < (Number(data.guest_female) || 0); i++) {
-                newGuestDetails.push({
-                    id: guestIndex++,
-                    name: `Female Guest ${i + 1}`,
-                    gender: 'female',
-                    age_category: 'adult',
-                    relationship_to_primary: i === 0 ? 'primary' : 'additional',
-                    phone: '',
-                    email: '',
-                    id_number: '',
-                    emergency_contact_name: '',
-                    emergency_contact_phone: '',
-                    notes: ''
-                });
-            }
-            
-            // Add children
-            for (let i = 0; i < (Number(data.guest_children) || 0); i++) {
-                newGuestDetails.push({
-                    id: guestIndex++,
-                    name: `Child ${i + 1}`,
-                    gender: 'male', // Default, can be changed
-                    age_category: 'child',
-                    relationship_to_primary: 'child',
-                    phone: '',
-                    email: '',
-                    id_number: '',
-                    emergency_contact_name: '',
-                    emergency_contact_phone: '',
-                    notes: ''
-                });
-            }
-            
-            setGuestDetails(newGuestDetails);
-        } else {
-            setGuestDetails([]);
-        }
+        // This effect is no longer needed as guest details are removed.
+        // Keeping it for now in case it's re-introduced later.
     }, [totalGuests, data.guest_male, data.guest_female, data.guest_children]);
-
-    // Guest detail management functions
-    const updateGuestDetail = (index: number, field: keyof GuestDetail, value: any) => {
-        const updatedGuests = [...guestDetails];
-        updatedGuests[index] = { ...updatedGuests[index], [field]: value };
-        setGuestDetails(updatedGuests);
-    };
-
-    const removeGuestDetail = (index: number) => {
-        const updatedGuests = guestDetails.filter((_, i) => i !== index);
-        setGuestDetails(updatedGuests);
-        
-        // Update counts
-        const maleCount = updatedGuests.filter(g => g.gender === 'male' && g.age_category === 'adult').length;
-        const femaleCount = updatedGuests.filter(g => g.gender === 'female' && g.age_category === 'adult').length;
-        const childrenCount = updatedGuests.filter(g => g.age_category === 'child').length;
-        
-        setData('guest_male', maleCount);
-        setData('guest_female', femaleCount);
-        setData('guest_children', childrenCount);
-    };
-
-    const addGuestDetail = () => {
-        const newGuest: GuestDetail = {
-            id: Date.now(),
-            name: '',
-            gender: 'male',
-            age_category: 'adult',
-            relationship_to_primary: 'additional',
-            phone: '',
-            email: '',
-            id_number: '',
-            emergency_contact_name: '',
-            emergency_contact_phone: '',
-            notes: ''
-        };
-        setGuestDetails([...guestDetails, newGuest]);
-    };
 
     // Format currency
     const formatCurrency = (amount: number) => {
@@ -739,7 +623,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                      data.guest_phone.trim() && 
                      data.guest_country && 
                      totalGuests > 0 && 
-                     (!showGuestDetails || guestDetails.every(guest => guest.name.trim()));
+                     availabilityStatus === 'available' && 
+                     rateCalculation !== null;
 
     // Validation messages
     const validationMessages = useMemo(() => {
@@ -753,12 +638,9 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         if (!data.guest_phone.trim()) messages.push('Nomor telepon tamu utama harus diisi');
         if (totalGuests === 0) messages.push('Jumlah tamu minimal 1');
         // Info: availability/rate akan dicek ulang di backend. Submit tetap diizinkan.
-        if (showGuestDetails && guestDetails.some(guest => !guest.name.trim())) {
-            messages.push('Semua nama tamu harus diisi');
-        }
         
         return messages;
-    }, [data, totalGuests, rateCalculation, availabilityStatus, showGuestDetails, guestDetails]);
+    }, [data, totalGuests, rateCalculation, availabilityStatus]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -767,10 +649,9 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             return;
         }
         
-        // Prepare form data with guest details
+        // Prepare form data without guest details
         const formData = {
             ...data,
-            guests: guestDetails,
             guest_count: totalGuests,
         };
         
@@ -809,7 +690,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                     </div>
                     <Button 
                         variant="outline" 
-                        onClick={() => router.visit(route('admin.booking-management.index'))}
+                        onClick={() => router.visit(route('admin.bookings.index'))}
                     >
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back to Bookings
@@ -988,13 +869,13 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
                                     {/* Guest Count with Real-time Updates */}
                                     <div>
-                                        <div className="flex items-center gap-2 mb-4">
+                                        <div className="flex items-center gap-2">
                                             <Users className="h-5 w-5 text-blue-600" />
                                             <h3 className="text-lg font-semibold">Guest Count</h3>
                                         </div>
                                         
-                                        <div className="grid grid-cols-3 gap-4 mb-4">
-                                            <div>
+                                        <div className="grid grid-cols-3 sm:grid-cols-3 gap-4 mb-4">
+                                            <div className="space-y-2">
                                                 <Label htmlFor="guest_count_male">Male Adults</Label>
                                                 <Input
                                                     id="guest_count_male"
@@ -1008,7 +889,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                     <p className="text-sm text-red-600 mt-1">{errors.guest_male}</p>
                                                 )}
                                             </div>
-                                            <div>
+                                            <div className="space-y-2">
                                                 <Label htmlFor="guest_count_female">Female Adults</Label>
                                                 <Input
                                                     id="guest_count_female"
@@ -1022,7 +903,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                     <p className="text-sm text-red-600 mt-1">{errors.guest_female}</p>
                                                 )}
                                             </div>
-                                            <div>
+                                            <div className="space-y-2">
                                                 <Label htmlFor="guest_count_children">Children</Label>
                                                 <Input
                                                     id="guest_count_children"
@@ -1039,7 +920,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                         </div>
 
                                         {/* Enhanced Guest Count Summary */}
-                                        <div className="bg-slate-50 p-4 rounded-lg">
+                                        <div className="bg-slate-50 p-4 sm:p-6 rounded-lg">
                                             <div className="flex items-center justify-between mb-2">
                                                 <span className="font-medium">Total Guests:</span>
                                                 <Badge variant="secondary">
@@ -1063,173 +944,6 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                             )}
                                         </div>
                                     </div>
-
-                                    <Separator />
-
-                                    {/* Guest Details Management */}
-                                    {showGuestDetails && guestDetails.length > 0 && (
-                                        <div>
-                                            <div className="flex items-center justify-between mb-4">
-                                                <h3 className="text-lg font-semibold">Guest Details</h3>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={addGuestDetail}
-                                                >
-                                                    <Plus className="h-4 w-4 mr-2" />
-                                                    Add Guest
-                                                </Button>
-                                            </div>
-                                            
-                                            <div className="space-y-4">
-                                                {guestDetails.map((guest, index) => (
-                                                    <Card key={guest.id || index} className="border-l-4 border-l-blue-500">
-                                                        <CardHeader className="pb-3">
-                                                            <div className="flex items-center justify-between">
-                                                                <CardTitle className="text-base">
-                                                                    {guest.relationship_to_primary === 'primary' ? 'Primary Guest' : 
-                                                                     guest.age_category === 'child' ? 'Child Guest' : 'Additional Guest'}
-                                                                </CardTitle>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    onClick={() => removeGuestDetail(index)}
-                                                    className="text-red-600 hover:text-red-700"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div className="grid md:grid-cols-3 gap-4">
-                                                <div>
-                                                    <Label>Full Name *</Label>
-                                                    <Input
-                                                        value={guest.name}
-                                                        onChange={(e) => updateGuestDetail(index, 'name', e.target.value)}
-                                                        placeholder="Enter full name"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label>Gender</Label>
-                                                    <Select 
-                                                        value={guest.gender} 
-                                                        onValueChange={(value: 'male' | 'female') => updateGuestDetail(index, 'gender', value)}
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="male">Male</SelectItem>
-                                                            <SelectItem value="female">Female</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div>
-                                                    <Label>Age Category</Label>
-                                                    <Select 
-                                                        value={guest.age_category} 
-                                                        onValueChange={(value: 'adult' | 'child' | 'infant') => updateGuestDetail(index, 'age_category', value)}
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="adult">Adult</SelectItem>
-                                                            <SelectItem value="child">Child</SelectItem>
-                                                            <SelectItem value="infant">Infant</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <Label>Phone Number</Label>
-                                                    <Input
-                                                        value={guest.phone || ''}
-                                                        onChange={(e) => updateGuestDetail(index, 'phone', e.target.value)}
-                                                        placeholder="+62xxx"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label>Email Address</Label>
-                                                    <Input
-                                                        value={guest.email || ''}
-                                                        onChange={(e) => updateGuestDetail(index, 'email', e.target.value)}
-                                                        placeholder="guest@example.com"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="grid md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <Label>ID Number</Label>
-                                                    <Input
-                                                        value={guest.id_number || ''}
-                                                        onChange={(e) => updateGuestDetail(index, 'id_number', e.target.value)}
-                                                        placeholder="KTP/Passport number"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label>Relationship to Primary</Label>
-                                                    <Select 
-                                                        value={guest.relationship_to_primary} 
-                                                        onValueChange={(value) => updateGuestDetail(index, 'relationship_to_primary', value)}
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="primary">Primary Guest</SelectItem>
-                                                            <SelectItem value="spouse">Spouse</SelectItem>
-                                                            <SelectItem value="child">Child</SelectItem>
-                                                            <SelectItem value="parent">Parent</SelectItem>
-                                                            <SelectItem value="sibling">Sibling</SelectItem>
-                                                            <SelectItem value="friend">Friend</SelectItem>
-                                                            <SelectItem value="colleague">Colleague</SelectItem>
-                                                            <SelectItem value="additional">Additional Guest</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <Label>Emergency Contact Name</Label>
-                                                    <Input
-                                                        value={guest.emergency_contact_name || ''}
-                                                        onChange={(e) => updateGuestDetail(index, 'emergency_contact_name', e.target.value)}
-                                                        placeholder="Emergency contact name"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label>Emergency Contact Phone</Label>
-                                                    <Input
-                                                        value={guest.emergency_contact_phone || ''}
-                                                        onChange={(e) => updateGuestDetail(index, 'emergency_contact_phone', e.target.value)}
-                                                        placeholder="+62xxx"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <Label>Notes</Label>
-                                                <Textarea
-                                                    value={guest.notes || ''}
-                                                    onChange={(e) => updateGuestDetail(index, 'notes', e.target.value)}
-                                                    placeholder="Special requirements or notes..."
-                                                    rows={2}
-                                                />
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                        </div>
-                    )}
 
                                     <Separator />
 
@@ -1495,49 +1209,51 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                     {/* Enhanced Rate Calculation Sidebar */}
                     <div className="space-y-6">
                         {/* Guest Summary Card */}
-                        {showGuestDetails && guestDetails.length > 0 && (
-                            <Card className="md:sticky md:top-6">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Users className="h-5 w-5" />
-                                        Guest Summary
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-3">
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between text-sm">
-                                            <span>Total Guests:</span>
-                                            <Badge variant="secondary">{totalGuests}</Badge>
-                                        </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span>Male Adults:</span>
-                                            <span>{guestDetails.filter(g => g.gender === 'male' && g.age_category === 'adult').length}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span>Female Adults:</span>
-                                            <span>{guestDetails.filter(g => g.gender === 'female' && g.age_category === 'adult').length}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span>Children:</span>
-                                            <span>{guestDetails.filter(g => g.age_category === 'child').length}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span>Infants:</span>
-                                            <span>{guestDetails.filter(g => g.age_category === 'infant').length}</span>
+                        {/* This section is no longer needed as guest details are removed. */}
+                        {/* Keeping it for now in case it's re-introduced later. */}
+                        {/*
+                        <Card className="md:sticky md:top-6">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Users className="h-5 w-5" />
+                                    Guest Summary
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span>Total Guests:</span>
+                                        <Badge variant="secondary">{totalGuests}</Badge>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span>Male Adults:</span>
+                                        <span>{guestDetails.filter(g => g.gender === 'male' && g.age_category === 'adult').length}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span>Female Adults:</span>
+                                        <span>{guestDetails.filter(g => g.gender === 'female' && g.age_category === 'adult').length}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span>Children:</span>
+                                        <span>{guestDetails.filter(g => g.age_category === 'child').length}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span>Infants:</span>
+                                        <span>{guestDetails.filter(g => g.age_category === 'infant').length}</span>
+                                    </div>
+                                </div>
+                                
+                                {extraBeds > 0 && currentProperty && (
+                                    <div className="pt-2 border-t">
+                                        <div className="flex items-center gap-2 text-sm text-blue-600">
+                                            <Bed className="h-4 w-4" />
+                                            <span>Extra beds needed: {extraBeds}</span>
                                         </div>
                                     </div>
-                                    
-                                    {extraBeds > 0 && currentProperty && (
-                                        <div className="pt-2 border-t">
-                                            <div className="flex items-center gap-2 text-sm text-blue-600">
-                                                <Bed className="h-4 w-4" />
-                                                <span>Extra beds needed: {extraBeds}</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        )}
+                                )}
+                            </CardContent>
+                        </Card>
+                        */}
 
                         <Card className="md:sticky md:top-6">
                             <CardHeader>
@@ -1629,7 +1345,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                 </div>
                                                 
                                                 <div className="flex justify-between">
-                                                    <span>Tax (11%)</span>
+                                                    <span>Tax (0%)</span>
                                                     <span>{formatCurrency(rateCalculation.tax_amount)}</span>
                                                 </div>
                                                 

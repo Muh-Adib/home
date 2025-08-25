@@ -416,3 +416,5 @@ Update rateCalculation state
 
 **Status**: ✅ **COMPLETED** - Admin booking now uses same availability API as customer booking
 
+
+

@@ -73,9 +73,10 @@ interface Booking {
 interface BookingConfirmationProps {
     booking: Booking;
     password: string|null;
+    isNewUser: boolean;
 }
 
-export default function BookingConfirmation({ booking, password }: BookingConfirmationProps) {
+export default function BookingConfirmation({ booking, password, isNewUser }: BookingConfirmationProps) {
     const { t } = useTranslation();
     
     const statusColors = {
@@ -119,6 +120,16 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
         const phoneNumber = booking.property.owner?.phone || '6281234567890'; // Default number
         const message = formatWhatsAppMessage();
         return `https://wa.me/${phoneNumber}?text=${message}`;
+    };
+
+    const getSetPasswordLink = () => {
+        // Generate token for set password
+        const tokenData = {
+            email: booking.guest_email,
+            timestamp: Date.now()
+        };
+        const token = btoa(JSON.stringify(tokenData));
+        return `/set-password/${token}`;
     };
 
     const nights = Math.ceil((new Date(booking.check_out).getTime() - new Date(booking.check_in).getTime()) / (1000 * 60 * 60 * 24));
@@ -372,58 +383,74 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
 
                                 {/* Actions */}
                                 <div className="space-y-3">
-                                    {booking.payment_status === 'dp_pending' && booking.booking_status === 'confirmed' && (
-                                        <Link href={booking.payment_link} className="block">
-                                            <Button className="w-full" size="lg">
-                                                <CreditCard className="h-4 w-4 mr-2" />
-                                                {t('booking.confirmation.make_payment')}
-                                                <span className="text-xs ml-2">(Rp {(booking.dp_amount).toLocaleString()})</span>
+                                    {/* For New Users - Show Set Password Link */}
+                                    {isNewUser && (
+                                        <>
+                                            <Alert className="border-blue-200 bg-blue-50">
+                                                <Info className="h-4 w-4 text-blue-600" />
+                                                <AlertDescription className="text-blue-800">
+                                                    <strong>Akun baru berhasil dibuat!</strong> Silakan set password Anda untuk melanjutkan.
+                                                </AlertDescription>
+                                            </Alert>
+                                            
+                                            <Link href={getSetPasswordLink()} className="block">
+                                                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" size="lg">
+                                                    <Lock className="h-4 w-4 mr-2" />
+                                                    Set Password Baru
+                                                </Button>
+                                            </Link>
+                                        </>
+                                    )}
+
+                                    {/* For Existing Users - Show Normal Actions */}
+                                    {!isNewUser && (
+                                        <>
+                                            {booking.payment_status === 'dp_pending' && booking.booking_status === 'confirmed' && (
+                                                <Link href={booking.payment_link} className="block">
+                                                    <Button className="w-full" size="lg">
+                                                        <CreditCard className="h-4 w-4 mr-2" />
+                                                        {t('booking.confirmation.make_payment')}
+                                                        <span className="text-xs ml-2">(Rp {(booking.dp_amount).toLocaleString()})</span>
+                                                    </Button>
+                                                </Link>
+                                            )}
+                                            
+                                            {booking.booking_status === 'pending_verification' && (
+                                                <Alert>
+                                                    <Clock className="h-4 w-4" />
+                                                    <AlertDescription>
+                                                        {t('booking.confirmation.verification_pending')}
+                                                    </AlertDescription>
+                                                </Alert>
+                                            )}
+                                            
+                                            {booking.payment_status === 'paid' && (
+                                                <Button className="w-full" variant="outline" disabled>
+                                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                                    {t('booking.confirmation.payment_completed')}
+                                                </Button>
+                                            )}
+                                            
+                                            <Button className="w-full" variant="outline" disabled>
+                                                <Download className="h-4 w-4 mr-2" />
+                                                {t('booking.confirmation.download_voucher')}
+                                                <span className="text-xs ml-2">({t('booking.confirmation.available_after_payment')})</span>
                                             </Button>
-                                        </Link>
+                                            
+                                            <Link href="/properties" className="block">
+                                                <Button variant="outline" className="w-full">
+                                                    {t('booking.confirmation.browse_more_properties')}
+                                                    <ArrowRight className="h-4 w-4 ml-2" />
+                                                </Button>
+                                            </Link>
+                                            
+                                            <Link href="/dashboard" className="block">
+                                                <Button variant="ghost" className="w-full">
+                                                    {t('booking.confirmation.back_to_dashboard')}
+                                                </Button>
+                                            </Link>
+                                        </>
                                     )}
-                                    
-                                    {booking.booking_status === 'pending_verification' && (
-                                        <Alert>
-                                            <Clock className="h-4 w-4" />
-                                            {/**
-                                             * jika booking status pending_verification maka kita akan menampilkan tombol untuk melakukan konfirmasi booking ke whatsapp admin.
-                                             * jika booking status confirmed maka kita akan menampilkan tombol untuk melakukan pembayaran dp.
-                                             * jika booking status paid maka kita akan menampilkan tombol menuju halaman my-bookings.
-                                             * jika booking status expired maka kita akan menampilkan tombol untuk melakukan konfirmasi booking ke whatsapp admin.
-                                             * jika booking status expired maka kita akan menampilkan alert dengan pesan "Verifikasi sedang diproses. Silakan tunggu beberapa saat."
-                                             */
-                                            }
-                                            <AlertDescription>
-                                                {t('booking.confirmation.verification_pending')}
-                                            </AlertDescription>
-                                        </Alert>
-                                    )}
-                                    
-                                    {booking.payment_status === 'paid' && (
-                                        <Button className="w-full" variant="outline" disabled>
-                                            <CheckCircle className="h-4 w-4 mr-2" />
-                                            {t('booking.confirmation.payment_completed')}
-                                        </Button>
-                                    )}
-                                    
-                                    <Button className="w-full" variant="outline" disabled>
-                                        <Download className="h-4 w-4 mr-2" />
-                                        {t('booking.confirmation.download_voucher')}
-                                        <span className="text-xs ml-2">({t('booking.confirmation.available_after_payment')})</span>
-                                    </Button>
-                                    
-                                    <Link href="/properties" className="block">
-                                        <Button variant="outline" className="w-full">
-                                            {t('booking.confirmation.browse_more_properties')}
-                                            <ArrowRight className="h-4 w-4 ml-2" />
-                                        </Button>
-                                    </Link>
-                                    
-                                    <Link href="/my-bookings" className="block">
-                                        <Button variant="ghost" className="w-full">
-                                            {t('booking.confirmation.back_to_home')}
-                                        </Button>
-                                    </Link>
                                 </div>
                             </div>
                         </div>

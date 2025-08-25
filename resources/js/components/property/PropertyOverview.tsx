@@ -76,20 +76,6 @@ export const PropertyOverview: React.FC<PropertyOverviewProps> = ({ property, fo
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-gradient-to-br from-green-500/10 to-green-500/5 rounded-lg border border-green-500/20">
-              <Label className="text-sm font-medium text-muted-foreground">{t('properties.minimum_stay_weekday')}</Label>
-              <p className="text-lg font-semibold text-foreground">{property.min_stay_weekday} {t('booking.nights')}</p>
-            </div>
-            <div className="p-4 bg-gradient-to-br from-orange-500/10 to-orange-500/5 rounded-lg border border-orange-500/20">
-              <Label className="text-sm font-medium text-muted-foreground">{t('properties.minimum_stay_weekend')}</Label>
-              <p className="text-lg font-semibold text-foreground">{property.min_stay_weekend} {t('booking.nights')}</p>
-            </div>
-            <div className="p-4 bg-gradient-to-br from-red-500/10 to-red-500/5 rounded-lg border border-red-500/20">
-              <Label className="text-sm font-medium text-muted-foreground">{t('properties.minimum_stay_peak')}</Label>
-              <p className="text-lg font-semibold text-foreground">{property.min_stay_peak} {t('booking.nights')}</p>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

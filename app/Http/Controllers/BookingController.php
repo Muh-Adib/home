@@ -317,8 +317,26 @@ class BookingController extends Controller
     {
         $this->authorize('view', $booking);
 
+        // Check if user is new (has temporary password)
+        $user = auth()->user();
+        $isNewUser = false;
+        $password = null;
+
+        if ($user && $user->email === $booking->guest_email) {
+            // Check if user has a temporary password (you might need to add a field to track this)
+            // For now, we'll check if the user was created recently (within last 24 hours)
+            $isNewUser = $user->created_at->diffInHours(now()) < 24;
+            
+            // If it's a new user, we might want to show a temporary password
+            if ($isNewUser) {
+                $password = session('temp_password');
+            }
+        }
+
         return Inertia::render('Booking/Confirmation', [
             'booking' => $booking->load(['property', 'payments']),
+            'password' => $password,
+            'isNewUser' => $isNewUser,
         ]);
     }
 

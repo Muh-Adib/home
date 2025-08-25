@@ -161,8 +161,8 @@ export function usePropertyAvailability(
         // Calculate subtotal
         const subtotal = baseAmount + weekendPremium + seasonalPremium + extraBedAmount + cleaningFee;
 
-        // Calculate tax (11%)
-        const taxAmount = subtotal * 0.11;
+                    // Calculate tax (0% - tax removed)
+        const taxAmount = 0; // Tax removed - set to 0
 
         // Calculate total
         const totalAmount = subtotal + taxAmount;

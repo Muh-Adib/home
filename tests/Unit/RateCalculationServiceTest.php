@@ -59,7 +59,7 @@ class RateCalculationServiceTest extends TestCase
         $this->assertEquals(100000, $calculation->cleaningFee);
         
         $expectedSubtotal = 1000000 + 100000; // Base + cleaning
-        $expectedTax = $expectedSubtotal * 0.11;
+        $expectedTax = 0; // 0% tax - tax removed
         $expectedTotal = $expectedSubtotal + $expectedTax;
         
         $this->assertEquals($expectedTotal, $calculation->totalAmount);
@@ -160,7 +160,7 @@ class RateCalculationServiceTest extends TestCase
         );
 
         $subtotal = 1000000 + 100000; // Base + cleaning
-        $expectedTax = $subtotal * 0.11; // 11% VAT
+        $expectedTax = 0; // 0% tax - tax removed
         
         $this->assertEquals($expectedTax, $calculation->taxAmount);
     }

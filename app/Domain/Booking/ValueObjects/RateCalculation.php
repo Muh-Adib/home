@@ -48,7 +48,7 @@ class RateCalculation
 
     public function getTaxPercentage(): float
     {
-        return 11.0; // 11% tax
+        return 0.0; // 0% tax - tax removed
     }
 
     public function hasSeasonalRates(): bool

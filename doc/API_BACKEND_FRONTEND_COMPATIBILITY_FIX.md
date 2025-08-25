@@ -425,3 +425,5 @@ curl -X GET "http://localhost/api/properties/1/calculate-rate?check_in=2025-01-1
 
 **Status**: ✅ **COMPLETED** - API backend now fully supports frontend requirements
 
+
+

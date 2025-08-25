@@ -81,8 +81,8 @@ class BookingServiceRefactoredTest extends TestCase
             seasonalPremium: 0,
             extraBedAmount: 0,
             cleaningFee: 100000,
-            taxAmount: 121000,
-            totalAmount: 1221000,
+            taxAmount: 0,
+            totalAmount: 1100000,
             extraBeds: 0,
             breakdown: [],
             seasonalRatesApplied: []
@@ -138,8 +138,8 @@ class BookingServiceRefactoredTest extends TestCase
             seasonalPremium: 0,
             extraBedAmount: 0,
             cleaningFee: 100000,
-            taxAmount: 121000,
-            totalAmount: 1221000,
+            taxAmount: 0,
+            totalAmount: 1100000,
             extraBeds: 0,
             breakdown: [],
             seasonalRatesApplied: []
@@ -202,8 +202,8 @@ class BookingServiceRefactoredTest extends TestCase
             seasonalPremium: 0,
             extraBedAmount: 0,
             cleaningFee: 100000,
-            taxAmount: 121000,
-            totalAmount: 1221000,
+            taxAmount: 0,
+            totalAmount: 1100000,
             extraBeds: 0,
             breakdown: [],
             seasonalRatesApplied: []
@@ -225,7 +225,7 @@ class BookingServiceRefactoredTest extends TestCase
         $this->assertInstanceOf(RateCalculation::class, $result);
         $this->assertEquals(2, $result->nights);
         $this->assertEquals(1000000, $result->baseAmount);
-        $this->assertEquals(1221000, $result->totalAmount);
+        $this->assertEquals(1100000, $result->totalAmount);
     }
 
     /** @test */
@@ -355,8 +355,8 @@ class BookingServiceRefactoredTest extends TestCase
             seasonalPremium: 0,
             extraBedAmount: 0,
             cleaningFee: 100000,
-            taxAmount: 121000,
-            totalAmount: 1221000,
+            taxAmount: 0,
+            totalAmount: 1100000,
             extraBeds: 0,
             breakdown: [],
             seasonalRatesApplied: []
@@ -402,8 +402,8 @@ class BookingServiceRefactoredTest extends TestCase
             seasonalPremium: 0,
             extraBedAmount: 0,
             cleaningFee: 100000,
-            taxAmount: 121000,
-            totalAmount: 1221000,
+            taxAmount: 0,
+            totalAmount: 1100000,
             extraBeds: 0,
             breakdown: [],
             seasonalRatesApplied: []
@@ -456,8 +456,8 @@ class BookingServiceRefactoredTest extends TestCase
             seasonalPremium: 100000,
             extraBedAmount: 0,
             cleaningFee: 100000,
-            taxAmount: 154000,
-            totalAmount: 1554000,
+            taxAmount: 0,
+            totalAmount: 1400000,
             extraBeds: 0,
             breakdown: ['test' => 'data'],
             seasonalRatesApplied: []

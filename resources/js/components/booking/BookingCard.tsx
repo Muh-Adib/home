@@ -17,8 +17,7 @@ import {
     CalendarDays,
     Users,
     Phone,
-    Mail,
-    DollarSign
+    Mail
 } from 'lucide-react';
 
 interface BookingCardProps {

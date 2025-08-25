@@ -142,8 +142,8 @@ class RateCalculationService
         
         $subtotal = $totalBaseAmount + $extraBedAmount + $property->cleaning_fee - $minimumStayDiscount;
         
-        // Tax calculation (11% VAT)
-        $taxAmount = $subtotal * 0.11;
+        // Tax calculation (0% - tax removed)
+        $taxAmount = 0;
         $totalAmount = $subtotal + $taxAmount;
         
         // Get minimum stay information
