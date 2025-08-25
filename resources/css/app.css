@@ -22,6 +22,14 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+    --chart-1: oklch(0.646 0.222 41.116);
+    --chart-2: oklch(0.6 0.118 184.704);
+    --chart-3: oklch(0.398 0.07 227.392);
+    --chart-4: oklch(0.828 0.189 84.429);
+    --chart-5: oklch(0.769 0.188 70.08);
+    --color-revenue: hsl(220, 90%, 55%);
+    --color-bookings: hsl(140, 70%, 45%);
+    --color-total_revenue: hsl(30, 80%, 55%);
 }
 
 .dark {
@@ -44,6 +52,14 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 94.1%;
+    --chart-1: oklch(0.488 0.243 264.376);
+    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-3: oklch(0.769 0.188 70.08);
+    --chart-4: oklch(0.627 0.265 303.9);
+    --chart-5: oklch(0.645 0.246 16.439);
+    --color-revenue: hsl(220, 90%, 70%);
+    --color-bookings: hsl(140, 70%, 65%);
+    --color-total_revenue: hsl(30, 80%, 70%);
   }
 
   * {

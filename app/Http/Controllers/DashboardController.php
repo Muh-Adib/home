@@ -282,7 +282,7 @@ class DashboardController extends Controller
                     'time' => $booking->created_at,
                     'status' => $booking->booking_status,
                     'icon' => 'Calendar',
-                    'href' => "/admin/bookings/{$booking->id}",
+                    'href' => "/admin/bookings/{$booking->booking_number}",
                 ];
             });
 
@@ -307,7 +307,7 @@ class DashboardController extends Controller
                     'time' => $payment->created_at,
                     'status' => $payment->payment_status,
                     'icon' => 'DollarSign',
-                    'href' => "/admin/payments/{$payment->id}",
+                    'href' => "/admin/payments/{$payment->payment_number}",
                 ];
             });
 

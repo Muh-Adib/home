@@ -1,5 +1,5 @@
 import React from 'react';
-import DashboardLayout from '@/layouts/dashboard-layout';
+import GuestLayout from '@/layouts/guest-layout';
 import { formatCurrency } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -118,7 +118,7 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
     };
 
     return (
-        <DashboardLayout>
+        <GuestLayout title="Guest Dashboard" subtitle="Welcome to your personal booking portal">
             <Head title={`${t('nav.dashboard')} - Homsjogja`} />
             
             <div className="space-y-6 p-4 md:p-6">
@@ -348,6 +348,6 @@ export default function GuestDashboard({ upcoming_bookings = [], past_bookings =
 
 
                     </div>
-        </DashboardLayout>
+        </GuestLayout>
     );
 } 

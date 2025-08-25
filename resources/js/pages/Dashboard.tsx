@@ -27,8 +27,11 @@ import {
     Info,
     Phone
 } from 'lucide-react';
-import DashboardLayout from '@/layouts/dashboard-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { type User, type BreadcrumbItem, type PageProps } from '@/types';
+import { ChartRevenue } from '@/components/charts/ChartRevenue';
+import { ChartBookingTrends } from '@/components/charts/ChartBookingTrends';
+import { ChartPropertyPerformance } from '@/components/charts/ChartPropertyPerformance';
 
 interface KPIData {
     value: number;
@@ -513,7 +516,7 @@ export default function Dashboard({
     };
 
     return (
-        <DashboardLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs} title="Dashboard">
             <Head title="Dashboard - Homsjogja" />
             
             <div className="space-y-6">
@@ -562,25 +565,36 @@ export default function Dashboard({
                                 <CardContent className="space-y-3">
                                     {recentActivity.slice(0, 5).map((activity, index) => (
                                         <div key={index} className="flex items-start space-x-3">
-                                            <div className="flex-shrink-0">
-                                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                                    {React.createElement(getIconComponent(activity.icon), {
-                                                        className: "h-4 w-4 text-blue-600"
-                                                    })}
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-gray-900">
-                                                    {activity.title}
-                                                </p>
-                                                <p className="text-sm text-gray-500">
-                                                    {activity.description}
-                                                </p>
-                                                <p className="text-xs text-gray-400 mt-1">
-                                                    {activity.time}
-                                                </p>
-                                            </div>
+                                        <div className="flex-shrink-0">
+                                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                            {React.createElement(getIconComponent(activity.icon), {
+                                              className: "h-4 w-4 text-blue-600"
+                                            })}
+                                          </div>
                                         </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-medium text-gray-900">
+                                            {activity.title}
+                                          </p>
+                                      
+                                          {/* Kalau activity.description ada link */}
+                                          <p className="text-sm text-gray-500">
+                                            <a
+                                              href={activity.href}
+                                              className="text-blue-600 hover:underline"
+                                              target="_blank" // kalau mau buka tab baru
+                                              rel="noopener noreferrer"
+                                            >
+                                              {activity.description}
+                                            </a>
+                                          </p>
+                                      
+                                          <p className="text-xs text-gray-400 mt-1">
+                                            {activity.time}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      
                                     ))}
                                 </CardContent>
                             </Card>
@@ -633,10 +647,14 @@ export default function Dashboard({
                             </CardHeader>
                             <CardContent>
                                 <div className="h-64 flex items-center justify-center text-gray-500">
-                                    Chart component will be implemented here
+                                
                                 </div>
                             </CardContent>
                         </Card>
+                        
+                        <ChartRevenue data={revenueChart} />
+                        <ChartBookingTrends data={bookingTrends} />
+                        <ChartPropertyPerformance data={propertyPerformance} />
 
                         {/* Booking Trends */}
                         <Card>
@@ -703,6 +721,6 @@ export default function Dashboard({
                     </Card>
                 )}
             </div>
-        </DashboardLayout>
+        </AdminLayout>
     );
 }

@@ -60,7 +60,7 @@ export default function GuestLayout({
     return (
         <div className="min-h-screen bg-background">
             {showHeader && (
-                <header className={`sticky top-0 z-50 w-full border-b bg-background ${variant === 'minimal' ? 'border-border shadow-sm' : 'border-border shadow-md'}`}>
+                <header className={`sticky top-0 z-50 w-full border-b bg-card ${variant === 'minimal' ? 'border-border shadow-sm' : 'border-border shadow-md'}`}>
                     <div className="container mx-auto px-6">
                         <div className="flex items-center justify-between h-16">
                             {/* Logo */}

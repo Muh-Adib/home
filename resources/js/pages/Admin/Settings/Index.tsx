@@ -1,6 +1,6 @@
 import React from 'react';
 import { Head, Link } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -179,7 +179,7 @@ export default function SettingsIndex({ settings, stats }: SettingsIndexProps) {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs} title="System Settings" subtitle="Manage application configuration and preferences">
             <Head title="Settings - Admin Dashboard" />
 
             <div className="space-y-6">
@@ -301,6 +301,6 @@ export default function SettingsIndex({ settings, stats }: SettingsIndexProps) {
                     </CardContent>
                 </Card>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 } 

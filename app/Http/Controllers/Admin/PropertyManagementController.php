@@ -55,7 +55,7 @@ class PropertyManagementController extends Controller
             $query->where('status', $request->get('status'));
         }
 
-        $properties = $query->paginate(15);
+        $properties = $query->paginate(20);
         
         return Inertia::render('Admin/Properties/Index', [
             'properties' => $properties,

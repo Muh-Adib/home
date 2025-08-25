@@ -32,6 +32,7 @@ import {
 import AppLogo from './app-logo';
 import { NotificationBell } from './notifications/notification-bell';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/utils';
 
 // Helper function untuk role-based navigation dengan grouping yang lebih baik
 const getNavItemsForRole = (userRole: User['role']): {
@@ -179,7 +180,12 @@ const footerNavItems: (NavItem & { title: string, href: string, icon: LucideIcon
     { title: 'support', href: '/support', icon: HelpCircle },
 ];
 
-export function AppSidebar() {
+interface AppSidebarProps {
+    className?: string;
+    variant?: 'desktop' | 'mobile';
+}
+
+export function AppSidebar({ className, variant = 'desktop' }: AppSidebarProps) {
     const page = usePage<PageProps>();
     const { auth } = page.props;
     const { t } = useTranslation();
@@ -187,8 +193,16 @@ export function AppSidebar() {
     // Add null checking untuk auth.user
     if (!auth?.user) {
         return (
-            <Sidebar collapsible="icon" variant="inset" className="border-r border-gray-200">
-                <SidebarHeader className="border-b border-gray-200">
+            <Sidebar 
+                collapsible="icon" 
+                variant="inset" 
+                className={cn(
+                    "border-r border-border bg-card",
+                    variant === 'mobile' && "w-64",
+                    className
+                )}
+            >
+                <SidebarHeader className="border-b border-border bg-card/50">
                     <SidebarMenu>
                         <SidebarMenuItem>
                             <SidebarMenuButton size="lg" asChild>
@@ -202,8 +216,8 @@ export function AppSidebar() {
                 <SidebarContent>
                     <div className="p-4 text-center text-muted-foreground">
                         <div className="animate-pulse">
-                            <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                            <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+                            <div className="h-4 bg-muted rounded mb-2"></div>
+                            <div className="h-4 bg-muted rounded w-3/4 mx-auto"></div>
                         </div>
                     </div>
                 </SidebarContent>
@@ -214,11 +228,19 @@ export function AppSidebar() {
     const navItems = getNavItemsForRole(auth.user.role);
 
     return (
-        <Sidebar collapsible="icon" variant="inset" className="border-r border-gray-200 bg-white">
-            <SidebarHeader className="border-b border-gray-200 bg-gray-50/50">
+        <Sidebar 
+            collapsible="icon" 
+            variant="inset" 
+            className={cn(
+                "border-r border-border bg-card",
+                variant === 'mobile' && "w-64",
+                className
+            )}
+        >
+            <SidebarHeader className="border-b border-border bg-card/50">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild className="hover:bg-gray-100">
+                        <SidebarMenuButton size="lg" asChild className="hover:bg-accent">
                             <Link href="/dashboard" prefetch>
                                 <AppLogo />
                             </Link>
@@ -239,7 +261,7 @@ export function AppSidebar() {
                 {navItems.management.length > 0 && (
                     <div className="mb-6">
                         <div className="px-3 mb-2">
-                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                 Management
                             </h3>
                         </div>
@@ -251,7 +273,7 @@ export function AppSidebar() {
                 {navItems.operations.length > 0 && (
                     <div className="mb-6">
                         <div className="px-3 mb-2">
-                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                 Operations
                             </h3>
                         </div>
@@ -263,7 +285,7 @@ export function AppSidebar() {
                 {navItems.analytics.length > 0 && (
                     <div className="mb-6">
                         <div className="px-3 mb-2">
-                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                 Analytics
                             </h3>
                         </div>
@@ -272,7 +294,7 @@ export function AppSidebar() {
                 )}
             </SidebarContent>
 
-            <SidebarFooter className="border-t border-gray-200 bg-gray-50/50">
+            <SidebarFooter className="border-t border-border bg-card/50">
                 <div className="p-4 space-y-3">
                     {/* Notification Bell - Show for all authenticated users except guests */}
                     {auth.user.role !== 'guest' && (
