@@ -14,7 +14,7 @@ import {
     Building2,
     Calendar,
     CreditCard,
-    User,
+    User as UserIcon,
     Settings,
     LogOut,
     Bell,

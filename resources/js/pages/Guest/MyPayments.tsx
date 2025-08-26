@@ -189,7 +189,7 @@ export default function MyPayments({ payments, filters }: MyPaymentsProps) {
     };
 
     return (
-        <GuestLayout>
+        <GuestLayout title="My Payments" subtitle="Manage your payments and invoices">
         <Head title={`${t('payment.title')} - Homsjogja`} />
 
             <div className="min-h-screen bg-slate-50">

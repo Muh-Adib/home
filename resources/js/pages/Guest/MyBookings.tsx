@@ -133,7 +133,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
         status: filters.status || '',
         payment_status: filters.payment_status || '',
     });
-    
+
     const breadcrumbs: BreadcrumbItem[] = [
         { title: t('nav.home'), href: route('home') },
         { title: t('nav.my_bookings'), href: route('my-bookings') }
@@ -248,16 +248,14 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
     };
 
     const canMakePayment = (booking: Booking) => {
-        return booking.booking_status === 'confirmed' && 
-               ['dp_pending', 'dp_received'].includes(booking.payment_status) &&
-               booking.payment_link;
+        return booking.booking_status === 'confirmed' &&
+            ['dp_pending', 'dp_received'].includes(booking.payment_status) &&
+            booking.payment_link;
     };
 
-    console.log(bookings);
-
     return (
-        <GuestLayout>
-                            <Head title={`${t('nav.my_bookings')} - Homsjogja`} />
+        <GuestLayout title="My Bookings" subtitle="Manage your bookings and payments">
+            <Head title={`${t('nav.my_bookings')} - Homsjogja`} />
 
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
@@ -265,8 +263,8 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                     <div className="container mx-auto px-4 py-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                                <h1 className="text-3xl font-bold text-foreground">{t('nav.my_bookings')}</h1>
-                <p className="text-muted-foreground mt-1">
+                                <h1 className="text-3xl font-bold text-foreground">{t('nav.my_bookings')}</h1>
+                                <p className="text-muted-foreground mt-1">
                                     {bookings.total} {t('nav.bookings').toLowerCase()} total
                                 </p>
                             </div>
@@ -299,7 +297,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                 />
                             </div>
 
-                            <Select value={localFilters.status || "all"} onValueChange={(value) => 
+                            <Select value={localFilters.status || "all"} onValueChange={(value) =>
                                 setLocalFilters(prev => ({ ...prev, status: value === "all" ? "" : value }))
                             }>
                                 <SelectTrigger className="w-[200px]">
@@ -316,7 +314,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                 </SelectContent>
                             </Select>
 
-                            <Select value={localFilters.payment_status || "all"} onValueChange={(value) => 
+                            <Select value={localFilters.payment_status || "all"} onValueChange={(value) =>
                                 setLocalFilters(prev => ({ ...prev, payment_status: value === "all" ? "" : value }))
                             }>
                                 <SelectTrigger className="w-[200px]">
@@ -346,12 +344,12 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
 
                 {/* Bookings List */}
                 <div className="container mx-auto px-4 py-8">
-                    { (bookings?.data?.length ?? 0) > 0 ? (
+                    {(bookings?.data?.length ?? 0) > 0 ? (
                         <div className="space-y-6">
                             {bookings.data.map((booking) => (
-                                <BookingCard 
-                                    key={booking.id} 
-                                    booking={booking} 
+                                <BookingCard
+                                    key={booking.id}
+                                    booking={booking}
                                     onViewDetails={handleViewDetails}
                                 />
                             ))}
@@ -382,11 +380,11 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                     ) : (
                         <Card>
                             <CardContent className="text-center py-12">
-                                                    <Calendar className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-foreground mb-2">
-                        {t('No bookings found')}
-                    </h3>
-                    <p className="text-muted-foreground mb-4">
+                                <Calendar className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                                <h3 className="text-xl font-semibold text-foreground mb-2">
+                                    {t('No bookings found')}
+                                </h3>
+                                <p className="text-muted-foreground mb-4">
                                     {filters.search || filters.status || filters.payment_status
                                         ? t('Try adjusting your search criteria or filters')
                                         : t('You haven\'t made any bookings yet')
@@ -417,7 +415,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                 Booking Details - {selectedBooking?.booking_number}
                             </DialogTitle>
                         </DialogHeader>
-                        
+
                         {selectedBooking && (
                             <div className="space-y-6">
                                 {/* Booking Status */}
@@ -493,7 +491,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                                     <p className="text-lg">
                                                         {selectedBooking.guest_male} Male, {' '}
                                                         {selectedBooking.guest_female} Female
-                                                        {selectedBooking.guest_children > 0 && 
+                                                        {selectedBooking.guest_children > 0 &&
                                                             `, ${selectedBooking.guest_children} Children`
                                                         }
                                                     </p>
@@ -540,7 +538,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                                 </div>
                                             </div>
                                         </div>
-                                        
+
                                         {selectedBooking.special_requests && (
                                             <div className="mt-4">
                                                 <p className="text-sm font-medium text-gray-600">Special Requests</p>
@@ -574,7 +572,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                                 <span>Remaining Amount:</span>
                                                 <span className="text-red-600 font-medium">{formatCurrency(getRemainingAmount(selectedBooking))}</span>
                                             </div>
-                                            
+
                                             {canMakePayment(selectedBooking) && (
                                                 <div className="pt-4 border-t">
                                                     <Link href={selectedBooking.payment_link!}>
@@ -585,7 +583,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                                                     </Link>
                                                 </div>
                                             )}
-                                            
+
                                             {/* Payment History */}
                                             {selectedBooking.payments && selectedBooking.payments.length > 0 && (
                                                 <div className="mt-6">
@@ -617,7 +615,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
                         )}
                     </DialogContent>
                 </Dialog>
-                    </div>
-    </GuestLayout>
-);
+            </div>
+        </GuestLayout>
+    );
 } 

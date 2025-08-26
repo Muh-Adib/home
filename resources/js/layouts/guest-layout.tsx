@@ -9,13 +9,13 @@ import { UserMenuContent } from '@/components/user-menu-content';
 import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
-import { 
-    Menu, 
-    Search, 
-    Home, 
-    Building2, 
-    Calendar, 
-    CreditCard, 
+import {
+    Menu,
+    Search,
+    Home,
+    Building2,
+    Calendar,
+    CreditCard,
     LogIn,
     UserPlus,
     Crown,
@@ -45,9 +45,9 @@ const authNavItems = [
     { key: 'my_payments', href: '/my-payments', icon: CreditCard },
 ];
 
-export default function GuestLayout({ 
-    children, 
-    showHeader = true, 
+export default function GuestLayout({
+    children,
+    showHeader = true,
     showFooter = true,
     variant = 'default'
 }: GuestLayoutProps) {
@@ -58,57 +58,93 @@ export default function GuestLayout({
     const isAuthenticated = !!auth?.user;
 
     return (
-        <div className="min-h-screen bg-background">
-            {showHeader && (
-                <header className={`sticky top-0 z-50 w-full border-b bg-card ${variant === 'minimal' ? 'border-border shadow-sm' : 'border-border shadow-md'}`}>
-                    <div className="container mx-auto px-6">
-                        <div className="flex items-center justify-between h-16">
-                            {/* Logo */}
-                            <Link href="/" className="flex items-center space-x-2">
-                                <AppLogoIcon className="w-8 h-8 text-primary dark:text-primary-foreground transition-colors" />
-                                <span className="text-xl font-bold text-foreground">Homsjogja</span>
-                            </Link>
+        <div className="min-h-screen bg-background flex flex-col">
+        {showHeader && (
+            <header className={`sticky top-0 z-50 w-full border-b bg-card ${variant === 'minimal' ? 'border-border shadow-sm' : 'border-border shadow-md'}`}>
+                <div className="container mx-auto px-6">
+                    <div className="flex items-center justify-between h-16">
+                        {/* Logo */}
+                        <Link href="/" className="flex items-center space-x-2">
+                            <AppLogoIcon className="w-8 h-8 text-primary dark:text-primary-foreground transition-colors" />
+                            <span className="text-xl font-bold text-foreground">Homsjogja</span>
+                        </Link>
 
-                            {/* Navigation */}
+                        {/* Navigation */}
+                        {!isAuthenticated && (
                             <nav className="hidden md:flex items-center space-x-8">
                                 <Link href="/properties" className="text-muted-foreground hover:text-primary transition-colors">
                                     Properti
                                 </Link>
                                 <Link href="/about" className="text-muted-foreground hover:text-primary transition-colors">
                                     Tentang Kami
-                                                </Link>
+                                </Link>
                                 <Link href="/contact" className="text-muted-foreground hover:text-primary transition-colors">
                                     Kontak
-                                                </Link>
+                                </Link>
                             </nav>
+                        )}
 
-                            {/* Auth Buttons & Theme Toggle */}
-                            <div className="flex items-center space-x-4">
-                                <AppearanceToggleDropdown />
-                                {isAuthenticated ? (
-                                    <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">
-                                        Dashboard
+                        {/* Auth Buttons & Theme Toggle */}
+                        <div className="flex items-center space-x-4">
+                            <AppearanceToggleDropdown />
+                            {isAuthenticated ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                                            <Avatar className="h-9 w-9">
+                                                <AvatarImage src="" alt={auth.user.name} />
+                                                <AvatarFallback>
+                                                    {getInitials(auth.user.name)}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-56" align="end">
+                                        <UserMenuContent user={auth.user} />
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            ) : (
+                                <>
+                                    <Link href="/login" className="text-muted-foreground hover:text-primary transition-colors">
+                                        Masuk
                                     </Link>
-                                ) : (
-                                    <>
-                                        <Link href="/login" className="text-muted-foreground hover:text-primary transition-colors">
-                                            Masuk
-                                        </Link>
-                                        <Link href="/register" className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">
-                                            Daftar
-                                        </Link>
-                                    </>
-                                )}
-                            </div>
+                                    <Link href="/register" className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">
+                                        Daftar
+                                    </Link>
+                                </>
+                            )}
                         </div>
                     </div>
-                </header>
+                </div>
+            </header>
+        )}
+
+        <div className="flex flex-1">
+            {/* Sidebar hanya muncul kalau authenticated */}
+            {isAuthenticated && (
+                <aside className="hidden md:block w-64 border-r bg-card">
+                    <div className="p-4">
+                        <nav className="space-y-2">
+                            {authNavItems.map(item => (
+                                <Link
+                                    key={item.key}
+                                    href={item.href}
+                                    className="flex items-center px-3 py-2 text-sm rounded-lg hover:bg-muted transition-colors"
+                                >
+                                    <item.icon className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    <span>{t(`nav.${item.key}`, item.key)}</span>
+                                </Link>
+                            ))}
+                        </nav>
+                    </div>
+                </aside>
             )}
 
             {/* Main Content */}
             <main className="flex-1">
                 {children}
             </main>
+        </div>
 
             {/* Footer */}
             {showFooter && (
@@ -126,7 +162,7 @@ export default function GuestLayout({
                                         <span className="text-2xl font-bold text-foreground">Homsjogja</span>
                                     </div>
                                     <p className="text-muted-foreground max-w-md leading-relaxed">
-                                        Platform homestay terpercaya untuk pengelolaan villa dan homestay di Indonesia. 
+                                        Platform homestay terpercaya untuk pengelolaan villa dan homestay di Indonesia.
                                         Pengalaman menginap dengan citarasa budaya Jawa yang autentik.
                                     </p>
                                 </div>

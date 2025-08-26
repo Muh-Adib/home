@@ -1,4 +1,4 @@
-import DashboardLayout from '@/layouts/dashboard-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { formatCurrency } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -93,7 +93,7 @@ export default function PropertiesIndex({ properties, filters }: PropertiesIndex
     };
 
     return (
-        <DashboardLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs} title="Properties">
             <div className="space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -332,6 +332,6 @@ export default function PropertiesIndex({ properties, filters }: PropertiesIndex
                     </div>
                 )}
             </div>
-        </DashboardLayout>
+        </AdminLayout>
     );
 } 
