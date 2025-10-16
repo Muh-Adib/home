@@ -14,6 +14,8 @@ export default defineConfig({
         react(),
         tailwindcss(),
     ],
+    // Konfigurasi untuk memastikan assets dimuat dengan HTTPS
+    base: process.env.NODE_ENV === 'production' ? 'https://homsjogja.com/' : '/',
     esbuild: {
         jsx: 'automatic',
         drop: ['console', 'debugger'],

@@ -17,7 +17,7 @@ return [
 
     'ssr' => [
         'enabled' => true,
-        'url' => 'http://127.0.0.1:13714',
+        'url' => env('APP_ENV') === 'production' ? 'https://homsjogja.com:13714' : 'http://127.0.0.1:13714',
         // 'bundle' => base_path('bootstrap/ssr/ssr.mjs'),
 
     ],

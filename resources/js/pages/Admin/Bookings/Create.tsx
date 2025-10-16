@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Head, useForm, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -46,6 +45,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { type BreadcrumbItem } from '@/types';
+import AdminLayout from '@/layouts/admin-layout';
 
 interface Property {
     id: number;
@@ -676,9 +676,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Create Booking" />
-            
+        <AdminLayout breadcrumbs={breadcrumbs} title="Booking Create" subtitle="Create Booking">
+         
             <div className="space-y-6">
                 {/* Header */}
                 <div className="flex items-center justify-between">
@@ -1424,6 +1423,6 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                      </div>
                 </div>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 }

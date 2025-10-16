@@ -1,7 +1,15 @@
 import axios from 'axios';
 window.axios = axios;
 
+// Konfigurasi base URL untuk HTTPS
+window.axios.defaults.baseURL = import.meta.env.VITE_APP_URL || window.location.origin;
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+
+// Ensure CSRF token header is sent with axios requests (prevents 419 on POST)
+const csrfTokenMeta = document.head.querySelector('meta[name="csrf-token"]');
+if (csrfTokenMeta && csrfTokenMeta.getAttribute('content')) {
+    window.axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfTokenMeta.getAttribute('content');
+}
 
 // Echo is an optional dependency that can be used for real-time features
 // import Echo from 'laravel-echo';
