@@ -142,50 +142,61 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                             transition={{ duration: 0.8, delay: 0.2 }}
                         >
                             
-                            {/* Badge */}
+                            {/* Modern Badge */}
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.6, delay: 0.4 }}
-                                className="flex justify-center"
+                                className="flex justify-center mb-8"
                             >
-                                <Badge className="mb-8 bg-white/90 backdrop-blur-sm border border-blue-200 text-blue-700 px-4 py-2 text-sm font-medium shadow-lg">
-                                <Crown className="h-4 w-4 mr-2" />
-                                Platform Homestay Terpercaya di Jogja
-                            </Badge>
+                                <Badge className="bg-white/15 backdrop-blur-md border border-white/20 text-white px-6 py-2 text-sm font-medium rounded-full shadow-lg">
+                                    <Crown className="h-4 w-4 mr-2" />
+                                    Homestay Terpercaya di Jogja
+                                </Badge>
                             </motion.div>
                             
-                            {/* Main Heading */}
-                            <motion.h1 
-                                className="text-5xl md:text-7xl lg:text-8xl font-bold text-white mb-8 leading-tight hero-text-shadow-lg text-center"
-                                initial={{ opacity: 0, y: 30 }}
+                            {/* Modern Typography */}
+                            <motion.div 
+                                className="text-center mb-8"
+                                initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.8, delay: 0.6 }}
                             >
-                                <span className="block">Temukan</span>
-                                <span className="text-yellow-400 drop-shadow-lg">
-                                    Homestay
-                                </span>
-                                <span className="block">Impian</span>
-                            </motion.h1>
+                                <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold text-white mb-4 leading-tight">
+                                    <span className="block font-light">Temukan</span>
+                                    <span className="block bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 bg-clip-text text-transparent font-bold">
+                                        Homestay
+                                    </span>
+                                    <span className="block font-light">Impian Anda</span>
+                                </h1>
+                                
+                                {/* Subtitle */}
+                                <div className="text-xl md:text-2xl text-white/80 font-light tracking-wide">
+                                    <span className="block">Pengalaman menginap yang tak terlupakan</span>
+                                    <span className="block text-yellow-200">di jantung budaya Jawa</span>
+                                </div>
+                            </motion.div>
 
-                            {/* Description */}
-                            <motion.p 
-                                className="text-xl text-white/90 mb-16 max-w-2xl mx-auto leading-relaxed font-light hero-text-shadow text-center"
+                            {/* Enhanced Description */}
+                            <motion.div 
+                                className="max-w-3xl mx-auto mb-12"
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.6, delay: 0.8 }}
                             >
-                                Pengalaman menginap yang tak terlupakan di jantung budaya Jawa. 
-                                Dari dekat Malioboro hingga Taman Sari, rasakan kehangatan hospitality Jogja.
-                            </motion.p>
+                                <p className="text-lg text-white/90 leading-relaxed text-center">
+                                    Dari dekat Malioboro hingga Taman Sari, rasakan kehangatan 
+                                    <span className="text-yellow-200 font-medium"> hospitality Jogja</span> yang autentik. 
+                                    Setiap homestay menawarkan pengalaman unik yang tak terlupakan.
+                                </p>
+                            </motion.div>
 
-                            {/* Enhanced Search Form */}
+                            {/* Modern Search Form */}
                             <motion.div
                                 initial={{ opacity: 0, y: 30 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.8, delay: 1.0 }}
-                                className="max-w-3xl mx-auto mb-16 flex justify-center"
+                                className="max-w-4xl mx-auto"
                             >
                                 <HeroSearchBar 
                                     onSearch={handleQuickSearch}
