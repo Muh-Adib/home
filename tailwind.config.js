@@ -48,6 +48,19 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        // Brand colors
+        brand: {
+          primary: 'hsl(var(--brand-primary))',
+          secondary: 'hsl(var(--brand-secondary))',
+          accent: 'hsl(var(--brand-accent))',
+          background: 'hsl(var(--brand-background))',
+          'primary-light': 'hsl(var(--brand-primary-light))',
+          'primary-dark': 'hsl(var(--brand-primary-dark))',
+          'secondary-light': 'hsl(var(--brand-secondary-light))',
+          'secondary-dark': 'hsl(var(--brand-secondary-dark))',
+          'accent-light': 'hsl(var(--brand-accent-light))',
+          'accent-dark': 'hsl(var(--brand-accent-dark))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

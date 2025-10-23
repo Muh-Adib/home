@@ -1,7 +1,8 @@
 @import 'tailwindcss';
 
 @layer base {
-:root {
+  :root {
+    /* === Base Color Tokens (HSL raw values) === */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -21,21 +22,67 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+
+    /* Chart colors (oklch can remain direct) */
     --chart-1: oklch(0.646 0.222 41.116);
     --chart-2: oklch(0.6 0.118 184.704);
     --chart-3: oklch(0.398 0.07 227.392);
     --chart-4: oklch(0.828 0.189 84.429);
     --chart-5: oklch(0.769 0.188 70.08);
-    --color-revenue: hsl(220, 90%, 55%);
-    --color-bookings: hsl(140, 70%, 45%);
-    --color-total_revenue: hsl(30, 80%, 55%);
-}
 
-.dark {
+    /* Additional data colors */
+    --color-revenue: 220 90% 55%;
+    --color-bookings: 140 70% 45%;
+    --color-total_revenue: 30 80% 55%;
+
+    /* === Brand Colors (Summer Kids Happy Theme) === */
+    --brand-primary: 233 68% 42%;        /* #3338A0 - Biru gelap */
+    --brand-secondary: 33 45% 58%;       /* #C59560 - Coklat keemasan */
+    --brand-accent: 45 96% 55%;          /* #FCC61D - Kuning emas */
+    --brand-background: 0 0% 97%;        /* #F7F7F7 - Putih hangat */
+    
+    /* Brand color variations */
+    --brand-primary-light: 233 68% 52%;  /* Lighter version */
+    --brand-primary-dark: 233 68% 32%;   /* Darker version */
+    --brand-secondary-light: 33 45% 68%; /* Lighter version */
+    --brand-secondary-dark: 33 45% 48%; /* Darker version */
+    --brand-accent-light: 45 96% 65%;    /* Lighter version */
+    --brand-accent-dark: 45 96% 45%;     /* Darker version */
+    
+    /* Brand colors with opacity */
+    --brand-primary-20: 233 68% 42% / 0.2;    /* 20% opacity */
+    --brand-primary-30: 233 68% 42% / 0.3;    /* 30% opacity */
+    --brand-primary-50: 233 68% 42% / 0.5;    /* 50% opacity */
+    --brand-secondary-20: 33 45% 58% / 0.2;   /* 20% opacity */
+    --brand-secondary-30: 33 45% 58% / 0.3;   /* 30% opacity */
+    --brand-secondary-50: 33 45% 58% / 0.5;   /* 50% opacity */
+    --brand-accent-20: 45 96% 55% / 0.2;      /* 20% opacity */
+    --brand-accent-30: 45 96% 55% / 0.3;     /* 30% opacity */
+    --brand-accent-50: 45 96% 55% / 0.5;     /* 50% opacity */
+
+    /* Radius and layout */
+    --radius: 0.5rem;
+
+    /* === Readable color helpers (hybrid ready) === */
+    --bg-base: hsl(var(--background));
+    --bg-card: hsl(var(--card));
+    --bg-popover: hsl(var(--popover));
+    --text-base: hsl(var(--foreground));
+    --text-muted: hsl(var(--muted-foreground));
+    --border-base: hsl(var(--border));
+    --accent-base: hsl(var(--accent));
+    
+    /* === Brand color helpers === */
+    --brand-primary-hsl: hsl(var(--brand-primary));
+    --brand-secondary-hsl: hsl(var(--brand-secondary));
+    --brand-accent-hsl: hsl(var(--brand-accent));
+    --brand-background-hsl: hsl(var(--brand-background));
+  }
+
+  .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 223, 83%, 9%;
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
@@ -57,40 +104,52 @@
     --chart-3: oklch(0.769 0.188 70.08);
     --chart-4: oklch(0.627 0.265 303.9);
     --chart-5: oklch(0.645 0.246 16.439);
-    --color-revenue: hsl(220, 90%, 70%);
-    --color-bookings: hsl(140, 70%, 65%);
-    --color-total_revenue: hsl(30, 80%, 70%);
+    --color-revenue: 220 90% 70%;
+    --color-bookings: 140 70% 65%;
+    --color-total_revenue: 30 80% 70%;
+    
+    /* === Brand Colors for Dark Mode === */
+    --brand-primary: 233 68% 52%;        /* Lighter blue for dark mode */
+    --brand-secondary: 33 45% 68%;       /* Lighter brown for dark mode */
+    --brand-accent: 45 96% 65%;          /* Lighter yellow for dark mode */
+    --brand-background: 0 0% 5%;         /* Dark background */
+    
+    /* Brand color variations for dark mode */
+    --brand-primary-light: 233 68% 62%;  /* Even lighter */
+    --brand-primary-dark: 233 68% 42%;  /* Original */
+    --brand-secondary-light: 33 45% 78%; /* Even lighter */
+    --brand-secondary-dark: 33 45% 58%;  /* Original */
+    --brand-accent-light: 45 96% 75%;    /* Even lighter */
+    --brand-accent-dark: 45 96% 55%;     /* Original */
   }
 
   * {
     border-color: hsl(var(--border));
-    }
+  }
 
-    body {
+  body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     scroll-behavior: smooth;
   }
-  
-  /* Smooth scrolling for all elements */
+
   html {
     scroll-behavior: smooth;
   }
-  
-  /* Custom scrollbar with dark mode support */
+
   ::-webkit-scrollbar {
     width: 8px;
   }
-  
+
   ::-webkit-scrollbar-track {
     background: hsl(var(--muted));
   }
-  
+
   ::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
     border-radius: 4px;
   }
-  
+
   ::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground));
   }
@@ -98,11 +157,11 @@
   .dark ::-webkit-scrollbar-track {
     background: hsl(var(--muted));
   }
-  
+
   .dark ::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
   }
-  
+
   .dark ::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground));
   }
@@ -113,7 +172,7 @@
     border-right: 1px solid hsl(var(--border));
     background-color: hsl(var(--background));
   }
-  
+
   .nav-item {
     display: flex;
     align-items: center;
@@ -122,84 +181,74 @@
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
     font-weight: 500;
-    transition-property: color, background-color;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 150ms;
+    transition: color 0.15s, background-color 0.15s;
     color: hsl(var(--foreground));
   }
-  
+
   .nav-item:hover {
     background-color: hsl(var(--accent));
     color: hsl(var(--accent-foreground));
   }
-  
+
   .nav-item.active {
     background-color: hsl(var(--primary) / 0.1);
     color: hsl(var(--primary));
     border-right: 2px solid hsl(var(--primary));
   }
-  
+
   .header-wrapper {
     border-bottom: 1px solid hsl(var(--border));
     background-color: hsl(var(--background) / 0.8);
     backdrop-filter: blur(8px);
   }
-  
+
   .card-modern {
     border-radius: 0.75rem;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     background-color: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    transition-property: all;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 300ms;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   }
-  
+
   .dark .card-modern {
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
   }
-  
+
   .card-modern:hover {
     box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
     transform: translateY(-2px);
   }
-  
+
   .dark .card-modern:hover {
     box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
   }
-  
+
   .btn-primary {
     background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--primary) / 0.8));
     color: hsl(var(--primary-foreground));
     font-weight: 500;
     border-radius: 0.5rem;
     padding: 0.75rem 1.5rem;
-    transition-property: all;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 300ms;
+    transition: all 0.3s ease;
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   }
-  
+
   .btn-primary:hover {
     background: linear-gradient(to right, hsl(var(--primary) / 0.9), hsl(var(--primary) / 0.7));
     transform: translateY(-1px);
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   }
-  
+
   .table-modern {
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
     border-radius: 0.5rem;
     overflow: hidden;
-    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
     background-color: hsl(var(--card));
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
   }
-  
-  .dark .table-modern {
-    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
-  }
-  
+
   .table-modern th {
     background-color: hsl(var(--muted));
     padding: 0.75rem 1rem;
@@ -208,28 +257,28 @@
     color: hsl(var(--foreground));
     border-bottom: 1px solid hsl(var(--border));
   }
-  
+
   .table-modern td {
     padding: 0.75rem 1rem;
     border-bottom: 1px solid hsl(var(--border));
     color: hsl(var(--foreground));
   }
-  
+
   .table-modern tr:hover {
     background-color: hsl(var(--accent));
   }
-  
+
   .form-group {
     margin-bottom: 1rem;
   }
-  
+
   .form-group label {
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 500;
     color: hsl(var(--foreground));
   }
-  
+
   .form-group input,
   .form-group select,
   .form-group textarea {
@@ -240,11 +289,9 @@
     font-size: 0.875rem;
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    transition-property: border-color, box-shadow;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 150ms;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
-  
+
   .form-group input:focus,
   .form-group select:focus,
   .form-group textarea:focus {
@@ -252,15 +299,16 @@
     border-color: hsl(var(--ring));
     box-shadow: 0 0 0 3px hsl(var(--ring) / 0.1);
   }
-  
+
   .badge-success {
     background-color: hsl(142 76% 36%);
-    color: hsl(142 76% 36% / 0.1);
+    color: hsl(0 0% 100%);
     padding: 0.25rem 0.5rem;
     border-radius: 0.375rem;
     font-size: 0.75rem;
     font-weight: 500;
   }
+
 .hero-section {
     position: relative;
     min-height: 100vh;
@@ -434,6 +482,135 @@
   .focus-visible:focus-visible {
     outline: 2px solid rgb(37 99 235);
     outline-offset: 2px;
+  }
+  
+  /* === Brand Color Utility Classes === */
+  .bg-brand-primary {
+    background-color: hsl(var(--brand-primary));
+  }
+  
+  .bg-brand-secondary {
+    background-color: hsl(var(--brand-secondary));
+  }
+  
+  .bg-brand-accent {
+    background-color: hsl(var(--brand-accent));
+  }
+  
+  .bg-brand-background {
+    background-color: hsl(var(--brand-background));
+  }
+  
+  .text-brand-primary {
+    color: hsl(var(--brand-primary));
+  }
+  
+  .text-brand-secondary {
+    color: hsl(var(--brand-secondary));
+  }
+  
+  .text-brand-accent {
+    color: hsl(var(--brand-accent));
+  }
+  
+  .border-brand-primary {
+    border-color: hsl(var(--brand-primary));
+  }
+  
+  .border-brand-secondary {
+    border-color: hsl(var(--brand-secondary));
+  }
+  
+  .border-brand-accent {
+    border-color: hsl(var(--brand-accent));
+  }
+  
+  /* Brand hover states */
+  .hover\:bg-brand-primary:hover {
+    background-color: hsl(var(--brand-primary));
+  }
+  
+  .hover\:bg-brand-secondary:hover {
+    background-color: hsl(var(--brand-secondary));
+  }
+  
+  .hover\:bg-brand-accent:hover {
+    background-color: hsl(var(--brand-accent));
+  }
+  
+  .hover\:text-brand-primary:hover {
+    color: hsl(var(--brand-primary));
+  }
+  
+  .hover\:text-brand-secondary:hover {
+    color: hsl(var(--brand-secondary));
+  }
+  
+  .hover\:text-brand-accent:hover {
+    color: hsl(var(--brand-accent));
+  }
+  
+  /* === Brand Colors with Opacity === */
+  .bg-brand-primary-20 {
+    background-color: hsl(var(--brand-primary-20));
+  }
+  
+  .bg-brand-primary-30 {
+    background-color: hsl(var(--brand-primary-30));
+  }
+  
+  .bg-brand-primary-50 {
+    background-color: hsl(var(--brand-primary-50));
+  }
+  
+  .bg-brand-secondary-20 {
+    background-color: hsl(var(--brand-secondary-20));
+  }
+  
+  .bg-brand-secondary-30 {
+    background-color: hsl(var(--brand-secondary-30));
+  }
+  
+  .bg-brand-secondary-50 {
+    background-color: hsl(var(--brand-secondary-50));
+  }
+  
+  .bg-brand-accent-20 {
+    background-color: hsl(var(--brand-accent-20));
+  }
+  
+  .bg-brand-accent-30 {
+    background-color: hsl(var(--brand-accent-30));
+  }
+  
+  .bg-brand-accent-50 {
+    background-color: hsl(var(--brand-accent-50));
+  }
+  
+  /* Text colors with opacity */
+  .text-brand-primary-20 {
+    color: hsl(var(--brand-primary-20));
+  }
+  
+  .text-brand-secondary-20 {
+    color: hsl(var(--brand-secondary-20));
+  }
+  
+  .text-brand-accent-20 {
+    color: hsl(var(--brand-accent-20));
+  }
+  
+  /* Border colors with opacity */
+  .border-brand-primary-20 {
+    border-color: hsl(var(--brand-primary-20));
+  }
+  
+  .border-brand-secondary-20 {
+    border-color: hsl(var(--brand-secondary-20));
+  }
+  
+  .border-brand-accent-20 {
+    border-color: hsl(var(--brand-accent-20));
   }
 }
 .bg-popover {

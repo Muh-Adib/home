@@ -30,8 +30,8 @@ export default function HeroSlideshow({
     // Fallback jika tidak ada gambar
     if (!images || images.length === 0) {
         return (
-            <div className={`absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 ${className}`}>
-                <div className="absolute inset-0 bg-black/20"></div>
+            <div className={`absolute inset-0 bg-gradient-to-br from-brand-background via-brand-primary-20 to-brand-secondary-20 ${className}`}>
+                <div className="absolute inset-0 bg-brand-primary-20"></div>
             </div>
         );
     }
@@ -83,17 +83,17 @@ export default function HeroSlideshow({
                     transition={{ duration: 1.5, ease: "easeInOut" }}
                 >
                     {/* Modern subtle overlay for bright images */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-black/15 via-black/10 to-black/25"></div>
+                    <div className="absolute inset-0 bg-gradient-to-br from-brand-primary-20 via-brand-secondary-20 to-brand-accent-20"></div>
                     
                     {/* Additional subtle overlay for text contrast */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-brand-primary-30 via-transparent to-transparent"></div>
                 </motion.div>
             </AnimatePresence>
 
             {/* Modern floating elements - Z-index 1 */}
             <div className="absolute inset-0 pointer-events-none z-[1]">
                 <motion.div 
-                    className="absolute top-16 left-16 w-32 h-32 bg-gradient-to-br from-white/10 to-white/5 rounded-full blur-2xl"
+                    className="absolute top-16 left-16 w-32 h-32 bg-gradient-to-br from-brand-accent-20 to-brand-primary-20 rounded-full blur-2xl"
                     animate={{
                         scale: [1, 1.05, 1],
                         opacity: [0.2, 0.3, 0.2],
@@ -106,7 +106,7 @@ export default function HeroSlideshow({
                     }}
                 />
                 <motion.div 
-                    className="absolute bottom-16 right-16 w-48 h-48 bg-gradient-to-br from-white/5 to-white/10 rounded-full blur-2xl"
+                    className="absolute bottom-16 right-16 w-48 h-48 bg-gradient-to-br from-brand-secondary-20 to-brand-accent-20 rounded-full blur-2xl"
                     animate={{
                         scale: [1.05, 1, 1.05],
                         opacity: [0.1, 0.2, 0.1],
@@ -120,7 +120,7 @@ export default function HeroSlideshow({
                     }}
                 />
                 <motion.div 
-                    className="absolute top-1/2 left-1/3 w-24 h-24 bg-gradient-to-br from-yellow-200/10 to-orange-200/5 rounded-full blur-xl"
+                    className="absolute top-1/2 left-1/3 w-24 h-24 bg-gradient-to-br from-brand-accent-20 to-brand-secondary-20 rounded-full blur-xl"
                     animate={{
                         scale: [1, 1.1, 1],
                         opacity: [0.1, 0.2, 0.1],

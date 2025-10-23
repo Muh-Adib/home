@@ -90,6 +90,13 @@
   "login": "Masuk",
   "register": "Daftar",
   "nav": {
+    "about": "Tentang Kami",
+    "quick_links": "Tautan Cepat",
+    "contact": "Kontak",
+    "all_rights_reserved": "Semua hak dilindungi",
+    "privacy": "Privasi",
+    "terms": "Ketentuan",
+    "made_with_love_in_jogja": "Dibuat dengan ❤️ di Jogja",
     "home": "Beranda",
     "dashboard": "Dashboard",
     "properties": "Properti",

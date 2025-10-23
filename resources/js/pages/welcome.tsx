@@ -149,7 +149,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                 transition={{ duration: 0.6, delay: 0.4 }}
                                 className="flex justify-center mb-8"
                             >
-                                <Badge className="bg-white/15 backdrop-blur-md border border-white/20 text-white px-6 py-2 text-sm font-medium rounded-full shadow-lg">
+                                <Badge className="bg-brand-primary-20 backdrop-blur-md border border-brand-accent-30 text-white px-6 py-2 text-sm font-medium rounded-full shadow-lg">
                                     <Crown className="h-4 w-4 mr-2" />
                                     Homestay Terpercaya di Jogja
                                 </Badge>
@@ -164,7 +164,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                             >
                                 <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold text-white mb-4 leading-tight">
                                     <span className="block font-light">Temukan</span>
-                                    <span className="block bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 bg-clip-text text-transparent font-bold">
+                                    <span className="block text-brand-accent font-bold">
                                         Homestay
                                     </span>
                                     <span className="block font-light">Impian Anda</span>
@@ -173,7 +173,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                 {/* Subtitle */}
                                 <div className="text-xl md:text-2xl text-white/80 font-light tracking-wide">
                                     <span className="block">Pengalaman menginap yang tak terlupakan</span>
-                                    <span className="block text-yellow-200">di jantung budaya Jawa</span>
+                                    <span className="block text-brand-accent">di jantung budaya Jawa</span>
                                 </div>
                             </motion.div>
 
@@ -186,7 +186,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                             >
                                 <p className="text-lg text-white/90 leading-relaxed text-center">
                                     Dari dekat Malioboro hingga Taman Sari, rasakan kehangatan 
-                                    <span className="text-yellow-200 font-medium"> hospitality Jogja</span> yang autentik. 
+                                    <span className="text-brand-accent font-medium"> hospitality Jogja</span> yang autentik. 
                                     Setiap homestay menawarkan pengalaman unik yang tak terlupakan.
                                 </p>
                             </motion.div>
@@ -209,7 +209,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
                 {/* Stats Section - Enhanced with animations */}
                 <motion.section 
-                    className="py-20 bg-muted"
+                    className="py-20 bg-brand-accent-50"
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
                     transition={{ duration: 0.6 }}
@@ -377,7 +377,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
                 {/* Testimonials Section - New */}
                 <motion.section 
-                    className="py-20 bg-background"
+                    className="py-20 bg-brand-accent-50"
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
                     transition={{ duration: 0.6 }}
@@ -438,7 +438,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
                 {/* CTA Section - Enhanced with background illustration */}
                 <motion.section 
-                    className="py-20 bg-gradient-to-r from-blue-600 to-indigo-600 text-white relative overflow-hidden"
+                    className="py-20 bg-brand-primary text-white relative overflow-hidden"
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
                     transition={{ duration: 0.6 }}
@@ -461,18 +461,19 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                             viewport={{ once: true }}
                         >
                             <Badge className="mb-8 bg-white/20 text-white border-white/30 backdrop-blur-sm">
-                                <Sparkles className="h-4 w-4 mr-2" />
-                                Bergabunglah dengan Komunitas Homestay Jogja
-                            </Badge>
-                            
-                            <h2 className="text-4xl md:text-6xl font-bold mb-8">
-                                Rasakan Kehangatan
-                                <span className="block mt-2">Hospitality Jogja</span>
-                            </h2>
-                            <p className="text-xl mb-12 opacity-90 leading-relaxed max-w-2xl mx-auto">
-                                Dari gudeg hangat di pagi hari hingga cerita malam di pendopo. 
-                                Setiap homestay menawarkan pengalaman autentik yang tak terlupakan.
-                            </p>
+  <Sparkles className="h-4 w-4 mr-2" />
+  Temukan Kenyamanan Ala Jogja
+</Badge>
+
+<h2 className="text-4xl md:text-6xl font-bold mb-8">
+  Dari Homestay ke Villa,
+  <span className="block mt-2">Semua Ada di Homsjogja</span>
+</h2>
+
+<p className="text-xl mb-12 opacity-90 leading-relaxed max-w-2xl mx-auto">
+  Setiap tempat membawa cerita, setiap inap menghadirkan kehangatan.  
+  Bersama Homsjogja, rasakan keramahan Jogja di setiap perjalanan Anda.
+</p>
                             
                             <div className="flex flex-col sm:flex-row gap-4 justify-center">
                                 {!auth.user ? (
@@ -484,7 +485,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                             </Button>
                                         </Link>
                                         <Link href="/properties">
-                                            <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/20 px-8 py-3">
+                                            <Button size="lg" variant="outline" className="border-white bg-brand-secondary text-white hover:bg-brand-primary px-8 py-3">
                                                 Jelajahi Dulu
                                                 <Search className="ml-2 h-5 w-5" />
                                             </Button>

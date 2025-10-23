@@ -137,242 +137,247 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
     }, []); // Empty dependency array means this runs once on mount
 
     return (
-        <GuestLayout>
+        <GuestLayout variant='minimal'>
             <Head title={`${t('properties.browse_title')} - Homsjogja`} />
 
-            <div className="space-y-6 p-4 md:p-6">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-                            {t('properties.browse_title')}
-                        </h1>
-                        <p className="text-muted-foreground mt-1">
-                            {t('properties.browse_subtitle', { count: properties.total })}
+            <div className="min-h-screen bg-brand-background">
+                <div className="max-w-7xl mx-auto space-y-4 md:space-y-6 px-4 py-4 md:px-6 md:py-6">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="space-y-2">
+                            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+                                {t('properties.browse_title')}
+                            </h1>
+
+                            <p className="text-muted-foreground">
+                                {t('properties.browse_subtitle', { count: properties.total })}
+                            </p>
+
                             {(filters.check_in && filters.check_out) && (
-                                <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-sm rounded">
+                                <span className="inline-block px-3 py-1 text-sm font-medium rounded-full bg-brand-accent-20 text-brand-accent">
                                     {formatDateRange(localFilters.checkIn, localFilters.checkOut)}
                                 </span>
                             )}
-                        </p>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant={showFilters ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setShowFilters(!showFilters)}
-                            className="flex items-center gap-2"
-                        >
-                            <SlidersHorizontal className="h-4 w-4" />
-                            {t('common.filter')}
-                            {(localFilters.selectedAmenities.length > 0 || localFilters.guests > 2 || (filters.check_in && filters.check_out)) && (
-                                <Badge variant="secondary" className="ml-1">
-                                    {localFilters.selectedAmenities.length + (localFilters.guests > 2 ? 1 : 0) + ((filters.check_in && filters.check_out) ? 1 : 0)}
-                                </Badge>
-                            )}
-                        </Button>
-                        
-
-                    </div>
-                </div>
-
-                {/* Search & Filter Bar */}
-                <Card className="shadow-sm">
-                    <CardHeader className="pb-4">
-                        <CardTitle className="flex items-center gap-2">
-                            <Search className="h-5 w-5 text-blue-600" />
-                            {t('properties.search_properties')}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex flex-col lg:flex-row gap-4">
-                            <div className="flex-1 relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    placeholder={t('properties.search_placeholder')}
-                                    value={localFilters.search}
-                                    onChange={(e) => setLocalFilters(prev => ({ ...prev, search: e.target.value }))}
-                                    className="pl-10"
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                />
-                            </div>
-
-                            {/* Simple Date Inputs */}
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <input
-                                        type="date"
-                                        value={localFilters.checkIn}
-                                        onChange={(e) => setLocalFilters(prev => ({ ...prev, checkIn: e.target.value }))}
-                                        min={new Date().toISOString().split('T')[0]}
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                        placeholder={t('booking.check_in')}
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <input
-                                        type="date"
-                                        value={localFilters.checkOut}
-                                        onChange={(e) => setLocalFilters(prev => ({ ...prev, checkOut: e.target.value }))}
-                                        min={localFilters.checkIn || new Date().toISOString().split('T')[0]}
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                        placeholder={t('booking.check_out')}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex gap-2">
-                                <Select value={localFilters.sort} onValueChange={(value) => {
-                                    setLocalFilters(prev => ({ ...prev, sort: value }));
-                                    setTimeout(handleSearch, 100);
-                                }}>
-                                    <SelectTrigger className="w-[200px]">
-                                        <ArrowUpDown className="h-4 w-4 mr-2" />
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {sortOptions.map(option => (
-                                            <SelectItem key={option.value} value={option.value}>
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-
-                                <Button onClick={handleSearch} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                                    {t('common.search')}
-                                </Button>
-                            </div>
                         </div>
 
-                        {/* Filter Panel */}
-                        {showFilters && (
-                            <>
-                                <div className="border-t pt-4">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-lg font-semibold">{t('properties.advanced_filters')}</h3>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => setShowFilters(false)}
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </Button>
+
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant={showFilters ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setShowFilters(!showFilters)}
+                                className="flex items-center gap-2 bg-brand-primary hover:bg-brand-primary-dark text-white border-brand-primary"
+                            >
+                                <SlidersHorizontal className="h-4 w-4" />
+                                {t('common.filter')}
+                                {(localFilters.selectedAmenities.length > 0 || localFilters.guests > 2 || (filters.check_in && filters.check_out)) && (
+                                    <Badge variant="secondary" className="ml-1 bg-brand-accent text-brand-primary">
+                                        {localFilters.selectedAmenities.length + (localFilters.guests > 2 ? 1 : 0) + ((filters.check_in && filters.check_out) ? 1 : 0)}
+                                    </Badge>
+                                )}
+                            </Button>
+
+
+                        </div>
+                    </div>
+
+                    {/* Search & Filter Bar */}
+                    <Card className="shadow-sm bg-card border-border">
+                        <CardHeader className="pb-4">
+                            <CardTitle className="flex items-center gap-2 text-foreground">
+                                <Search className="h-5 w-5 text-brand-primary" />
+                                {t('properties.search_properties')}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex flex-col lg:flex-row gap-4">
+                                <div className="flex-1 relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder={t('properties.search_placeholder')}
+                                        value={localFilters.search}
+                                        onChange={(e) => setLocalFilters(prev => ({ ...prev, search: e.target.value }))}
+                                        className="pl-10"
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                    />
+                                </div>
+
+                                {/* Simple Date Inputs */}
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <div className="flex-1">
+                                        <input
+                                            type="date"
+                                            value={localFilters.checkIn}
+                                            onChange={(e) => setLocalFilters(prev => ({ ...prev, checkIn: e.target.value }))}
+                                            min={new Date().toISOString().split('T')[0]}
+                                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all bg-background text-foreground"
+                                            placeholder={t('booking.check_in')}
+                                        />
                                     </div>
-
-                                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {/* Guest Count */}
-                                        <div>
-                                            <Label className="text-sm font-medium mb-3 block">
-                                                {t('booking.guests')}: {localFilters.guests}
-                                            </Label>
-                                            <Slider
-                                                value={[localFilters.guests]}
-                                                onValueChange={(value) => setLocalFilters(prev => ({ ...prev, guests: value[0] }))}
-                                                max={20}
-                                                min={1}
-                                                step={1}
-                                                className="w-full"
-                                            />
-                                            <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                                                <span>1</span>
-                                                <span>20+</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Amenities by Category */}
-                                        {Object.entries(amenityCategories).slice(0, 2).map(([category, categoryAmenities]) => (
-                                            <div key={category}>
-                                                <Label className="text-sm font-medium mb-3 block capitalize">
-                                                    {category.replace('_', ' ')}
-                                                </Label>
-                                                <div className="space-y-2 max-h-32 overflow-y-auto">
-                                                    {categoryAmenities.map((amenity, index) => (
-                                                        <div key={amenity.id} className="flex items-center space-x-2">
-                                                            <Checkbox
-                                                                id={`amenity-${amenity.id}`}
-                                                                checked={localFilters.selectedAmenities.includes(amenity.id.toString())}
-                                                                onCheckedChange={() => toggleAmenity(amenity.id.toString())}
-                                                            />
-                                                            <AmenityItem 
-                                                                key={`amenity-${amenity.id || amenity.name}-${index}`}
-                                                                amenity={amenity}
-                                                                variant="badge"
-                                                                showName={true}
-                                                            />
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <div className="flex gap-3 pt-4 mt-4 border-t">
-                                        <Button onClick={handleSearch} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                                            {t('properties.apply_filters')}
-                                        </Button>
-                                        <Button variant="outline" onClick={clearFilters}>
-                                            {t('common.reset')}
-                                        </Button>
+                                    <div className="flex-1">
+                                        <input
+                                            type="date"
+                                            value={localFilters.checkOut}
+                                            onChange={(e) => setLocalFilters(prev => ({ ...prev, checkOut: e.target.value }))}
+                                            min={localFilters.checkIn || new Date().toISOString().split('T')[0]}
+                                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all bg-background text-foreground"
+                                            placeholder={t('booking.check_out')}
+                                        />
                                     </div>
                                 </div>
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
 
-                {/* Properties Grid */}
-                {properties.data.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {properties.data.map((property) => (
-                            <PropertyCardEnhanced 
-                                key={property.id} 
-                                property={property}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <Card className="text-center py-16">
-                        <CardContent>
-                            <Building2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                            <h3 className="text-lg font-semibold text-foreground mb-2">
-                                {t('properties.no_properties')}
-                            </h3>
-                            <p className="text-muted-foreground mb-6">
-                                {t('properties.no_properties_description')}
-                            </p>
-                            <Button onClick={clearFilters} variant="outline">
-                                {t('properties.clear_filters')}
-                            </Button>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <Select value={localFilters.sort} onValueChange={(value) => {
+                                        setLocalFilters(prev => ({ ...prev, sort: value }));
+                                        setTimeout(handleSearch, 100);
+                                    }}>
+                                        <SelectTrigger className="w-full sm:w-[200px]">
+                                            <ArrowUpDown className="h-4 w-4 mr-2" />
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {sortOptions.map(option => (
+                                                <SelectItem key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+
+                                    <Button onClick={handleSearch} className="bg-brand-primary hover:bg-brand-primary-dark text-white w-full sm:w-auto">
+                                        {t('common.search')}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Filter Panel */}
+                            {showFilters && (
+                                <>
+                                    <div className="border-t pt-4">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-lg font-semibold">{t('properties.advanced_filters')}</h3>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setShowFilters(false)}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                                            {/* Guest Count */}
+                                            <div>
+                                                <Label className="text-sm font-medium mb-3 block">
+                                                    {t('booking.guests')}: {localFilters.guests}
+                                                </Label>
+                                                <Slider
+                                                    value={[localFilters.guests]}
+                                                    onValueChange={(value) => setLocalFilters(prev => ({ ...prev, guests: value[0] }))}
+                                                    max={20}
+                                                    min={1}
+                                                    step={1}
+                                                    className="w-full"
+                                                />
+                                                <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                                                    <span>1</span>
+                                                    <span>20+</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Amenities by Category */}
+                                            {Object.entries(amenityCategories).slice(0, 2).map(([category, categoryAmenities]) => (
+                                                <div key={category}>
+                                                    <Label className="text-sm font-medium mb-3 block capitalize">
+                                                        {category.replace('_', ' ')}
+                                                    </Label>
+                                                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                                                        {categoryAmenities.map((amenity, index) => (
+                                                            <div key={amenity.id} className="flex items-center space-x-2">
+                                                                <Checkbox
+                                                                    id={`amenity-${amenity.id}`}
+                                                                    checked={localFilters.selectedAmenities.includes(amenity.id.toString())}
+                                                                    onCheckedChange={() => toggleAmenity(amenity.id.toString())}
+                                                                />
+                                                                <AmenityItem
+                                                                    key={`amenity-${amenity.id || amenity.name}-${index}`}
+                                                                    amenity={amenity}
+                                                                    variant="badge"
+                                                                    showName={true}
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row gap-3 pt-4 mt-4 border-t">
+                                            <Button onClick={handleSearch} className="bg-brand-primary hover:bg-brand-primary-dark text-white w-full sm:w-auto">
+                                                {t('properties.apply_filters')}
+                                            </Button>
+                                            <Button variant="outline" onClick={clearFilters} className="border-brand-secondary text-brand-secondary hover:bg-brand-secondary hover:text-white w-full sm:w-auto">
+                                                {t('common.reset')}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </CardContent>
                     </Card>
-                )}
 
-                {/* Pagination */}
-                {properties.last_page > 1 && (
-                    <div className="flex justify-center items-center gap-2 mt-8">
-                        {properties.prev_page_url && (
-                            <Link href={properties.prev_page_url}>
-                                <Button variant="outline" size="sm">
-                                    {t('pagination.previous')}
+                    {/* Properties Grid */}
+                    {properties.data.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                            {properties.data.map((property) => (
+                                <PropertyCardEnhanced
+                                    key={property.id}
+                                    property={property}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        <Card className="text-center py-16">
+                            <CardContent>
+                                <Building2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                                <h3 className="text-lg font-semibold text-foreground mb-2">
+                                    {t('properties.no_properties')}
+                                </h3>
+                                <p className="text-muted-foreground mb-6">
+                                    {t('properties.no_properties_description')}
+                                </p>
+                                <Button onClick={clearFilters} variant="outline">
+                                    {t('properties.clear_filters')}
                                 </Button>
-                            </Link>
-                        )}
-                        
-                        <span className="px-4 py-2 text-sm text-muted-foreground">
-                            {t('pagination.page_of', { current: properties.current_page, total: properties.last_page })}
-                        </span>
-                        
-                        {properties.next_page_url && (
-                            <Link href={properties.next_page_url}>
-                                <Button variant="outline" size="sm">
-                                    {t('pagination.next')}
-                                </Button>
-                            </Link>
-                        )}
-                    </div>
-                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Pagination */}
+                    {properties.last_page > 1 && (
+                        <div className="flex justify-center items-center gap-2 mt-8">
+                            {properties.prev_page_url && (
+                                <Link href={properties.prev_page_url}>
+                                    <Button variant="outline" size="sm">
+                                        {t('pagination.previous')}
+                                    </Button>
+                                </Link>
+                            )}
+
+                            <span className="px-4 py-2 text-sm text-muted-foreground">
+                                {t('pagination.page_of', { current: properties.current_page, total: properties.last_page })}
+                            </span>
+
+                            {properties.next_page_url && (
+                                <Link href={properties.next_page_url}>
+                                    <Button variant="outline" size="sm">
+                                        {t('pagination.next')}
+                                    </Button>
+                                </Link>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
         </GuestLayout>
     );

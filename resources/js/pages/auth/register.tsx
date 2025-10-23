@@ -164,9 +164,9 @@ export default function Register() {
                             onChange={(e) => setData('name', e.target.value)}
                             disabled={processing}
                             placeholder={t('auth.enter_full_name')}
-                            className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            className="pl-10 h-12 border-border focus:border-brand-primary focus:ring-brand-primary"
                         />
-                    </div>
+                    </div>  
                     <InputError message={errors.name} />
                 </div>
 
@@ -177,7 +177,7 @@ export default function Register() {
                             {t('auth.gender')}
                         </Label>
                         <Select value={data.gender} onValueChange={(value) => setData('gender', value)}>
-                            <SelectTrigger className="h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                            <SelectTrigger className="h-12 border-border focus:border-brand-primary focus:ring-brand-primary ">
                                 <SelectValue placeholder={t('auth.select_gender')} />
                             </SelectTrigger>
                             <SelectContent>
@@ -195,7 +195,7 @@ export default function Register() {
                         <div className="relative">
                             <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Select value={data.country} onValueChange={handleCountryChange}>
-                                <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                <SelectTrigger className="pl-10 h-12 border-border focus:border-brand-primary focus:ring-brand-primary ">
                                     <SelectValue placeholder={t('auth.select_country')} />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -219,7 +219,7 @@ export default function Register() {
                     <div className="flex gap-2">
                         <div className="w-24">
                             <Select value={selectedCountryCode} onValueChange={setSelectedCountryCode}>
-                                <SelectTrigger className="h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                <SelectTrigger className="h-12 border-border focus:border-brand-primary focus:ring-brand-primary ">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -246,7 +246,7 @@ export default function Register() {
                                 onChange={(e) => handlePhoneChange(e.target.value)}
                                 disabled={processing}
                                 placeholder="Contoh: 08123456789 atau 8123456789"
-                                className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                className="pl-10 h-12 border-border focus:border-brand-primary focus:ring-brand-primary "
                             />
                         </div>
                     </div>
@@ -270,7 +270,7 @@ export default function Register() {
                             onChange={(e) => setData('email', e.target.value)}
                             disabled={processing}
                             placeholder={t('auth.enter_email')}
-                            className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            className="pl-10 h-12 border-border focus:border-brand-primary focus:ring-brand-primary "
                         />
                     </div>
                     <InputError message={errors.email} />
@@ -346,21 +346,21 @@ export default function Register() {
                 </div>
 
                 {/* Password Requirements */}
-                <div className="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
-                    <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+                <div className="rounded-lg bg-brand-primary-20 p-4">
+                    <h4 className="text-sm font-medium text-brand-primary mb-2">
                         {t('auth.password_requirements')}
                     </h4>
-                    <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                    <ul className="text-xs text-brand-primary space-y-1">
                         <li className="flex items-center">
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mr-2"></span>
+                            <span className="w-1.5 h-1.5 bg-brand-primary rounded-full mr-2"></span>
                             {t('auth.password_requirements_8_chars')}
                         </li>
                         <li className="flex items-center">
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mr-2"></span>
+                            <span className="w-1.5 h-1.5 bg-brand-primary rounded-full mr-2"></span>
                             {t('auth.password_requirements_uppercase_lowercase')}
                         </li>
                         <li className="flex items-center">
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mr-2"></span>
+                            <span className="w-1.5 h-1.5 bg-brand-primary rounded-full mr-2"></span>
                             {t('auth.password_requirements_number')}
                         </li>
                     </ul>
@@ -388,13 +388,13 @@ export default function Register() {
 
                 {/* Terms and Privacy */}
                 <div className="text-center">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-500">
                         {t('auth.terms_privacy')}{' '}
-                        <TextLink href="/terms" className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                        <TextLink href="/terms" className="text-blue-600 hover:text-blue-700">
                             {t('auth.terms_of_service')}
                         </TextLink>{' '}
                         {t('auth.and')}{' '}
-                        <TextLink href="/privacy" className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                        <TextLink href="/privacy" className="text-blue-600 hover:text-blue-700">
                             {t('auth.privacy_policy')}
                         </TextLink>
                     </p>
@@ -403,10 +403,10 @@ export default function Register() {
                 {/* Divider */}
                 <div className="relative my-6">
                     <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-gray-200 dark:border-gray-600"></div>
+                        <div className="w-full border-t border-gray-200"></div>
                     </div>
                     <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-white px-2 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                        <span className="bg-white px-2 text-gray-500">
                             {t('auth.or_continue_with')}
                         </span>
                     </div>
@@ -417,7 +417,7 @@ export default function Register() {
                     <Button
                         type="button"
                         variant="outline"
-                        className="h-12 border-gray-200 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                        className="h-12 border-gray-200 hover:bg-gray-50"
                     >
                         <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24">
                             <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -430,7 +430,7 @@ export default function Register() {
                     <Button
                         type="button"
                         variant="outline"
-                        className="h-12 border-gray-200 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                        className="h-12 border-gray-200 hover:bg-gray-5"
                     >
                         <svg className="h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -445,7 +445,7 @@ export default function Register() {
                         {t('auth.have_account')}{' '}
                         <TextLink 
                             href={route('login')} 
-                            className="font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                            className="font-medium text-blue-600 hover:text-blue-700" 
                             tabIndex={7}
                         >
                             {t('auth.sign_in')}

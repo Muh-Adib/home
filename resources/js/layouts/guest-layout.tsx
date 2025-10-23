@@ -27,6 +27,7 @@ import AppLogoIcon from '@/components/app-logo-icon';
 import LanguageSwitcher from '@/components/language-switcher';
 import AppearanceToggleDropdown from '@/components/appearance-dropdown';
 import { useTranslation } from 'react-i18next';
+import { register } from 'module';
 
 interface GuestLayoutProps {
     children: React.ReactNode;
@@ -65,7 +66,7 @@ export default function GuestLayout({
                     <div className="flex items-center justify-between h-16">
                         {/* Logo */}
                         <Link href="/" className="flex items-center space-x-2">
-                            <AppLogoIcon className="w-8 h-8 text-primary dark:text-primary-foreground transition-colors" />
+                            <AppLogoIcon className="w-8 h-8 text-primary-foreground transition-colors" />
                             <span className="text-xl font-bold text-foreground">Homsjogja</span>
                         </Link>
 
@@ -73,13 +74,13 @@ export default function GuestLayout({
                         {!isAuthenticated && (
                             <nav className="hidden md:flex items-center space-x-8">
                                 <Link href="/properties" className="text-muted-foreground hover:text-primary transition-colors">
-                                    Properti
+                                    {t('nav.properties')}
                                 </Link>
                                 <Link href="/about" className="text-muted-foreground hover:text-primary transition-colors">
-                                    Tentang Kami
+                                    {t('nav.about')}
                                 </Link>
                                 <Link href="/contact" className="text-muted-foreground hover:text-primary transition-colors">
-                                    Kontak
+                                    {t('nav.contact')}
                                 </Link>
                             </nav>
                         )}
@@ -106,10 +107,10 @@ export default function GuestLayout({
                             ) : (
                                 <>
                                     <Link href="/login" className="text-muted-foreground hover:text-primary transition-colors">
-                                        Masuk
+                                        {t('nav.login')}
                                     </Link>
                                     <Link href="/register" className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">
-                                        Daftar
+                                        {t('nav.register')}
                                     </Link>
                                 </>
                             )}
@@ -158,19 +159,18 @@ export default function GuestLayout({
                                 {/* Company Info */}
                                 <div className="col-span-1 md:col-span-2">
                                     <div className="flex items-center space-x-3 mb-4">
-                                        <Crown className="h-8 w-8 text-primary" />
+                                        <AppLogoIcon className="w-8 h-8 text-brand-primary transition-colors" />
                                         <span className="text-2xl font-bold text-foreground">Homsjogja</span>
                                     </div>
                                     <p className="text-muted-foreground max-w-md leading-relaxed">
-                                        Platform homestay terpercaya untuk pengelolaan villa dan homestay di Indonesia.
-                                        Pengalaman menginap dengan citarasa budaya Jawa yang autentik.
+                                    Dari homestay yang hangat hingga villa yang eksklusif, Homsjogja menawarkan pengalaman menginap yang nyaman, autentik, dan memanjakan setiap tamu.
                                     </p>
                                 </div>
 
                                 {/* Quick Links */}
                                 <div>
                                     <h3 className="text-sm font-semibold text-foreground tracking-wider uppercase mb-4">
-                                        Quick Links
+                                        {t('nav.quick_links')}
                                     </h3>
                                     <ul className="space-y-3">
                                         <li>
@@ -194,7 +194,7 @@ export default function GuestLayout({
                                 {/* Contact */}
                                 <div>
                                     <h3 className="text-sm font-semibold text-foreground tracking-wider uppercase mb-4">
-                                        Contact
+                                        {t('nav.contact')}
                                     </h3>
                                     <ul className="space-y-3 text-muted-foreground">
                                         <li className="flex items-center">
@@ -216,14 +216,14 @@ export default function GuestLayout({
                             <div className="mt-8 pt-8 border-t border-border">
                                 <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
                                     <p className="text-center md:text-left text-muted-foreground">
-                                        © 2025 Homsjogja. All rights reserved.
+                                        © 2025 Homsjogja. {t('nav.all_rights_reserved')}
                                     </p>
                                     <div className="flex items-center space-x-6 text-muted-foreground">
-                                        <Link href="/privacy" className="hover:text-primary transition-colors">Privasi</Link>
-                                        <Link href="/terms" className="hover:text-primary transition-colors">Ketentuan</Link>
+                                        <Link href="/privacy" className="hover:text-primary transition-colors">{t('nav.privacy')}</Link>
+                                        <Link href="/terms" className="hover:text-primary transition-colors">{t('nav.terms')}</Link>
                                         <span className="flex items-center">
-                                            <Crown className="h-4 w-4 mr-1 text-primary" />
-                                            Made with ❤️ in Jogja
+                                            <AppLogoIcon className="w-4 h-4 mr-1 text-brand-primary transition-colors" />
+                                            {t('nav.made_with_love_in_jogja')}
                                         </span>
                                     </div>
                                 </div>

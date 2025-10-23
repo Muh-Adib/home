@@ -76,6 +76,13 @@
   "login": "Login",
   "register": "Register",
   "nav": {
+    "about": "About",
+    "quick_links": "Quick Links",
+    "contact": "Contact",
+    "all_rights_reserved": "All rights reserved",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "made_with_love_in_jogja": "Made with ❤️ in Jogja",
     "home": "Home",
     "dashboard": "Dashboard",
     "properties": "Properties",

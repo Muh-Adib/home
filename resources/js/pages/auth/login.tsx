@@ -46,7 +46,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
             <Head title={t('auth.sign_in')} />
 
             {status && (
-                <div className="mb-6 rounded-lg bg-green-50 p-4 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                <div className="mb-6 rounded-lg bg-brand-accent-20 p-4 text-sm text-brand-accent dark:bg-brand-accent-20 dark:text-brand-accent">
                     {status}
                 </div>
             )}
@@ -69,7 +69,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             value={data.email}
                             onChange={(e) => setData('email', e.target.value)}
                             placeholder={t('auth.enter_email')}
-                            className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            className="pl-10 h-12 border-border focus:border-brand-primary focus:ring-brand-primary "
                         />
                     </div>
                     <InputError message={errors.email} />
@@ -84,7 +84,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         {canResetPassword && (
                             <TextLink 
                                 href={route('password.request')} 
-                                className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                                className="text-xs text-brand-primary hover:text-brand-primary-dark dark:text-brand-primary dark:hover:text-brand-primary-dark" 
                                 tabIndex={5}
                             >
                                 {t('auth.forgot_password')}
@@ -102,7 +102,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             value={data.password}
                             onChange={(e) => setData('password', e.target.value)}
                             placeholder={t('auth.enter_password')}
-                            className="pl-10 pr-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            className="pl-10 pr-10 h-12 border-border focus:border-brand-primary focus:ring-brand-primary "
                         />
                         <button
                             type="button"
@@ -127,7 +127,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         checked={data.remember}
                         onClick={() => setData('remember', !data.remember)}
                         tabIndex={3}
-                        className="border-gray-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                        className="border-border data-[state=checked]:bg-brand-primary data-[state=checked]:border-brand-primary"
                     />
                     <Label 
                         htmlFor="remember" 
@@ -199,7 +199,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         {t('auth.no_account')}{' '}
                         <TextLink 
                             href={route('register')} 
-                            className="font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                            className="font-medium text-brand-primary hover:text-brand-primary-dark dark:text-brand-primary dark:hover:text-brand-primary-dark" 
                             tabIndex={5}
                         >
                             {t('auth.create_account')}
