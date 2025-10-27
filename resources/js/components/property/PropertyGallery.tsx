@@ -52,10 +52,10 @@ export function PropertyGallery({
     }
 
     return (
-        <Card className="overflow-hidden shadow-xl border-0">
+        <Card className="overflow-hidden shadow-xl border-0 card-modern">
             <CardContent className="p-0">
                 <div className="relative">
-                    <div className="aspect-[16/10] bg-gradient-to-br from-muted/50 to-background">
+                    <div className="aspect-[4/3] sm:aspect-[16/10] bg-gradient-to-br from-muted/50 to-background">
                         {currentImage ? (
                             <img 
                                 src={currentImage.url}
@@ -64,36 +64,36 @@ export function PropertyGallery({
                             />
                         ) : (
                             <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-background flex items-center justify-center">
-                                <Building2 className="h-24 w-24 text-primary/60" />
+                                <Building2 className="h-16 w-16 sm:h-24 sm:w-24 text-primary/60" />
                             </div>
                         )}
                     </div>
                     
-                    {/* Navigation Arrows */}
+                    {/* Navigation Arrows - Mobile Optimized */}
                     {hasMultipleImages && (
                         <>
                             <Button
                                 variant="secondary"
                                 size="sm"
-                                className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-background/90 hover:bg-background shadow-lg border border-border/50 backdrop-blur-sm"
+                                className="absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 bg-background/90 hover:bg-background shadow-lg border border-border/50 backdrop-blur-sm h-8 w-8 sm:h-10 sm:w-10 p-0"
                                 onClick={prevImage}
                             >
-                                <ChevronLeft className="h-5 w-5 text-foreground" />
+                                <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
                             </Button>
                             <Button
                                 variant="secondary"
                                 size="sm"
-                                className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-background/90 hover:bg-background shadow-lg border border-border/50 backdrop-blur-sm"
+                                className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 bg-background/90 hover:bg-background shadow-lg border border-border/50 backdrop-blur-sm h-8 w-8 sm:h-10 sm:w-10 p-0"
                                 onClick={nextImage}
                             >
-                                <ChevronRight className="h-5 w-5 text-foreground" />
+                                <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
                             </Button>
                         </>
                     )}
                     
-                    {/* Image Counter */}
+                    {/* Image Counter - Mobile Optimized */}
                     {hasMultipleImages && (
-                        <div className="absolute bottom-4 right-4 bg-background/90 text-foreground px-4 py-2 rounded-full text-sm font-semibold shadow-lg border border-border/50 backdrop-blur-sm">
+                        <div className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 bg-background/90 text-foreground px-2 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold shadow-lg border border-border/50 backdrop-blur-sm">
                             {imageCounter}
                         </div>
                     )}

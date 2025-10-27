@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -168,7 +168,7 @@ export default function Calendar({ properties, currentProperty, currentMonth, ti
     ];
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Booking Calendar Timeline" />
 
             <div className="space-y-6">
@@ -333,6 +333,6 @@ export default function Calendar({ properties, currentProperty, currentMonth, ti
                     </Card>
                 )}
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 } 

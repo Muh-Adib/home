@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -206,7 +206,7 @@ export default function PaymentMethodCreate() {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Create Payment Method - Admin" />
 
             <div className="space-y-6">
@@ -476,6 +476,6 @@ export default function PaymentMethodCreate() {
                     </div>
                 </form>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 } 

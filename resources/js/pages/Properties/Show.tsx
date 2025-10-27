@@ -106,11 +106,11 @@ export default function PropertyShow({
       <Head title={property.name} />
       
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
           
           <PropertyHeader property={property} />
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
             
             {/* Main Content */}
             <div className="xl:col-span-2 space-y-8 relative">

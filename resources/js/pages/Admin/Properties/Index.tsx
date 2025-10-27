@@ -24,8 +24,12 @@ import {
     Bath,
     Users,
     Star,
-    Settings
+    Settings,
+    ArrowUpDown,
+    ArrowUp,
+    ArrowDown
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState } from 'react';
 
 interface PropertiesIndexProps {
@@ -37,12 +41,30 @@ interface PropertiesIndexProps {
     };
 }
 
+type SortField = 'name' | 'address' | 'base_rate' | 'created_at';
+type SortDirection = 'asc' | 'desc';
+
 export default function PropertiesIndex({ properties, filters }: PropertiesIndexProps) {
     const { t } = useTranslation();
     const page = usePage<PageProps>();
     const { auth } = page.props;
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
+    
+    // Parse sort from filters
+    const parseSort = (sortString?: string) => {
+        if (!sortString) return { field: 'name' as SortField, direction: 'asc' as SortDirection };
+        const parts = sortString.split('_');
+        if (parts.length === 2) {
+            return { 
+                field: parts[0] as SortField, 
+                direction: parts[1] as SortDirection 
+            };
+        }
+        return { field: 'name' as SortField, direction: 'asc' as SortDirection };
+    };
+    
+    const { field: sortField, direction: sortDirection } = parseSort(filters.sort);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: t('nav.dashboard'), href: '/dashboard' },
@@ -53,10 +75,30 @@ export default function PropertiesIndex({ properties, filters }: PropertiesIndex
         router.get('/admin/properties', {
             search: searchTerm,
             status: statusFilter !== 'all' ? statusFilter : undefined,
+            sort: `${sortField}_${sortDirection}`,
         }, {
             preserveState: true,
             preserveScroll: true,
         });
+    };
+
+    const handleSort = (field: SortField) => {
+        const newDirection = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
+        const newSort = `${field}_${newDirection}`;
+        
+        router.get('/admin/properties', {
+            search: searchTerm,
+            status: statusFilter !== 'all' ? statusFilter : undefined,
+            sort: newSort,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    };
+
+    const getSortIcon = (field: SortField) => {
+        if (sortField !== field) return <ArrowUpDown className="h-4 w-4" />;
+        return sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />;
     };
 
     const handleDelete = (property: Property) => {
@@ -182,29 +224,69 @@ export default function PropertiesIndex({ properties, filters }: PropertiesIndex
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                            <TableHead>{t('admin.properties.name')}</TableHead>
-                                        <TableHead>{t('admin.properties.location')}</TableHead>
-                                            <TableHead>{t('admin.properties.capacity')}</TableHead>
-                                        <TableHead>{t('admin.properties.rate')}</TableHead>
-                                            <TableHead>{t('admin.properties.statuss')}</TableHead>
-                                            <TableHead className="text-right">{t('admin.properties.actions')}</TableHead>
+                                        <TableHead className="w-12">#</TableHead>
+                                        <TableHead 
+                                            className="cursor-pointer hover:bg-gray-50 select-none"
+                                            onClick={() => handleSort('name')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {t('admin.properties.name')}
+                                                {getSortIcon('name')}
+                                            </div>
+                                        </TableHead>
+                                        <TableHead 
+                                            className="cursor-pointer hover:bg-gray-50 select-none"
+                                            onClick={() => handleSort('address')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {t('admin.properties.location')}
+                                                {getSortIcon('address')}
+                                            </div>
+                                        </TableHead>
+                                        <TableHead>{t('admin.properties.capacity')}</TableHead>
+                                        <TableHead 
+                                            className="cursor-pointer hover:bg-gray-50 select-none"
+                                            onClick={() => handleSort('base_rate')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {t('admin.properties.rate')}
+                                                {getSortIcon('base_rate')}
+                                            </div>
+                                        </TableHead>
+                                        <TableHead>{t('admin.properties.statuss')}</TableHead>
+                                        <TableHead className="text-right">{t('admin.properties.actions')}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {properties.data.map((property) => (
-                                            <TableRow key={property.id}>
+                                    {properties.data.map((property, index) => (
+                                        <TooltipProvider key={property.id}>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <TableRow 
+                                                        className="cursor-pointer hover:bg-gray-50"
+                                                        onClick={() => router.visit(`/admin/properties/${property.slug}`)}
+                                                    >
+                                            <TableCell className="text-center text-gray-500">
+                                                {properties.from + index}
+                                            </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center space-x-3">
-                                                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                                                            <Building2 className="h-5 w-5 text-gray-600" />
+                                                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                                                            {property.media && property.media.length > 0 && property.media[0]?.url ? (
+                                                                <img
+                                                                    src={property.media[0].url}
+                                                                    alt={property.name}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <Building2 className="h-5 w-5 text-gray-600" />
+                                                            )}
                                                         </div>
                                                         <div>
                                                             <div className="font-medium text-gray-900">
                                                                 {property.name}
                                                             </div>
-                                                            <div className="text-sm text-gray-500">
-                                                                {property.property_type}
-                                                        </div>
+                                                            
                                                     </div>
                                                 </div>
                                             </TableCell>
@@ -244,7 +326,11 @@ export default function PropertiesIndex({ properties, filters }: PropertiesIndex
                                             <TableCell className="text-right">
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="sm">
+                                                            <Button 
+                                                                variant="ghost" 
+                                                                size="sm"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
                                                                 <MoreHorizontal className="h-4 w-4" />
                                                             </Button>
                                                         </DropdownMenuTrigger>
@@ -280,7 +366,13 @@ export default function PropertiesIndex({ properties, filters }: PropertiesIndex
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
                                             </TableCell>
-                                        </TableRow>
+                                                    </TableRow>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>{t('admin.properties.click_to_preview')}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
                                     ))}
                                 </TableBody>
                             </Table>

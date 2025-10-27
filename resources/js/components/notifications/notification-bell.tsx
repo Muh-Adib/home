@@ -52,11 +52,11 @@ export function NotificationBell({ userId, className = '' }: NotificationBellPro
     const getConnectionIcon = () => {
         switch (connectionMode) {
             case 'websocket':
-                return <Wifi className="h-3 w-3 text-green-500" />;
+                return <Wifi className="h-3 w-3 text-green-600" />;
             case 'polling':
-                return <RefreshCw className="h-3 w-3 text-blue-500" />;
+                return <RefreshCw className="h-3 w-3 text-brand-primary" />;
             default:
-                return <WifiOff className="h-3 w-3 text-red-500" />;
+                return <WifiOff className="h-3 w-3 text-destructive" />;
         }
     };
 
@@ -77,13 +77,13 @@ export function NotificationBell({ userId, className = '' }: NotificationBellPro
                 <Button
                     variant="ghost"
                     size="sm"
-                    className={`relative p-2 hover:bg-sidebar-accent ${className}`}
+                    className={`relative p-2 hover:bg-brand-primary-20 ${className}`}
                 >
-                    <Bell className="h-5 w-5" />
+                    <Bell className="h-5 w-5 text-brand-primary" />
                     {unreadCount > 0 && (
                         <Badge
                             variant="destructive"
-                            className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs"
+                            className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs bg-brand-accent text-white border-0 font-semibold"
                         >
                             {unreadCount > 99 ? '99+' : unreadCount}
                         </Badge>
@@ -92,11 +92,11 @@ export function NotificationBell({ userId, className = '' }: NotificationBellPro
                 </Button>
             </DropdownMenuTrigger>
             
-            <DropdownMenuContent align="end" className="w-96">
+            <DropdownMenuContent align="end" className="w-96 shadow-lg border-brand-primary-20">
                 <DropdownMenuLabel className="pb-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <h4 className="text-sm font-semibold">Notifikasi</h4>
+                            <h4 className="text-sm font-semibold text-brand-primary">Notifikasi</h4>
                             {getConnectionIcon()}
                             <span className="text-xs text-muted-foreground">
                                 {getConnectionText()}
@@ -108,7 +108,7 @@ export function NotificationBell({ userId, className = '' }: NotificationBellPro
                                 size="sm"
                                 onClick={() => fetchRecentNotifications(10)}
                                 disabled={loading}
-                                className="h-6 px-2 text-xs"
+                                className="h-6 px-2 text-xs hover:bg-brand-primary-20 text-brand-primary"
                             >
                                 Refresh
                             </Button>
@@ -117,7 +117,7 @@ export function NotificationBell({ userId, className = '' }: NotificationBellPro
                                     variant="ghost"
                                     size="sm"
                                     onClick={markAllAsRead}
-                                    className="h-6 px-2 text-xs"
+                                    className="h-6 px-2 text-xs hover:bg-brand-primary-20 text-brand-primary"
                                 >
                                     Mark All Read
                                 </Button>
@@ -134,37 +134,42 @@ export function NotificationBell({ userId, className = '' }: NotificationBellPro
                 <DropdownMenuSeparator />
 
                 {error && (
-                    <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md mx-2 my-2">
+                    <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md mx-2 my-2">
                         {error}
                     </div>
                 )}
 
                 <ScrollArea className="h-96">
                     {loading && notifications.length === 0 ? (
-                        <div className="p-4 text-center text-sm text-muted-foreground">
-                            Loading notifications...
+                        <div className="p-6 text-center text-sm text-muted-foreground">
+                            <div className="flex items-center justify-center gap-2">
+                                <RefreshCw className="h-4 w-4 animate-spin text-brand-primary" />
+                                Loading notifications...
+                            </div>
                         </div>
                     ) : notifications.length === 0 ? (
-                        <div className="p-4 text-center text-sm text-muted-foreground">
-                            No notifications yet
+                        <div className="p-6 text-center text-sm text-muted-foreground">
+                            <Bell className="h-8 w-8 mx-auto mb-2 text-brand-primary/50" />
+                            <p className="font-medium">No notifications yet</p>
+                            <p className="text-xs mt-1">You'll see notifications here when they arrive</p>
                         </div>
                     ) : (
-                        <div className="space-y-1">
+                        <div className="space-y-2 p-2">
                             {notifications.map((notification) => (
                                 <div
                                     key={notification.id}
-                                    className={`group flex items-start gap-3 p-3 hover:bg-sidebar-accent cursor-pointer transition-colors ${
-                                        !notification.read_at ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''
+                                    className={`group flex items-start gap-3 p-3 hover:bg-brand-primary-20 cursor-pointer transition-all duration-200 rounded-lg ${
+                                        !notification.read_at ? 'bg-brand-primary-20 border-l-2 border-l-brand-primary' : ''
                                     }`}
                                     onClick={() => handleNotificationClick(notification)}
                                 >
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <h5 className="text-sm font-medium truncate">
+                                            <h5 className="text-sm font-semibold truncate text-brand-primary">
                                                 {notification.data.title}
                                             </h5>
                                             {!notification.read_at && (
-                                                <div className="h-2 w-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                                                <div className="h-2 w-2 bg-brand-accent rounded-full flex-shrink-0"></div>
                                             )}
                                         </div>
                                         <p className="text-xs text-muted-foreground line-clamp-2">
@@ -177,7 +182,7 @@ export function NotificationBell({ userId, className = '' }: NotificationBellPro
                                             })}
                                         </p>
                                     </div>
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                         {!notification.read_at && (
                                             <Button
                                                 variant="ghost"
@@ -186,7 +191,7 @@ export function NotificationBell({ userId, className = '' }: NotificationBellPro
                                                     e.stopPropagation();
                                                     markAsRead(notification.id);
                                                 }}
-                                                className="h-6 w-6 p-0"
+                                                className="h-6 w-6 p-0 hover:bg-brand-primary-20 text-brand-primary"
                                             >
                                                 <X className="h-3 w-3" />
                                             </Button>
@@ -198,7 +203,7 @@ export function NotificationBell({ userId, className = '' }: NotificationBellPro
                                                 e.stopPropagation();
                                                 deleteNotification(notification.id);
                                             }}
-                                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                                            className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                         >
                                             <Trash2 className="h-3 w-3" />
                                         </Button>
@@ -217,7 +222,7 @@ export function NotificationBell({ userId, className = '' }: NotificationBellPro
                                 variant="ghost"
                                 size="sm"
                                 onClick={clearReadNotifications}
-                                className="w-full text-xs"
+                                className="w-full text-xs hover:bg-brand-primary-20 text-brand-primary"
                             >
                                 <Trash2 className="h-3 w-3 mr-1" />
                                 Clear Read Notifications

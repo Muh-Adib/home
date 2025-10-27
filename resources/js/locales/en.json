@@ -618,7 +618,18 @@
       "bathrooms": "Bathrooms",
       "guests": "Guests",
       "preview_public": "Preview Public",
-      "delete_confirm": "Are you sure you want to delete \"{{name}}\"?"
+      "delete_confirm": "Are you sure you want to delete \"{{name}}\"?",
+      "sort_by": "Sort by",
+      "sort_name": "Name",
+      "sort_location": "Location",
+      "sort_rate": "Rate",
+      "sort_asc": "A-Z",
+      "sort_desc": "Z-A",
+      "no_thumbnail": "No image",
+      "click_to_preview": "Click to view details",
+      "edit":"Edit",
+      "view":"View",
+      "delete":"Delete"
     }
   },
   "properties": {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -150,7 +150,7 @@ export default function ShowBooking({ booking, whatsappData }: BookingShowProps)
     const canCheckOut = booking.booking_status === 'checked_in';
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title={`${booking.booking_number} - Booking Details`} />
             
             <div className="space-y-6 p-4 md:p-6">
@@ -685,6 +685,6 @@ export default function ShowBooking({ booking, whatsappData }: BookingShowProps)
                     </TabsContent>
                 </Tabs>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 } 

@@ -55,6 +55,26 @@ class PropertyManagementController extends Controller
             $query->where('status', $request->get('status'));
         }
 
+        // Sorting
+        if ($request->filled('sort')) {
+            $sort = $request->get('sort');
+            $sortParts = explode('_', $sort);
+            if (count($sortParts) === 2) {
+                $field = $sortParts[0];
+                $direction = $sortParts[1];
+                
+                $allowedFields = ['name', 'address', 'base_rate', 'created_at'];
+                $allowedDirections = ['asc', 'desc'];
+                
+                if (in_array($field, $allowedFields) && in_array($direction, $allowedDirections)) {
+                    $query->orderBy($field, $direction);
+                }
+            }
+        } else {
+            // Default sorting by name ascending
+            $query->orderBy('name', 'asc');
+        }
+
         $properties = $query->paginate(20);
         
         return Inertia::render('Admin/Properties/Index', [
@@ -62,6 +82,7 @@ class PropertyManagementController extends Controller
             'filters' => [
                 'search' => $request->get('search'),
                 'status' => $request->get('status'),
+                'sort' => $request->get('sort'),
             ]
         ]);
     }
@@ -167,39 +188,117 @@ class PropertyManagementController extends Controller
     {
         $this->authorize('view', $property);
 
-        $property->load([
-            'owner',
-            'amenities',
-            'media' => function ($query) {
-                $query->orderBy('display_order');
-            },
-            'bookings' => function ($query) {
-                $query->latest()->limit(10);
-            },
-            'seasonalRates' => function ($query) {
-                $query->where('is_active', true)
-                      ->orderBy('priority', 'desc')
-                      ->orderBy('start_date', 'asc');
-            }
-        ]);
+        try {
+            $property->load([
+                'owner',
+                'amenities',
+                'media' => function ($query) {
+                    $query->orderBy('display_order');
+                },
+                'bookings' => function ($query) {
+                    $query->latest()->limit(10);
+                },
+                'seasonalRates' => function ($query) {
+                    $query->where('is_active', true)
+                          ->orderBy('priority', 'desc')
+                          ->orderBy('start_date', 'asc');
+                }
+            ]);
 
-        // Calculate property statistics
-        $stats = [
-            'total_bookings' => $property->bookings()->count(),
-            'confirmed_bookings' => $property->bookings()->where('status', 'confirmed')->count(),
-            'total_revenue' => $property->bookings()
-                ->where('status', '!=', 'cancelled')
-                ->sum('total_amount'),
-            'average_rating' => $property->bookings()
-                ->whereNotNull('guest_rating')
-                ->avg('guest_rating'),
-            'occupancy_rate' => $this->calculateOccupancyRate($property),
-        ];
+            // Calculate property statistics with error handling
+            $stats = [
+                'total_bookings' => $property->bookings()->count() ?? 0,
+                'confirmed_bookings' => $property->bookings()->where('booking_status', 'confirmed')->count() ?? 0,
+                'total_revenue' => $property->bookings()
+                    ->where('booking_status', '!=', 'cancelled')
+                    ->sum('total_amount') ?? 0,
+                'average_rating' => $property->bookings()
+                    ->whereNotNull('guest_rating')
+                    ->avg('guest_rating') ?? 0,
+                'occupancy_rate' => $this->calculateOccupancyRate($property),
+            ];
 
-        return Inertia::render('Admin/Properties/Show', [
-            'property' => $property,
-            'stats' => $stats,
-        ]);
+            // Ensure all required data exists with defaults
+            $propertyData = [
+                'id' => $property->id,
+                'name' => $property->name ?? 'Unnamed Property',
+                'slug' => $property->slug ?? '',
+                'description' => $property->description ?? '',
+                'address' => $property->address ?? '',
+                'capacity' => $property->capacity ?? 1,
+                'capacity_max' => $property->capacity_max ?? $property->capacity ?? 1,
+                'bedroom_count' => $property->bedroom_count ?? 1,
+                'bathroom_count' => $property->bathroom_count ?? 1,
+                'base_rate' => $property->base_rate ?? 0,
+                'weekend_premium_percent' => $property->weekend_premium_percent ?? 0,
+                'cleaning_fee' => $property->cleaning_fee ?? 0,
+                'extra_bed_rate' => $property->extra_bed_rate ?? 0,
+                'check_in_time' => $property->check_in_time ?? '15:00',
+                'check_out_time' => $property->check_out_time ?? '11:00',
+                'min_stay_weekday' => $property->min_stay_weekday ?? 1,
+                'min_stay_weekend' => $property->min_stay_weekend ?? 1,
+                'min_stay_peak' => $property->min_stay_peak ?? 1,
+                'house_rules' => $property->house_rules ?? '',
+                'status' => $property->status ?? 'inactive',
+                'is_featured' => $property->is_featured ?? false,
+                'seo_title' => $property->seo_title ?? '',
+                'seo_description' => $property->seo_description ?? '',
+                'owner' => $property->owner ?? null,
+                'amenities' => $property->amenities ?? [],
+                'media' => $property->media ?? [],
+                'bookings' => $property->bookings ?? [],
+                'seasonalRates' => $property->seasonalRates ?? [],
+            ];
+
+            return Inertia::render('Admin/Properties/Show', [
+                'property' => $propertyData,
+                'stats' => $stats,
+            ]);
+
+        } catch (\Exception $e) {
+            // Log error and return with safe defaults
+            \Log::error('Error loading property data: ' . $e->getMessage());
+            
+            return Inertia::render('Admin/Properties/Show', [
+                'property' => [
+                    'id' => $property->id,
+                    'name' => $property->name ?? 'Property',
+                    'slug' => $property->slug ?? '',
+                    'description' => 'Error loading property details',
+                    'address' => $property->address ?? '',
+                    'capacity' => 1,
+                    'capacity_max' => 1,
+                    'bedroom_count' => 1,
+                    'bathroom_count' => 1,
+                    'base_rate' => 0,
+                    'weekend_premium_percent' => 0,
+                    'cleaning_fee' => 0,
+                    'extra_bed_rate' => 0,
+                    'check_in_time' => '15:00',
+                    'check_out_time' => '11:00',
+                    'min_stay_weekday' => 1,
+                    'min_stay_weekend' => 1,
+                    'min_stay_peak' => 1,
+                    'house_rules' => '',
+                    'status' => 'inactive',
+                    'is_featured' => false,
+                    'seo_title' => '',
+                    'seo_description' => '',
+                    'owner' => null,
+                    'amenities' => [],
+                    'media' => [],
+                    'bookings' => [],
+                    'seasonalRates' => [],
+                ],
+                'stats' => [
+                    'total_bookings' => 0,
+                    'confirmed_bookings' => 0,
+                    'total_revenue' => 0,
+                    'average_rating' => 0,
+                    'occupancy_rate' => 0,
+                ],
+            ]);
+        }
     }
 
     /**
@@ -212,11 +311,11 @@ class PropertyManagementController extends Controller
         
         $totalDays = $startDate->diffInDays($endDate);
         $bookedDays = $property->bookings()
-            ->where('status', '!=', 'cancelled')
-            ->whereBetween('check_in_date', [$startDate, $endDate])
+            ->where('booking_status', '!=', 'cancelled')
+            ->whereBetween('check_in', [$startDate, $endDate])
             ->get()
             ->sum(function ($booking) {
-                return $booking->check_in_date->diffInDays($booking->check_out_date);
+                return $booking->check_in->diffInDays($booking->check_out);
             });
             
         return $totalDays > 0 ? round(($bookedDays / $totalDays) * 100, 2) : 0;
@@ -436,8 +535,8 @@ class PropertyManagementController extends Controller
             ->selectRaw('
                 DATE_FORMAT(created_at, "%Y-%m") as month,
                 COUNT(*) as total_bookings,
-                SUM(CASE WHEN status = "confirmed" THEN 1 ELSE 0 END) as confirmed_bookings,
-                SUM(CASE WHEN status = "cancelled" THEN 1 ELSE 0 END) as cancelled_bookings
+                SUM(CASE WHEN booking_status = "confirmed" THEN 1 ELSE 0 END) as confirmed_bookings,
+                SUM(CASE WHEN booking_status = "cancelled" THEN 1 ELSE 0 END) as cancelled_bookings
             ')
             ->groupBy('month')
             ->orderBy('month')
@@ -454,7 +553,7 @@ class PropertyManagementController extends Controller
         
         return $property->bookings()
             ->where('created_at', '>=', $startDate)
-            ->where('status', '!=', 'cancelled')
+            ->where('booking_status', '!=', 'cancelled')
             ->selectRaw('
                 DATE_FORMAT(created_at, "%Y-%m") as month,
                 SUM(total_amount) as total_revenue,
@@ -484,19 +583,19 @@ class PropertyManagementController extends Controller
             $daysInMonth = $monthStart->daysInMonth;
             
             $bookedDays = $property->bookings()
-                ->where('status', '!=', 'cancelled')
+                ->where('booking_status', '!=', 'cancelled')
                 ->where(function($query) use ($monthStart, $monthEnd) {
-                    $query->whereBetween('check_in_date', [$monthStart, $monthEnd])
-                          ->orWhereBetween('check_out_date', [$monthStart, $monthEnd])
+                    $query->whereBetween('check_in', [$monthStart, $monthEnd])
+                          ->orWhereBetween('check_out', [$monthStart, $monthEnd])
                           ->orWhere(function($q) use ($monthStart, $monthEnd) {
-                              $q->where('check_in_date', '<=', $monthStart)
-                                ->where('check_out_date', '>=', $monthEnd);
+                              $q->where('check_in', '<=', $monthStart)
+                                ->where('check_out', '>=', $monthEnd);
                           });
                 })
                 ->get()
                 ->sum(function($booking) use ($monthStart, $monthEnd) {
-                    $start = max($booking->check_in_date, $monthStart);
-                    $end = min($booking->check_out_date, $monthEnd);
+                    $start = max($booking->check_in, $monthStart);
+                    $end = min($booking->check_out, $monthEnd);
                     return $start->diffInDays($end);
                 });
             

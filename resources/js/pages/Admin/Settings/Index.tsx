@@ -214,8 +214,8 @@ export default function SettingsIndex({ settings, stats }: SettingsIndexProps) {
                                             <span className="text-sm text-gray-600">{item.label}</span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            {item.status && getStatusIcon(item.status)}
-                                            <span className="text-sm font-medium">{item.value}</span>
+                                            {item.status && getStatusIcon(item.status as string)}
+                                            <span className="text-sm font-medium">{item.value as string}</span>
                                         </div>
                                     </div>
                                 ))}

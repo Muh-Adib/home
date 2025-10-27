@@ -1,6 +1,6 @@
 import React, { FormEvent } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -73,7 +73,7 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Create Amenity" />
             
             <div className="space-y-6 p-4 md:p-6">
@@ -300,6 +300,6 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
                     </div>
                 </form>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 }

@@ -588,7 +588,19 @@
         "bathrooms": "Kamar Mandi",
         "guests": "Tamu",
         "preview_public": "Pratinjau Publik",
-        "delete_confirm": "Apakah Anda yakin ingin menghapus \"{{name}}\"?"
+        "delete_confirm": "Apakah Anda yakin ingin menghapus \"{{name}}\"?",
+        "sort_by": "Urutkan berdasarkan",
+        "sort_name": "Nama",
+        "sort_location": "Lokasi", 
+        "sort_rate": "Tarif",
+        "sort_asc": "A-Z",
+        "sort_desc": "Z-A",
+        "no_thumbnail": "Tidak ada gambar",
+        "click_to_preview": "Klik untuk melihat detail",
+        "edit":"Edit",
+        "view":"Lihat",
+        "delete":"Hapus"
+
     }
   },
   "properties": {

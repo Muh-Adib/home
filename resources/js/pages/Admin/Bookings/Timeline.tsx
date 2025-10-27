@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { BookingTimeline } from '@/components/booking';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -103,7 +103,7 @@ export default function TimelinePage({ properties, bookings, filters, stats }: T
     ];
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Booking Timeline" />
 
             <div className="space-y-6 p-4 md:p-6">
@@ -273,6 +273,6 @@ export default function TimelinePage({ properties, bookings, filters, stats }: T
                      />
                  </div>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 } 

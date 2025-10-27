@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Head, Link, useForm, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -189,7 +189,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
     ];
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title={`Seasonal Rates - ${property.name}`} />
 
             <div className="space-y-6">
@@ -513,6 +513,6 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                     </DialogContent>
                 </Dialog>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 }

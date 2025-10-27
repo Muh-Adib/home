@@ -1,6 +1,6 @@
 import React from 'react';
 import { Head, useForm, Link } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -109,7 +109,7 @@ export default function SystemSettings({ settings, stats, logs }: SystemSettings
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="System Settings - Admin Dashboard" />
 
             <div className="space-y-6">
@@ -486,6 +486,6 @@ export default function SystemSettings({ settings, stats, logs }: SystemSettings
                     </div>
                 </form>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 } 

@@ -17,12 +17,14 @@ export const PropertyTabs: React.FC<PropertyTabsProps> = ({ property, formatTime
 
   return (
     <Tabs defaultValue="overview" className="w-full">
-      <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 rounded-lg">
-        <TabsTrigger value="overview" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md">{t('properties.overview')}</TabsTrigger>
-        <TabsTrigger value="amenities" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md">{t('properties.amenities')}</TabsTrigger>
-        <TabsTrigger value="policies" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md">{t('properties.policies')}</TabsTrigger>
-        <TabsTrigger value="location" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md">{t('properties.location')}</TabsTrigger>
-      </TabsList>
+      <div className="overflow-x-auto">
+        <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 rounded-lg min-w-max">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md text-xs sm:text-sm">{t('properties.overview')}</TabsTrigger>
+          <TabsTrigger value="amenities" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md text-xs sm:text-sm">{t('properties.amenities')}</TabsTrigger>
+          <TabsTrigger value="policies" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md text-xs sm:text-sm">{t('properties.policies')}</TabsTrigger>
+          <TabsTrigger value="location" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md text-xs sm:text-sm">{t('properties.location')}</TabsTrigger>
+        </TabsList>
+      </div>
       
       <TabsContent value="overview" className="space-y-6">
         <PropertyOverview property={property} formatTime={formatTime} />

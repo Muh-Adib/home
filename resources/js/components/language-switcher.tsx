@@ -60,7 +60,7 @@ const LanguageSwitcher = ({className=''} : {className?: string}) => {
         <Button 
           variant="ghost" 
           size="sm" 
-          className={cn("h-9 w-auto px-2 text-sm font-normal hover:bg-transparent hover:text-gray-700 border-gray-200 dark:border-gray-700", className)}
+          className={cn("h-9 w-auto px-2 text-sm font-normal hover:bg-brand-primary-20 hover:text-brand-primary text-brand-primary", className)}
         >
           <Globe className="h-4 w-4 mr-2" />
           <span className="mr-1">{currentLanguage.flag}</span>
@@ -69,21 +69,21 @@ const LanguageSwitcher = ({className=''} : {className?: string}) => {
           <ChevronDown className="h-3 w-3 ml-1 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="w-48 shadow-lg border-brand-primary-20">
         {languages.map((language) => (
           <DropdownMenuItem
             key={language.code}
             onClick={() => handleLanguageChange(language.code)}
-            className={`cursor-pointer ${
+            className={`cursor-pointer hover:bg-brand-primary-20 ${
               currentLanguage.code === language.code 
-                ? 'bg-gray-100 font-medium' 
-                : ''
+                ? 'bg-brand-primary-20 font-semibold text-brand-primary' 
+                : 'text-foreground'
             }`}
           >
             <span className="mr-2">{language.flag}</span>
             <span>{language.name}</span>
             {currentLanguage.code === language.code && (
-              <span className="ml-auto text-green-600">✓</span>
+              <span className="ml-auto text-brand-accent font-semibold">✓</span>
             )}
           </DropdownMenuItem>
         ))}

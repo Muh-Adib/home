@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -136,7 +136,7 @@ export default function CleaningDashboard({ needsCleaning, recentlyCleaned, stat
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Cleaning Dashboard" />
             
             <div className="space-y-6 p-4 md:p-6">
@@ -436,6 +436,6 @@ export default function CleaningDashboard({ needsCleaning, recentlyCleaned, stat
                     </DialogContent>
                 </Dialog>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 }

@@ -182,14 +182,14 @@ export default function PropertyCardEnhanced({
             )}
 
             {/* Harga */}
-            <div className="mt-5 pt-4 border-t border-border space-y-1">
+            <div className="mt-5 pt-4 border-t border-border space-y-1 text-right">
               <div className="text-sm text-destructive line-through">
                 {formatCurrency(inflatedRate)}
               </div>
               <div className="text-2xl font-bold text-brand-accent">
                 {formatCurrency(currentRate)} <span className="text-sm text-muted-foreground font-normal">/ malam</span>
               </div>
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex justify-end items-center gap-2 text-xs">
                 <Badge variant="destructive" className="text-[10px] py-0.5 px-1.5">
                   -{discountPercentage}%
                 </Badge>

@@ -92,15 +92,15 @@ export function BookingSidebar({
     const canSubmit = isRateReady && meetsMinimumStay && checkInDate && checkOutDate && guestCount;
 
     return (
-        <div className="space-y-6">
-            <Card className="md:sticky md:top-6 shadow-xl border-0 bg-gradient-to-br from-background to-muted/30">
-                <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/20">
-                    <CardTitle className="flex items-center gap-2 text-foreground">
-                        <CalendarIcon className="h-5 w-5 text-primary" />
+        <div className="space-y-4 sm:space-y-6">
+            <Card className="md:sticky md:top-6 shadow-xl border-0 bg-gradient-to-br from-background to-muted/30 card-modern">
+                <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/20 p-4 sm:p-6">
+                    <CardTitle className="flex items-center gap-2 text-foreground text-lg sm:text-xl">
+                        <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                         {t('properties.book_your_stay')}
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 p-4 sm:p-6">
                     
                     {/* Date Range Picker */}
                     <div className="space-y-3">

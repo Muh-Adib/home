@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Head, useForm, Link } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -157,7 +157,7 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
     ];
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title={`Edit ${property.name} - Admin Dashboard`} />
             
             <div className="space-y-6 p-4 md:p-6">
@@ -716,6 +716,6 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                     </div>
                 </form>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 } 
