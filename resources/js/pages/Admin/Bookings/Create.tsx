@@ -112,6 +112,15 @@ interface AvailabilityData {
     rate_calculation?: any;
 }
 
+interface PaymentMethod {
+    id: number;
+    name: string;
+    type: string;
+    bank_name?: string;
+    account_number?: string;
+    account_name?: string;
+}
+
 interface CreateBookingProps {
     properties: Property[];
     selectedProperty?: Property | null;
@@ -121,9 +130,10 @@ interface CreateBookingProps {
         check_out_date?: string;
     };
     availabilityData?: AvailabilityData;
+    paymentMethods: PaymentMethod[];
 }
 
-export default function CreateBooking({ properties, selectedProperty, prefilledData, availabilityData: initialAvailabilityData }: CreateBookingProps) {
+export default function CreateBooking({ properties, selectedProperty, prefilledData, availabilityData: initialAvailabilityData, paymentMethods }: CreateBookingProps) {
     const { t } = useTranslation();
     
     // State management
@@ -136,6 +146,25 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     const [availabilityStatus, setAvailabilityStatus] = useState<'checking' | 'available' | 'unavailable' | null>(null);
     const [availabilityError, setAvailabilityError] = useState<string | null>(null);
     const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
+    
+    // Payment form state
+    const [showPaymentForm, setShowPaymentForm] = useState(false);
+    const [paymentData, setPaymentData] = useState({
+        payment_method_id: '',
+        amount: 0,
+        payment_date: new Date().toISOString().split('T')[0],
+        reference_number: '',
+        bank_name: '',
+        account_number: '',
+        account_name: '',
+        payment_status: 'verified' as 'pending' | 'verified',
+        verification_notes: '',
+    });
+    
+    // Rate override state
+    const [manualRateOverride, setManualRateOverride] = useState(false);
+    const [overrideAmount, setOverrideAmount] = useState(0);
+    const [overrideReason, setOverrideReason] = useState('');
 
     const { data, setData, post, processing, errors, reset } = useForm({
         property_id: prefilledData?.property_id || '',
@@ -589,6 +618,28 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         // Keeping it for now in case it's re-introduced later.
     }, [totalGuests, data.guest_male, data.guest_female, data.guest_children]);
 
+    // Auto show/hide payment form based on booking status
+    useEffect(() => {
+        if (data.booking_status === 'confirmed' && data.payment_status !== 'dp_pending') {
+            setShowPaymentForm(true);
+            // Auto-calculate payment amount based on dp_percentage
+            if (rateCalculation && !paymentData.amount) {
+                const calculatedAmount = (rateCalculation.total_amount * data.dp_percentage) / 100;
+                setPaymentData(prev => ({ ...prev, amount: calculatedAmount }));
+            }
+        } else {
+            setShowPaymentForm(false);
+        }
+    }, [data.booking_status, data.payment_status, data.dp_percentage, rateCalculation]);
+
+    // Update payment amount when rate calculation changes
+    useEffect(() => {
+        if (rateCalculation && showPaymentForm && data.dp_percentage) {
+            const calculatedAmount = (rateCalculation.total_amount * data.dp_percentage) / 100;
+            setPaymentData(prev => ({ ...prev, amount: calculatedAmount }));
+        }
+    }, [rateCalculation, showPaymentForm, data.dp_percentage]);
+
     // Format currency
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('id-ID', {
@@ -637,10 +688,17 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         if (!data.guest_email.trim()) messages.push('Email tamu utama harus diisi');
         if (!data.guest_phone.trim()) messages.push('Nomor telepon tamu utama harus diisi');
         if (totalGuests === 0) messages.push('Jumlah tamu minimal 1');
+        
+        // Rate override validation
+        if (manualRateOverride) {
+            if (!overrideAmount || overrideAmount <= 0) messages.push('Override amount harus diisi dan lebih dari 0');
+            if (!overrideReason || overrideReason.trim().length < 10) messages.push('Override reason harus diisi minimal 10 karakter');
+        }
+        
         // Info: availability/rate akan dicek ulang di backend. Submit tetap diizinkan.
         
         return messages;
-    }, [data, totalGuests, rateCalculation, availabilityStatus]);
+    }, [data, totalGuests, rateCalculation, availabilityStatus, manualRateOverride, overrideAmount, overrideReason]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -649,10 +707,28 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             return;
         }
         
-        // Prepare form data without guest details
+        // Prepare form data with payment and rate override
         const formData = {
             ...data,
             guest_count: totalGuests,
+            // Ensure payment_status is not null
+            payment_status: data.payment_status || 'dp_pending',
+            // Payment data (only if payment form is shown)
+            ...(showPaymentForm && {
+                payment_method_id: paymentData.payment_method_id,
+                payment_amount: paymentData.amount,
+                payment_date: paymentData.payment_date,
+                reference_number: paymentData.reference_number,
+                bank_name: paymentData.bank_name,
+                account_number: paymentData.account_number,
+                account_name: paymentData.account_name,
+                payment_status: paymentData.payment_status,
+                verification_notes: paymentData.verification_notes,
+            }),
+            // Rate override data
+            rate_override: manualRateOverride,
+            override_amount: manualRateOverride ? overrideAmount : null,
+            override_reason: manualRateOverride ? overrideReason : null,
         };
         
         // Update form data before submission
@@ -680,20 +756,11 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
          
             <div className="space-y-6">
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Create New Booking</h1>
-                        <p className="text-gray-600 mt-1">
-                            Create a new booking for guests with real-time availability and pricing
-                        </p>
-                    </div>
-                    <Button 
-                        variant="outline" 
-                        onClick={() => router.visit(route('admin.bookings.index'))}
-                    >
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                        Back to Bookings
-                    </Button>
+                <div>
+                    <h1 className="text-3xl font-bold text-brand-primary">Create New Booking</h1>
+                    <p className="text-muted-foreground mt-1">
+                        Create a new booking for guests with real-time availability and pricing
+                    </p>
                 </div>
 
                 <div className="grid lg:grid-cols-3 gap-6">
@@ -806,6 +873,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                             }}
                                             autoTrigger={true}
                                             triggerDelay={300}
+                                            adminMode={true}
+                                            showManualInput={true}
                                         />
                                         {(errors.check_in_date || errors.check_out_date) && (
                                             <p className="text-sm text-red-600 mt-1">
@@ -869,7 +938,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                     {/* Guest Count with Real-time Updates */}
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <Users className="h-5 w-5 text-blue-600" />
+                                            <Users className="h-5 w-5 text-brand-primary" />
                                             <h3 className="text-lg font-semibold">Guest Count</h3>
                                         </div>
                                         
@@ -932,9 +1001,9 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                 </div>
                                             )}
                                             
-                                            {extraBeds > 0 && currentProperty && (
+                                            {extraBeds > 0 && currentProperty && currentProperty.extra_bed_rate && (
                                                 <div className="mt-2 flex items-center gap-2 text-sm">
-                                                    <Bed className="h-4 w-4 text-blue-600" />
+                                                    <Bed className="h-4 w-4 text-brand-primary" />
                                                     <span>Extra beds needed: {extraBeds}</span>
                                                     <span className="text-gray-600">
                                                         (+{formatCurrency(extraBeds * currentProperty.extra_bed_rate)}/night)
@@ -1149,6 +1218,208 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                         </div>
                                     </div>
 
+                                    {/* Rate Override Section */}
+                                    <div>
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <Calculator className="h-5 w-5 text-brand-primary" />
+                                        <h3 className="text-lg font-semibold">Rate Adjustment</h3>
+                                    </div>
+                                        
+                                        <div className="space-y-4">
+                                            <div className="flex items-center space-x-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id="manual_rate_override"
+                                                    checked={manualRateOverride}
+                                                    onChange={(e) => setManualRateOverride(e.target.checked)}
+                                                    className="rounded border-gray-300"
+                                                />
+                                                <Label htmlFor="manual_rate_override" className="text-sm font-medium">
+                                                    Manual Rate Adjustment
+                                                </Label>
+                                            </div>
+                                            
+                                            {manualRateOverride && (
+                                                <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                                    {rateCalculation && (
+                                                        <div className="text-sm text-gray-600">
+                                                            <div className="flex justify-between">
+                                                                <span>Original Calculated Rate:</span>
+                                                                <span className="font-medium">{formatCurrency(rateCalculation.total_amount)}</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    <div>
+                                                        <Label htmlFor="override_amount">Override Amount *</Label>
+                                                        <Input
+                                                            id="override_amount"
+                                                            type="number"
+                                                            min="0"
+                                                            value={overrideAmount}
+                                                            onChange={(e) => setOverrideAmount(parseFloat(e.target.value) || 0)}
+                                                            placeholder="Enter custom amount"
+                                                        />
+                                                    </div>
+                                                    
+                                                    <div>
+                                                        <Label htmlFor="override_reason">Adjustment Reason *</Label>
+                                                        <Textarea
+                                                            id="override_reason"
+                                                            value={overrideReason}
+                                                            onChange={(e) => setOverrideReason(e.target.value)}
+                                                            rows={2}
+                                                            placeholder="e.g., Early bird discount, Repeat customer, Special promotion..."
+                                                        />
+                                                    </div>
+                                                    
+                                                    {rateCalculation && overrideAmount > 0 && (
+                                                        <div className="text-sm">
+                                                            <div className="flex justify-between">
+                                                                <span>Adjustment:</span>
+                                                                <span className={`font-medium ${overrideAmount < rateCalculation.total_amount ? 'text-green-600' : 'text-red-600'}`}>
+                                                                    {overrideAmount < rateCalculation.total_amount ? '-' : '+'}
+                                                                    {formatCurrency(Math.abs(overrideAmount - rateCalculation.total_amount))}
+                                                                    ({Math.round(((overrideAmount - rateCalculation.total_amount) / rateCalculation.total_amount) * 100)}%)
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <Separator />
+
+                                    {/* Payment Form Section */}
+                                    {showPaymentForm && (
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <CreditCard className="h-5 w-5 text-green-600" />
+                                                <h3 className="text-lg font-semibold">Payment Information</h3>
+                                                <Badge variant="secondary">Required for Confirmed Booking</Badge>
+                                            </div>
+                                            
+                                            <div className="space-y-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                                                <div className="grid md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <Label htmlFor="payment_method_id">Payment Method *</Label>
+                                                        <Select 
+                                                            value={paymentData.payment_method_id} 
+                                                            onValueChange={(value) => setPaymentData(prev => ({ ...prev, payment_method_id: value }))}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Select payment method" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {paymentMethods.map((method) => (
+                                                                    <SelectItem key={method.id} value={method.id.toString()}>
+                                                                        {method.name}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    
+                                                    <div>
+                                                        <Label htmlFor="payment_amount">Payment Amount *</Label>
+                                                        <Input
+                                                            id="payment_amount"
+                                                            type="number"
+                                                            min="0"
+                                                            value={paymentData.amount}
+                                                            onChange={(e) => setPaymentData(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                                                            placeholder="Enter payment amount"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="grid md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <Label htmlFor="payment_date">Payment Date *</Label>
+                                                        <Input
+                                                            id="payment_date"
+                                                            type="date"
+                                                            value={paymentData.payment_date}
+                                                            onChange={(e) => setPaymentData(prev => ({ ...prev, payment_date: e.target.value }))}
+                                                        />
+                                                    </div>
+                                                    
+                                                    <div>
+                                                        <Label htmlFor="reference_number">Reference Number</Label>
+                                                        <Input
+                                                            id="reference_number"
+                                                            value={paymentData.reference_number}
+                                                            onChange={(e) => setPaymentData(prev => ({ ...prev, reference_number: e.target.value }))}
+                                                            placeholder="Transaction reference"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="grid md:grid-cols-3 gap-4">
+                                                    <div>
+                                                        <Label htmlFor="bank_name">Bank Name</Label>
+                                                        <Input
+                                                            id="bank_name"
+                                                            value={paymentData.bank_name}
+                                                            onChange={(e) => setPaymentData(prev => ({ ...prev, bank_name: e.target.value }))}
+                                                            placeholder="Bank name"
+                                                        />
+                                                    </div>
+                                                    
+                                                    <div>
+                                                        <Label htmlFor="account_number">Account Number</Label>
+                                                        <Input
+                                                            id="account_number"
+                                                            value={paymentData.account_number}
+                                                            onChange={(e) => setPaymentData(prev => ({ ...prev, account_number: e.target.value }))}
+                                                            placeholder="Account number"
+                                                        />
+                                                    </div>
+                                                    
+                                                    <div>
+                                                        <Label htmlFor="account_name">Account Name</Label>
+                                                        <Input
+                                                            id="account_name"
+                                                            value={paymentData.account_name}
+                                                            onChange={(e) => setPaymentData(prev => ({ ...prev, account_name: e.target.value }))}
+                                                            placeholder="Account holder name"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                
+                                                <div>
+                                                    <Label htmlFor="verification_notes">Payment Notes</Label>
+                                                    <Textarea
+                                                        id="verification_notes"
+                                                        value={paymentData.verification_notes}
+                                                        onChange={(e) => setPaymentData(prev => ({ ...prev, verification_notes: e.target.value }))}
+                                                        rows={2}
+                                                        placeholder="Additional payment notes..."
+                                                    />
+                                                </div>
+                                                
+                                                <div className="text-sm text-gray-600">
+                                                    <div className="flex justify-between">
+                                                        <span>Total Booking Amount:</span>
+                                                        <span className="font-medium">{rateCalculation ? formatCurrency(rateCalculation.total_amount) : 'Rp 0'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>Payment Amount:</span>
+                                                        <span className="font-medium">{formatCurrency(paymentData.amount)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>Remaining:</span>
+                                                        <span className="font-medium">{rateCalculation ? formatCurrency(rateCalculation.total_amount - paymentData.amount) : 'Rp 0'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <Separator />
+
                                     {/* Special Requests */}
                                     <div>
                                         <Label htmlFor="special_requests">Special Requests (Optional)</Label>
@@ -1173,19 +1444,11 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                         />
                                     </div>
 
-                                    <div className="flex gap-4 pt-4">
-                                        <Button 
-                                            type="button" 
-                                            variant="outline" 
-                                            onClick={() => router.visit(route('admin.booking-management.index'))}
-                                            className="flex-1"
-                                        >
-                                            Cancel
-                                        </Button>
+                                    <div className="flex justify-end pt-4">
                                         <Button 
                                             type="submit" 
                                             disabled={!canSubmit || processing}
-                                            className="flex-1"
+                                            className="px-8"
                                         >
                                             {processing ? (
                                                 <>
@@ -1244,7 +1507,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                 
                                 {extraBeds > 0 && currentProperty && (
                                     <div className="pt-2 border-t">
-                                        <div className="flex items-center gap-2 text-sm text-blue-600">
+                                        <div className="flex items-center gap-2 text-sm text-brand-primary">
                                             <Bed className="h-4 w-4" />
                                             <span>Extra beds needed: {extraBeds}</span>
                                         </div>
@@ -1288,7 +1551,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                         <div className="space-y-4">
                                             {/* Enhanced Main Price Display */}
                                             <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                                                <div className="text-3xl font-bold text-blue-600">
+                                                <div className="text-3xl font-bold text-brand-primary">
                                                     {rateCalculation.formatted.total_amount}
                                                 </div>
                                                 <div className="text-sm text-gray-600 mt-1">

@@ -97,6 +97,7 @@ export interface Property {
     owner?: User;
     media?: PropertyMedia[];
     coverImage?: PropertyMedia[];
+    cover_image?: string;
     formatted_base_rate?: string;
     bookings?: Booking[];
 }
@@ -171,6 +172,9 @@ export interface Booking {
     payment_status: 'dp_pending' | 'dp_received' | 'fully_paid' | 'overdue' | 'refunded';
     verification_status: 'pending' | 'approved' | 'rejected';
     special_requests?: string;
+    internal_notes?: string;
+    relationship_type?: string;
+    check_in_time?: string;
     cancellation_reason?: string;
     verified_by?: number;
     verified_at?: string;

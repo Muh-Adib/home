@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +45,9 @@ interface DateRangeProps {
     loading?: boolean;
     error?: string | null;
     compact?: boolean;
+    // Admin mode props
+    adminMode?: boolean;
+    showManualInput?: boolean;
 }
 
 export function DateRange({
@@ -72,6 +77,8 @@ export function DateRange({
     loading = false,
     error = null,
     compact = true,
+    adminMode = false,
+    showManualInput = false,
 }: DateRangeProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [dateRange, setDateRange] = useState<DateRangeType | undefined>(() => {
@@ -84,6 +91,8 @@ export function DateRange({
         return undefined;
     });
     const [warning, setWarning] = useState<string | null>(null);
+    const [manualStartDate, setManualStartDate] = useState(startDate);
+    const [manualEndDate, setManualEndDate] = useState(endDate);
     // Hapus hoveredDate state dan logika terkait
 
     // Update local state when props change
@@ -96,6 +105,8 @@ export function DateRange({
         } else {
             setDateRange(undefined);
         }
+        setManualStartDate(startDate);
+        setManualEndDate(endDate);
     }, [startDate, endDate]);
 
     // Calculate nights between dates
@@ -132,6 +143,11 @@ export function DateRange({
 
     // Get minimum stay for date dengan logika tambahan untuk tanggal yang terjepit
     const getMinimumStayForDate = (date: Date): number => {
+        // Admin mode: no minimum stay restrictions
+        if (adminMode) {
+            return 1; // Admin can book even 1 night
+        }
+        
         const dayOfWeek = date.getDay();
         const isWeekend = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0;
         const defaultMinStay = isWeekend ? minStayWeekend : minStayWeekday;
@@ -275,8 +291,8 @@ export function DateRange({
                 return;
             }
 
-            // Validasi minimum stay
-            if (typeof differenceInDays === 'function' && typeof getMinimumStayForDate === 'function') {
+            // Validasi minimum stay (skip untuk admin mode)
+            if (!adminMode && typeof differenceInDays === 'function' && typeof getMinimumStayForDate === 'function') {
                 const nights = differenceInDays(toDate, fromDate);
                 const requiredMinStay = getMinimumStayForDate(fromDate);
 
@@ -315,6 +331,42 @@ export function DateRange({
                 }
             }
         }
+    };
+
+    // Handle manual input for admin mode
+    const handleManualInputChange = (field: 'start' | 'end', value: string) => {
+        if (field === 'start') {
+            setManualStartDate(value);
+            if (value && manualEndDate) {
+                onDateChange?.(value, manualEndDate);
+            } else if (value) {
+                onDateChange?.(value, '');
+            }
+        } else {
+            setManualEndDate(value);
+            if (manualStartDate && value) {
+                onDateChange?.(manualStartDate, value);
+            } else if (value) {
+                onDateChange?.('', value);
+            }
+        }
+    };
+
+    // Admin mode: override min date restrictions
+    const getEffectiveMinDate = (): Date | undefined => {
+        if (adminMode) {
+            // Admin can select any date, including past dates
+            return undefined;
+        }
+        return minDate ? new Date(minDate) : new Date();
+    };
+
+    const getEffectiveMaxDate = (): Date | undefined => {
+        if (adminMode) {
+            // Admin can select dates far in the future
+            return addDays(new Date(), 365 * 2); // 2 years ahead
+        }
+        return maxDate ? new Date(maxDate) : addDays(new Date(), 365); // 1 year ahead
     };
 
     // Format display text
@@ -382,17 +434,32 @@ export function DateRange({
     };
 
     // Memo disabledDates
-    const minimumDate = minDate ? new Date(minDate) : new Date();
-    const maximumDate = maxDate ? new Date(maxDate) : addDays(new Date(), 90);
-    const disabledDates = useMemo(() => [
-        { before: minimumDate },
-        { after: maximumDate },
-        (date: Date) => {
-            if (isDateBooked(date)) return true;
-            if (!dateRange?.from || dateRange.to) return false;
-            return date <= dateRange.from || differenceInDays(date, dateRange.from) > 30;
-        },
-    ], [minimumDate, maximumDate, isDateBooked, dateRange]);
+    const minimumDate = adminMode ? undefined : (minDate ? new Date(minDate) : new Date());
+    const maximumDate = adminMode ? addDays(new Date(), 365 * 2) : (maxDate ? new Date(maxDate) : addDays(new Date(), 90));
+    const disabledDates = useMemo(() => {
+        if (adminMode) {
+            // Admin mode: only disable booked dates, no date restrictions
+            return [
+                (date: Date) => {
+                    if (isDateBooked(date)) return true;
+                    // Admin mode: no 30-day limit restriction
+                    if (!dateRange?.from || dateRange.to) return false;
+                    return date <= dateRange.from;
+                },
+            ];
+        }
+        
+        // Normal mode: apply all restrictions
+        return [
+            { before: minimumDate },
+            { after: maximumDate },
+            (date: Date) => {
+                if (isDateBooked(date)) return true;
+                if (!dateRange?.from || dateRange.to) return false;
+                return date <= dateRange.from || differenceInDays(date, dateRange.from) > 30;
+            },
+        ];
+    }, [minimumDate, maximumDate, isDateBooked, dateRange, adminMode]);
 
     const calendarModifiers: Record<string, any> = {
       booked: isDateBooked,
@@ -542,7 +609,52 @@ export function DateRange({
                                 }}
                                 className="rounded-md border-0"
                                 locale={id}
+                                fromDate={getEffectiveMinDate()}
+                                toDate={getEffectiveMaxDate()}
                             />
+                        )}
+
+                        {/* Manual Input Section for Admin Mode */}
+                        {adminMode && showManualInput && (
+                            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <Info className="h-4 w-4 text-blue-600" />
+                                    <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                                        Admin Mode - Manual Input
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <Label htmlFor="manual-start" className="text-xs text-blue-700 dark:text-blue-300">
+                                            {startLabel} Date
+                                        </Label>
+                                        <Input
+                                            id="manual-start"
+                                            type="date"
+                                            value={manualStartDate}
+                                            onChange={(e) => handleManualInputChange('start', e.target.value)}
+                                            className="h-8 text-xs"
+                                            placeholder="YYYY-MM-DD"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="manual-end" className="text-xs text-blue-700 dark:text-blue-300">
+                                            {endLabel} Date
+                                        </Label>
+                                        <Input
+                                            id="manual-end"
+                                            type="date"
+                                            value={manualEndDate}
+                                            onChange={(e) => handleManualInputChange('end', e.target.value)}
+                                            className="h-8 text-xs"
+                                            placeholder="YYYY-MM-DD"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+                                    Admin dapat memilih tanggal masa lalu atau jauh ke depan, tanpa batasan minimal malam
+                                </div>
+                            </div>
                         )}
 
                         <div className="flex items-center justify-between mt-3 pt-3 border-t text-xs text-muted-foreground">

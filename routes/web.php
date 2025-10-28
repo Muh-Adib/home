@@ -277,6 +277,9 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::get('booking-management/create', 'create')->name('booking-management.create');
         Route::post('booking-management', 'store')->name('booking-management.store');
         Route::get('booking-management/{booking:booking_number}', 'show')->name('booking-management.show');
+        Route::get('booking-management/{booking:booking_number}/edit', 'edit')->name('booking-management.edit');
+        Route::put('booking-management/{booking:booking_number}', 'update')->name('booking-management.update');
+        Route::patch('booking-management/{booking:booking_number}/status', 'updateStatus')->name('booking-management.update-status');
     });
     
     // Booking Management API

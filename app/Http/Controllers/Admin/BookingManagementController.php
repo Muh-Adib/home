@@ -176,11 +176,15 @@ class BookingManagementController extends Controller
             }
         }
         
+        // Get payment methods for inline payment form
+        $paymentMethods = \App\Models\PaymentMethod::active()->get();
+        
         return Inertia::render('Admin/Bookings/Create', [
             'properties' => $properties,
             'selectedProperty' => $selectedProperty,
             'prefilledData' => $prefilledData,
             'availabilityData' => $availabilityData,
+            'paymentMethods' => $paymentMethods,
         ]);
     }
     
@@ -191,7 +195,7 @@ class BookingManagementController extends Controller
     {
         $validated = $request->validate([
             'property_id' => 'required|exists:properties,id',
-            'check_in_date' => 'required|date|after_or_equal:today',
+            'check_in_date' => 'required|date',
             'check_out_date' => 'required|date|after:check_in_date',
             'guest_male' => 'required|integer|min:0',
             'guest_female' => 'required|integer|min:0',
@@ -210,7 +214,24 @@ class BookingManagementController extends Controller
             'dp_percentage' => 'required|integer|in:30,50,70,100',
             'auto_confirm' => 'boolean',
             'guests' => 'nullable|array',
+            // Payment fields
+            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'payment_amount' => 'nullable|numeric|min:0',
+            'payment_date' => 'nullable|date',
+            'reference_number' => 'nullable|string|max:100',
+            'bank_name' => 'nullable|string|max:255',
+            'account_number' => 'nullable|string|max:100',
+            'account_name' => 'nullable|string|max:255',
+            'payment_status' => 'nullable|in:pending,verified',
+            'verification_notes' => 'nullable|string|max:1000',
+            // Rate override fields
+            'rate_override' => 'nullable|boolean',
+            'override_amount' => 'nullable|numeric|min:0',
+            'override_reason' => 'nullable|string|max:500',
         ]);
+        
+        // Additional validation rules
+        $this->validateBookingRules($validated, $request);
         
         $property = Property::findOrFail($validated['property_id']);
         
@@ -282,6 +303,17 @@ class BookingManagementController extends Controller
                 'source' => $request->get('source', 'direct'),
             ]);
 
+            // Handle rate override if specified
+            if (!empty($validated['rate_override']) && !empty($validated['override_amount'])) {
+                $originalAmount = $booking->total_amount;
+                $booking->update([
+                    'total_amount' => $validated['override_amount'],
+                    'internal_notes' => $booking->internal_notes . "\n[" . now() . "] Rate override by " . $user->name . 
+                                       ": " . $validated['override_reason'] . 
+                                       " (Original: " . $originalAmount . ", New: " . $validated['override_amount'] . ")",
+                ]);
+            }
+
             // Auto-verify if requested
             if ($validated['auto_confirm']) {
                 $booking->update([
@@ -298,6 +330,32 @@ class BookingManagementController extends Controller
                     'processed_at' => now(),
                     'notes' => 'Manual booking created by admin and auto-confirmed',
                 ]);
+            }
+
+            // Create payment if payment data provided
+            if ($validated['payment_method_id'] && $validated['payment_amount']) {
+                $paymentMethod = \App\Models\PaymentMethod::findOrFail($validated['payment_method_id']);
+                
+                $payment = $booking->payments()->create([
+                    'payment_method_id' => $validated['payment_method_id'],
+                    'payment_number' => \App\Models\Payment::generatePaymentNumber(),
+                    'amount' => $validated['payment_amount'],
+                    'payment_type' => 'dp',
+                    'payment_method' => $paymentMethod->type,
+                    'payment_status' => $validated['payment_status'] ?? 'verified',
+                    'payment_date' => $validated['payment_date'] ?: now(),
+                    'reference_number' => $validated['reference_number'],
+                    'bank_name' => $validated['bank_name'] ?: $paymentMethod->bank_name,
+                    'account_number' => $validated['account_number'],
+                    'account_name' => $validated['account_name'],
+                    'verification_notes' => $validated['verification_notes'],
+                    'processed_by' => $user->id,
+                    'verified_by' => ($validated['payment_status'] ?? 'verified') === 'verified' ? $user->id : null,
+                    'verified_at' => ($validated['payment_status'] ?? 'verified') === 'verified' ? now() : null,
+                ]);
+
+                // Update booking payment status
+                $booking->updatePaymentStatus();
             }
             
             return redirect()->route('admin.booking-management.show', $booking)
@@ -653,6 +711,71 @@ class BookingManagementController extends Controller
         // Staff can edit based on role
         return in_array($user->role, ['property_manager', 'front_desk']);
     }
+    
+    /**
+     * Additional validation rules for booking creation/update
+     */
+    private function validateBookingRules(array $validated, Request $request): void
+    {
+        // Payment requirement validation
+        if ($validated['booking_status'] === 'confirmed' && $validated['payment_status'] !== 'dp_pending') {
+            if (empty($validated['payment_method_id'])) {
+                throw new \Illuminate\Validation\ValidationException(
+                    validator([], []),
+                    ['payment_method_id' => ['Payment method is required for confirmed bookings']]
+                );
+            }
+            
+            if (empty($validated['payment_amount']) || $validated['payment_amount'] <= 0) {
+                throw new \Illuminate\Validation\ValidationException(
+                    validator([], []),
+                    ['payment_amount' => ['Payment amount is required for confirmed bookings']]
+                );
+            }
+        }
+        
+        // Rate override validation
+        if (!empty($validated['rate_override'])) {
+            if (!isset($validated['override_amount']) || $validated['override_amount'] <= 0) {
+                throw new \Illuminate\Validation\ValidationException(
+                    validator([], []),
+                    ['override_amount' => ['Override amount is required when rate override is enabled']]
+                );
+            }
+            
+            if (!isset($validated['override_reason']) || empty($validated['override_reason'])) {
+                throw new \Illuminate\Validation\ValidationException(
+                    validator([], []),
+                    ['override_reason' => ['Override reason is required and must be at least 10 characters']]
+                );
+            }
+            
+            if (strlen(trim($validated['override_reason'])) < 10) {
+                throw new \Illuminate\Validation\ValidationException(
+                    validator([], []),
+                    ['override_reason' => ['Override reason must be at least 10 characters']]
+                );
+            }
+        }
+        
+        // Guest count validation
+        $totalGuests = $validated['guest_male'] + $validated['guest_female'] + $validated['guest_children'];
+        if ($totalGuests <= 0) {
+            throw new \Illuminate\Validation\ValidationException(
+                validator([], []),
+                ['guest_count' => ['Total guest count must be at least 1']]
+            );
+        }
+        
+        // Property capacity validation
+        $property = Property::find($validated['property_id']);
+        if ($property && $totalGuests > $property->capacity_max) {
+            throw new \Illuminate\Validation\ValidationException(
+                validator([], []),
+                ['guest_count' => ["Guest count ({$totalGuests}) exceeds property maximum capacity ({$property->capacity_max})"]]
+            );
+        }
+    }
 
     /**
      * Display admin bookings listing
@@ -762,10 +885,14 @@ class BookingManagementController extends Controller
 
         // Get properties for dropdown
         $properties = Property::active()->get(['id', 'name']);
+        
+        // Get payment methods for inline payment form
+        $paymentMethods = \App\Models\PaymentMethod::active()->get();
 
         return Inertia::render('Admin/Bookings/Edit', [
             'booking' => $booking,
             'properties' => $properties,
+            'paymentMethods' => $paymentMethods,
         ]);
     }
 
@@ -780,60 +907,261 @@ class BookingManagementController extends Controller
     {
         $this->authorize('update', $booking);
 
-        $request->validate([
+        $validated = $request->validate([
+            'property_id' => 'required|exists:properties,id',
+            'check_in_date' => 'required|date',
+            'check_out_date' => 'required|date|after:check_in_date',
+            'guest_male' => 'required|integer|min:0',
+            'guest_female' => 'required|integer|min:0',
+            'guest_children' => 'required|integer|min:0',
             'guest_name' => 'required|string|max:255',
             'guest_email' => 'required|email|max:255',
             'guest_phone' => 'required|string|max:20',
-            'check_in' => 'required|date|after_or_equal:today',
-            'check_out' => 'required|date|after:check_in',
-            'guest_count' => 'required|integer|min:1',
-            'total_amount' => 'required|numeric|min:0',
-            'booking_status' => 'required|in:pending,confirmed,cancelled,completed',
-            'notes' => 'nullable|string|max:1000',
+            'guest_country' => 'required|string|max:100',
+            'guest_id_number' => 'nullable|string|max:50',
+            'guest_gender' => 'required|in:male,female',
+            'relationship_type' => 'required|in:keluarga,teman,kolega,pasangan,campuran',
+            'special_requests' => 'nullable|string|max:1000',
+            'internal_notes' => 'nullable|string|max:1000',
+            'booking_status' => 'required|in:pending_verification,confirmed',
+            'payment_status' => 'required|in:dp_pending,dp_received,fully_paid',
+            'dp_percentage' => 'required|integer|in:30,50,70,100',
+            'check_in_time' => 'required|string',
+            'source' => 'required|in:direct,phone,walk_in,ota',
+            // Payment fields
+            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'payment_amount' => 'nullable|numeric|min:0',
+            'payment_date' => 'nullable|date',
+            'reference_number' => 'nullable|string|max:100',
+            'bank_name' => 'nullable|string|max:255',
+            'account_number' => 'nullable|string|max:100',
+            'account_name' => 'nullable|string|max:255',
+            'payment_status' => 'nullable|in:pending,verified',
+            'verification_notes' => 'nullable|string|max:1000',
+            // Rate override fields
+            'rate_override' => 'nullable|boolean',
+            'override_amount' => 'nullable|numeric|min:0',
+            'override_reason' => 'nullable|string|max:500',
         ]);
+        
+        // Additional validation rules
+        $this->validateBookingRules($validated, $request);
 
+        $property = Property::findOrFail($validated['property_id']);
+        $user = $request->user();
+        
+        // Check if user can manage this property
+        if ($user->role === 'property_owner' && $property->owner_id !== $user->id) {
+            abort(403, 'You can only edit bookings for your own properties.');
+        }
+        
+        // Check if dates changed - validate availability
+        if ($booking->check_in_date != $validated['check_in_date'] || 
+            $booking->check_out_date != $validated['check_out_date']) {
+            
+            $isAvailable = $property->isAvailableForDates(
+                $validated['check_in_date'],
+                $validated['check_out_date'],
+                $booking->id // exclude current booking
+            );
+            
+            if (!$isAvailable) {
+                return back()->withErrors(['error' => 'Property tidak tersedia untuk tanggal baru']);
+            }
+        }
+        
         try {
             DB::beginTransaction();
-
+            
+            // Recalculate rate if dates/guests/property changed
+            $needsRecalculation = (
+                $booking->check_in_date != $validated['check_in_date'] ||
+                $booking->check_out_date != $validated['check_out_date'] ||
+                $booking->guest_count != ($validated['guest_male'] + $validated['guest_female'] + $validated['guest_children']) ||
+                $booking->property_id != $validated['property_id']
+            );
+            
+            $updateData = [
+                'property_id' => $validated['property_id'],
+                'check_in_date' => $validated['check_in_date'],
+                'check_out_date' => $validated['check_out_date'],
+                'guest_male' => $validated['guest_male'],
+                'guest_female' => $validated['guest_female'],
+                'guest_children' => $validated['guest_children'],
+                'guest_count' => $validated['guest_male'] + $validated['guest_female'] + $validated['guest_children'],
+                'guest_name' => $validated['guest_name'],
+                'guest_email' => $validated['guest_email'],
+                'guest_phone' => $validated['guest_phone'],
+                'guest_country' => $validated['guest_country'],
+                'guest_id_number' => $validated['guest_id_number'],
+                'guest_gender' => $validated['guest_gender'],
+                'relationship_type' => $validated['relationship_type'],
+                'special_requests' => $validated['special_requests'],
+                'internal_notes' => $validated['internal_notes'],
+                'booking_status' => $validated['booking_status'],
+                'payment_status' => $validated['payment_status'],
+                'dp_percentage' => $validated['dp_percentage'],
+                'check_in_time' => $validated['check_in_time'],
+                'source' => $validated['source'],
+            ];
+            
+            if ($needsRecalculation && !$validated['rate_override']) {
+                // Recalculate using RateCalculationService
+                $rateCalculation = $this->rateCalculationService->calculateRate(
+                    $property,
+                    $validated['check_in_date'],
+                    $validated['check_out_date'],
+                    $validated['guest_male'] + $validated['guest_female'] + $validated['guest_children']
+                );
+                
+                $updateData['total_amount'] = $rateCalculation->totalAmount;
+                $updateData['base_amount'] = $rateCalculation->baseAmount;
+                $updateData['extra_bed_amount'] = $rateCalculation->extraBedAmount;
+                $updateData['nights'] = $rateCalculation->nights;
+            } elseif ($validated['rate_override']) {
+                $updateData['total_amount'] = $validated['override_amount'];
+                
+                // Log rate override
+                $updateData['internal_notes'] = ($updateData['internal_notes'] ? $updateData['internal_notes'] . "\n" : '') . 
+                    "[" . now() . "] Rate override by " . $user->name . 
+                    ": " . $validated['override_reason'] . 
+                    " (Original: " . $booking->total_amount . ", New: " . $validated['override_amount'] . ")";
+            }
+            
             // Update booking
-            $booking->update([
-                'guest_name' => $request->guest_name,
-                'guest_email' => $request->guest_email,
-                'guest_phone' => $request->guest_phone,
-                'check_in' => $request->check_in,
-                'check_out' => $request->check_out,
-                'guest_count' => $request->guest_count,
-                'total_amount' => $request->total_amount,
-                'booking_status' => $request->booking_status,
-                'notes' => $request->notes,
-                'updated_by' => $request->user()->id,
-            ]);
+            $booking->update($updateData);
+            
+            // Create payment if payment data provided
+            if ($validated['payment_method_id'] && $validated['payment_amount']) {
+                $paymentMethod = \App\Models\PaymentMethod::findOrFail($validated['payment_method_id']);
+                
+                $payment = $booking->payments()->create([
+                    'payment_method_id' => $validated['payment_method_id'],
+                    'payment_number' => \App\Models\Payment::generatePaymentNumber(),
+                    'amount' => $validated['payment_amount'],
+                    'payment_type' => 'dp',
+                    'payment_method' => $paymentMethod->type,
+                    'payment_status' => $validated['payment_status'] ?? 'verified',
+                    'payment_date' => $validated['payment_date'] ?: now(),
+                    'reference_number' => $validated['reference_number'],
+                    'bank_name' => $validated['bank_name'] ?: $paymentMethod->bank_name,
+                    'account_number' => $validated['account_number'],
+                    'account_name' => $validated['account_name'],
+                    'verification_notes' => $validated['verification_notes'],
+                    'processed_by' => $user->id,
+                    'verified_by' => ($validated['payment_status'] ?? 'verified') === 'verified' ? $user->id : null,
+                    'verified_at' => ($validated['payment_status'] ?? 'verified') === 'verified' ? now() : null,
+                ]);
 
-            // Create workflow entry
+                // Update booking payment status
+                $booking->updatePaymentStatus();
+            }
+            
+            // Create workflow entry for edit
             $booking->workflow()->create([
-                'step' => 'updated',
+                'step' => 'edited',
                 'status' => 'completed',
-                'processed_by' => $request->user()->id,
+                'processed_by' => $user->id,
                 'processed_at' => now(),
-                'notes' => 'Booking updated by ' . $request->user()->name,
+                'notes' => 'Booking updated by admin' . ($needsRecalculation ? ' (dates/guests changed, rate recalculated)' : ''),
             ]);
-
+            
             // Trigger status change event if status changed
             if ($booking->wasChanged('booking_status')) {
-                event(new BookingStatusChanged($booking, $request->user()));
+                event(new BookingStatusChanged($booking, $user));
             }
 
             DB::commit();
 
             return redirect()->route('admin.bookings.show', $booking->booking_number)
-                ->with('success', 'Booking berhasil diperbarui.');
+                ->with('success', 'Booking updated successfully');
 
         } catch (\Exception $e) {
             DB::rollBack();
             
             return redirect()->back()
                 ->withInput()
-                ->withErrors(['error' => 'Gagal memperbarui booking: ' . $e->getMessage()]);
+                ->withErrors(['error' => 'Failed to update booking: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Update booking status with refund handling
+     * 
+     * @param Request $request
+     * @param Booking $booking
+     * @return RedirectResponse
+     */
+    public function updateStatus(Request $request, Booking $booking): RedirectResponse
+    {
+        $this->authorize('update', $booking);
+        
+        $validated = $request->validate([
+            'new_status' => 'required|in:pending_verification,confirmed,cancelled,completed',
+            'refund_data' => 'nullable|array',
+            'refund_data.refund_amount' => 'nullable|numeric|min:0',
+            'refund_data.refund_reason' => 'nullable|string|max:500',
+            'refund_data.refund_method' => 'nullable|string|max:100',
+            'refund_data.refund_account' => 'nullable|string|max:255',
+            'refund_data.refund_notes' => 'nullable|string|max:1000',
+        ]);
+        
+        try {
+            DB::beginTransaction();
+            
+            $user = $request->user();
+            $oldStatus = $booking->booking_status;
+            $newStatus = $validated['new_status'];
+            
+            // Update booking status
+            $booking->update([
+                'booking_status' => $newStatus,
+                'updated_by' => $user->id,
+            ]);
+            
+            // Handle refund if status changed to cancelled
+            if ($newStatus === 'cancelled' && isset($validated['refund_data'])) {
+                $refundData = $validated['refund_data'];
+                
+                // Create refund record
+                $refund = $booking->refunds()->create([
+                    'refund_amount' => $refundData['refund_amount'] ?? 0,
+                    'refund_reason' => $refundData['refund_reason'] ?? 'Booking cancelled',
+                    'refund_method' => $refundData['refund_method'] ?? 'bank_transfer',
+                    'refund_account' => $refundData['refund_account'] ?? '',
+                    'refund_notes' => $refundData['refund_notes'] ?? '',
+                    'refund_status' => 'pending',
+                    'processed_by' => $user->id,
+                    'processed_at' => now(),
+                ]);
+                
+                // Update booking payment status
+                $booking->update(['payment_status' => 'refund_pending']);
+            }
+            
+            // Create workflow entry
+            $booking->workflow()->create([
+                'step' => 'status_changed',
+                'status' => 'completed',
+                'processed_by' => $user->id,
+                'processed_at' => now(),
+                'notes' => "Status changed from {$oldStatus} to {$newStatus}" . 
+                          ($newStatus === 'cancelled' ? ' (refund processed)' : ''),
+            ]);
+            
+            // Trigger status change event
+            event(new BookingStatusChanged($booking, $user));
+            
+            DB::commit();
+            
+            return redirect()->back()
+                ->with('success', "Booking status updated to {$newStatus} successfully");
+                
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return redirect()->back()
+                ->withErrors(['error' => 'Failed to update booking status: ' . $e->getMessage()]);
         }
     }
 

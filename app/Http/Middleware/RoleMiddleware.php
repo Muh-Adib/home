@@ -4,7 +4,8 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Http\Response;
+use Illuminate\Http\RedirectResponse;
 
 /**
  * RoleMiddleware - Middleware untuk mengontrol akses berdasarkan role pengguna
@@ -42,7 +43,7 @@ class RoleMiddleware
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      * @param  string ...$roles - Daftar role yang diizinkan (bisa multiple: 'admin', 'manager', dll)
      */
-    public function handle(Request $request, Closure $next, string ...$roles): Response
+    public function handle(Request $request, Closure $next, string ...$roles)
     {
         // 1. PENGECEKAN LOGIN
         // Jika user belum login, redirect ke halaman login
@@ -81,7 +82,7 @@ class RoleMiddleware
             }
 
             // For web requests, show 403 error page
-            abort(403, 'Access denied. You do not have permission to access this page.');
+            return response()->view('errors.403', ['message' => 'Access denied. You do not have permission to access this page.'], 403);
         }
 
         // 4. IZINKAN AKSES
