@@ -206,7 +206,7 @@ class Property extends Model
     }
 
     // Helper Methods
-    public function isAvailableForDates($checkIn, $checkOut): bool
+    public function isAvailableForDates($checkIn, $checkOut, $excludeBookingId = null): bool
     {
         if ($this->status !== 'active') {
             return false;
@@ -237,19 +237,26 @@ class Property extends Model
 
         // Check for existing bookings using CORRECT overlap detection logic
         // Two periods overlap if: start1 < end2 AND start2 < end1
-        $hasOverlappingBooking = $this->bookings()
+        $bookingQuery = $this->bookings()
                     ->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
                     ->where(function ($query) use ($checkIn, $checkOut) {
                         $query->where('check_in', '<', $checkOut)
                               ->where('check_out', '>', $checkIn);
-                    })
-                    ->exists();
+                    });
+        
+        // Exclude specific booking if provided (for edit booking scenario)
+        if ($excludeBookingId) {
+            $bookingQuery->where('id', '!=', $excludeBookingId);
+        }
+        
+        $hasOverlappingBooking = $bookingQuery->exists();
 
         if ($hasOverlappingBooking) {
             \Illuminate\Support\Facades\Log::info('Property not available - overlapping booking found', [
                 'property_id' => $this->id,
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
+                'exclude_booking_id' => $excludeBookingId,
                 'hasOverlappingBooking' => $hasOverlappingBooking 
             ]);
             return false;

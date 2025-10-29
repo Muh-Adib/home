@@ -210,7 +210,7 @@ class BookingManagementController extends Controller
             'special_requests' => 'nullable|string|max:1000',
             'internal_notes' => 'nullable|string|max:1000',
             'booking_status' => 'required|in:pending_verification,confirmed',
-            'payment_status' => 'required|in:dp_pending,dp_received,fully_paid',
+            'payment_status' => 'nullable|in:dp_pending,dp_received,fully_paid',
             'dp_percentage' => 'required|integer|in:30,50,70,100',
             'auto_confirm' => 'boolean',
             'guests' => 'nullable|array',
@@ -376,12 +376,16 @@ class BookingManagementController extends Controller
             'property_id' => 'required|exists:properties,id',
             'check_in' => 'required|date',
             'check_out' => 'required|date|after:check_in',
+            'exclude_booking_id' => 'nullable|exists:bookings,id',
         ]);
         
         $property = Property::findOrFail($request->property_id);
+        $excludeBookingId = $request->get('exclude_booking_id');
+        
         $isAvailable = $property->isAvailableForDates(
             $request->check_in,
-            $request->check_out
+            $request->check_out,
+            $excludeBookingId
         );
         
         return response()->json([
@@ -924,7 +928,7 @@ class BookingManagementController extends Controller
             'special_requests' => 'nullable|string|max:1000',
             'internal_notes' => 'nullable|string|max:1000',
             'booking_status' => 'required|in:pending_verification,confirmed',
-            'payment_status' => 'required|in:dp_pending,dp_received,fully_paid',
+            'payment_status' => 'nullable|in:dp_pending,dp_received,fully_paid',
             'dp_percentage' => 'required|integer|in:30,50,70,100',
             'check_in_time' => 'required|string',
             'source' => 'required|in:direct,phone,walk_in,ota',
@@ -936,7 +940,6 @@ class BookingManagementController extends Controller
             'bank_name' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:100',
             'account_name' => 'nullable|string|max:255',
-            'payment_status' => 'nullable|in:pending,verified',
             'verification_notes' => 'nullable|string|max:1000',
             // Rate override fields
             'rate_override' => 'nullable|boolean',
@@ -1073,7 +1076,7 @@ class BookingManagementController extends Controller
 
             DB::commit();
 
-            return redirect()->route('admin.bookings.show', $booking->booking_number)
+            return redirect()->route('admin.booking-management.show', $booking->booking_number)
                 ->with('success', 'Booking updated successfully');
 
         } catch (\Exception $e) {

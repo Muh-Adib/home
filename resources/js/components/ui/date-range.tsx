@@ -44,7 +44,7 @@ interface DateRangeProps {
     bookedDates?: string[];
     loading?: boolean;
     error?: string | null;
-    compact?: boolean;
+    // compact prop removed - always compact mode
     // Admin mode props
     adminMode?: boolean;
     showManualInput?: boolean;
@@ -76,7 +76,7 @@ export function DateRange({
     bookedDates = [],
     loading = false,
     error = null,
-    compact = true,
+    // compact always true
     adminMode = false,
     showManualInput = false,
 }: DateRangeProps) {
@@ -372,18 +372,19 @@ export function DateRange({
     // Format display text
     const formatDisplayText = () => {
         if (!dateRange?.from) {
-            return compact ? startLabel : `${startLabel} - ${endLabel}`;
+            return startLabel;
         }
 
         if (dateRange.from && dateRange.to) {
-            return formatDateRange(dateRange.from.toISOString(), dateRange.to.toISOString(),'id-ID');
+            // Compact format: d MMM - d MMM
+            const startFormat = format(dateRange.from, 'd MMM', { locale: id });
+            const endFormat = format(dateRange.to, 'd MMM', { locale: id });
+            return `${startFormat} - ${endFormat}`;
         }
 
         // Hanya start date yang dipilih, tampilkan dengan indikator bahwa user masih memilih
-        const fromFormat = format(dateRange.from, compact ? 'd MMM' : 'd MMM yyyy', { locale: id });
-        return compact ?
-            `${fromFormat} → ?` :
-            `${fromFormat} → Pilih tanggal keluar`;
+        const fromFormat = format(dateRange.from, 'd MMM', { locale: id });
+        return `${fromFormat} → ?`;
     };
 
     // Get current step for user guidance
@@ -437,28 +438,33 @@ export function DateRange({
     const minimumDate = adminMode ? undefined : (minDate ? new Date(minDate) : new Date());
     const maximumDate = adminMode ? addDays(new Date(), 365 * 2) : (maxDate ? new Date(maxDate) : addDays(new Date(), 90));
     const disabledDates = useMemo(() => {
-        if (adminMode) {
-            // Admin mode: only disable booked dates, no date restrictions
-            return [
-                (date: Date) => {
-                    if (isDateBooked(date)) return true;
-                    // Admin mode: no 30-day limit restriction
-                    if (!dateRange?.from || dateRange.to) return false;
-                    return date <= dateRange.from;
-                },
-            ];
+        const matchers: any[] = [];
+        
+        // Add date range restrictions
+        if (!adminMode && minimumDate) {
+            matchers.push({ before: minimumDate });
         }
         
-        // Normal mode: apply all restrictions
-        return [
-            { before: minimumDate },
-            { after: maximumDate },
-            (date: Date) => {
-                if (isDateBooked(date)) return true;
+        if (!adminMode && maximumDate) {
+            matchers.push({ after: maximumDate });
+        }
+        
+        // Add custom disabled logic
+        matchers.push((date: Date) => {
+            if (isDateBooked(date)) return true;
+            
+            // No range restrictions in admin mode
+            if (adminMode) {
                 if (!dateRange?.from || dateRange.to) return false;
-                return date <= dateRange.from || differenceInDays(date, dateRange.from) > 30;
-            },
-        ];
+                return date <= dateRange.from;
+            }
+            
+            // Normal mode: apply range restrictions
+            if (!dateRange?.from || dateRange.to) return false;
+            return date <= dateRange.from || differenceInDays(date, dateRange.from) > 30;
+        });
+        
+        return matchers;
     }, [minimumDate, maximumDate, isDateBooked, dateRange, adminMode]);
 
     const calendarModifiers: Record<string, any> = {
@@ -492,17 +498,16 @@ export function DateRange({
                             !dateRange && "text-muted-foreground",
                             getButtonHeight(),
                             disabled && "opacity-50 cursor-not-allowed",
-                            compact && "min-w-0"
+                            "min-w-0"
                         )}
                         disabled={disabled}
                     >
                         <div className={cn(
-                            "flex items-center gap-2 min-w-0 flex-1",
-                            compact && "gap-1"
+                            "flex items-center gap-1 min-w-0 flex-1"
                         )}>
                             <CalendarIcon className={cn(
                                 "shrink-0",
-                                compact ? "h-3 w-3" : "h-4 w-4"
+                                "h-3 w-3"
                             )} />
                             <span className="truncate text-left">
                                 {formatDisplayText()}
@@ -512,16 +517,16 @@ export function DateRange({
                                     variant={isMinStayViolation ? "destructive" : "secondary"}
                                     className={cn(
                                         "ml-auto shrink-0",
-                                        compact ? "text-xs px-1" : "text-xs px-2"
+                                        "text-xs px-1"
                                     )}
                                 >
-                                    {nights} {compact ? 'mlm' : 'malam'}
+                                    {nights} mlm
                                 </Badge>
                             )}
                         </div>
                         <ChevronDown className={cn(
                             "shrink-0 opacity-50 transition-transform duration-200",
-                            compact ? "h-3 w-3" : "h-4 w-4",
+                            "h-3 w-3",
                             isOpen && "rotate-180"
                         )} />
                     </Button>
@@ -616,17 +621,17 @@ export function DateRange({
 
                         {/* Manual Input Section for Admin Mode */}
                         {adminMode && showManualInput && (
-                            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Info className="h-4 w-4 text-blue-600" />
-                                    <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                                        Admin Mode - Manual Input
+                            <div className="mt-3 p-2 bg-muted/30 dark:bg-muted/20 rounded-lg border border-border">
+                                <div className="flex items-center gap-1 mb-2">
+                                    <Info className="h-3 w-3 text-muted-foreground" />
+                                    <span className="text-xs font-medium text-muted-foreground">
+                                        Manual Input
                                     </span>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-2">
                                     <div>
-                                        <Label htmlFor="manual-start" className="text-xs text-blue-700 dark:text-blue-300">
-                                            {startLabel} Date
+                                        <Label htmlFor="manual-start" className="text-xs text-muted-foreground">
+                                            {startLabel}
                                         </Label>
                                         <Input
                                             id="manual-start"
@@ -634,12 +639,11 @@ export function DateRange({
                                             value={manualStartDate}
                                             onChange={(e) => handleManualInputChange('start', e.target.value)}
                                             className="h-8 text-xs"
-                                            placeholder="YYYY-MM-DD"
                                         />
                                     </div>
                                     <div>
-                                        <Label htmlFor="manual-end" className="text-xs text-blue-700 dark:text-blue-300">
-                                            {endLabel} Date
+                                        <Label htmlFor="manual-end" className="text-xs text-muted-foreground">
+                                            {endLabel}
                                         </Label>
                                         <Input
                                             id="manual-end"
@@ -647,12 +651,11 @@ export function DateRange({
                                             value={manualEndDate}
                                             onChange={(e) => handleManualInputChange('end', e.target.value)}
                                             className="h-8 text-xs"
-                                            placeholder="YYYY-MM-DD"
                                         />
                                     </div>
                                 </div>
-                                <div className="mt-2 text-xs text-blue-600 dark:text-blue-400">
-                                    Admin dapat memilih tanggal masa lalu atau jauh ke depan, tanpa batasan minimal malam
+                                <div className="mt-2 text-xs text-muted-foreground/60">
+                                    Admin: any date allowed
                                 </div>
                             </div>
                         )}

@@ -660,7 +660,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
     // Breadcrumbs
     const breadcrumbs: BreadcrumbItem[] = [
-        { title: 'Dashboard', href: '/admin/dashboard' },
+        { title: 'Dashboard', href: '/dashboard' },
         { title: 'Bookings', href: '/admin/booking-management' },
         { title: 'Create Booking' },
     ];

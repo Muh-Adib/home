@@ -16,7 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import AppLayout from '@/layouts/app-layout';
+import GuestLayout from '@/layouts/guest-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { 
     User, 
@@ -148,8 +148,8 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-                            <Head title={`${t('settings.profile')} - Homsjogja`} />
+        <GuestLayout showHeader showFooter variant="default">
+            <Head title={`${t('settings.profile')} - Homsjogja`} />
 
             <SettingsLayout>
                 <div className="space-y-6">
@@ -173,8 +173,8 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                     <form onSubmit={submit} className="space-y-6">
                         {/* Avatar & Basic Info */}
                         <Card className="shadow-sm border-0">
-                            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 pb-4">
-                                <CardTitle className="flex items-center gap-2 text-blue-900">
+                            <CardHeader className="bg-gradient-to-r from-brand-primary-10 to-brand-primary-20 pb-4">
+                                <CardTitle className="flex items-center gap-2 text-brand-primary">
                                     <User className="h-5 w-5" />
                                     {t('settings.personal_information')}
                                 </CardTitle>
@@ -184,9 +184,9 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                                     {/* Avatar Section */}
                                     <div className="flex flex-col items-center gap-4 lg:w-1/3">
                                         <div className="relative group">
-                                            <Avatar className="h-32 w-32 cursor-pointer ring-4 ring-gray-100 group-hover:ring-blue-200 transition-all duration-200" onClick={handleAvatarClick}>
+                                            <Avatar className="h-32 w-32 cursor-pointer ring-4 ring-gray-100 group-hover:ring-brand-primary-20 transition-all duration-200" onClick={handleAvatarClick}>
                                                 <AvatarImage src={avatarPreview || (user.avatar ? `/storage/${user.avatar}` : undefined)} alt={user.name} />
-                                                <AvatarFallback className="text-2xl font-semibold bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                                                <AvatarFallback className="text-2xl font-semibold bg-gradient-to-br from-brand-primary to-brand-primary-dark text-white">
                                                     {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                                                 </AvatarFallback>
                                             </Avatar>
@@ -213,7 +213,7 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                                         />
                                         
                                         <div className="text-center space-y-2">
-                                            <h3 className="text-xl font-semibold text-gray-900">{user.name}</h3>
+                                            <h3 className="text-xl font-semibold text-brand-primary">{user.name}</h3>
                                             <p className="text-muted-foreground">{user.email}</p>
                                             {user.phone && (
                                                 <p className="text-muted-foreground flex items-center justify-center gap-1">
@@ -343,8 +343,8 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
 
                         {/* Address Information */}
                         <Card className="shadow-sm border-0">
-                            <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 pb-4">
-                                <CardTitle className="flex items-center gap-2 text-green-900">
+                            <CardHeader className="bg-gradient-to-r from-brand-secondary-10 to-brand-secondary-20 pb-4">
+                                <CardTitle className="flex items-center gap-2 text-brand-secondary">
                                     <MapPin className="h-5 w-5" />
                                     {t('settings.address_information')}
                                 </CardTitle>
@@ -415,8 +415,8 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
 
                         {/* Bio Section */}
                         <Card className="shadow-sm border-0">
-                            <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 pb-4">
-                                <CardTitle className="flex items-center gap-2 text-purple-900">
+                            <CardHeader className="bg-gradient-to-r from-brand-accent-10 to-brand-accent-20 pb-4">
+                                <CardTitle className="flex items-center gap-2 text-brand-accent">
                                     <FileText className="h-5 w-5" />
                                     {t('settings.bio')}
                                 </CardTitle>
@@ -475,7 +475,7 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                                     <div className="flex items-center gap-4">
                                         <Button 
                                             disabled={processing} 
-                                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 h-12 px-8"
+                                            className="bg-gradient-to-r from-brand-primary to-brand-primary-dark hover:from-brand-primary-dark hover:to-brand-primary h-12 px-8"
                                         >
                                             {processing ? (
                                                 <>
@@ -515,8 +515,8 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
 
                     {/* Account Security Section */}
                     <Card className="shadow-sm border-0">
-                        <CardHeader className="bg-gradient-to-r from-red-50 to-orange-50">
-                            <CardTitle className="flex items-center gap-2 text-red-700">
+                        <CardHeader className="bg-gradient-to-r from-destructive-10 to-destructive-20">
+                            <CardTitle className="flex items-center gap-2 text-destructive">
                                 <Shield className="h-5 w-5" />
                                 {t('settings.account_security')}
                             </CardTitle>
@@ -554,6 +554,6 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                     <DeleteUser />
                 </div>
             </SettingsLayout>
-        </AppLayout>
+        </GuestLayout>
     );
 } 
