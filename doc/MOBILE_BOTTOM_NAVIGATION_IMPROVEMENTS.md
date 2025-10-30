@@ -209,3 +209,5 @@ Perbaikan mobile bottom navigation memberikan:
 - **Touch Friendly**: Touch targets yang optimal untuk mobile
 
 Mobile bottom navigation sekarang lebih minimal, accessible, dan user-friendly dengan akses mudah ke semua fungsi utama untuk semua types of users.
+
+

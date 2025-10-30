@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\UserProfile;
 use Illuminate\Http\Request;
+use App\Http\Requests\Admin\UpdateUserRequest;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -165,27 +166,11 @@ class UserController extends Controller
     /**
      * Update the specified user
      */
-    public function update(Request $request, User $user)
+    public function update(UpdateUserRequest $request, User $user)
     {
         $this->authorize('update', $user);
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'phone' => 'nullable|string|max:20',
-            'role' => ['required', Rule::in(['super_admin', 'property_owner', 'property_manager', 'front_desk', 'housekeeping', 'finance', 'guest'])],
-            'status' => ['required', Rule::in(['active', 'inactive', 'suspended'])],
-            'password' => 'nullable|string|min:8|confirmed',
-            'avatar' => 'nullable|image|max:2048',
-            'address' => 'nullable|string|max:500',
-            'city' => 'nullable|string|max:100',
-            'state' => 'nullable|string|max:100',
-            'country' => 'nullable|string|max:100',
-            'postal_code' => 'nullable|string|max:20',
-            'birth_date' => 'nullable|date',
-            'gender' => ['nullable', Rule::in(['male', 'female', 'other'])],
-            'bio' => 'nullable|string|max:1000',
-        ]);
+        $validated = $request->validated();
 
         // Handle avatar upload
         if ($request->hasFile('avatar')) {
@@ -207,16 +192,18 @@ class UserController extends Controller
         $profileData = collect($validated)->only([
             'address', 'city', 'state', 'country', 'postal_code', 
             'birth_date', 'gender', 'bio'
-        ])->filter()->toArray();
+        ])->toArray();
 
         // Extract user data
         $userData = collect($validated)->except([
             'address', 'city', 'state', 'country', 'postal_code', 
             'birth_date', 'gender', 'bio'
-        ])->filter()->toArray();
+        ])->toArray();
 
         // Update user
-        $user->update($userData);
+        if (!empty($userData)) {
+            $user->update($userData);
+        }
 
         // Update or create profile
         if (!empty($profileData)) {

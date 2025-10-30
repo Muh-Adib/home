@@ -50,7 +50,7 @@ export default function UserEdit({ user }: UserEditProps) {
     const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-    const { data, setData, put, processing, errors, reset } = useForm({
+    const { data, setData, patch, processing, errors, reset } = useForm({
         name: user.name || '',
         email: user.email || '',
         phone: user.phone || '',
@@ -78,8 +78,46 @@ export default function UserEdit({ user }: UserEditProps) {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        put(`/admin/users/${user.id}`, {
+
+        const initial = {
+            name: user.name || '',
+            email: user.email || '',
+            phone: user.phone || '',
+            role: user.role || 'guest',
+            status: user.status || 'active',
+            address: user.profile?.address || '',
+            city: user.profile?.city || '',
+            state: user.profile?.state || '',
+            country: user.profile?.country || 'Indonesia',
+            postal_code: user.profile?.postal_code || '',
+            birth_date: user.profile?.birth_date ? user.profile.birth_date.split('T')[0] : '',
+            gender: user.profile?.gender || '',
+            bio: user.profile?.bio || '',
+        } as const;
+
+        const payload: Record<string, unknown> = {};
+
+        (Object.keys(initial) as Array<keyof typeof initial>).forEach((key) => {
+            if (data[key] !== initial[key]) {
+                payload[key] = data[key];
+            }
+        });
+
+        // Only send password if filled
+        if (data.password) {
+            payload.password = data.password;
+            payload.password_confirmation = data.password_confirmation;
+        }
+
+        // Only send avatar if selected
+        if (data.avatar) {
+            payload.avatar = data.avatar;
+        }
+
+        patch(`/admin/users/${user.id}`, {
+            data: payload,
             preserveScroll: true,
+            forceFormData: true,
         });
     };
 
@@ -237,7 +275,6 @@ export default function UserEdit({ user }: UserEditProps) {
                                             value={data.name}
                                             onChange={(e) => setData('name', e.target.value)}
                                             error={errors.name}
-                                            required
                                         />
                                         {errors.name && (
                                             <p className="text-sm text-red-600">{errors.name}</p>
@@ -252,7 +289,6 @@ export default function UserEdit({ user }: UserEditProps) {
                                             value={data.email}
                                             onChange={(e) => setData('email', e.target.value)}
                                             error={errors.email}
-                                            required
                                         />
                                         {errors.email && (
                                             <p className="text-sm text-red-600">{errors.email}</p>
