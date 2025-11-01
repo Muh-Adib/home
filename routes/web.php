@@ -351,9 +351,11 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,fin
         Route::get('finance/incomes', 'incomes')->name('finance.incomes');
         Route::get('finance/expenses', 'expenses')->name('finance.expenses');
         Route::get('finance/wallets', 'wallets')->name('finance.wallets');
+        Route::get('finance/report', 'financialReport')->name('finance.report');
         Route::post('finance/incomes', 'storeIncome')->name('finance.incomes.store');
         Route::post('finance/expenses', 'storeExpense')->name('finance.expenses.store');
         Route::post('finance/wallets', 'storeWallet')->name('finance.wallets.store');
+        Route::post('finance/wallets/transfer', 'transferWallet')->name('finance.wallets.transfer');
         Route::post('finance/wallets/{wallet}/transactions', 'storeWalletTransaction')->name('finance.wallets.transactions.store');
         Route::get('finance/wallets/{wallet}/report', 'walletReport')->name('finance.wallets.report');
         Route::patch('finance/payment-methods/{paymentMethod}/wallet', 'mapPaymentMethodToWallet')->name('finance.payment-methods.map-wallet');

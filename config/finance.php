@@ -18,6 +18,18 @@ return [
         'variable' => 'Beban Variabel',
         'additional' => 'Beban Tambahan',
     ],
+    'wallet_transaction_categories' => [
+        'revenue' => 'Pendapatan',
+        'expense' => 'Pengeluaran',
+        'transfer' => 'Transfer',
+        'savings' => 'Tabungan',
+        'withdrawal' => 'Penarikan',
+        'investment' => 'Investasi',
+        'refund' => 'Pengembalian Dana',
+        'loan' => 'Pinjaman',
+        'payment' => 'Pembayaran',
+        'other' => 'Lainnya',
+    ],
 ];
 
 
