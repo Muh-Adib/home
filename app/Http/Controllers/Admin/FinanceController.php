@@ -332,9 +332,19 @@ class FinanceController extends Controller
     {
         $wallet = Wallet::findOrFail($walletId);
 
+        // Map reference type to category for consistency with WalletService
+        $category = match($refType) {
+            'income' => 'income',
+            'expense' => 'expense',
+            'manual' => 'manual',
+            'transfer' => 'transfer',
+            default => null,
+        };
+
         WalletTransaction::create([
             'wallet_id' => $walletId,
             'direction' => $direction,
+            'category' => $category,
             'amount' => $amount,
             'transaction_date' => $date,
             'reference_type' => $refType,
