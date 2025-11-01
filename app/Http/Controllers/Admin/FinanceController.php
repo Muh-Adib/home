@@ -138,11 +138,13 @@ class FinanceController extends Controller
 
         $properties = Property::select('id', 'name')->orderBy('name')->get();
         $paymentMethods = PaymentMethod::select('id', 'name', 'type', 'bank_name', 'wallet_id')->orderBy('name')->get();
+        $walletCategories = config('finance.wallet_transaction_categories', []);
 
         return Inertia::render('Admin/Finance/Wallets', [
             'wallets' => $wallets,
             'properties' => $properties,
             'paymentMethods' => $paymentMethods,
+            'walletCategories' => $walletCategories,
         ]);
     }
 
@@ -256,9 +258,12 @@ class FinanceController extends Controller
             abort(403, 'Unauthorized to perform transaction on this wallet');
         }
 
+        $walletCategories = array_keys(config('finance.wallet_transaction_categories', []));
+        
         $validated = $request->validate([
             'direction' => ['required', 'in:in,out'],
-            'amount' => ['required', 'numeric', 'min:0'],
+            'category' => ['required', 'in:' . implode(',', $walletCategories)],
+            'amount' => ['required', 'numeric', 'min:0.01'],
             'transaction_date' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:255'],
         ]);
@@ -274,8 +279,26 @@ class FinanceController extends Controller
         }
 
         try {
-        $this->recordWallet($wallet->id, $validated['direction'], $validated['amount'], $validated['transaction_date'], 'manual', null, $validated['description'] ?? '');
-        return redirect()->back()->with('success', 'Transaksi wallet berhasil disimpan');
+            WalletTransaction::create([
+                'wallet_id' => $wallet->id,
+                'direction' => $validated['direction'],
+                'category' => $validated['category'],
+                'amount' => $validated['amount'],
+                'transaction_date' => $validated['transaction_date'],
+                'reference_type' => 'manual',
+                'reference_id' => null,
+                'description' => $validated['description'] ?? '',
+                'created_by' => $user->id,
+            ]);
+
+            // Update wallet balance
+            if ($validated['direction'] === 'in') {
+                $wallet->increment('balance', $validated['amount']);
+            } else {
+                $wallet->decrement('balance', $validated['amount']);
+            }
+
+            return redirect()->back()->with('success', 'Transaksi wallet berhasil disimpan');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'error' => 'Gagal menyimpan transaksi: ' . $e->getMessage()
@@ -317,6 +340,8 @@ class FinanceController extends Controller
         $walletData->days_remaining = $walletData->getDaysRemaining();
         $walletData->is_target_achieved = $walletData->isTargetAchieved();
 
+        $walletCategories = config('finance.wallet_transaction_categories', []);
+
         return Inertia::render('Admin/Finance/WalletReport', [
             'wallet' => $walletData,
             'transactions' => $transactions,
@@ -325,6 +350,7 @@ class FinanceController extends Controller
             'netAmount' => $netAmount,
             'filterFrom' => $request->input('from'),
             'filterTo' => $request->input('to'),
+            'walletCategories' => $walletCategories,
         ]);
     }
 
@@ -332,9 +358,19 @@ class FinanceController extends Controller
     {
         $wallet = Wallet::findOrFail($walletId);
 
+        // Map reference type to category for consistency with WalletService
+        $category = match($refType) {
+            'income' => 'income',
+            'expense' => 'expense',
+            'manual' => 'manual',
+            'transfer' => 'transfer',
+            default => null,
+        };
+
         WalletTransaction::create([
             'wallet_id' => $walletId,
             'direction' => $direction,
+            'category' => $category,
             'amount' => $amount,
             'transaction_date' => $date,
             'reference_type' => $refType,

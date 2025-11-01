@@ -9,7 +9,7 @@ function formatRupiah(n: number) {
   return `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 }
 
-export default function WalletReport({ wallet, transactions, totalIn, totalOut, netAmount, filterFrom, filterTo }: any) {
+export default function WalletReport({ wallet, transactions, totalIn, totalOut, netAmount, filterFrom, filterTo, walletCategories }: any) {
   const { data, setData, get } = useForm({
     from: filterFrom || '',
     to: filterTo || '',
@@ -122,6 +122,7 @@ export default function WalletReport({ wallet, transactions, totalIn, totalOut, 
                   <tr className="text-left border-b">
                     <th className="py-2 pr-4">Tanggal</th>
                     <th className="py-2 pr-4">Tipe</th>
+                    <th className="py-2 pr-4">Kategori</th>
                     <th className="py-2 pr-4">Deskripsi</th>
                     <th className="py-2 pr-4">Reference</th>
                     <th className="py-2 pr-4 text-right">Masuk</th>
@@ -136,6 +137,11 @@ export default function WalletReport({ wallet, transactions, totalIn, totalOut, 
                       <td className="py-2 pr-4">
                         <span className={`px-2 py-1 rounded text-xs ${tx.direction === 'in' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                           {tx.direction === 'in' ? 'MASUK' : 'KELUAR'}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
+                          {walletCategories && tx.category ? walletCategories[tx.category] : (tx.category || '-')}
                         </span>
                       </td>
                       <td className="py-2 pr-4">{tx.description || '-'}</td>
@@ -156,7 +162,7 @@ export default function WalletReport({ wallet, transactions, totalIn, totalOut, 
                   ))}
                   {(!transactions || transactions.length === 0) && (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                      <td colSpan={8} className="py-8 text-center text-muted-foreground">
                         Tidak ada transaksi
                       </td>
                     </tr>
