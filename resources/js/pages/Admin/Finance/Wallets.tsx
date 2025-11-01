@@ -167,17 +167,17 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
   };
 
   return (
-    <form className=\"space-y-3\" onSubmit={submit}>
-      <div className=\"grid gap-3 md:grid-cols-2\">
+    <form className="space-y-3" onSubmit={submit}>
+      <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <Label>Dari Wallet <span className=\"text-red-500\">*</span></Label>
+          <Label>Dari Wallet <span className="text-red-500">*</span></Label>
           <select 
-            className=\"w-full border rounded h-9 px-2 bg-background\" 
+            className="w-full border rounded h-9 px-2 bg-background" 
             value={data.from_wallet_id} 
             onChange={(e) => setData('from_wallet_id', e.target.value)}
             required
           >
-            <option value=\"\">Pilih Wallet</option>
+            <option value="">Pilih Wallet</option>
             {wallets?.map((w: any) => (
               <option key={w.id} value={w.id}>
                 {w.name} (Rp {Number(w.balance).toLocaleString('id-ID')})
@@ -185,24 +185,24 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
             ))}
           </select>
           {fromWallet && (
-            <p className=\"text-xs text-muted-foreground mt-1\">
+            <p className="text-xs text-muted-foreground mt-1">
               Saldo: Rp {Number(fromWallet.balance).toLocaleString('id-ID')}
             </p>
           )}
           {errors.from_wallet_id && (
-            <p className=\"text-xs text-red-500 mt-1\">{errors.from_wallet_id}</p>
+            <p className="text-xs text-red-500 mt-1">{errors.from_wallet_id}</p>
           )}
         </div>
 
         <div>
-          <Label>Ke Wallet <span className=\"text-red-500\">*</span></Label>
+          <Label>Ke Wallet <span className="text-red-500">*</span></Label>
           <select 
-            className=\"w-full border rounded h-9 px-2 bg-background\" 
+            className="w-full border rounded h-9 px-2 bg-background" 
             value={data.to_wallet_id} 
             onChange={(e) => setData('to_wallet_id', e.target.value)}
             required
           >
-            <option value=\"\">Pilih Wallet</option>
+            <option value="">Pilih Wallet</option>
             {wallets?.filter((w: any) => w.id !== Number(data.from_wallet_id)).map((w: any) => (
               <option key={w.id} value={w.id}>
                 {w.name} (Rp {Number(w.balance).toLocaleString('id-ID')})
@@ -210,43 +210,43 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
             ))}
           </select>
           {toWallet && (
-            <p className=\"text-xs text-muted-foreground mt-1\">
+            <p className="text-xs text-muted-foreground mt-1">
               Saldo: Rp {Number(toWallet.balance).toLocaleString('id-ID')}
             </p>
           )}
           {errors.to_wallet_id && (
-            <p className=\"text-xs text-red-500 mt-1\">{errors.to_wallet_id}</p>
+            <p className="text-xs text-red-500 mt-1">{errors.to_wallet_id}</p>
           )}
         </div>
       </div>
 
-      <div className=\"grid gap-3 md:grid-cols-2\">
+      <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <Label>Nominal <span className=\"text-red-500\">*</span></Label>
+          <Label>Nominal <span className="text-red-500">*</span></Label>
           <Input 
-            type=\"number\" 
-            step=\"0.01\" 
-            min=\"0.01\" 
-            placeholder=\"0\" 
+            type="number" 
+            step="0.01" 
+            min="0.01" 
+            placeholder="0" 
             value={data.amount} 
             onChange={(e) => setData('amount', e.target.value)} 
             required 
           />
           {errors.amount && (
-            <p className=\"text-xs text-red-500 mt-1\">{errors.amount}</p>
+            <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
           )}
         </div>
 
         <div>
-          <Label>Tanggal <span className=\"text-red-500\">*</span></Label>
+          <Label>Tanggal <span className="text-red-500">*</span></Label>
           <Input 
-            type=\"date\" 
+            type="date" 
             value={data.transaction_date} 
             onChange={(e) => setData('transaction_date', e.target.value)} 
             required 
           />
           {errors.transaction_date && (
-            <p className=\"text-xs text-red-500 mt-1\">{errors.transaction_date}</p>
+            <p className="text-xs text-red-500 mt-1">{errors.transaction_date}</p>
           )}
         </div>
       </div>
@@ -254,23 +254,23 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
       <div>
         <Label>Keterangan (opsional)</Label>
         <Input 
-          placeholder=\"Deskripsi transfer\" 
+          placeholder="Deskripsi transfer" 
           value={data.description} 
           onChange={(e) => setData('description', e.target.value)} 
         />
         {errors.description && (
-          <p className=\"text-xs text-red-500 mt-1\">{errors.description}</p>
+          <p className="text-xs text-red-500 mt-1">{errors.description}</p>
         )}
       </div>
 
       {errors.error && (
-        <div className=\"p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700\">
+        <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
           {errors.error}
         </div>
       )}
 
-      <Button type=\"submit\" disabled={processing} className=\"w-full\">
-        <ArrowLeftRight className=\"w-4 h-4 mr-2\" />
+      <Button type="submit" disabled={processing} className="w-full">
+        <ArrowLeftRight className="w-4 h-4 mr-2" />
         {processing ? 'Memproses...' : 'Transfer'}
       </Button>
     </form>
