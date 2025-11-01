@@ -105,7 +105,7 @@ class InventoryController extends Controller
     {
         $items = InventoryItem::orderBy('name')->get(['id','name','unit','average_unit_cost']);
         $properties = Property::orderBy('name')->get(['id','name']);
-        $usages = InventoryUsage::with(['item','property'])->orderByDesc('usage_date')->paginate(20);
+        $usages = InventoryUsage::with(['item','property','expense'])->orderByDesc('usage_date')->paginate(20);
         return Inertia::render('Admin/Inventory/Usages', [
             'items' => $items,
             'properties' => $properties,

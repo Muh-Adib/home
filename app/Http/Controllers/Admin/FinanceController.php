@@ -82,6 +82,10 @@ class FinanceController extends Controller
             }
         }
 
+        if ($request->filled('is_inventory') && $request->input('is_inventory') === 'true') {
+            $query->where('payment_method', 'inventory_usage');
+        }
+
         $expenses = $query->orderByDesc('expense_date')
             ->paginate(20)
             ->withQueryString();
