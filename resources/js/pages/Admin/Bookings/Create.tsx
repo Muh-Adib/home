@@ -46,6 +46,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { type BreadcrumbItem } from '@/types';
 import AdminLayout from '@/layouts/admin-layout';
+import ExtraServiceSelector, { type ServiceMaster as ExtraServiceMaster, type SelectedService } from '@/components/ExtraServiceSelector';
 
 interface Property {
     id: number;
@@ -121,6 +122,19 @@ interface PaymentMethod {
     account_name?: string;
 }
 
+interface ServiceMaster {
+    id: number;
+    name: string;
+    description?: string;
+    service_type: string;
+    service_type_label: string;
+    unit_price: number;
+    thumbnail_url?: string;
+    is_active: boolean;
+}
+
+// SelectedService is imported from ExtraServiceSelector component
+
 interface CreateBookingProps {
     properties: Property[];
     selectedProperty?: Property | null;
@@ -131,9 +145,10 @@ interface CreateBookingProps {
     };
     availabilityData?: AvailabilityData;
     paymentMethods: PaymentMethod[];
+    serviceMasters?: ServiceMaster[];
 }
 
-export default function CreateBooking({ properties, selectedProperty, prefilledData, availabilityData: initialAvailabilityData, paymentMethods }: CreateBookingProps) {
+export default function CreateBooking({ properties, selectedProperty, prefilledData, availabilityData: initialAvailabilityData, paymentMethods, serviceMasters = [] }: CreateBookingProps) {
     const { t } = useTranslation();
     
     // State management
@@ -166,6 +181,9 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     const [overrideAmount, setOverrideAmount] = useState(0);
     const [overrideReason, setOverrideReason] = useState('');
 
+    // Extra services state
+    const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
+
     const { data, setData, post, processing, errors, reset } = useForm({
         property_id: prefilledData?.property_id || '',
         check_in_date: prefilledData?.check_in_date || '',
@@ -188,6 +206,16 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         auto_confirm: true,
         check_in_time: '15:00',
         source: 'direct' as 'direct' | 'phone' | 'walk_in' | 'ota',
+        // Payment fields - add to form state
+        payment_method_id: null as string | null,
+        payment_amount: null as number | null,
+        payment_date: null as string | null,
+        reference_number: null as string | null,
+        bank_name: null as string | null,
+        account_number: null as string | null,
+        account_name: null as string | null,
+        payment_status_payment: 'verified' as 'pending' | 'verified' | null,
+        verification_notes: null as string | null,
     });
 
     // Calculate total guests
@@ -359,9 +387,18 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             
             if (response.ok) {
                 const result = await response.json();
+                // Use the result from backend - it already checks overlap correctly
                 setAvailabilityStatus(result.available ? 'available' : 'unavailable');
                 if (!result.available) {
                     setAvailabilityError('Property tidak tersedia untuk tanggal yang dipilih');
+                    // Log for debugging
+                    console.log('Availability check result:', {
+                        property_id: propertyId,
+                        check_in: checkIn,
+                        check_out: checkOut,
+                        available: result.available,
+                        booked_dates: result.booked_dates || [],
+                    });
                 }
             } else {
                 setAvailabilityStatus('unavailable');
@@ -469,8 +506,11 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                         const availabilityData = await availabilityResponse.json();
                         
                         if (availabilityData.success) {
-                            // Check if dates are available
-                            const isAvailable = !availabilityData.booked_dates || availabilityData.booked_dates.length === 0;
+                            // Use the availability result from backend - it already checks overlap correctly
+                            // Backend returns 'available' field that indicates if dates are available
+                            const isAvailable = availabilityData.availability?.available ?? 
+                                (availabilityData.booked_dates?.length === 0 && availabilityData.booked_periods?.length === 0);
+                            
                             setAvailabilityStatus(isAvailable ? 'available' : 'unavailable');
                             
                             if (!isAvailable) {
@@ -618,27 +658,91 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         // Keeping it for now in case it's re-introduced later.
     }, [totalGuests, data.guest_male, data.guest_female, data.guest_children]);
 
+    // Calculate services total
+    const servicesTotal = useMemo(() => {
+        return selectedServices.reduce((sum, s) => sum + s.total_price, 0);
+    }, [selectedServices]);
+
+    // Calculate total booking amount (base + services)
+    const totalBookingAmount = useMemo(() => {
+        return (rateCalculation?.total_amount || 0) + servicesTotal;
+    }, [rateCalculation, servicesTotal]);
+
     // Auto show/hide payment form based on booking status
     useEffect(() => {
         if (data.booking_status === 'confirmed' && data.payment_status !== 'dp_pending') {
             setShowPaymentForm(true);
-            // Auto-calculate payment amount based on dp_percentage
-            if (rateCalculation && !paymentData.amount) {
-                const calculatedAmount = (rateCalculation.total_amount * data.dp_percentage) / 100;
+            // Auto-calculate payment amount based on dp_percentage or total amount
+            if (totalBookingAmount > 0 && (!paymentData.amount || paymentData.amount === 0)) {
+                let calculatedAmount = 0;
+                if (data.payment_status === 'fully_paid') {
+                    calculatedAmount = totalBookingAmount;
+                } else {
+                    calculatedAmount = (totalBookingAmount * data.dp_percentage) / 100;
+                }
                 setPaymentData(prev => ({ ...prev, amount: calculatedAmount }));
+                // Also update form state
+                setData('payment_amount' as any, calculatedAmount);
             }
         } else {
             setShowPaymentForm(false);
         }
-    }, [data.booking_status, data.payment_status, data.dp_percentage, rateCalculation]);
-
-    // Update payment amount when rate calculation changes
+    }, [data.booking_status, data.payment_status, data.dp_percentage, totalBookingAmount]);
+    
+    // Sync paymentData to form state when paymentData changes - real-time sync
     useEffect(() => {
-        if (rateCalculation && showPaymentForm && data.dp_percentage) {
-            const calculatedAmount = (rateCalculation.total_amount * data.dp_percentage) / 100;
+        if (showPaymentForm || (data.booking_status === 'confirmed' && data.payment_status !== 'dp_pending')) {
+            // Sync all payment data to form state in real-time
+            if (paymentData.payment_method_id) {
+                setData('payment_method_id' as any, paymentData.payment_method_id);
+            }
+            if (paymentData.amount !== undefined && paymentData.amount !== null) {
+                setData('payment_amount' as any, paymentData.amount);
+            }
+            if (paymentData.payment_date) {
+                setData('payment_date' as any, paymentData.payment_date);
+            }
+            if (paymentData.reference_number !== undefined) {
+                setData('reference_number' as any, paymentData.reference_number);
+            }
+            if (paymentData.bank_name !== undefined) {
+                setData('bank_name' as any, paymentData.bank_name);
+            }
+            if (paymentData.account_number !== undefined) {
+                setData('account_number' as any, paymentData.account_number);
+            }
+            if (paymentData.account_name !== undefined) {
+                setData('account_name' as any, paymentData.account_name);
+            }
+            if (paymentData.verification_notes !== undefined) {
+                setData('verification_notes' as any, paymentData.verification_notes);
+            }
+            if (paymentData.payment_status) {
+                setData('payment_status_payment' as any, paymentData.payment_status);
+            }
+        }
+    }, [
+        paymentData.payment_method_id, 
+        paymentData.amount, 
+        paymentData.payment_date, 
+        paymentData.reference_number,
+        paymentData.bank_name,
+        paymentData.account_number,
+        paymentData.account_name,
+        paymentData.verification_notes,
+        paymentData.payment_status,
+        showPaymentForm, 
+        data.booking_status, 
+        data.payment_status
+    ]);
+
+    // Update payment amount when rate calculation or services change
+    useEffect(() => {
+        if (totalBookingAmount > 0 && showPaymentForm && data.dp_percentage) {
+            const calculatedAmount = (totalBookingAmount * data.dp_percentage) / 100;
             setPaymentData(prev => ({ ...prev, amount: calculatedAmount }));
         }
-    }, [rateCalculation, showPaymentForm, data.dp_percentage]);
+    }, [totalBookingAmount, showPaymentForm, data.dp_percentage]);
 
     // Format currency
     const formatCurrency = (amount: number) => {
@@ -707,45 +811,176 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             return;
         }
         
-        // Prepare form data with payment and rate override
-        const formData = {
+        // Check if payment is required
+        const isPaymentRequired = data.booking_status === 'confirmed' && data.payment_status !== 'dp_pending';
+        
+        // Frontend validation: Check if payment data is required but missing
+        if (isPaymentRequired) {
+            if (!paymentData.payment_method_id || paymentData.payment_method_id === '') {
+                setSyncFeedback('Please select a payment method');
+                if (!showPaymentForm) {
+                    setShowPaymentForm(true);
+                }
+                return;
+            }
+            if (!paymentData.amount || paymentData.amount <= 0) {
+                setSyncFeedback('Please enter a valid payment amount');
+                if (!showPaymentForm) {
+                    setShowPaymentForm(true);
+                }
+                return;
+            }
+        }
+        
+        // Prepare payment data - ensure it's always included if payment is required
+        let paymentFormData: Record<string, any> = {};
+        if (showPaymentForm || isPaymentRequired) {
+            // Ensure payment_method_id is string, not empty - get directly from paymentData
+            const paymentMethodId = paymentData.payment_method_id && paymentData.payment_method_id !== '' 
+                ? String(paymentData.payment_method_id) 
+                : null;
+            // Ensure payment_amount is number and > 0 - get directly from paymentData
+            const paymentAmount = paymentData.amount && paymentData.amount > 0 
+                ? Number(paymentData.amount) 
+                : null;
+            
+            paymentFormData = {
+                payment_method_id: paymentMethodId,
+                payment_amount: paymentAmount,
+                payment_date: paymentData.payment_date || new Date().toISOString().split('T')[0],
+                reference_number: paymentData.reference_number || null,
+                bank_name: paymentData.bank_name || null,
+                account_number: paymentData.account_number || null,
+                account_name: paymentData.account_name || null,
+                payment_status_payment: paymentData.payment_status || 'verified',
+                verification_notes: paymentData.verification_notes || null,
+            };
+            
+            console.log('Payment form data prepared:', {
+                paymentMethodId,
+                paymentAmount,
+                rawPaymentData: paymentData,
+                hasPaymentMethodId: !!paymentMethodId,
+                hasPaymentAmount: !!paymentAmount,
+            });
+        }
+        
+        // Debug: Log payment data before submission
+        console.log('Payment data before submission:', {
+            showPaymentForm,
+            isPaymentRequired,
+            paymentData,
+            paymentFormData,
+        });
+        
+        // Prepare ALL form data including payment - merge everything together
+        const allFormData: any = {
             ...data,
             guest_count: totalGuests,
             // Ensure payment_status is not null
             payment_status: data.payment_status || 'dp_pending',
-            // Payment data (only if payment form is shown)
-            ...(showPaymentForm && {
-                payment_method_id: paymentData.payment_method_id,
-                payment_amount: paymentData.amount,
-                payment_date: paymentData.payment_date,
-                reference_number: paymentData.reference_number,
-                bank_name: paymentData.bank_name,
-                account_number: paymentData.account_number,
-                account_name: paymentData.account_name,
-                payment_status: paymentData.payment_status,
-                verification_notes: paymentData.verification_notes,
-            }),
+            // Payment data - ALWAYS include if payment is required
+            ...paymentFormData,
             // Rate override data
             rate_override: manualRateOverride,
             override_amount: manualRateOverride ? overrideAmount : null,
             override_reason: manualRateOverride ? overrideReason : null,
+            // Extra services - send empty array instead of null if no services
+            services: selectedServices.length > 0 ? selectedServices : [],
         };
         
-        // Update form data before submission
-        Object.keys(formData).forEach(key => {
-            setData(key as any, formData[key as keyof typeof formData]);
+        console.log('Final form data before submission:', {
+            payment_method_id: allFormData.payment_method_id,
+            payment_amount: allFormData.payment_amount,
+            booking_status: allFormData.booking_status,
+            payment_status: allFormData.payment_status,
+            hasPaymentData: !!(allFormData.payment_method_id && allFormData.payment_amount),
         });
         
+        // Update form data state with ALL data including payment
+        // Update all form fields including payment data
+        Object.keys(allFormData).forEach(key => {
+            const value = allFormData[key];
+            // Only update if value is not undefined
+            if (value !== undefined) {
+                setData(key as any, value);
+            }
+        });
+        
+        // Force update payment data directly to form state
+        // This ensures payment data is definitely included
+        if (isPaymentRequired || showPaymentForm) {
+            if (paymentFormData.payment_method_id) {
+                setData('payment_method_id' as any, paymentFormData.payment_method_id);
+            }
+            if (paymentFormData.payment_amount) {
+                setData('payment_amount' as any, paymentFormData.payment_amount);
+            }
+            if (paymentFormData.payment_date) {
+                setData('payment_date' as any, paymentFormData.payment_date);
+            }
+            if (paymentFormData.payment_status_payment) {
+                setData('payment_status_payment' as any, paymentFormData.payment_status_payment);
+            }
+            // Optional fields
+            if (paymentFormData.reference_number !== undefined) {
+                setData('reference_number' as any, paymentFormData.reference_number);
+            }
+            if (paymentFormData.bank_name !== undefined) {
+                setData('bank_name' as any, paymentFormData.bank_name);
+            }
+            if (paymentFormData.account_number !== undefined) {
+                setData('account_number' as any, paymentFormData.account_number);
+            }
+            if (paymentFormData.account_name !== undefined) {
+                setData('account_name' as any, paymentFormData.account_name);
+            }
+            if (paymentFormData.verification_notes !== undefined) {
+                setData('verification_notes' as any, paymentFormData.verification_notes);
+            }
+        }
+        
+        // Submit form - Inertia will use the updated form state
         post(route('admin.booking-management.store'), {
+            preserveScroll: true,
             onSuccess: () => {
                 // Redirect to bookings list
                 router.visit(route('admin.booking-management.index'));
             },
             onError: (errors: any) => {
                 console.error('Booking creation failed:', errors);
-                // Optionally surface server error
+                console.error('Payment data that should have been sent:', {
+                    paymentData,
+                    paymentFormData,
+                    allFormData: {
+                        payment_method_id: allFormData.payment_method_id,
+                        payment_amount: allFormData.payment_amount,
+                    },
+                    isPaymentRequired,
+                    showPaymentForm,
+                });
+                // Show all validation errors
                 if (errors.error) {
-                    setSyncFeedback(errors.error);
+                    setSyncFeedback(Array.isArray(errors.error) ? errors.error.join(', ') : errors.error);
+                } else if (errors.payment_method_id || errors.payment_amount) {
+                    // Auto-show payment form if payment errors
+                    if (!showPaymentForm) {
+                        setShowPaymentForm(true);
+                    }
+                    const errorMessages = [];
+                    if (errors.payment_method_id) {
+                        errorMessages.push(Array.isArray(errors.payment_method_id) ? errors.payment_method_id[0] : errors.payment_method_id);
+                    }
+                    if (errors.payment_amount) {
+                        errorMessages.push(Array.isArray(errors.payment_amount) ? errors.payment_amount[0] : errors.payment_amount);
+                    }
+                    setSyncFeedback(errorMessages.join(', ') || 'Please fill in payment information');
+                } else {
+                    // Show first error if any
+                    const firstError = Object.values(errors)[0];
+                    if (firstError) {
+                        setSyncFeedback(Array.isArray(firstError) ? firstError[0] : firstError);
+                    }
                 }
             }
         });
@@ -1307,11 +1542,16 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         <Label htmlFor="payment_method_id">Payment Method *</Label>
                                                         <Select 
                                                             value={paymentData.payment_method_id} 
-                                                            onValueChange={(value) => setPaymentData(prev => ({ ...prev, payment_method_id: value }))}
+                                                            onValueChange={(value) => {
+                                                                console.log('Payment method selected:', value);
+                                                                setPaymentData(prev => ({ ...prev, payment_method_id: value }));
+                                                                // Also update form state immediately
+                                                                setData('payment_method_id' as any, value);
+                                                            }}
                                                         >
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="Select payment method" />
-                                                            </SelectTrigger>
+                                                        <SelectTrigger className={'payment_method_id' in errors ? 'border-red-500' : ''}>
+                                                            <SelectValue placeholder="Select payment method" />
+                                                        </SelectTrigger>
                                                             <SelectContent>
                                                                 {paymentMethods.map((method) => (
                                                                     <SelectItem key={method.id} value={method.id.toString()}>
@@ -1320,6 +1560,13 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                                 ))}
                                                             </SelectContent>
                                                         </Select>
+                                                        {'payment_method_id' in errors && (
+                                                            <p className="text-sm text-red-500 mt-1">
+                                                                {Array.isArray((errors as any).payment_method_id) 
+                                                                    ? (errors as any).payment_method_id[0] 
+                                                                    : (errors as any).payment_method_id}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     
                                                     <div>
@@ -1328,10 +1575,24 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                             id="payment_amount"
                                                             type="number"
                                                             min="0"
+                                                            step="0.01"
                                                             value={paymentData.amount}
-                                                            onChange={(e) => setPaymentData(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                                                            onChange={(e) => {
+                                                                const amount = parseFloat(e.target.value) || 0;
+                                                                setPaymentData(prev => ({ ...prev, amount }));
+                                                                // Also update form state immediately
+                                                                setData('payment_amount' as any, amount);
+                                                            }}
                                                             placeholder="Enter payment amount"
+                                                            className={'payment_amount' in errors ? 'border-red-500' : ''}
                                                         />
+                                                        {'payment_amount' in errors && (
+                                                            <p className="text-sm text-red-500 mt-1">
+                                                                {Array.isArray((errors as any).payment_amount) 
+                                                                    ? (errors as any).payment_amount[0] 
+                                                                    : (errors as any).payment_amount}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 
@@ -1402,8 +1663,25 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                 
                                                 <div className="text-sm text-gray-600">
                                                     <div className="flex justify-between">
-                                                        <span>Total Booking Amount:</span>
+                                                        <span>Base Amount:</span>
                                                         <span className="font-medium">{rateCalculation ? formatCurrency(rateCalculation.total_amount) : 'Rp 0'}</span>
+                                                    </div>
+                                                    {selectedServices.length > 0 && (
+                                                        <div className="flex justify-between">
+                                                            <span>Extra Services:</span>
+                                                            <span className="font-medium">
+                                                                {formatCurrency(selectedServices.reduce((sum, s) => sum + s.total_price, 0))}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex justify-between font-semibold pt-1 border-t">
+                                                        <span>Total Booking Amount:</span>
+                                                        <span className="font-medium">
+                                                            {formatCurrency(
+                                                                (rateCalculation?.total_amount || 0) + 
+                                                                selectedServices.reduce((sum, s) => sum + s.total_price, 0)
+                                                            )}
+                                                        </span>
                                                     </div>
                                                     <div className="flex justify-between">
                                                         <span>Payment Amount:</span>
@@ -1411,10 +1689,30 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                     </div>
                                                     <div className="flex justify-between">
                                                         <span>Remaining:</span>
-                                                        <span className="font-medium">{rateCalculation ? formatCurrency(rateCalculation.total_amount - paymentData.amount) : 'Rp 0'}</span>
+                                                        <span className="font-medium">
+                                                            {formatCurrency(
+                                                                ((rateCalculation?.total_amount || 0) + 
+                                                                selectedServices.reduce((sum, s) => sum + s.total_price, 0)) - 
+                                                                paymentData.amount
+                                                            )}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
+                                        </div>
+                                    )}
+
+                                    <Separator />
+
+                                    {/* Extra Services */}
+                                    {serviceMasters && serviceMasters.length > 0 && (
+                                        <div>
+                                            <ExtraServiceSelector
+                                                services={serviceMasters as ExtraServiceMaster[]}
+                                                selectedServices={selectedServices}
+                                                onServicesChange={setSelectedServices}
+                                                nights={rateCalculation?.nights || 1}
+                                            />
                                         </div>
                                     )}
 
@@ -1550,13 +1848,18 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                     {rateCalculation && (
                                         <div className="space-y-4">
                                             {/* Enhanced Main Price Display */}
-                                            <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                                                <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
                                                 <div className="text-3xl font-bold text-brand-primary">
-                                                    {rateCalculation.formatted.total_amount}
+                                                    {formatCurrency(totalBookingAmount)}
                                                 </div>
                                                 <div className="text-sm text-gray-600 mt-1">
-                                                    for {rateCalculation.nights} nights • {rateCalculation.formatted.per_night}/night
+                                                    for {rateCalculation.nights} nights • {formatCurrency(Math.round(totalBookingAmount / rateCalculation.nights))}/night
                                                 </div>
+                                                {servicesTotal > 0 && (
+                                                    <div className="text-xs text-gray-500 mt-1">
+                                                        Base: {rateCalculation.formatted.total_amount} • Services: {formatCurrency(servicesTotal)}
+                                                    </div>
+                                                )}
                                                 
                                                 {(rateCalculation.seasonal_premium || 0) > 0 && (
                                                     <div className="text-xs text-green-600 mt-2 flex items-center justify-center">
@@ -1611,11 +1914,18 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                     <span>{formatCurrency(rateCalculation.tax_amount)}</span>
                                                 </div>
                                                 
+                                                {servicesTotal > 0 && (
+                                                    <div className="flex justify-between text-blue-600">
+                                                        <span>Extra Services</span>
+                                                        <span>+{formatCurrency(servicesTotal)}</span>
+                                                    </div>
+                                                )}
+                                                
                                                 <Separator />
                                                 
                                                 <div className="flex justify-between font-semibold text-base">
                                                     <span>Total</span>
-                                                    <span>{formatCurrency(rateCalculation.total_amount)}</span>
+                                                    <span>{formatCurrency(totalBookingAmount)}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -1683,7 +1993,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                 </CardContent>
                             </Card>
                         )}
-                                                     </div>
+                    </div>
                 </div>
             </div>
         </AdminLayout>

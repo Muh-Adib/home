@@ -58,6 +58,8 @@ class HandleInertiaRequests extends Middleware
                 'location' => $request->url(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            // Share CSRF token untuk frontend (optional, tapi membantu)
+            'csrf' => csrf_token(),
         ];
     }
 }

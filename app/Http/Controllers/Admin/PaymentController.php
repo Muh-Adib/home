@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Events\PaymentStatusChanged;
+use App\Services\PaymentIncomeSyncService;
 use App\Models\Payment;
 use App\Models\Booking;
 use App\Models\PaymentMethod;
@@ -15,6 +16,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use App\Models\User;
+use App\Models\Income;
+use App\Models\Wallet;
+use App\Models\WalletTransaction;
 
 /**
  * Payment Controller
@@ -28,6 +32,13 @@ use App\Models\User;
 
 class PaymentController extends Controller
 {
+    protected PaymentIncomeSyncService $incomeSyncService;
+
+    public function __construct(PaymentIncomeSyncService $incomeSyncService)
+    {
+        $this->incomeSyncService = $incomeSyncService;
+    }
+
     /**
      * List of Indonesian banks and e-wallets for sender account
      */
@@ -263,6 +274,9 @@ class PaymentController extends Controller
                     $booking->update(['payment_status' => 'dp_received']);
                 }
 
+                // Sinkronkan income saat verified
+                $this->incomeSyncService->syncOnVerified($payment);
+
                 // Create workflow entry
                 $booking->workflow()->create([
                     'step' => 'payment_verified',
@@ -431,6 +445,9 @@ class PaymentController extends Controller
                     $booking->update(['payment_status' => 'dp_received']);
                 }
 
+                // Sinkronkan income saat verified
+                $this->incomeSyncService->syncOnVerified($payment);
+
                 // Create workflow entry
                 $booking->workflow()->create([
                     'step' => 'payment_verified',
@@ -538,6 +555,11 @@ class PaymentController extends Controller
                 $booking->increment('total_amount', $validated['amount']);
             }
 
+            // Sinkronkan income jika payment verified
+            if ($validated['payment_status'] === 'verified') {
+                $this->incomeSyncService->syncOnVerified($payment);
+            }
+
             // Create workflow entry
             $booking->workflow()->create([
                 'step' => 'additional_payment_created',
@@ -628,6 +650,9 @@ class PaymentController extends Controller
                     $booking->update(['payment_status' => 'dp_received']);
                 }
 
+                // Sinkronkan income saat verified
+                $this->incomeSyncService->syncOnVerified($payment);
+
                 // Create workflow entry
                 $booking->workflow()->create([
                     'step' => 'payment_verified',
@@ -701,18 +726,22 @@ class PaymentController extends Controller
     }
 
     /**
-     * Update the payment
+     * Update the payment (supports both PUT for full update and PATCH for partial update)
      */
     public function update(Request $request, Payment $payment): RedirectResponse
     {
         $this->authorize('update', $payment);
 
-        $validated = $request->validate([
-            'payment_method_id' => 'required|exists:payment_methods,id',
-            'amount' => 'required|numeric|min:1',
-            'payment_type' => 'required|in:dp,remaining,full,refund,penalty',
-            'payment_status' => 'required|in:pending,verified,failed,cancelled',
-            'payment_date' => 'required|date',
+        // Determine if this is a full update (PUT) or partial update (PATCH)
+        $isFullUpdate = $request->isMethod('PUT');
+
+        // Validation rules - make required fields conditional for PATCH
+        $rules = [
+            'payment_method_id' => [$isFullUpdate ? 'required' : 'nullable', 'exists:payment_methods,id'],
+            'amount' => [$isFullUpdate ? 'required' : 'nullable', 'numeric', 'min:1'],
+            'payment_type' => [$isFullUpdate ? 'required' : 'nullable', 'in:dp,remaining,full,refund,penalty'],
+            'payment_status' => [$isFullUpdate ? 'required' : 'nullable', 'in:pending,verified,failed,cancelled'],
+            'payment_date' => [$isFullUpdate ? 'required' : 'nullable', 'date'],
             'due_date' => 'nullable|date|after_or_equal:payment_date',
             'reference_number' => 'nullable|string|max:100',
             'bank_name' => 'nullable|string|max:100',
@@ -724,22 +753,26 @@ class PaymentController extends Controller
             'verified_by' => 'nullable|exists:users,id',
             'gateway_transaction_id' => 'nullable|string|max:255',
             'keep_existing_attachment' => 'boolean',
-        ]);
+        ];
+
+        $validated = $request->validate($rules);
 
         DB::beginTransaction();
         try {
             $booking = $payment->booking;
-            $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
             
-            // Check if amount is valid (excluding current payment from calculation)
-            $paidAmount = $booking->payments()
-                ->where('payment_status', 'verified')
-                ->where('id', '!=', $payment->id)
-                ->sum('amount');
-            $pendingAmount = $booking->total_amount - $paidAmount;
+            // Check if amount is valid (excluding current payment from calculation) - only if amount is being updated
+            if (isset($validated['amount'])) {
+                $paidAmount = $booking->payments()
+                    ->where('payment_status', 'verified')
+                    ->where('id', '!=', $payment->id)
+                    ->sum('amount');
+                $pendingAmount = $booking->total_amount - $paidAmount;
 
-            if ($validated['amount'] > $pendingAmount) {
-                return back()->withErrors(['amount' => 'Payment amount exceeds pending amount.']);
+                if ($validated['amount'] > $pendingAmount) {
+                    DB::rollBack();
+                    return back()->withErrors(['amount' => 'Payment amount exceeds pending amount.']);
+                }
             }
 
             // Handle file upload
@@ -761,36 +794,95 @@ class PaymentController extends Controller
             // Store old status for comparison
             $oldStatus = $payment->payment_status;
 
-            // Update payment record
-            $payment->update([
-                'payment_method_id' => $validated['payment_method_id'],
-                'amount' => $validated['amount'],
-                'payment_type' => $validated['payment_type'],
-                'payment_method' => $paymentMethod->type,
-                'payment_status' => $validated['payment_status'],
-                'payment_date' => $validated['payment_date'],
-                'due_date' => $validated['due_date'],
-                'reference_number' => $validated['reference_number'],
-                'bank_name' => $validated['bank_name'] ?: $paymentMethod->bank_name,
-                'account_number' => $validated['account_number'],
-                'account_name' => $validated['account_name'],
-                'verification_notes' => $validated['verification_notes'],
-                'attachment_path' => $attachmentPath,
-                'processed_by' => $validated['processed_by'] ?: $payment->processed_by,
-                'verified_by' => $validated['payment_status'] === 'verified' ? ($validated['verified_by'] ?: Auth::id()) : null,
-                'verified_at' => $validated['payment_status'] === 'verified' ? ($payment->verified_at ?: now()) : null,
-                'gateway_transaction_id' => $validated['gateway_transaction_id'],
-            ]);
+            // Get payment method if provided
+            $paymentMethod = null;
+            if (isset($validated['payment_method_id'])) {
+                $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
+            } else {
+                $paymentMethod = $payment->paymentMethod;
+            }
 
-            // Update booking payment status if status changed to verified
-            if ($oldStatus !== 'verified' && $validated['payment_status'] === 'verified') {
+            // Prepare update data - only include fields that are provided (for PATCH)
+            $updateData = [];
+            
+            if (isset($validated['payment_method_id'])) {
+                $updateData['payment_method_id'] = $validated['payment_method_id'];
+                $updateData['payment_method'] = $paymentMethod->type;
+            }
+            if (isset($validated['amount'])) {
+                $updateData['amount'] = $validated['amount'];
+            }
+            if (isset($validated['payment_type'])) {
+                $updateData['payment_type'] = $validated['payment_type'];
+            }
+            if (isset($validated['payment_status'])) {
+                $updateData['payment_status'] = $validated['payment_status'];
+            }
+            if (isset($validated['payment_date'])) {
+                $updateData['payment_date'] = $validated['payment_date'];
+            }
+            if (isset($validated['due_date'])) {
+                $updateData['due_date'] = $validated['due_date'];
+            } elseif (array_key_exists('due_date', $validated) && $validated['due_date'] === null) {
+                $updateData['due_date'] = null;
+            }
+            if (isset($validated['reference_number'])) {
+                $updateData['reference_number'] = $validated['reference_number'];
+            }
+            if (isset($validated['bank_name'])) {
+                $updateData['bank_name'] = $validated['bank_name'] ?: ($paymentMethod ? $paymentMethod->bank_name : null);
+            }
+            if (isset($validated['account_number'])) {
+                $updateData['account_number'] = $validated['account_number'];
+            }
+            if (isset($validated['account_name'])) {
+                $updateData['account_name'] = $validated['account_name'];
+            }
+            if (isset($validated['verification_notes'])) {
+                $updateData['verification_notes'] = $validated['verification_notes'];
+            }
+            if (isset($attachmentPath)) {
+                $updateData['attachment_path'] = $attachmentPath;
+            }
+            if (isset($validated['processed_by'])) {
+                $updateData['processed_by'] = $validated['processed_by'] ?: $payment->processed_by;
+            }
+            if (isset($validated['verified_by'])) {
+                $updateData['verified_by'] = $validated['payment_status'] === 'verified' 
+                    ? ($validated['verified_by'] ?: Auth::id()) 
+                    : null;
+            }
+            if (isset($validated['gateway_transaction_id'])) {
+                $updateData['gateway_transaction_id'] = $validated['gateway_transaction_id'];
+            }
+
+            // Handle verified_at based on payment_status
+            if (isset($validated['payment_status'])) {
+                if ($validated['payment_status'] === 'verified' && !$payment->verified_at) {
+                    $updateData['verified_at'] = now();
+                } elseif ($validated['payment_status'] !== 'verified') {
+                    $updateData['verified_at'] = null;
+                }
+            }
+
+            // Update payment record
+            $payment->update($updateData);
+
+            // Handle perubahan status payment dan update booking payment status
+            $newStatus = $validated['payment_status'] ?? $oldStatus;
+            if ($oldStatus !== $newStatus) {
+                if ($newStatus === 'verified') {
+                    // Status berubah menjadi verified
                 $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
                 
                 if ($totalPaid >= $booking->total_amount) {
                     $booking->update(['payment_status' => 'fully_paid']);
-                } elseif ($validated['payment_type'] === 'dp') {
+                } elseif (($validated['payment_type'] ?? $payment->payment_type) === 'dp') {
                     $booking->update(['payment_status' => 'dp_received']);
                 }
+
+                // Sinkronkan income saat verified
+                    $this->incomeSyncService->syncOnVerified($payment);
 
                 // Create workflow entry
                 $booking->workflow()->create([
@@ -800,11 +892,30 @@ class PaymentController extends Controller
                     'processed_at' => now(),
                     'notes' => "Payment updated and verified: {$payment->payment_number}",
                 ]);
+                } elseif ($newStatus === 'refunded') {
+                    // Status berubah menjadi refunded - hapus income
+                    $this->incomeSyncService->syncOnRefunded($payment);
+                } elseif (in_array($newStatus, ['pending', 'failed', 'cancelled'])) {
+                    // Status berubah menjadi unverified - hapus income
+                    $this->incomeSyncService->syncOnUnverified($payment);
+                }
+
+                // Update booking payment status if payment was unverified
+                if (in_array($oldStatus, ['verified']) && in_array($newStatus, ['pending', 'failed', 'cancelled'])) {
+                    $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+                    if ($totalPaid >= $booking->total_amount) {
+                        $booking->update(['payment_status' => 'fully_paid']);
+                    } elseif ($totalPaid > 0) {
+                        $booking->update(['payment_status' => 'dp_received']);
+                    } else {
+                        $booking->update(['payment_status' => 'dp_pending']);
+                    }
+                }
             }
 
             // Send notification if status changed
-            if ($oldStatus !== $validated['payment_status']) {
-                event(new PaymentStatusChanged($payment, Auth::user(), $oldStatus, $validated['payment_status']));
+            if ($oldStatus !== $newStatus) {
+                event(new PaymentStatusChanged($payment, Auth::user(), $oldStatus, $newStatus));
             }
 
             DB::commit();
@@ -860,6 +971,9 @@ class PaymentController extends Controller
             // Send notification for status change
             event(new PaymentStatusChanged($payment, Auth::user(), 'pending', 'verified'));
 
+            // Sinkronkan income saat verified
+            $this->incomeSyncService->syncOnVerified($payment);
+
             DB::commit();
 
             return redirect()->back()
@@ -891,6 +1005,9 @@ class PaymentController extends Controller
                 'verified_at' => now(),
             ]);
 
+            // Hapus income jika payment direject (karena tidak verified)
+            $this->incomeSyncService->syncOnUnverified($payment);
+
             // Create workflow entry
             $payment->booking->workflow()->create([
                 'step' => 'payment_rejected',
@@ -913,4 +1030,61 @@ class PaymentController extends Controller
             return back()->withErrors(['error' => 'Failed to reject payment.']);
         }
     }
+
+    /**
+     * Delete payment
+     */
+    public function destroy(Payment $payment): RedirectResponse
+    {
+        $this->authorize('delete', $payment);
+
+        DB::beginTransaction();
+        try {
+            $booking = $payment->booking;
+            $paymentNumber = $payment->payment_number;
+            $oldStatus = $payment->payment_status;
+
+            // Delete attachment if exists
+            if ($payment->attachment_path && Storage::disk('public')->exists($payment->attachment_path)) {
+                Storage::disk('public')->delete($payment->attachment_path);
+            }
+
+            // Hapus income jika payment sudah verified
+            if ($oldStatus === 'verified') {
+                $this->incomeSyncService->syncOnUnverified($payment);
+            }
+
+            // Delete payment
+            $payment->delete();
+
+            // Update booking payment status
+            $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+            if ($totalPaid >= $booking->total_amount) {
+                $booking->update(['payment_status' => 'fully_paid']);
+            } elseif ($totalPaid > 0) {
+                $booking->update(['payment_status' => 'dp_received']);
+            } else {
+                $booking->update(['payment_status' => 'dp_pending']);
+            }
+
+            // Create workflow entry
+            $booking->workflow()->create([
+                'step' => 'payment_deleted',
+                'status' => 'completed',
+                'processed_by' => Auth::id(),
+                'processed_at' => now(),
+                'notes' => "Payment deleted: {$paymentNumber}",
+            ]);
+
+            DB::commit();
+
+            return redirect()->route('admin.payments.index')
+                ->with('success', 'Payment deleted successfully.');
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            return back()->withErrors(['error' => 'Failed to delete payment: ' . $e->getMessage()]);
+        }
+    }
+
 } 

@@ -64,10 +64,12 @@ const getNavItemsForRole = (userRole: User['role']): {
                 { title: 'properties', href: '/admin/properties', icon: Building2 },
                 { title: 'users', href: '/admin/users', icon: Users },
                 { title: 'amenities', href: '/admin/amenities', icon: Package },
+                { title: 'extra_services', href: '/admin/extra-services', icon: Package },
             ],
             operations: [
                 { title: 'bookings', href: '/admin/bookings', icon: Calendar },
                 { title: 'payments', href: '/admin/payments', icon: CreditCard },
+                { title: 'finance', href: '/admin/finance', icon: DollarSign },
                 { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
                 { title: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
                 { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
@@ -84,10 +86,12 @@ const getNavItemsForRole = (userRole: User['role']): {
             ],
             management: [
                 { title: 'my_properties', href: '/admin/properties', icon: Building2 },
+                { title: 'extra_services', href: '/admin/extra-services', icon: Package },
             ],
             operations: [
                 { title: 'bookings', href: '/admin/bookings', icon: Calendar },
                 { title: 'payments', href: '/admin/payments', icon: CreditCard },
+                { title: 'finance', href: '/admin/finance', icon: DollarSign },
                 { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
                 { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
             ],
@@ -106,6 +110,7 @@ const getNavItemsForRole = (userRole: User['role']): {
             operations: [
                 { title: 'bookings', href: '/admin/bookings', icon: Calendar },
                 { title: 'payments', href: '/admin/payments', icon: CreditCard },
+                { title: 'finance', href: '/admin/finance', icon: DollarSign },
                 { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
                 { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
             ],

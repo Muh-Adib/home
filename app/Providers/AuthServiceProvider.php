@@ -6,11 +6,13 @@ use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Property;
+use App\Models\ServiceMaster;
 use App\Models\User;
 use App\Policies\BookingPolicy;
 use App\Policies\PaymentPolicy;
 use App\Policies\PaymentMethodPolicy;
 use App\Policies\PropertyPolicy;
+use App\Policies\ServiceMasterPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
@@ -28,6 +30,7 @@ class AuthServiceProvider extends ServiceProvider
         Property::class => PropertyPolicy::class,
         Payment::class => PaymentPolicy::class,
         PaymentMethod::class => PaymentMethodPolicy::class,
+        ServiceMaster::class => ServiceMasterPolicy::class,
         User::class => UserPolicy::class,
     ];
 

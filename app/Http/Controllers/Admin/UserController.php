@@ -202,7 +202,7 @@ class UserController extends Controller
 
         // Update user
         if (!empty($userData)) {
-            $user->update($userData);
+        $user->update($userData);
         }
 
         // Update or create profile

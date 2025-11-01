@@ -47,6 +47,15 @@ class CreateBookingRequest extends FormRequest
             'guests.*.gender' => 'nullable|in:male,female',
             'guests.*.age_category' => 'nullable|in:adult,child,infant',
             'guests.*.relationship_to_primary' => 'nullable|string|max:255',
+            
+            // Extra services
+            'services' => 'nullable|array',
+            'services.*.service_master_id' => 'nullable|exists:service_masters,id',
+            'services.*.service_name' => 'required_with:services|string|max:255',
+            'services.*.service_type' => 'required_with:services|string',
+            'services.*.quantity' => 'required_with:services|integer|min:1',
+            'services.*.unit_price' => 'required_with:services|numeric|min:0',
+            'services.*.total_price' => 'required_with:services|numeric|min:0',
         ];
     }
 
@@ -179,20 +188,25 @@ class CreateBookingRequest extends FormRequest
         $phone = preg_replace('/[\s\-\(\)]/', '', $phone);
         
         // Convert to international format
+        $normalized = null;
         if (preg_match('/^0(\d{9,12})$/', $phone, $matches)) {
             // Convert 08123456789 to 628123456789
             $normalized = '62' . $matches[1];
         } elseif (preg_match('/^62(\d{9,12})$/', $phone, $matches)) {
             // Already in 62 format
             $normalized = '62' . $matches[1];
+        } elseif (preg_match('/^\+62(\d{9,12})$/', $phone, $matches)) {
+            // Convert +628123456789 to 628123456789
+            $normalized = '62' . $matches[1];
         } elseif (preg_match('/^\+(\d{9,12})$/', $phone, $matches)) {
-            // convert + to ''
-            $normalized = '' . $matches[1];
-        } else {
-            // Invalid format
-            return;
+            // Other country code, keep as is but remove +
+            $normalized = $matches[1];
         }
         
+        // Apply normalized value back to request
+        if ($normalized) {
+            $this->merge(['guest_phone' => $normalized]);
+        }
     }
 
     public function messages(): array

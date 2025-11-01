@@ -5,11 +5,65 @@ window.axios = axios;
 window.axios.defaults.baseURL = import.meta.env.VITE_APP_URL || window.location.origin;
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
-// Ensure CSRF token header is sent with axios requests (prevents 419 on POST)
-const csrfTokenMeta = document.head.querySelector('meta[name="csrf-token"]');
-if (csrfTokenMeta && csrfTokenMeta.getAttribute('content')) {
-    window.axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfTokenMeta.getAttribute('content');
+// Function to get and update CSRF token
+function updateCsrfToken() {
+    const csrfTokenMeta = document.head.querySelector('meta[name="csrf-token"]');
+    if (csrfTokenMeta && csrfTokenMeta.getAttribute('content')) {
+        const token = csrfTokenMeta.getAttribute('content');
+        window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token;
+        return token;
+    }
+    return null;
 }
+
+// Ensure CSRF token header is sent with axios requests (prevents 419 on POST)
+updateCsrfToken();
+
+// Update CSRF token on every axios request to ensure it's always fresh
+axios.interceptors.request.use(
+    (config) => {
+        const token = updateCsrfToken();
+        if (token) {
+            config.headers['X-CSRF-TOKEN'] = token;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// Handle 419 errors (CSRF token expired) - refresh token and retry
+axios.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+
+        if (error.response?.status === 419 && !originalRequest._retry) {
+            originalRequest._retry = true;
+
+            try {
+                // Try to refresh CSRF token
+                const response = await axios.get('/csrf-token');
+                if (response.data.token) {
+                    const metaTag = document.querySelector('meta[name="csrf-token"]');
+                    if (metaTag) {
+                        metaTag.setAttribute('content', response.data.token);
+                    }
+                    updateCsrfToken();
+                    originalRequest.headers['X-CSRF-TOKEN'] = response.data.token;
+                    return axios(originalRequest);
+                }
+            } catch (refreshError) {
+                // If refresh fails, reload the page
+                window.location.reload();
+                return Promise.reject(refreshError);
+            }
+        }
+
+        return Promise.reject(error);
+}
+);
 
 // Echo is an optional dependency that can be used for real-time features
 // import Echo from 'laravel-echo';

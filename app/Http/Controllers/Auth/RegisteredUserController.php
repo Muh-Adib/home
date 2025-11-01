@@ -106,16 +106,71 @@ class RegisteredUserController extends Controller
             $bookingData = json_decode($request->booking_data, true);
             $property = \App\Models\Property::where('slug', $request->property_slug)->firstOrFail();
             
-            // Create booking using the enhanced booking controller
-            $bookingController = new \App\Http\Controllers\BookingController();
-            $bookingRequest = new \Illuminate\Http\Request();
-            $bookingRequest->merge($bookingData);
-            $bookingRequest->setUserResolver(function () use ($user) {
-                return $user;
-            });
+            // Prepare booking data (same format as BookingController::createBookingNormally)
+            $preparedBookingData = [
+                'property_id' => $property->id,
+                'check_in' => $bookingData['check_in'] ?? $bookingData['check_in_date'] ?? null,
+                'check_out' => $bookingData['check_out'] ?? $bookingData['check_out_date'] ?? null,
+                'check_in_time' => $bookingData['check_in_time'] ?? '15:00',
+                'guest_male' => (int)($bookingData['guest_male'] ?? 1),
+                'guest_female' => (int)($bookingData['guest_female'] ?? 1),
+                'guest_children' => (int)($bookingData['guest_children'] ?? 0),
+                'guest_count' => (int)($bookingData['guest_count'] ?? 
+                    ((int)($bookingData['guest_male'] ?? 1) + (int)($bookingData['guest_female'] ?? 1) + (int)($bookingData['guest_children'] ?? 0))),
+                'guest_name' => $bookingData['guest_name'] ?? $user->name,
+                'guest_email' => $bookingData['guest_email'] ?? $user->email,
+                'guest_phone' => $bookingData['guest_phone'] ?? $user->phone,
+                'guest_country' => $bookingData['guest_country'] ?? $user->country ?? 'Indonesia',
+                'guest_id_number' => $bookingData['guest_id_number'] ?? '',
+                'guest_gender' => $bookingData['guest_gender'] ?? $user->gender ?? 'male',
+                'relationship_type' => $bookingData['relationship_type'] ?? 'keluarga',
+                'special_requests' => $bookingData['special_requests'] ?? '',
+                'internal_notes' => $bookingData['internal_notes'] ?? '',
+                'booking_status' => $bookingData['booking_status'] ?? 'pending_verification',
+                'payment_status' => $bookingData['payment_status'] ?? 'dp_pending',
+                'dp_percentage' => (int)($bookingData['dp_percentage'] ?? 50),
+                'auto_confirm' => (bool)($bookingData['auto_confirm'] ?? false),
+                'services' => $bookingData['services'] ?? [],
+            ];
 
-            // Store the booking (fixed method name)
-            $bookingController->store($bookingRequest, $property);
+            // Validate required fields
+            if (empty($preparedBookingData['check_in']) || empty($preparedBookingData['check_out'])) {
+                throw new \InvalidArgumentException('Check-in and check-out dates are required');
+            }
+
+            // Create booking using BookingService (same as BookingController)
+            $bookingService = app(\App\Services\BookingService::class);
+            $bookingRequest = \App\Domain\Booking\ValueObjects\BookingRequest::fromArray($preparedBookingData);
+            $booking = $bookingService->createBooking($bookingRequest, $user);
+            
+            // Create booking services if provided
+            if (!empty($preparedBookingData['services']) && is_array($preparedBookingData['services'])) {
+                $servicesTotal = 0;
+                foreach ($preparedBookingData['services'] as $serviceData) {
+                    $bookingServiceModel = \App\Models\BookingService::create([
+                        'booking_id' => $booking->id,
+                        'service_master_id' => $serviceData['service_master_id'] ?? null,
+                        'service_name' => $serviceData['service_name'],
+                        'service_type' => $serviceData['service_type'],
+                        'quantity' => $serviceData['quantity'],
+                        'unit_price' => $serviceData['unit_price'],
+                        'total_price' => $serviceData['total_price'],
+                    ]);
+                    $servicesTotal += $bookingServiceModel->total_price;
+                }
+
+                // Update booking total amount to include services
+                if ($servicesTotal > 0) {
+                    $booking->update([
+                        'total_amount' => $booking->total_amount + $servicesTotal,
+                    ]);
+                    // Recalculate DP and remaining amount
+                    $booking->update([
+                        'dp_amount' => ($booking->total_amount * $booking->dp_percentage) / 100,
+                        'remaining_amount' => $booking->total_amount - (($booking->total_amount * $booking->dp_percentage) / 100),
+                    ]);
+                }
+            }
 
             \DB::commit();
 

@@ -21,6 +21,11 @@ use Inertia\Inertia;
 |--------------------------------------------------------------------------
 */
 
+// CSRF Token endpoint for refreshing token (prevents 419 errors)
+Route::get('/csrf-token', function (Request $request) {
+    return response()->json(['token' => csrf_token()]);
+})->middleware('web')->name('csrf.token');
+
 // Locale switcher
 Route::get('/locale/{locale}', function (string $locale) {
     if (in_array($locale, ['en', 'id'])) {
@@ -28,11 +33,6 @@ Route::get('/locale/{locale}', function (string $locale) {
     }
     return back();
 })->name('locale.switch');
-
-// CSRF token refresh for AJAX requests
-Route::get('/csrf-token', function () {
-    return response()->json(['token' => csrf_token()]);
-})->name('csrf.token');
 
 // Health check endpoint for Docker
 Route::get('/health', function () {
@@ -236,6 +236,24 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
         Route::post('bulk-status', 'bulkStatus')->name('bulk-status');
         Route::post('reorder', 'reorder')->name('reorder');
     });
+    
+    // Extra Services Management (only for super_admin and property_owner)
+    Route::middleware(['role:super_admin,property_owner'])->group(function () {
+        Route::resource('extra-services', App\Http\Controllers\Admin\ExtraServiceController::class)->names([
+            'index' => 'extra-services.index',
+            'create' => 'extra-services.create',
+            'store' => 'extra-services.store',
+            'show' => 'extra-services.show',
+            'edit' => 'extra-services.edit',
+            'update' => 'extra-services.update',
+            'destroy' => 'extra-services.destroy',
+        ]);
+        
+        Route::controller(App\Http\Controllers\Admin\ExtraServiceController::class)->prefix('extra-services')->name('extra-services.')->group(function () {
+            Route::patch('{service}/toggle', 'toggleStatus')->name('toggle');
+            Route::post('{service}/thumbnail', 'uploadThumbnail')->name('thumbnail.upload');
+        });
+    });
 });
 
 /*
@@ -313,6 +331,8 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix
         Route::get('/{payment:payment_number}', 'show')->name('show');
         Route::get('/{payment:payment_number}/edit', 'edit')->name('edit');
         Route::put('/{payment:payment_number}', 'update')->name('update');
+        Route::patch('/{payment:payment_number}', 'update')->name('update.patch');
+        Route::delete('/{payment:payment_number}', 'destroy')->name('destroy');
         Route::patch('/{payment:payment_number}/verify', 'verify')->name('verify');
         Route::patch('/{payment:payment_number}/reject', 'reject')->name('reject');
         
@@ -322,6 +342,33 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix
         Route::get('/booking/{booking:booking_number}/additional', 'createAdditional')->name('create-additional');
         Route::post('/booking/{booking:booking_number}/additional', 'storeAdditional')->name('store-additional');
     });
+});
+
+// Finance Management
+Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
+    Route::controller(App\Http\Controllers\Admin\FinanceController::class)->group(function () {
+        Route::get('finance', 'index')->name('finance.index');
+        Route::get('finance/incomes', 'incomes')->name('finance.incomes');
+        Route::get('finance/expenses', 'expenses')->name('finance.expenses');
+        Route::get('finance/wallets', 'wallets')->name('finance.wallets');
+        Route::post('finance/incomes', 'storeIncome')->name('finance.incomes.store');
+        Route::post('finance/expenses', 'storeExpense')->name('finance.expenses.store');
+        Route::post('finance/wallets', 'storeWallet')->name('finance.wallets.store');
+        Route::post('finance/wallets/{wallet}/transactions', 'storeWalletTransaction')->name('finance.wallets.transactions.store');
+        Route::get('finance/wallets/{wallet}/report', 'walletReport')->name('finance.wallets.report');
+        Route::patch('finance/payment-methods/{paymentMethod}/wallet', 'mapPaymentMethodToWallet')->name('finance.payment-methods.map-wallet');
+    });
+});
+
+// Inventory/Operational Management
+Route::middleware(['auth', 'role:super_admin,property_manager,housekeeping,front_desk,finance'])->prefix('admin/inventory')->name('admin.inventory.')->group(function () {
+    $controller = App\Http\Controllers\Admin\InventoryController::class;
+    Route::get('items', [$controller, 'itemsIndex'])->name('items.index');
+    Route::post('items', [$controller, 'itemsStore'])->name('items.store');
+    Route::get('purchases', [$controller, 'purchasesIndex'])->name('purchases.index');
+    Route::post('purchases', [$controller, 'purchasesStore'])->name('purchases.store');
+    Route::get('usages', [$controller, 'usagesIndex'])->name('usages.index');
+    Route::post('usages', [$controller, 'usagesStore'])->name('usages.store');
 });
 
 /*

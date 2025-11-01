@@ -8,6 +8,7 @@ use App\Models\Property;
 use App\Models\User;
 use App\Services\BookingService;
 use App\Services\RateCalculationService;
+use App\Services\PaymentIncomeSyncService;
 use App\Events\BookingStatusChanged;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -179,12 +180,27 @@ class BookingManagementController extends Controller
         // Get payment methods for inline payment form
         $paymentMethods = \App\Models\PaymentMethod::active()->get();
         
+        // Get active service masters for extra services
+        $serviceMasters = \App\Models\ServiceMaster::active()->ordered()->get()->map(function ($service) {
+            return [
+                'id' => $service->id,
+                'name' => $service->name,
+                'description' => $service->description,
+                'service_type' => $service->service_type,
+                'service_type_label' => $service->getServiceTypeLabel(),
+                'unit_price' => (float) $service->unit_price,
+                'thumbnail_url' => $service->thumbnail_url,
+                'is_active' => $service->is_active,
+            ];
+        });
+        
         return Inertia::render('Admin/Bookings/Create', [
             'properties' => $properties,
             'selectedProperty' => $selectedProperty,
             'prefilledData' => $prefilledData,
             'availabilityData' => $availabilityData,
             'paymentMethods' => $paymentMethods,
+            'serviceMasters' => $serviceMasters,
         ]);
     }
     
@@ -193,7 +209,8 @@ class BookingManagementController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
+        // Base validation rules
+        $rules = [
             'property_id' => 'required|exists:properties,id',
             'check_in_date' => 'required|date',
             'check_out_date' => 'required|date|after:check_in_date',
@@ -222,16 +239,38 @@ class BookingManagementController extends Controller
             'bank_name' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:100',
             'account_name' => 'nullable|string|max:255',
-            'payment_status' => 'nullable|in:pending,verified',
+            'payment_status_payment' => 'nullable|in:pending,verified', // Renamed to avoid conflict with booking payment_status
             'verification_notes' => 'nullable|string|max:1000',
             // Rate override fields
             'rate_override' => 'nullable|boolean',
             'override_amount' => 'nullable|numeric|min:0',
             'override_reason' => 'nullable|string|max:500',
-        ]);
+            // Extra services - validate only if services array exists and is not empty
+            'services' => 'nullable|array',
+        ];
+
+        // Add services validation only if services array is not empty
+        $services = $request->input('services');
+        if (!empty($services) && is_array($services) && count($services) > 0) {
+            $rules['services.*.service_master_id'] = 'nullable|exists:service_masters,id';
+            $rules['services.*.service_name'] = 'required|string|max:255';
+            $rules['services.*.service_type'] = 'required|string';
+            $rules['services.*.quantity'] = 'required|integer|min:1';
+            $rules['services.*.unit_price'] = 'required|numeric|min:0';
+            $rules['services.*.total_price'] = 'required|numeric|min:0';
+        }
+
+        $validated = $request->validate($rules);
         
-        // Additional validation rules
-        $this->validateBookingRules($validated, $request);
+        // Additional validation rules - handle ValidationException properly for Inertia
+        try {
+            $this->validateBookingRules($validated, $request);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            if ($request->header('X-Inertia')) {
+                return back()->withErrors($e->errors());
+            }
+            throw $e;
+        }
         
         $property = Property::findOrFail($validated['property_id']);
         
@@ -241,14 +280,48 @@ class BookingManagementController extends Controller
             abort(403, 'You can only create bookings for your own properties.');
         }
         
-        // Check availability
-        $isAvailable = $property->isAvailableForDates(
+        // Check availability using AvailabilityService for consistency
+        $availabilityService = app(\App\Services\AvailabilityService::class);
+        $availability = $availabilityService->checkAvailability(
+            $property,
             $validated['check_in_date'],
             $validated['check_out_date']
         );
         
-        if (!$isAvailable) {
-            return back()->withErrors(['error' => 'Property is not available for selected dates.']);
+        if (!$availability['available']) {
+            // Get detailed information about overlapping bookings
+            $overlappingBookings = \App\Models\Booking::where('property_id', $property->id)
+                ->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
+                ->where(function ($query) use ($validated) {
+                    $query->where('check_in', '<', $validated['check_out_date'])
+                          ->where('check_out', '>', $validated['check_in_date']);
+                })
+                ->get(['id', 'booking_number', 'booking_status', 'check_in', 'check_out', 'guest_name']);
+            
+            // Log for debugging with detailed information
+            \Log::warning('Booking creation blocked - property not available', [
+                'property_id' => $property->id,
+                'property_name' => $property->name,
+                'check_in' => $validated['check_in_date'],
+                'check_out' => $validated['check_out_date'],
+                'booked_dates_count' => count($availability['booked_dates'] ?? []),
+                'booked_periods_count' => count($availability['booked_periods'] ?? []),
+                'overlapping_bookings' => $overlappingBookings->map(function($b) {
+                    return [
+                        'id' => $b->id,
+                        'booking_number' => $b->booking_number,
+                        'status' => $b->booking_status,
+                        'check_in' => $b->check_in,
+                        'check_out' => $b->check_out,
+                        'guest_name' => $b->guest_name,
+                    ];
+                })->toArray(),
+            ]);
+            
+            return back()->withErrors([
+                'error' => 'Property is not available for selected dates.',
+                'booked_periods' => $availability['booked_periods'] ?? [],
+            ]);
         }
 
         try {
@@ -333,8 +406,9 @@ class BookingManagementController extends Controller
             }
 
             // Create payment if payment data provided
-            if ($validated['payment_method_id'] && $validated['payment_amount']) {
+            if (!empty($validated['payment_method_id']) && !empty($validated['payment_amount'])) {
                 $paymentMethod = \App\Models\PaymentMethod::findOrFail($validated['payment_method_id']);
+                $paymentStatusPayment = $validated['payment_status_payment'] ?? 'verified';
                 
                 $payment = $booking->payments()->create([
                     'payment_method_id' => $validated['payment_method_id'],
@@ -342,27 +416,68 @@ class BookingManagementController extends Controller
                     'amount' => $validated['payment_amount'],
                     'payment_type' => 'dp',
                     'payment_method' => $paymentMethod->type,
-                    'payment_status' => $validated['payment_status'] ?? 'verified',
+                    'payment_status' => $paymentStatusPayment,
                     'payment_date' => $validated['payment_date'] ?: now(),
-                    'reference_number' => $validated['reference_number'],
+                    'reference_number' => $validated['reference_number'] ?? null,
                     'bank_name' => $validated['bank_name'] ?: $paymentMethod->bank_name,
-                    'account_number' => $validated['account_number'],
-                    'account_name' => $validated['account_name'],
-                    'verification_notes' => $validated['verification_notes'],
+                    'account_number' => $validated['account_number'] ?? null,
+                    'account_name' => $validated['account_name'] ?? null,
+                    'verification_notes' => $validated['verification_notes'] ?? null,
                     'processed_by' => $user->id,
-                    'verified_by' => ($validated['payment_status'] ?? 'verified') === 'verified' ? $user->id : null,
-                    'verified_at' => ($validated['payment_status'] ?? 'verified') === 'verified' ? now() : null,
+                    'verified_by' => $paymentStatusPayment === 'verified' ? $user->id : null,
+                    'verified_at' => $paymentStatusPayment === 'verified' ? now() : null,
                 ]);
 
                 // Update booking payment status
                 $booking->updatePaymentStatus();
+
+                // Sinkronkan income jika payment verified
+                if ($paymentStatusPayment === 'verified') {
+                    app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
+                }
+            }
+
+            // Create booking services if provided and not empty
+            if (!empty($validated['services']) && is_array($validated['services']) && count($validated['services']) > 0) {
+                $servicesTotal = 0;
+                foreach ($validated['services'] as $serviceData) {
+                    $bookingService = \App\Models\BookingService::create([
+                        'booking_id' => $booking->id,
+                        'service_master_id' => $serviceData['service_master_id'] ?? null,
+                        'service_name' => $serviceData['service_name'],
+                        'service_type' => $serviceData['service_type'],
+                        'quantity' => $serviceData['quantity'],
+                        'unit_price' => $serviceData['unit_price'],
+                        'total_price' => $serviceData['total_price'],
+                    ]);
+                    $servicesTotal += $bookingService->total_price;
+                }
+
+                // Update booking total amount to include services
+                if ($servicesTotal > 0) {
+                    $booking->update([
+                        'total_amount' => $booking->total_amount + $servicesTotal,
+                    ]);
+                    // Recalculate DP and remaining amount
+                    $booking->update([
+                        'dp_amount' => ($booking->total_amount * $booking->dp_percentage) / 100,
+                        'remaining_amount' => $booking->total_amount - (($booking->total_amount * $booking->dp_percentage) / 100),
+                    ]);
+                }
             }
             
             return redirect()->route('admin.booking-management.show', $booking)
                 ->with('success', 'Booking created successfully.');
                 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('Manual booking creation validation failed: ' . $e->getMessage());
+            return back()->withErrors($e->errors());
         } catch (\Exception $e) {
-            \Log::error('Manual booking creation failed: ' . $e->getMessage());
+            \Log::error('Manual booking creation failed: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
             return back()->withErrors(['error' => 'Failed to create booking: ' . $e->getMessage()]);
         }
     }
@@ -388,11 +503,21 @@ class BookingManagementController extends Controller
             $excludeBookingId
         );
         
+        // Get booked dates/periods for the specific date range only
+        $availabilityService = app(\App\Services\AvailabilityService::class);
+        $availabilityData = $availabilityService->checkAvailability(
+            $property,
+            $request->check_in,
+            $request->check_out
+        );
+        
         return response()->json([
             'available' => $isAvailable,
             'property_id' => $property->id,
             'check_in' => $request->check_in,
             'check_out' => $request->check_out,
+            'booked_dates' => $availabilityData['booked_dates'] ?? [],
+            'booked_periods' => $availabilityData['booked_periods'] ?? [],
         ]);
     }
     
@@ -723,18 +848,18 @@ class BookingManagementController extends Controller
     {
         // Payment requirement validation
         if ($validated['booking_status'] === 'confirmed' && $validated['payment_status'] !== 'dp_pending') {
+            $errors = [];
+            
             if (empty($validated['payment_method_id'])) {
-                throw new \Illuminate\Validation\ValidationException(
-                    validator([], []),
-                    ['payment_method_id' => ['Payment method is required for confirmed bookings']]
-                );
+                $errors['payment_method_id'] = ['Payment method is required for confirmed bookings'];
             }
             
             if (empty($validated['payment_amount']) || $validated['payment_amount'] <= 0) {
-                throw new \Illuminate\Validation\ValidationException(
-                    validator([], []),
-                    ['payment_amount' => ['Payment amount is required for confirmed bookings']]
-                );
+                $errors['payment_amount'] = ['Payment amount is required for confirmed bookings'];
+            }
+            
+            if (!empty($errors)) {
+                throw \Illuminate\Validation\ValidationException::withMessages($errors);
             }
         }
         
@@ -1058,6 +1183,11 @@ class BookingManagementController extends Controller
 
                 // Update booking payment status
                 $booking->updatePaymentStatus();
+
+                // Sinkronkan income jika payment verified
+                if (($validated['payment_status'] ?? 'verified') === 'verified') {
+                    app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
+                }
             }
             
             // Create workflow entry for edit

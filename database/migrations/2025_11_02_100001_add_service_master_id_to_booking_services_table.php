@@ -1,0 +1,37 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::table('booking_services', function (Blueprint $table) {
+            $table->foreignId('service_master_id')
+                ->nullable()
+                ->after('booking_id')
+                ->constrained('service_masters')
+                ->onDelete('set null');
+            
+            $table->index('service_master_id');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::table('booking_services', function (Blueprint $table) {
+            $table->dropForeign(['service_master_id']);
+            $table->dropIndex(['service_master_id']);
+            $table->dropColumn('service_master_id');
+        });
+    }
+};
+

@@ -17,6 +17,7 @@ class BookingService extends Model
      */
     protected $fillable = [
         'booking_id',
+        'service_master_id',
         'service_name',
         'service_type',
         'quantity',
@@ -48,6 +49,14 @@ class BookingService extends Model
     }
 
     /**
+     * Get the service master that this booking service is based on.
+     */
+    public function serviceMaster(): BelongsTo
+    {
+        return $this->belongsTo(ServiceMaster::class);
+    }
+
+    /**
      * Calculate total price based on quantity and unit price
      */
     public function calculateTotal(): float
@@ -63,6 +72,22 @@ class BookingService extends Model
         parent::boot();
 
         static::saving(function ($service) {
+            // If service_master_id is provided, sync name and unit_price from master
+            if ($service->service_master_id && !$service->exists) {
+                $serviceMaster = ServiceMaster::find($service->service_master_id);
+                if ($serviceMaster) {
+                    if (empty($service->service_name)) {
+                        $service->service_name = $serviceMaster->name;
+                    }
+                    if (empty($service->service_type)) {
+                        $service->service_type = $serviceMaster->service_type;
+                    }
+                    if (empty($service->unit_price) || $service->unit_price == 0) {
+                        $service->unit_price = $serviceMaster->unit_price;
+                    }
+                }
+            }
+            
             $service->total_price = $service->calculateTotal();
         });
     }
@@ -73,12 +98,19 @@ class BookingService extends Model
     public function getServiceTypeLabel(): string
     {
         return match($this->service_type) {
+            'extra_bed' => 'Tempat Tidur Tambahan',
+            'breakfast' => 'Sarapan',
+            'airport_transfer' => 'Transfer Bandara',
+            'bbq_package' => 'Paket BBQ',
+            'private_chef' => 'Chef Pribadi',
+            'laundry' => 'Laundry',
+            'tour_package' => 'Paket Tour',
+            'motor_rental' => 'Rental Motor',
             'transport' => 'Transport',
             'catering' => 'Katering',
             'equipment' => 'Peralatan',
             'guide' => 'Pemandu',
             'cleaning' => 'Pembersihan',
-            'laundry' => 'Laundry',
             'other' => 'Lainnya',
             default => 'Tidak Diketahui'
         };

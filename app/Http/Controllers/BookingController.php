@@ -75,9 +75,24 @@ class BookingController extends Controller
             'guests' => [],
         ];
        
+        // Get active service masters for extra services
+        $serviceMasters = \App\Models\ServiceMaster::active()->ordered()->get()->map(function ($service) {
+            return [
+                'id' => $service->id,
+                'name' => $service->name,
+                'description' => $service->description,
+                'service_type' => $service->service_type,
+                'service_type_label' => $service->getServiceTypeLabel(),
+                'unit_price' => (float) $service->unit_price,
+                'thumbnail_url' => $service->thumbnail_url,
+                'is_active' => $service->is_active,
+            ];
+        });
+
         return Inertia::render('Booking/Create', [
             'property' => $property->load(['amenities', 'media']),
             'initialFormData' => $initialFormData,
+            'serviceMasters' => $serviceMasters,
             'auth' => [
                 'user' => $user,
             ],
@@ -237,6 +252,35 @@ class BookingController extends Controller
             try {
                 $bookingRequest = BookingRequest::fromArray($bookingData);
                 $booking = $this->bookingService->createBooking($bookingRequest, $user);
+                
+                // Create booking services if provided
+                if (!empty($data['services']) && is_array($data['services'])) {
+                    $servicesTotal = 0;
+                    foreach ($data['services'] as $serviceData) {
+                        $bookingService = \App\Models\BookingService::create([
+                            'booking_id' => $booking->id,
+                            'service_master_id' => $serviceData['service_master_id'] ?? null,
+                            'service_name' => $serviceData['service_name'],
+                            'service_type' => $serviceData['service_type'],
+                            'quantity' => $serviceData['quantity'],
+                            'unit_price' => $serviceData['unit_price'],
+                            'total_price' => $serviceData['total_price'],
+                        ]);
+                        $servicesTotal += $bookingService->total_price;
+                    }
+
+                    // Update booking total amount to include services
+                    if ($servicesTotal > 0) {
+                        $booking->update([
+                            'total_amount' => $booking->total_amount + $servicesTotal,
+                        ]);
+                        // Recalculate DP and remaining amount
+                        $booking->update([
+                            'dp_amount' => ($booking->total_amount * $booking->dp_percentage) / 100,
+                            'remaining_amount' => $booking->total_amount - (($booking->total_amount * $booking->dp_percentage) / 100),
+                        ]);
+                    }
+                }
             } catch (\InvalidArgumentException $e) {
                 Log::error('BookingRequest validation failed', [
                     'error' => $e->getMessage(),

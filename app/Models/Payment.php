@@ -87,6 +87,11 @@ class Payment extends Model
         return $this->belongsTo(PaymentMethod::class, 'payment_method_id');
     }
 
+    public function income()
+    {
+        return $this->hasOne(Income::class);
+    }
+
     // Accessors for attachment information
     public function getAttachmentFilenameAttribute(): ?string
     {
@@ -220,6 +225,9 @@ class Payment extends Model
 
         // Update booking payment status
         $this->booking->updatePaymentStatus();
+
+        // Sinkronkan income saat verified
+        app(\App\Services\PaymentIncomeSyncService::class)->syncOnVerified($this);
 
         return true;
     }

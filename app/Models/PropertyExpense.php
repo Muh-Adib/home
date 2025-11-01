@@ -64,6 +64,14 @@ class PropertyExpense extends Model
     }
 
     /**
+     * Get inventory usage related to this expense
+     */
+    public function inventoryUsage()
+    {
+        return $this->hasOne(InventoryUsage::class, 'expense_id');
+    }
+
+    /**
      * Get expense category label
      */
     public function getCategoryLabel(): string
@@ -90,6 +98,9 @@ class PropertyExpense extends Model
             'recurring' => 'Berulang',
             'one_time' => 'Sekali',
             'emergency' => 'Darurat',
+            'fixed' => 'Beban Fix',
+            'variable' => 'Beban Variabel',
+            'additional' => 'Beban Tambahan',
             default => 'Tidak Diketahui'
         };
     }

@@ -31,7 +31,8 @@ import {
   ChevronLeft,
   ChevronRight,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Package
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -83,6 +84,7 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'All Properties', href: '/admin/properties', icon: Folder },
           { title: 'Add Property', href: '/admin/properties/create', icon: Building2 },
           { title: 'Amenities', href: '/admin/amenities', icon: Building2 },
+          { title: 'Extra Service', href: '/admin/extra-services', icon: Package },
         ]
       },
       {
@@ -103,6 +105,10 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Payments', href: '/admin/payments', icon: CreditCard },
           { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
           { title: 'Reports', href: '/admin/reports', icon: BarChart3 },
+          { title: 'Finance', href: '/admin/finance', icon: DollarSign },
+          { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
+          { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
+          { title: 'Wallets', href: '/admin/finance/wallets', icon: CreditCard },
         ]
       },
       {
@@ -122,6 +128,9 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Cleaning Tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
           { title: 'Cleaning Staff', href: '/admin/cleaning-staff', icon: Sparkles },
           { title: 'Schedules', href: '/admin/schedules', icon: Calendar },
+          { title: 'Inventory Items', href: '/admin/inventory/items', icon: Folder },
+          { title: 'Inventory Purchases', href: '/admin/inventory/purchases', icon: Folder },
+          { title: 'Inventory Usages', href: '/admin/inventory/usages', icon: Folder },
         ]
       },
       {
@@ -143,6 +152,7 @@ const getAdminNavItems = (userRole: User['role']) => {
         children: [
           { title: 'All Properties', href: '/admin/properties', icon: Folder },
           { title: 'Add Property', href: '/admin/properties/create', icon: Building2 },
+          { title: 'Extra Service', href: '/admin/extra-services', icon: Package },
         ]
       },
       {
@@ -161,6 +171,10 @@ const getAdminNavItems = (userRole: User['role']) => {
         children: [
           { title: 'Payments', href: '/admin/payments', icon: CreditCard },
           { title: 'Reports', href: '/admin/reports', icon: BarChart3 },
+          { title: 'Finance', href: '/admin/finance', icon: DollarSign },
+          { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
+          { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
+          { title: 'Wallets', href: '/admin/finance/wallets', icon: CreditCard },
         ]
       }
     ],
@@ -192,6 +206,10 @@ const getAdminNavItems = (userRole: User['role']) => {
         children: [
           { title: 'Payments', href: '/admin/payments', icon: CreditCard },
           { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
+          { title: 'Finance', href: '/admin/finance', icon: DollarSign },
+          { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
+          { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
+          { title: 'Wallets', href: '/admin/finance/wallets', icon: CreditCard },
         ]
       },
       {
@@ -201,6 +219,9 @@ const getAdminNavItems = (userRole: User['role']) => {
         children: [
           { title: 'Cleaning Tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
           { title: 'Cleaning Staff', href: '/admin/cleaning-staff', icon: Sparkles },
+          { title: 'Inventory Items', href: '/admin/inventory/items', icon: Folder },
+          { title: 'Inventory Purchases', href: '/admin/inventory/purchases', icon: Folder },
+          { title: 'Inventory Usages', href: '/admin/inventory/usages', icon: Folder },
         ]
       }
     ],
@@ -236,6 +257,10 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Payments', href: '/admin/payments', icon: CreditCard },
           { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
           { title: 'Reports', href: '/admin/reports', icon: BarChart3 },
+          { title: 'Finance', href: '/admin/finance', icon: DollarSign },
+          { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
+          { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
+          { title: 'Wallets', href: '/admin/finance/wallets', icon: CreditCard },
         ]
       },
       {
@@ -258,6 +283,9 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Cleaning Tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
           { title: 'Cleaning Staff', href: '/admin/cleaning-staff', icon: Sparkles },
           { title: 'Schedules', href: '/admin/schedules', icon: Calendar },
+          { title: 'Inventory Items', href: '/admin/inventory/items', icon: Folder },
+          { title: 'Inventory Purchases', href: '/admin/inventory/purchases', icon: Folder },
+          { title: 'Inventory Usages', href: '/admin/inventory/usages', icon: Folder },
         ]
       },
       {

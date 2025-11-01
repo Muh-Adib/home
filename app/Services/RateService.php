@@ -175,8 +175,8 @@ class RateService
                         'value' => $seasonalRate->rate_value,
                         'calculated_rate' => $seasonalRate->calculateRate($property->base_rate)
                     ] : null,
-                    'is_weekend' => $date->isWeekend(),
-                    'weekend_premium' => $date->isWeekend() ? $property->weekend_premium_percent : 0,
+                    'is_weekend' => $date->isSaturday() || $date->isSunday(), // Weekend: Sabtu dan Minggu
+                    'weekend_premium' => ($date->isSaturday() || $date->isSunday()) ? $property->weekend_premium_percent : 0,
                 ];
             }
             

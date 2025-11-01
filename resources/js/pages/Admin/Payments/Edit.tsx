@@ -129,7 +129,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
             : null
     );
 
-    const { data, setData, put, processing, errors } = useForm({
+    const { data, setData, put, patch, delete: deletePayment, processing, errors } = useForm({
         payment_method_id: payment.payment_method_id?.toString() || '',
         amount: payment.amount.toString(),
         payment_type: payment.payment_type,
@@ -172,6 +172,8 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
         }
     }, [data.payment_method_id]);
 
+    const [updateMethod, setUpdateMethod] = useState<'put' | 'patch'>('put');
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
@@ -184,10 +186,21 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
             }
         });
 
-        put(`/admin/payments/${payment.payment_number}`, {
+        const method = updateMethod === 'patch' ? patch : put;
+        method(`/admin/payments/${payment.payment_number}`, {
             data: formData,
             forceFormData: true,
         });
+    };
+
+    const handleDelete = () => {
+        if (confirm('Are you sure you want to delete this payment? This action cannot be undone.')) {
+            deletePayment(`/admin/payments/${payment.payment_number}`, {
+                onSuccess: () => {
+                    window.location.href = '/admin/payments';
+                },
+            });
+        }
     };
 
     const getPaymentTypeIcon = (type: string) => {
@@ -686,20 +699,54 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                             <Card>
                                 <CardContent className="pt-6">
                                     <div className="space-y-3">
-                                        <Button 
-                                            type="submit" 
-                                            className="w-full"
-                                            disabled={processing}
-                                        >
-                                            <Save className="h-4 w-4 mr-2" />
-                                            {processing ? 'Updating...' : 'Update Payment'}
-                                        </Button>
+                                        <div className="flex gap-2">
+                                            <Button 
+                                                type="submit" 
+                                                className="flex-1"
+                                                disabled={processing}
+                                            >
+                                                <Save className="h-4 w-4 mr-2" />
+                                                {processing ? 'Updating...' : 'Update Payment'}
+                                            </Button>
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <Button
+                                                type="button"
+                                                variant={updateMethod === 'put' ? 'default' : 'outline'}
+                                                size="sm"
+                                                className="flex-1"
+                                                onClick={() => setUpdateMethod('put')}
+                                            >
+                                                Full Update
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant={updateMethod === 'patch' ? 'default' : 'outline'}
+                                                size="sm"
+                                                className="flex-1"
+                                                onClick={() => setUpdateMethod('patch')}
+                                            >
+                                                Partial Update
+                                            </Button>
+                                        </div>
                                         
                                         <Link href="/admin/payments" className="block">
                                             <Button variant="outline" className="w-full">
                                                 Cancel
                                             </Button>
                                         </Link>
+
+                                        <Button
+                                            type="button"
+                                            variant="destructive"
+                                            className="w-full"
+                                            onClick={handleDelete}
+                                            disabled={processing}
+                                        >
+                                            <X className="h-4 w-4 mr-2" />
+                                            Delete Payment
+                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>

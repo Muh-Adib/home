@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PaymentMethod extends Model
 {
@@ -20,6 +21,7 @@ class PaymentMethod extends Model
         'instructions',
         'is_active',
         'sort_order',
+        'wallet_id',
     ];
 
     protected $casts = [
@@ -31,6 +33,11 @@ class PaymentMethod extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class, 'payment_method_id');
+    }
+
+    public function wallet(): BelongsTo
+    {
+        return $this->belongsTo(Wallet::class);
     }
 
     // Scopes

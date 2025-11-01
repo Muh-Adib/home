@@ -237,6 +237,8 @@ class Property extends Model
 
         // Check for existing bookings using CORRECT overlap detection logic
         // Two periods overlap if: start1 < end2 AND start2 < end1
+        // Only active bookings block availability: pending_verification, confirmed, checked_in, checked_out
+        // Cancelled, rejected, completed bookings do NOT block availability
         $bookingQuery = $this->bookings()
                     ->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
                     ->where(function ($query) use ($checkIn, $checkOut) {
@@ -249,7 +251,9 @@ class Property extends Model
             $bookingQuery->where('id', '!=', $excludeBookingId);
         }
         
-        $hasOverlappingBooking = $bookingQuery->exists();
+        // Get overlapping bookings for logging
+        $overlappingBookings = $bookingQuery->get(['id', 'booking_number', 'booking_status', 'check_in', 'check_out']);
+        $hasOverlappingBooking = $overlappingBookings->isNotEmpty();
 
         if ($hasOverlappingBooking) {
             \Illuminate\Support\Facades\Log::info('Property not available - overlapping booking found', [
@@ -257,7 +261,15 @@ class Property extends Model
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
                 'exclude_booking_id' => $excludeBookingId,
-                'hasOverlappingBooking' => $hasOverlappingBooking 
+                'overlapping_bookings' => $overlappingBookings->map(function($b) {
+                    return [
+                        'id' => $b->id,
+                        'booking_number' => $b->booking_number,
+                        'status' => $b->booking_status,
+                        'check_in' => $b->check_in,
+                        'check_out' => $b->check_out,
+                    ];
+                })->toArray(),
             ]);
             return false;
         }

@@ -70,10 +70,18 @@ class PaymentPolicy
      */
     public function delete(User $user, Payment $payment): bool
     {
-        // Hanya super admin yang dapat delete payment
-        // Dan hanya jika payment belum verified
-        return $user->role === 'super_admin' && 
-               $payment->payment_status === 'pending';
+        // Super admin dan finance dapat delete payment
+        // Super admin dapat delete semua payment
+        // Finance dapat delete payment yang belum verified atau cancelled
+        if ($user->role === 'super_admin') {
+            return true;
+        }
+        
+        if ($user->role === 'finance') {
+            return in_array($payment->payment_status, ['pending', 'failed', 'cancelled']);
+        }
+        
+        return false;
     }
 
     /**

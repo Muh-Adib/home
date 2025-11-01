@@ -211,3 +211,12 @@ Perbaikan mobile bottom navigation memberikan:
 Mobile bottom navigation sekarang lebih minimal, accessible, dan user-friendly dengan akses mudah ke semua fungsi utama untuk semua types of users.
 
 
+
+
+
+
+
+
+
+
+

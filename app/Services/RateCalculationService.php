@@ -79,9 +79,10 @@ class RateCalculationService
                 }
             }
             
-            // Weekend premium (Friday, Saturday) - only if no seasonal rate or if seasonal rate allows
+            // Weekend premium (Saturday, Sunday) - only if no seasonal rate or if seasonal rate allows
+            // Weekend now: Jumat malam Sabtu, Sabtu malam Minggu, Minggu malam Senin (premium untuk Sabtu dan Minggu)
             $weekendPremiumAmount = 0;
-            if (($date->isFriday() || $date->isSaturday()) && 
+            if (($date->isSaturday() || $date->isSunday()) && 
                 (!$seasonalRate || !$seasonalRate->applies_to_weekends_only)) {
                 $weekendNights++;
                 $weekendPremiumAmount = $property->base_rate * ($property->weekend_premium_percent / 100);
@@ -94,7 +95,7 @@ class RateCalculationService
                     'description' => "+{$property->weekend_premium_percent}%",
                     'amount' => $weekendPremiumAmount
                 ];
-            } else if (!($date->isFriday() || $date->isSaturday())) {
+            } else if (!($date->isSaturday() || $date->isSunday())) {
                 $weekdayNights++;
             }
             
