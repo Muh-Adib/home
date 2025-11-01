@@ -19,7 +19,7 @@ interface WalletForm {
   notes?: string;
 }
 
-export default function Wallets({ wallets, properties, paymentMethods }: any) {
+export default function Wallets({ wallets, properties, paymentMethods, walletCategories }: any) {
   const { data, setData, post, processing, reset } = useForm<WalletForm>({
     name: '',
     type: 'property_linked',
@@ -136,7 +136,7 @@ export default function Wallets({ wallets, properties, paymentMethods }: any) {
           <CardContent>
             <div className="space-y-4 text-sm">
               {wallets?.map((w: any) => (
-                <WalletCard key={w.id} wallet={w} wallets={wallets} paymentMethods={paymentMethods} />
+                <WalletCard key={w.id} wallet={w} wallets={wallets} paymentMethods={paymentMethods} walletCategories={walletCategories} />
               ))}
             </div>
           </CardContent>
@@ -277,9 +277,10 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
   );
 }
 
-function InlineTransactionForm({ walletId }: { walletId: number }) {
+function InlineTransactionForm({ walletId, walletCategories }: { walletId: number; walletCategories?: any }) {
   const { data, setData, post, processing, reset } = useForm({
     direction: 'in' as 'in' | 'out',
+    category: 'other',
     amount: '',
     transaction_date: new Date().toISOString().slice(0,10),
     description: '',
@@ -294,34 +295,48 @@ function InlineTransactionForm({ walletId }: { walletId: number }) {
   };
 
   return (
-    <form className="mt-3 grid gap-2 md:grid-cols-5" onSubmit={submit}>
-      <div>
-        <Label className="text-xs">Tipe</Label>
-        <select className="w-full border rounded h-9 px-2 bg-background text-sm" value={data.direction} onChange={(e) => setData('direction', e.target.value as any)}>
-          <option value="in">Masuk</option>
-          <option value="out">Keluar</option>
-        </select>
+    <form className="mt-3 space-y-2" onSubmit={submit}>
+      <div className="grid gap-2 md:grid-cols-3">
+        <div>
+          <Label className="text-xs">Tipe <span className="text-red-500">*</span></Label>
+          <select className="w-full border rounded h-9 px-2 bg-background text-sm" value={data.direction} onChange={(e) => setData('direction', e.target.value as any)} required>
+            <option value="in">Masuk</option>
+            <option value="out">Keluar</option>
+          </select>
+        </div>
+        <div>
+          <Label className="text-xs">Kategori <span className="text-red-500">*</span></Label>
+          <select className="w-full border rounded h-9 px-2 bg-background text-sm" value={data.category} onChange={(e) => setData('category', e.target.value)} required>
+            {walletCategories && Object.entries(walletCategories).map(([key, label]: [string, any]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label className="text-xs">Nominal <span className="text-red-500">*</span></Label>
+          <Input type="number" step="0.01" min="0.01" placeholder="0" value={data.amount} onChange={(e) => setData('amount', e.target.value)} required />
+        </div>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        <div>
+          <Label className="text-xs">Tanggal <span className="text-red-500">*</span></Label>
+          <Input type="date" value={data.transaction_date} onChange={(e) => setData('transaction_date', e.target.value)} required />
+        </div>
+        <div>
+          <Label className="text-xs">Keterangan</Label>
+          <Input placeholder="Deskripsi transaksi" value={data.description} onChange={(e) => setData('description', e.target.value)} />
+        </div>
       </div>
       <div>
-        <Label className="text-xs">Nominal</Label>
-        <Input type="number" step="0.01" min="0" placeholder="0" value={data.amount} onChange={(e) => setData('amount', e.target.value)} required />
-      </div>
-      <div>
-        <Label className="text-xs">Tanggal</Label>
-        <Input type="date" value={data.transaction_date} onChange={(e) => setData('transaction_date', e.target.value)} required />
-      </div>
-      <div className="md:col-span-2">
-        <Label className="text-xs">Keterangan</Label>
-        <Input placeholder="Deskripsi transaksi" value={data.description} onChange={(e) => setData('description', e.target.value)} />
-      </div>
-      <div className="md:col-span-5">
-        <Button type="submit" disabled={processing} variant="secondary" size="sm">Tambah Transaksi</Button>
+        <Button type="submit" disabled={processing} variant="secondary" size="sm" className="w-full">
+          {processing ? 'Menambahkan...' : 'Tambah Transaksi'}
+        </Button>
       </div>
     </form>
   );
 }
 
-function WalletCard({ wallet: w, wallets, paymentMethods }: any) {
+function WalletCard({ wallet: w, wallets, paymentMethods, walletCategories }: any) {
   const hasTarget = w.target_amount && w.target_date;
   const progress = hasTarget ? ((Number(w.balance) / Number(w.target_amount)) * 100) : 0;
   const daysRemaining = hasTarget ? Math.ceil((new Date(w.target_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
@@ -385,7 +400,7 @@ function WalletCard({ wallet: w, wallets, paymentMethods }: any) {
           <PaymentMethodWalletMapper pm={{ id: 0, name: 'Pilih metode…', wallet_id: w.id }} wallets={wallets} paymentMethods={paymentMethods} defaultWalletId={w.id} />
         </div>
       </div>
-      <InlineTransactionForm walletId={w.id} />
+      <InlineTransactionForm walletId={w.id} walletCategories={walletCategories} />
     </div>
   );
 }
