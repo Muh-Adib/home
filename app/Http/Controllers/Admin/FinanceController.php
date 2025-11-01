@@ -173,10 +173,13 @@ class FinanceController extends Controller
 
     public function storeExpense(Request $request)
     {
-        $validated = $request->validate([
+        // Get configured categories and types
+        $expenseCategories = array_keys(config('finance.expense_categories', []));
+        $expenseTypes = array_keys(config('finance.expense_types', []));
+        
+        // Build validation rules
+        $validationRules = [
             'property_id' => ['nullable', 'exists:properties,id'],
-            'expense_category' => ['required', 'in:'.implode(',', array_keys(config('finance.expense_categories')))],
-            'expense_type' => ['required', 'in:'.implode(',', array_keys(config('finance.expense_types')))],
             'description' => ['nullable', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0'],
             'expense_date' => ['required', 'date'],
@@ -185,7 +188,23 @@ class FinanceController extends Controller
             'payment_method' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string', 'max:255'],
             'wallet_id' => ['nullable', 'exists:wallets,id'],
-        ]);
+        ];
+
+        // Add category validation if categories are configured
+        if (!empty($expenseCategories)) {
+            $validationRules['expense_category'] = ['required', 'in:' . implode(',', $expenseCategories)];
+        } else {
+            $validationRules['expense_category'] = ['required', 'string', 'max:50'];
+        }
+
+        // Add type validation if types are configured
+        if (!empty($expenseTypes)) {
+            $validationRules['expense_type'] = ['required', 'in:' . implode(',', $expenseTypes)];
+        } else {
+            $validationRules['expense_type'] = ['required', 'string', 'max:50'];
+        }
+        
+        $validated = $request->validate($validationRules);
 
         $expense = PropertyExpense::create([
             'property_id' => $validated['property_id'] ?? null,
@@ -260,13 +279,23 @@ class FinanceController extends Controller
 
         $walletCategories = array_keys(config('finance.wallet_transaction_categories', []));
         
-        $validated = $request->validate([
+        // Build validation rules
+        $validationRules = [
             'direction' => ['required', 'in:in,out'],
-            'category' => ['required', 'in:' . implode(',', $walletCategories)],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'transaction_date' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:255'],
-        ]);
+        ];
+
+        // Only add 'in' validation if categories are available
+        if (!empty($walletCategories)) {
+            $validationRules['category'] = ['required', 'in:' . implode(',', $walletCategories)];
+        } else {
+            // If no categories configured, just require category to be a string
+            $validationRules['category'] = ['required', 'string', 'max:50'];
+        }
+        
+        $validated = $request->validate($validationRules);
 
         // Check balance untuk transaction OUT
         if ($validated['direction'] === 'out') {
