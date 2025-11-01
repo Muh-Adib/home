@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useForm, Link } from '@inertiajs/react';
+import { Receipt, CheckCircle2, XCircle } from 'lucide-react';
 
 function rp(n: number) { return `Rp ${Number(n || 0).toLocaleString('id-ID')}`; }
 
@@ -75,17 +76,35 @@ export default function Usages({ items, properties, usages }: any) {
                     <th className="py-2 pr-4">Item</th>
                     <th className="py-2 pr-4">Property</th>
                     <th className="py-2 pr-4">Qty</th>
-                    <th className="py-2 pr-0 text-right">Biaya</th>
+                    <th className="py-2 pr-4 text-right">Biaya</th>
+                    <th className="py-2 pr-0 text-center">Expense</th>
                   </tr>
                 </thead>
                 <tbody>
                   {usages?.data?.map((u: any) => (
-                    <tr key={u.id} className="border-b">
+                    <tr key={u.id} className="border-b hover:bg-muted/50">
                       <td className="py-2 pr-4">{u.usage_date}</td>
                       <td className="py-2 pr-4">{u.item?.name}</td>
                       <td className="py-2 pr-4">{u.property?.name}</td>
-                      <td className="py-2 pr-4">{Number(u.quantity_used)}</td>
-                      <td className="py-2 pr-0 text-right font-medium">{rp(Number(u.total_cost))}</td>
+                      <td className="py-2 pr-4">{Number(u.quantity_used)} {u.item?.unit}</td>
+                      <td className="py-2 pr-4 text-right font-medium">{rp(Number(u.total_cost))}</td>
+                      <td className="py-2 pr-0 text-center">
+                        {u.expense ? (
+                          <Link 
+                            href="/admin/finance/expenses?is_inventory=true" 
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
+                            title="Lihat di Expenses"
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            Tercatat
+                          </Link>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300" title="Belum tercatat">
+                            <XCircle className="w-3 h-3" />
+                            Pending
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

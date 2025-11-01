@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Link, useForm } from '@inertiajs/react';
 import { useState, useMemo } from 'react';
+import { Package, ShoppingCart } from 'lucide-react';
 
 interface ExpenseForm {
   property_id: number | string | null;
@@ -49,6 +50,7 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
     type: '',
     category: '',
     property_id: '',
+    is_inventory: '',
   });
 
   const submit = (e: React.FormEvent) => {
@@ -68,7 +70,13 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
     if (filter.type) params.set('type', filter.type);
     if (filter.category) params.set('category', filter.category);
     if (filter.property_id) params.set('property_id', filter.property_id);
+    if (filter.is_inventory) params.set('is_inventory', filter.is_inventory);
     get(`/admin/finance/expenses?${params.toString()}`, { preserveScroll: true, preserveState: true });
+  };
+
+  // Check if expense is from inventory
+  const isFromInventory = (expense: any) => {
+    return expense.payment_method === 'inventory_usage';
   };
 
   // Group expenses by property
@@ -287,8 +295,20 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
-              <div className="md:col-span-6">
+              <div className="md:col-span-6 flex gap-2">
                 <Button type="submit" variant="secondary">Filter</Button>
+                <Button 
+                  type="button" 
+                  variant={filter.is_inventory === 'true' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setFilter('is_inventory', filter.is_inventory === 'true' ? '' : 'true');
+                    setTimeout(() => applyFilter(new Event('submit') as any), 0);
+                  }}
+                  className="gap-2"
+                >
+                  <Package className="w-4 h-4" />
+                  {filter.is_inventory === 'true' ? 'Tampilkan Semua' : 'Dari Inventory Saja'}
+                </Button>
               </div>
             </form>
 
@@ -320,10 +340,20 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
                 </thead>
                 <tbody>
                             {expensesList?.map((row: any) => (
-                    <tr key={row.id} className="border-b">
+                    <tr key={row.id} className="border-b hover:bg-muted/50">
                       <td className="py-2 pr-4">{row.expense_date}</td>
                       <td className="py-2 pr-4 uppercase">{row.expense_category}</td>
-                      <td className="py-2 pr-4 capitalize">{row.expense_type}</td>
+                      <td className="py-2 pr-4">
+                        <div className="flex items-center gap-2">
+                          <span className="capitalize">{row.expense_type}</span>
+                          {isFromInventory(row) && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" title="Dari Inventory">
+                              <Package className="w-3 h-3" />
+                              Inventory
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-2 pr-4">{row.description || '-'}</td>
                       <td className="py-2 pr-0 text-right font-medium">{formatRupiah(Number(row.amount))}</td>
                     </tr>
@@ -352,11 +382,21 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
                   </thead>
                   <tbody>
                     {displayedExpenses?.map((row: any) => (
-                      <tr key={row.id} className="border-b">
+                      <tr key={row.id} className="border-b hover:bg-muted/50">
                         <td className="py-2 pr-4">{row.property ? row.property.name : 'Perusahaan (Umum)'}</td>
                         <td className="py-2 pr-4">{row.expense_date}</td>
                         <td className="py-2 pr-4 uppercase">{row.expense_category}</td>
-                        <td className="py-2 pr-4 capitalize">{row.expense_type}</td>
+                        <td className="py-2 pr-4">
+                          <div className="flex items-center gap-2">
+                            <span className="capitalize">{row.expense_type}</span>
+                            {isFromInventory(row) && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" title="Dari Inventory">
+                                <Package className="w-3 h-3" />
+                                Inventory
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-2 pr-4">{row.description || '-'}</td>
                         <td className="py-2 pr-0 text-right font-medium">{formatRupiah(Number(row.amount))}</td>
                       </tr>

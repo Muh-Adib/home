@@ -13,10 +13,12 @@ class WalletTransaction extends Model
     protected $fillable = [
         'wallet_id',
         'direction',
+        'category',
         'amount',
         'transaction_date',
         'reference_type',
         'reference_id',
+        'related_transaction_id',
         'description',
         'created_by',
     ];
@@ -34,6 +36,31 @@ class WalletTransaction extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Get related transaction (for transfers)
+     */
+    public function relatedTransaction(): BelongsTo
+    {
+        return $this->belongsTo(WalletTransaction::class, 'related_transaction_id');
+    }
+
+    /**
+     * Check if this is a transfer transaction
+     */
+    public function isTransfer(): bool
+    {
+        return $this->category === 'transfer' || $this->reference_type === 'transfer';
+    }
+
+    /**
+     * Get category label
+     */
+    public function getCategoryLabel(): string
+    {
+        $categories = config('finance.wallet_transaction_categories', []);
+        return $categories[$this->category] ?? ucfirst($this->category ?? 'Lainnya');
     }
 }
 

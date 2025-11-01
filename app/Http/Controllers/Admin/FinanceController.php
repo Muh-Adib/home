@@ -9,8 +9,10 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Models\Property;
 use App\Models\PaymentMethod;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\DB;
 
 class FinanceController extends Controller
 {
@@ -80,6 +82,10 @@ class FinanceController extends Controller
             } else {
                 $query->where('property_id', $request->input('property_id'));
             }
+        }
+
+        if ($request->filled('is_inventory') && $request->input('is_inventory') === 'true') {
+            $query->where('payment_method', 'inventory_usage');
         }
 
         $expenses = $query->orderByDesc('expense_date')
@@ -342,6 +348,146 @@ class FinanceController extends Controller
         } else {
             $wallet->decrement('balance', $amount);
         }
+    }
+
+    /**
+     * Transfer between wallets
+     */
+    public function transferWallet(Request $request, WalletService $walletService)
+    {
+        $validated = $request->validate([
+            'from_wallet_id' => ['required', 'exists:wallets,id'],
+            'to_wallet_id' => ['required', 'exists:wallets,id', 'different:from_wallet_id'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'transaction_date' => ['required', 'date'],
+            'description' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        try {
+            $result = $walletService->transfer(
+                $validated['from_wallet_id'],
+                $validated['to_wallet_id'],
+                $validated['amount'],
+                $validated['transaction_date'],
+                $request->user()->id,
+                $validated['description'] ?? null
+            );
+
+            return redirect()->back()->with('success', 'Transfer berhasil dilakukan');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors([
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Financial Report - Comprehensive
+     */
+    public function financialReport(Request $request)
+    {
+        $startDate = $request->input('from', now()->startOfMonth()->toDateString());
+        $endDate = $request->input('to', now()->endOfMonth()->toDateString());
+        $propertyId = $request->input('property_id');
+
+        // Get all properties for filter
+        $properties = Property::select('id', 'name')->orderBy('name')->get();
+
+        // Build query for incomes
+        $incomesQuery = Income::whereBetween('income_date', [$startDate, $endDate]);
+        if ($propertyId) {
+            if ($propertyId === 'null') {
+                $incomesQuery->whereNull('property_id');
+            } else {
+                $incomesQuery->where('property_id', $propertyId);
+            }
+        }
+
+        // Build query for expenses
+        $expensesQuery = PropertyExpense::whereBetween('expense_date', [$startDate, $endDate]);
+        if ($propertyId) {
+            if ($propertyId === 'null') {
+                $expensesQuery->whereNull('property_id');
+            } else {
+                $expensesQuery->where('property_id', $propertyId);
+            }
+        }
+
+        $incomes = $incomesQuery->with(['property', 'booking'])->get();
+        $expenses = $expensesQuery->with(['property'])->get();
+
+        // Calculate totals
+        $totalIncome = $incomes->sum('amount');
+        $totalExpense = $expenses->sum('amount');
+        $netProfit = $totalIncome - $totalExpense;
+
+        // Group by property
+        $byProperty = [];
+        
+        // Income by property
+        $incomeByProperty = $incomes->groupBy(function ($item) {
+            return $item->property_id ?? 'global';
+        })->map(function ($group) {
+            return $group->sum('amount');
+        });
+
+        // Expense by property
+        $expenseByProperty = $expenses->groupBy(function ($item) {
+            return $item->property_id ?? 'global';
+        })->map(function ($group) {
+            return $group->sum('amount');
+        });
+
+        // Combine for each property
+        $propertyIds = $incomeByProperty->keys()->merge($expenseByProperty->keys())->unique();
+        
+        foreach ($propertyIds as $propId) {
+            $property = $propId === 'global' ? null : Property::find($propId);
+            $propIncome = $incomeByProperty->get($propId, 0);
+            $propExpense = $expenseByProperty->get($propId, 0);
+            
+            $byProperty[] = [
+                'property_id' => $propId,
+                'property_name' => $property ? $property->name : 'Perusahaan (Global)',
+                'total_income' => $propIncome,
+                'total_expense' => $propExpense,
+                'net_profit' => $propIncome - $propExpense,
+            ];
+        }
+
+        // Group expenses by category
+        $expensesByCategory = $expenses->groupBy('expense_category')->map(function ($group, $category) {
+            return [
+                'category' => $category,
+                'label' => config("finance.expense_categories.{$category}", ucfirst($category)),
+                'total' => $group->sum('amount'),
+                'count' => $group->count(),
+            ];
+        })->values();
+
+        // Group incomes by source
+        $incomesBySource = $incomes->groupBy('source')->map(function ($group, $source) {
+            return [
+                'source' => $source,
+                'total' => $group->sum('amount'),
+                'count' => $group->count(),
+            ];
+        })->values();
+
+        return Inertia::render('Admin/Finance/Report', [
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'selectedPropertyId' => $propertyId,
+            'properties' => $properties,
+            'totalIncome' => $totalIncome,
+            'totalExpense' => $totalExpense,
+            'netProfit' => $netProfit,
+            'byProperty' => $byProperty,
+            'expensesByCategory' => $expensesByCategory,
+            'incomesBySource' => $incomesBySource,
+            'incomes' => $incomes,
+            'expenses' => $expenses,
+        ]);
     }
 }
 

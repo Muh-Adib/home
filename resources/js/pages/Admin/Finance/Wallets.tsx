@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useForm, Link } from '@inertiajs/react';
+import { ArrowLeftRight } from 'lucide-react';
+import { useState } from 'react';
 
 interface WalletForm {
   name: string;
@@ -39,6 +41,19 @@ export default function Wallets({ wallets, properties, paymentMethods }: any) {
 
   return (
     <AdminLayout title="Wallet" breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Keuangan', href: '/admin/finance' }, { title: 'Wallet' }]}>
+      {/* Transfer Form */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ArrowLeftRight className="w-5 h-5" />
+            Transfer Antar Wallet
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <WalletTransferForm wallets={wallets} />
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -128,6 +143,137 @@ export default function Wallets({ wallets, properties, paymentMethods }: any) {
         </Card>
       </div>
     </AdminLayout>
+  );
+}
+
+function WalletTransferForm({ wallets }: { wallets: any[] }) {
+  const { data, setData, post, processing, reset, errors } = useForm({
+    from_wallet_id: '',
+    to_wallet_id: '',
+    amount: '',
+    transaction_date: new Date().toISOString().slice(0,10),
+    description: '',
+  });
+
+  const fromWallet = wallets?.find((w: any) => w.id === Number(data.from_wallet_id));
+  const toWallet = wallets?.find((w: any) => w.id === Number(data.to_wallet_id));
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    post('/admin/finance/wallets/transfer', {
+      onSuccess: () => reset(),
+      preserveScroll: true,
+    });
+  };
+
+  return (
+    <form className=\"space-y-3\" onSubmit={submit}>
+      <div className=\"grid gap-3 md:grid-cols-2\">
+        <div>
+          <Label>Dari Wallet <span className=\"text-red-500\">*</span></Label>
+          <select 
+            className=\"w-full border rounded h-9 px-2 bg-background\" 
+            value={data.from_wallet_id} 
+            onChange={(e) => setData('from_wallet_id', e.target.value)}
+            required
+          >
+            <option value=\"\">Pilih Wallet</option>
+            {wallets?.map((w: any) => (
+              <option key={w.id} value={w.id}>
+                {w.name} (Rp {Number(w.balance).toLocaleString('id-ID')})
+              </option>
+            ))}
+          </select>
+          {fromWallet && (
+            <p className=\"text-xs text-muted-foreground mt-1\">
+              Saldo: Rp {Number(fromWallet.balance).toLocaleString('id-ID')}
+            </p>
+          )}
+          {errors.from_wallet_id && (
+            <p className=\"text-xs text-red-500 mt-1\">{errors.from_wallet_id}</p>
+          )}
+        </div>
+
+        <div>
+          <Label>Ke Wallet <span className=\"text-red-500\">*</span></Label>
+          <select 
+            className=\"w-full border rounded h-9 px-2 bg-background\" 
+            value={data.to_wallet_id} 
+            onChange={(e) => setData('to_wallet_id', e.target.value)}
+            required
+          >
+            <option value=\"\">Pilih Wallet</option>
+            {wallets?.filter((w: any) => w.id !== Number(data.from_wallet_id)).map((w: any) => (
+              <option key={w.id} value={w.id}>
+                {w.name} (Rp {Number(w.balance).toLocaleString('id-ID')})
+              </option>
+            ))}
+          </select>
+          {toWallet && (
+            <p className=\"text-xs text-muted-foreground mt-1\">
+              Saldo: Rp {Number(toWallet.balance).toLocaleString('id-ID')}
+            </p>
+          )}
+          {errors.to_wallet_id && (
+            <p className=\"text-xs text-red-500 mt-1\">{errors.to_wallet_id}</p>
+          )}
+        </div>
+      </div>
+
+      <div className=\"grid gap-3 md:grid-cols-2\">
+        <div>
+          <Label>Nominal <span className=\"text-red-500\">*</span></Label>
+          <Input 
+            type=\"number\" 
+            step=\"0.01\" 
+            min=\"0.01\" 
+            placeholder=\"0\" 
+            value={data.amount} 
+            onChange={(e) => setData('amount', e.target.value)} 
+            required 
+          />
+          {errors.amount && (
+            <p className=\"text-xs text-red-500 mt-1\">{errors.amount}</p>
+          )}
+        </div>
+
+        <div>
+          <Label>Tanggal <span className=\"text-red-500\">*</span></Label>
+          <Input 
+            type=\"date\" 
+            value={data.transaction_date} 
+            onChange={(e) => setData('transaction_date', e.target.value)} 
+            required 
+          />
+          {errors.transaction_date && (
+            <p className=\"text-xs text-red-500 mt-1\">{errors.transaction_date}</p>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <Label>Keterangan (opsional)</Label>
+        <Input 
+          placeholder=\"Deskripsi transfer\" 
+          value={data.description} 
+          onChange={(e) => setData('description', e.target.value)} 
+        />
+        {errors.description && (
+          <p className=\"text-xs text-red-500 mt-1\">{errors.description}</p>
+        )}
+      </div>
+
+      {errors.error && (
+        <div className=\"p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700\">
+          {errors.error}
+        </div>
+      )}
+
+      <Button type=\"submit\" disabled={processing} className=\"w-full\">
+        <ArrowLeftRight className=\"w-4 h-4 mr-2\" />
+        {processing ? 'Memproses...' : 'Transfer'}
+      </Button>
+    </form>
   );
 }
 
