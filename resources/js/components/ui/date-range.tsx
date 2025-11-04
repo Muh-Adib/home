@@ -125,62 +125,76 @@ export function DateRange({
     }, [dateRange]);
 
     // Check if date is booked dengan logika bergeser untuk step 2
-    const isDateBooked = (date: Date): boolean => {
-        const dateStr = format(date, 'yyyy-MM-dd');
+    const isDateBooked = useMemo(() => {
+        return (date: Date): boolean => {
+            const dateStr = format(date, 'yyyy-MM-dd');
 
-        // Jika sedang di step 2 (selecting checkout), geser booking 1 hari
-        if (dateRange?.from && !dateRange?.to||dateRange?.to && dateRange?.from && (error || warning)) {
-            // Tanggal yang aslinya booked, sekarang dianggap available
-            // Tanggal sebelumnya (yang aslinya available) sekarang dianggap booked
-            const prevDay = addDays(date, -1);
-            const prevDayStr = format(prevDay, 'yyyy-MM-dd');
-            return bookedDates.includes(prevDayStr);
-        }
+            // Jika sedang di step 2 (selecting checkout), geser booking 1 hari
+            if (dateRange?.from && !dateRange?.to||dateRange?.to && dateRange?.from && (error || warning)) {
+                // Tanggal yang aslinya booked, sekarang dianggap available
+                // Tanggal sebelumnya (yang aslinya available) sekarang dianggap booked
+                const prevDay = addDays(date, -1);
+                const prevDayStr = format(prevDay, 'yyyy-MM-dd');
+                return bookedDates.includes(prevDayStr);
+            }
 
-        // Step 1 atau lainnya, gunakan booking normal
-        return bookedDates.includes(dateStr);
-    };
+            // Step 1 atau lainnya, gunakan booking normal
+            return bookedDates.includes(dateStr);
+        };
+    }, [bookedDates, dateRange, error, warning]);
 
     // Get minimum stay for date dengan logika tambahan untuk tanggal yang terjepit
-    const getMinimumStayForDate = (date: Date): number => {
-        // Admin mode: no minimum stay restrictions
-        if (adminMode) {
-            return 1; // Admin can book even 1 night
-        }
-        
-        const dayOfWeek = date.getDay();
-        const isWeekend = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0;
-        const defaultMinStay = isWeekend ? minStayWeekend : minStayWeekday;
+    // Gunakan minStayNights sebagai base (sudah dihitung dengan seasonal rate dari parent)
+    // Hanya adjust jika ada booked dates yang membatasi
+    const getMinimumStayForDate = useMemo(() => {
+        return (date: Date): number => {
+            // Admin mode: no minimum stay restrictions
+            if (adminMode) {
+                return 1; // Admin can book even 1 night
+            }
+            
+            // Gunakan minStayNights yang sudah dihitung dari parent (dengan seasonal rate)
+            // Hook use-property-minimum-stay sudah menghitung minimum stay dengan mempertimbangkan seasonal rate
+            // Jadi kita hanya perlu adjust jika ada booked dates yang membatasi
+            const baseMinStay = minStayNights;
+            
+            // Cek apakah ada booking setelah tanggal check-in yang membatasi
+            const nextDay = addDays(date, 1);
+            const dayAfterNext = addDays(date, 2);
 
-        // Cek apakah ada booking setelah tanggal check-in yang membatasi
-        const nextDay = addDays(date, 1);
-        const dayAfterNext = addDays(date, 2);
-
-        // Jika hari berikutnya sudah booked, allow 1 night only
-        if (isDateBooked(nextDay)) {
-            return 1;
-        }
-
-        // Jika 2 hari setelahnya booked tapi besok masih free, allow 1 night
-        if (isDateBooked(dayAfterNext) && !isDateBooked(nextDay)) {
-            return 1;
-        }
-
-        // Jika ada booking dalam rentang default minimum stay, allow 1 night
-        for (let i = 1; i <= defaultMinStay; i++) {
-            const checkDate = addDays(date, i);
-            if (isDateBooked(checkDate)) {
+            // Jika hari berikutnya sudah booked, allow 1 night only
+            if (isDateBooked(nextDay)) {
                 return 1;
             }
-        }
 
-        return defaultMinStay;
-    };
+            // Jika 2 hari setelahnya booked tapi besok masih free, allow 1 night
+            if (isDateBooked(dayAfterNext) && !isDateBooked(nextDay)) {
+                return 1;
+            }
 
-    // Memo currentMinStay
+            // Jika ada booking dalam rentang base minimum stay, allow 1 night
+            for (let i = 1; i <= baseMinStay; i++) {
+                const checkDate = addDays(date, i);
+                if (isDateBooked(checkDate)) {
+                    return 1;
+                }
+            }
+
+            // Return base minimum stay (sudah include seasonal rate calculation dari hook)
+            return baseMinStay;
+        };
+    }, [minStayNights, adminMode, isDateBooked]);
+
+    // Memo currentMinStay - gunakan minStayNights sebagai base (sudah include seasonal rate dari hook)
+    // Hanya adjust jika ada booked dates yang membatasi
     const currentMinStay = useMemo(() => {
-        return dateRange?.from ? getMinimumStayForDate(dateRange.from) : minStayNights;
-    }, [dateRange?.from, minStayNights]);
+        if (!dateRange?.from) {
+            return minStayNights;
+        }
+        // Gunakan getMinimumStayForDate yang akan menggunakan minStayNights sebagai base
+        // dan hanya adjust jika ada booked dates yang membatasi
+        return getMinimumStayForDate(dateRange.from);
+    }, [dateRange?.from, minStayNights, getMinimumStayForDate]);
 
     const isMinStayViolation = nights > 0 && nights < currentMinStay;
 

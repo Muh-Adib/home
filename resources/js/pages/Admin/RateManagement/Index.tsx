@@ -1,21 +1,21 @@
 import React, { useState, useCallback } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
     CalendarDays, 
     DollarSign, 
     TrendingUp, 
     Settings,
     Search,
-    Filter,
     Eye,
     Edit,
     Plus
 } from 'lucide-react';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { Property, PropertySeasonalRate } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -50,8 +50,8 @@ export default function RateManagementIndex({ properties }: Props) {
         return matchesSearch && matchesFilter;
     });
 
-    const handleViewRates = useCallback((property: Property) => {
-        router.visit(route('admin.rate-management.show', property.id));
+    const handleViewRates = useCallback((property: Property & { id: number }) => {
+        router.visit(`/admin/rate-management/properties/${property.id}`);
     }, []);
 
     const handleEditProperty = useCallback((property: Property) => {
@@ -83,7 +83,7 @@ export default function RateManagementIndex({ properties }: Props) {
     };
 
     return (
-        <AppLayout>
+        <AdminLayout>
             <Head title="Rate Management" />
 
             <div className="py-6">
@@ -92,8 +92,8 @@ export default function RateManagementIndex({ properties }: Props) {
                     <div className="mb-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <h1 className="text-2xl font-bold text-gray-900">Rate Management</h1>
-                                <p className="text-gray-600">Manage property rates, seasonal pricing, and rate calendars</p>
+                                <h1 className="text-2xl font-bold text-foreground">Rate Management</h1>
+                                <p className="text-muted-foreground">Manage property rates, seasonal pricing, and rate calendars</p>
                             </div>
                             <div className="flex space-x-3">
                                 <Button variant="outline" onClick={() => router.reload()}>
@@ -166,7 +166,7 @@ export default function RateManagementIndex({ properties }: Props) {
                             <div className="flex flex-col sm:flex-row gap-4">
                                 <div className="flex-1">
                                     <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                         <Input
                                             type="text"
                                             placeholder="Search properties..."
@@ -177,16 +177,20 @@ export default function RateManagementIndex({ properties }: Props) {
                                     </div>
                                 </div>
                                 <div className="sm:w-48">
-                                    <select
+                                    <Select
                                         value={statusFilter}
-                                        onChange={(e) => setStatusFilter(e.target.value as any)}
-                                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        onValueChange={(value: 'all' | 'active' | 'with_seasonal' | 'without_seasonal') => setStatusFilter(value)}
                                     >
-                                        <option value="all">All Properties</option>
-                                        <option value="active">Active Properties</option>
-                                        <option value="with_seasonal">With Seasonal Rates</option>
-                                        <option value="without_seasonal">Base Rate Only</option>
-                                    </select>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Properties</SelectItem>
+                                            <SelectItem value="active">Active Properties</SelectItem>
+                                            <SelectItem value="with_seasonal">With Seasonal Rates</SelectItem>
+                                            <SelectItem value="without_seasonal">Base Rate Only</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
                         </CardContent>
@@ -203,55 +207,78 @@ export default function RateManagementIndex({ properties }: Props) {
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1">
                                                 <div className="flex items-center space-x-3 mb-2">
-                                                    <h3 className="text-lg font-semibold text-gray-900">
+                                                    <h3 className="text-lg font-semibold text-foreground">
                                                         {property.name}
                                                     </h3>
                                                     <Badge 
-                                                        variant={property.status === 'active' ? 'success' : 'secondary'}
+                                                        variant={property.status === 'active' ? 'default' : 'secondary'}
                                                     >
                                                         {property.status}
                                                     </Badge>
-                                                    <Badge variant={seasonalStatus.variant}>
+                                                    <Badge variant={seasonalStatus.variant === 'success' ? 'default' : seasonalStatus.variant}>
                                                         {seasonalStatus.text}
                                                     </Badge>
                                                 </div>
                                                 
-                                                <p className="text-gray-600 text-sm mb-3">{property.address}</p>
+                                                <p className="text-muted-foreground text-sm mb-3">{property.address}</p>
                                                 
                                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                                                     <div>
-                                                        <span className="text-gray-500">Base Rate:</span>
-                                                        <div className="font-semibold">{formatCurrency(property.base_rate)}</div>
+                                                        <span className="text-muted-foreground">Base Rate:</span>
+                                                        <div className="font-semibold text-foreground">{formatCurrency(property.base_rate)}</div>
                                                     </div>
                                                     <div>
-                                                        <span className="text-gray-500">Weekend Premium:</span>
-                                                        <div className="font-semibold">{property.weekend_premium_percent || 0}%</div>
+                                                        <span className="text-muted-foreground">Weekend Premium:</span>
+                                                        <div className="font-semibold text-foreground">{property.weekend_premium_percent || 0}%</div>
                                                     </div>
                                                     <div>
-                                                        <span className="text-gray-500">Active Rates:</span>
-                                                        <div className="font-semibold">{property.active_seasonal_rates_count || 0}</div>
+                                                        <span className="text-muted-foreground">Active Rates:</span>
+                                                        <div className="font-semibold text-foreground">{property.active_seasonal_rates_count || 0}</div>
                                                     </div>
                                                     <div>
-                                                        <span className="text-gray-500">Capacity:</span>
-                                                        <div className="font-semibold">{property.capacity}-{property.capacity_max} guests</div>
+                                                        <span className="text-muted-foreground">Capacity:</span>
+                                                        <div className="font-semibold text-foreground">{property.capacity}-{property.capacity_max} guests</div>
                                                     </div>
                                                 </div>
 
                                                 {seasonalStatus.description && (
-                                                    <div className="mt-2 text-sm text-gray-600">
+                                                    <div className="mt-2 text-sm text-muted-foreground">
                                                         {seasonalStatus.description}
+                                                    </div>
+                                                )}
+
+                                                {/* Show seasonal rates list if available */}
+                                                {property.seasonal_rates && property.seasonal_rates.length > 0 && (
+                                                    <div className="mt-3 pt-3 border-t">
+                                                        <div className="text-xs text-muted-foreground mb-2">Seasonal Rates:</div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {property.seasonal_rates.slice(0, 3).map((rate) => (
+                                                                <Badge 
+                                                                    key={rate.id} 
+                                                                    variant={rate.is_active ? 'default' : 'secondary'}
+                                                                    className="text-xs"
+                                                                >
+                                                                    {rate.name} ({rate.start_date} - {rate.end_date})
+                                                                </Badge>
+                                                            ))}
+                                                            {property.seasonal_rates.length > 3 && (
+                                                                <Badge variant="outline" className="text-xs">
+                                                                    +{property.seasonal_rates.length - 3} more
+                                                                </Badge>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
                                             
                                             <div className="flex items-center space-x-2 ml-4">
                                                 <Button
-                                                    variant="outline"
+                                                    variant="default"
                                                     size="sm"
                                                     onClick={() => handleViewRates(property)}
                                                 >
                                                     <Eye className="w-4 h-4 mr-1" />
-                                                    View Rates
+                                                    Manage Rates
                                                 </Button>
                                                 <Button
                                                     variant="outline"
@@ -272,9 +299,9 @@ export default function RateManagementIndex({ properties }: Props) {
                     {filteredProperties.length === 0 && (
                         <Card>
                             <CardContent className="py-12 text-center">
-                                <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                                <h3 className="text-lg font-medium text-gray-900 mb-2">No properties found</h3>
-                                <p className="text-gray-600">
+                                <Search className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-foreground mb-2">No properties found</h3>
+                                <p className="text-muted-foreground">
                                     {searchTerm ? 'Try adjusting your search criteria.' : 'No properties match the selected filter.'}
                                 </p>
                             </CardContent>
@@ -284,7 +311,7 @@ export default function RateManagementIndex({ properties }: Props) {
                     {/* Pagination */}
                     {properties.last_page > 1 && (
                         <div className="mt-6 flex items-center justify-between">
-                            <div className="text-sm text-gray-700">
+                            <div className="text-sm text-muted-foreground">
                                 Showing {((properties.current_page - 1) * properties.per_page) + 1} to{' '}
                                 {Math.min(properties.current_page * properties.per_page, properties.total)} of{' '}
                                 {properties.total} results
@@ -313,6 +340,6 @@ export default function RateManagementIndex({ properties }: Props) {
                     )}
                 </div>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 }

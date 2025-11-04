@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import GuestLayout from '@/layouts/guest-layout';
 import { Button } from '@/components/ui/button';
@@ -88,6 +88,20 @@ interface RateCalculation {
         peak_season_applied: number;
         long_weekend_applied: number;
     };
+    daily_breakdown?: Record<string, {
+        date: string;
+        day_name: string;
+        base_rate: number;
+        final_rate: number;
+        premiums: string[];
+        seasonal_rate: {
+            name: string;
+            type: string;
+            value: number;
+            extra_bed_rate: number | null;
+        } | null;
+        extra_bed_rate: number;
+    }>;
 }
 
 interface BookingErrors {
@@ -141,24 +155,52 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
 
     const discountInfo = calculateDiscountPrice();
 
+    // Calculate effective extra bed rate from rate calculation (considering seasonal rates)
+    const effectiveExtraBedRate = useMemo(() => {
+        if (!rateCalculation || !rateCalculation.extra_beds || rateCalculation.extra_beds === 0) {
+            return property.extra_bed_rate || 0;
+        }
+
+        // If daily_breakdown is available, calculate average extra_bed_rate across all nights
+        if (rateCalculation.daily_breakdown && Object.keys(rateCalculation.daily_breakdown).length > 0) {
+            const breakdown = rateCalculation.daily_breakdown;
+            const dates = Object.keys(breakdown).sort();
+            const totalExtraBedRate = dates.reduce((sum, date) => {
+                const dayBreakdown = breakdown[date];
+                return sum + (dayBreakdown.extra_bed_rate || 0);
+            }, 0);
+            const averageRate = totalExtraBedRate / dates.length;
+            return averageRate > 0 ? averageRate : property.extra_bed_rate || 0;
+        }
+
+        // Fallback: calculate from total extra_bed_amount
+        if (rateCalculation.extra_bed_amount && rateCalculation.nights > 0) {
+            const ratePerNight = rateCalculation.extra_bed_amount / (rateCalculation.extra_beds * rateCalculation.nights);
+            return ratePerNight > 0 ? ratePerNight : property.extra_bed_rate || 0;
+        }
+
+        return property.extra_bed_rate || 0;
+    }, [rateCalculation, property.extra_bed_rate]);
+
     // Calculate total guests whenever individual counts change
     useEffect(() => {
         const total = data.guest_male + data.guest_female + data.guest_children;
         setTotalGuests(total);
 
-        const totalForExtraBeds = Math.ceil(data.guest_male + data.guest_female + Math.ceil((data.guest_children - property.bedroom_count) * 0.5));
-        const extraBedsNeeded = Math.max(0, totalForExtraBeds - property.capacity);
+        // Calculate extra beds needed: max(0, totalGuests - capacity)
+        // This matches the backend calculation in RateCalculationService
+        const extraBedsNeeded = Math.max(0, total - property.capacity);
         setExtraBeds(extraBedsNeeded);
-    }, [data.guest_male, data.guest_female, data.guest_children, property.capacity, property.bedroom_count]);
+    }, [data.guest_male, data.guest_female, data.guest_children, property.capacity]);
 
     // Handle guest count changes
     const handleGenderCountChange = (genderType: 'male' | 'female' | 'children', newCount: number) => {
         if (genderType === 'children') {
-            setData('guest_children', newCount);
+            setData('guest_children' as any, newCount);
         } else if (genderType === 'male') {
-            setData('guest_male', newCount);
+            setData('guest_male' as any, newCount);
         } else {
-            setData('guest_female', newCount);
+            setData('guest_female' as any, newCount);
         }
 
         // Recalculate rate when guest count changes
@@ -236,12 +278,12 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
 
     // Handle field changes
     const handleFieldChange = (field: string, value: any) => {
-        setData(field, value);
+        setData(field as any, value);
     };
 
     // Handle DP percentage change
     const handleDpPercentageChange = (percentage: number) => {
-        setData('dp_percentage', percentage);
+        setData('dp_percentage' as any, percentage);
     };
 
     // Check-in time options
@@ -327,13 +369,59 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                 </div>
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-                        {/* Booking Form */}
-                        <div className="xl:col-span-2">
-                            <Card className="shadow-lg border-0 bg-gradient-to-br from-card to-muted/30">
-                                <CardHeader className="pb-4 bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/20">
+                    <div className="flex flex-col xl:grid xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+                        {/* Property Summary & Rate - Mobile: Top, Desktop: Right Sidebar */}
+                        <div className="order-1 xl:order-2 xl:col-span-1">
+                            <div className="xl:sticky xl:top-4 space-y-4 sm:space-y-6">
+                                {/* Property Info */}
+                                <Card className="shadow-lg border-0 bg-gradient-to-br from-card to-muted/30 card-modern">
+                                    <CardHeader className="pb-4 bg-gradient-to-r from-brand-primary/10 to-brand-primary/5 border-b border-brand-primary/20">
+                                        <CardTitle className="text-lg text-foreground">{t('booking.your_booking')}</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="px-4 sm:px-6">
+                                        <div className="space-y-4">
+                                            <div className="aspect-video bg-muted/50 rounded-lg overflow-hidden border border-border">
+                                                {property.media.length > 0 && property.media[0].url ? (
+                                                    <img
+                                                        src={property.media[0].url}
+                                                        alt={property.name}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full bg-gradient-to-br from-brand-primary/20 to-brand-primary/10 flex items-center justify-center">
+                                                        <Building2 className="h-8 w-8 text-brand-primary/60" />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <h3 className="font-semibold text-brand-primary">{property.name}</h3>
+                                                <div className="flex items-center text-sm text-muted-foreground mt-1">
+                                                    <MapPin className="h-4 w-4 mr-1 text-brand-primary" />
+                                                    {property.address}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                {/* Rate Calculation */}
+                                {rateCalculation && (
+                                    <RateCalculationCard
+                                        rateCalculation={rateCalculation}
+                                        discountInfo={discountInfo || undefined}
+                                        dpPercentage={data.dp_percentage}
+                                    />
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Booking Form - Mobile: Below, Desktop: Left */}
+                        <div className="order-2 xl:order-1 xl:col-span-2">
+                            <Card className="shadow-lg border-0 bg-gradient-to-br from-card to-muted/30 card-modern">
+                                <CardHeader className="pb-4 bg-gradient-to-r from-brand-primary/10 to-brand-primary/5 border-b border-brand-primary/20">
                                     <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                                        <Calendar className="h-5 w-5 text-primary" />
+                                        <Calendar className="h-5 w-5 text-brand-primary" />
                                         {t('booking.book_your_stay')}
                                     </CardTitle>
                                 </CardHeader>
@@ -416,7 +504,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                             extraBeds={extraBeds}
                                             capacity={property.capacity}
                                             capacityMax={property.capacity_max}
-                                            extraBedRate={property.extra_bed_rate}
+                                            extraBedRate={effectiveExtraBedRate}
                                             errors={bookingErrors}
                                             onGuestCountChange={handleGenderCountChange}
                                         />
@@ -478,51 +566,6 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                             </Card>
                         </div>
 
-                        {/* Property Summary & Rate */}
-                        <div className="xl:col-span-1">
-                            <div className="sticky top-4 space-y-4 sm:space-y-6">
-                                {/* Property Info */}
-                                <Card className="shadow-lg border-0 bg-gradient-to-br from-card to-muted/30">
-                                    <CardHeader className="pb-4 bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/20">
-                                        <CardTitle className="text-lg text-foreground">{t('booking.your_booking')}</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="px-4 sm:px-6">
-                                        <div className="space-y-4">
-                                            <div className="aspect-video bg-muted/50 rounded-lg overflow-hidden border border-border">
-                                                {property.media.length > 0 && property.media[0].url ? (
-                                                    <img
-                                                        src={property.media[0].url}
-                                                        alt={property.name}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                                                        <Building2 className="h-8 w-8 text-primary/60" />
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div>
-                                                <h3 className="font-semibold">{property.name}</h3>
-                                                <div className="flex items-center text-sm text-muted-foreground mt-1">
-                                                    <MapPin className="h-4 w-4 mr-1" />
-                                                    {property.address}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                {/* Rate Calculation */}
-                                {rateCalculation && (
-                                    <RateCalculationCard
-                                        rateCalculation={rateCalculation}
-                                        discountInfo={discountInfo}
-                                        dpPercentage={data.dp_percentage}
-                                    />
-                                )}
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>

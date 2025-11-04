@@ -43,11 +43,14 @@ class RateService
             'name' => $data['name'],
             'start_date' => $data['start_date'],
             'end_date' => $data['end_date'],
-            'rate_type' => $data['rate_type'], // 'fixed', 'percentage'
+            'rate_type' => $data['rate_type'], // 'fixed', 'percentage', 'multiplier'
             'rate_value' => $data['rate_value'],
-            'min_stay_nights' => $data['min_stay_nights'] ?? null,
+            'extra_bed_rate' => $data['extra_bed_rate'] ?? null,
+            'priority' => $data['priority'] ?? 50,
+            'min_stay_nights' => $data['min_stay_nights'] ?? 1,
             'applies_to_weekends_only' => $data['applies_to_weekends_only'] ?? false,
             'is_active' => $data['is_active'] ?? true,
+            'description' => $data['description'] ?? null,
         ]);
     }
 
@@ -70,9 +73,12 @@ class RateService
             'end_date' => $data['end_date'],
             'rate_type' => $data['rate_type'],
             'rate_value' => $data['rate_value'],
-            'min_stay_nights' => $data['min_stay_nights'] ?? null,
+            'extra_bed_rate' => $data['extra_bed_rate'] ?? null,
+            'priority' => $data['priority'] ?? $seasonalRate->priority,
+            'min_stay_nights' => $data['min_stay_nights'] ?? 1,
             'applies_to_weekends_only' => $data['applies_to_weekends_only'] ?? false,
             'is_active' => $data['is_active'] ?? true,
+            'description' => $data['description'] ?? null,
         ]);
 
         return $seasonalRate->fresh();
@@ -175,8 +181,8 @@ class RateService
                         'value' => $seasonalRate->rate_value,
                         'calculated_rate' => $seasonalRate->calculateRate($property->base_rate)
                     ] : null,
-                    'is_weekend' => $date->isSaturday() || $date->isSunday(), // Weekend: Sabtu dan Minggu
-                    'weekend_premium' => ($date->isSaturday() || $date->isSunday()) ? $property->weekend_premium_percent : 0,
+                    'is_weekend' => $date->isFriday() || $date->isSaturday() || $date->isSunday(), // Weekend: Jumat, Sabtu, Minggu
+                    'weekend_premium' => ($date->isFriday() || $date->isSaturday() || $date->isSunday()) ? $property->weekend_premium_percent : 0,
                 ];
             }
             

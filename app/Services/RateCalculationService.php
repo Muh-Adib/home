@@ -30,6 +30,24 @@ class RateCalculationService
             $checkOutDate
         );
         
+        // Debug: Log seasonal rates found
+        if (!empty($seasonalRates)) {
+            Log::debug('Seasonal rates found for property', [
+                'property_id' => $property->id,
+                'check_in' => $checkInDate->format('Y-m-d'),
+                'check_out' => $checkOutDate->format('Y-m-d'),
+                'rates' => array_map(function($rate) {
+                    return $rate ? [
+                        'name' => $rate->name,
+                        'type' => $rate->rate_type,
+                        'value' => $rate->rate_value,
+                        'start_date' => $rate->start_date->format('Y-m-d'),
+                        'end_date' => $rate->end_date->format('Y-m-d'),
+                    ] : null;
+                }, $seasonalRates)
+            ]);
+        }
+        
         // Initialize calculation variables
         $totalBaseAmount = 0;
         $totalWeekendPremium = 0;
@@ -39,6 +57,8 @@ class RateCalculationService
         $seasonalNights = 0;
         $dailyBreakdown = [];
         $appliedSeasonalRates = [];
+        $extraBedAmount = 0;
+        $extraBeds = $guestCount ? max(0, $guestCount - $property->capacity) : 0;
         
         // Calculate night-by-night for dynamic pricing
         for ($date = $checkInDate->copy(); $date->lt($checkOutDate); $date->addDay()) {
@@ -47,11 +67,16 @@ class RateCalculationService
             $seasonalRate = $seasonalRates[$dateString] ?? null;
             $appliedPremiums = [];
             
-            // Apply seasonal rate if exists
+            // Apply seasonal rate FIRST if exists (seasonal rate takes priority over weekend premium)
+            // Jika ada seasonal rate, hanya gunakan seasonal rate tanpa weekend premium
             $seasonalPremiumAmount = 0;
+            $isWeekend = $date->isFriday() || $date->isSaturday() || $date->isSunday();
+            $weekendPremiumAmount = 0;
+            
             if ($seasonalRate) {
-                $originalRate = $dayRate;
-                $dayRate = $seasonalRate->calculateRate($dayRate);
+                // Seasonal rate diterapkan langsung ke base_rate (tanpa weekend premium)
+                $originalRate = $property->base_rate;
+                $dayRate = $seasonalRate->calculateRate($originalRate);
                 $seasonalPremiumAmount = $dayRate - $originalRate;
                 $totalSeasonalPremium += $seasonalPremiumAmount;
                 $seasonalNights++;
@@ -77,31 +102,37 @@ class RateCalculationService
                     $key = array_search($seasonalRate->name, array_column($appliedSeasonalRates, 'name'));
                     $appliedSeasonalRates[$key]['dates'][] = $dateString;
                 }
-            }
-            
-            // Weekend premium (Saturday, Sunday) - only if no seasonal rate or if seasonal rate allows
-            // Weekend now: Jumat malam Sabtu, Sabtu malam Minggu, Minggu malam Senin (premium untuk Sabtu dan Minggu)
-            $weekendPremiumAmount = 0;
-            if (($date->isSaturday() || $date->isSunday()) && 
-                (!$seasonalRate || !$seasonalRate->applies_to_weekends_only)) {
-                $weekendNights++;
-                $weekendPremiumAmount = $property->base_rate * ($property->weekend_premium_percent / 100);
-                $totalWeekendPremium += $weekendPremiumAmount;
-                $dayRate += $weekendPremiumAmount;
                 
-                $appliedPremiums[] = [
-                    'type' => 'weekend',
-                    'name' => 'Weekend Premium',
-                    'description' => "+{$property->weekend_premium_percent}%",
-                    'amount' => $weekendPremiumAmount
-                ];
-            } else if (!($date->isSaturday() || $date->isSunday())) {
-                $weekdayNights++;
+                // Count night type (seasonal rate days are counted separately)
+                if ($isWeekend) {
+                    $weekendNights++;
+                } else {
+                    $weekdayNights++;
+                }
+            } else {
+                // Apply weekend premium ONLY if no seasonal rate exists
+                // Weekend: Jumat, Sabtu, Minggu
+                if ($isWeekend) {
+                    $weekendNights++;
+                    $weekendPremiumAmount = $property->base_rate * ($property->weekend_premium_percent / 100);
+                    $totalWeekendPremium += $weekendPremiumAmount;
+                    $dayRate += $weekendPremiumAmount;
+                    
+                    $appliedPremiums[] = [
+                        'type' => 'weekend',
+                        'name' => 'Weekend Premium',
+                        'description' => "+{$property->weekend_premium_percent}%",
+                        'amount' => $weekendPremiumAmount
+                    ];
+                } else {
+                    $weekdayNights++;
+                }
             }
             
-            // Long weekend premium (national holidays) - stacks with others
+            // Long weekend premium (national holidays) - only if no seasonal rate
+            // Holiday premium tidak diterapkan jika sudah ada seasonal rate
             $holidayPremiumAmount = 0;
-            if ($this->isLongWeekend($date)) {
+            if (!$seasonalRate && $this->isLongWeekend($date)) {
                 $holidayPremiumAmount = $property->base_rate * 0.15; // 15% holiday premium
                 $dayRate += $holidayPremiumAmount;
                 
@@ -115,6 +146,17 @@ class RateCalculationService
             
             $totalBaseAmount += $dayRate;
             
+            // Calculate extra bed rate for this day
+            // Jika ada seasonal rate dengan extra_bed_rate, gunakan itu
+            // Jika tidak, gunakan property->extra_bed_rate
+            $effectiveExtraBedRate = $property->extra_bed_rate;
+            if ($seasonalRate && $seasonalRate->extra_bed_rate !== null) {
+                $effectiveExtraBedRate = $seasonalRate->extra_bed_rate;
+            }
+            
+            // Add extra bed amount for this day
+            $extraBedAmount += $extraBeds * $effectiveExtraBedRate;
+            
             $dailyBreakdown[$dateString] = [
                 'date' => $date->format('Y-m-d'),
                 'day_name' => $date->format('l'),
@@ -124,14 +166,13 @@ class RateCalculationService
                 'seasonal_rate' => $seasonalRate ? [
                     'name' => $seasonalRate->name,
                     'type' => $seasonalRate->rate_type,
-                    'value' => $seasonalRate->rate_value
-                ] : null
+                    'value' => $seasonalRate->rate_value,
+                    'extra_bed_rate' => $seasonalRate->extra_bed_rate,
+                    'min_stay_nights' => $seasonalRate->min_stay_nights
+                ] : null,
+                'extra_bed_rate' => $effectiveExtraBedRate,
             ];
         }
-        
-        // Extra bed calculation
-        $extraBeds = $guestCount ? max(0, $guestCount - $property->capacity) : 0;
-        $extraBedAmount = $extraBeds * $property->extra_bed_rate * $nights;
         
         // Apply minimum stay discount
         $minimumStayDiscount = 0;
@@ -332,9 +373,9 @@ class RateCalculationService
         // Determine effective minimum stay based on period
         $effectiveMinStay = $property->min_stay_weekday; // Default to weekday
         
-        // Check if any weekend days fall in the period
+        // Check if any weekend days fall in the period (Jumat, Sabtu, Minggu)
         for ($date = $checkInDate->copy(); $date->lt($checkOutDate); $date->addDay()) {
-            if ($date->isWeekend()) {
+            if ($date->isFriday() || $date->isSaturday() || $date->isSunday()) {
                 $effectiveMinStay = max($effectiveMinStay, $property->min_stay_weekend);
             }
             

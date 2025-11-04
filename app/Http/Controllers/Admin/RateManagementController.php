@@ -36,11 +36,69 @@ class RateManagementController extends Controller
     public function index(Request $request): Response
     {
         $properties = Property::with(['seasonalRates' => function ($query) {
-            $query->where('is_active', true)->orderBy('start_date');
-        }])->paginate(10);
+            $query->orderBy('priority', 'desc')->orderBy('start_date', 'asc');
+        }])
+        ->get()
+        ->map(function ($property) {
+            $today = now();
+            $activeRates = $property->seasonalRates->where('is_active', true);
+            $upcomingRates = $activeRates->filter(function ($rate) use ($today) {
+                return $rate->start_date > $today;
+            });
+            $currentRate = $activeRates->filter(function ($rate) use ($today) {
+                return $rate->start_date <= $today && $rate->end_date >= $today;
+            })->first();
+            
+            return [
+                'id' => $property->id,
+                'name' => $property->name,
+                'slug' => $property->slug,
+                'address' => $property->address,
+                'status' => $property->status,
+                'base_rate' => $property->base_rate,
+                'weekend_premium_percent' => $property->weekend_premium_percent,
+                'capacity' => $property->capacity,
+                'capacity_max' => $property->capacity_max,
+                'active_seasonal_rates_count' => $activeRates->count(),
+                'upcoming_seasonal_rates_count' => $upcomingRates->count(),
+                'current_seasonal_rate' => $currentRate ? [
+                    'id' => $currentRate->id,
+                    'name' => $currentRate->name,
+                    'start_date' => $currentRate->start_date->format('Y-m-d'),
+                    'end_date' => $currentRate->end_date->format('Y-m-d'),
+                    'rate_type' => $currentRate->rate_type,
+                    'rate_value' => $currentRate->rate_value,
+                ] : null,
+                'seasonal_rates' => $property->seasonalRates->map(function ($rate) {
+                    return [
+                        'id' => $rate->id,
+                        'name' => $rate->name,
+                        'start_date' => $rate->start_date->format('Y-m-d'),
+                        'end_date' => $rate->end_date->format('Y-m-d'),
+                        'rate_type' => $rate->rate_type,
+                        'rate_value' => $rate->rate_value,
+                        'is_active' => $rate->is_active,
+                        'priority' => $rate->priority,
+                    ];
+                })->toArray(),
+            ];
+        });
+
+        // Simple pagination
+        $perPage = 10;
+        $currentPage = $request->get('page', 1);
+        $total = $properties->count();
+        $offset = ($currentPage - 1) * $perPage;
+        $paginatedProperties = $properties->slice($offset, $perPage)->values();
 
         return Inertia::render('Admin/RateManagement/Index', [
-            'properties' => $properties,
+            'properties' => [
+                'data' => $paginatedProperties,
+                'current_page' => $currentPage,
+                'last_page' => ceil($total / $perPage),
+                'per_page' => $perPage,
+                'total' => $total,
+            ],
         ]);
     }
 
@@ -49,7 +107,27 @@ class RateManagementController extends Controller
      */
     public function show(Property $property): Response
     {
-        $seasonalRates = $this->rateService->getSeasonalRates($property);
+        // Get seasonal rates dengan semua data termasuk extra_bed_rate dan priority
+        $seasonalRates = $property->seasonalRates()
+            ->orderBy('priority', 'desc')
+            ->orderBy('start_date', 'asc')
+            ->get()
+            ->map(function ($rate) {
+                return [
+                    'id' => $rate->id,
+                    'name' => $rate->name,
+                    'start_date' => $rate->start_date->format('Y-m-d'),
+                    'end_date' => $rate->end_date->format('Y-m-d'),
+                    'rate_type' => $rate->rate_type,
+                    'rate_value' => (float) $rate->rate_value,
+                    'extra_bed_rate' => $rate->extra_bed_rate ? (float) $rate->extra_bed_rate : null,
+                    'priority' => $rate->priority,
+                    'min_stay_nights' => $rate->min_stay_nights,
+                    'applies_to_weekends_only' => $rate->applies_to_weekends_only,
+                    'is_active' => $rate->is_active,
+                    'description' => $rate->description,
+                ];
+            });
         
         // Get rate calendar for current month + next 5 months
         $currentMonth = now()->format('Y-m');
@@ -71,11 +149,14 @@ class RateManagementController extends Controller
             'name' => 'required|string|max:255',
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'required|date|after:start_date',
-            'rate_type' => 'required|in:fixed,percentage',
+            'rate_type' => 'required|in:fixed,percentage,multiplier',
             'rate_value' => 'required|numeric|min:0',
-            'min_stay_nights' => 'nullable|integer|min:1',
+            'extra_bed_rate' => 'nullable|numeric|min:0',
+            'priority' => 'required|integer|min:0|max:100',
+            'min_stay_nights' => 'required|integer|min:1',
             'applies_to_weekends_only' => 'boolean',
             'is_active' => 'boolean',
+            'description' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -111,11 +192,14 @@ class RateManagementController extends Controller
             'name' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
-            'rate_type' => 'required|in:fixed,percentage',
+            'rate_type' => 'required|in:fixed,percentage,multiplier',
             'rate_value' => 'required|numeric|min:0',
-            'min_stay_nights' => 'nullable|integer|min:1',
+            'extra_bed_rate' => 'nullable|numeric|min:0',
+            'priority' => 'required|integer|min:0|max:100',
+            'min_stay_nights' => 'required|integer|min:1',
             'applies_to_weekends_only' => 'boolean',
             'is_active' => 'boolean',
+            'description' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {

@@ -227,11 +227,40 @@ class PropertyController extends Controller
                         $nextDate = $currentDate->copy()->addDay();
                         $rateResult = $this->rateCalculationService->calculateRate($property, $dateStr, $nextDate->format('Y-m-d'), $guestCount)->toArray();
                         
+                        // Get daily breakdown for this specific date
+                        $dailyBreakdown = $rateResult['breakdown']['daily_breakdown'] ?? [];
+                        $dateDailyData = $dailyBreakdown[$dateStr] ?? null;
+                        
+                        // Extract seasonal rate info from daily breakdown
+                        $seasonalRateApplied = null;
+                        if ($dateDailyData && isset($dateDailyData['seasonal_rate']) && $dateDailyData['seasonal_rate']) {
+                            // Get seasonal rate info from daily breakdown (includes min_stay_nights)
+                            $seasonalRateData = $dateDailyData['seasonal_rate'];
+                            
+                            // Also get description from premiums if available
+                            $premiums = $dateDailyData['premiums'] ?? [];
+                            $seasonalPremium = array_filter($premiums, fn($p) => ($p['type'] ?? '') === 'seasonal');
+                            $seasonalPremium = !empty($seasonalPremium) ? array_values($seasonalPremium)[0] : null;
+                            
+                            $seasonalRateApplied = [
+                                [
+                                    'name' => $seasonalRateData['name'] ?? '',
+                                    'type' => $seasonalRateData['type'] ?? '',
+                                    'value' => $seasonalRateData['value'] ?? 0,
+                                    'min_stay_nights' => $seasonalRateData['min_stay_nights'] ?? null,
+                                    'description' => $seasonalPremium['description'] ?? $seasonalRateData['name'] ?? '',
+                                ]
+                            ];
+                        } elseif (!empty($rateResult['rate_breakdown']['seasonal_rates_applied'])) {
+                            // Fallback to aggregated seasonal rates if daily breakdown not available
+                            $seasonalRateApplied = $rateResult['rate_breakdown']['seasonal_rates_applied'];
+                        }
+                        
                         $availabilityAndRates['rates'][$dateStr] = [
                             'base_rate' => $rateResult['base_amount'] / $rateResult['nights'],
                             'weekend_premium' => $rateResult['weekend_premium'] > 0,
                             'seasonal_premium' => $rateResult['seasonal_premium'] / $rateResult['nights'], // Send actual amount per night
-                            'seasonal_rate_applied' => $rateResult['rate_breakdown']['seasonal_rates_applied'] ?? null,
+                            'seasonal_rate_applied' => $seasonalRateApplied,
                             'is_weekend' => $currentDate->isWeekend(),
                         ];
                     } catch (\Exception $e) {

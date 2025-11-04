@@ -39,6 +39,7 @@ interface SeasonalRate {
     end_date: string;
     rate_type: 'percentage' | 'fixed' | 'multiplier';
     rate_value: number;
+    extra_bed_rate?: number | null;
     min_stay_nights: number;
     applies_to_weekends_only: boolean;
     is_active: boolean;
@@ -61,6 +62,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
         end_date: string;
         rate_type: 'percentage' | 'fixed' | 'multiplier';
         rate_value: number;
+        extra_bed_rate?: number | null;
         min_stay_nights: number;
         applies_to_weekends_only: boolean;
         is_active: boolean;
@@ -72,6 +74,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
         end_date: '',
         rate_type: 'percentage',
         rate_value: 0,
+        extra_bed_rate: null,
         min_stay_nights: 1,
         applies_to_weekends_only: false,
         is_active: true,
@@ -93,10 +96,10 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
 
     const getRateTypeColor = (type: string) => {
         switch (type) {
-            case 'percentage': return 'bg-blue-100 text-blue-800';
-            case 'fixed': return 'bg-green-100 text-green-800';
-            case 'multiplier': return 'bg-purple-100 text-purple-800';
-            default: return 'bg-gray-100 text-gray-800';
+            case 'percentage': return 'bg-brand-primary-20 text-brand-primary';
+            case 'fixed': return 'bg-brand-secondary-20 text-brand-secondary';
+            case 'multiplier': return 'bg-brand-accent-20 text-brand-accent';
+            default: return 'bg-muted text-muted-foreground';
         }
     };
 
@@ -128,10 +131,10 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
     };
 
     const getPriorityColor = (priority: number) => {
-        if (priority >= 90) return 'bg-red-100 text-red-800';
-        if (priority >= 70) return 'bg-orange-100 text-orange-800';
-        if (priority >= 50) return 'bg-yellow-100 text-yellow-800';
-        return 'bg-gray-100 text-gray-800';
+        if (priority >= 90) return 'bg-destructive/20 text-destructive';
+        if (priority >= 70) return 'bg-brand-accent-30 text-brand-accent';
+        if (priority >= 50) return 'bg-brand-secondary-30 text-brand-secondary';
+        return 'bg-muted text-muted-foreground';
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -166,6 +169,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
             is_active: rate.is_active,
             priority: rate.priority,
             description: rate.description || '',
+            extra_bed_rate: rate.extra_bed_rate ?? null,
         });
         setEditingRate(rate);
     };
@@ -196,8 +200,8 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Seasonal Rates</h1>
-                        <p className="text-gray-600 mt-1">
+                        <h1 className="text-3xl font-bold text-foreground">Seasonal Rates</h1>
+                        <p className="text-muted-foreground mt-1">
                             Manage seasonal pricing for {property.name}
                         </p>
                     </div>
@@ -225,30 +229,30 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                     <CardContent>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
-                                <Label className="text-sm font-medium text-gray-600">Base Rate</Label>
-                                <p className="text-2xl font-bold">{property.formatted_base_rate}</p>
-                                <p className="text-sm text-gray-500">per night</p>
+                                <Label className="text-sm font-medium text-muted-foreground">Base Rate</Label>
+                                <p className="text-2xl font-bold text-foreground">{property.formatted_base_rate}</p>
+                                <p className="text-sm text-muted-foreground">per night</p>
                             </div>
                             <div>
-                                <Label className="text-sm font-medium text-gray-600">Active Rates</Label>
-                                <p className="text-2xl font-bold text-green-600">
+                                <Label className="text-sm font-medium text-muted-foreground">Active Rates</Label>
+                                <p className="text-2xl font-bold text-brand-secondary">
                                     {seasonalRates.filter(r => r.is_active).length}
                                 </p>
-                                <p className="text-sm text-gray-500">seasonal rates</p>
+                                <p className="text-sm text-muted-foreground">seasonal rates</p>
                             </div>
                             <div>
-                                <Label className="text-sm font-medium text-gray-600">Upcoming</Label>
-                                <p className="text-2xl font-bold text-blue-600">
+                                <Label className="text-sm font-medium text-muted-foreground">Upcoming</Label>
+                                <p className="text-2xl font-bold text-brand-primary">
                                     {seasonalRates.filter(r => new Date(r.start_date) > new Date()).length}
                                 </p>
-                                <p className="text-sm text-gray-500">future rates</p>
+                                <p className="text-sm text-muted-foreground">future rates</p>
                             </div>
                             <div>
-                                <Label className="text-sm font-medium text-gray-600">Peak Seasons</Label>
-                                <p className="text-2xl font-bold text-red-600">
+                                <Label className="text-sm font-medium text-muted-foreground">Peak Seasons</Label>
+                                <p className="text-2xl font-bold text-destructive">
                                     {seasonalRates.filter(r => r.priority >= 90).length}
                                 </p>
-                                <p className="text-sm text-gray-500">high priority</p>
+                                <p className="text-sm text-muted-foreground">high priority</p>
                             </div>
                         </div>
                     </CardContent>
@@ -279,30 +283,30 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                             
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                                                 <div className="flex items-center gap-2">
-                                                    <CalendarDays className="h-4 w-4 text-gray-500" />
+                                                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
                                                     <div>
-                                                        <p className="text-sm font-medium">Period</p>
-                                                                                                <p className="text-sm text-gray-600">
-                                            {formatDateRange(rate.start_date, rate.end_date)}
-                                        </p>
+                                                        <p className="text-sm font-medium text-foreground">Period</p>
+                                                        <p className="text-sm text-muted-foreground">
+                                                            {formatDateRange(rate.start_date, rate.end_date)}
+                                                        </p>
                                                     </div>
                                                 </div>
                                                 
                                                 <div className="flex items-center gap-2">
-                                                    <Target className="h-4 w-4 text-gray-500" />
+                                                    <Target className="h-4 w-4 text-muted-foreground" />
                                                     <div>
-                                                        <p className="text-sm font-medium">Rate Impact</p>
-                                                        <p className="text-sm text-gray-600">
+                                                        <p className="text-sm font-medium text-foreground">Rate Impact</p>
+                                                        <p className="text-sm text-muted-foreground">
                                                             {formatRateValue(rate)} → {formatCurrency(calculateExampleRate(rate))}
                                                         </p>
                                                     </div>
                                                 </div>
                                                 
                                                 <div className="flex items-center gap-2">
-                                                    <Clock className="h-4 w-4 text-gray-500" />
+                                                    <Clock className="h-4 w-4 text-muted-foreground" />
                                                     <div>
-                                                        <p className="text-sm font-medium">Min Stay</p>
-                                                        <p className="text-sm text-gray-600">
+                                                        <p className="text-sm font-medium text-foreground">Min Stay</p>
+                                                        <p className="text-sm text-muted-foreground">
                                                             {rate.min_stay_nights} nights
                                                         </p>
                                                     </div>
@@ -310,7 +314,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                             </div>
                                             
                                             {rate.description && (
-                                                <p className="text-sm text-gray-600 mt-3">
+                                                <p className="text-sm text-muted-foreground mt-3">
                                                     {rate.description}
                                                 </p>
                                             )}
@@ -328,7 +332,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                                 variant="ghost"
                                                 size="sm"
                                                 onClick={() => handleDelete(rate)}
-                                                className="text-red-600 hover:text-red-700"
+                                                className="text-destructive hover:text-destructive/80"
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
@@ -340,11 +344,11 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                     ) : (
                         <Card>
                             <CardContent className="text-center py-12">
-                                <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                                <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                                <Calendar className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+                                <h3 className="text-lg font-semibold text-foreground mb-2">
                                     No seasonal rates configured
                                 </h3>
-                                <p className="text-gray-500 mb-4">
+                                <p className="text-muted-foreground mb-4">
                                     Start by creating your first seasonal rate to optimize pricing
                                 </p>
                                 <Button onClick={() => setShowCreateModal(true)}>
@@ -380,9 +384,9 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         value={data.name}
                                         onChange={(e) => setData('name', e.target.value)}
                                         placeholder="e.g., Christmas Holiday Premium"
-                                        className={errors.name ? 'border-red-500' : ''}
+                                        className={errors.name ? 'border-destructive' : ''}
                                     />
-                                    {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
+                                    {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
                                 </div>
                                 
                                 <div className="md:col-span-2">
@@ -402,10 +406,10 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         showNights={true}
                                         startLabel="Start Date"
                                         endLabel="End Date"
-                                        className={errors.start_date || errors.end_date ? 'border-red-500' : ''}
+                                        className={errors.start_date || errors.end_date ? 'border-destructive' : ''}
                                     />
                                     {(errors.start_date || errors.end_date) && (
-                                        <p className="text-sm text-red-500 mt-1">
+                                        <p className="text-sm text-destructive mt-1">
                                             {errors.start_date || errors.end_date}
                                         </p>
                                     )}
@@ -433,9 +437,26 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         step="0.01"
                                         value={data.rate_value}
                                         onChange={(e) => setData('rate_value', parseFloat(e.target.value) || 0)}
-                                        className={errors.rate_value ? 'border-red-500' : ''}
+                                        className={errors.rate_value ? 'border-destructive' : ''}
                                     />
-                                    {errors.rate_value && <p className="text-sm text-red-500">{errors.rate_value}</p>}
+                                    {errors.rate_value && <p className="text-sm text-destructive">{errors.rate_value}</p>}
+                                </div>
+                                
+                                <div>
+                                    <Label htmlFor="extra_bed_rate">Extra Bed Rate (Optional)</Label>
+                                    <Input
+                                        id="extra_bed_rate"
+                                        type="number"
+                                        step="0.01"
+                                        value={data.extra_bed_rate ?? ''}
+                                        onChange={(e) => setData('extra_bed_rate', e.target.value ? parseFloat(e.target.value) : null)}
+                                        placeholder="Kosongkan untuk menggunakan tarif property"
+                                        className={errors.extra_bed_rate ? 'border-destructive' : ''}
+                                    />
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Jika dikosongkan, akan menggunakan extra_bed_rate dari property
+                                    </p>
+                                    {errors.extra_bed_rate && <p className="text-sm text-destructive">{errors.extra_bed_rate}</p>}
                                 </div>
                                 
                                 <div>
@@ -447,7 +468,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         max="100"
                                         value={data.priority}
                                         onChange={(e) => setData('priority', parseInt(e.target.value) || 0)}
-                                        className={errors.priority ? 'border-red-500' : ''}
+                                        className={errors.priority ? 'border-destructive' : ''}
                                     />
                                 </div>
                                 
@@ -459,7 +480,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         min="1"
                                         value={data.min_stay_nights}
                                         onChange={(e) => setData('min_stay_nights', parseInt(e.target.value) || 1)}
-                                        className={errors.min_stay_nights ? 'border-red-500' : ''}
+                                        className={errors.min_stay_nights ? 'border-destructive' : ''}
                                     />
                                 </div>
                                 

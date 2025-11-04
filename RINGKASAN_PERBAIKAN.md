@@ -242,3 +242,4 @@ php artisan migrate
 **Estimated Bug Fixing Time**: 1-2 hours (if any)
 
 
+

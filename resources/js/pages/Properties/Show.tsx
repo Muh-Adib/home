@@ -115,8 +115,8 @@ export default function PropertyShow({
             {/* Main Content */}
             <div className="xl:col-span-2 space-y-8 relative">
               {/* Decorative background elements */}
-              <div className="absolute -top-4 -left-4 w-32 h-32 bg-primary/5 rounded-full blur-3xl"></div>
-              <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl"></div>
+              <div className="absolute -top-4 -left-4 w-32 h-32 bg-brand-primary/5 rounded-full blur-3xl"></div>
+              <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-brand-accent/5 rounded-full blur-3xl"></div>
               
               {/* Image Gallery */}
               <PropertyGallery
@@ -156,8 +156,8 @@ export default function PropertyShow({
           {/* Similar Properties - Full Width After Booking */}
           <div className="mt-16 relative">
             {/* Decorative background elements for similar properties section */}
-            <div className="absolute -top-8 -left-8 w-40 h-40 bg-primary/5 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-8 -right-8 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl"></div>
+            <div className="absolute -top-8 -left-8 w-40 h-40 bg-brand-primary/5 rounded-full blur-3xl"></div>
+            <div className="absolute -bottom-8 -right-8 w-48 h-48 bg-brand-accent/5 rounded-full blur-3xl"></div>
             
             <SimilarProperties properties={similarProperties} />
           </div>

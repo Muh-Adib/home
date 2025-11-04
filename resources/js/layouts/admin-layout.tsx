@@ -83,6 +83,7 @@ const getAdminNavItems = (userRole: User['role']) => {
         children: [
           { title: 'All Properties', href: '/admin/properties', icon: Folder },
           { title: 'Add Property', href: '/admin/properties/create', icon: Building2 },
+          { title: 'Rate Management', href: '/admin/rate-management', icon: DollarSign },
           { title: 'Amenities', href: '/admin/amenities', icon: Building2 },
           { title: 'Extra Service', href: '/admin/extra-services', icon: Package },
         ]
@@ -152,6 +153,7 @@ const getAdminNavItems = (userRole: User['role']) => {
         children: [
           { title: 'All Properties', href: '/admin/properties', icon: Folder },
           { title: 'Add Property', href: '/admin/properties/create', icon: Building2 },
+          { title: 'Rate Management', href: '/admin/rate-management', icon: DollarSign },
           { title: 'Extra Service', href: '/admin/extra-services', icon: Package },
         ]
       },
@@ -187,6 +189,7 @@ const getAdminNavItems = (userRole: User['role']) => {
         children: [
           { title: 'All Properties', href: '/admin/properties', icon: Folder },
           { title: 'Add Property', href: '/admin/properties/create', icon: Building2 },
+          { title: 'Rate Management', href: '/admin/rate-management', icon: DollarSign },
         ]
       },
       {

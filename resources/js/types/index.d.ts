@@ -674,8 +674,10 @@ export interface PropertySeasonalRate {
     name: string;
     start_date: string;
     end_date: string;
-    rate_type: 'fixed' | 'percentage';
+    rate_type: 'fixed' | 'percentage' | 'multiplier';
     rate_value: number;
+    extra_bed_rate?: number | null;
+    priority: number;
     min_stay_nights?: number;
     applies_to_weekends_only: boolean;
     is_active: boolean;

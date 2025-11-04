@@ -18,6 +18,7 @@ class PropertySeasonalRate extends Model
         'end_date', 
         'rate_type',
         'rate_value',
+        'extra_bed_rate',
         'min_stay_nights',
         'applies_to_weekends_only',
         'is_active',
@@ -30,6 +31,7 @@ class PropertySeasonalRate extends Model
         'start_date' => 'date',
         'end_date' => 'date',
         'rate_value' => 'decimal:2',
+        'extra_bed_rate' => 'decimal:2',
         'applies_to_weekends_only' => 'boolean',
         'is_active' => 'boolean',
         'applicable_days' => 'array',
@@ -69,8 +71,8 @@ class PropertySeasonalRate extends Model
             return false;
         }
 
-        // Check if it applies to weekends only
-        if ($this->applies_to_weekends_only && !$date->isWeekend()) {
+        // Check if it applies to weekends only (Jumat, Sabtu, Minggu)
+        if ($this->applies_to_weekends_only && !($date->isFriday() || $date->isSaturday() || $date->isSunday())) {
             return false;
         }
 
@@ -135,25 +137,19 @@ class PropertySeasonalRate extends Model
 
     /**
      * Get the effective rate for a date range
+     * 
+     * Fix: Query untuk mencari seasonal rate yang overlap dengan periode booking
+     * Overlap terjadi ketika: start_date <= endDate AND end_date >= startDate
      */
     public static function getEffectiveRateForProperty(int $propertyId, Carbon $startDate, Carbon $endDate): array
     {
+        // Query untuk mencari seasonal rate yang overlap dengan periode booking
+        // Overlap: start_date <= endDate AND end_date >= startDate
         $rates = static::where('property_id', $propertyId)
             ->active()
+            ->where('start_date', '<=', $endDate->format('Y-m-d'))
+            ->where('end_date', '>=', $startDate->format('Y-m-d'))
             ->byPriority()
-            ->where(function ($query) use ($startDate, $endDate) {
-                $query->where(function ($q) use ($startDate, $endDate) {
-                    // Seasonal rate starts within booking period
-                    $q->whereBetween('start_date', [$startDate, $endDate])
-                    // Or seasonal rate ends within booking period  
-                    ->orWhereBetween('end_date', [$startDate, $endDate])
-                    // Or seasonal rate completely covers booking period
-                    ->orWhere(function ($q2) use ($startDate, $endDate) {
-                        $q2->where('start_date', '<=', $startDate)
-                           ->where('end_date', '>=', $endDate);
-                    });
-                });
-            })
             ->get();
 
         $dailyRates = [];
@@ -164,7 +160,7 @@ class PropertySeasonalRate extends Model
                 return $rate->appliesTo($date);
             });
             
-            // Get highest priority rate for this date
+            // Get highest priority rate for this date (sudah diurutkan byPriority)
             $effectiveRate = $applicableRates->first();
             $dailyRates[$date->format('Y-m-d')] = $effectiveRate;
         }
