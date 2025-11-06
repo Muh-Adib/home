@@ -85,7 +85,8 @@ class FinanceController extends Controller
         }
 
         if ($request->filled('is_inventory') && $request->input('is_inventory') === 'true') {
-            $query->where('payment_method', 'inventory_usage');
+            // Filter expenses yang terkait dengan inventory usage via relasi
+            $query->whereHas('inventoryUsage');
         }
 
         $expenses = $query->orderByDesc('expense_date')

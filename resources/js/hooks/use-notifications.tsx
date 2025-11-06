@@ -231,8 +231,8 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
         if ('Notification' in window && Notification.permission === 'granted') {
             const browserNotification = new Notification(notification.data?.title || 'New Notification', {
                 body: notification.data?.message || 'You have a new notification',
-                icon: '/favicon.ico',
-                badge: '/favicon.ico',
+                icon: '/logo.svg',
+                badge: '/logo.svg',
                 tag: notification.id,
                 requireInteraction: false,
                 silent: false,

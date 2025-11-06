@@ -47,6 +47,7 @@ import { useTranslation } from 'react-i18next';
 import { type BreadcrumbItem } from '@/types';
 import AdminLayout from '@/layouts/admin-layout';
 import ExtraServiceSelector, { type ServiceMaster as ExtraServiceMaster, type SelectedService } from '@/components/ExtraServiceSelector';
+import { apiPost, apiFetchJson } from '@/utils/api-fetch';
 
 interface Property {
     id: number;
@@ -417,49 +418,35 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         }
 
         try {
-            // Use the same API pattern as customer booking show page
-            const response = await fetch('/admin/api/admin/booking-management/calculate-rate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    property_id: currentProperty.id,
-                    check_in: checkIn,
-                    check_out: checkOut,
-                    guest_count: totalGuests,
-                }),
+            // Use API helper with CSRF token handling
+            const result = await apiPost('/admin/api/admin/booking-management/calculate-rate', {
+                property_id: currentProperty.id,
+                check_in: checkIn,
+                check_out: checkOut,
+                guest_count: totalGuests,
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to calculate rate');
-            }
-
-            const result = await response.json();
+            console.log('Rate calculation response (calculateRateFromBackendData):', result);
             
-            if (!result.success) {
-                throw new Error(result.error || 'Rate calculation failed');
+            if (!result.success || !result.calculation) {
+                throw new Error(result.error || result.message || 'Rate calculation failed - calculation data not found');
             }
 
             const calculation = result.calculation;
+            console.log('Rate calculation data:', calculation);
             
             return {
-                nights: calculation.nights,
-                base_amount: calculation.base_amount,
-                weekend_premium: calculation.weekend_premium,
-                seasonal_premium: calculation.seasonal_premium,
-                extra_bed_amount: calculation.extra_bed_amount,
-                cleaning_fee: calculation.cleaning_fee,
-                tax_amount: calculation.tax_amount,
-                total_amount: calculation.total_amount,
-                extra_beds: calculation.extra_beds,
+                nights: calculation.nights || 0,
+                base_amount: calculation.base_amount || 0,
+                weekend_premium: calculation.weekend_premium || 0,
+                seasonal_premium: calculation.seasonal_premium || 0,
+                extra_bed_amount: calculation.extra_bed_amount || 0,
+                cleaning_fee: calculation.cleaning_fee || 0,
+                tax_amount: calculation.tax_amount || 0,
+                total_amount: calculation.total_amount || 0,
+                extra_beds: calculation.extra_beds || 0,
                 formatted: {
-                    total_amount: 'Rp ' + calculation.total_amount.toLocaleString('id-ID'),
-                    per_night: 'Rp ' + Math.round(calculation.total_amount / calculation.nights).toLocaleString('id-ID')
+                    total_amount: 'Rp ' + (calculation.total_amount || 0).toLocaleString('id-ID'),
+                    per_night: 'Rp ' + Math.round((calculation.total_amount || 0) / (calculation.nights || 1)).toLocaleString('id-ID')
                 }
             };
         } catch (error) {
@@ -486,88 +473,64 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             const checkAvailabilityAndRate = async () => {
                 try {
                     // Check availability using ADMIN API
-                    const availabilityResponse = await fetch(`/admin/api/admin/booking-management/availability-and-rates`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'Accept': 'application/json',
-                        },
-                        body: JSON.stringify({
+                    const availabilityData = await apiPost(`/admin/api/admin/booking-management/availability-and-rates`, {
+                        property_id: currentProperty.id,
+                        check_in: startDate,
+                        check_out: endDate,
+                        guest_count: totalGuests,
+                    });
+                    
+                    if (availabilityData && availabilityData.success) {
+                        // Use the availability result from backend - it already checks overlap correctly
+                        // Backend returns 'available' field that indicates if dates are available
+                        const isAvailable = availabilityData.availability?.available ?? 
+                            (availabilityData.booked_dates?.length === 0 && availabilityData.booked_periods?.length === 0);
+                        
+                        setAvailabilityStatus(isAvailable ? 'available' : 'unavailable');
+                        
+                        if (!isAvailable) {
+                            setAvailabilityError('Property tidak tersedia untuk tanggal yang dipilih');
+                            setIsCalculatingRate(false);
+                            return;
+                        }
+                        
+                        // Calculate rate using ADMIN API
+                        const rateData = await apiPost(`/admin/api/admin/booking-management/calculate-rate`, {
                             property_id: currentProperty.id,
                             check_in: startDate,
                             check_out: endDate,
                             guest_count: totalGuests,
-                        }),
-                    });
-                    
-                    if (availabilityResponse.ok) {
-                        const availabilityData = await availabilityResponse.json();
+                        });
                         
-                        if (availabilityData.success) {
-                            // Use the availability result from backend - it already checks overlap correctly
-                            // Backend returns 'available' field that indicates if dates are available
-                            const isAvailable = availabilityData.availability?.available ?? 
-                                (availabilityData.booked_dates?.length === 0 && availabilityData.booked_periods?.length === 0);
+                        if (rateData && rateData.success && rateData.calculation) {
+                            const calculation = rateData.calculation;
+                            console.log('Setting rate calculation:', calculation);
                             
-                            setAvailabilityStatus(isAvailable ? 'available' : 'unavailable');
-                            
-                            if (!isAvailable) {
-                                setAvailabilityError('Property tidak tersedia untuk tanggal yang dipilih');
-                                setIsCalculatingRate(false);
-                                return;
-                            }
-                            
-                            // Calculate rate using ADMIN API
-                            const rateResponse = await fetch(`/admin/api/admin/booking-management/calculate-rate`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                    'Accept': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                    property_id: currentProperty.id,
-                                    check_in: startDate,
-                                    check_out: endDate,
-                                    guest_count: totalGuests,
-                                }),
-                            });
-                            
-                            if (rateResponse.ok) {
-                                const rateData = await rateResponse.json();
-                                
-                                if (rateData.success) {
-                                    const calculation = rateData.calculation || rateData;
-                                    setRateCalculation({
-                                        nights: calculation.nights,
-                                        base_amount: calculation.base_amount,
-                                        weekend_premium: calculation.weekend_premium || 0,
-                                        seasonal_premium: calculation.seasonal_premium || 0,
-                                        extra_bed_amount: calculation.extra_bed_amount || 0,
-                                        cleaning_fee: calculation.cleaning_fee || 0,
-                                        tax_amount: calculation.tax_amount || 0,
-                                        total_amount: calculation.total_amount,
-                                        extra_beds: calculation.extra_beds || 0,
-                                        formatted: {
-                                            total_amount: 'Rp ' + calculation.total_amount.toLocaleString('id-ID'),
-                                            per_night: 'Rp ' + Math.round(calculation.total_amount / calculation.nights).toLocaleString('id-ID')
-                                        }
-                                    });
-                    setRateError(null);
-                                } else {
-                                    setRateError(rateData.message || 'Rate calculation failed');
+                            setRateCalculation({
+                                nights: calculation.nights || 0,
+                                base_amount: calculation.base_amount || 0,
+                                weekend_premium: calculation.weekend_premium || 0,
+                                seasonal_premium: calculation.seasonal_premium || 0,
+                                extra_bed_amount: calculation.extra_bed_amount || 0,
+                                cleaning_fee: calculation.cleaning_fee || 0,
+                                tax_amount: calculation.tax_amount || 0,
+                                total_amount: calculation.total_amount || 0,
+                                extra_beds: calculation.extra_beds || 0,
+                                formatted: {
+                                    total_amount: 'Rp ' + (calculation.total_amount || 0).toLocaleString('id-ID'),
+                                    per_night: 'Rp ' + Math.round((calculation.total_amount || 0) / (calculation.nights || 1)).toLocaleString('id-ID')
                                 }
-                            } else {
-                                setRateError('Failed to calculate rate');
-                            }
+                            });
+                            setRateError(null);
                         } else {
-                            setAvailabilityError(availabilityData.message || 'Failed to check availability');
+                            const errorMsg = rateData?.error || rateData?.message || 'Rate calculation failed - calculation data not found';
+                            console.error('Rate calculation failed:', errorMsg, rateData);
+                            setRateError(errorMsg);
+                            setRateCalculation(null);
                         }
                     } else {
-                        setAvailabilityError('Failed to check availability');
+                        setAvailabilityError(availabilityData?.message || 'Failed to check availability');
+                        setRateCalculation(null);
                     }
                 } catch (error) {
                     setRateCalculation(null);
@@ -594,48 +557,42 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             setTimeout(async () => {
                 try {
                     // Use ADMIN API for rate calculation
-                    const response = await fetch(`/admin/api/admin/booking-management/calculate-rate`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'Accept': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            property_id: currentProperty.id,
-                            check_in: data.check_in_date,
-                            check_out: data.check_out_date,
-                            guest_count: totalGuests,
-                        }),
+                    const rateData = await apiPost(`/admin/api/admin/booking-management/calculate-rate`, {
+                        property_id: currentProperty.id,
+                        check_in: data.check_in_date,
+                        check_out: data.check_out_date,
+                        guest_count: totalGuests,
                     });
                     
-                    if (response.ok) {
-                        const rateData = await response.json();
+                    if (rateData) {
+                        console.log('Rate calculation response (guest change):', rateData);
                         
-                        if (rateData.success) {
-                            const calculation = rateData.calculation || rateData;
+                        if (rateData.success && rateData.calculation) {
+                            const calculation = rateData.calculation;
+                            console.log('Setting rate calculation (guest change):', calculation);
+                            
                             setRateCalculation({
-                                nights: calculation.nights,
-                                base_amount: calculation.base_amount,
+                                nights: calculation.nights || 0,
+                                base_amount: calculation.base_amount || 0,
                                 weekend_premium: calculation.weekend_premium || 0,
                                 seasonal_premium: calculation.seasonal_premium || 0,
                                 extra_bed_amount: calculation.extra_bed_amount || 0,
                                 cleaning_fee: calculation.cleaning_fee || 0,
                                 tax_amount: calculation.tax_amount || 0,
-                                total_amount: calculation.total_amount,
+                                total_amount: calculation.total_amount || 0,
                                 extra_beds: calculation.extra_beds || 0,
                                 formatted: {
-                                    total_amount: 'Rp ' + calculation.total_amount.toLocaleString('id-ID'),
-                                    per_night: 'Rp ' + Math.round(calculation.total_amount / calculation.nights).toLocaleString('id-ID')
+                                    total_amount: 'Rp ' + (calculation.total_amount || 0).toLocaleString('id-ID'),
+                                    per_night: 'Rp ' + Math.round((calculation.total_amount || 0) / (calculation.nights || 1)).toLocaleString('id-ID')
                                 }
                             });
-                    setRateError(null);
+                            setRateError(null);
                         } else {
-                            setRateError(rateData.message || 'Rate calculation failed');
+                            const errorMsg = rateData.error || rateData.message || 'Rate calculation failed - calculation data not found';
+                            console.error('Rate calculation failed (guest change):', errorMsg, rateData);
+                            setRateError(errorMsg);
+                            setRateCalculation(null);
                         }
-                    } else {
-                        setRateError('Failed to calculate rate');
                     }
                 } catch (error) {
                     setRateCalculation(null);

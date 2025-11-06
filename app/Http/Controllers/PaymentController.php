@@ -236,8 +236,7 @@ class PaymentController extends Controller
         $query = Payment::query()
             ->with(['booking.property', 'paymentMethod'])
             ->whereHas('booking', function ($q) use ($user) {
-                $q->where('guest_email', $user->email)
-                  ->orWhere('user_id', $user->id);
+                $q->where('guest_email', $user->email);
             });
 
         // Filter by status
@@ -297,6 +296,17 @@ class PaymentController extends Controller
         if (!$booking->isPaymentTokenValid($token)) {
             return redirect()->route('my-bookings')
                 ->with('error', 'Invalid or expired payment link.');
+        }
+
+        // Update expiry time to maximum 2 hours from now when link is opened
+        // This ensures countdown is always max 2 hours from when user opens the link
+        $twoHoursFromNow = now()->addHours(2);
+        if (!$booking->payment_token_expires_at || $booking->payment_token_expires_at->gt($twoHoursFromNow)) {
+            $booking->update([
+                'payment_token_expires_at' => $twoHoursFromNow
+            ]);
+            // Refresh booking to get updated expiry time
+            $booking->refresh();
         }
 
         // Calculate payment amounts

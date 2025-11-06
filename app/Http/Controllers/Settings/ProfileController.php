@@ -68,31 +68,50 @@ class ProfileController extends Controller
             $validated['avatar'] = $request->file('avatar')->store('avatars', 'public');
         }
 
-        // Extract user data
+        // Extract user data - jangan gunakan filter() karena akan menghapus field yang kosong
+        // Gunakan only() saja, dan hanya update field yang ada di validated
         $userData = collect($validated)->only([
             'name', 'email', 'phone', 'avatar'
-        ])->filter()->toArray();
+        ])->toArray();
 
-        // Extract profile data
-        $profileData = collect($validated)->only([
-            'address', 'city', 'state', 'country', 'postal_code', 
-            'birth_date', 'gender', 'bio'
-        ])->filter()->toArray();
-
-        // Update user
+        // Update user - fill dan save untuk memastikan semua field ter-update
         $user->fill($userData);
 
         if ($user->isDirty('email')) {
             $user->email_verified_at = null;
         }
 
-        $user->save();
+        // Pastikan user tersimpan dengan perubahan
+        if ($user->isDirty()) {
+            $user->save();
+        }
 
-        // Update or create profile
-        if (!empty($profileData)) {
-            $user->profile()->updateOrCreate([], array_merge($profileData, [
-                'country' => $profileData['country'] ?? 'Indonesia'
-            ]));
+        // Extract profile data - jangan gunakan filter() karena field nullable perlu tetap di-update
+        $profileData = collect($validated)->only([
+            'address', 'city', 'state', 'country', 'postal_code', 
+            'birth_date', 'gender', 'bio'
+        ])->toArray();
+
+        // Filter hanya null/empty string yang tidak perlu di-update
+        // Tapi tetap update field yang diisi (termasuk string kosong jika user mau hapus)
+        $profileDataToUpdate = [];
+        foreach ($profileData as $key => $value) {
+            // Hanya masukkan ke array jika value tidak null
+            // String kosong tetap diizinkan untuk menghapus value
+            if ($value !== null) {
+                $profileDataToUpdate[$key] = $value;
+            }
+        }
+
+        // Update or create profile dengan user_id yang eksplisit
+        if (!empty($profileDataToUpdate)) {
+            $user->load('profile');
+            $user->profile()->updateOrCreate(
+                ['user_id' => $user->id],
+                array_merge($profileDataToUpdate, [
+                    'country' => $profileDataToUpdate['country'] ?? $user->profile?->country ?? 'Indonesia'
+                ])
+            );
         }
 
         return to_route('profile.edit')->with('success', 'Profile berhasil diperbarui');

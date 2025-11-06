@@ -138,14 +138,14 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
         <>
             <Head title={`Booking Confirmation - ${booking.booking_number}`} />
             
-            <div className="min-h-screen bg-slate-50">
+            <div className="min-h-screen bg-brand-background">
                 {/* Header */}
-                <div className="bg-white border-b">
+                <div className="bg-card border-b header-wrapper">
                     <div className="container mx-auto px-4 py-6">
-                        <div className="text-center">
-                            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                                            <h1 className="text-3xl font-bold text-foreground">{t('booking.confirmation.title')}</h1>
-                <p className="text-muted-foreground mt-2">
+                        <div className="text-center animate-fade-in">
+                            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4 animate-scale-in" />
+                            <h1 className="text-3xl font-bold text-foreground">{t('booking.confirmation.title')}</h1>
+                            <p className="text-muted-foreground mt-2">
                                 {t('booking.confirmation.subtitle')}
                             </p>
                         </div>
@@ -153,9 +153,9 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                 </div>
 
                 <div className="container mx-auto px-4 py-8">
-                    <div className="max-w-4xl mx-auto space-y-8">
+                    <div className="max-w-5xl mx-auto space-y-8">
                         {/* Status Alert */}
-                        <Alert>
+                        <Alert className="card-modern animate-slide-up">
                             <Info className="h-4 w-4" />
                             <AlertDescription>
                                 <strong>{t('booking.confirmation.whats_next.title')}</strong> {t('booking.confirmation.whats_next.description')}
@@ -166,7 +166,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                             {/* Booking Details */}
                             <div className="lg:col-span-2 space-y-6">
                                 {/* Booking Info */}
-                                <Card>
+                                <Card className="card-modern animate-slide-up">
                                     <CardHeader>
                                         <div className="flex items-center justify-between">
                                             <CardTitle>{t('booking.confirmation.booking_details')}</CardTitle>
@@ -179,7 +179,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                         <div className="grid md:grid-cols-2 gap-4">
                                             <div>
                                                 <Label className="text-sm font-medium text-muted-foreground">{t('booking.confirmation.booking_code')}</Label>
-                                                <p className="text-lg font-mono font-semibold">{booking.booking_number}</p>
+                                                <p className="text-lg font-mono font-semibold text-brand-primary">{booking.booking_number}</p>
                                             </div>
                                             <div>
                                                 <Label className="text-sm font-medium text-muted-foreground">{t('booking.confirmation.booking_date')}</Label>
@@ -191,14 +191,14 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
 
                                         <div className="grid md:grid-cols-2 gap-4">
                                             <div className="flex items-center gap-3">
-                                                <Calendar className="h-5 w-5 text-blue-600" />
+                                                <Calendar className="h-5 w-5 text-brand-primary" />
                                                 <div>
                                                     <p className="text-sm font-medium">{t('booking.confirmation.check_in')}</p>
                                                     <p className="text-sm text-muted-foreground">{formatDate(booking.check_in)}</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3">
-                                                <Calendar className="h-5 w-5 text-blue-600" />
+                                                <Calendar className="h-5 w-5 text-brand-primary" />
                                                 <div>
                                                     <p className="text-sm font-medium">{t('booking.confirmation.check_out')}</p>
                                                     <p className="text-sm text-muted-foreground">{formatDate(booking.check_out)}</p>
@@ -207,7 +207,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                         </div>
 
                                         <div className="flex items-center gap-3">
-                                            <Clock className="h-5 w-5 text-blue-600" />
+                                            <Clock className="h-5 w-5 text-brand-primary" />
                                             <div>
                                                 <p className="text-sm font-medium">{t('booking.confirmation.duration')}</p>
                                                 <p className="text-sm text-muted-foreground">{nights} {t('booking.confirmation.nights')}</p>
@@ -217,7 +217,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                         <Separator />
 
                                         <div className="flex items-center gap-3">
-                                            <Users className="h-5 w-5 text-blue-600" />
+                                            <Users className="h-5 w-5 text-brand-primary" />
                                             <div>
                                                 <p className="text-sm font-medium">{t('booking.confirmation.guests')}</p>
                                                 <p className="text-sm text-muted-foreground">
@@ -244,7 +244,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                 </Card>
 
                                 {/* Guest Information */}
-                                <Card>
+                                <Card className="card-modern animate-slide-up">
                                     <CardHeader>
                                         <CardTitle>{t('booking.confirmation.primary_guest_info')}</CardTitle>
                                     </CardHeader>
@@ -283,18 +283,45 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                         )}
                                     </CardContent>
                                 </Card>
+
+                                {/* Set Password Section - Moved here below booking details */}
+                                {isNewUser && (
+                                    <Card className="card-modern animate-slide-up border-brand-primary-20">
+                                        <CardHeader>
+                                            <CardTitle className="flex items-center gap-2 text-brand-primary">
+                                                <Lock className="h-5 w-5" />
+                                                Perbarui Sandi
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <Alert className="border-blue-200 bg-blue-50">
+                                                <Info className="h-4 w-4 text-blue-600" />
+                                                <AlertDescription className="text-blue-800">
+                                                    <strong>Akun baru berhasil dibuat!</strong> Silakan set password Anda untuk melanjutkan.
+                                                </AlertDescription>
+                                            </Alert>
+                                            
+                                            <Link href={getSetPasswordLink()} className="block">
+                                                <Button className="w-full btn-primary" size="lg">
+                                                    <Lock className="h-4 w-4 mr-2" />
+                                                    Set Password Baru
+                                                </Button>
+                                            </Link>
+                                        </CardContent>
+                                    </Card>
+                                )}
                             </div>
 
                             {/* Property & Payment Summary */}
                             <div className="space-y-6">
                                 {/* Property */}
-                                <Card>
+                                <Card className="card-modern animate-slide-up">
                                     <CardHeader>
                                         <CardTitle className="text-lg">{t('booking.confirmation.property')}</CardTitle>
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-4">
-                                            <div className="aspect-video bg-slate-200 rounded-lg overflow-hidden">
+                                            <div className="aspect-video bg-slate-200 rounded-lg overflow-hidden hover-lift">
                                                 {booking.property.cover_image ? (
                                                     <img 
                                                         src={booking.property.cover_image} 
@@ -302,8 +329,8 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                                         className="w-full h-full object-cover"
                                                     />
                                                 ) : (
-                                                    <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-                                                        <Building2 className="h-8 w-8 text-blue-400" />
+                                                    <div className="w-full h-full bg-gradient-to-br from-brand-primary-20 to-brand-secondary-20 flex items-center justify-center">
+                                                        <Building2 className="h-8 w-8 text-brand-primary" />
                                                     </div>
                                                 )}
                                             </div>
@@ -320,10 +347,10 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                 </Card>
 
                                 {/* Payment Summary */}
-                                <Card>
+                                <Card className="card-modern animate-slide-up">
                                     <CardHeader>
                                         <CardTitle className="text-lg flex items-center gap-2">
-                                            <CreditCard className="h-5 w-5" />
+                                            <CreditCard className="h-5 w-5 text-brand-primary" />
                                             {t('booking.confirmation.payment_summary')}
                                         </CardTitle>
                                     </CardHeader>
@@ -331,12 +358,12 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                         <div className="space-y-3 text-sm">
                                             <div className="flex justify-between font-semibold">
                                                 <span>{t('booking.confirmation.total_amount')}</span>
-                                                <span>Rp {(booking.total_amount || 0).toLocaleString()}</span>
+                                                <span className="text-brand-primary">Rp {(booking.total_amount || 0).toLocaleString()}</span>
                                             </div>
                                             
                                             <Separator />
                                             
-                                            <div className="flex justify-between text-blue-600 font-semibold">
+                                            <div className="flex justify-between text-brand-primary font-semibold">
                                                 <span>{t('booking.confirmation.down_payment')} ({booking.dp_percentage}%)</span>
                                                 <span>Rp {(booking.dp_amount || 0).toLocaleString()}</span>
                                             </div>
@@ -346,9 +373,9 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                                 <span>Rp {(booking.remaining_amount || 0).toLocaleString()}</span>
                                             </div>
 
-                                            <div className="bg-yellow-50 p-3 rounded-lg mt-4">
-                                                <p className="text-sm text-yellow-800">
-                                                    <strong>{t('booking.confirmation.payment_instructions')}:</strong> {t('booking.confirmation.payment_instructions_desc')}
+                                            <div className="bg-brand-accent-20 p-3 rounded-lg mt-4 border border-brand-accent-30">
+                                                <p className="text-sm text-foreground">
+                                                    <strong className="text-brand-primary">{t('booking.confirmation.payment_instructions')}:</strong> {t('booking.confirmation.payment_instructions_desc')}
                                                 </p>
                                             </div>
                                         </div>
@@ -356,15 +383,15 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                 </Card>
 
                                 {/* WhatsApp CTA */}
-                                <Card className="border-green-200 bg-green-50">
+                                <Card className="card-modern border-brand-secondary-30 bg-brand-secondary-20 animate-slide-up">
                                     <CardHeader className="pb-3">
-                                        <CardTitle className="text-lg flex items-center gap-2 text-green-800">
+                                        <CardTitle className="text-lg flex items-center gap-2 text-brand-secondary-dark">
                                             <MessageCircle className="h-5 w-5" />
                                             {t('booking.confirmation.need_help')}
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <p className="text-sm text-green-700 mb-4">
+                                        <p className="text-sm text-foreground mb-4">
                                             {t('booking.confirmation.contact_admin_description')}
                                         </p>
                                         <a 
@@ -373,7 +400,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                             rel="noopener noreferrer"
                                             className="block"
                                         >
-                                            <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
+                                            <Button className="w-full bg-green-600 hover:bg-green-700 text-white hover-lift">
                                                 <MessageCircle className="h-4 w-4 mr-2" />
                                                 {t('booking.confirmation.contact_admin')}
                                             </Button>
@@ -382,76 +409,54 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                 </Card>
 
                                 {/* Actions */}
-                                <div className="space-y-3">
-                                    {/* For New Users - Show Set Password Link */}
-                                    {isNewUser && (
-                                        <>
-                                            <Alert className="border-blue-200 bg-blue-50">
-                                                <Info className="h-4 w-4 text-blue-600" />
-                                                <AlertDescription className="text-blue-800">
-                                                    <strong>Akun baru berhasil dibuat!</strong> Silakan set password Anda untuk melanjutkan.
+                                {!isNewUser && (
+                                    <div className="space-y-3">
+                                        {booking.payment_status === 'dp_pending' && booking.booking_status === 'confirmed' && (
+                                            <Link href={booking.payment_link} className="block">
+                                                <Button className="w-full btn-primary" size="lg">
+                                                    <CreditCard className="h-4 w-4 mr-2" />
+                                                    {t('booking.confirmation.make_payment')}
+                                                    <span className="text-xs ml-2">(Rp {(booking.dp_amount).toLocaleString()})</span>
+                                                </Button>
+                                            </Link>
+                                        )}
+                                        
+                                        {booking.booking_status === 'pending_verification' && (
+                                            <Alert className="card-modern">
+                                                <Clock className="h-4 w-4" />
+                                                <AlertDescription>
+                                                    {t('booking.confirmation.verification_pending')}
                                                 </AlertDescription>
                                             </Alert>
-                                            
-                                            <Link href={getSetPasswordLink()} className="block">
-                                                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" size="lg">
-                                                    <Lock className="h-4 w-4 mr-2" />
-                                                    Set Password Baru
-                                                </Button>
-                                            </Link>
-                                        </>
-                                    )}
-
-                                    {/* For Existing Users - Show Normal Actions */}
-                                    {!isNewUser && (
-                                        <>
-                                            {booking.payment_status === 'dp_pending' && booking.booking_status === 'confirmed' && (
-                                                <Link href={booking.payment_link} className="block">
-                                                    <Button className="w-full" size="lg">
-                                                        <CreditCard className="h-4 w-4 mr-2" />
-                                                        {t('booking.confirmation.make_payment')}
-                                                        <span className="text-xs ml-2">(Rp {(booking.dp_amount).toLocaleString()})</span>
-                                                    </Button>
-                                                </Link>
-                                            )}
-                                            
-                                            {booking.booking_status === 'pending_verification' && (
-                                                <Alert>
-                                                    <Clock className="h-4 w-4" />
-                                                    <AlertDescription>
-                                                        {t('booking.confirmation.verification_pending')}
-                                                    </AlertDescription>
-                                                </Alert>
-                                            )}
-                                            
-                                            {booking.payment_status === 'paid' && (
-                                                <Button className="w-full" variant="outline" disabled>
-                                                    <CheckCircle className="h-4 w-4 mr-2" />
-                                                    {t('booking.confirmation.payment_completed')}
-                                                </Button>
-                                            )}
-                                            
+                                        )}
+                                        
+                                        {booking.payment_status === 'paid' && (
                                             <Button className="w-full" variant="outline" disabled>
-                                                <Download className="h-4 w-4 mr-2" />
-                                                {t('booking.confirmation.download_voucher')}
-                                                <span className="text-xs ml-2">({t('booking.confirmation.available_after_payment')})</span>
+                                                <CheckCircle className="h-4 w-4 mr-2" />
+                                                {t('booking.confirmation.payment_completed')}
                                             </Button>
-                                            
-                                            <Link href="/properties" className="block">
-                                                <Button variant="outline" className="w-full">
-                                                    {t('booking.confirmation.browse_more_properties')}
-                                                    <ArrowRight className="h-4 w-4 ml-2" />
-                                                </Button>
-                                            </Link>
-                                            
-                                            <Link href="/dashboard" className="block">
-                                                <Button variant="ghost" className="w-full">
-                                                    {t('booking.confirmation.back_to_dashboard')}
-                                                </Button>
-                                            </Link>
-                                        </>
-                                    )}
-                                </div>
+                                        )}
+                                        
+                                        <Button className="w-full" variant="outline" disabled>
+                                            <Download className="h-4 w-4 mr-2" />
+                                            {t('booking.confirmation.download_voucher')}
+                                            <span className="text-xs ml-2">({t('booking.confirmation.available_after_payment')})</span>
+                                        </Button>
+                                        
+                                        <Link href="/properties" className="block">
+                                            <Button variant="outline" className="w-full hover-lift">
+                                                {t('booking.confirmation.browse_more_properties')}
+                                                <ArrowRight className="h-4 w-4 ml-2" />
+                                            </Button>
+                                        </Link>
+                                        
+                                        <Link href="/dashboard" className="block">
+                                            <Button variant="ghost" className="w-full">
+                                                {t('booking.confirmation.back_to_dashboard')}
+                                            </Button>
+                                        </Link>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

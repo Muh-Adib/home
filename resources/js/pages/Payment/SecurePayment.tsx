@@ -119,7 +119,13 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
         const calculateTimeLeft = () => {
             const expiryTime = new Date(booking.payment_token_expires_at).getTime();
             const now = new Date().getTime();
-            const difference = expiryTime - now;
+            let difference = expiryTime - now;
+
+            // Maximum 2 hours countdown from when link is opened
+            const maxTwoHours = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+            if (difference > maxTwoHours) {
+                difference = maxTwoHours;
+            }
 
             if (difference <= 0) {
                 setTimeLeft(null);
@@ -149,17 +155,17 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
         if (!timeLeft) return null;
 
         return (
-            <div className="bg-yellow-50 p-4 rounded-lg mb-4">
-                <div className="flex items-center gap-2 text-yellow-800">
+            <div className="bg-brand-accent-20 border border-brand-accent-30 p-4 rounded-lg mb-4">
+                <div className="flex items-center gap-2 text-brand-accent-dark">
                     <Clock className="h-5 w-5" />
                     <span className="font-medium">Waktu Pembayaran Tersisa:</span>
                 </div>
-                <div className="text-2xl font-bold text-yellow-900 mt-2">
+                <div className="text-2xl font-bold text-brand-accent-dark mt-2">
                     {String(timeLeft.hours).padStart(2, '0')}:
                     {String(timeLeft.minutes).padStart(2, '0')}:
                     {String(timeLeft.seconds).padStart(2, '0')}
                 </div>
-                <p className="text-sm text-yellow-700 mt-1">
+                <p className="text-sm text-brand-accent-dark/80 mt-1">
                     Silakan selesaikan pembayaran sebelum waktu habis
                 </p>
             </div>
@@ -201,11 +207,11 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
             <>
                 <Head title={`Payment Expired - ${booking.booking_number}`} />
                 
-                <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-                    <Card className="w-full max-w-md">
+                <div className="min-h-screen bg-background flex items-center justify-center p-4">
+                    <Card className="w-full max-w-md card-modern">
                         <CardContent className="text-center py-8">
-                            <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-                            <h2 className="text-xl font-semibold text-red-700 mb-2">Payment Link Expired</h2>
+                            <AlertTriangle className="h-16 w-16 text-destructive mx-auto mb-4" />
+                            <h2 className="text-xl font-semibold text-destructive mb-2">Payment Link Expired</h2>
                             <p className="text-muted-foreground mb-4">
                                 This payment link has expired. Please contact our support team for assistance.
                             </p>
@@ -223,9 +229,9 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
         <>
             <Head title={`Secure Payment - ${booking.booking_number}`} />
 
-            <div className="min-h-screen bg-slate-50">
+            <div className="min-h-screen bg-background">
                 {/* Security Header */}
-                <div className="bg-green-600 text-white py-3">
+                <div className="bg-brand-primary text-white py-3">
                     <div className="container mx-auto px-4">
                         <div className="flex items-center justify-center gap-2">
                             <Shield className="h-5 w-5" />
@@ -235,11 +241,14 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                 </div>
 
                 <div className="container mx-auto px-4 py-8 max-w-4xl">
+                    {/* Countdown Timer */}
+                    {renderCountdown()}
+                    
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         {/* Booking Summary */}
-                        <Card>
+                        <Card className="card-modern">
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
+                                <CardTitle className="flex items-center gap-2 text-brand-primary">
                                     <Calendar className="h-5 w-5" />
                                     Booking Summary
                                 </CardTitle>
@@ -278,19 +287,19 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                     </div>
                                 </div>
 
-                                <div className="border-t pt-4">
+                                <div className="border-t border-border pt-4">
                                     <div className="flex items-center justify-between">
                                         <p className="text-lg font-semibold">Total Amount</p>
-                                        <p className="text-2xl font-bold text-blue-600">
+                                        <p className="text-2xl font-bold text-brand-primary">
                                             {formatCurrency(booking.total_amount)}
                                         </p>
                                     </div>
                                 </div>
 
-                                <div className="border-t pt-4">
+                                <div className="border-t border-border pt-4">
                                     <div className="flex items-center justify-between">
                                         <p className="text-lg font-semibold">Payment Deadline</p>
-                                        <p className="text-2xl font-bold text-blue-600">
+                                        <p className="text-lg font-semibold text-brand-primary">
                                             {formatDateTime(booking.payment_token_expires_at)}
                                         </p>
                                     </div>
@@ -304,24 +313,24 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                     </div>
                                     <div className="flex items-center justify-between text-sm">
                                         <span>Paid Amount</span>
-                                        <span className={paymentInfo.paidAmount > 0 ? 'text-green-600' : 'text-gray-500'}>
+                                        <span className={paymentInfo.paidAmount > 0 ? 'text-green-600 font-semibold' : 'text-muted-foreground'}>
                                             {formatCurrency(paymentInfo.paidAmount)}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between text-sm">
                                         <span>Remaining</span>
-                                        <span className={paymentInfo.remainingAmount > 0 ? 'text-orange-600' : 'text-green-600'}>
+                                        <span className={paymentInfo.remainingAmount > 0 ? 'text-brand-accent-dark font-semibold' : 'text-green-600 font-semibold'}>
                                             {formatCurrency(paymentInfo.remainingAmount)}
                                         </span>
                                     </div>
                                     
                                     {/* Required Payment Amount */}
-                                    <div className="border-t pt-3">
+                                    <div className="border-t border-border pt-3">
                                         <div className="flex items-center justify-between">
                                             <p className="text-lg font-semibold">
                                                 {paymentInfo.paymentType === 'dp' ? 'DP Required' : 'Remaining Payment'}
                                             </p>
-                                            <p className="text-xl font-bold text-red-600">
+                                            <p className="text-xl font-bold text-destructive">
                                                 {formatCurrency(paymentInfo.requiredAmount)}
                                             </p>
                                         </div>
@@ -340,9 +349,9 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                         </Card>
 
                         {/* Payment Form */}
-                        <Card>
+                        <Card className="card-modern">
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
+                                <CardTitle className="flex items-center gap-2 text-brand-primary">
                                     <CreditCard className="h-5 w-5" />
                                     Payment Method
                                 </CardTitle>
@@ -355,10 +364,10 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                         {paymentMethods.map((method) => (
                                             <div
                                                 key={method.id}
-                                                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                                                className={`p-4 border rounded-lg cursor-pointer transition-all duration-200 ${
                                                     selectedMethod?.id === method.id
-                                                        ? 'border-blue-500 bg-blue-50'
-                                                        : 'border-gray-200 hover:border-gray-300'
+                                                        ? 'border-brand-primary bg-brand-primary-20 shadow-md'
+                                                        : 'border-border hover:border-brand-primary-30 hover:bg-accent'
                                                 }`}
                                                 onClick={() => handleMethodSelect(method)}
                                             >
@@ -366,12 +375,12 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                                     <div>
                                                         <h4 className="font-medium">{method.name}</h4>
                                                         {method.type === 'bank_transfer' && (
-                                                            <p className="text-sm text-gray-600">
+                                                            <p className="text-sm text-muted-foreground">
                                                                 {method.bank_name} - {method.account_number}
                                                             </p>
                                                         )}
                                                         {method.type === 'e_wallet' && method.qr_code && (
-                                                            <p className="text-sm text-gray-600">
+                                                            <p className="text-sm text-muted-foreground">
                                                                 {method.qr_code}
                                                             </p>
                                                         )}
@@ -383,7 +392,7 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                             </div>
                                         ))}
                                         {errors.payment_method_id && (
-                                            <p className="text-sm text-red-600">{errors.payment_method_id}</p>
+                                            <p className="text-sm text-destructive">{errors.payment_method_id}</p>
                                         )}
                                     </div>
 
@@ -392,12 +401,12 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                         <div className="space-y-4">
                                             <div>
                                                 <Label>Payment Instructions</Label>
-                                                <div className="mt-2 p-4 bg-gray-50 rounded-lg">
+                                                <div className="mt-2 p-4 bg-muted rounded-lg border border-border">
                                                     <ol className="space-y-2">
                                                         {selectedMethod.instructions?.map((instruction, index) => (
                                                             <li key={index} className="text-sm flex gap-2">
-                                                                <span className="font-medium">{index + 1}.</span>
-                                                                <span>{instruction}</span>
+                                                                <span className="font-medium text-brand-primary">{index + 1}.</span>
+                                                                <span className="text-foreground">{instruction}</span>
                                                             </li>
                                                         ))}
                                                     </ol>
@@ -408,13 +417,13 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                             {selectedMethod.type === 'e_wallet' && selectedMethod.qr_code && (
                                                 <div>
                                                     <Label>QR Code</Label>
-                                                    <div className="mt-2 p-4 bg-white border rounded-lg text-center">
+                                                    <div className="mt-2 p-4 bg-card border border-border rounded-lg text-center">
                                                         <img
                                                             src={selectedMethod.qr_code}
                                                             alt="QR Code for payment"
                                                             className="mx-auto max-w-[200px]"
                                                         />
-                                                        <p className="text-sm text-gray-600 mt-2">
+                                                        <p className="text-sm text-muted-foreground mt-2">
                                                             Scan this QR code with your e-wallet app
                                                         </p>
                                                     </div>
@@ -457,11 +466,11 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                                     <div>
                                                         <Label>Bank Account Information</Label>
                                                         <div className="mt-2 space-y-2">
-                                                            <div className="p-3 bg-gray-50 rounded-lg">
+                                                            <div className="p-3 bg-muted rounded-lg border border-border">
                                                                 <div className="flex items-center justify-between">
                                                                     <div>
-                                                                        <p className="text-sm text-gray-600">Bank Name</p>
-                                                                        <p className="font-medium">{selectedMethod.bank_name}</p>
+                                                                        <p className="text-sm text-muted-foreground">Bank Name</p>
+                                                                        <p className="font-medium text-foreground">{selectedMethod.bank_name}</p>
                                                                     </div>
                                                                     <Button
                                                                         type="button"
@@ -485,11 +494,11 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                                                 </div>
                                                             </div>
 
-                                                            <div className="p-3 bg-gray-50 rounded-lg">
+                                                            <div className="p-3 bg-muted rounded-lg border border-border">
                                                                 <div className="flex items-center justify-between">
                                                                     <div>
-                                                                        <p className="text-sm text-gray-600">Account Number</p>
-                                                                        <p className="font-mono font-medium">{selectedMethod.account_number}</p>
+                                                                        <p className="text-sm text-muted-foreground">Account Number</p>
+                                                                        <p className="font-mono font-medium text-foreground">{selectedMethod.account_number}</p>
                                                                     </div>
                                                                     <Button
                                                                         type="button"
@@ -513,11 +522,11 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                                                 </div>
                                                             </div>
 
-                                                            <div className="p-3 bg-gray-50 rounded-lg">
+                                                            <div className="p-3 bg-muted rounded-lg border border-border">
                                                                 <div className="flex items-center justify-between">
                                                                     <div>
-                                                                        <p className="text-sm text-gray-600">Account Name</p>
-                                                                        <p className="font-medium">{selectedMethod.account_name}</p>
+                                                                        <p className="text-sm text-muted-foreground">Account Name</p>
+                                                                        <p className="font-medium text-foreground">{selectedMethod.account_name}</p>
                                                                     </div>
                                                                     <Button
                                                                         type="button"
@@ -555,14 +564,14 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                                             type="file"
                                                             accept="image/*"
                                                             onChange={handleFileUpload}
-                                                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                                            className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-brand-primary-20 file:text-brand-primary hover:file:bg-brand-primary-30"
                                                         />
-                                                        <p className="text-xs text-gray-500 mt-1">
+                                                        <p className="text-xs text-muted-foreground mt-1">
                                                             Please upload a clear image of your payment receipt
                                                         </p>
                                                     </div>
                                                     {errors.proof_of_payment && (
-                                                        <p className="text-sm text-red-600 mt-1">{errors.proof_of_payment}</p>
+                                                        <p className="text-sm text-destructive mt-1">{errors.proof_of_payment}</p>
                                                     )}
                                                 </div>
                                             )}
@@ -585,7 +594,7 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                     {/* Submit Button */}
                                     <Button 
                                         type="submit" 
-                                        className="w-full" 
+                                        className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white" 
                                         disabled={processing || !selectedMethod}
                                     >
                                         {processing ? 'Processing...' : 'Submit Payment'}
@@ -596,14 +605,14 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                     </div>
 
                     {/* Security Notice */}
-                    <Card className="mt-8">
+                    <Card className="mt-8 card-modern">
                         <CardContent className="py-4">
-                            <div className="flex items-center gap-3 text-sm text-gray-600">
-                                <Shield className="h-5 w-5 text-green-600" />
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                <Shield className="h-5 w-5 text-brand-primary" />
                                 <p>
                                     This is a secure payment page. Your booking and payment information is protected with 
                                     industry-standard security measures. The payment link will expire on{' '}
-                                    <strong>{formatDateTime(booking.payment_token_expires_at)}</strong>.
+                                    <strong className="text-foreground">{formatDateTime(booking.payment_token_expires_at)}</strong>.
                                 </p>
                             </div>
                         </CardContent>

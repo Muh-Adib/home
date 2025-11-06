@@ -95,27 +95,37 @@ export default function UserEdit({ user }: UserEditProps) {
             bio: user.profile?.bio || '',
         } as const;
 
-        const payload: Record<string, unknown> = {};
+        // Create FormData untuk handle file upload dan data biasa
+        const formData = new FormData();
 
+        // Add changed fields to FormData
         (Object.keys(initial) as Array<keyof typeof initial>).forEach((key) => {
             if (data[key] !== initial[key]) {
-                payload[key] = data[key];
+                const value = data[key];
+                // Handle different data types
+                if (value instanceof File) {
+                    formData.append(key, value);
+                } else if (value !== null && value !== undefined) {
+                    formData.append(key, String(value));
+                }
             }
         });
 
         // Only send password if filled
         if (data.password) {
-            payload.password = data.password;
-            payload.password_confirmation = data.password_confirmation;
+            formData.append('password', data.password);
+            if (data.password_confirmation) {
+                formData.append('password_confirmation', data.password_confirmation);
+            }
         }
 
-        // Only send avatar if selected
-        if (data.avatar) {
-            payload.avatar = data.avatar;
+        // Only send avatar if selected (File object)
+        if (data.avatar instanceof File) {
+            formData.append('avatar', data.avatar);
         }
 
         patch(`/admin/users/${user.id}`, {
-            data: payload,
+            data: formData,
             preserveScroll: true,
             forceFormData: true,
         });

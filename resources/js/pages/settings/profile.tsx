@@ -121,27 +121,58 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
 
         const formData = new FormData();
         
-        // Add basic user data
+        // Add basic user data (required fields)
         formData.append('name', data.name);
         formData.append('email', data.email);
-        if (data.phone) formData.append('phone', data.phone);
-        if (data.avatar) formData.append('avatar', data.avatar);
         
-        // Add profile data
-        if (data.address) formData.append('address', data.address);
-        if (data.city) formData.append('city', data.city);
-        if (data.state) formData.append('state', data.state);
-        if (data.country) formData.append('country', data.country);
-        if (data.postal_code) formData.append('postal_code', data.postal_code);
-        if (data.birth_date) formData.append('birth_date', data.birth_date);
-        if (data.gender) formData.append('gender', data.gender);
-        if (data.bio) formData.append('bio', data.bio);
+        // Add phone (send even if empty to allow clearing)
+        if (data.phone !== undefined) {
+            formData.append('phone', data.phone || '');
+        }
+        
+        // Add avatar only if file is selected (new upload)
+        if (data.avatar instanceof File) {
+            formData.append('avatar', data.avatar);
+        }
+        
+        // Add profile data - send all fields even if empty to allow clearing
+        if (data.address !== undefined) {
+            formData.append('address', data.address || '');
+        }
+        if (data.city !== undefined) {
+            formData.append('city', data.city || '');
+        }
+        if (data.state !== undefined) {
+            formData.append('state', data.state || '');
+        }
+        if (data.country !== undefined) {
+            formData.append('country', data.country || '');
+        }
+        if (data.postal_code !== undefined) {
+            formData.append('postal_code', data.postal_code || '');
+        }
+        if (data.birth_date !== undefined) {
+            formData.append('birth_date', data.birth_date || '');
+        }
+        if (data.gender !== undefined) {
+            formData.append('gender', data.gender || '');
+        }
+        if (data.bio !== undefined) {
+            formData.append('bio', data.bio || '');
+        }
 
         router.post(route('profile.update'), formData, {
             preserveScroll: true,
-            onSuccess: () => {
-                if (data.avatar) {
+            forceFormData: true,
+            onSuccess: (page) => {
+                // Reset avatar preview after successful upload
+                if (data.avatar instanceof File) {
                     setData('avatar', undefined);
+                    // Update preview dengan avatar baru dari server response
+                    const updatedUser = page.props?.user as typeof user;
+                    if (updatedUser?.avatar) {
+                        setAvatarPreview(`/storage/${updatedUser.avatar}`);
+                    }
                 }
             }
         });

@@ -181,10 +181,13 @@ class UserController extends Controller
             $validated['avatar'] = $request->file('avatar')->store('avatars', 'public');
         }
 
-        // Update password only if provided
-        if (!empty($validated['password'])) {
-            $validated['password'] = Hash::make($validated['password']);
-        } else {
+        // Remove password_confirmation from validated data (not needed for database)
+        unset($validated['password_confirmation']);
+
+        // Password akan otomatis di-hash oleh User model karena ada cast 'hashed'
+        // Jangan gunakan Hash::make() lagi karena akan double hash
+        // Jika password tidak diisi, unset dari validated
+        if (empty($validated['password'])) {
             unset($validated['password']);
         }
 
@@ -194,22 +197,32 @@ class UserController extends Controller
             'birth_date', 'gender', 'bio'
         ])->toArray();
 
-        // Extract user data
+        // Extract user data (exclude profile fields)
         $userData = collect($validated)->except([
             'address', 'city', 'state', 'country', 'postal_code', 
             'birth_date', 'gender', 'bio'
         ])->toArray();
 
-        // Update user
+        // Update user - pastikan semua field yang ada di $userData ter-update
         if (!empty($userData)) {
-        $user->update($userData);
+            $user->fill($userData);
+            $user->save();
         }
 
         // Update or create profile
-        if (!empty($profileData)) {
-            $user->profile()->updateOrCreate([], array_merge($profileData, [
-                'country' => $profileData['country'] ?? 'Indonesia'
-            ]));
+        // Gunakan array_filter untuk menghapus null/empty tapi tetap update field yang diisi
+        $profileDataToUpdate = array_filter($profileData, function($value) {
+            return $value !== null && $value !== '';
+        });
+
+        if (!empty($profileDataToUpdate)) {
+            $user->load('profile');
+            $user->profile()->updateOrCreate(
+                ['user_id' => $user->id],
+                array_merge($profileDataToUpdate, [
+                    'country' => $profileDataToUpdate['country'] ?? $user->profile?->country ?? 'Indonesia'
+                ])
+            );
         }
 
         return redirect()->route('admin.users.index')
