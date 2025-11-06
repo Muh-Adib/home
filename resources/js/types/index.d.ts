@@ -77,6 +77,8 @@ export interface Property {
     bathroom_count: number;
     base_rate: number;
     weekend_premium_percent?: number;
+    weekend_premium_type?: 'percentage' | 'fixed';
+    weekend_premium_fixed?: number;
     cleaning_fee?: number;
     extra_bed_rate?: number;
     status: 'active' | 'inactive' | 'maintenance';
@@ -378,6 +380,8 @@ export interface PropertyFormData {
     bathroom_count: number;
     base_rate: number;
     weekend_premium_percent?: number;
+    weekend_premium_type?: 'percentage' | 'fixed';
+    weekend_premium_fixed?: number;
     cleaning_fee?: number;
     extra_bed_rate?: number;
     status: Property['status'];
@@ -621,6 +625,8 @@ export interface RateBreakdown {
     rate_breakdown: {
         base_rate_per_night: number;
         weekend_premium_percent: number;
+        weekend_premium_type?: 'percentage' | 'fixed';
+        weekend_premium_fixed?: number;
         peak_season_applied: boolean;
         long_weekend_applied: boolean;
         seasonal_rates_applied: SeasonalRateInfo[];
@@ -733,6 +739,8 @@ export interface RateCalendar {
     base_rates: {
         base_rate: number;
         weekend_premium_percent: number;
+        weekend_premium_type?: 'percentage' | 'fixed';
+        weekend_premium_fixed?: number;
         extra_bed_rate: number;
         cleaning_fee: number;
     };

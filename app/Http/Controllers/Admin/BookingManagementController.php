@@ -602,6 +602,8 @@ class BookingManagementController extends Controller
                     'cleaning_fee' => $property->cleaning_fee,
                     'extra_bed_rate' => $property->extra_bed_rate,
                     'weekend_premium_percent' => $property->weekend_premium_percent,
+                    'weekend_premium_type' => $property->weekend_premium_type ?? 'percentage',
+                    'weekend_premium_fixed' => $property->weekend_premium_fixed ?? 0,
                 ],
                 'date_range' => [
                     'start' => $request->check_in,
@@ -787,6 +789,8 @@ class BookingManagementController extends Controller
                     'cleaning_fee' => $property->cleaning_fee,
                     'extra_bed_rate' => $property->extra_bed_rate,
                     'weekend_premium_percent' => $property->weekend_premium_percent,
+                    'weekend_premium_type' => $property->weekend_premium_type ?? 'percentage',
+                    'weekend_premium_fixed' => $property->weekend_premium_fixed ?? 0,
                 ],
                 'date_range' => [
                     'start' => $startDate,

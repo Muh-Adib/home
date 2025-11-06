@@ -16,6 +16,8 @@ export interface Property {
   base_rate: number;
   formatted_base_rate: string;
   weekend_premium_percent: number;
+  weekend_premium_type?: 'percentage' | 'fixed';
+  weekend_premium_fixed?: number;
   cleaning_fee: number;
   extra_bed_rate: number;
   house_rules?: string;
@@ -117,6 +119,8 @@ export interface Property {
       cleaning_fee: number;
       extra_bed_rate: number;
       weekend_premium_percent: number;
+      weekend_premium_type?: 'percentage' | 'fixed';
+      weekend_premium_fixed?: number;
     };
   }
   

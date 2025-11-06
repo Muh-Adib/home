@@ -57,6 +57,8 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
         bathroom_count: property.bathroom_count || 1,
         base_rate: property.base_rate || 500000,
         weekend_premium_percent: property.weekend_premium_percent || 20,
+        weekend_premium_type: property.weekend_premium_type || 'percentage',
+        weekend_premium_fixed: property.weekend_premium_fixed || 0,
         cleaning_fee: property.cleaning_fee || 100000,
         extra_bed_rate: property.extra_bed_rate || 50000,
         status: property.status || 'active',
@@ -432,19 +434,56 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="weekend_premium_percent">Weekend Premium (%)</Label>
-                                    <Input
-                                        id="weekend_premium_percent"
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={data.weekend_premium_percent}
-                                        onChange={(e) => setData('weekend_premium_percent', parseInt(e.target.value))}
-                                    />
-                                    <p className="text-sm text-muted-foreground">
-                                        Weekend Rate: {formatCurrency(data.base_rate * (1 + data.weekend_premium_percent / 100))}
-                                    </p>
+                                    <Label htmlFor="weekend_premium_type">Weekend Premium Type *</Label>
+                                    <Select 
+                                        value={data.weekend_premium_type} 
+                                        onValueChange={(value: "percentage" | "fixed") => setData('weekend_premium_type', value)}
+                                    >
+                                        <SelectTrigger className={errors.weekend_premium_type ? 'border-red-500' : ''}>
+                                            <SelectValue placeholder="Select type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="percentage">Percentage (%)</SelectItem>
+                                            <SelectItem value="fixed">Fixed Price (IDR)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.weekend_premium_type && <p className="text-sm text-red-500">{errors.weekend_premium_type}</p>}
                                 </div>
+
+                                {data.weekend_premium_type === 'percentage' ? (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="weekend_premium_percent">Weekend Premium (%)</Label>
+                                        <Input
+                                            id="weekend_premium_percent"
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={data.weekend_premium_percent}
+                                            onChange={(e) => setData('weekend_premium_percent', parseInt(e.target.value))}
+                                            className={errors.weekend_premium_percent ? 'border-red-500' : ''}
+                                        />
+                                        <p className="text-sm text-muted-foreground">
+                                            Weekend Rate: {formatCurrency(data.base_rate * (1 + data.weekend_premium_percent / 100))}
+                                        </p>
+                                        {errors.weekend_premium_percent && <p className="text-sm text-red-500">{errors.weekend_premium_percent}</p>}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="weekend_premium_fixed">Weekend Premium Fixed Price (IDR) *</Label>
+                                        <Input
+                                            id="weekend_premium_fixed"
+                                            type="number"
+                                            min="0"
+                                            value={data.weekend_premium_fixed}
+                                            onChange={(e) => setData('weekend_premium_fixed', parseInt(e.target.value))}
+                                            className={errors.weekend_premium_fixed ? 'border-red-500' : ''}
+                                        />
+                                        <p className="text-sm text-muted-foreground">
+                                            Fixed Price: {formatCurrency(data.weekend_premium_fixed)}
+                                        </p>
+                                        {errors.weekend_premium_fixed && <p className="text-sm text-red-500">{errors.weekend_premium_fixed}</p>}
+                                    </div>
+                                )}
 
                                 <div className="space-y-2">
                                     <Label htmlFor="cleaning_fee">Cleaning Fee (IDR) *</Label>

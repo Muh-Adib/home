@@ -57,6 +57,8 @@ class RateManagementController extends Controller
                 'status' => $property->status,
                 'base_rate' => $property->base_rate,
                 'weekend_premium_percent' => $property->weekend_premium_percent,
+                'weekend_premium_type' => $property->weekend_premium_type ?? 'percentage',
+                'weekend_premium_fixed' => $property->weekend_premium_fixed ?? 0,
                 'capacity' => $property->capacity,
                 'capacity_max' => $property->capacity_max,
                 'active_seasonal_rates_count' => $activeRates->count(),

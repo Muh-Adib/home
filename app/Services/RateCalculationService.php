@@ -114,14 +114,25 @@ class RateCalculationService
                 // Weekend: Jumat, Sabtu, Minggu
                 if ($isWeekend) {
                     $weekendNights++;
-                    $weekendPremiumAmount = $property->base_rate * ($property->weekend_premium_percent / 100);
+                    
+                    // Calculate weekend premium based on type (percentage or fixed)
+                    if ($property->weekend_premium_type === 'fixed' && $property->weekend_premium_fixed) {
+                        // Fixed price weekend premium
+                        $weekendPremiumAmount = $property->weekend_premium_fixed;
+                        $description = 'Rp ' . number_format($weekendPremiumAmount, 0, ',', '.');
+                    } else {
+                        // Percentage based weekend premium (default)
+                        $weekendPremiumAmount = $property->base_rate * ($property->weekend_premium_percent / 100);
+                        $description = "+{$property->weekend_premium_percent}%";
+                    }
+                    
                     $totalWeekendPremium += $weekendPremiumAmount;
                     $dayRate += $weekendPremiumAmount;
                     
                     $appliedPremiums[] = [
                         'type' => 'weekend',
                         'name' => 'Weekend Premium',
-                        'description' => "+{$property->weekend_premium_percent}%",
+                        'description' => $description,
                         'amount' => $weekendPremiumAmount
                     ];
                 } else {
