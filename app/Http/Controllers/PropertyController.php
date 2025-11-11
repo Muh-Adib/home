@@ -465,51 +465,79 @@ class PropertyController extends Controller
      */
     public function mapCoordinates(): JsonResponse
     {
-        // Cache key
-        $cacheKey = 'properties_map_coordinates';
-        
-        // Cache TTL: 1 hour (3600 seconds)
-        $cacheTTL = config('cache.performance.property_cache_ttl', 3600);
-        
-        // Get from cache or query database
-        $coordinates = Cache::remember($cacheKey, $cacheTTL, function () {
-            return Property::active()
-                ->whereNotNull('lat')
-                ->whereNotNull('lng')
-                ->where('lat', '>=', -90)
-                ->where('lat', '<=', 90)
-                ->where('lng', '>=', -180)
-                ->where('lng', '<=', 180)
-                ->select('id', 'name', 'slug', 'address', 'lat', 'lng', 'base_rate', 'formatted_base_rate', 'capacity', 'capacity_max')
-                ->with(['media' => function ($query) {
-                    $query->where('is_featured', true)
-                          ->orWhere('display_order', 1)
-                          ->orderBy('display_order')
-                          ->limit(1);
-                }])
-                ->get()
-                ->map(function ($property) {
-                    return [
-                        'id' => $property->id,
-                        'name' => $property->name,
-                        'slug' => $property->slug,
-                        'address' => $property->address,
-                        'lat' => (float) $property->lat,
-                        'lng' => (float) $property->lng,
-                        'base_rate' => $property->base_rate,
-                        'formatted_base_rate' => $property->formatted_base_rate,
-                        'capacity' => $property->capacity,
-                        'capacity_max' => $property->capacity_max,
-                        'image_url' => $property->media->first()?->url,
-                    ];
-                });
-        });
+        try {
+            // Cache key
+            $cacheKey = 'properties_map_coordinates';
+            
+            // Cache TTL: 1 hour (3600 seconds)
+            $cacheTTL = config('cache.performance.property_cache_ttl', 3600);
+            
+            // Get from cache or query database
+            $coordinates = Cache::remember($cacheKey, $cacheTTL, function () {
+                return Property::active()
+                    ->whereNotNull('lat')
+                    ->whereNotNull('lng')
+                    ->where('lat', '>=', -90)
+                    ->where('lat', '<=', 90)
+                    ->where('lng', '>=', -180)
+                    ->where('lng', '<=', 180)
+                    ->select('id', 'name', 'slug', 'address', 'lat', 'lng', 'base_rate', 'capacity', 'capacity_max')
+                    ->with(['media' => function ($query) {
+                        $query->orderByRaw('CASE WHEN is_featured = 1 THEN 0 ELSE 1 END')
+                              ->orderBy('display_order', 'asc')
+                              ->orderBy('id', 'asc')
+                              ->limit(1);
+                    }])
+                    ->get()
+                    ->map(function ($property) {
+                        $firstMedia = $property->media->first();
+                        $imageUrl = null;
+                        
+                        if ($firstMedia) {
+                            try {
+                                $imageUrl = $firstMedia->url ?? null;
+                            } catch (\Exception $e) {
+                                \Log::warning('Error getting media URL', [
+                                    'property_id' => $property->id,
+                                    'media_id' => $firstMedia->id ?? null,
+                                    'error' => $e->getMessage(),
+                                ]);
+                            }
+                        }
+                        
+                        return [
+                            'id' => $property->id,
+                            'name' => $property->name,
+                            'slug' => $property->slug,
+                            'address' => $property->address,
+                            'lat' => (float) $property->lat,
+                            'lng' => (float) $property->lng,
+                            'base_rate' => (float) $property->base_rate,
+                            'formatted_base_rate' => 'Rp ' . number_format($property->base_rate, 0, ',', '.'),
+                            'capacity' => (int) $property->capacity,
+                            'capacity_max' => (int) $property->capacity_max,
+                            'image_url' => $imageUrl,
+                        ];
+                    });
+            });
 
-        return response()->json([
-            'success' => true,
-            'count' => $coordinates->count(),
-            'properties' => $coordinates,
-        ]);
+            return response()->json([
+                'success' => true,
+                'count' => $coordinates->count(),
+                'properties' => $coordinates,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching map coordinates', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch property coordinates',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     // Admin methods have been moved to App\Http\Controllers\Admin\PropertyManagementController
