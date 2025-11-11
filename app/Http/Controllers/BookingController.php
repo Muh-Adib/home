@@ -357,29 +357,34 @@ class BookingController extends Controller
      * Route: GET /bookings/{booking:booking_number}/confirmation
      * Booking is automatically resolved by Laravel's route model binding
      */
-    public function confirmation(Booking $booking): Response
+    public function confirmation(Booking $booking): RedirectResponse|Response
     {
         $this->authorize('view', $booking);
 
-        // Check if user is new (has temporary password)
         $user = auth()->user();
         $isNewUser = false;
-        $password = null;
 
         if ($user && $user->email === $booking->guest_email) {
-            // Check if user has a temporary password (you might need to add a field to track this)
-            // For now, we'll check if the user was created recently (within last 24 hours)
+            // Check if user is new (created within last 24 hours and hasn't changed password)
+            // We check if password was changed by checking if user has logged in more than once
+            // or if there's a flag indicating password was changed
             $isNewUser = $user->created_at->diffInHours(now()) < 24;
             
-            // If it's a new user, we might want to show a temporary password
-            if ($isNewUser) {
-                $password = session('temp_password');
+            // If it's a new user, redirect to change password page
+            if ($isNewUser && !session('password_changed')) {
+                session(['redirect_after_password_change' => route('bookings.confirmation', $booking->booking_number)]);
+                return redirect()->route('password.change')
+                    ->with('info', 'Silakan ganti password Anda terlebih dahulu untuk melanjutkan.');
             }
         }
 
+        // Load booking with check-in instructions
+        $booking->load(['property', 'payments']);
+        $booking->checkin_instructions = $booking->getCheckinInstructions();
+        $booking->checkin_instructions_formatted = $booking->getFormattedCheckinInstructions();
+
         return Inertia::render('Booking/Confirmation', [
-            'booking' => $booking->load(['property', 'payments']),
-            'password' => $password,
+            'booking' => $booking,
             'isNewUser' => $isNewUser,
         ]);
     }

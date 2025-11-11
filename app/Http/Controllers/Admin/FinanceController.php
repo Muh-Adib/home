@@ -219,6 +219,7 @@ class FinanceController extends Controller
             'payment_method' => $validated['payment_method'] ?? null,
             'notes' => $validated['notes'] ?? null,
             'created_by' => $request->user()->id,
+            'recorded_by' => $request->user()->id, // Set recorded_by sama dengan created_by
             'status' => 'approved',
         ]);
 

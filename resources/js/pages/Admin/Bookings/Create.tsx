@@ -529,12 +529,28 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                             setRateCalculation(null);
                         }
                     } else {
-                        setAvailabilityError(availabilityData?.message || 'Failed to check availability');
+                        const errorMsg = availabilityData?.error || availabilityData?.message || 'Failed to check availability';
+                        console.error('Availability check failed:', errorMsg, availabilityData);
+                        setAvailabilityError(errorMsg);
                         setRateCalculation(null);
                     }
-                } catch (error) {
+                } catch (error: any) {
+                    console.error('Error in checkAvailabilityAndRate:', error);
                     setRateCalculation(null);
-                    setRateError(error instanceof Error ? error.message : 'Error calculating rate');
+                    
+                    // Extract error message from response
+                    let errorMessage = 'Error calculating rate';
+                    if (error instanceof Error) {
+                        errorMessage = error.message;
+                    } else if (error?.response?.data) {
+                        const errorData = error.response.data;
+                        errorMessage = errorData.message || errorData.error || errorMessage;
+                    } else if (error?.message) {
+                        errorMessage = error.message;
+                    }
+                    
+                    setRateError(errorMessage);
+                    setAvailabilityError(errorMessage);
                 } finally {
                     setIsCalculatingRate(false);
                 }
@@ -550,18 +566,27 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         const countField = genderType === 'children' ? 'guest_children' : 
                           genderType === 'male' ? 'guest_male' : 'guest_female';
         
+        // Calculate new total guests with updated count
+        const newTotalGuests = (() => {
+            const male = genderType === 'male' ? newCount : (data.guest_male || 0);
+            const female = genderType === 'female' ? newCount : (data.guest_female || 0);
+            const children = genderType === 'children' ? newCount : (data.guest_children || 0);
+            return male + female + children;
+        })();
+        
         setData(countField, newCount);
         
         // Recalculate rate when guest count changes with debounce
-        if (data.check_in_date && data.check_out_date && currentProperty) {
+        if (data.check_in_date && data.check_out_date && currentProperty && newTotalGuests > 0) {
+            setIsCalculatingRate(true);
             setTimeout(async () => {
                 try {
-                    // Use ADMIN API for rate calculation
+                    // Use ADMIN API for rate calculation with NEW guest count
                     const rateData = await apiPost(`/admin/api/admin/booking-management/calculate-rate`, {
                         property_id: currentProperty.id,
                         check_in: data.check_in_date,
                         check_out: data.check_out_date,
-                        guest_count: totalGuests,
+                        guest_count: newTotalGuests, // Use new total, not old totalGuests
                     });
                     
                     if (rateData) {
@@ -594,9 +619,24 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                             setRateCalculation(null);
                         }
                     }
-                } catch (error) {
+                } catch (error: any) {
+                    console.error('Error calculating rate on guest count change:', error);
                     setRateCalculation(null);
-                    setRateError(error instanceof Error ? error.message : 'Error calculating rate');
+                    
+                    // Extract error message
+                    let errorMessage = 'Error calculating rate';
+                    if (error instanceof Error) {
+                        errorMessage = error.message;
+                    } else if (error?.response?.data) {
+                        const errorData = error.response.data;
+                        errorMessage = errorData.message || errorData.error || errorMessage;
+                    } else if (error?.message) {
+                        errorMessage = error.message;
+                    }
+                    
+                    setRateError(errorMessage);
+                } finally {
+                    setIsCalculatingRate(false);
                 }
             }, 300);
         }

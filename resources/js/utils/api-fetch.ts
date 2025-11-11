@@ -57,8 +57,21 @@ export async function apiFetch(
             // Try to parse error response
             try {
                 const errorData = await response.clone().json();
-                throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-            } catch {
+                const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+                
+                // Create error object with response data
+                const error = new Error(errorMessage) as any;
+                error.response = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: errorData,
+                };
+                throw error;
+            } catch (parseError) {
+                // If parsing fails, throw generic error
+                if (parseError instanceof Error && parseError.response) {
+                    throw parseError;
+                }
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
         }
@@ -112,3 +125,8 @@ export async function apiGet<T = any>(
         method: 'GET',
     });
 }
+
+
+
+
+

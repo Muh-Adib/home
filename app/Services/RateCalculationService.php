@@ -73,6 +73,7 @@ class RateCalculationService
             $isWeekend = $date->isFriday() || $date->isSaturday() || $date->isSunday();
             $weekendPremiumAmount = 0;
             
+            // Priority: Seasonal > Weekend > Base Rate
             if ($seasonalRate) {
                 // Seasonal rate diterapkan langsung ke base_rate (tanpa weekend premium)
                 $originalRate = $property->base_rate;
@@ -188,9 +189,9 @@ class RateCalculationService
         // Apply minimum stay discount
         $minimumStayDiscount = 0;
         if ($nights >= 7) {
-            $minimumStayDiscount = $totalBaseAmount * 0.1; // 10% discount for weekly stays
+            $minimumStayDiscount = $totalBaseAmount * 0; // 10% discount for weekly stays
         } elseif ($nights >= 3) {
-            $minimumStayDiscount = $totalBaseAmount * 0.05; // 5% discount for 3+ nights
+            $minimumStayDiscount = $totalBaseAmount * 0; // 5% discount for 3+ nights
         }
         
         $subtotal = $totalBaseAmount + $extraBedAmount + $property->cleaning_fee - $minimumStayDiscount;

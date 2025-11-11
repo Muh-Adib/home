@@ -3,12 +3,14 @@
 namespace App\Providers;
 
 use App\Models\Booking;
+use App\Models\InventoryItem;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Property;
 use App\Models\ServiceMaster;
 use App\Models\User;
 use App\Policies\BookingPolicy;
+use App\Policies\InventoryItemPolicy;
 use App\Policies\PaymentPolicy;
 use App\Policies\PaymentMethodPolicy;
 use App\Policies\PropertyPolicy;
@@ -32,6 +34,7 @@ class AuthServiceProvider extends ServiceProvider
         PaymentMethod::class => PaymentMethodPolicy::class,
         ServiceMaster::class => ServiceMasterPolicy::class,
         User::class => UserPolicy::class,
+        InventoryItem::class => InventoryItemPolicy::class,
     ];
 
     /**

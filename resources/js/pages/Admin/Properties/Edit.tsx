@@ -51,6 +51,7 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
         lat: property.lat || null as number | null,
         lng: property.lng || null as number | null,
         maps_link: property.maps_link || '',
+        tiktok_video_url: property.tiktok_video_url || '',
         capacity: property.capacity || 2,
         capacity_max: property.capacity_max || 4,
         bedroom_count: property.bedroom_count || 1,
@@ -331,6 +332,35 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                     className={errors.description ? 'border-red-500' : ''}
                                 />
                                 {errors.description && <p className="text-sm text-red-500">{errors.description}</p>}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="maps_link">Google Maps Link</Label>
+                                <Input
+                                    id="maps_link"
+                                    type="url"
+                                    value={data.maps_link}
+                                    onChange={(e) => setData('maps_link', e.target.value)}
+                                    placeholder="https://maps.google.com/..."
+                                    className={errors.maps_link ? 'border-red-500' : ''}
+                                />
+                                {errors.maps_link && <p className="text-sm text-red-500">{errors.maps_link}</p>}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="tiktok_video_url">TikTok Video URL</Label>
+                                <Input
+                                    id="tiktok_video_url"
+                                    type="url"
+                                    value={data.tiktok_video_url}
+                                    onChange={(e) => setData('tiktok_video_url', e.target.value)}
+                                    placeholder="https://www.tiktok.com/@username/video/..."
+                                    className={errors.tiktok_video_url ? 'border-red-500' : ''}
+                                />
+                                <p className="text-sm text-muted-foreground">
+                                    Paste the full TikTok video URL. The video will be embedded on the property detail page.
+                                </p>
+                                {errors.tiktok_video_url && <p className="text-sm text-red-500">{errors.tiktok_video_url}</p>}
                             </div>
                         </CardContent>
                     </Card>

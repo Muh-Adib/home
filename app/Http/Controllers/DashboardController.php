@@ -97,7 +97,8 @@ class DashboardController extends Controller
                     'guest_count' => $booking->guest_count,
                     'total_amount' => $booking->total_amount,
                     'can_show_instructions' => $canShowInstructions,
-                    'checkin_instructions' => $canShowInstructions ? $property->getCheckinInstructionsForDashboard() : null,
+                    'checkin_instructions' => $canShowInstructions ? $booking->getCheckinInstructions() : null,
+                    'checkin_instructions_formatted' => $canShowInstructions ? $booking->getFormattedCheckinInstructions() : null,
                     'status' => $booking->booking_status,
                     'payment_status' => $booking->payment_status,
                 ];

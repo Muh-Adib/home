@@ -297,6 +297,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::get('booking-management/{booking:booking_number}', 'show')->name('booking-management.show');
         Route::get('booking-management/{booking:booking_number}/edit', 'edit')->name('booking-management.edit');
         Route::put('booking-management/{booking:booking_number}', 'update')->name('booking-management.update');
+        Route::delete('booking-management/{booking:booking_number}', 'destroy')->name('booking-management.destroy');
         Route::patch('booking-management/{booking:booking_number}/status', 'updateStatus')->name('booking-management.update-status');
     });
     
@@ -309,8 +310,13 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::post('availability-and-rates', [$controller, 'availabilityAndRates']);
         Route::get('property-date-range', [$controller, 'getPropertyDateRange']);
     });
-    
 
+});
+
+// Property Management API (outside admin prefix to match /api/admin/properties path)
+Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk'])->prefix('api/admin/properties')->name('api.admin.properties.')->group(function () {
+    $controller = App\Http\Controllers\Admin\PropertyManagementController::class;
+    Route::get('{property:id}/stats', [$controller, 'stats'])->name('stats');
 });
 
 /*
@@ -367,6 +373,10 @@ Route::middleware(['auth', 'role:super_admin,property_manager,housekeeping,front
     $controller = App\Http\Controllers\Admin\InventoryController::class;
     Route::get('items', [$controller, 'itemsIndex'])->name('items.index');
     Route::post('items', [$controller, 'itemsStore'])->name('items.store');
+    Route::get('items/{item}/edit', [$controller, 'itemsEdit'])->name('items.edit');
+    Route::put('items/{item}', [$controller, 'itemsUpdate'])->name('items.update');
+    Route::post('items/{item}', [$controller, 'itemsUpdate'])->name('items.update.post'); // For FormData with _method
+    Route::delete('items/{item}', [$controller, 'itemsDestroy'])->name('items.destroy');
     Route::get('purchases', [$controller, 'purchasesIndex'])->name('purchases.index');
     Route::post('purchases', [$controller, 'purchasesStore'])->name('purchases.store');
     Route::get('usages', [$controller, 'usagesIndex'])->name('usages.index');

@@ -229,7 +229,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                         property_id: propertyId,
                         check_in: checkIn,
                         check_out: checkOut,
-                        guest_count: totalGuests,
+                        guest_count: totalGuests, // This will use the updated totalGuests from useMemo
                     }),
                 });
                 
@@ -295,12 +295,102 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
         const countField = genderType === 'children' ? 'guest_children' : 
                           genderType === 'male' ? 'guest_male' : 'guest_female';
         
+        // Calculate new total guests with updated count
+        const newTotalGuests = (() => {
+            const male = genderType === 'male' ? newCount : (Number(data.guest_male) || 0);
+            const female = genderType === 'female' ? newCount : (Number(data.guest_female) || 0);
+            const children = genderType === 'children' ? newCount : (Number(data.guest_children) || 0);
+            return male + female + children;
+        })();
+        
         setData(countField, newCount);
         
-        // Recalculate rate when guest count changes
-        if (data.check_in_date && data.check_out_date && currentProperty) {
-            setTimeout(() => {
-                checkAvailabilityAndCalculateRate(currentProperty.id, data.check_in_date, data.check_out_date);
+        // Recalculate rate when guest count changes (use newTotalGuests directly in API call)
+        if (data.check_in_date && data.check_out_date && currentProperty && newTotalGuests > 0) {
+            setTimeout(async () => {
+                try {
+                    // Check availability first
+                    const availabilityResponse = await fetch('/admin/api/admin/booking-management/check-availability', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            property_id: currentProperty.id,
+                            check_in: data.check_in_date,
+                            check_out: data.check_out_date,
+                            exclude_booking_id: booking.id,
+                        }),
+                    });
+                    
+                    if (availabilityResponse.ok) {
+                        const availabilityData = await availabilityResponse.json();
+                        setAvailabilityStatus(availabilityData.available ? 'available' : 'unavailable');
+                        
+                        if (!availabilityData.available) {
+                            setAvailabilityError('Property tidak tersedia untuk tanggal yang dipilih');
+                            setIsCalculatingRate(false);
+                            return;
+                        }
+                        
+                        // Calculate rate with NEW guest count
+                        const rateResponse = await fetch('/admin/api/admin/booking-management/calculate-rate', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                property_id: currentProperty.id,
+                                check_in: data.check_in_date,
+                                check_out: data.check_out_date,
+                                guest_count: newTotalGuests, // Use new total, not old totalGuests
+                            }),
+                        });
+                        
+                        if (rateResponse.ok) {
+                            const rateData = await rateResponse.json();
+                            
+                            if (rateData.success) {
+                                const calculation = rateData.calculation || rateData;
+                                setRateCalculation({
+                                    nights: calculation.nights,
+                                    base_amount: calculation.base_amount,
+                                    weekend_premium: calculation.weekend_premium || 0,
+                                    seasonal_premium: calculation.seasonal_premium || 0,
+                                    extra_bed_amount: calculation.extra_bed_amount || 0,
+                                    cleaning_fee: calculation.cleaning_fee || 0,
+                                    tax_amount: calculation.tax_amount || 0,
+                                    total_amount: calculation.total_amount,
+                                    extra_beds: calculation.extra_beds || 0,
+                                    formatted: {
+                                        total_amount: 'Rp ' + (calculation.total_amount || 0).toLocaleString('id-ID'),
+                                        per_night: 'Rp ' + Math.round((calculation.total_amount || 0) / (calculation.nights || 1)).toLocaleString('id-ID')
+                                    }
+                                });
+                                setRateError(null);
+                            } else {
+                                setRateError(rateData.error || 'Rate calculation failed');
+                                setRateCalculation(null);
+                            }
+                        } else {
+                            const errorData = await rateResponse.json().catch(() => ({}));
+                            setRateError(errorData.error || errorData.message || 'Failed to calculate rate');
+                            setRateCalculation(null);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error recalculating rate on guest change:', error);
+                    setRateError(error instanceof Error ? error.message : 'Error calculating rate');
+                    setRateCalculation(null);
+                } finally {
+                    setIsCalculatingRate(false);
+                }
             }, 300);
         }
     };

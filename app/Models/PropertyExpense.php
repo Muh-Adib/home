@@ -25,6 +25,7 @@ class PropertyExpense extends Model
         'payment_method',
         'notes',
         'created_by',
+        'recorded_by',
         'approved_by',
         'approved_at',
         'status',
@@ -53,6 +54,14 @@ class PropertyExpense extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Get the user who recorded the expense.
+     */
+    public function recorder(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recorded_by');
     }
 
     /**

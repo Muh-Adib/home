@@ -48,6 +48,7 @@ class WalletAllocationService
                     'payment_method' => 'internal_allocation',
                     'notes' => 'Auto allocation',
                     'created_by' => $userId,
+                    'recorded_by' => $userId, // Set recorded_by sama dengan created_by
                     'status' => 'approved',
                 ]);
 

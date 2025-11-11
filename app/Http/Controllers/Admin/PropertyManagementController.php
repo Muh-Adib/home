@@ -122,6 +122,16 @@ class PropertyManagementController extends Controller
             'description' => 'required|string',
             'address' => 'required|string',
             'maps_link' => 'nullable|string',
+            'tiktok_video_url' => [
+                'nullable',
+                'string',
+                'max:500',
+                function ($attribute, $value, $fail) {
+                    if ($value && !preg_match('/(?:https?:\/\/)?(?:www\.)?(?:tiktok\.com|vm\.tiktok\.com)\/(?:@[\w.]+)?\/?video\/(\d+)|(?:https?:\/\/)?(?:vm\.tiktok\.com)\/([\w]+)/i', $value)) {
+                        $fail('URL TikTok tidak valid. Format yang didukung: https://www.tiktok.com/@username/video/... atau https://vm.tiktok.com/...');
+                    }
+                },
+            ],
             'lat' => 'nullable|numeric|between:-90,90',
             'lng' => 'nullable|numeric|between:-180,180',
             'capacity' => 'required|integer|min:1',
@@ -361,6 +371,16 @@ class PropertyManagementController extends Controller
             'description' => 'required|string',
             'address' => 'required|string',
             'maps_link' => 'nullable|string',
+            'tiktok_video_url' => [
+                'nullable',
+                'string',
+                'max:500',
+                function ($attribute, $value, $fail) {
+                    if ($value && !preg_match('/(?:https?:\/\/)?(?:www\.)?(?:tiktok\.com|vm\.tiktok\.com)\/(?:@[\w.]+)?\/?video\/(\d+)|(?:https?:\/\/)?(?:vm\.tiktok\.com)\/([\w]+)/i', $value)) {
+                        $fail('URL TikTok tidak valid. Format yang didukung: https://www.tiktok.com/@username/video/... atau https://vm.tiktok.com/...');
+                    }
+                },
+            ],
             'lat' => 'nullable|numeric|between:-90,90',
             'lng' => 'nullable|numeric|between:-180,180',
             'capacity' => 'required|integer|min:1',
@@ -529,6 +549,157 @@ class PropertyManagementController extends Controller
                 'occupancy' => $occupancyAnalytics,
             ]
         ]);
+    }
+
+    /**
+     * Get property stats API endpoint
+     * GET /api/admin/properties/{id}/stats
+     */
+    public function stats(Request $request, int $property): \Illuminate\Http\JsonResponse
+    {
+        $property = Property::findOrFail($property);
+        $this->authorize('view', $property);
+
+        try {
+            $from = $request->get('from', now()->subDays(30)->toDateString());
+            $to = $request->get('to', now()->toDateString());
+            $period = $request->get('period', 'day'); // day, week, month
+
+            // Validate period
+            if (!in_array($period, ['day', 'week', 'month'])) {
+                $period = 'day';
+            }
+
+            // Get bookings that overlap with date range
+            $bookings = $property->bookings()
+                ->where(function($query) use ($from, $to) {
+                    $query->whereBetween('check_in', [$from, $to])
+                          ->orWhereBetween('check_out', [$from, $to])
+                          ->orWhere(function($q) use ($from, $to) {
+                              $q->where('check_in', '<=', $from)
+                                ->where('check_out', '>=', $to);
+                          });
+                })
+                ->get();
+
+            // Calculate KPIs
+            $confirmedBookings = $bookings->where('booking_status', '!=', 'cancelled');
+            $revenueTotal = $confirmedBookings->sum('total_amount');
+            $totalBookings = $bookings->count();
+            $averageRating = $bookings->whereNotNull('guest_rating')->avg('guest_rating') ?? 0;
+
+            // Calculate occupancy rate
+            $totalDays = \Carbon\Carbon::parse($from)->diffInDays(\Carbon\Carbon::parse($to)) + 1;
+            $bookedDays = $confirmedBookings->sum(function($booking) use ($from, $to) {
+                $start = max($booking->check_in, \Carbon\Carbon::parse($from));
+                $end = min($booking->check_out, \Carbon\Carbon::parse($to));
+                return $start->diffInDays($end);
+            });
+            $occupancyRate = $totalDays > 0 ? ($bookedDays / $totalDays) * 100 : 0;
+
+            // Generate trend data based on period
+            $trend = $this->generateTrendData($bookings, $from, $to, $period);
+
+            // Breakdown by source (if available)
+            $breakdown = [
+                'source' => [
+                    'direct' => $bookings->where('source', 'direct')->count(),
+                    'ota' => $bookings->where('source', 'ota')->count(),
+                    'walkin' => $bookings->where('source', 'walkin')->count(),
+                    'other' => $bookings->whereNotIn('source', ['direct', 'ota', 'walkin'])->count(),
+                ]
+            ];
+
+            // Recent bookings
+            $recentBookings = $bookings->take(10)->map(function($booking) {
+                return [
+                    'id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
+                    'guest_name' => $booking->guest_name,
+                    'check_in' => $booking->check_in->toDateString(),
+                    'check_out' => $booking->check_out->toDateString(),
+                    'status' => $booking->booking_status,
+                    'total_amount' => $booking->total_amount,
+                ];
+            })->values();
+
+            return response()->json([
+                'kpis' => [
+                    'revenue_total' => round($revenueTotal, 2),
+                    'occupancy_rate' => round($occupancyRate, 2),
+                    'total_bookings' => $totalBookings,
+                    'average_rating' => round($averageRating, 1),
+                ],
+                'trend' => $trend,
+                'breakdown' => $breakdown,
+                'bookings' => $recentBookings,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Property stats error', [
+                'property_id' => $property->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to fetch property stats',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate trend data based on period
+     */
+    private function generateTrendData($bookings, string $from, string $to, string $period): array
+    {
+        $trend = [];
+        $start = \Carbon\Carbon::parse($from);
+        $end = \Carbon\Carbon::parse($to);
+        $current = $start->copy();
+
+        while ($current <= $end) {
+            $periodEnd = match($period) {
+                'week' => $current->copy()->endOfWeek(),
+                'month' => $current->copy()->endOfMonth(),
+                default => $current->copy()->endOfDay(),
+            };
+
+            if ($periodEnd > $end) {
+                $periodEnd = $end->copy();
+            }
+
+            // Get bookings in this period
+            $periodBookings = $bookings->filter(function($booking) use ($current, $periodEnd) {
+                return $booking->check_in <= $periodEnd && $booking->check_out >= $current;
+            });
+
+            $revenue = $periodBookings->where('booking_status', '!=', 'cancelled')->sum('total_amount');
+            
+            // Calculate occupancy for this period
+            $periodDays = $current->diffInDays($periodEnd) + 1;
+            $bookedDays = $periodBookings->where('booking_status', '!=', 'cancelled')->sum(function($booking) use ($current, $periodEnd) {
+                $start = max($booking->check_in, $current);
+                $end = min($booking->check_out, $periodEnd);
+                return $start->diffInDays($end);
+            });
+            $occupancy = $periodDays > 0 ? ($bookedDays / $periodDays) * 100 : 0;
+
+            $trend[] = [
+                'date' => $current->toDateString(),
+                'revenue' => round($revenue, 2),
+                'occupancy' => round($occupancy, 2),
+            ];
+
+            // Move to next period
+            $current = match($period) {
+                'week' => $current->copy()->addWeek()->startOfWeek(),
+                'month' => $current->copy()->addMonth()->startOfMonth(),
+                default => $current->copy()->addDay(),
+            };
+        }
+
+        return $trend;
     }
 
     /**

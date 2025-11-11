@@ -47,6 +47,7 @@ interface PropertyFormData {
     description: string;
     address: string;
     maps_link: string;
+    tiktok_video_url: string;
     lat: number | null;
     lng: number | null;
     capacity: number;
@@ -120,6 +121,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
         description: '',
         address: '',
         maps_link: '',
+        tiktok_video_url: '',
         lat: null as number | null,
         lng: null as number | null,
         capacity: 2,
@@ -421,6 +423,21 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                                 placeholder="https://maps.app.goo.gl/XCq7dHsWgRQwbBAx8"
                                             />
                                             {errors.maps_link && <p className="text-sm text-red-600 mt-1">{errors.maps_link}</p>}
+                                        </div>
+
+                                        <div>
+                                            <Label htmlFor="tiktok_video_url">TikTok Video URL</Label>
+                                            <Input
+                                                id="tiktok_video_url"
+                                                type="url"
+                                                value={data.tiktok_video_url}
+                                                onChange={(e) => setData('tiktok_video_url', e.target.value)}
+                                                placeholder="https://www.tiktok.com/@username/video/..."
+                                            />
+                                            <p className="text-sm text-muted-foreground mt-1">
+                                                Paste the full TikTok video URL. The video will be embedded on the property detail page.
+                                            </p>
+                                            {errors.tiktok_video_url && <p className="text-sm text-red-600 mt-1">{errors.tiktok_video_url}</p>}
                                         </div>
 
                                         <div className="grid md:grid-cols-3 gap-4">

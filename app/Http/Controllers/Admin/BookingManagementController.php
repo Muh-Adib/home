@@ -526,21 +526,30 @@ class BookingManagementController extends Controller
      */
     public function calculateRate(Request $request)
     {
-        $request->validate([
-            'property_id' => 'required|exists:properties,id',
-            'check_in' => 'required|date',
-            'check_out' => 'required|date|after:check_in',
-            'guest_count' => 'required|integer|min:1',
-        ]);
-        
-        $property = Property::findOrFail($request->property_id);
+        try {
+            $validated = $request->validate([
+                'property_id' => 'required|exists:properties,id',
+                'check_in' => 'required|date',
+                'check_out' => 'required|date|after:check_in',
+                'guest_count' => 'required|integer|min:1',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed',
+                'errors' => $e->errors(),
+                'message' => 'Invalid request parameters: ' . implode(', ', array_keys($e->errors())),
+            ], 400);
+        }
         
         try {
+            $property = Property::findOrFail($validated['property_id']);
+            
             $rateCalculation = $this->rateCalculationService->calculateRate(
                 $property,
-                $request->check_in,
-                $request->check_out,
-                $request->guest_count
+                $validated['check_in'],
+                $validated['check_out'],
+                $validated['guest_count']
             );
             
             return response()->json([
@@ -552,10 +561,23 @@ class BookingManagementController extends Controller
                     'total_amount' => 'Rp ' . number_format($rateCalculation->totalAmount, 0, ',', '.'),
                 ],
             ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Property not found',
+                'message' => 'Property dengan ID ' . ($validated['property_id'] ?? 'unknown') . ' tidak ditemukan',
+            ], 404);
         } catch (\Exception $e) {
+            \Log::error('Rate calculation error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all(),
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'error' => $e->getMessage(),
+                'message' => 'Failed to calculate rate: ' . $e->getMessage(),
             ], 400);
         }
     }
@@ -565,30 +587,39 @@ class BookingManagementController extends Controller
      */
     public function availabilityAndRates(Request $request)
     {
-        $request->validate([
-            'property_id' => 'required|exists:properties,id',
-            'check_in' => 'required|date',
-            'check_out' => 'required|date|after:check_in',
-            'guest_count' => 'required|integer|min:1',
-        ]);
-        
-        $property = Property::findOrFail($request->property_id);
+        try {
+            $validated = $request->validate([
+                'property_id' => 'required|exists:properties,id',
+                'check_in' => 'required|date',
+                'check_out' => 'required|date|after:check_in',
+                'guest_count' => 'required|integer|min:1',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed',
+                'errors' => $e->errors(),
+                'message' => 'Invalid request parameters: ' . implode(', ', array_keys($e->errors())),
+            ], 400);
+        }
         
         try {
+            $property = Property::findOrFail($validated['property_id']);
+            
             // Availability
             $availabilityService = app(\App\Services\AvailabilityService::class);
             $availability = $availabilityService->checkAvailability(
                 $property,
-                $request->check_in,
-                $request->check_out
+                $validated['check_in'],
+                $validated['check_out']
             );
             
             // Rate calculation
             $rateCalculation = $this->rateCalculationService->calculateRate(
                 $property,
-                $request->check_in,
-                $request->check_out,
-                (int) $request->guest_count
+                $validated['check_in'],
+                $validated['check_out'],
+                (int) $validated['guest_count']
             );
             
             return response()->json([
@@ -606,10 +637,10 @@ class BookingManagementController extends Controller
                     'weekend_premium_fixed' => $property->weekend_premium_fixed ?? 0,
                 ],
                 'date_range' => [
-                    'start' => $request->check_in,
-                    'end' => $request->check_out,
+                    'start' => $validated['check_in'],
+                    'end' => $validated['check_out'],
                 ],
-                'guest_count' => (int) $request->guest_count,
+                'guest_count' => (int) $validated['guest_count'],
                 'availability' => $availability,
                 'booked_dates' => $availability['booked_dates'] ?? [],
                 'booked_periods' => $availability['booked_periods'] ?? [],
@@ -621,10 +652,23 @@ class BookingManagementController extends Controller
                     'per_night' => 'Rp ' . number_format(($rateCalculation->totalAmount / max($rateCalculation->nights, 1)), 0, ',', '.'),
                 ],
             ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Property not found',
+                'message' => 'Property dengan ID ' . ($validated['property_id'] ?? 'unknown') . ' tidak ditemukan',
+            ], 404);
         } catch (\Exception $e) {
+            \Log::error('Availability and rates error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all(),
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'error' => $e->getMessage(),
+                'message' => 'Failed to get availability and rates: ' . $e->getMessage(),
             ], 400);
         }
     }
@@ -1160,8 +1204,30 @@ class BookingManagementController extends Controller
                     " (Original: " . $booking->total_amount . ", New: " . $validated['override_amount'] . ")";
             }
             
+            // Log changes before update
+            $changes = [];
+            foreach ($updateData as $key => $value) {
+                if ($booking->getOriginal($key) != $value) {
+                    $changes[$key] = [
+                        'old' => $booking->getOriginal($key),
+                        'new' => $value,
+                    ];
+                }
+            }
+            
             // Update booking
             $booking->update($updateData);
+            
+            // Log detailed changes
+            if (!empty($changes)) {
+                \Log::info('Booking updated', [
+                    'booking_id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
+                    'changes' => $changes,
+                    'updated_by' => $user->id,
+                    'updated_by_name' => $user->name,
+                ]);
+            }
             
             // Create payment if payment data provided
             if ($validated['payment_method_id'] && $validated['payment_amount']) {
@@ -1672,5 +1738,86 @@ class BookingManagementController extends Controller
         }
 
         return redirect($whatsappData['whatsapp_url']);
+    }
+
+    /**
+     * Delete the specified booking (soft delete).
+     * 
+     * @param Request $request
+     * @param Booking $booking
+     * @return RedirectResponse
+     */
+    public function destroy(Request $request, Booking $booking): RedirectResponse
+    {
+        $this->authorize('delete', $booking);
+
+        $user = $request->user();
+        $bookingNumber = $booking->booking_number;
+        $bookingStatus = $booking->booking_status;
+        $paymentStatus = $booking->payment_status;
+        $deletionReason = $request->input('deletion_reason', 'No reason provided');
+
+        // Prevent delete if booking has verified payments (require refund first)
+        $hasVerifiedPayments = $booking->payments()
+            ->where('payment_status', 'verified')
+            ->exists();
+
+        if ($hasVerifiedPayments) {
+            return back()->withErrors([
+                'error' => 'Booking tidak dapat dihapus karena memiliki pembayaran yang sudah terverifikasi. Proses refund terlebih dahulu sebelum menghapus booking.',
+            ]);
+        }
+
+        // Extra confirmation for certain statuses
+        $requiresExtraConfirmation = in_array($bookingStatus, ['checked_in', 'confirmed', 'fully_paid']);
+        if ($requiresExtraConfirmation && !$request->has('confirm_delete')) {
+            return back()->withErrors([
+                'error' => 'Booking dengan status ini memerlukan konfirmasi tambahan. Centang kotak konfirmasi untuk melanjutkan.',
+            ]);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Soft delete related payments (if any)
+            $booking->payments()->each(function ($payment) {
+                $payment->delete();
+            });
+
+            // Keep notifications and workflow for audit trail (they reference booking_id)
+            // Soft delete booking
+            $booking->delete();
+
+            // Log deletion
+            \Log::warning('Booking deleted', [
+                'booking_id' => $booking->id,
+                'booking_number' => $bookingNumber,
+                'booking_status' => $bookingStatus,
+                'payment_status' => $paymentStatus,
+                'deletion_reason' => $deletionReason,
+                'deleted_by' => $user->id,
+                'deleted_by_name' => $user->name,
+                'deleted_at' => now()->toDateTimeString(),
+            ]);
+
+            DB::commit();
+
+            return redirect()->route('admin.booking-management.index')
+                ->with('success', "Booking #{$bookingNumber} berhasil dihapus.");
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            \Log::error('Booking deletion failed', [
+                'booking_id' => $booking->id,
+                'booking_number' => $bookingNumber,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->withErrors([
+                'error' => 'Gagal menghapus booking: ' . $e->getMessage(),
+            ]);
+        }
     }
 }

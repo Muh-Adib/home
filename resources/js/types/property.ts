@@ -5,6 +5,8 @@ export interface Property {
   slug: string;
   description: string;
   address: string;
+  maps_link?: string;
+  tiktok_video_url?: string;
   lat?: number;
   lng?: number;
   capacity: number;
@@ -87,6 +89,7 @@ export interface Property {
     media: PropertyMedia[];
     seasonalRates?: any[];
     bookedDates: any[];
+    tiktok_video_url?: string;
   }
   
   export interface AvailabilityData {

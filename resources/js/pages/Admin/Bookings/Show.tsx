@@ -1,5 +1,5 @@
-import React from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
+import React, { useState } from 'react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { type Booking, type Payment, type BreadcrumbItem, type PageProps, BookingGuest } from '@/types';
 import { 
     Calendar, 
@@ -30,7 +30,8 @@ import {
     Edit,
     Plus,
     Eye,
-    MessageCircle
+    MessageCircle,
+    Trash2
 } from 'lucide-react';
 
 interface WhatsAppData {
@@ -72,13 +73,21 @@ interface BookingShowProps extends PageProps {
     whatsappData?: WhatsAppData;
 }
 
-export default function ShowBooking({ booking, whatsappData }: BookingShowProps) {
+export default function ShowBooking({ booking, whatsappData, auth }: BookingShowProps) {
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+
     const { data: verifyData, setData: setVerifyData, patch: patchVerify, processing: verifyProcessing } = useForm({
         notes: '',
     });
 
     const { data: cancelData, setData: setCancelData, patch: patchCancel, processing: cancelProcessing } = useForm({
         cancellation_reason: '',
+    });
+
+    const { data: deleteData, setData: setDeleteData, delete: deleteBooking, processing: deleteProcessing } = useForm({
+        deletion_reason: '',
+        confirm_delete: false,
     });
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -148,6 +157,24 @@ export default function ShowBooking({ booking, whatsappData }: BookingShowProps)
     const canCancel = ['pending', 'confirmed'].includes(booking.booking_status);
     const canCheckIn = booking.booking_status === 'confirmed';
     const canCheckOut = booking.booking_status === 'checked_in';
+    const canDelete = auth?.user?.role === 'super_admin';
+    const requiresExtraConfirmation = ['checked_in', 'confirmed', 'fully_paid'].includes(booking.booking_status) || booking.payment_status === 'fully_paid';
+
+    const handleDelete = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (requiresExtraConfirmation && !confirmDelete) {
+            return;
+        }
+        deleteBooking(`/admin/booking-management/${booking.booking_number}`, {
+            data: {
+                deletion_reason: deleteData.deletion_reason,
+                confirm_delete: requiresExtraConfirmation ? confirmDelete : true,
+            },
+            onSuccess: () => {
+                router.visit('/admin/booking-management');
+            },
+        });
+    };
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
@@ -263,8 +290,86 @@ export default function ShowBooking({ booking, whatsappData }: BookingShowProps)
                                 </DialogContent>
                             </Dialog>
                         )}
+                        {canDelete && (
+                            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                                <DialogTrigger asChild>
+                                    <Button variant="destructive">
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete Booking
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Hapus Booking</DialogTitle>
+                                    </DialogHeader>
+                                    <form onSubmit={handleDelete} className="space-y-4">
+                                        <div className="space-y-2">
+                                            <p className="text-sm text-muted-foreground">
+                                                Apakah Anda yakin ingin menghapus booking <strong>#{booking.booking_number}</strong>?
+                                                Tindakan ini tidak dapat dibatalkan.
+                                            </p>
+                                            {requiresExtraConfirmation && (
+                                                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                                                    <p className="text-sm text-yellow-800">
+                                                        <AlertCircle className="h-4 w-4 inline mr-1" />
+                                                        Booking ini memiliki status khusus. Pastikan Anda benar-benar yakin untuk menghapusnya.
+                                                    </p>
+                                                </div>
+                                            )}
+                                            <div className="space-y-2">
+                                                <Label htmlFor="deletion_reason">Alasan Penghapusan (Opsional)</Label>
+                                                <Textarea
+                                                    id="deletion_reason"
+                                                    value={deleteData.deletion_reason}
+                                                    onChange={(e) => setDeleteData('deletion_reason', e.target.value)}
+                                                    placeholder="Masukkan alasan penghapusan..."
+                                                    rows={3}
+                                                />
+                                            </div>
+                                            {requiresExtraConfirmation && (
+                                                <div className="flex items-center space-x-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="confirm_delete"
+                                                        checked={confirmDelete}
+                                                        onChange={(e) => setConfirmDelete(e.target.checked)}
+                                                        className="rounded border-gray-300"
+                                                    />
+                                                    <Label htmlFor="confirm_delete" className="text-sm">
+                                                        Saya mengkonfirmasi untuk menghapus booking ini
+                                                    </Label>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setShowDeleteDialog(false);
+                                                    setConfirmDelete(false);
+                                                    setDeleteData('deletion_reason', '');
+                                                }}
+                                                disabled={deleteProcessing}
+                                                className="flex-1"
+                                            >
+                                                Batal
+                                            </Button>
+                                            <Button
+                                                type="submit"
+                                                variant="destructive"
+                                                disabled={deleteProcessing || (requiresExtraConfirmation && !confirmDelete)}
+                                                className="flex-1"
+                                            >
+                                                {deleteProcessing ? 'Menghapus...' : 'Hapus Booking'}
+                                            </Button>
+                                        </div>
+                                    </form>
+                                </DialogContent>
+                            </Dialog>
+                        )}
                         <Button variant="outline" asChild>
-                            <Link href="/admin/bookings">
+                            <Link href="/admin/booking-management">
                                 <ArrowLeft className="h-4 w-4 mr-2" />
                                 Back
                             </Link>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +19,10 @@ import {
     Download,
     Info,
     Lock,
-    MessageCircle
+    MessageCircle,
+    Copy,
+    ExternalLink,
+    Key
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -71,13 +74,23 @@ interface Booking {
 }
 
 interface BookingConfirmationProps {
-    booking: Booking;
+    booking: Booking & {
+        checkin_instructions?: any;
+        checkin_instructions_formatted?: string;
+    };
     password: string|null;
     isNewUser: boolean;
 }
 
 export default function BookingConfirmation({ booking, password, isNewUser }: BookingConfirmationProps) {
     const { t } = useTranslation();
+    const [copied, setCopied] = useState(false);
+
+    const copyBookingNumber = () => {
+        navigator.clipboard.writeText(booking.booking_number);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
     
     const statusColors = {
         pending_verification: 'bg-yellow-100 text-yellow-800',
@@ -122,15 +135,6 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
         return `https://wa.me/${phoneNumber}?text=${message}`;
     };
 
-    const getSetPasswordLink = () => {
-        // Generate token for set password
-        const tokenData = {
-            email: booking.guest_email,
-            timestamp: Date.now()
-        };
-        const token = btoa(JSON.stringify(tokenData));
-        return `/set-password/${token}`;
-    };
 
     const nights = Math.ceil((new Date(booking.check_out).getTime() - new Date(booking.check_in).getTime()) / (1000 * 60 * 60 * 24));
 
@@ -179,7 +183,19 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                         <div className="grid md:grid-cols-2 gap-4">
                                             <div>
                                                 <Label className="text-sm font-medium text-muted-foreground">{t('booking.confirmation.booking_code')}</Label>
-                                                <p className="text-lg font-mono font-semibold text-brand-primary">{booking.booking_number}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-lg font-mono font-semibold text-brand-primary">{booking.booking_number}</p>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={copyBookingNumber}
+                                                        className="h-8 w-8 p-0"
+                                                    >
+                                                        <Copy className={`h-4 w-4 ${copied ? 'text-green-500' : ''}`} />
+                                                    </Button>
+                                                    {copied && <span className="text-xs text-green-500">Copied!</span>}
+                                                </div>
                                             </div>
                                             <div>
                                                 <Label className="text-sm font-medium text-muted-foreground">{t('booking.confirmation.booking_date')}</Label>
@@ -269,44 +285,30 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                                 <p>{booking.guest_email}</p>
                                             </div>
                                         </div>
-                                        {password && (
-                                        <div className="flex items-center gap-2">
-                                            <Lock className="h-4 w-4 text-muted-foreground" />
-                                            <div>
-                                                <Label className="text-sm font-medium text-muted-foreground">{t('booking.confirmation.password')}</Label>
-                                                <p>{password}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    <span className="font-bold">{t('booking.confirmation.note')}:</span> {t('booking.confirmation.password_note')}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        )}
                                     </CardContent>
                                 </Card>
 
-                                {/* Set Password Section - Moved here below booking details */}
-                                {isNewUser && (
-                                    <Card className="card-modern animate-slide-up border-brand-primary-20">
+                                {/* Check-in Instructions - Show if payment is fully paid */}
+                                {booking.payment_status === 'fully_paid' && booking.checkin_instructions_formatted && (
+                                    <Card className="card-modern animate-slide-up border-green-200 bg-green-50">
                                         <CardHeader>
-                                            <CardTitle className="flex items-center gap-2 text-brand-primary">
-                                                <Lock className="h-5 w-5" />
-                                                Perbarui Sandi
+                                            <CardTitle className="flex items-center gap-2 text-green-700">
+                                                <Key className="h-5 w-5" />
+                                                Instruksi Check-in
                                             </CardTitle>
                                         </CardHeader>
                                         <CardContent className="space-y-4">
-                                            <Alert className="border-blue-200 bg-blue-50">
-                                                <Info className="h-4 w-4 text-blue-600" />
-                                                <AlertDescription className="text-blue-800">
-                                                    <strong>Akun baru berhasil dibuat!</strong> Silakan set password Anda untuk melanjutkan.
+                                            <div className="bg-white p-4 rounded-lg border border-green-200">
+                                                <pre className="whitespace-pre-wrap text-sm text-foreground font-sans">
+                                                    {booking.checkin_instructions_formatted}
+                                                </pre>
+                                            </div>
+                                            <Alert className="border-green-200 bg-green-50">
+                                                <Info className="h-4 w-4 text-green-600" />
+                                                <AlertDescription className="text-green-800">
+                                                    Simpan informasi ini untuk check-in Anda. Jika ada pertanyaan, hubungi admin melalui WhatsApp.
                                                 </AlertDescription>
                                             </Alert>
-                                            
-                                            <Link href={getSetPasswordLink()} className="block">
-                                                <Button className="w-full btn-primary" size="lg">
-                                                    <Lock className="h-4 w-4 mr-2" />
-                                                    Set Password Baru
-                                                </Button>
-                                            </Link>
                                         </CardContent>
                                     </Card>
                                 )}
@@ -336,7 +338,16 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                             </div>
                                             
                                             <div>
-                                                <h3 className="font-semibold">{booking.property.name}</h3>
+                                                <div className="flex items-center justify-between">
+                                                    <h3 className="font-semibold">{booking.property.name}</h3>
+                                                    <Link 
+                                                        href={`/properties/${booking.property.slug}`}
+                                                        className="text-brand-primary hover:underline text-sm flex items-center gap-1"
+                                                    >
+                                                        Lihat Detail
+                                                        <ExternalLink className="h-3 w-3" />
+                                                    </Link>
+                                                </div>
                                                 <div className="flex items-center text-sm text-muted-foreground mt-1">
                                                     <MapPin className="h-4 w-4 mr-1" />
                                                     {booking.property.address}
@@ -409,54 +420,64 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
                                 </Card>
 
                                 {/* Actions */}
-                                {!isNewUser && (
-                                    <div className="space-y-3">
-                                        {booking.payment_status === 'dp_pending' && booking.booking_status === 'confirmed' && (
-                                            <Link href={booking.payment_link} className="block">
-                                                <Button className="w-full btn-primary" size="lg">
-                                                    <CreditCard className="h-4 w-4 mr-2" />
-                                                    {t('booking.confirmation.make_payment')}
-                                                    <span className="text-xs ml-2">(Rp {(booking.dp_amount).toLocaleString()})</span>
-                                                </Button>
-                                            </Link>
-                                        )}
-                                        
-                                        {booking.booking_status === 'pending_verification' && (
-                                            <Alert className="card-modern">
-                                                <Clock className="h-4 w-4" />
-                                                <AlertDescription>
-                                                    {t('booking.confirmation.verification_pending')}
-                                                </AlertDescription>
-                                            </Alert>
-                                        )}
-                                        
-                                        {booking.payment_status === 'paid' && (
-                                            <Button className="w-full" variant="outline" disabled>
-                                                <CheckCircle className="h-4 w-4 mr-2" />
-                                                {t('booking.confirmation.payment_completed')}
-                                            </Button>
-                                        )}
-                                        
-                                        <Button className="w-full" variant="outline" disabled>
-                                            <Download className="h-4 w-4 mr-2" />
-                                            {t('booking.confirmation.download_voucher')}
-                                            <span className="text-xs ml-2">({t('booking.confirmation.available_after_payment')})</span>
-                                        </Button>
-                                        
-                                        <Link href="/properties" className="block">
-                                            <Button variant="outline" className="w-full hover-lift">
-                                                {t('booking.confirmation.browse_more_properties')}
-                                                <ArrowRight className="h-4 w-4 ml-2" />
+                                <div className="space-y-3">
+                                    {/* Payment Actions */}
+                                    {booking.payment_status === 'dp_pending' && booking.booking_status === 'confirmed' && (
+                                        <Link href={booking.payment_link} className="block">
+                                            <Button className="w-full btn-primary" size="lg">
+                                                <CreditCard className="h-4 w-4 mr-2" />
+                                                {t('booking.confirmation.make_payment')}
+                                                <span className="text-xs ml-2">(Rp {(booking.dp_amount).toLocaleString()})</span>
                                             </Button>
                                         </Link>
-                                        
-                                        <Link href="/dashboard" className="block">
-                                            <Button variant="ghost" className="w-full">
-                                                {t('booking.confirmation.back_to_dashboard')}
-                                            </Button>
-                                        </Link>
+                                    )}
+                                    
+                                    {booking.booking_status === 'pending_verification' && (
+                                        <Alert className="card-modern">
+                                            <Clock className="h-4 w-4" />
+                                            <AlertDescription>
+                                                {t('booking.confirmation.verification_pending')}
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+                                    
+                                    {booking.payment_status === 'fully_paid' && (
+                                        <Alert className="card-modern border-green-200 bg-green-50">
+                                            <CheckCircle className="h-4 w-4 text-green-600" />
+                                            <AlertDescription className="text-green-800">
+                                                <strong>Pembayaran Lunas!</strong> Instruksi check-in tersedia di atas.
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+                                    
+                                    {/* Next Steps */}
+                                    <div className="space-y-2">
+                                        <h4 className="text-sm font-semibold text-foreground">Langkah Selanjutnya:</h4>
+                                        <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                                            {booking.payment_status !== 'fully_paid' && (
+                                                <li>Selesaikan pembayaran DP untuk konfirmasi booking</li>
+                                            )}
+                                            {booking.payment_status === 'fully_paid' && (
+                                                <li>Simpan instruksi check-in yang tersedia di atas</li>
+                                            )}
+                                            <li>Hubungi admin jika ada pertanyaan melalui WhatsApp</li>
+                                            <li>Akses dashboard untuk melihat detail booking</li>
+                                        </ul>
                                     </div>
-                                )}
+                                    
+                                    <Link href="/dashboard" className="block">
+                                        <Button variant="outline" className="w-full hover-lift">
+                                            <ArrowRight className="h-4 w-4 mr-2" />
+                                            Ke Dashboard
+                                        </Button>
+                                    </Link>
+                                    
+                                    <Link href="/properties" className="block">
+                                        <Button variant="ghost" className="w-full">
+                                            {t('booking.confirmation.browse_more_properties')}
+                                        </Button>
+                                    </Link>
+                                </div>
                             </div>
                         </div>
                     </div>

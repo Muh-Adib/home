@@ -115,19 +115,23 @@ export default function PropertyShow({
             {/* Main Content */}
             <div className="xl:col-span-2 space-y-8 relative">
               {/* Decorative background elements */}
-              <div className="absolute -top-4 -left-4 w-32 h-32 bg-brand-primary/5 rounded-full blur-3xl"></div>
-              <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-brand-accent/5 rounded-full blur-3xl"></div>
+              <div className="absolute -top-4 -left-4 w-32 h-32 bg-brand-primary/5 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-brand-accent/5 rounded-full blur-3xl pointer-events-none"></div>
               
               {/* Image Gallery */}
-              <PropertyGallery
-                images={images}
-                currentIndex={state.currentImageIndex}
-                onImageChange={actions.setImageIndex}
-                propertyName={property.name}
-              />
+              <div className="relative w-full overflow-hidden rounded-lg">
+                <PropertyGallery
+                  images={images}
+                  currentIndex={state.currentImageIndex}
+                  onImageChange={actions.setImageIndex}
+                  propertyName={property.name}
+                />
+              </div>
 
               {/* Property Details Tabs */}
-              <PropertyTabs property={property} formatTime={formatTime} />
+              <div className="relative">
+                <PropertyTabs property={property} formatTime={formatTime} />
+              </div>
             </div>
 
             {/* Booking Sidebar */}

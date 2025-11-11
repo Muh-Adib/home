@@ -22,6 +22,7 @@ class Property extends Model
         'description',
         'address',
         'maps_link',
+        'tiktok_video_url',
         'lat',
         'lng',
         'capacity',
@@ -361,11 +362,11 @@ class Property extends Model
             'keybox_location' => 'Keybox terletak di depan pintu masuk.',
             'keybox_code' => 'Kode keybox: {{keybox_code}}',
             'checkin_time' => 'Check-in time: 14:00 - 22:00',
-            'emergency_contact' => 'Hubungi kami jika ada kendala: 0812-3456-7890',
+            'emergency_contact' => 'Hubungi kami jika ada kendala: 0811-2500-082',
             'additional_info' => [
                 'WiFi password tersedia di dalam rumah',
                 'Harap menjaga kebersihan selama menginap',
-                'Check-out maksimal pukul 12:00'
+                'Check-out maksimal pukul 11:00'
             ]
         ];
     }

@@ -14,6 +14,10 @@ Route::middleware('auth')->group(function () {
 
     Route::get('settings/password', [PasswordController::class, 'edit'])->name('password.edit');
     Route::put('settings/password', [PasswordController::class, 'update'])->name('password.update');
+    
+    // Change password for new users (no current password required)
+    Route::get('password/change', [PasswordController::class, 'change'])->name('password.change');
+    Route::post('password/change', [PasswordController::class, 'changePassword'])->name('password.change.store');
 
     Route::get('settings/appearance', function () {
         return Inertia::render('settings/appearance');

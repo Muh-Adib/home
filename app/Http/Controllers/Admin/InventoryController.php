@@ -62,6 +62,97 @@ class InventoryController extends Controller
         return back()->with('success', 'Item berhasil dibuat');
     }
 
+    /**
+     * Show the form for editing the specified item.
+     * Returns item data for editing (frontend will handle the form)
+     */
+    public function itemsEdit(InventoryItem $item)
+    {
+        $this->authorize('update', $item);
+
+        return response()->json([
+            'id' => $item->id,
+            'name' => $item->name,
+            'sku' => $item->sku,
+            'unit' => $item->unit,
+            'min_stock' => (float) $item->min_stock,
+            'category' => $item->category,
+            'image_path' => $item->image_path,
+        ]);
+    }
+
+    /**
+     * Update the specified item.
+     */
+    public function itemsUpdate(Request $request, InventoryItem $item)
+    {
+        $this->authorize('update', $item);
+
+        $data = $request->validate([
+            'name' => ['required','string','max:150'],
+            'sku' => ['nullable','string','max:100','unique:inventory_items,sku,' . $item->id],
+            'unit' => ['required','string','max:20'],
+            'min_stock' => ['nullable','numeric','min:0'],
+            'category' => ['nullable','string','max:50'],
+            'image' => ['nullable','image','max:4096'],
+        ]);
+
+        $path = $item->image_path;
+        if ($request->hasFile('image')) {
+            // Delete old image if exists
+            if ($path && \Storage::disk('public')->exists($path)) {
+                \Storage::disk('public')->delete($path);
+            }
+            $path = $request->file('image')->store('inventory/items', 'public');
+        }
+
+        $item->update([
+            'name' => $data['name'],
+            'sku' => $data['sku'] ?? null,
+            'unit' => $data['unit'],
+            'min_stock' => $data['min_stock'] ?? 0,
+            'category' => $data['category'] ?? null,
+            'image_path' => $path,
+        ]);
+
+        \Log::info('Inventory item updated', [
+            'item_id' => $item->id,
+            'item_name' => $item->name,
+            'updated_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', 'Item berhasil diperbarui');
+    }
+
+    /**
+     * Delete the specified item (soft delete).
+     */
+    public function itemsDestroy(Request $request, InventoryItem $item)
+    {
+        $this->authorize('delete', $item);
+
+        // Check if item has stock movements or usages
+        $hasMovements = InventoryStockMovement::where('inventory_item_id', $item->id)->exists();
+        $hasUsages = InventoryUsage::where('inventory_item_id', $item->id)->exists();
+
+        if ($hasMovements || $hasUsages) {
+            return back()->withErrors([
+                'error' => 'Item tidak dapat dihapus karena masih memiliki riwayat stock movement atau usage. Hapus riwayat terlebih dahulu atau nonaktifkan item.',
+            ]);
+        }
+
+        $itemName = $item->name;
+        $item->delete();
+
+        \Log::info('Inventory item deleted', [
+            'item_id' => $item->id,
+            'item_name' => $itemName,
+            'deleted_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', 'Item berhasil dihapus');
+    }
+
     public function purchasesIndex(Request $request)
     {
         $items = InventoryItem::orderBy('name')->get(['id','name','unit']);

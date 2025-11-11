@@ -66,6 +66,7 @@ class InventoryService
                 'payment_method' => null,
                 'notes' => $notes,
                 'created_by' => $userId,
+                'recorded_by' => $userId, // Set recorded_by sama dengan created_by
                 'approved_by' => null,
                 'approved_at' => null,
                 'status' => 'approved',
@@ -165,6 +166,7 @@ class InventoryService
                     'payment_method' => 'inventory_usage',
                     'notes' => $usage->notes ?? "Inventory usage: {$item->name}",
                     'created_by' => $usage->created_by,
+                    'recorded_by' => $usage->created_by, // Set recorded_by sama dengan created_by
                     'status' => 'approved', // Auto-approved karena dari inventory usage
                 ]);
 
