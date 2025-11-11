@@ -32,6 +32,7 @@ import { type User, type BreadcrumbItem, type PageProps } from '@/types';
 import { ChartRevenue } from '@/components/charts/ChartRevenue';
 import { ChartBookingTrends } from '@/components/charts/ChartBookingTrends';
 import { ChartPropertyPerformance } from '@/components/charts/ChartPropertyPerformance';
+import { PropertiesMap } from '@/components/ui/properties-map';
 
 interface KPIData {
     value: number;
@@ -669,6 +670,28 @@ export default function Dashboard({
                             </CardContent>
                         </Card>
                     </div>
+                )}
+
+                {/* Properties Map Section - Visible for admin roles */}
+                {(auth.user.role === 'super_admin' || auth.user.role === 'property_manager' || auth.user.role === 'property_owner') && (
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <MapPin className="h-5 w-5" />
+                                        Properties Location Map
+                                    </CardTitle>
+                                    <CardDescription>
+                                        View all property locations on an interactive map
+                                    </CardDescription>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <PropertiesMap height="500px" />
+                        </CardContent>
+                    </Card>
                 )}
 
                 {/* Guest-specific content */}

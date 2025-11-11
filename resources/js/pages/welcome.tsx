@@ -45,6 +45,7 @@ import HeroSlideshow from '@/components/ui/hero-slideshow';
 import HeroSearchBar from '@/components/ui/hero-search-bar';
 import PropertyCardEnhanced from '@/components/ui/property-card-enhanced';
 import ScrollToTop from '@/components/ui/scroll-to-top';
+import { PropertiesMap } from '@/components/ui/properties-map';
 
 interface WelcomeProps {
     featuredProperties: Property[];
@@ -433,6 +434,46 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                 </motion.div>
                             ))}
                         </div>
+                    </div>
+                </motion.section>
+
+                {/* Properties Map Section */}
+                <motion.section 
+                    className="py-20 bg-gray-50"
+                    initial={{ opacity: 0 }}
+                    whileInView={{ opacity: 1 }}
+                    transition={{ duration: 0.6 }}
+                    viewport={{ once: true }}
+                >
+                    <div className="container mx-auto px-6">
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.6 }}
+                            viewport={{ once: true }}
+                            className="text-center mb-12"
+                        >
+                            <Badge className="mb-4">
+                                <MapPin className="h-4 w-4 mr-2" />
+                                Lokasi Properti
+                            </Badge>
+                            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                                Temukan Homestay di Seluruh Jogja
+                            </h2>
+                            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                                Jelajahi peta interaktif untuk menemukan homestay terbaik di berbagai lokasi strategis di Yogyakarta
+                            </p>
+                        </motion.div>
+                        
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.6, delay: 0.2 }}
+                            viewport={{ once: true }}
+                            className="rounded-lg overflow-hidden shadow-lg"
+                        >
+                            <PropertiesMap height="600px" />
+                        </motion.div>
                     </div>
                 </motion.section>
 

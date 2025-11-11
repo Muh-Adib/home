@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 class PropertyManagementController extends Controller
 {
@@ -188,6 +189,9 @@ class PropertyManagementController extends Controller
         if ($request->filled('amenities')) {
             $property->amenities()->attach($request->get('amenities'));
         }
+
+        // Invalidate map coordinates cache
+        Cache::forget('properties_map_coordinates');
 
         return redirect()->route('admin.properties.index')
             ->with('success', 'Property created successfully.');
@@ -427,6 +431,9 @@ class PropertyManagementController extends Controller
             $property->amenities()->sync($request->get('amenities'));
         }
 
+        // Invalidate map coordinates cache
+        Cache::forget('properties_map_coordinates');
+
         return redirect()->route('admin.properties.index')
             ->with('success', 'Property updated successfully.');
     }
@@ -439,6 +446,9 @@ class PropertyManagementController extends Controller
         $this->authorize('delete', $property);
 
         $property->delete();
+
+        // Invalidate map coordinates cache
+        Cache::forget('properties_map_coordinates');
 
         return redirect()->route('admin.properties.index')
             ->with('success', 'Property deleted successfully.');

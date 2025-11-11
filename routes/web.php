@@ -92,6 +92,8 @@ Route::prefix('api')->name('api.')->group(function () {
         ->name('properties.availability');
     Route::get('properties/{property:slug}/availability-and-rates', [BookingController::class, 'getAvailabilityAndRates'])
         ->name('properties.availability-and-rates');
+    Route::get('properties/map-coordinates', [PropertyController::class, 'mapCoordinates'])
+        ->name('properties.map-coordinates');
     Route::post('check-email', [BookingController::class, 'checkEmailExists'])
         ->name('check-email');
 });
