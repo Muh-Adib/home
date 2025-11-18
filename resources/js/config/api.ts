@@ -1,9 +1,7 @@
 // API Configuration for React
 export const API_CONFIG = {
-    // Base URL - gunakan HTTPS di production
-    BASE_URL: process.env.NODE_ENV === 'production' 
-        ? 'https://' + window.location.hostname 
-        : 'http://localhost:8000',
+    // Base URL - gunakan relative path untuk same-origin requests
+    BASE_URL: '', // Empty string untuk relative URLs (same-origin)
     
     // WebSocket URL - force HTTPS di production
     WS_URL: process.env.NODE_ENV === 'production'

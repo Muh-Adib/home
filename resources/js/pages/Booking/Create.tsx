@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Property } from '@/types/property';
+import { propertiesService } from '@/lib/api';
 
 // Import komponen yang baru dibuat
 import BookingDateDisplay from '@/components/booking/BookingDateDisplay';
@@ -196,36 +197,26 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
     // Handle guest count changes
     const handleGenderCountChange = (genderType: 'male' | 'female' | 'children', newCount: number) => {
         if (genderType === 'children') {
-            setData('guest_children' as any, newCount);
+            setData('guest_children', newCount);
         } else if (genderType === 'male') {
-            setData('guest_male' as any, newCount);
+            setData('guest_male', newCount);
         } else {
-            setData('guest_female' as any, newCount);
+            setData('guest_female', newCount);
         }
 
         // Recalculate rate when guest count changes
         if (data.check_in && data.check_out) {
             setTimeout(async () => {
                 try {
-                    const response = await fetch(`/api/properties/${property.slug}/calculate-rate?` + new URLSearchParams({
+                    const result = await propertiesService.calculateRate(property.slug, {
                         check_in: data.check_in,
                         check_out: data.check_out,
-                        guest_count: totalGuests.toString(),
-                    }));
+                        guest_count: totalGuests,
+                    });
 
-                    if (response.ok) {
-                        const contentType = response.headers.get('content-type');
-                        if (contentType && contentType.includes('application/json')) {
-                            const result = await response.json();
-                            if (result.success) {
-                                setRateCalculation(result.calculation);
-                                setAvailabilityStatus('available');
-                            } else {
-                                setAvailabilityStatus('unavailable');
-                            }
-                        } else {
-                            setAvailabilityStatus('unavailable');
-                        }
+                    if (result.success) {
+                        setRateCalculation(result.calculation);
+                        setAvailabilityStatus('available');
                     } else {
                         setAvailabilityStatus('unavailable');
                     }
@@ -240,25 +231,15 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
     // Calculate rate
     const calculateRate = useCallback(async () => {
         try {
-            const response = await fetch(`/api/properties/${property.slug}/calculate-rate?` + new URLSearchParams({
+            const result = await propertiesService.calculateRate(property.slug, {
                 check_in: data.check_in,
                 check_out: data.check_out,
-                guest_count: totalGuests.toString(),
-            }));
+                guest_count: totalGuests,
+            });
 
-            if (response.ok) {
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.includes('application/json')) {
-                    const result = await response.json();
-                    if (result.success) {
-                        setRateCalculation(result.calculation);
-                        setAvailabilityStatus('available');
-                    } else {
-                        setAvailabilityStatus('unavailable');
-                    }
-                } else {
-                    setAvailabilityStatus('unavailable');
-                }
+            if (result.success) {
+                setRateCalculation(result.calculation);
+                setAvailabilityStatus('available');
             } else {
                 setAvailabilityStatus('unavailable');
             }
@@ -268,22 +249,25 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
         }
     }, [property.slug, data.check_in, data.check_out, totalGuests]);
 
-    // Calculate rate when dates change
+    // Calculate rate when dates or guest count change
     useEffect(() => {
-        if (data.check_in && data.check_out) {
+        if (data.check_in && data.check_out && totalGuests > 0) {
             setAvailabilityStatus('checking');
-            calculateRate();
+            // Use setTimeout to ensure state is updated
+            setTimeout(() => {
+                calculateRate();
+            }, 100);
         }
-    }, [data.check_in, data.check_out, calculateRate]);
+    }, [data.check_in, data.check_out, totalGuests]);
 
     // Handle field changes
-    const handleFieldChange = (field: string, value: any) => {
-        setData(field as any, value);
+    const handleFieldChange = <K extends keyof BookingFormData>(field: K, value: BookingFormData[K]) => {
+        setData(field, value);
     };
 
     // Handle DP percentage change
     const handleDpPercentageChange = (percentage: number) => {
-        setData('dp_percentage' as any, percentage);
+        setData('dp_percentage', percentage);
     };
 
     // Check-in time options

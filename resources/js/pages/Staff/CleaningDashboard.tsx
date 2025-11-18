@@ -79,7 +79,7 @@ export default function CleaningDashboard({ needsCleaning, recentlyCleaned, stat
     });
 
     const breadcrumbs: BreadcrumbItem[] = [
-        { title: 'Dashboard', href: '/admin/dashboard' },
+        { title: 'Dashboard', href: '/dashboard' },
         { title: 'Cleaning Management', href: '/staff/cleaning' },
     ];
 

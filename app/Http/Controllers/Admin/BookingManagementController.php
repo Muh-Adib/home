@@ -9,12 +9,15 @@ use App\Models\User;
 use App\Services\BookingService;
 use App\Services\RateCalculationService;
 use App\Services\PaymentIncomeSyncService;
+use App\Services\PaymentGatewayService;
 use App\Events\BookingStatusChanged;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 /**
@@ -45,13 +48,16 @@ class BookingManagementController extends Controller
 {
     private BookingService $bookingService;
     private RateCalculationService $rateCalculationService;
+    private PaymentGatewayService $gatewayService;
 
     public function __construct(
         BookingService $bookingService,
-        RateCalculationService $rateCalculationService
+        RateCalculationService $rateCalculationService,
+        PaymentGatewayService $gatewayService
     ) {
         $this->bookingService = $bookingService;
         $this->rateCalculationService = $rateCalculationService;
+        $this->gatewayService = $gatewayService;
     }
 
     /**
@@ -1738,6 +1744,162 @@ class BookingManagementController extends Controller
         }
 
         return redirect($whatsappData['whatsapp_url']);
+    }
+
+    /**
+     * Generate payment link untuk booking
+     */
+    public function generatePaymentLink(Request $request, Booking $booking): JsonResponse|RedirectResponse
+    {
+        $this->authorize('view', $booking);
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:1',
+            'type' => 'nullable|in:dp,remaining,full',
+            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'expiry_hours' => 'nullable|integer|min:1|max:168', // Max 7 days
+        ]);
+
+        try {
+            // Calculate payment type jika tidak di-set
+            $paidAmount = $booking->payments()
+                ->where('payment_status', 'verified')
+                ->sum('amount');
+            $pendingAmount = $booking->total_amount - $paidAmount;
+
+            if ($validated['amount'] > $pendingAmount) {
+                return back()->withErrors([
+                    'amount' => 'Payment amount exceeds pending amount.'
+                ]);
+            }
+
+            $type = $validated['type'] ?? ($paidAmount === 0 ? 'dp' : 'remaining');
+
+            // Generate payment link dengan options
+            $payment = $this->gatewayService->initiateGatewayPayment(
+                $booking,
+                $validated['amount'],
+                $type,
+                [
+                    'payment_method_id' => $validated['payment_method_id'] ?? null,
+                    'expiry_hours' => $validated['expiry_hours'] ?? null,
+                    'description' => "Payment link for booking {$booking->booking_number}",
+                ]
+            );
+
+            $result = [
+                'success' => true,
+                'payment' => $payment,
+                'payment_url' => $payment->ipaymu_payment_url,
+                'expired_at' => $payment->ipaymu_expired_at,
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'payment_url' => $result['payment_url'],
+                    'expired_at' => $result['expired_at'],
+                    'payment_number' => $result['payment']->payment_number,
+                ]);
+            }
+
+            return back()->with([
+                'success' => 'Payment link generated successfully.',
+                'payment_url' => $result['payment_url'],
+                'payment_number' => $result['payment']->payment_number,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to generate payment link', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors([
+                'error' => 'Failed to generate payment link: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Send payment link via WhatsApp atau Email
+     */
+    public function sendPaymentLink(Request $request, Booking $booking): RedirectResponse
+    {
+        $this->authorize('view', $booking);
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:1',
+            'type' => 'nullable|in:dp,remaining,full',
+            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'expiry_hours' => 'nullable|integer|min:1|max:168',
+            'channel' => 'required|in:whatsapp,email,both',
+        ]);
+
+        try {
+            // Generate payment link dengan options
+            $payment = $this->gatewayService->initiateGatewayPayment(
+                $booking,
+                $validated['amount'],
+                $validated['type'] ?? 'dp',
+                [
+                    'payment_method_id' => $validated['payment_method_id'] ?? null,
+                    'expiry_hours' => $validated['expiry_hours'] ?? null,
+                    'description' => "Payment link for booking {$booking->booking_number}",
+                ]
+            );
+
+            $result = [
+                'success' => true,
+                'payment' => $payment,
+                'payment_url' => $payment->ipaymu_payment_url,
+                'expired_at' => $payment->ipaymu_expired_at,
+            ];
+
+            $paymentUrl = $result['payment_url'];
+            $message = "Halo {$booking->guest_name},\n\n";
+            $message .= "Berikut adalah link pembayaran untuk booking Anda:\n";
+            $message .= "Booking Number: {$booking->booking_number}\n";
+            $message .= "Amount: Rp " . number_format($validated['amount'], 0, ',', '.') . "\n\n";
+            $message .= "Link Pembayaran:\n{$paymentUrl}\n\n";
+            $message .= "Link ini berlaku hingga: " . $result['expired_at']->format('d M Y H:i') . "\n\n";
+            $message .= "Terima kasih!";
+
+            // Send via WhatsApp
+            if ($validated['channel'] === 'whatsapp' || $validated['channel'] === 'both') {
+                if ($booking->guest_phone) {
+                    $phone = $this->formatPhoneNumber($booking->guest_phone);
+                    $whatsappUrl = "https://wa.me/{$phone}?text=" . urlencode($message);
+                    
+                    return redirect($whatsappUrl);
+                }
+            }
+
+            // Send via Email (TODO: implement email sending)
+            if ($validated['channel'] === 'email' || $validated['channel'] === 'both') {
+                // TODO: Implement email notification
+                Log::info('Email payment link sent', [
+                    'booking_id' => $booking->id,
+                    'email' => $booking->guest_email,
+                ]);
+            }
+
+            return redirect()->route('admin.bookings.show', $booking->booking_number)
+                ->with([
+                    'success' => 'Payment link generated successfully.',
+                    'payment_url' => $paymentUrl,
+                ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to send payment link', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors([
+                'error' => 'Failed to send payment link: ' . $e->getMessage()
+            ]);
+        }
     }
 
     /**

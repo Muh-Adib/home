@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { router } from '@inertiajs/react';
 import { useCallback, useMemo } from 'react';
+import { ApiClient } from '@/lib/api';
 
 export interface PropertyStatsData {
   kpis: {
@@ -51,13 +52,7 @@ export function usePropertyStats({
       ...(to && { to })
     });
 
-    const response = await fetch(`/api/admin/properties/${propertyId}/stats?${params}`);
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch property stats');
-    }
-    
-    return response.json();
+    return ApiClient.get(`/api/admin/properties/${propertyId}/stats?${params}`);
   }, [propertyId, from, to, period]);
 
   const query = useQuery({

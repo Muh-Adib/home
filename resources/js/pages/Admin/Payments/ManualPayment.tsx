@@ -59,7 +59,7 @@ export default function ManualPayment({ booking, bookings, paymentMethods }: Man
     });
 
     const breadcrumbs: BreadcrumbItem[] = [
-        { title: 'Dashboard', href: '/admin/dashboard' },
+        { title: 'Dashboard', href: '/dashboard' },
         { title: 'Payments', href: '/admin/payments' },
         { title: 'Manual Payment', href: '/admin/payments/manual-payment' },
     ];

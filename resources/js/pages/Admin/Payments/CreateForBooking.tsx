@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
     ArrowLeft,
     CreditCard,
@@ -26,7 +27,9 @@ import {
     FileText,
     MapPin,
     Users,
-    Clock
+    Clock,
+    Zap,
+    Loader2
 } from 'lucide-react';
 import { type BreadcrumbItem } from '@/types';
 
@@ -88,8 +91,12 @@ interface CreateForBookingProps {
 
 export default function CreateForBooking({ booking, paymentMethods, users }: CreateForBookingProps) {
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
+    const [paymentMethodType, setPaymentMethodType] = useState<'ipaymu' | 'manual'>('ipaymu');
+    const [selectedIpaymuMethod, setSelectedIpaymuMethod] = useState<PaymentMethod | null>(null);
+    const [expiryHours, setExpiryHours] = useState<number>(24);
 
     const { data, setData, post, processing, errors } = useForm({
+        payment_method_type: 'ipaymu' as 'ipaymu' | 'manual',
         payment_method_id: '',
         amount: '',
         payment_type: 'dp' as 'dp' | 'remaining' | 'full' | 'refund' | 'penalty',
@@ -106,6 +113,7 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
         verified_by: '',
         gateway_transaction_id: '',
         auto_confirm: false as boolean,
+        expiry_hours: 24,
     });
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -132,9 +140,9 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
         }
     }, [booking]);
 
-    // Update payment method details when payment method changes
+    // Update payment method details when payment method changes (for manual)
     useEffect(() => {
-        if (data.payment_method_id) {
+        if (paymentMethodType === 'manual' && data.payment_method_id) {
             const method = paymentMethods.find(m => m.id.toString() === data.payment_method_id.toString());
             setSelectedPaymentMethod(method || null);
             
@@ -147,7 +155,7 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                 }));
             }
         }
-    }, [data.payment_method_id]);
+    }, [data.payment_method_id, paymentMethodType]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -323,32 +331,163 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                             </CardHeader>
                             <CardContent>
                                 <form onSubmit={handleSubmit} className="space-y-6">
-                                    {/* Payment Method */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="payment_method_id">Payment Method *</Label>
-                                        <Select
-                                            value={data.payment_method_id}
-                                            onValueChange={(value) => setData('payment_method_id', value)}
+                                    {/* Payment Method Type Selection */}
+                                    <div className="space-y-4">
+                                        <Label className="text-base font-semibold">Metode Pembayaran *</Label>
+                                        <RadioGroup 
+                                            value={paymentMethodType} 
+                                            onValueChange={(value: 'ipaymu' | 'manual') => {
+                                                setPaymentMethodType(value);
+                                                setData('payment_method_type', value);
+                                                if (value === 'ipaymu') {
+                                                    setData('payment_status', 'pending');
+                                                }
+                                            }}
+                                            className="grid grid-cols-2 gap-4"
                                         >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select payment method" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {paymentMethods.map((method) => (
-                                                    <SelectItem key={method.id} value={method.id.toString()}>
-                                                        <div className="flex items-center gap-2">
-                                                            {getMethodIcon(method.type)}
-                                                            <span>{method.name}</span>
-                                                            <Badge variant="outline">{method.type}</Badge>
+                                            <div
+                                                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover-lift ${
+                                                    paymentMethodType === 'ipaymu'
+                                                        ? 'border-brand-primary bg-brand-primary-20 ring-2 ring-brand-primary-30 shadow-md'
+                                                        : 'border-border hover:border-brand-primary/50'
+                                                }`}
+                                                onClick={() => {
+                                                    setPaymentMethodType('ipaymu');
+                                                    setData('payment_method_type', 'ipaymu');
+                                                    setData('payment_status', 'pending');
+                                                }}
+                                            >
+                                                <RadioGroupItem value="ipaymu" id="method-ipaymu" className="mb-2" />
+                                                <label htmlFor="method-ipaymu" className="cursor-pointer">
+                                                    <div className="flex items-center gap-3">
+                                                        <Zap className="h-6 w-6 text-green-600" />
+                                                        <div>
+                                                            <div className="font-semibold text-lg">iPaymu Payment Gateway</div>
+                                                            <div className="text-sm text-muted-foreground">
+                                                                Bank Transfer, E-Wallet, QRIS
+                                                            </div>
                                                         </div>
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        {errors.payment_method_id && (
-                                            <p className="text-sm text-destructive">{errors.payment_method_id}</p>
+                                                    </div>
+                                                </label>
+                                            </div>
+
+                                            <div
+                                                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover-lift ${
+                                                    paymentMethodType === 'manual'
+                                                        ? 'border-brand-primary bg-brand-primary-20 ring-2 ring-brand-primary-30 shadow-md'
+                                                        : 'border-border hover:border-brand-primary/50'
+                                                }`}
+                                                onClick={() => {
+                                                    setPaymentMethodType('manual');
+                                                    setData('payment_method_type', 'manual');
+                                                }}
+                                            >
+                                                <RadioGroupItem value="manual" id="method-manual" className="mb-2" />
+                                                <label htmlFor="method-manual" className="cursor-pointer">
+                                                    <div className="flex items-center gap-3">
+                                                        <Upload className="h-6 w-6 text-blue-600" />
+                                                        <div>
+                                                            <div className="font-semibold text-lg">Manual Transfer</div>
+                                                            <div className="text-sm text-muted-foreground">
+                                                                Upload bukti transfer
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        </RadioGroup>
+                                        {errors.payment_method_type && (
+                                            <p className="text-sm text-destructive">{errors.payment_method_type}</p>
                                         )}
                                     </div>
+
+                                    {/* iPaymu Payment Method Selection */}
+                                    {paymentMethodType === 'ipaymu' && (
+                                        <>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="ipaymu_payment_method">Pilih Channel Pembayaran</Label>
+                                                <Select
+                                                    value={selectedIpaymuMethod?.id.toString() || ''}
+                                                    onValueChange={(value) => {
+                                                        const method = paymentMethods.find(m => m.id.toString() === value);
+                                                        setSelectedIpaymuMethod(method || null);
+                                                        setData('payment_method_id', value);
+                                                    }}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Pilih channel pembayaran (opsional)" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {paymentMethods.filter(m => m.code === 'ipaymu' || m.type === 'e_wallet').map((method) => (
+                                                            <SelectItem key={method.id} value={method.id.toString()}>
+                                                                <div className="flex items-center gap-2">
+                                                                    {getMethodIcon(method.type)}
+                                                                    <span>{method.name}</span>
+                                                                </div>
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            {/* Expiry Hours */}
+                                            <div className="space-y-2">
+                                                <Label htmlFor="expiry_hours">Waktu Kedaluwarsa Link (Jam)</Label>
+                                                <Input
+                                                    id="expiry_hours"
+                                                    type="number"
+                                                    min={1}
+                                                    max={168}
+                                                    value={expiryHours}
+                                                    onChange={(e) => {
+                                                        const hours = parseInt(e.target.value) || 24;
+                                                        setExpiryHours(hours);
+                                                        setData('expiry_hours', hours);
+                                                    }}
+                                                />
+                                                <p className="text-xs text-muted-foreground">
+                                                    Link pembayaran akan berlaku selama {expiryHours} jam ({Math.round(expiryHours / 24 * 10) / 10} hari)
+                                                </p>
+                                            </div>
+
+                                            <Alert>
+                                                <Info className="h-4 w-4" />
+                                                <AlertDescription>
+                                                    Link pembayaran akan dibuat dan dapat dikirim ke guest. 
+                                                    Pembayaran akan diverifikasi otomatis setelah berhasil.
+                                                </AlertDescription>
+                                            </Alert>
+                                        </>
+                                    )}
+
+                                    {/* Manual Payment Method Selection */}
+                                    {paymentMethodType === 'manual' && (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="payment_method_id">Payment Method *</Label>
+                                            <Select
+                                                value={data.payment_method_id}
+                                                onValueChange={(value) => setData('payment_method_id', value)}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select payment method" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {paymentMethods.filter(m => m.code !== 'ipaymu').map((method) => (
+                                                        <SelectItem key={method.id} value={method.id.toString()}>
+                                                            <div className="flex items-center gap-2">
+                                                                {getMethodIcon(method.type)}
+                                                                <span>{method.name}</span>
+                                                                <Badge variant="outline">{method.type}</Badge>
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            {errors.payment_method_id && (
+                                                <p className="text-sm text-destructive">{errors.payment_method_id}</p>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* Payment Type & Amount */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -420,54 +559,58 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                         </div>
                                     </div>
 
-                                    {/* Payment Date & Due Date */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="payment_date">Payment Date *</Label>
-                                            <Input
-                                                id="payment_date"
-                                                type="date"
-                                                value={data.payment_date}
-                                                onChange={(e) => setData('payment_date', e.target.value)}
-                                            />
-                                            {errors.payment_date && (
-                                                <p className="text-sm text-destructive">{errors.payment_date}</p>
-                                            )}
-                                        </div>
+                                    {/* Payment Date & Due Date - Only for Manual */}
+                                    {paymentMethodType === 'manual' && (
+                                        <>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="payment_date">Payment Date *</Label>
+                                                    <Input
+                                                        id="payment_date"
+                                                        type="date"
+                                                        value={data.payment_date}
+                                                        onChange={(e) => setData('payment_date', e.target.value)}
+                                                    />
+                                                    {errors.payment_date && (
+                                                        <p className="text-sm text-destructive">{errors.payment_date}</p>
+                                                    )}
+                                                </div>
 
-                                        <div className="space-y-2">
-                                            <Label htmlFor="due_date">Due Date</Label>
-                                            <Input
-                                                id="due_date"
-                                                type="date"
-                                                value={data.due_date}
-                                                onChange={(e) => setData('due_date', e.target.value)}
-                                            />
-                                            {errors.due_date && (
-                                                <p className="text-sm text-destructive">{errors.due_date}</p>
-                                            )}
-                                        </div>
-                                    </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="due_date">Due Date</Label>
+                                                    <Input
+                                                        id="due_date"
+                                                        type="date"
+                                                        value={data.due_date}
+                                                        onChange={(e) => setData('due_date', e.target.value)}
+                                                    />
+                                                    {errors.due_date && (
+                                                        <p className="text-sm text-destructive">{errors.due_date}</p>
+                                                    )}
+                                                </div>
+                                            </div>
 
-                                    {/* Payment Status */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="payment_status">Payment Status *</Label>
-                                        <Select
-                                            value={data.payment_status}
-                                            onValueChange={(value) => setData('payment_status', value as any)}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="pending">Pending</SelectItem>
-                                                <SelectItem value="verified">Verified</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        {errors.payment_status && (
-                                            <p className="text-sm text-destructive">{errors.payment_status}</p>
-                                        )}
-                                    </div>
+                                            {/* Payment Status - Only for Manual */}
+                                            <div className="space-y-2">
+                                                <Label htmlFor="payment_status">Payment Status *</Label>
+                                                <Select
+                                                    value={data.payment_status}
+                                                    onValueChange={(value) => setData('payment_status', value as any)}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="pending">Pending</SelectItem>
+                                                        <SelectItem value="verified">Verified</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                {errors.payment_status && (
+                                                    <p className="text-sm text-destructive">{errors.payment_status}</p>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
 
                                     {/* Reference Number */}
                                     <div className="space-y-2">
@@ -483,8 +626,8 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                         )}
                                     </div>
 
-                                    {/* Bank Details (if bank transfer) */}
-                                    {selectedPaymentMethod?.type === 'bank_transfer' && (
+                                    {/* Bank Details (if bank transfer) - Only for Manual */}
+                                    {paymentMethodType === 'manual' && selectedPaymentMethod?.type === 'bank_transfer' && (
                                         <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
                                             <h4 className="font-medium">Bank Transfer Details</h4>
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -534,25 +677,27 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                         )}
                                     </div>
 
-                                    {/* File Attachment */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="attachment">Attachment</Label>
-                                        <Input
-                                            id="attachment"
-                                            type="file"
-                                            accept=".jpg,.jpeg,.png,.pdf"
-                                            onChange={(e) => setData('attachment', e.target.files?.[0] || null)}
-                                        />
-                                        <p className="text-xs text-muted-foreground">
-                                            Supported formats: JPG, PNG, PDF (max 5MB)
-                                        </p>
-                                        {errors.attachment && (
-                                            <p className="text-sm text-destructive">{errors.attachment}</p>
-                                        )}
-                                    </div>
+                                    {/* File Attachment - Only for Manual */}
+                                    {paymentMethodType === 'manual' && (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="attachment">Attachment</Label>
+                                            <Input
+                                                id="attachment"
+                                                type="file"
+                                                accept=".jpg,.jpeg,.png,.pdf"
+                                                onChange={(e) => setData('attachment', e.target.files?.[0] || null)}
+                                            />
+                                            <p className="text-xs text-muted-foreground">
+                                                Supported formats: JPG, PNG, PDF (max 5MB)
+                                            </p>
+                                            {errors.attachment && (
+                                                <p className="text-sm text-destructive">{errors.attachment}</p>
+                                            )}
+                                        </div>
+                                    )}
 
-                                    {/* Auto Confirm */}
-                                    {data.payment_status === 'verified' && booking.booking_status === 'pending_verification' && (
+                                    {/* Auto Confirm - Only for Manual Verified */}
+                                    {paymentMethodType === 'manual' && data.payment_status === 'verified' && booking.booking_status === 'pending_verification' && (
                                         <div className="flex items-center space-x-2">
                                             <Switch
                                                 id="auto_confirm"
@@ -566,15 +711,37 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                     )}
 
                                     {/* Submit Button */}
-                                    <div className="flex justify-end space-x-2">
+                                    <div className="flex justify-end space-x-2 pt-4">
                                         <Link href={`/admin/bookings/${booking.booking_number}`}>
                                             <Button type="button" variant="outline">
                                                 Cancel
                                             </Button>
                                         </Link>
-                                        <Button type="submit" disabled={processing}>
-                                            <Save className="mr-2 h-4 w-4" />
-                                            {processing ? 'Creating...' : 'Create Payment'}
+                                        <Button 
+                                            type="submit" 
+                                            disabled={processing}
+                                            className="bg-brand-primary hover:bg-brand-primary-dark"
+                                        >
+                                            {processing ? (
+                                                <>
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    {paymentMethodType === 'ipaymu' ? 'Creating Link...' : 'Creating...'}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {paymentMethodType === 'ipaymu' ? (
+                                                        <>
+                                                            <Zap className="mr-2 h-4 w-4" />
+                                                            Generate Payment Link
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Save className="mr-2 h-4 w-4" />
+                                                            Create Payment
+                                                        </>
+                                                    )}
+                                                </>
+                                            )}
                                         </Button>
                                     </div>
                                 </form>

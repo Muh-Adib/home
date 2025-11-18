@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Events\PaymentStatusChanged;
 use App\Services\PaymentIncomeSyncService;
+use App\Services\PaymentGatewayService;
 use App\Models\Payment;
 use App\Models\Booking;
 use App\Models\PaymentMethod;
@@ -15,6 +16,7 @@ use Inertia\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use App\Models\Income;
 use App\Models\Wallet;
@@ -33,10 +35,14 @@ use App\Models\WalletTransaction;
 class PaymentController extends Controller
 {
     protected PaymentIncomeSyncService $incomeSyncService;
+    protected PaymentGatewayService $gatewayService;
 
-    public function __construct(PaymentIncomeSyncService $incomeSyncService)
-    {
+    public function __construct(
+        PaymentIncomeSyncService $incomeSyncService,
+        PaymentGatewayService $gatewayService
+    ) {
         $this->incomeSyncService = $incomeSyncService;
+        $this->gatewayService = $gatewayService;
     }
 
     /**
@@ -366,17 +372,19 @@ class PaymentController extends Controller
 
     /**
      * Store payment for specific booking
+     * Support 2 metode: iPaymu (gateway) dan Manual Transfer
      */
     public function storeForBooking(Request $request, Booking $booking): RedirectResponse
     {
         $this->authorize('create', Payment::class);
 
         $validated = $request->validate([
-            'payment_method_id' => 'required|exists:payment_methods,id',
+            'payment_method_type' => 'required|in:ipaymu,manual',
+            'payment_method_id' => 'required_if:payment_method_type,manual|exists:payment_methods,id',
             'amount' => 'required|numeric|min:1',
             'payment_type' => 'required|in:dp,remaining,full,refund,penalty',
-            'payment_status' => 'required|in:pending,verified',
-            'payment_date' => 'required|date',
+            'payment_status' => 'required_if:payment_method_type,manual|in:pending,verified',
+            'payment_date' => 'required_if:payment_method_type,manual|date',
             'due_date' => 'nullable|date|after_or_equal:payment_date',
             'reference_number' => 'nullable|string|max:100',
             'bank_name' => 'nullable|string|max:100',
@@ -390,10 +398,7 @@ class PaymentController extends Controller
             'auto_confirm' => 'boolean',
         ]);
 
-        DB::beginTransaction();
         try {
-            $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
-            
             // Check if amount is valid
             $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
             $pendingAmount = $booking->total_amount - $paidAmount;
@@ -402,69 +407,110 @@ class PaymentController extends Controller
                 return back()->withErrors(['amount' => 'Payment amount exceeds pending amount.']);
             }
 
-            // Handle file upload
-            $attachmentPath = null;
-            if ($request->hasFile('attachment')) {
-                $attachmentPath = $request->file('attachment')->store('payments/attachments', 'public');
-            }
+            // Handle berdasarkan metode pembayaran
+            if ($validated['payment_method_type'] === 'ipaymu') {
+                // Initiate gateway payment
+                $payment = $this->gatewayService->initiateGatewayPayment(
+                    $booking,
+                    $validated['amount'],
+                    $validated['payment_type'],
+                    [
+                        'user_id' => Auth::id(),
+                        'user' => Auth::user(),
+                        'customer_name' => $booking->guest_name,
+                        'customer_phone' => $booking->guest_phone,
+                        'customer_email' => $booking->guest_email,
+                    ]
+                );
 
-            // Create payment record
-            $payment = $booking->payments()->create([
-                'payment_method_id' => $validated['payment_method_id'],
-                'payment_number' => Payment::generatePaymentNumber(),
-                'amount' => $validated['amount'],
-                'payment_type' => $validated['payment_type'],
-                'payment_method' => $paymentMethod->type,
-                'payment_status' => $validated['payment_status'],
-                'payment_date' => $validated['payment_date'],
-                'due_date' => $validated['due_date'],
-                'reference_number' => $validated['reference_number'],
-                'bank_name' => $validated['bank_name'] ?: $paymentMethod->bank_name,
-                'account_number' => $validated['account_number'],
-                'account_name' => $validated['account_name'],
-                'verification_notes' => $validated['verification_notes'],
-                'attachment_path' => $attachmentPath,
-                'processed_by' => $validated['processed_by'] ?: Auth::id(),
-                'verified_by' => $validated['payment_status'] === 'verified' ? ($validated['verified_by'] ?: Auth::id()) : null,
-                'verified_at' => $validated['payment_status'] === 'verified' ? now() : null,
-                'gateway_transaction_id' => $validated['gateway_transaction_id'],
-            ]);
-
-            // Update booking payment status if verified
-            if ($validated['payment_status'] === 'verified') {
-                $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-                
-                if ($totalPaid >= $booking->total_amount) {
-                    $booking->update(['payment_status' => 'fully_paid']);
-                    
-                    // Auto-confirm booking if requested and fully paid
-                    if ($validated['auto_confirm'] && $booking->booking_status === 'pending_verification') {
-                        $booking->update(['booking_status' => 'confirmed']);
-                    }
-                } elseif ($validated['payment_type'] === 'dp') {
-                    $booking->update(['payment_status' => 'dp_received']);
+                // Redirect ke payment URL atau return success dengan link
+                if ($payment->ipaymu_payment_url) {
+                    return redirect()->route('admin.bookings.show', $booking->booking_number)
+                        ->with([
+                            'success' => 'Payment gateway link generated successfully.',
+                            'payment_url' => $payment->ipaymu_payment_url,
+                            'payment_number' => $payment->payment_number,
+                        ]);
                 }
 
-                // Sinkronkan income saat verified
-                $this->incomeSyncService->syncOnVerified($payment);
+                return back()->withErrors(['error' => 'Failed to generate payment gateway URL.']);
 
-                // Create workflow entry
-                $booking->workflow()->create([
-                    'step' => 'payment_verified',
-                    'status' => 'completed',
-                    'processed_by' => Auth::id(),
-                    'processed_at' => now(),
-                    'notes' => "Payment created and verified: {$payment->payment_number}",
+            } else {
+                // Manual transfer flow
+                DB::beginTransaction();
+
+                $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
+
+                // Handle file upload
+                $attachmentPath = null;
+                if ($request->hasFile('attachment')) {
+                    $attachmentPath = $request->file('attachment')->store('payments/attachments', 'public');
+                }
+
+                // Create payment record
+                $payment = $booking->payments()->create([
+                    'payment_method_id' => $validated['payment_method_id'],
+                    'payment_number' => Payment::generatePaymentNumber(),
+                    'amount' => $validated['amount'],
+                    'payment_type' => $validated['payment_type'],
+                    'payment_method' => $paymentMethod->type,
+                    'payment_status' => $validated['payment_status'],
+                    'payment_date' => $validated['payment_date'],
+                    'due_date' => $validated['due_date'],
+                    'reference_number' => $validated['reference_number'],
+                    'bank_name' => $validated['bank_name'] ?: $paymentMethod->bank_name,
+                    'account_number' => $validated['account_number'],
+                    'account_name' => $validated['account_name'],
+                    'verification_notes' => $validated['verification_notes'],
+                    'attachment_path' => $attachmentPath,
+                    'processed_by' => $validated['processed_by'] ?: Auth::id(),
+                    'verified_by' => $validated['payment_status'] === 'verified' ? ($validated['verified_by'] ?: Auth::id()) : null,
+                    'verified_at' => $validated['payment_status'] === 'verified' ? now() : null,
+                    'gateway_transaction_id' => $validated['gateway_transaction_id'],
                 ]);
+
+                // Update booking payment status if verified
+                if ($validated['payment_status'] === 'verified') {
+                    $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+                    
+                    if ($totalPaid >= $booking->total_amount) {
+                        $booking->update(['payment_status' => 'fully_paid']);
+                        
+                        // Auto-confirm booking if requested and fully paid
+                        if ($validated['auto_confirm'] && $booking->booking_status === 'pending_verification') {
+                            $booking->update(['booking_status' => 'confirmed']);
+                        }
+                    } elseif ($validated['payment_type'] === 'dp') {
+                        $booking->update(['payment_status' => 'dp_received']);
+                    }
+
+                    // Sinkronkan income saat verified
+                    $this->incomeSyncService->syncOnVerified($payment);
+
+                    // Create workflow entry
+                    $booking->workflow()->create([
+                        'step' => 'payment_verified',
+                        'status' => 'completed',
+                        'processed_by' => Auth::id(),
+                        'processed_at' => now(),
+                        'notes' => "Payment created and verified: {$payment->payment_number}",
+                    ]);
+                }
+
+                DB::commit();
+
+                return redirect()->route('admin.bookings.show', $booking->booking_number)
+                    ->with('success', 'Payment created successfully.');
             }
 
-            DB::commit();
-
-            return redirect()->route('admin.bookings.show', $booking->booking_number)
-                ->with('success', 'Payment created successfully.');
-
         } catch (\Exception $e) {
-            DB::rollback();
+            DB::rollBack();
+            Log::error('Failed to create payment', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return back()->withErrors(['error' => 'Failed to create payment: ' . $e->getMessage()]);
         }
     }

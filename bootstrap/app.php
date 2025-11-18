@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ApiResponseFormatter;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RoleMiddleware;
@@ -23,6 +24,11 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             SetLocale::class,
+        ]);
+
+        // API response formatting for API routes
+        $middleware->api(prepend: [
+            ApiResponseFormatter::class,
         ]);
 
         // Register custom middleware

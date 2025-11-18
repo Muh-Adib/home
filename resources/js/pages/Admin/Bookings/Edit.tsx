@@ -47,6 +47,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { type BreadcrumbItem, type Booking, type Property } from '@/types';
 import AdminLayout from '@/layouts/admin-layout';
+import RateBreakdownCard from '@/components/booking/RateBreakdownCard';
 
 interface PaymentMethod {
     id: number;
@@ -85,6 +86,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
     // State management
     const [currentProperty, setCurrentProperty] = useState<Property | null>(booking.property || null);
     const [rateCalculation, setRateCalculation] = useState<RateCalculation | null>(null);
+    const [rateCalculationFull, setRateCalculationFull] = useState<any | null>(null); // Full rate calculation with daily_breakdown
     const [isCalculatingRate, setIsCalculatingRate] = useState(false);
     const [rateError, setRateError] = useState<string | null>(null);
     const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
@@ -170,6 +172,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
         
         // Reset calculations
         setRateCalculation(null);
+        setRateCalculationFull(null);
         setRateError(null);
         setAvailabilityStatus(null);
         setAvailabilityError(null);
@@ -253,6 +256,8 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                 per_night: 'Rp ' + Math.round(calculation.total_amount / calculation.nights).toLocaleString('id-ID')
                             }
                         });
+                        // Store full calculation with daily_breakdown
+                        setRateCalculationFull(rateData.calculation || rateData);
                         setRateError(null);
                     } else {
                         setRateError(rateData.message || 'Rate calculation failed');
@@ -280,6 +285,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
         
         // Clear previous calculations
         setRateCalculation(null);
+        setRateCalculationFull(null);
         setRateError(null);
         setAvailabilityStatus(null);
         setAvailabilityError(null);
@@ -373,21 +379,26 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                         per_night: 'Rp ' + Math.round((calculation.total_amount || 0) / (calculation.nights || 1)).toLocaleString('id-ID')
                                     }
                                 });
+                                // Store full calculation with daily_breakdown
+                                setRateCalculationFull(rateData.calculation || rateData);
                                 setRateError(null);
                             } else {
                                 setRateError(rateData.error || 'Rate calculation failed');
                                 setRateCalculation(null);
+                                setRateCalculationFull(null);
                             }
                         } else {
                             const errorData = await rateResponse.json().catch(() => ({}));
                             setRateError(errorData.error || errorData.message || 'Failed to calculate rate');
                             setRateCalculation(null);
+                            setRateCalculationFull(null);
                         }
                     }
                 } catch (error) {
                     console.error('Error recalculating rate on guest change:', error);
                     setRateError(error instanceof Error ? error.message : 'Error calculating rate');
                     setRateCalculation(null);
+                    setRateCalculationFull(null);
                 } finally {
                     setIsCalculatingRate(false);
                 }
@@ -424,8 +435,8 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
 
     // Breadcrumbs
     const breadcrumbs: BreadcrumbItem[] = [
-        { title: 'Dashboard', href: '/admin/dashboard' },
-        { title: 'Bookings', href: '/admin/booking-management' },
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Bookings', href: '/admin/bookings' },
         { title: booking.booking_number, href: `/admin/booking-management/${booking.booking_number}` },
         { title: 'Edit' },
     ];
@@ -1257,6 +1268,15 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Rate Breakdown Per Malam */}
+                        {rateCalculationFull && data.check_in_date && data.check_out_date && (
+                            <RateBreakdownCard
+                                rateCalculation={rateCalculationFull}
+                                checkIn={data.check_in_date}
+                                checkOut={data.check_out_date}
+                            />
+                        )}
 
                         {/* Booking Summary Card */}
                         <Card>

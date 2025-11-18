@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { propertiesService } from '@/lib/api';
 
 interface AvailabilityData {
     success: boolean;
@@ -87,19 +88,11 @@ export function usePropertyAvailability(
                 guest_count: guestCount.toString()
             });
 
-            const response = await fetch(`/api/properties/${propertySlug}/availability-and-rates?${params}`, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
-                }
+            return await propertiesService.getAvailabilityAndRates(propertySlug, {
+                start_date: startDate.toISOString().split('T')[0],
+                end_date: endDate.toISOString().split('T')[0],
+                guest_count: guestCount,
             });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-            }
-
-            return response.json();
         },
         enabled: enabled && !!propertySlug,
         staleTime: 5 * 60 * 1000, // 5 minutes

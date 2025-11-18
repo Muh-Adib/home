@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { router } from '@inertiajs/react';
 import { getEcho } from '@/lib/echo';
 import { createNotificationFallback } from '@/lib/echo-fallback';
+import { notificationsService } from '@/lib/api';
 
 export interface Notification {
     id: string;
@@ -67,13 +68,12 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
         setState(prev => ({ ...prev, loading: true, error: null }));
         
         try {
-            const response = await fetch('/notifications');
-            const data = await response.json();
+            const data = await notificationsService.getAll();
             
             setState(prev => ({
                 ...prev,
-                notifications: data.notifications.data || [],
-                unreadCount: data.unread_count || 0,
+                notifications: Array.isArray(data) ? data : (data as any).notifications?.data || [],
+                unreadCount: (data as any).unread_count || 0,
                 loading: false,
             }));
         } catch (error) {
@@ -91,13 +91,12 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
         setState(prev => ({ ...prev, loading: true, error: null }));
         
         try {
-            const response = await fetch(`/notifications/recent?limit=${limit}`);
-            const data = await response.json();
+            const data = await notificationsService.getRecent(limit);
             
             setState(prev => ({
                 ...prev,
-                notifications: data.notifications || [],
-                unreadCount: data.unread_count || 0,
+                notifications: Array.isArray(data) ? data : [],
+                unreadCount: (data as any).unread_count || 0,
                 loading: false,
             }));
         } catch (error) {
@@ -113,15 +112,7 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
     // Mark notification as read
     const markAsRead = useCallback(async (id: string) => {
         try {
-            const response = await fetch(`/notifications/${id}/read`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-            
-            const data = await response.json();
+            await notificationsService.markAsRead(id);
             
             setState(prev => ({
                 ...prev,
@@ -130,7 +121,7 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
                         ? { ...notification, read_at: new Date().toISOString() }
                         : notification
                 ),
-                unreadCount: data.unread_count || 0,
+                unreadCount: Math.max(0, prev.unreadCount - 1),
             }));
         } catch (error) {
             console.error('Error marking notification as read:', error);
@@ -140,15 +131,7 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
     // Mark all notifications as read
     const markAllAsRead = useCallback(async () => {
         try {
-            const response = await fetch('/notifications/mark-all-read', {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-            
-            await response.json();
+            await notificationsService.markAllAsRead();
             
             setState(prev => ({
                 ...prev,
@@ -166,21 +149,16 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
     // Delete notification
     const deleteNotification = useCallback(async (id: string) => {
         try {
-            const response = await fetch(`/notifications/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
+            await notificationsService.delete(id);
+            
+            setState(prev => {
+                const notification = prev.notifications.find(n => n.id === id);
+                return {
+                    ...prev,
+                    notifications: prev.notifications.filter(notification => notification.id !== id),
+                    unreadCount: notification && !notification.read_at ? Math.max(0, prev.unreadCount - 1) : prev.unreadCount,
+                };
             });
-            
-            const data = await response.json();
-            
-            setState(prev => ({
-                ...prev,
-                notifications: prev.notifications.filter(notification => notification.id !== id),
-                unreadCount: data.unread_count || 0,
-            }));
         } catch (error) {
             console.error('Error deleting notification:', error);
         }
@@ -189,20 +167,11 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
     // Clear read notifications
     const clearReadNotifications = useCallback(async () => {
         try {
-            const response = await fetch('/notifications/clear/read', {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-            
-            const data = await response.json();
+            await notificationsService.clearRead();
             
             setState(prev => ({
                 ...prev,
                 notifications: prev.notifications.filter(notification => !notification.read_at),
-                unreadCount: data.unread_count || 0,
             }));
         } catch (error) {
             console.error('Error clearing read notifications:', error);

@@ -32,6 +32,7 @@ class Booking extends Model
         'check_in_time',
         'check_out',
         'nights',
+        'rate_calculation',
         'base_amount',
         'extra_bed_amount',
         'service_amount',
@@ -81,6 +82,7 @@ class Booking extends Model
         'cleaned_at' => 'datetime',
         'payment_token_expires_at' => 'datetime',
         'is_cleaned' => 'boolean',
+        'rate_calculation' => 'array',
     ];
 
     protected $appends = [
@@ -93,8 +95,26 @@ class Booking extends Model
         parent::boot();
         
         static::creating(function ($booking) {
-            if (empty($booking->booking_number)) {
-                $booking->booking_number = self::generateBookingNumber();
+            // Only generate if booking_number is explicitly null or empty
+            if (empty($booking->booking_number) || $booking->booking_number === '') {
+                // Generate base booking number
+                $baseNumber = self::generateBookingNumber();
+                
+                // Quick check if exists - if yes, immediately add microsecond suffix
+                // This avoids multiple retry loops
+                if (self::where('booking_number', $baseNumber)->exists()) {
+                    // Immediately use microsecond suffix for guaranteed uniqueness
+                    $microseconds = substr(str_replace('.', '', (string)microtime(true)), -6);
+                    $booking->booking_number = $baseNumber . '-' . $microseconds;
+                    
+                    // Final check - if still exists (very rare), add random suffix
+                    if (self::where('booking_number', $booking->booking_number)->exists()) {
+                        $random = strtoupper(Str::random(4));
+                        $booking->booking_number = $baseNumber . '-' . $microseconds . $random;
+                    }
+                } else {
+                    $booking->booking_number = $baseNumber;
+                }
             }
             
             // Auto calculate nights
@@ -307,14 +327,33 @@ class Booking extends Model
     {
         $prefix = 'BK';
         $date = now()->format('ymd');
+        
+        // Optimized: Use simple query without lock for better performance
+        // Lock is only needed in high-concurrency scenarios
         $lastBooking = self::whereDate('created_at', today())
-                          ->latest('id')
-                          ->first();
+            ->orderByRaw('CAST(SUBSTR(booking_number, -3) AS INTEGER) DESC')
+            ->first();
         
         $sequence = $lastBooking ? 
                    intval(substr($lastBooking->booking_number, -3)) + 1 : 1;
         
-        return $prefix . $date . sprintf('%03d', $sequence);
+        // Cap sequence at 999 to avoid issues
+        if ($sequence > 999) {
+            $sequence = 1; // Reset or use microsecond suffix
+        }
+        
+        $bookingNumber = $prefix . $date . sprintf('%03d', $sequence);
+        
+        // Quick check - if exists, increment sequence once (no retry loop)
+        if (self::where('booking_number', $bookingNumber)->exists()) {
+            $sequence++;
+            if ($sequence > 999) {
+                $sequence = 1;
+            }
+            $bookingNumber = $prefix . $date . sprintf('%03d', $sequence);
+        }
+        
+        return $bookingNumber;
     }
 
     // Helper Methods

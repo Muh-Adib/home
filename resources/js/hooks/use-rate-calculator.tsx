@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { propertiesService } from '@/lib/api';
 
 /**
  * Interface untuk rate calculation request
@@ -251,90 +252,18 @@ export function useRateCalculator(options: UseRateCalculatorOptions = {}) {
         abortControllerRef.current = new AbortController();
 
         try {
-            // Build query parameters for GET request
-            const params = new URLSearchParams({
-                check_in: request.checkIn,
-                check_out: request.checkOut,
-                guest_count: (request.guestCount || 2).toString()
-            });
-
             console.log('🔍 Rate calculation request:', {
                 propertySlug: request.propertySlug,
-                params: Object.fromEntries(params),
-                url: `/api/properties/${request.propertySlug}/calculate-rate?${params}`
+                checkIn: request.checkIn,
+                checkOut: request.checkOut,
+                guestCount: request.guestCount || 2
             });
 
-            const response = await fetch(`/api/properties/${request.propertySlug}/calculate-rate?${params}`, {
-                method: 'GET',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                signal: abortControllerRef.current.signal
+            const data = await propertiesService.calculateRate(request.propertySlug, {
+                check_in: request.checkIn,
+                check_out: request.checkOut,
+                guest_count: request.guestCount || 2,
             });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                console.error('❌ API Error Response:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    errorData,
-                    requestParams: Object.fromEntries(params),
-                    url: `/api/properties/${request.propertySlug}/calculate-rate?${params}`
-                });
-                
-                // Handle different error types
-                if (response.status === 422) {
-                    const errorMessage = errorData.message || 'Validation failed';
-                    const validationErrors = errorData.errors || {};
-                    const debugInfo = errorData.debug_info || {};
-                    
-                    console.error('🔍 Validation Error Details:', {
-                        message: errorMessage,
-                        errors: validationErrors,
-                        debugInfo,
-                        requestData: Object.fromEntries(params)
-                    });
-                    
-                    // Create more informative error message
-                    let detailedMessage = errorMessage;
-                    if (Object.keys(validationErrors).length > 0) {
-                        const errorMessages = Object.values(validationErrors).flat();
-                        detailedMessage += ': ' + errorMessages.join(', ');
-                    }
-                    
-                    throw new Error(detailedMessage);
-                }
-                
-                // Handle availability conflicts (409)
-                if (response.status === 409) {
-                    const errorType = errorData.error_type;
-                    const message = errorData.message || 'Property not available';
-                    
-                    if (errorType === 'availability') {
-                        console.warn('🚫 Property not available:', {
-                            message,
-                            availabilityInfo: errorData.availability_info,
-                            bookedPeriods: errorData.availability_info?.booked_periods,
-                            alternativeDates: errorData.availability_info?.alternative_dates
-                        });
-                        
-                        // Create availability error with suggestions
-                        let availabilityMessage = message;
-                        if (errorData.availability_info?.alternative_dates) {
-                            const altDates = errorData.availability_info.alternative_dates;
-                            if (altDates.check_in && altDates.check_out) {
-                                availabilityMessage += `. Next available: ${altDates.check_in} to ${altDates.check_out}`;
-                            }
-                        }
-                        
-                        throw new Error(availabilityMessage);
-                    }
-                }
-                
-                throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
-            }
-
-            const data: RateCalculationResponse = await response.json();
             
             // Handle success=false in response body (additional safety check)
             if (!data.success) {
@@ -368,14 +297,27 @@ export function useRateCalculator(options: UseRateCalculatorOptions = {}) {
 
             console.log('✅ Rate calculation successful:', {
                 propertySlug: request.propertySlug,
-                totalAmount: data.formatted?.total_amount,
+                totalAmount: data.calculation?.total_amount,
                 nights: data.calculation?.nights
             });
 
-            // Cache successful response
-            cache.set(cacheKey, data, cacheTimeout);
+            // Transform to expected format
+            const response: RateCalculationResponse = {
+                success: data.success,
+                property_id: (data as any).property_id || 0,
+                dates: {
+                    check_in: request.checkIn,
+                    check_out: request.checkOut,
+                },
+                guest_count: request.guestCount || 2,
+                calculation: data.calculation,
+                formatted: (data as any).formatted || {},
+            };
 
-            return data;
+            // Cache successful response
+            cache.set(cacheKey, response, cacheTimeout);
+
+            return response;
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
                 throw new Error('Request was cancelled');

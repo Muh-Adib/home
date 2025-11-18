@@ -156,6 +156,23 @@ class PaymentMethodSeeder extends Seeder
                 'is_active' => false,
                 'sort_order' => 8,
             ],
+
+            // iPaymu Payment Gateway
+            [
+                'name' => 'iPaymu Payment Gateway',
+                'code' => 'ipaymu',
+                'type' => 'e_wallet',
+                'icon' => '💳',
+                'description' => 'Pembayaran online via iPaymu (Bank Transfer, E-Wallet, QRIS)',
+                'instructions' => [
+                    'Pilih metode pembayaran yang tersedia',
+                    'Ikuti instruksi di halaman pembayaran',
+                    'Pembayaran akan diverifikasi otomatis',
+                    'Link pembayaran berlaku selama 24 jam'
+                ],
+                'is_active' => true,
+                'sort_order' => 0, // Set to 0 to appear first
+            ],
         ];
 
         foreach ($paymentMethods as $method) {

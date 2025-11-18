@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Booking, type Payment, type BreadcrumbItem, type PageProps, BookingGuest } from '@/types';
 import { 
     Calendar, 
@@ -31,8 +33,13 @@ import {
     Plus,
     Eye,
     MessageCircle,
-    Trash2
+    Trash2,
+    Zap,
+    Send,
+    Link as LinkIcon,
+    Loader2
 } from 'lucide-react';
+import RateBreakdownCard from '@/components/booking/RateBreakdownCard';
 
 interface WhatsAppData {
     phone: string;
@@ -69,6 +76,7 @@ interface BookingShowProps extends PageProps {
             id: number;
             name: string;
         };
+        rate_calculation?: any;
     };
     whatsappData?: WhatsAppData;
 }
@@ -76,6 +84,8 @@ interface BookingShowProps extends PageProps {
 export default function ShowBooking({ booking, whatsappData, auth }: BookingShowProps) {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [showPaymentLinkDialog, setShowPaymentLinkDialog] = useState(false);
+    const [paymentLinkUrl, setPaymentLinkUrl] = useState<string | null>(null);
 
     const { data: verifyData, setData: setVerifyData, patch: patchVerify, processing: verifyProcessing } = useForm({
         notes: '',
@@ -90,8 +100,16 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
         confirm_delete: false,
     });
 
+    const { data: paymentLinkData, setData: setPaymentLinkData, post: postPaymentLink, processing: paymentLinkProcessing } = useForm({
+        amount: '',
+        type: 'dp',
+        payment_method_id: '',
+        expiry_hours: 24,
+        channel: 'whatsapp' as 'whatsapp' | 'email' | 'both',
+    });
+
     const breadcrumbs: BreadcrumbItem[] = [
-        { title: 'Dashboard', href: '/admin/dashboard' },
+        { title: 'Dashboard', href: '/dashboard' },
         { title: 'Bookings', href: '/admin/bookings' },
         { title: booking.booking_number, href: `/admin/bookings/${booking.booking_number}` },
     ];
@@ -489,6 +507,15 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                 </CardContent>
                             </Card>
 
+                            {/* Rate Breakdown Per Malam */}
+                            <div className="lg:col-span-2">
+                                <RateBreakdownCard
+                                    rateCalculation={booking.rate_calculation}
+                                    checkIn={booking.check_in}
+                                    checkOut={booking.check_out}
+                                />
+                            </div>
+
                             {/* Guest List */}
                             {booking.guests && booking.guests.length > 0 && (
                                 <Card className="lg:col-span-2">
@@ -675,6 +702,171 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                 </p>
                             </div>
                             <div className="flex gap-2">
+                                <Dialog open={showPaymentLinkDialog} onOpenChange={setShowPaymentLinkDialog}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="default" className="bg-brand-primary hover:bg-brand-primary-dark">
+                                            <Zap className="h-4 w-4 mr-2" />
+                                            Kirim Link Pembayaran
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="sm:max-w-[500px]">
+                                        <DialogHeader>
+                                            <DialogTitle>Kirim Link Pembayaran</DialogTitle>
+                                            <DialogDescription>
+                                                Generate dan kirim link pembayaran iPaymu ke guest
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        <form onSubmit={(e) => {
+                                            e.preventDefault();
+                                            const paidAmount = booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0);
+                                            const pendingAmount = booking.total_amount - paidAmount;
+                                            
+                                            if (parseFloat(paymentLinkData.amount) > pendingAmount) {
+                                                alert(`Jumlah tidak boleh melebihi sisa tagihan: ${formatCurrency(pendingAmount)}`);
+                                                return;
+                                            }
+
+                                            postPaymentLink(`/admin/bookings/${booking.booking_number}/payment-gateway/send-link`, {
+                                                onSuccess: (page) => {
+                                                    if (page.props.flash?.payment_url) {
+                                                        setPaymentLinkUrl(page.props.flash.payment_url as string);
+                                                    }
+                                                },
+                                                onError: (errors) => {
+                                                    console.error('Error generating payment link:', errors);
+                                                }
+                                            });
+                                        }} className="space-y-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="amount">Jumlah Pembayaran *</Label>
+                                                <Input
+                                                    id="amount"
+                                                    type="number"
+                                                    min="1"
+                                                    value={paymentLinkData.amount}
+                                                    onChange={(e) => {
+                                                        const paidAmount = booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0);
+                                                        const pendingAmount = booking.total_amount - paidAmount;
+                                                        const amount = Math.min(parseFloat(e.target.value) || 0, pendingAmount);
+                                                        setPaymentLinkData('amount', amount.toString());
+                                                    }}
+                                                    placeholder="Masukkan jumlah"
+                                                    required
+                                                />
+                                                <p className="text-xs text-muted-foreground">
+                                                    Sisa tagihan: {formatCurrency(booking.total_amount - booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0))}
+                                                </p>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="type">Tipe Pembayaran</Label>
+                                                <Select
+                                                    value={paymentLinkData.type}
+                                                    onValueChange={(value) => setPaymentLinkData('type', value)}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="dp">Down Payment (DP)</SelectItem>
+                                                        <SelectItem value="remaining">Remaining Payment</SelectItem>
+                                                        <SelectItem value="full">Full Payment</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="expiry_hours">Waktu Kedaluwarsa (Jam)</Label>
+                                                <Input
+                                                    id="expiry_hours"
+                                                    type="number"
+                                                    min={1}
+                                                    max={168}
+                                                    value={paymentLinkData.expiry_hours}
+                                                    onChange={(e) => setPaymentLinkData('expiry_hours', parseInt(e.target.value) || 24)}
+                                                />
+                                                <p className="text-xs text-muted-foreground">
+                                                    Link akan berlaku selama {paymentLinkData.expiry_hours} jam
+                                                </p>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="channel">Channel Pengiriman *</Label>
+                                                <Select
+                                                    value={paymentLinkData.channel}
+                                                    onValueChange={(value: 'whatsapp' | 'email' | 'both') => setPaymentLinkData('channel', value)}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                                                        <SelectItem value="email">Email</SelectItem>
+                                                        <SelectItem value="both">WhatsApp & Email</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            {paymentLinkUrl && (
+                                                <Alert className="bg-green-50 border-green-200">
+                                                    <LinkIcon className="h-4 w-4 text-green-600" />
+                                                    <AlertDescription className="text-green-800">
+                                                        <div className="space-y-2">
+                                                            <p className="font-medium">Link pembayaran berhasil dibuat!</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <Input
+                                                                    value={paymentLinkUrl}
+                                                                    readOnly
+                                                                    className="font-mono text-sm"
+                                                                />
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        navigator.clipboard.writeText(paymentLinkUrl);
+                                                                    }}
+                                                                >
+                                                                    Copy
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    </AlertDescription>
+                                                </Alert>
+                                            )}
+
+                                            <DialogFooter>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        setShowPaymentLinkDialog(false);
+                                                        setPaymentLinkUrl(null);
+                                                    }}
+                                                >
+                                                    Tutup
+                                                </Button>
+                                                <Button
+                                                    type="submit"
+                                                    disabled={paymentLinkProcessing}
+                                                    className="bg-brand-primary hover:bg-brand-primary-dark"
+                                                >
+                                                    {paymentLinkProcessing ? (
+                                                        <>
+                                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                            Memproses...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Send className="mr-2 h-4 w-4" />
+                                                            Kirim Link
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            </DialogFooter>
+                                        </form>
+                                    </DialogContent>
+                                </Dialog>
                                 <Button variant="outline" asChild>
                                     <Link href={`/admin/payments/booking/${booking.booking_number}/create`}>
                                         <Plus className="h-4 w-4 mr-2" />

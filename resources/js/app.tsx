@@ -51,13 +51,6 @@ createInertiaApp({
     progress: {
         color: '#4B5563',
     },
-    // Handle 419 errors (CSRF token expired)
-    onError: (page) => {
-        if (page.status === 419 || page.status === 401) {
-            // CSRF token expired or unauthorized - refresh the page to get a new token
-            window.location.reload();
-        }
-    },
 });
 // This will set light / dark mode on load...
 initializeTheme();

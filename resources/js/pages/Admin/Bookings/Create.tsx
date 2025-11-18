@@ -47,7 +47,8 @@ import { useTranslation } from 'react-i18next';
 import { type BreadcrumbItem } from '@/types';
 import AdminLayout from '@/layouts/admin-layout';
 import ExtraServiceSelector, { type ServiceMaster as ExtraServiceMaster, type SelectedService } from '@/components/ExtraServiceSelector';
-import { apiPost, apiFetchJson } from '@/utils/api-fetch';
+import { bookingsService } from '@/lib/api';
+import RateBreakdownCard from '@/components/booking/RateBreakdownCard';
 
 interface Property {
     id: number;
@@ -155,6 +156,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     // State management
     const [currentProperty, setCurrentProperty] = useState<Property | null>(selectedProperty || null);
     const [rateCalculation, setRateCalculation] = useState<RateCalculation | null>(null);
+    const [rateCalculationFull, setRateCalculationFull] = useState<any | null>(null); // Full rate calculation with daily_breakdown
     const [isCalculatingRate, setIsCalculatingRate] = useState(false);
     const [rateError, setRateError] = useState<string | null>(null);
     const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
@@ -245,6 +247,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         
         // Reset calculations
         setRateCalculation(null);
+        setRateCalculationFull(null);
         setRateError(null);
         setAvailabilityStatus(null);
         setAvailabilityError(null);
@@ -270,25 +273,11 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             
             // Use ADMIN endpoint with property_id
-            const response = await fetch(`/admin/api/admin/booking-management/availability-and-rates`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    property_id: propertyId,
-                    check_in: startDate,
-                    check_out: endDate,
-                    guest_count: totalGuests,
-                }),
-            });
+                const data = await bookingsService.getPropertyDateRange(propertyId, startDate, endDate);
             
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
+            if (data && (data.success || data.data)) {
+                const responseData = data.data || data;
+                if (responseData.success || responseData) {
                     // Update availability data with comprehensive data from customer API
                     setAvailabilityData({
                         success: true,
@@ -419,7 +408,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
         try {
             // Use API helper with CSRF token handling
-            const result = await apiPost('/admin/api/admin/booking-management/calculate-rate', {
+            const result = await bookingsService.calculateRate({
                 property_id: currentProperty.id,
                 check_in: checkIn,
                 check_out: checkOut,
@@ -461,6 +450,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         
         // Clear previous calculations
         setRateCalculation(null);
+        setRateCalculationFull(null);
         setRateError(null);
         setAvailabilityStatus(null);
         setAvailabilityError(null);
@@ -473,7 +463,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             const checkAvailabilityAndRate = async () => {
                 try {
                     // Check availability using ADMIN API
-                    const availabilityData = await apiPost(`/admin/api/admin/booking-management/availability-and-rates`, {
+                    const availabilityData = await bookingsService.getAvailabilityAndRates({
                         property_id: currentProperty.id,
                         check_in: startDate,
                         check_out: endDate,
@@ -495,7 +485,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                         }
                         
                         // Calculate rate using ADMIN API
-                        const rateData = await apiPost(`/admin/api/admin/booking-management/calculate-rate`, {
+                        const rateData = await bookingsService.calculateRate({
                             property_id: currentProperty.id,
                             check_in: startDate,
                             check_out: endDate,
@@ -521,22 +511,27 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                     per_night: 'Rp ' + Math.round((calculation.total_amount || 0) / (calculation.nights || 1)).toLocaleString('id-ID')
                                 }
                             });
+                            // Store full calculation with daily_breakdown
+                            setRateCalculationFull(rateData.calculation || rateData);
                             setRateError(null);
                         } else {
                             const errorMsg = rateData?.error || rateData?.message || 'Rate calculation failed - calculation data not found';
                             console.error('Rate calculation failed:', errorMsg, rateData);
                             setRateError(errorMsg);
                             setRateCalculation(null);
+                            setRateCalculationFull(null);
                         }
                     } else {
                         const errorMsg = availabilityData?.error || availabilityData?.message || 'Failed to check availability';
                         console.error('Availability check failed:', errorMsg, availabilityData);
                         setAvailabilityError(errorMsg);
                         setRateCalculation(null);
+                        setRateCalculationFull(null);
                     }
                 } catch (error: any) {
                     console.error('Error in checkAvailabilityAndRate:', error);
                     setRateCalculation(null);
+                    setRateCalculationFull(null);
                     
                     // Extract error message from response
                     let errorMessage = 'Error calculating rate';
@@ -582,7 +577,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             setTimeout(async () => {
                 try {
                     // Use ADMIN API for rate calculation with NEW guest count
-                    const rateData = await apiPost(`/admin/api/admin/booking-management/calculate-rate`, {
+                    const rateData = await bookingsService.calculateRate({
                         property_id: currentProperty.id,
                         check_in: data.check_in_date,
                         check_out: data.check_out_date,
@@ -611,17 +606,21 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                     per_night: 'Rp ' + Math.round((calculation.total_amount || 0) / (calculation.nights || 1)).toLocaleString('id-ID')
                                 }
                             });
+                            // Store full calculation with daily_breakdown
+                            setRateCalculationFull(rateData.calculation || rateData);
                             setRateError(null);
                         } else {
                             const errorMsg = rateData.error || rateData.message || 'Rate calculation failed - calculation data not found';
                             console.error('Rate calculation failed (guest change):', errorMsg, rateData);
                             setRateError(errorMsg);
                             setRateCalculation(null);
+                            setRateCalculationFull(null);
                         }
                     }
                 } catch (error: any) {
                     console.error('Error calculating rate on guest count change:', error);
                     setRateCalculation(null);
+                    setRateCalculationFull(null);
                     
                     // Extract error message
                     let errorMessage = 'Error calculating rate';
@@ -762,7 +761,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     // Breadcrumbs
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
-        { title: 'Bookings', href: '/admin/booking-management' },
+        { title: 'Bookings', href: '/admin/bookings' },
         { title: 'Create Booking' },
     ];
 
@@ -1743,7 +1742,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                         <Button 
                                             type="submit" 
                                             disabled={!canSubmit || processing}
-                                            className="px-8"
+                                            className="px-8 bg-brand-primary text-white hover:bg-brand-primary-dark"
                                         >
                                             {processing ? (
                                                 <>
@@ -1812,7 +1811,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                         </Card>
                         */}
 
-                        <Card className="md:sticky md:top-6">
+                        <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Calculator className="h-5 w-5" />
@@ -1938,6 +1937,15 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Rate Breakdown Per Malam */}
+                        {rateCalculationFull && data.check_in_date && data.check_out_date && (
+                            <RateBreakdownCard
+                                rateCalculation={rateCalculationFull}
+                                checkIn={data.check_in_date}
+                                checkOut={data.check_out_date}
+                            />
+                        )}
 
                         {/* Booking Summary Card */}
                         {currentProperty && data.check_in_date && data.check_out_date && (

@@ -21,11 +21,6 @@ export default defineConfig({
         // Tambahan konfigurasi untuk mengatasi EPIPE error
         target: 'es2020',
     },
-    resolve: {
-        alias: {
-            'ziggy-js': resolve(__dirname, 'vendor/tightenco/ziggy'),
-        },
-    },
     build: {
         rollupOptions: {
             onwarn(warning, warn) {
@@ -43,6 +38,8 @@ export default defineConfig({
     },
     // Tambahan konfigurasi server untuk stabilitas
     server: {
+        host: '127.0.0.1', // Use IPv4 instead of IPv6
+        port: 5173,
         hmr: {
             overlay: false, // Disable error overlay yang bisa menyebabkan crash
         },
@@ -52,5 +49,29 @@ export default defineConfig({
     },
     optimizeDeps: {
         force: true, // Force re-optimization
+        exclude: [
+            'axios',
+        ],
+        include: [
+            'react',
+            'react-dom',
+            '@inertiajs/react',
+            'leaflet',
+            'react-leaflet',
+        ],
+        esbuildOptions: {
+            // Fix for Leaflet CommonJS compatibility
+            define: {
+                global: 'globalThis',
+            },
+        },
+    },
+    resolve: {
+        alias: {
+            'ziggy-js': resolve(__dirname, 'vendor/tightenco/ziggy'),
+        },
+    },
+    define: {
+        global: 'globalThis',
     },
 });

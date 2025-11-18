@@ -36,6 +36,9 @@ class Payment extends Model
         'sender_account_name',
         'sender_account_number',
         'sender_bank_name',
+        'ipaymu_session_id',
+        'ipaymu_payment_url',
+        'ipaymu_expired_at',
     ];
 
     protected $casts = [
@@ -44,6 +47,7 @@ class Payment extends Model
         'due_date' => 'datetime',
         'verified_at' => 'datetime',
         'gateway_response' => 'array',
+        'ipaymu_expired_at' => 'datetime',
     ];
 
     protected $appends = [
@@ -235,5 +239,80 @@ class Payment extends Model
     public function getRouteKeyName(): string
     {
         return 'payment_number';
+    }
+
+    /**
+     * Check if payment is via gateway
+     */
+    public function isGatewayPayment(): bool
+    {
+        return !empty($this->gateway_transaction_id) || !empty($this->ipaymu_session_id);
+    }
+
+    /**
+     * Check if payment is via iPaymu
+     */
+    public function isIpaymuPayment(): bool
+    {
+        return !empty($this->ipaymu_session_id) || 
+               ($this->paymentMethod && $this->paymentMethod->code === 'ipaymu');
+    }
+
+    /**
+     * Check if payment link is expired
+     */
+    public function isPaymentLinkExpired(): bool
+    {
+        if (!$this->ipaymu_expired_at) {
+            return false;
+        }
+
+        return now()->isAfter($this->ipaymu_expired_at);
+    }
+
+    /**
+     * Mark payment as paid via gateway
+     */
+    public function markAsPaidViaGateway(): bool
+    {
+        if ($this->payment_status === 'verified') {
+            return false; // Already verified
+        }
+
+        return $this->update([
+            'payment_status' => 'verified',
+            'verified_at' => now(),
+            'verified_by' => null, // Auto verified by gateway
+        ]);
+    }
+
+    /**
+     * Mark payment as failed via gateway
+     */
+    public function markAsFailedViaGateway(): bool
+    {
+        return $this->update([
+            'payment_status' => 'failed',
+        ]);
+    }
+
+    /**
+     * Scope untuk gateway payments
+     */
+    public function scopeGatewayPayments($query)
+    {
+        return $query->whereNotNull('gateway_transaction_id')
+                     ->orWhereNotNull('ipaymu_session_id');
+    }
+
+    /**
+     * Scope untuk iPaymu payments
+     */
+    public function scopeIpaymuPayments($query)
+    {
+        return $query->whereNotNull('ipaymu_session_id')
+                     ->orWhereHas('paymentMethod', function ($q) {
+                         $q->where('code', 'ipaymu');
+                     });
     }
 }

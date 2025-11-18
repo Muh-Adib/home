@@ -509,7 +509,7 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                             className={errors.weekend_premium_fixed ? 'border-red-500' : ''}
                                         />
                                         <p className="text-sm text-muted-foreground">
-                                            Fixed Price: {formatCurrency(data.weekend_premium_fixed)}
+                                            Fixed Price: {formatCurrency(data.base_rate + (data.weekend_premium_fixed || 0))}
                                         </p>
                                         {errors.weekend_premium_fixed && <p className="text-sm text-red-500">{errors.weekend_premium_fixed}</p>}
                                     </div>

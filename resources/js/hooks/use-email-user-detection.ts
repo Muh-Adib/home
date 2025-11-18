@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { usePage } from '@inertiajs/react';
+import { bookingsService } from '@/lib/api';
 
 interface ExistingUser {
     id: number;
@@ -32,20 +33,7 @@ export function useEmailUserDetection(): UseEmailUserDetectionResult {
         
         setIsChecking(true);
         try {
-            const response = await fetch(route('booking.check-email'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': page.props.csrf_token,
-                },
-                body: JSON.stringify({ email }),
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to check email');
-            }
-            
-            const result = await response.json();
+            const result = await bookingsService.checkEmail(email);
             
             if (result.exists && result.user) {
                 setFoundUser(result.user);
@@ -61,7 +49,7 @@ export function useEmailUserDetection(): UseEmailUserDetectionResult {
         } finally {
             setIsChecking(false);
         }
-    }, [page.props.csrf_token]);
+    }, []);
 
     const dismissLoginNotice = useCallback(() => {
         setShowLoginNotice(false);

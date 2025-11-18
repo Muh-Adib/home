@@ -22,11 +22,18 @@ class PaymentMethod extends Model
         'is_active',
         'sort_order',
         'wallet_id',
+        'fee_percentage',
+        'fee_fixed',
+        'fee_type',
+        'ipaymu_settings',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'instructions' => 'array',
+        'fee_percentage' => 'decimal:2',
+        'fee_fixed' => 'decimal:2',
+        'ipaymu_settings' => 'array',
     ];
 
     // Relationships
@@ -59,5 +66,47 @@ class PaymentMethod extends Model
         }
         
         return [];
+    }
+
+    /**
+     * Calculate fee untuk amount tertentu
+     */
+    public function calculateFee(float $amount): float
+    {
+        if ($this->fee_type === 'fixed') {
+            return $this->fee_fixed ?? 0;
+        }
+        
+        // Percentage fee
+        $percentage = $this->fee_percentage ?? 0;
+        return ($amount * $percentage) / 100;
+    }
+
+    /**
+     * Get total amount dengan fee
+     */
+    public function getTotalWithFee(float $amount): float
+    {
+        return $amount + $this->calculateFee($amount);
+    }
+
+    /**
+     * Check if this is iPaymu payment method
+     */
+    public function isIpaymu(): bool
+    {
+        return $this->code === 'ipaymu';
+    }
+
+    /**
+     * Get iPaymu payment channel dari settings
+     */
+    public function getIpaymuChannel(): ?string
+    {
+        if (!$this->isIpaymu()) {
+            return null;
+        }
+
+        return $this->ipaymu_settings['channel'] ?? 'all';
     }
 }

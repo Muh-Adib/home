@@ -47,6 +47,7 @@ const publicNavItems = [
 ];
 
 const authNavItems = [
+    { key: 'dashboard', href: '/dashboard', icon: Home, label: 'nav.dashboard' },
     { key: 'my_bookings', href: '/my-bookings', icon: Calendar, label: 'nav.my_bookings' },
     { key: 'my_payments', href: '/my-payments', icon: CreditCard, label: 'nav.my_payments' },
     { key: 'profile', href: '/settings/profile', icon: User, label: 'nav.profile' },

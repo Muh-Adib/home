@@ -13,6 +13,7 @@ use App\Models\Booking;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Database\QueryException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Support\Facades\Log;
@@ -107,37 +108,115 @@ class BookingController extends Controller
      */
     public function store(CreateBookingRequest $request, Property $property): RedirectResponse
     {
-        $validated = $request->validated();
-    
-        // Check if user exists with email or phone
-        $existingUser = \App\Models\User::where('email', $validated['guest_email'])
-            ->orWhere('phone', $validated['guest_phone'])
-            ->first();
-
-        if ($existingUser && !auth()->check()) {
-            // Save booking data to session
-            session([
-                'pending_booking_data' => [
-                    'property_id' => $property->id,
-                    'form_data' => $validated,
-                    'booking_session' => session('booking_data'),
-                    'created_at' => now(),
-                ]
-            ]);
-
-            return redirect()->route('login')
-                ->with('info', 'We found an existing account with your email/phone. Please login to continue booking.')
-                ->with('intended_url', route('bookings.resume'));
-        }
-
-        // Proceed with normal booking creation
+        Log::info('STORE HIT', [
+            'validated' => $request->validated(),
+            'property' => $property ? $property->id : null,
+            'auth' => auth()->check(),
+            'existing_user' => \App\Models\User::where('email', $request->guest_email)
+                ->orWhere('phone', $request->guest_phone)
+                ->first(),
+        ]);
+        
         try {
+            $validated = $request->validated();
+        
+            // Check if user exists with email or phone
+            $existingUser = \App\Models\User::where('email', $validated['guest_email'])
+                ->orWhere('phone', $validated['guest_phone'])
+                ->first();
+
+            if ($existingUser && !auth()->check()) {
+                // Save booking data to session
+                session([
+                    'pending_booking_data' => [
+                        'property_id' => $property->id,
+                        'form_data' => $validated,
+                        'booking_session' => session('booking_data'),
+                        'created_at' => now(),
+                    ]
+                ]);
+
+                return redirect()->route('login')
+                    ->with('info', 'We found an existing account with your email/phone. Please login to continue booking.')
+                    ->with('intended_url', route('bookings.resume'));
+            }
+
+            // Proceed with normal booking creation
             $booking = $this->createBookingNormally($property, $validated);
             
             return redirect()->route('bookings.confirmation', $booking->booking_number)
                 ->with('success', 'Booking berhasil dibuat!');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Re-throw validation exceptions to let Laravel handle them properly
+            // Inertia will automatically handle validation errors
+            throw $e;
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Handle database errors (like unique constraint violations)
+            if ($e->getCode() == 23000 || str_contains($e->getMessage(), 'UNIQUE constraint')) {
+                Log::warning('Booking number conflict detected, retrying...', [
+                    'error' => $e->getMessage(),
+                    'property_id' => $property->id ?? null,
+                ]);
+                
+                // Retry booking creation - minimal delay since boot method handles uniqueness
+                try {
+                    // Minimal delay (10ms) - boot method will handle uniqueness with microsecond suffix
+                    usleep(10000); // 10ms delay only
+                    
+                    // Force clear any cached booking number generation
+                    // The boot method will handle generating a new unique booking number
+                    $booking = $this->createBookingNormally($property, $validated);
+                    
+                    if ($booking && $booking->booking_number) {
+                        Log::info('Booking retry successful', [
+                            'booking_number' => $booking->booking_number,
+                            'property_id' => $property->id,
+                        ]);
+                        return redirect()->route('bookings.confirmation', $booking->booking_number)
+                            ->with('success', 'Booking berhasil dibuat!');
+                    } else {
+                        throw new \Exception('Booking created but booking_number is missing');
+                    }
+                } catch (\Illuminate\Database\QueryException $retryQueryException) {
+                    // If retry also fails with duplicate, boot method should have handled it
+                    // This should rarely happen now
+                    Log::error('Booking retry failed - unexpected duplicate', [
+                        'error' => $retryQueryException->getMessage(),
+                    ]);
+                    return back()
+                        ->withInput()
+                        ->withErrors(['error' => 'Gagal membuat booking karena konflik nomor booking. Silakan refresh halaman dan coba lagi.']);
+                } catch (\Exception $retryException) {
+                    Log::error('Booking retry failed', [
+                        'error' => $retryException->getMessage(),
+                        'trace' => $retryException->getTraceAsString(),
+                    ]);
+                    return back()
+                        ->withInput()
+                        ->withErrors(['error' => 'Gagal membuat booking. Silakan coba lagi.']);
+                }
+            }
+            
+            Log::error('Database error during booking creation', [
+                'error' => $e->getMessage(),
+                'property_id' => $property->id ?? null,
+            ]);
+            
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Terjadi kesalahan database. Silakan coba lagi.']);
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'Gagal membuat booking: ' . $e->getMessage()]);
+            Log::error('Booking creation failed in store method', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'property_id' => $property->id ?? null,
+                'property_slug' => $property->slug ?? null,
+                'request_data' => $request->except(['password', '_token']),
+            ]);
+            
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Gagal membuat booking: ' . $e->getMessage()]);
         }
     }
 
@@ -250,6 +329,9 @@ class BookingController extends Controller
             
             // ✅ FIX: Create booking using service with proper error handling
             try {
+                // Ensure booking_number is not set so it will be auto-generated
+                unset($bookingData['booking_number']);
+                
                 $bookingRequest = BookingRequest::fromArray($bookingData);
                 $booking = $this->bookingService->createBooking($bookingRequest, $user);
                 
@@ -337,11 +419,23 @@ class BookingController extends Controller
             'email_verified_at' => now(), // Auto verify for immediate login
         ]);
 
-        // ✅ AUTO LOGIN: Send welcome email with password
+        // ✅ AUTO LOGIN: Send welcome email with password (async to avoid timeout)
         try {
-            $user->notify(new \App\Notifications\GuestWelcomeNotification($password));
+            // Dispatch email notification in background to avoid blocking booking creation
+            dispatch(function () use ($user, $password) {
+                try {
+                    $user->notify(new \App\Notifications\GuestWelcomeNotification($password));
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Failed to send welcome email in background', [
+                        'user_id' => $user->id,
+                        'email' => $user->email,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                }
+            })->afterResponse();
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('Failed to send welcome email', [
+            \Illuminate\Support\Facades\Log::warning('Failed to dispatch welcome email', [
                 'user_id' => $user->id,
                 'email' => $user->email,
                 'error' => $e->getMessage()
@@ -359,9 +453,37 @@ class BookingController extends Controller
      */
     public function confirmation(Booking $booking): RedirectResponse|Response
     {
-        $this->authorize('view', $booking);
-
         $user = auth()->user();
+        
+        // Allow access if:
+        // 1. User is authenticated and email matches booking guest_email
+        // 2. User is admin/staff
+        // 3. No user but booking exists (for public confirmation after booking)
+        if ($user) {
+            // Check authorization only if user exists
+            try {
+                $this->authorize('view', $booking);
+            } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+                // If authorization fails, check if it's because user email doesn't match
+                // Allow access if user email matches guest_email (for newly created users)
+                if ($user->email === $booking->guest_email) {
+                    // Allow access even if role check fails
+                } else {
+                    // Re-throw if email doesn't match
+                    throw $e;
+                }
+            }
+        } else {
+            // For unauthenticated users, allow access if booking was just created
+            // This handles the case where user is redirected immediately after booking creation
+            // Check if booking was created in the last 5 minutes
+            if ($booking->created_at->diffInMinutes(now()) > 5) {
+                // Booking is older than 5 minutes, require authentication
+                return redirect()->route('login')
+                    ->with('info', 'Silakan login untuk melihat detail booking Anda.');
+            }
+        }
+
         $isNewUser = false;
 
         if ($user && $user->email === $booking->guest_email) {

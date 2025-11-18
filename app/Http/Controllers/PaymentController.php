@@ -6,6 +6,7 @@ use App\Models\Payment;
 use App\Models\Booking;
 use App\Models\PaymentMethod;
 use App\Events\PaymentCreated;
+use App\Services\PaymentGatewayService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -28,6 +29,13 @@ use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
+    protected PaymentGatewayService $gatewayService;
+
+    public function __construct(PaymentGatewayService $gatewayService)
+    {
+        $this->gatewayService = $gatewayService;
+    }
+
     /**
      * List of Indonesian banks and e-wallets for sender account
      */
@@ -69,12 +77,14 @@ class PaymentController extends Controller
     ];
 
     /**
-     * Show payment form for guest (with authentication check)
+     * Show payment page for guest - langsung redirect ke iPaymu
      */
     public function create(Booking $booking): Response
     {
         // Check if user has permission to make payment for this booking
-        $this->authorize('makePayment', $booking);
+        if (Auth::check()) {
+            $this->authorize('makePayment', $booking);
+        }
 
         // Calculate pending amount
         $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
@@ -85,120 +95,103 @@ class PaymentController extends Controller
                 ->with('info', 'This booking has been fully paid.');
         }
 
-        // Get active payment methods
-        $paymentMethods = PaymentMethod::active()->get();
+        // Determine payment type
+        $paymentType = $paidAmount === 0 ? 'dp' : 'remaining';
 
         // Calculate nights
-        $checkIn = \Carbon\Carbon::parse($booking->check_in_date);
-        $checkOut = \Carbon\Carbon::parse($booking->check_out_date);
-        $booking->nights = $checkIn->diffInDays($checkOut);
+        $checkIn = \Carbon\Carbon::parse($booking->check_in);
+        $checkOut = \Carbon\Carbon::parse($booking->check_out);
+        $nights = $checkIn->diffInDays($checkOut);
+
+        // Get available payment methods (iPaymu dan methods yang aktif)
+        // Untuk sekarang, kita ambil semua payment methods yang aktif
+        // Frontend bisa filter untuk hanya show iPaymu atau methods tertentu
+        $paymentMethods = PaymentMethod::active()
+          ->orderBy('sort_order')
+          ->get()
+          ->map(function($method) use ($pendingAmount) {
+              return [
+                  'id' => $method->id,
+                  'name' => $method->name,
+                  'code' => $method->code,
+                  'type' => $method->type,
+                  'icon' => $method->icon,
+                  'description' => $method->description,
+                  'fee_percentage' => $method->fee_percentage ?? 0,
+                  'fee_fixed' => $method->fee_fixed ?? 0,
+                  'fee_type' => $method->fee_type ?? 'percentage',
+                  'fee_amount' => $method->calculateFee($pendingAmount),
+                  'total_with_fee' => $method->getTotalWithFee($pendingAmount),
+                  'is_ipaymu' => $method->isIpaymu(),
+              ];
+          });
 
         return Inertia::render('Payment/Create', [
             'booking' => $booking->load('property'),
-            'paymentMethods' => $paymentMethods,
             'pendingAmount' => $pendingAmount,
             'paidAmount' => $paidAmount,
-            'bankOptions' => self::BANK_OPTIONS,
+            'paymentType' => $paymentType,
+            'nights' => $nights,
+            'paymentMethods' => $paymentMethods,
+            'defaultExpiryHours' => config('ipaymu.expiry_hours', 24),
         ]);
     }
 
     /**
-     * Store payment for guest
+     * Store payment for guest - langsung initiate gateway payment
      */
     public function store(Request $request, Booking $booking): RedirectResponse
     {
-        // Log request data untuk debugging
-        Log::info('Payment submission started', [
-            'booking_number' => $booking->booking_number,
-            'user_id' => Auth::id(),
-            'request_data' => $request->except(['payment_proof']),
-            'has_file' => $request->hasFile('payment_proof')
-        ]);
-
         try {
             // Check if user has permission to make payment for this booking
-            $this->authorize('makePayment', $booking);
-            Log::info('Authorization passed for makePayment');
+            if (Auth::check()) {
+                $this->authorize('makePayment', $booking);
+            }
 
             $validated = $request->validate([
-                'payment_method_id' => 'required|exists:payment_methods,id',
                 'amount' => 'required|numeric|min:1',
-                'payment_proof' => 'required|image|mimes:jpeg,png,jpg|max:10240',
-                'notes' => 'nullable|string|max:1000',
-                'sender_account_name' => 'required|string|max:255',
-                'sender_account_number' => 'required|string|max:100',
-                'sender_bank_name' => 'required|string|max:255',
+                'type' => 'nullable|in:dp,remaining,full',
+                'payment_method_id' => 'nullable|exists:payment_methods,id',
+                'expiry_hours' => 'nullable|integer|min:1|max:168', // Max 7 days
             ]);
-            Log::info('Validation passed');
 
             // Check if amount is valid
             $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
             $pendingAmount = $booking->total_amount - $paidAmount;
 
             if ($validated['amount'] > $pendingAmount) {
-                Log::warning('Payment amount exceeds pending amount', [
-                    'amount' => $validated['amount'],
-                    'pending_amount' => $pendingAmount
-                ]);
                 return back()->withErrors([
                     'amount' => 'Payment amount exceeds pending amount.'
                 ]);
             }
 
-            DB::beginTransaction();
-            Log::info('Database transaction started');
-
-            // Get payment method
-            $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
-            Log::info('Payment method found', ['method' => $paymentMethod->name]);
-
             // Determine payment type
-            $paymentType = $paidAmount === 0 ? 'dp' : 'remaining';
-            Log::info('Payment type determined', ['type' => $paymentType]);
+            $type = $validated['type'] ?? ($paidAmount === 0 ? 'dp' : 'remaining');
 
-            // Upload payment proof with optimization
-            $paymentProofPath = $this->uploadAndOptimizePaymentProof($request->file('payment_proof'));
-            Log::info('Payment proof uploaded', ['path' => $paymentProofPath]);
+            // Initiate gateway payment dengan options
+            $payment = $this->gatewayService->initiateGatewayPayment(
+                $booking,
+                $validated['amount'],
+                $type,
+                [
+                    'user_id' => Auth::id(),
+                    'user' => Auth::user(),
+                    'customer_name' => $booking->guest_name,
+                    'customer_phone' => $booking->guest_phone,
+                    'customer_email' => $booking->guest_email,
+                    'payment_method_id' => $validated['payment_method_id'] ?? null,
+                    'expiry_hours' => $validated['expiry_hours'] ?? null,
+                ]
+            );
 
-            // Create payment record
-            $payment = $booking->payments()->create([
-                'payment_method_id' => $paymentMethod->id,
-                'payment_number' => Payment::generatePaymentNumber(),
-                'amount' => $validated['amount'],
-                'payment_type' => $paymentType,
-                'payment_method' => $paymentMethod->type,
-                'payment_status' => 'pending',
-                'payment_date' => now(),
-                'attachment_path' => $paymentProofPath,
-                'bank_name' => $paymentMethod->bank_name,
-                'verification_notes' => $validated['notes'],
-                'processed_by' => Auth::id(),
-                'sender_account_name' => $validated['sender_account_name'],
-                'sender_account_number' => $validated['sender_account_number'],
-                'sender_bank_name' => $validated['sender_bank_name'],
-            ]);
-            Log::info('Payment record created', ['payment_number' => $payment->payment_number]);
-
-            // Create workflow entry if workflow relationship exists
-            if (method_exists($booking, 'workflow')) {
-                $booking->workflow()->create([
-                    'step' => 'payment_pending',
-                    'status' => 'pending',
-                    'processed_by' => Auth::id(),
-                    'processed_at' => now(),
-                    'notes' => "Payment submitted: {$payment->payment_number}",
-                ]);
-                Log::info('Workflow entry created');
+            // Redirect ke payment URL
+            if ($payment->ipaymu_payment_url) {
+                return redirect($payment->ipaymu_payment_url);
             }
 
-            DB::commit();
-            Log::info('Transaction committed successfully');
-
-            // Dispatch event
-            event(new PaymentCreated($payment, Auth::user()));
-
-            return redirect()->route('my-bookings')
-                ->with('success', 'Payment proof submitted successfully. We will verify your payment within 1-2 business hours.');
+            return back()->withErrors([
+                'error' => 'Failed to generate payment URL.'
+            ]);
 
         } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
             Log::error('Authorization failed', ['error' => $e->getMessage()]);
@@ -209,19 +202,13 @@ class PaymentController extends Controller
             Log::error('Validation failed', ['errors' => $e->errors()]);
             return back()->withErrors($e->errors());
         } catch (\Exception $e) {
-            DB::rollback();
-            Log::error('Payment submission failed', [
+            Log::error('Payment gateway initiation failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'booking_id' => $booking->id,
             ]);
             
-            // Delete uploaded file if payment creation failed
-            if (isset($paymentProofPath)) {
-                Storage::disk('public')->delete($paymentProofPath);
-            }
-            
             return back()->withErrors([
-                'error' => 'Failed to submit payment: ' . $e->getMessage()
+                'error' => 'Failed to initiate payment: ' . $e->getMessage()
             ]);
         }
     }

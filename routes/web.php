@@ -84,6 +84,41 @@ Route::controller(PaymentController::class)->group(function () {
     Route::post('/booking/{booking:booking_number}/payment', 'store')->name('payments.store');
 });
 
+/*
+|--------------------------------------------------------------------------
+| PAYMENT GATEWAY ROUTES
+|--------------------------------------------------------------------------
+| Routes for payment gateway integration (iPaymu)
+|--------------------------------------------------------------------------
+*/
+
+// Webhook route (public, no auth required)
+Route::post('/payment-gateway/webhook', [App\Http\Controllers\PaymentGatewayController::class, 'webhook'])
+    ->name('payment-gateway.webhook')
+    ->withoutMiddleware(['csrf', 'auth']);
+
+// Payment Gateway Routes (Guest & Authenticated Users)
+Route::middleware(['auth'])->group(function () {
+    Route::post('/bookings/{booking:booking_number}/payment-gateway/initiate', 
+        [App\Http\Controllers\PaymentGatewayController::class, 'initiate'])
+        ->name('payment-gateway.initiate');
+});
+
+// Payment Gateway Callback (Public - redirect dari iPaymu)
+Route::get('/payment-gateway/callback', 
+    [App\Http\Controllers\PaymentGatewayController::class, 'callback'])
+    ->name('payment-gateway.callback');
+
+// Payment Gateway Routes (Admin)
+Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
+    Route::post('/bookings/{booking:booking_number}/payment-gateway/generate-link', 
+        [App\Http\Controllers\PaymentGatewayController::class, 'generateLink'])
+        ->name('payment-gateway.generate-link');
+    Route::post('/bookings/{booking:booking_number}/payment-gateway/send-link', 
+        [App\Http\Controllers\Admin\BookingManagementController::class, 'sendPaymentLink'])
+        ->name('bookings.send-payment-link');
+});
+
 // Public API Routes
 Route::prefix('api')->name('api.')->group(function () {
     Route::get('properties/{property:slug}/calculate-rate', [BookingController::class, 'calculateRate'])

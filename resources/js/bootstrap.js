@@ -33,12 +33,13 @@ axios.interceptors.request.use(
     }
 );
 
-// Handle 419 errors (CSRF token expired) - refresh token and retry
+// Handle 419 errors (CSRF token expired) and 401 (unauthorized) - refresh token and retry
 axios.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
 
+        // Handle 419 (CSRF token expired)
         if (error.response?.status === 419 && !originalRequest._retry) {
             originalRequest._retry = true;
 
@@ -59,6 +60,12 @@ axios.interceptors.response.use(
                 window.location.reload();
                 return Promise.reject(refreshError);
             }
+        }
+
+        // Handle 401 (unauthorized) - reload page to get new session
+        if (error.response?.status === 401) {
+            window.location.reload();
+            return Promise.reject(error);
         }
 
         return Promise.reject(error);
