@@ -296,7 +296,7 @@ export default function BookingCreate({ property, initialFormData, auth, adminPh
         }
 
         // Format pesan WhatsApp
-        const message = `Hai Homsjogja Admin saya melihat ${property.name} tersedia di website https://homsjogja 
+        const message = `Hai Homsjogja Admin saya melihat ${property.name} tersedia di website https://homsjogja.com 
 saya mau booking dengan detail sebagai berikut:
 - Check-in: ${data.check_in} pukul ${data.check_in_time}
 - Check-out: ${data.check_out} pukul ${property.check_out_time}
@@ -310,8 +310,8 @@ saya mau booking dengan detail sebagai berikut:
 - ID Number: ${data.guest_id_number || 'Tidak ada'}
 - Permintaan Khusus: ${data.special_requests || 'Tidak ada'}
 - DP: ${data.dp_percentage}%
-- Total Harga: ${rateCalculation?.total_amount.toLocaleString()} IDR
-- Malam: ${rateCalculation?.nights}`;
+- Total Harga: Rp. ${rateCalculation?.total_amount.toLocaleString()}
+- Malam: ${rateCalculation?.nights} malam`;
 
         // Encode pesan untuk URL
         const encodedMessage = encodeURIComponent(message);
