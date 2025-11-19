@@ -315,8 +315,14 @@ class PaymentGatewayService
         $paymentMethod = $options['payment_method'] ?? $paymentMethod;
 
         // Calculate expiry time
+        // iPaymu menerima expired dalam format:
+        // - Integer (hours): 24 berarti 24 jam dari sekarang
+        // - String datetime: "2024-12-31 23:59:59" format Y-m-d H:i:s
         $expiryHours = $options['expiry_hours'] ?? config('ipaymu.expiry_hours', 24);
-        $expiredDateTime = Carbon::now()->addHours($expiryHours)->format('Y-m-d H:i:s');
+        
+        // Gunakan format hours (integer) sesuai dokumentasi iPaymu
+        // Jika ingin menggunakan datetime, bisa diubah ke format string
+        $expired = $options['expired'] ?? $expiryHours; // Default: hours (integer)
 
         return [
             'product' => [$productName],
@@ -329,7 +335,7 @@ class PaymentGatewayService
             'email' => $booking->guest_email ?? $options['customer_email'] ?? '',
             'payment_method' => $paymentMethod,
             'payment_channel' => $paymentChannel,
-            'expired' => $expiredDateTime,
+            'expired' => $expired, // Integer (hours) atau string datetime
             'return_url' => $options['return_url'] ?? route('payment-gateway.callback'),
             'cancel_url' => $options['cancel_url'] ?? route('payment-gateway.callback'),
             'notify_url' => $options['notify_url'] ?? route('payment-gateway.webhook'),

@@ -766,6 +766,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     ];
 
     // Enhanced validation with better feedback
+    // ✅ FIX: More flexible validation for admin - allow submit even if availability/rate check fails
+    // Admin should be able to create booking manually even with warnings
     const canSubmit = data.property_id && 
                      data.check_in_date && 
                      data.check_out_date && 
@@ -773,9 +775,11 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                      data.guest_email.trim() && 
                      data.guest_phone.trim() && 
                      data.guest_country && 
-                     totalGuests > 0 && 
-                     availabilityStatus === 'available' && 
-                     rateCalculation !== null;
+                     totalGuests > 0 &&
+                     // Allow submit even if availabilityStatus is null or unavailable (admin can override)
+                     // Allow submit even if rateCalculation is null (will be calculated on backend)
+                     (!availabilityStatus || availabilityStatus === 'available' || availabilityStatus === 'unavailable') &&
+                     !isCalculatingRate; // Only block if currently calculating
 
     // Validation messages
     const validationMessages = useMemo(() => {
@@ -793,6 +797,15 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         if (manualRateOverride) {
             if (!overrideAmount || overrideAmount <= 0) messages.push('Override amount harus diisi dan lebih dari 0');
             if (!overrideReason || overrideReason.trim().length < 10) messages.push('Override reason harus diisi minimal 10 karakter');
+        }
+        
+        // ✅ FIX: Show warnings instead of blocking for availability/rate issues
+        // Admin can still submit, but will see warnings
+        if (availabilityStatus === 'unavailable') {
+            messages.push('⚠️ Warning: Property mungkin tidak tersedia untuk tanggal yang dipilih');
+        }
+        if (!rateCalculation && !isCalculatingRate && data.check_in_date && data.check_out_date) {
+            messages.push('⚠️ Warning: Rate calculation belum tersedia, akan dihitung di backend');
         }
         
         // Info: availability/rate akan dicek ulang di backend. Submit tetap diizinkan.

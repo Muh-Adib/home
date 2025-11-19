@@ -15,9 +15,12 @@ class BookingRepository
         $bookingNumber = $this->generateBookingNumber();
         
         // ✅ FIX: Better field mapping and validation
+        // Note: rate_calculation is NOT stored in bookings table - breakdown stored in booking_daily_revenue
+        $rateCalculation = $request->rateCalculation;
+        
         $bookingData = [
             'property_id' => $property->id,
-            'user_id' => $userId,
+            // Note: user_id is not in bookings table - user is tracked via guest_email
             'booking_number' => $bookingNumber,
             'guest_name' => $request->guestName,
             'guest_email' => $request->guestEmail,
@@ -35,14 +38,10 @@ class BookingRepository
             'check_out' => $request->checkOutDate,
             'nights' => $request->getNights(),
             
-            // ✅ FIX: Better rate calculation field mapping
-            'rate_calculation' => $request->rateCalculation,
-            'base_amount' => $request->rateCalculation['baseAmount'] ?? $request->rateCalculation['base_amount'] ?? 0,
-            'weekend_premium_amount' => $request->rateCalculation['weekendPremium'] ?? $request->rateCalculation['weekend_premium'] ?? 0,
-            'seasonal_premium_amount' => $request->rateCalculation['seasonalPremium'] ?? $request->rateCalculation['seasonal_premium'] ?? 0,
-            'extra_bed_amount' => $request->rateCalculation['extraBedAmount'] ?? $request->rateCalculation['extra_bed_amount'] ?? 0,
-            'cleaning_fee' => $request->rateCalculation['cleaningFee'] ?? $request->rateCalculation['cleaning_fee'] ?? 0,
-            'tax_amount' => $request->rateCalculation['taxAmount'] ?? $request->rateCalculation['tax_amount'] ?? 0,
+            // ✅ FIX: Extract individual fields from rate calculation (rate_calculation NOT stored as column)
+            'base_amount' => $rateCalculation['baseAmount'] ?? $rateCalculation['base_amount'] ?? 0,
+            'extra_bed_amount' => $rateCalculation['extraBedAmount'] ?? $rateCalculation['extra_bed_amount'] ?? 0,
+            'tax_amount' => $rateCalculation['taxAmount'] ?? $rateCalculation['tax_amount'] ?? 0,
             'total_amount' => $request->totalAmount,
             
             'dp_amount' => ($request->totalAmount * $request->dpPercentage) / 100,
@@ -68,11 +67,19 @@ class BookingRepository
             'total_amount' => $request->totalAmount,
         ]);
 
+        // ✅ FIX: Ensure only fillable fields are passed to create()
+        // This prevents SQL errors for non-existent columns like rate_breakdown
+        $fillableFields = (new Booking())->getFillable();
+        $filteredBookingData = array_intersect_key($bookingData, array_flip($fillableFields));
+        
         // Create the booking
-        $booking = Booking::create($bookingData);
+        $booking = Booking::create($filteredBookingData);
 
         // ✅ Save booking guests to booking_guests table
         $this->saveBookingGuests($booking, $request->guests);
+
+        // Note: Daily revenue is saved in BookingService to avoid duplicate operations
+        // and ensure it's within the same transaction
 
         return $booking;
     }
@@ -96,14 +103,11 @@ class BookingRepository
             'check_in_time' => $request->checkInTime,
             'check_out' => $request->checkOutDate,
             'nights' => $request->getNights(),
-            // Rate Calculation Fields
-            'rate_calculation' => $request->rateCalculation,
+            // Rate Calculation Fields (rate_calculation NOT stored - use booking_daily_revenue)
+            // Note: weekend_premium_amount, seasonal_premium_amount, cleaning_fee not in bookings table
             'base_amount' => $request->rateCalculation['baseAmount'] ?? 0,
-            'weekend_premium_amount' => $request->rateCalculation['weekendPremium'] ?? 0,
-            'seasonal_premium_amount' => $request->rateCalculation['seasonalPremium'] ?? 0,
-            'extra_bed_amount' => $request->rateCalculation['extraBedAmount'] ?? 0,
-            'cleaning_fee' => $request->rateCalculation['cleaningFee'] ?? 0,
-            'tax_amount' => $request->rateCalculation['taxAmount'] ?? 0,
+            'extra_bed_amount' => $request->rateCalculation['extraBedAmount'] ?? $request->rateCalculation['extra_bed_amount'] ?? 0,
+            'tax_amount' => $request->rateCalculation['taxAmount'] ?? $request->rateCalculation['tax_amount'] ?? 0,
             'total_amount' => $request->totalAmount,
             'booking_status' => $request->bookingStatus,
             'payment_status' => $request->paymentStatus,
@@ -114,6 +118,8 @@ class BookingRepository
 
         // ✅ Update booking guests
         $this->updateBookingGuests($booking, $request->guests);
+
+        // Note: Daily revenue update should be handled in BookingService if needed
 
         return $booking->fresh();
     }
@@ -269,5 +275,49 @@ class BookingRepository
         
         // Save new guests
         $this->saveBookingGuests($booking, $guests);
+    }
+
+    /**
+     * Save daily revenue breakdown to booking_daily_revenue table
+     */
+    private function saveDailyRevenue(Booking $booking, array $rateCalculation): void
+    {
+        // Get daily breakdown from rate calculation
+        $dailyBreakdown = $rateCalculation['breakdown']['daily_breakdown'] ?? null;
+        
+        if (!$dailyBreakdown || !is_array($dailyBreakdown)) {
+            return;
+        }
+
+        // Delete existing daily revenue for this booking
+        \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+
+        // Insert new daily revenue records
+        $revenueData = [];
+        foreach ($dailyBreakdown as $dateStr => $detail) {
+            // Skip dates that are >= check_out
+            if ($dateStr >= $booking->check_out->format('Y-m-d')) {
+                continue;
+            }
+
+            $finalRate = $detail['final_rate'] ?? $detail['base_rate'] ?? 0;
+            // Convert to numeric if it's a string
+            if (is_string($finalRate)) {
+                $finalRate = (float) str_replace(['.', ','], ['', '.'], $finalRate);
+            }
+
+            $revenueData[] = [
+                'booking_id' => $booking->id,
+                'property_id' => $booking->property_id,
+                'tanggal' => $dateStr,
+                'amount' => $finalRate,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        if (!empty($revenueData)) {
+            \App\Models\BookingDailyRevenue::insert($revenueData);
+        }
     }
 } 

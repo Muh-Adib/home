@@ -32,7 +32,7 @@ class Booking extends Model
         'check_in_time',
         'check_out',
         'nights',
-        'rate_calculation',
+        // Note: rate_calculation removed - breakdown stored in booking_daily_revenue table
         'base_amount',
         'extra_bed_amount',
         'service_amount',
@@ -82,11 +82,12 @@ class Booking extends Model
         'cleaned_at' => 'datetime',
         'payment_token_expires_at' => 'datetime',
         'is_cleaned' => 'boolean',
-        'rate_calculation' => 'array',
+        // Note: rate_calculation removed from casts - use accessor instead
     ];
 
     protected $appends = [
         'payment_link',
+        'rate_calculation', // Virtual attribute generated from booking_daily_revenue
     ];
 
     // Boot method untuk auto-generate booking number
@@ -628,5 +629,114 @@ class Booking extends Model
             'payment_token' => null,
             'payment_token_expires_at' => null,
         ]);
+    }
+
+    /**
+     * Get rate calculation (virtual attribute)
+     * Generated from booking_daily_revenue or recalculated from booking data
+     */
+    protected function rateCalculation(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                // Try to generate from booking_daily_revenue first
+                $dailyRevenues = $this->dailyRevenues;
+                
+                if ($dailyRevenues->isNotEmpty()) {
+                    return $this->generateRateCalculationFromDailyRevenue($dailyRevenues);
+                }
+                
+                // If no daily revenue, recalculate from booking data
+                return $this->recalculateRateCalculation();
+            }
+        );
+    }
+
+    /**
+     * Generate rate calculation from booking_daily_revenue
+     */
+    private function generateRateCalculationFromDailyRevenue($dailyRevenues): array
+    {
+        $totalAmount = $dailyRevenues->sum('amount');
+        $dailyBreakdown = [];
+        
+        foreach ($dailyRevenues as $revenue) {
+            $date = $revenue->tanggal->format('Y-m-d');
+            $carbonDate = \Carbon\Carbon::parse($date);
+            
+            $dailyBreakdown[$date] = [
+                'date' => $date,
+                'day_name' => $carbonDate->format('l'),
+                'base_rate' => (string) $revenue->amount,
+                'final_rate' => (string) $revenue->amount,
+                'premiums' => [],
+                'seasonal_rate' => null,
+                'extra_bed_rate' => '0.00',
+            ];
+        }
+        
+        return [
+            'nights' => $this->nights,
+            'base_amount' => $this->base_amount,
+            'weekend_premium' => $this->extra_bed_amount ?? 0, // Adjust based on your logic
+            'seasonal_premium' => 0,
+            'extra_bed_amount' => $this->extra_bed_amount ?? 0,
+            'cleaning_fee' => 0,
+            'tax_amount' => $this->tax_amount ?? 0,
+            'total_amount' => (float) $this->total_amount,
+            'extra_beds' => 0,
+            'breakdown' => [
+                'daily_breakdown' => $dailyBreakdown,
+                'total_base_amount' => (float) $this->base_amount,
+                'subtotal' => (float) $this->total_amount,
+            ],
+            'seasonal_rates_applied' => [],
+        ];
+    }
+
+    /**
+     * Recalculate rate calculation from booking data
+     */
+    private function recalculateRateCalculation(): array
+    {
+        // Recalculate using RateCalculationService
+        try {
+            $rateCalculationService = app(\App\Services\RateCalculationService::class);
+            $calculation = $rateCalculationService->calculateRate(
+                $this->property,
+                $this->check_in->format('Y-m-d'),
+                $this->check_out->format('Y-m-d'),
+                $this->guest_count
+            );
+            
+            return $calculation->toArray();
+        } catch (\Exception $e) {
+            // Fallback to basic structure
+            return [
+                'nights' => $this->nights,
+                'base_amount' => (float) $this->base_amount,
+                'weekend_premium' => 0,
+                'seasonal_premium' => 0,
+                'extra_bed_amount' => (float) ($this->extra_bed_amount ?? 0),
+                'cleaning_fee' => 0,
+                'tax_amount' => (float) ($this->tax_amount ?? 0),
+                'total_amount' => (float) $this->total_amount,
+                'extra_beds' => 0,
+                'breakdown' => [
+                    'daily_breakdown' => [],
+                    'total_base_amount' => (float) $this->base_amount,
+                    'subtotal' => (float) $this->total_amount,
+                ],
+                'seasonal_rates_applied' => [],
+            ];
+        }
+    }
+
+    /**
+     * Relationship to booking_daily_revenue
+     */
+    public function dailyRevenues(): HasMany
+    {
+        return $this->hasMany(BookingDailyRevenue::class);
     }
 }

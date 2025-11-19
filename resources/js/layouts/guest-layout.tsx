@@ -40,7 +40,6 @@ interface GuestLayoutProps {
 }
 
 const publicNavItems = [
-    { key: 'home', href: '/', icon: Home, label: 'nav.home' },
     { key: 'properties', href: '/properties', icon: Building2, label: 'nav.properties' },
     { key: 'about', href: '/about', icon: Info, label: 'nav.about' },
     { key: 'contact', href: '/contact', icon: Phone, label: 'nav.contact' },

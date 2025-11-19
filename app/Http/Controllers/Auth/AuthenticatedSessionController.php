@@ -29,9 +29,16 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
+        // Proses autentikasi bawaan Laravel
         $request->authenticate();
 
+        // Regenerasi session
         $request->session()->regenerate();
+
+        // Update last_login
+        $request->user()->update([
+        'last_login' => now(),
+        ]);
 
         return redirect()->intended(route('dashboard', absolute: false));
     }

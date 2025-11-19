@@ -269,39 +269,52 @@ class BookingController extends Controller
     private function createBookingNormally(Property $property, array $data)
     {
         try {
+            // ✅ FIX: Filter out invalid fields (like rate_breakdown) that might be sent from frontend
+            // Only include fields that are valid for BookingRequest
+            $allowedFields = [
+                'property_id', 'check_in', 'check_in_date', 'check_out', 'check_out_date', 
+                'check_in_time', 'guest_male', 'guest_female', 'guest_children', 'guest_count',
+                'guest_name', 'guest_email', 'guest_phone', 'guest_country', 'guest_id_number',
+                'guest_gender', 'relationship_type', 'guests', 'special_requests', 'internal_notes',
+                'booking_status', 'payment_status', 'dp_percentage', 'auto_confirm', 'services'
+            ];
+            
+            // Filter data to only include allowed fields
+            $filteredData = array_intersect_key($data, array_flip($allowedFields));
+            
             // ✅ FIX: Better field mapping and data preparation
             $bookingData = [
                 'property_id' => $property->id,
                 
                 // ✅ FIX: Handle different date field names
-                'check_in' => $data['check_in'] ?? $data['check_in_date'] ?? session('booking_data.check_in'),
-                'check_out' => $data['check_out'] ?? $data['check_out_date'] ?? session('booking_data.check_out'),
-                'check_in_time' => $data['check_in_time'] ?? '15:00',
+                'check_in' => $filteredData['check_in'] ?? $filteredData['check_in_date'] ?? session('booking_data.check_in'),
+                'check_out' => $filteredData['check_out'] ?? $filteredData['check_out_date'] ?? session('booking_data.check_out'),
+                'check_in_time' => $filteredData['check_in_time'] ?? '15:00',
 
                 // ✅ FIX: Better guest count calculation
-                'guest_male' => (int)($data['guest_male'] ?? 1),
-                'guest_female' => (int)($data['guest_female'] ?? 1),
-                'guest_children' => (int)($data['guest_children'] ?? 0),
-                'guest_count' => (int)($data['guest_count'] ?? 
-                    ((int)($data['guest_male'] ?? 1) + (int)($data['guest_female'] ?? 1) + (int)($data['guest_children'] ?? 0))),
+                'guest_male' => (int)($filteredData['guest_male'] ?? 1),
+                'guest_female' => (int)($filteredData['guest_female'] ?? 1),
+                'guest_children' => (int)($filteredData['guest_children'] ?? 0),
+                'guest_count' => (int)($filteredData['guest_count'] ?? 
+                    ((int)($filteredData['guest_male'] ?? 1) + (int)($filteredData['guest_female'] ?? 1) + (int)($filteredData['guest_children'] ?? 0))),
                 
                 // Guest information
-                'guest_name' => $data['guest_name'] ?? '',
-                'guest_email' => $data['guest_email'] ?? '',
-                'guest_phone' => $data['guest_phone'] ?? '',
-                'guest_country' => $data['guest_country'] ?? 'Indonesia',
-                'guest_id_number' => $data['guest_id_number'] ?? '',
-                'guest_gender' => $data['guest_gender'] ?? 'male',
-                'relationship_type' => $data['relationship_type'] ?? 'keluarga',
-                'guests' => $data['guests'] ?? [],
+                'guest_name' => $filteredData['guest_name'] ?? '',
+                'guest_email' => $filteredData['guest_email'] ?? '',
+                'guest_phone' => $filteredData['guest_phone'] ?? '',
+                'guest_country' => $filteredData['guest_country'] ?? 'Indonesia',
+                'guest_id_number' => $filteredData['guest_id_number'] ?? '',
+                'guest_gender' => $filteredData['guest_gender'] ?? 'male',
+                'relationship_type' => $filteredData['relationship_type'] ?? 'keluarga',
+                'guests' => $filteredData['guests'] ?? [],
 
                 // Booking details
-                'special_requests' => $data['special_requests'] ?? '',
-                'internal_notes' => $data['internal_notes'] ?? '',
-                'booking_status' => $data['booking_status'] ?? 'pending_verification',
-                'payment_status' => $data['payment_status'] ?? 'dp_pending',
-                'dp_percentage' => (int)($data['dp_percentage'] ?? 50),
-                'auto_confirm' => (bool)($data['auto_confirm'] ?? false),
+                'special_requests' => $filteredData['special_requests'] ?? '',
+                'internal_notes' => $filteredData['internal_notes'] ?? '',
+                'booking_status' => $filteredData['booking_status'] ?? 'pending_verification',
+                'payment_status' => $filteredData['payment_status'] ?? 'dp_pending',
+                'dp_percentage' => (int)($filteredData['dp_percentage'] ?? 50),
+                'auto_confirm' => (bool)($filteredData['auto_confirm'] ?? false),
             ];
 
             // ✅ FIX: Validate required fields before proceeding
@@ -336,9 +349,9 @@ class BookingController extends Controller
                 $booking = $this->bookingService->createBooking($bookingRequest, $user);
                 
                 // Create booking services if provided
-                if (!empty($data['services']) && is_array($data['services'])) {
+                if (!empty($filteredData['services']) && is_array($filteredData['services'])) {
                     $servicesTotal = 0;
-                    foreach ($data['services'] as $serviceData) {
+                    foreach ($filteredData['services'] as $serviceData) {
                         $bookingService = \App\Models\BookingService::create([
                             'booking_id' => $booking->id,
                             'service_master_id' => $serviceData['service_master_id'] ?? null,

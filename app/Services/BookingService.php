@@ -30,87 +30,164 @@ class BookingService
      */
     public function createBooking(BookingRequest $request, ?User $user = null): Booking
     {
-        return DB::transaction(function () use ($request, $user) {
-            $property = Property::lockForUpdate()->findOrFail($request->propertyId);
+        // ✅ FIX: Use transaction with retry for SQLite database lock issues
+        $maxRetries = 3;
+        $retryDelay = 100000; // 100ms in microseconds
+        
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+            try {
+                return DB::transaction(function () use ($request, $user) {
+                    // ✅ FIX: For SQLite, avoid lockForUpdate if possible to prevent database locks
+                    $property = config('database.default') === 'sqlite' 
+                        ? Property::findOrFail($request->propertyId)
+                        : Property::lockForUpdate()->findOrFail($request->propertyId);
 
-            if (!$this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate)) {
-                throw new \Exception('Property tidak tersedia untuk tanggal yang dipilih.');
+                    if (!$this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate)) {
+                        throw new \Exception('Property tidak tersedia untuk tanggal yang dipilih.');
+                    }
+
+                    // ✅ FIX: Handle null user properly
+                    $userId = $user?->id;
+                    if (!$userId) {
+                        throw new \InvalidArgumentException('User is required for booking creation');
+                    }
+
+                    $rateCalculation = $this->rateCalculationService->calculateRate(
+                        $property,
+                        $request->checkInDate,
+                        $request->checkOutDate,
+                        $request->guestCount
+                    );
+                    $request->setRateCalculation($rateCalculation->toArray());
+                    $request->setTotalAmount($rateCalculation->totalAmount);
+
+                    $booking = $this->bookingRepository->create($request, $property, $userId);
+
+                    // ✅ FIX: Always save daily revenue (not just for paid bookings)
+                    // This ensures breakdown is stored immediately
+                    $this->insertDailyRevenueFromCalculation($booking, $rateCalculation->toArray());
+
+                    event(new BookingCreated($booking, $user));
+                    return $booking;
+                }, 5); // 5 attempts for transaction
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Check if it's a database lock error
+                if (str_contains($e->getMessage(), 'database is locked') && $attempt < $maxRetries) {
+                    Log::warning("Database lock detected, retrying booking creation (attempt {$attempt}/{$maxRetries})", [
+                        'error' => $e->getMessage(),
+                        'property_id' => $request->propertyId,
+                    ]);
+                    usleep($retryDelay * $attempt); // Exponential backoff
+                    continue;
+                }
+                throw $e;
             }
-
-            // ✅ FIX: Handle null user properly
-            $userId = $user?->id;
-            if (!$userId) {
-                throw new \InvalidArgumentException('User is required for booking creation');
-            }
-
-            $rateCalculation = $this->rateCalculationService->calculateRate(
-                $property,
-                $request->checkInDate,
-                $request->checkOutDate,
-                $request->guestCount
-            );
-            $request->setRateCalculation($rateCalculation->toArray());
-            $request->setTotalAmount($rateCalculation->totalAmount);
-
-            $booking = $this->bookingRepository->create($request, $property, $userId);
-
-            // Insert ke booking_daily_revenue jika payment_status sudah 'paid'
-            if ($booking->payment_status === 'paid') {
-                $this->insertDailyRevenue($booking);
-            }
-
-            event(new BookingCreated($booking, $user));
-            return $booking;
-        });
+        }
+        
+        throw new \Exception('Failed to create booking after ' . $maxRetries . ' attempts due to database lock');
     }
 
     public function updateBooking(Booking $booking, BookingRequest $request): Booking
     {
-        return DB::transaction(function () use ($booking, $request) {
-            $property = Property::lockForUpdate()->findOrFail($request->propertyId);
+        // ✅ FIX: Use transaction with retry for SQLite database lock issues
+        $maxRetries = 3;
+        $retryDelay = 100000; // 100ms in microseconds
+        
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+            try {
+                return DB::transaction(function () use ($booking, $request) {
+                    // ✅ FIX: For SQLite, avoid lockForUpdate if possible to prevent database locks
+                    $property = config('database.default') === 'sqlite' 
+                        ? Property::findOrFail($request->propertyId)
+                        : Property::lockForUpdate()->findOrFail($request->propertyId);
 
-            if (!$this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate)) {
-                throw new \Exception('Property tidak tersedia untuk tanggal yang dipilih.');
+                    if (!$this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate)) {
+                        throw new \Exception('Property tidak tersedia untuk tanggal yang dipilih.');
+                    }
+
+                    $rateCalculation = $this->rateCalculationService->calculateRate(
+                        $property,
+                        $request->checkInDate,
+                        $request->checkOutDate,
+                        $request->guestCount
+                    );
+                    $request->setRateCalculation($rateCalculation->toArray());
+                    $request->setTotalAmount($rateCalculation->totalAmount);
+
+                    $booking = $this->bookingRepository->update($booking, $request, $property);
+
+                    // ✅ FIX: Always update daily revenue when booking is updated
+                    $this->insertDailyRevenueFromCalculation($booking, $rateCalculation->toArray());
+
+                    return $booking;
+                }, 5); // 5 attempts for transaction
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Check if it's a database lock error
+                if (str_contains($e->getMessage(), 'database is locked') && $attempt < $maxRetries) {
+                    Log::warning("Database lock detected, retrying booking update (attempt {$attempt}/{$maxRetries})", [
+                        'error' => $e->getMessage(),
+                        'booking_id' => $booking->id,
+                    ]);
+                    usleep($retryDelay * $attempt); // Exponential backoff
+                    continue;
+                }
+                throw $e;
             }
-
-            $rateCalculation = $this->rateCalculationService->calculateRate(
-                $property,
-                $request->checkInDate,
-                $request->checkOutDate,
-                $request->guestCount
-            );
-            $request->setRateCalculation($rateCalculation->toArray());
-            $request->setTotalAmount($rateCalculation->totalAmount);
-
-            $booking = $this->bookingRepository->update($booking, $request, $property);
-
-            // Hapus dan insert ulang daily revenue jika payment_status sudah 'paid'
-            \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
-            if ($booking->payment_status === 'paid') {
-                $this->insertDailyRevenue($booking);
-            }
-
-            return $booking;
-        });
+        }
+        
+        throw new \Exception('Failed to update booking after ' . $maxRetries . ' attempts due to database lock');
     }
 
+    /**
+     * Insert daily revenue from rate calculation array (used during booking creation)
+     */
+    private function insertDailyRevenueFromCalculation(Booking $booking, array $rateCalculation): void
+    {
+        $breakdown = $rateCalculation['breakdown']['daily_breakdown'] ?? null;
+        
+        if (!$breakdown || !is_array($breakdown)) {
+            return;
+        }
+        
+        // Delete existing daily revenue for this booking
+        \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+        
+        // Insert new daily revenue records
+        $revenueData = [];
+        foreach ($breakdown as $tanggal => $detail) {
+            if ($tanggal >= $booking->check_out->format('Y-m-d')) {
+                continue;
+            }
+            
+            $finalRate = $detail['final_rate'] ?? $detail['base_rate'] ?? 0;
+            // Convert to numeric if it's a string
+            if (is_string($finalRate)) {
+                $finalRate = (float) str_replace(['.', ','], ['', '.'], $finalRate);
+            }
+            
+            $revenueData[] = [
+                'booking_id' => $booking->id,
+                'property_id' => $booking->property_id,
+                'tanggal' => $tanggal,
+                'amount' => $finalRate,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        
+        if (!empty($revenueData)) {
+            \App\Models\BookingDailyRevenue::insert($revenueData);
+        }
+    }
+
+    /**
+     * Insert daily revenue from booking's virtual rate_calculation attribute
+     */
     private function insertDailyRevenue(Booking $booking): void
     {
-        $breakdown = $booking->rate_calculation['breakdown']['daily_breakdown'] ?? null;
-        if (!$breakdown) return;
-        foreach ($breakdown as $tanggal => $detail) {
-            if ($tanggal >= $booking->check_out) continue;
-            \App\Models\BookingDailyRevenue::updateOrCreate(
-                [
-                    'booking_id' => $booking->id,
-                    'tanggal' => $tanggal,
-                ],
-                [
-                    'property_id' => $booking->property_id,
-                    'amount' => $detail['final_rate'],
-                ]
-            );
-        }
+        // Get rate calculation (now a virtual attribute from booking_daily_revenue or recalculated)
+        $rateCalculation = $booking->rate_calculation;
+        $this->insertDailyRevenueFromCalculation($booking, $rateCalculation);
     }
 
     /**
