@@ -149,7 +149,23 @@
     "total_payment": "Total Payment",
     "guests_nights": "guests • nights",
     "check_in_tomorrow": "Check-in tomorrow",
-    "check_in_days": "Check-in in {{days}} days"
+    "check_in_days": "Check-in in {{days}} days",
+    "finance":"Finance",
+    "incomes":"Incomes",
+    "expenses":"Expenses",
+    "wallets":"Wallets",
+    "extra_service":"Extra Service",
+    "payment_status":"Payment Status",
+    "inventory_item":"Invetory Item",
+    "inventory_purchase":"Inventory Purchase",
+    "inventory_usage":"Inventory Usage",
+    "inventory_purchase_history":"Inventory Purchase History",
+    "inventory_usage_history":"Inventory Usage History",
+    "inventory_purchase_report":"Inventory Purchase Report",
+    "inventory_usage_report":"Inventory Usage Report",
+    "inventory_purchase_report_title":"Inventory Purchase Report",
+    "inventory_usage_report_title":"Inventory Usage Report"
+
 },
   "auth": {
     "login_title": "Welcome Back",
@@ -243,7 +259,8 @@
     "and": "and",
     "privacy_policy": "Privacy Policy",
     "loading": "Loading...",
-    "all_rights_reserved": "© 2024 Homsjogja. All rights reserved."
+    "all_rights_reserved": "© 2024 Homsjogja. All rights reserved.",
+    "logout":"Logout"
   },
   "booking": {
     "title": "Book Your Stay",
@@ -728,16 +745,39 @@
   "settings": {
     "profile": "Profile",
     "profile_information": "Profile Information",
-    "profile_description": "Update your name and email address",
+    "profile_description": "Update your profile information",
     "personal_information": "Personal Information",
     "full_name": "Full Name",
     "name_placeholder": "Enter your full name",
     "email_address": "Email Address",
     "email_placeholder": "Enter your email address",
+    "phone_number": "Phone Number",
+    "phone_placeholder": "Enter your phone number",
+    "gender": "Gender",
+    "select_gender": "Select gender",
+    "male": "Male",
+    "female": "Female",
+    "other": "Other",
+    "birth_date": "Birth Date",
+    "country": "Country",
+    "country_placeholder": "Enter your country",
+    "address_information": "Address Information",
+    "address": "Address",
+    "address_placeholder": "Enter your full address",
+    "city": "City",
+    "city_placeholder": "Enter your city",
+    "state": "State/Province",
+    "state_placeholder": "Enter your state or province",
+    "postal_code": "Postal Code",
+    "postal_code_placeholder": "Enter postal code",
+    "bio": "Biography",
+    "bio_description": "Tell us a little about yourself",
+    "bio_placeholder": "Write a short biography about yourself...",
+    "change_avatar": "Change Avatar",
     "verified": "Verified",
     "unverified": "Unverified",
-    "email_unverified": "Your email address is unverified.",
-    "resend_verification": "Click here to resend the verification email.",
+    "email_unverified": "Your email address is not verified.",
+    "resend_verification": "Click here to resend verification email.",
     "verification_sent": "A new verification link has been sent to your email address.",
     "saving": "Saving...",
     "save_changes": "Save Changes",
@@ -752,4 +792,5 @@
     "two_factor_description": "Add an extra layer of security to your account",
     "coming_soon": "Coming Soon"
   }
+  
 } 

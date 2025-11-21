@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Building2, Users, Bed, Bath, Clock, Video } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { PropertyWithDetails } from '@/types/property';
+import TextFormatMarkdown from '@/components/text-mark-down'
 
 interface PropertyOverviewProps {
   property: PropertyWithDetails;
@@ -21,13 +22,13 @@ export const PropertyOverview: React.FC<PropertyOverviewProps> = ({ property, fo
     // https://www.tiktok.com/@username/video/1234567890
     // https://vm.tiktok.com/xxxxx/
     // https://tiktok.com/@username/video/1234567890
-    
+
     const url = property.tiktok_video_url.trim();
-    
+
     // Validate TikTok URL
     const tiktokPattern = /(?:https?:\/\/)?(?:www\.)?(?:tiktok\.com|vm\.tiktok\.com)\/(?:@[\w.]+)?\/?video\/(\d+)|(?:https?:\/\/)?(?:vm\.tiktok\.com)\/([\w]+)/i;
     const match = url.match(tiktokPattern);
-    
+
     if (!match) return null;
 
     // Extract video ID
@@ -49,9 +50,9 @@ export const PropertyOverview: React.FC<PropertyOverviewProps> = ({ property, fo
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
-          <p className="text-foreground leading-relaxed whitespace-pre-wrap text-lg">
-            {property.description}
-          </p>
+          <div className="text-foreground leading-relaxed text-lg">
+            <TextFormatMarkdown text={property.description} />
+          </div>
         </CardContent>
       </Card>
 
@@ -125,7 +126,7 @@ export const PropertyOverview: React.FC<PropertyOverviewProps> = ({ property, fo
               <p className="text-xl font-semibold text-foreground">{formatTime(property.check_out_time)}</p>
             </div>
           </div>
-          
+
         </CardContent>
       </Card>
     </div>

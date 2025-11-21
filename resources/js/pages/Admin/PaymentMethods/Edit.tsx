@@ -53,7 +53,7 @@ export default function PaymentMethodEdit({ paymentMethod }: PaymentMethodEditPr
             : ['']
     );
 
-    const { data, setData, put, processing, errors } = useForm({
+    const { data, setData, patch, processing, errors } = useForm({
         name: paymentMethod.name || '',
         code: paymentMethod.code || '',
         type: paymentMethod.type || 'bank_transfer',
@@ -82,29 +82,14 @@ export default function PaymentMethodEdit({ paymentMethod }: PaymentMethodEditPr
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
-        // Filter out empty instructions
-        const filteredInstructions = dynamicInstructions.filter(instruction => instruction.trim() !== '');
-        
-        const formData = new FormData();
-        Object.keys(data).forEach(key => {
-            if (key === 'instructions') {
-                filteredInstructions.forEach((instruction, index) => {
-                    formData.append(`instructions[${index}]`, instruction);
-                });
-            } else if (key === 'qr_code' && data.qr_code) {
-                formData.append(key, data.qr_code);
-            } else if (key !== 'qr_code') {
-                formData.append(key, String(data[key as keyof typeof data]));
-            }
-        });
-
-        put(`/admin/payment-methods/${paymentMethod.id}`, {
-            data: formData,
-            forceFormData: true,
-        });
+    
+        setData("instructions",
+            dynamicInstructions.filter(i => i.trim() !== "")
+        );
+    
+        patch(`/admin/payment-methods/${paymentMethod.id}`);
     };
-
+    
     const addInstruction = () => {
         setDynamicInstructions([...dynamicInstructions, '']);
     };

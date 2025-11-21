@@ -204,7 +204,7 @@ export default function BookingCard({
                             </>
                         )}
                         
-                        {canCheckIn && booking.booking_status === 'confirmed' && (
+                        {canCheckIn && booking.payment_status === 'fully_paid' && (
                             <Button 
                                 onClick={() => onCheckIn(booking)} 
                                 size="sm" 

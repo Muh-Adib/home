@@ -1394,7 +1394,7 @@ class BookingManagementController extends Controller
 
         // Generate WhatsApp message template
         $whatsappData = $this->generateWhatsAppMessage($booking);
-
+        
         return Inertia::render('Admin/Bookings/Show', [
             'booking' => $booking,
             'whatsappData' => $whatsappData,

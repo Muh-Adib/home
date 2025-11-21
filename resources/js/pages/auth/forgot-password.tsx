@@ -66,15 +66,15 @@ export default function ForgotPassword({ status }: ForgotPasswordProps) {
                             value={data.email}
                             onChange={(e) => setData('email', e.target.value)}
                             placeholder={t('auth.enter_email')}
-                            className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            className="pl-10 h-12 border-border focus:border-brand-primary focus:ring-brand-primary "
                         />
                     </div>
                     <InputError message={errors.email} />
                 </div>
 
                 {/* Instructions */}
-                <div className="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
-                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                <div className="rounded-lg bg-brand-primary-20 p-4">
+                    <p className="text-sm text-brand-primary">
                         {t('auth.enter_email_reset_instructions')}
                     </p>
                 </div>

@@ -92,7 +92,7 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
         
         try {
             const data = await notificationsService.getRecent(limit);
-            
+
             setState(prev => ({
                 ...prev,
                 notifications: Array.isArray(data) ? data : [],

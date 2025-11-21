@@ -397,6 +397,7 @@ class PaymentController extends Controller
             'gateway_transaction_id' => 'nullable|string|max:255',
             'auto_confirm' => 'boolean',
         ]);
+        //dd($validated);
 
         try {
             // Check if amount is valid
@@ -422,6 +423,7 @@ class PaymentController extends Controller
                         'customer_email' => $booking->guest_email,
                     ]
                 );
+                dd($payment);
 
                 // Redirect ke payment URL atau return success dengan link
                 if ($payment->ipaymu_payment_url) {

@@ -350,11 +350,13 @@ function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: Dashboar
         
         switch (format) {
             case 'currency':
+                const numericValue = Number(value); // pastikan jadi number
                 return new Intl.NumberFormat('id-ID', {
                     style: 'currency',
                     currency: 'IDR',
                     minimumFractionDigits: 0,
-                }).format(value);
+                    maximumFractionDigits: 0
+                }).format(numericValue);
             case 'percentage':
                 return `${value}%`;
             default:

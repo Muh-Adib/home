@@ -207,7 +207,7 @@ export default function BookingDetailModal({
                                 </>
                             )}
 
-                            {canCheckIn && booking.booking_status === 'confirmed' && (
+                            {canCheckIn && booking.payment_status === 'fully_paid' && (
                                 <Button 
                                     size="sm"
                                     onClick={() => handleAction('checkin')}

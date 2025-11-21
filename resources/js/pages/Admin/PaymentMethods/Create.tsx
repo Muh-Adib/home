@@ -50,26 +50,11 @@ export default function PaymentMethodCreate() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Filter out empty instructions
-        const filteredInstructions = dynamicInstructions.filter(instruction => instruction.trim() !== '');
-        
-        const formData = new FormData();
-        Object.keys(data).forEach(key => {
-            if (key === 'instructions') {
-                filteredInstructions.forEach((instruction, index) => {
-                    formData.append(`instructions[${index}]`, instruction);
-                });
-            } else if (key === 'qr_code' && data.qr_code) {
-                formData.append(key, data.qr_code);
-            } else if (key !== 'qr_code') {
-                formData.append(key, String(data[key as keyof typeof data]));
-            }
-        });
-
-        post('/admin/payment-methods', {
-            data: formData,
-            forceFormData: true,
-        });
+       setData("instructions",
+            dynamicInstructions.filter(i => i.trim() !== "")
+        );
+    
+        post(`/admin/payment-methods`);
     };
 
     const addInstruction = () => {

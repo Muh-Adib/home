@@ -63,6 +63,23 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
+//route dokumen penting
+Route::get('/terms', function () {
+    return Inertia::render('Terms');
+})->name('terms');
+Route::get('/privacy', function () {
+    return Inertia::render('Privacy');
+})->name('privacy');
+Route::get('/refund-policy', function () {
+    return Inertia::render('refund-policy');
+})->name('refund-policy');
+Route::get('/faq', function () {
+    return Inertia::render('faq');
+})->name('faq');
+Route::get('/support', function(){
+    return Inertia::render('Support');
+})->name('support');
+
 // Public Property Routes
 Route::controller(PropertyController::class)->group(function () {
     Route::get('/properties', 'index')->name('properties.index');
@@ -131,6 +148,15 @@ Route::prefix('api')->name('api.')->group(function () {
         ->name('properties.map-coordinates');
     Route::post('check-email', [BookingController::class, 'checkEmailExists'])
         ->name('check-email');
+    Route::get('properties',function () {
+        $properties = \App\Models\Property::active()
+        ->with(['media', 'amenities'])
+        ->get();
+        return response()->json([
+            'status'=>'success',
+            'data'=> $properties,
+        ]);
+    });
 });
 
 /*
@@ -474,7 +500,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
             Route::post('/', 'store')->name('store');
             Route::get('{paymentMethod}', 'show')->name('show');
             Route::get('{paymentMethod}/edit', 'edit')->name('edit');
-            Route::put('{paymentMethod}', 'update')->name('update');
+            Route::patch('{paymentMethod}', 'update')->name('update');
             Route::delete('{paymentMethod}', 'destroy')->name('destroy');
             Route::put('{paymentMethod}/toggle', 'toggle')->name('toggle');
             Route::put('order', 'updateOrder')->name('update-order');

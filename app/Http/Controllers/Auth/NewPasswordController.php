@@ -13,11 +13,12 @@ use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Models\User;
 
 class NewPasswordController extends Controller
 {
     /**
-     * Show the password reset page.
+     * Reset password page (default Laravel flow)
      */
     public function create(Request $request): Response
     {
@@ -28,9 +29,7 @@ class NewPasswordController extends Controller
     }
 
     /**
-     * Handle an incoming new password request.
-     *
-     * @throws \Illuminate\Validation\ValidationException
+     * Handle default Laravel reset password.
      */
     public function store(Request $request): RedirectResponse
     {
@@ -40,14 +39,12 @@ class NewPasswordController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        // Here we will attempt to reset the user's password. If it is successful we
-        // will update the password on an actual user model and persist it to the
-        // database. Otherwise we will parse the error and return the response.
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function ($user) use ($request) {
                 $user->forceFill([
                     'password' => Hash::make($request->password),
+                    'password_changed_at' => now(),
                     'remember_token' => Str::random(60),
                 ])->save();
 
@@ -55,10 +52,7 @@ class NewPasswordController extends Controller
             }
         );
 
-        // If the password was successfully reset, we will redirect the user back to
-        // the application's home authenticated view. If there is an error we can
-        // redirect them back to where they came from with their error message.
-        if ($status == Password::PasswordReset) {
+        if ($status == Password::PASSWORD_RESET) {
             return to_route('login')->with('status', __($status));
         }
 
@@ -68,48 +62,39 @@ class NewPasswordController extends Controller
     }
 
     /**
-     * Show the set password page for new users.
+     * Page untuk user baru membuat password pertama kali.
+     * Signed route memastikan token aman & tidak bisa dimanipulasi.
      */
     public function showSetPassword(Request $request): Response
     {
-        $token = $request->route('token');
-        
-        // Verify token and get user email
-        $email = $this->getEmailFromToken($token);
-        
-        if (!$email) {
-            abort(404, 'Invalid or expired token');
+        // Validate signed URL
+        if (! $request->hasValidSignature()) {
+            abort(403, 'Invalid or expired link.');
         }
 
         return Inertia::render('auth/set-password', [
-            'email' => $email,
-            'token' => $token,
+            'email' => $request->query('email'),
         ]);
     }
 
     /**
-     * Handle set password for new users.
+     * Handle set password pertama kali untuk user baru.
      */
     public function storeSetPassword(Request $request): RedirectResponse
     {
+        if (! $request->hasValidSignature()) {
+            abort(403, 'Invalid or expired link.');
+        }
+
         $request->validate([
-            'token' => 'required',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        $token = $request->token;
-        $email = $this->getEmailFromToken($token);
-        
-        if (!$email) {
-            throw ValidationException::withMessages([
-                'token' => ['Invalid or expired token'],
-            ]);
-        }
+        $email = $request->query('email');
 
-        // Find user by email
-        $user = \App\Models\User::where('email', $email)->first();
-        
-        if (!$user) {
+        $user = User::where('email', $email)->first();
+
+        if (! $user) {
             throw ValidationException::withMessages([
                 'email' => ['User not found'],
             ]);
@@ -118,28 +103,13 @@ class NewPasswordController extends Controller
         // Update password
         $user->forceFill([
             'password' => Hash::make($request->password),
+            'password_changed_at' => now(),
             'remember_token' => Str::random(60),
         ])->save();
 
-        // Login user
+        // Auto login
         auth()->login($user);
 
         return redirect()->intended('/dashboard');
-    }
-
-    /**
-     * Get email from token (simple implementation)
-     */
-    private function getEmailFromToken(string $token): ?string
-    {
-        // This is a simple implementation - in production you might want to use a more secure method
-        // For now, we'll decode the token to get the email
-        try {
-            $decoded = base64_decode($token);
-            $data = json_decode($decoded, true);
-            return $data['email'] ?? null;
-        } catch (\Exception $e) {
-            return null;
-        }
     }
 }

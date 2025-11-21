@@ -392,7 +392,7 @@ export function DateRange({
         if (dateRange.from && dateRange.to) {
             // Compact format: d MMM - d MMM
             const startFormat = format(dateRange.from, 'd MMM', { locale: id });
-            const endFormat = format(dateRange.to, 'd MMM', { locale: id });
+            const endFormat = format(dateRange.to, 'd MMM yyyy', { locale: id });
             return `${startFormat} - ${endFormat}`;
         }
 
@@ -547,7 +547,7 @@ export function DateRange({
                 </PopoverTrigger>
 
                 <PopoverContent
-                    className="w-auto p-0"
+                    className="p-0 w-auto !max-w-none"
                     align="start"
                     side="bottom"
                     sideOffset={4}

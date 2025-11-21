@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule; // ← WAJIB ADA
 
 class UpdatePaymentMethodRequest extends FormRequest
 {
@@ -24,18 +25,29 @@ class UpdatePaymentMethodRequest extends FormRequest
         $paymentMethodId = $this->route('paymentMethod')->id ?? $this->route('paymentMethod');
         
         return [
-            'name' => 'required|string|max:100',
-            'code' => 'required|string|max:50|unique:payment_methods,code,' . $paymentMethodId,
-            'type' => 'required|in:bank_transfer,e_wallet,credit_card,cash',
+            'name' => 'sometimes|required|string|max:100',
+            'code' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('payment_methods', 'code')->ignore($paymentMethodId),
+            ],
+            'type' => 'sometimes|required|in:bank_transfer,e_wallet,credit_card,cash',
+    
             'icon' => 'nullable|string|max:10',
             'description' => 'nullable|string|max:500',
             'bank_name' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:100',
             'account_name' => 'nullable|string|max:255',
-            'qr_code' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-            'instructions' => 'nullable|array',
+    
+            'qr_code' => 'sometimes|nullable|image|mimes:jpeg,png,jpg|max:2048',
+    
+            'instructions' => 'sometimes|array',
             'instructions.*' => 'string|max:500',
-            'is_active' => 'boolean',
+    
+            'is_active' => 'sometimes|boolean',
+            'sort_order' => 'sometimes|integer',
         ];
     }
 

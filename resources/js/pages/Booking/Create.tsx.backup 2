@@ -42,6 +42,7 @@ interface BookingCreateProps {
             role: string;
         }
     };
+    adminPhone?: string; // Tambahkan prop untuk nomor admin WhatsApp
 }
 
 interface BookingFormData {
@@ -123,7 +124,7 @@ interface BookingErrors {
     dp_percentage?: string;
 }
 
-export default function BookingCreate({ property, initialFormData, auth }: BookingCreateProps) {
+export default function BookingCreate({ property, initialFormData, auth, adminPhone = '628112500082' }: BookingCreateProps) { // Tambahkan default nomor admin, ganti dengan nomor sebenarnya
     const { t } = useTranslation();
 
     // State yang diperlukan
@@ -133,7 +134,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
     const [availabilityStatus, setAvailabilityStatus] = useState<'checking' | 'available' | 'unavailable' | null>(null);
 
     // Form handling
-    const { data, setData, post, processing, errors } = useForm<BookingFormData>(initialFormData);
+    const { data, setData, processing, errors } = useForm<BookingFormData>(initialFormData);
     const bookingErrors = errors as BookingErrors;
 
     // Calculate fake discount (17% markup from final rate)
@@ -285,7 +286,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
         { value: '00:00', label: '00:00' },
     ];
 
-    // Form submission
+    // Form submission - Modifikasi untuk kirim WhatsApp
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -294,34 +295,32 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
             return;
         }
 
-        const submitData = {
-            check_in: data.check_in,
-            check_out: data.check_out,
-            check_in_time: data.check_in_time || '15:00',
-            guest_male: data.guest_male || 0,
-            guest_female: data.guest_female || 0,
-            guest_children: data.guest_children || 0,
-            guest_count: totalGuests,
-            guest_name: data.guest_name?.trim() || '',
-            guest_email: data.guest_email?.trim() || '',
-            guest_phone: data.guest_phone?.trim() || '',
-            guest_country: data.guest_country || 'Indonesia',
-            guest_id_number: data.guest_id_number || '',
-            guest_gender: data.guest_gender || 'male',
-            relationship_type: data.relationship_type || 'keluarga',
-            special_requests: data.special_requests || '',
-            dp_percentage: data.dp_percentage || 50,
-        };
+        // Format pesan WhatsApp
+        const message = `Hai Homsjogja Admin saya melihat ${property.name} tersedia di website https://homsjogja.com 
+saya mau booking dengan detail sebagai berikut:
+- Check-in: ${data.check_in} pukul ${data.check_in_time}
+- Check-out: ${data.check_out} pukul ${property.check_out_time}
+- Tamu: ${data.guest_male} pria, ${data.guest_female} wanita, ${data.guest_children} anak-anak (Total: ${totalGuests})
+- Nama: ${data.guest_name}
+- Email: ${data.guest_email}
+- Telepon: ${data.guest_phone}
+- Negara: ${data.guest_country}
+- Jenis Kelamin: ${data.guest_gender}
+- Hubungan: ${data.relationship_type}
+- ID Number: ${data.guest_id_number || 'Tidak ada'}
+- Permintaan Khusus: ${data.special_requests || 'Tidak ada'}
+- DP: ${data.dp_percentage}%
+- Total Harga: Rp. ${rateCalculation?.total_amount.toLocaleString()}
+- Malam: ${rateCalculation?.nights} malam`;
 
-        post(`/properties/${property.slug}/book`, {
-            ...submitData,
-            onSuccess: () => {
-                console.log('Booking created successfully');
-            },
-            onError: (errors: any) => {
-                console.error('Booking creation failed:', errors);
-            }
-        });
+        // Encode pesan untuk URL
+        const encodedMessage = encodeURIComponent(message);
+
+        // Buat URL WhatsApp
+        const whatsappUrl = `https://wa.me/${adminPhone}?text=${encodedMessage}`;
+
+        // Buka WhatsApp
+        window.open(whatsappUrl, '_blank');
     };
 
     // Validation

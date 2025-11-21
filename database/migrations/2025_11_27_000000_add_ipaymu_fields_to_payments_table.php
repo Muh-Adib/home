@@ -12,12 +12,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            $table->string('ipaymu_session_id', 100)->nullable()->after('gateway_transaction_id');
-            $table->text('ipaymu_payment_url')->nullable()->after('ipaymu_session_id');
-            $table->datetime('ipaymu_expired_at')->nullable()->after('ipaymu_payment_url');
-            
-            // Index untuk query performance
-            $table->index('ipaymu_session_id');
+
+            if (!Schema::hasColumn('payments', 'ipaymu_session_id')) {
+                $table->string('ipaymu_session_id', 100)->nullable()->after('gateway_transaction_id');
+                $table->index('ipaymu_session_id');
+            }
+
+            if (!Schema::hasColumn('payments', 'ipaymu_payment_url')) {
+                $table->text('ipaymu_payment_url')->nullable()->after('ipaymu_session_id');
+            }
+
+            if (!Schema::hasColumn('payments', 'ipaymu_expired_at')) {
+                $table->datetime('ipaymu_expired_at')->nullable()->after('ipaymu_payment_url');
+            }
         });
     }
 
@@ -27,16 +34,19 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            $table->dropIndex(['ipaymu_session_id']);
-            $table->dropColumn(['ipaymu_session_id', 'ipaymu_payment_url', 'ipaymu_expired_at']);
+
+            if (Schema::hasColumn('payments', 'ipaymu_session_id')) {
+                $table->dropIndex(['ipaymu_session_id']);
+                $table->dropColumn('ipaymu_session_id');
+            }
+
+            if (Schema::hasColumn('payments', 'ipaymu_payment_url')) {
+                $table->dropColumn('ipaymu_payment_url');
+            }
+
+            if (Schema::hasColumn('payments', 'ipaymu_expired_at')) {
+                $table->dropColumn('ipaymu_expired_at');
+            }
         });
     }
 };
-
-
-
-
-
-
-
-

@@ -443,6 +443,7 @@ class Booking extends Model
      * Get check-in instructions for this booking.
      * Flow: custom booking instruction > property template > default template
      * Keybox code is always taken from property.current_keybox_code
+     * setelah admin menekan checkin
      */
     public function getCheckinInstructions(): array
     {

@@ -81,15 +81,15 @@ class PaymentMethodController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $this->authorize('managePaymentMethods', Payment::class);
-
+        
         $validated = $request->validate([
             'name' => 'required|string|max:100',
             'code' => 'required|string|max:50|unique:payment_methods,code',
             'type' => 'required|in:bank_transfer,e_wallet,credit_card,cash',
             'icon' => 'nullable|string|max:10',
             'description' => 'nullable|string',
-            'account_number' => 'nullable|string|max:100',
-            'account_name' => 'nullable|string|max:255',
+            'account_number' => 'required|string|max:100',
+            'account_name' => 'required|string|max:255',
             'bank_name' => 'nullable|string|max:255',
             'qr_code' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'instructions' => 'nullable|array',
@@ -97,12 +97,12 @@ class PaymentMethodController extends Controller
             'is_active' => 'boolean',
             'sort_order' => 'integer|min:0|max:999',
         ]);
-
+        dd($validated);
         // Handle QR code upload
         if ($request->hasFile('qr_code')) {
             $validated['qr_code'] = $request->file('qr_code')->store('payment-methods/qr-codes', 'public');
         }
-
+        dd($request);
         PaymentMethod::create($validated);
 
         return redirect()->route('admin.payment-methods.index')
@@ -154,7 +154,7 @@ class PaymentMethodController extends Controller
     public function update(Request $request, PaymentMethod $paymentMethod): RedirectResponse
     {
         $this->authorize('managePaymentMethods', Payment::class);
-
+        dd($request->all());
         $validated = $request->validate([
             'name' => 'required|string|max:100',
             'code' => 'required|string|max:50|unique:payment_methods,code,' . $paymentMethod->id,

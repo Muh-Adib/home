@@ -13,9 +13,10 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Map } from '@/components/ui/map';
 import { type Amenity, type Property, type BreadcrumbItem, type PageProps } from '@/types';
-import { 
-    Building2, 
-    Save, 
+import TextFormatMarkdown from '@/components/text-mark-down'
+import {
+    Building2,
+    Save,
     ArrowLeft,
     Users,
     DollarSign,
@@ -38,9 +39,9 @@ interface EditPropertyProps extends PageProps {
 
 export default function EditProperty({ property, amenities }: EditPropertyProps) {
     const [showMap, setShowMap] = useState(false);
-    const [mapCenter, setMapCenter] = useState({ 
-        lat: property.lat || -6.2088, 
-        lng: property.lng || 106.8456 
+    const [mapCenter, setMapCenter] = useState({
+        lat: property.lat || -6.2088,
+        lng: property.lng || 106.8456
     });
 
     // Initialize form data with property values
@@ -118,7 +119,7 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
 
     const handleAddressChange = (address: string) => {
         setData('address', address);
-        
+
         // Simple geocoding simulation (in real app, use proper geocoding service)
         if (address.toLowerCase().includes('jakarta')) {
             setMapCenter({ lat: -6.2088, lng: 106.8456 });
@@ -137,12 +138,12 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
         const updated = selectedAmenities.includes(amenityId)
             ? selectedAmenities.filter((id: number) => id !== amenityId)
             : [...selectedAmenities, amenityId];
-        
+
         setData('amenities', updated);
         console.log('Amenities updated:', updated);
     };
 
-    const formatCurrency = (value: number) => 
+    const formatCurrency = (value: number) =>
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 
     const amenityCategories = amenities.reduce((acc, amenity) => {
@@ -162,7 +163,7 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title={`Edit ${property.name} - Admin Dashboard`} />
-            
+
             <div className="space-y-6 p-4 md:p-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -172,7 +173,7 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                             Update property information and settings
                         </p>
                     </div>
-                    
+
                     <div className="flex gap-2">
                         <Button variant="outline" asChild>
                             <Link href={`/admin/properties/${property.slug}`}>
@@ -332,6 +333,9 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                     className={errors.description ? 'border-red-500' : ''}
                                 />
                                 {errors.description && <p className="text-sm text-red-500">{errors.description}</p>}
+                                {data.description && (
+                                    <TextFormatMarkdown text={data.description} />
+                                )}
                             </div>
 
                             <div className="space-y-2">
@@ -465,8 +469,8 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
 
                                 <div className="space-y-2">
                                     <Label htmlFor="weekend_premium_type">Weekend Premium Type *</Label>
-                                    <Select 
-                                        value={data.weekend_premium_type} 
+                                    <Select
+                                        value={data.weekend_premium_type}
                                         onValueChange={(value: "percentage" | "fixed") => setData('weekend_premium_type', value)}
                                     >
                                         <SelectTrigger className={errors.weekend_premium_type ? 'border-red-500' : ''}>
@@ -500,19 +504,28 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                 ) : (
                                     <div className="space-y-2">
                                         <Label htmlFor="weekend_premium_fixed">Weekend Premium Fixed Price (IDR) *</Label>
+
                                         <Input
                                             id="weekend_premium_fixed"
                                             type="number"
                                             min="0"
                                             value={data.weekend_premium_fixed}
-                                            onChange={(e) => setData('weekend_premium_fixed', parseInt(e.target.value))}
+                                            onChange={(e) => {
+                                                const value = e.target.value;
+                                                setData('weekend_premium_fixed', value === '' ? 0 : parseInt(value));
+                                            }}
                                             className={errors.weekend_premium_fixed ? 'border-red-500' : ''}
                                         />
+
                                         <p className="text-sm text-muted-foreground">
-                                            Fixed Price: {formatCurrency(data.base_rate + (data.weekend_premium_fixed || 0))}
+                                            Fixed Price: {formatCurrency(parseInt(data.base_rate || 0) + (data.weekend_premium_fixed || 0))}
                                         </p>
-                                        {errors.weekend_premium_fixed && <p className="text-sm text-red-500">{errors.weekend_premium_fixed}</p>}
+
+                                        {errors.weekend_premium_fixed && (
+                                            <p className="text-sm text-red-500">{errors.weekend_premium_fixed}</p>
+                                        )}
                                     </div>
+
                                 )}
 
                                 <div className="space-y-2">
@@ -635,6 +648,9 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                     placeholder="No smoking, No pets, Check-in after 2 PM, etc."
                                     rows={3}
                                 />
+                                {data.house_rules && (
+                                    <TextFormatMarkdown text={data.house_rules} />
+                                )}
                             </div>
                         </CardContent>
                     </Card>
@@ -662,7 +678,7 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                                     checked={selectedAmenities.includes(amenity.id)}
                                                     onCheckedChange={() => handleAmenityToggle(amenity.id)}
                                                 />
-                                                <Label 
+                                                <Label
                                                     htmlFor={`amenity-${amenity.id}`}
                                                     className="text-sm font-medium cursor-pointer"
                                                 >
@@ -755,7 +771,7 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                     </Button>
                                 </div>
                             </div>
-                            
+
                             {(!property.media || property.media.length === 0) && (
                                 <Alert>
                                     <Info className="h-4 w-4" />

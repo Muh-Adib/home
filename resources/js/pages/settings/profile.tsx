@@ -4,7 +4,6 @@ import { Head, Link, useForm, usePage, router } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import DeleteUser from '@/components/delete-user';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -581,8 +580,7 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                         </CardContent>
                     </Card>
 
-                    {/* Account Management */}
-                    <DeleteUser />
+                  
                 </div>
             </SettingsLayout>
         </GuestLayout>

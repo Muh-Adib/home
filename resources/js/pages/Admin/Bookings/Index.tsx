@@ -428,7 +428,7 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                                                                 </>
                                                             )}
                                                             
-                                                            {canCheckIn && booking.booking_status === 'confirmed' && (
+                                                            {canCheckIn && booking.payment_status === 'fully_paid' && (
                                                                 <DropdownMenuItem onClick={() => handleCheckIn(booking)}>
                                                                     <UserCheck className="h-4 w-4 mr-2" />
                                                                     Check In

@@ -30,8 +30,8 @@ return [
     |
     */
 
-    'va' => env('IPAYMU_VA', env('IPAYMU_API_KEY')), // Virtual Account (VA) number
-    'api_key' => env('IPAYMU_API_KEY', env('IPAYMU_VA')), // API Key untuk signature generation
+    'va' => env('IPAYMU_VA','1179000899'), // Virtual Account (VA) number
+    'api_key' => env('IPAYMU_API_KEY','QbGcoO0Qds9sQFDmY0MWg1Tq.xtuh1'), // API Key untuk signature generation
 
     'sandbox' => [
         'api_url' => 'https://sandbox.ipaymu.com/api/v2',
@@ -105,6 +105,11 @@ return [
     'log_requests' => env('IPAYMU_LOG_REQUESTS', true),
     'log_channel' => env('IPAYMU_LOG_CHANNEL', 'daily'),
 ];
+
+
+
+
+
 
 
 

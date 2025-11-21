@@ -28,20 +28,29 @@ class AuthenticatedSessionController extends Controller
      * Handle an incoming authentication request.
      */
     public function store(LoginRequest $request): RedirectResponse
-    {
-        // Proses autentikasi bawaan Laravel
-        $request->authenticate();
+{
+    // Proses autentikasi
+    $request->authenticate();
 
-        // Regenerasi session
-        $request->session()->regenerate();
+    // Regenerasi session
+    $request->session()->regenerate();
 
-        // Update last_login
-        $request->user()->update([
+    // Update last_login
+    $request->user()->update([
         'last_login' => now(),
-        ]);
+    ]);
 
-        return redirect()->intended(route('dashboard', absolute: false));
+    // Ambil intended_url jika ada (hasil dari redirect sebelumnya)
+    $manualIntended = session()->pull('intended_url');
+
+    if ($manualIntended) {
+        return redirect($manualIntended);
     }
+
+    // Jika tidak ada manual intended url → pakai Laravel punya
+    return redirect()->intended(route('dashboard'));
+}
+
 
     /**
      * Destroy an authenticated session.

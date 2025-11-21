@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTranslation } from 'react-i18next';
 import { PropertyWithDetails } from '@/types/property';
+import TextFormatMarkdown from '@/components/text-mark-down'
 
 interface PropertyPoliciesProps {
   property: PropertyWithDetails;
@@ -23,9 +24,9 @@ export const PropertyPolicies: React.FC<PropertyPoliciesProps> = ({ property }) 
             <h3 className="text-xl font-semibold mb-4 text-foreground border-b border-primary/20 pb-2">
               {t('properties.house_rules')}
             </h3>
-            <p className="text-foreground whitespace-pre-wrap leading-relaxed text-lg">
-              {property.house_rules}
-            </p>
+            <div className="text-foreground leading-relaxed text-lg">
+            <TextFormatMarkdown text={property.description} />
+          </div>
           </div>
         )}
       </CardContent>

@@ -38,11 +38,13 @@ Route::middleware('guest')->group(function () {
         ->name('password.store');
 
     // Set password for new users
-    Route::get('set-password/{token}', [NewPasswordController::class, 'showSetPassword'])
+    Route::get('set-password/{user}', [NewPasswordController::class, 'showSetPassword'])
+        ->middleware('signed')
         ->name('password.set');
 
-    Route::post('set-password', [NewPasswordController::class, 'storeSetPassword'])
-        ->name('password.set.store');
+    Route::post('set-password/{user}', [NewPasswordController::class, 'storeSetPassword'])
+        ->middleware('signed');
+
 });
 
 Route::middleware('auth')->group(function () {

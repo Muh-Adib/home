@@ -12,8 +12,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Map } from '@/components/ui/map';
 import { Separator } from '@/components/ui/separator';
-import { 
-    ArrowLeft, 
+import TextFormatMarkdown from '@/components/text-mark-down'
+import {
+    ArrowLeft,
     Building2,
     MapPin,
     Users,
@@ -151,7 +152,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
     useEffect(() => {
         if (data.name && !data.seo_title) {
             const cityName = selectedCity ? INDONESIAN_CITIES[selectedCity as keyof typeof INDONESIAN_CITIES]?.name : '';
-            const generatedTitle = cityName 
+            const generatedTitle = cityName
                 ? `${data.name} - Luxury Villa in ${cityName} | Book Now`
                 : `${data.name} - Premium Villa Rental | Book Direct`;
             setData('seo_title', generatedTitle);
@@ -162,7 +163,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
     useEffect(() => {
         if (data.description && !data.seo_description && data.description.length > 20) {
             const shortDesc = data.description.substring(0, 150).trim();
-            const generatedDesc = shortDesc + (data.description.length > 150 ? '...' : '') + 
+            const generatedDesc = shortDesc + (data.description.length > 150 ? '...' : '') +
                 ` Book direct for best rates. ${data.bedroom_count} bedrooms, ${data.bathroom_count} bathrooms, sleeps ${data.capacity_max}.`;
             setData('seo_description', generatedDesc);
         }
@@ -182,11 +183,11 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
 
     const handleAddressChange = (address: string) => {
         setData('address', address);
-        
+
         // Enhanced geocoding with better city detection
         const addressLower = address.toLowerCase();
         let detectedCity = '';
-        
+
         for (const [key, cityData] of Object.entries(INDONESIAN_CITIES)) {
             if (addressLower.includes(key)) {
                 setMapCenter({ lat: cityData.lat, lng: cityData.lng });
@@ -195,7 +196,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                 break;
             }
         }
-        
+
         // If we detected a city and SEO title is empty or still default, update it
         if (detectedCity && data.name) {
             const currentSEOTitle = data.seo_title;
@@ -206,8 +207,8 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
     };
 
     const handleAmenityChange = (amenityId: number, checked: boolean) => {
-        setData('amenities', 
-            checked 
+        setData('amenities',
+            checked
                 ? [...data.amenities, amenityId]
                 : data.amenities.filter(id => id !== amenityId)
         );
@@ -215,10 +216,10 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         // Client-side validation
         const validationErrors: Record<string, string> = {};
-        
+
         if (!data.name.trim()) validationErrors.name = 'Property name is required';
         if (!data.description.trim()) validationErrors.description = 'Description is required';
         if (!data.address.trim()) validationErrors.address = 'Address is required';
@@ -228,13 +229,13 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
         if (data.lat !== null && data.lng !== null && !validateCoordinate(data.lat, data.lng)) {
             validationErrors.coordinates = 'Invalid coordinates';
         }
-        
+
         if (Object.keys(validationErrors).length > 0) {
             // Show validation errors (in real app, you'd set these to form errors)
             console.log('Validation errors:', validationErrors);
             return;
         }
-        
+
         post(route('admin.properties.store'), {
             onSuccess: () => {
                 // Handle success
@@ -272,17 +273,10 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
         return order.indexOf(a) - order.indexOf(b);
     });
 
-    // Calculate estimated pricing
-    const weekendRate = data.weekend_premium_type === 'fixed' 
-        ? data.base_rate + data.weekend_premium_fixed
-        : data.base_rate + (data.base_rate * data.weekend_premium_percent / 100);
-    const totalForWeekendStay = (weekendRate * 2) + data.cleaning_fee;
-
-
     return (
         <>
             <Head title="Create Property - Admin" />
-            
+
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
                 <div className="bg-white border-b">
@@ -375,6 +369,10 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                                 className={errors.description ? 'border-red-500' : ''}
                                             />
                                             {errors.description && <p className="text-sm text-red-600 mt-1">{errors.description}</p>}
+                                            {/* 🔥 LIVE MARKDOWN PREVIEW */}
+                                            {data.description && (
+                                                <TextFormatMarkdown text={data.description} />
+                                            )}
                                         </div>
 
                                         <div className="flex items-center justify-between">
@@ -590,8 +588,8 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                             </div>
                                             <div>
                                                 <Label htmlFor="weekend_premium_type">Weekend Premium Type *</Label>
-                                                <Select 
-                                                    value={data.weekend_premium_type} 
+                                                <Select
+                                                    value={data.weekend_premium_type}
                                                     onValueChange={(value: "percentage" | "fixed") => setData('weekend_premium_type', value)}
                                                 >
                                                     <SelectTrigger className={errors.weekend_premium_type ? 'border-red-500' : ''}>
@@ -633,7 +631,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                                         className={errors.weekend_premium_fixed ? 'border-red-500' : ''}
                                                     />
                                                     <p className="text-sm text-muted-foreground mt-1">
-                                                        Fixed Price: {formatCurrency(data.weekend_premium_fixed)}
+                                                        Fixed Price: {formatCurrency(parseInt(data.base_rate || 0) + (data.weekend_premium_fixed || 0))}
                                                     </p>
                                                     {errors.weekend_premium_fixed && <p className="text-sm text-red-600 mt-1">{errors.weekend_premium_fixed}</p>}
                                                 </div>
@@ -753,6 +751,9 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                                 className={errors.house_rules ? 'border-red-500' : ''}
                                             />
                                             {errors.house_rules && <p className="text-sm text-red-600 mt-1">{errors.house_rules}</p>}
+                                            {data.house_rules && (
+                                                <TextFormatMarkdown text={data.house_rules} />
+                                            )}
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -811,7 +812,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                                                 checked={Array.isArray(data.amenities) && data.amenities.includes(amenity.id)}
                                                                 onCheckedChange={(checked) => handleAmenityChange(amenity.id, checked as boolean)}
                                                             />
-                                                            <Label 
+                                                            <Label
                                                                 htmlFor={`amenity-${amenity.id}`}
                                                                 className="text-sm font-normal"
                                                             >
@@ -837,7 +838,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                                 <Save className="h-4 w-4 mr-2" />
                                                 {processing ? 'Creating...' : 'Create Property'}
                                             </Button>
-                                            
+
                                             <Link href={route('admin.properties.index')}>
                                                 <Button variant="outline" className="w-full">
                                                     Cancel

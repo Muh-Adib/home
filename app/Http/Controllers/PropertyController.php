@@ -102,7 +102,7 @@ class PropertyController extends Controller
                 break;
         }
 
-        $properties = $query->paginate(12);
+       // $properties = $query->paginate(12);
 
         // Calculate current rates for each property
         $checkIn = $request->get('check_in', now()->toDateString());

@@ -173,7 +173,7 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
 
     const canVerify = booking.booking_status === 'pending_verification';
     const canCancel = ['pending', 'confirmed'].includes(booking.booking_status);
-    const canCheckIn = booking.booking_status === 'confirmed';
+    const canCheckIn = booking.payment_status === 'fully_paid';
     const canCheckOut = booking.booking_status === 'checked_in';
     const canDelete = auth?.user?.role === 'super_admin';
     const requiresExtraConfirmation = ['checked_in', 'confirmed', 'fully_paid'].includes(booking.booking_status) || booking.payment_status === 'fully_paid';

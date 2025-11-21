@@ -6,25 +6,25 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\URL;
 
 class GuestWelcomeNotification extends Notification
 {
     use Queueable;
 
-    protected string $password;
+    protected $expires;
 
     /**
      * Create a new notification instance.
      */
-    public function __construct(string $password)
+    public function __construct()
     {
-        $this->password = $password;
+        // expired 2 jam
+        $this->expires = now()->addHours(2);
     }
 
     /**
      * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
      */
     public function via(object $notifiable): array
     {
@@ -32,41 +32,37 @@ class GuestWelcomeNotification extends Notification
     }
 
     /**
-     * Get the mail representation of the notification.
+     * Build the mail notification.
      */
     public function toMail(object $notifiable): MailMessage
     {
-        // Build message without complex markdown to avoid CommonMark parsing timeout
-        $message = (new MailMessage)
-            ->subject('Welcome to ' . config('app.name') . ' - Your Account Details')
-            ->greeting('Welcome, ' . e($notifiable->name) . '!')
-            ->line('Your booking account has been created successfully.')
-            ->line('You can use these credentials to login and manage your bookings:')
-            ->line('')
-            ->line('Email: ' . e($notifiable->email))
-            ->line('Password: ' . e($this->password))
-            ->line('')
-            ->line('For security reasons, please change your password after your first login.')
-            ->action('Login to Your Account', route('login'))
-            ->line('Thank you for choosing our property management services!')
-            ->line('')
-            ->line('If you have any questions, please don\'t hesitate to contact us.')
-            ->salutation('Best regards,');
+        // Generate signed URL aman
+        $setPasswordUrl = URL::temporarySignedRoute(
+            'password.set',
+            $this->expires,
+            ['user' => $notifiable->id]
+        );
 
-        return $message;
+        return (new MailMessage)
+            ->subject('Welcome to ' . config('app.name'))
+            ->greeting('Hello, ' . e($notifiable->name) . '!')
+            ->line('Your booking account has been created successfully.')
+            ->line('To access your booking and manage your stay, please set your password using the link below.')
+            ->action('Set Your Password', $setPasswordUrl)
+            ->line("⚠ This link is secure and will expire in 2 hours for your protection.")
+            ->line('If you did not request this, please ignore this email.')
+            ->salutation('Best regards, ' . config('app.name'));
     }
 
     /**
-     * Get the array representation of the notification.
-     *
-     * @return array<string, mixed>
+     * Optional: Array representation for database
      */
     public function toArray(object $notifiable): array
     {
         return [
             'type' => 'guest_welcome',
             'user_id' => $notifiable->id,
-            'message' => 'Welcome account created with temporary password',
+            'message' => 'Welcome email with set-password link sent.',
         ];
     }
 }

@@ -163,7 +163,23 @@
     "total_payment": "Total pembayaran",
     "guests_nights": "tamu • malam",
     "check_in_tomorrow": "Check-in besok",
-    "check_in_days": "Check-in dalam {{days}} hari"
+    "check_in_days": "Check-in dalam {{days}} hari",
+    "finance":"Keuangan",
+    "incomes":"Pendapatan",
+    "expenses":"Pengeluaran",
+    "wallets":"Dompet",
+    "extra_service":"Layanan Tambahan",
+    "payment_status":"Status Pembayaran",
+    "inventory_item":"Item Inventaris",
+    "inventory_purchase":"Pembelian Inventaris",
+    "inventory_usage":"Penggunaan Inventaris",
+    "inventory_purchase_history":"Riwayat Pembelian Inventaris",
+    "inventory_usage_history":"Riwayat Penggunaan Inventaris",
+    "inventory_purchase_report":"Laporan Pembelian Inventaris",
+    "inventory_usage_report":"Laporan Penggunaan Inventaris",
+    "inventory_purchase_report_title":"Laporan Pembelian Inventaris",
+    "inventory_usage_report_title":"Laporan Penggunaan Inventaris"
+
   },
   "auth": {
     "login_title": "Selamat Datang Kembali",
@@ -257,7 +273,8 @@
     "and": "dan",
     "privacy_policy": "Kebijakan Privasi",
     "loading": "Memuat...",
-    "all_rights_reserved": "© 2024 Homsjogja. Semua hak dilindungi."
+    "all_rights_reserved": "© 2024 Homsjogja. Semua hak dilindungi.",
+    "logout":"Keluar"
   },
   "booking": {
     "title": "Pesan Penginapan",

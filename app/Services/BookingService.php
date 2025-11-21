@@ -65,7 +65,11 @@ class BookingService
 
                     // ✅ FIX: Always save daily revenue (not just for paid bookings)
                     // This ensures breakdown is stored immediately
-                    $this->insertDailyRevenueFromCalculation($booking, $rateCalculation->toArray());
+                    // Insert ke booking_daily_revenue jika payment_status sudah 'paid'
+                    if ($booking->payment_status === 'paid') {
+                        \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+                        $this->insertDailyRevenueFromCalculation($booking, $rateCalculation->toArray());
+                    }
 
                     event(new BookingCreated($booking, $user));
                     return $booking;
@@ -116,8 +120,12 @@ class BookingService
 
                     $booking = $this->bookingRepository->update($booking, $request, $property);
 
-                    // ✅ FIX: Always update daily revenue when booking is updated
+                // Hapus dan insert ulang daily revenue jika payment_status sudah 'paid'
+                
+                if ($booking->payment_status === 'paid') {
+                    \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
                     $this->insertDailyRevenueFromCalculation($booking, $rateCalculation->toArray());
+                }
 
                     return $booking;
                 }, 5); // 5 attempts for transaction

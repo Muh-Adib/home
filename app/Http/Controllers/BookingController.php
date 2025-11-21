@@ -57,6 +57,20 @@ class BookingController extends Controller
         $today = now()->toDateString();
         $tomorrow = now()->addDay()->toDateString();
 
+        // Get availability data using the same service as show property
+        $availabilityService = app(\App\Services\AvailabilityService::class);
+            
+        // Get availability data
+        $availability = $availabilityService->checkAvailability(
+            $property,
+            $checkIn,
+            $checkOut
+        );
+        
+        if(!$availability['available']){
+            return redirect()->back()->withErrors("Tanggal yang dipilih tidak tersedia");
+        }        
+
         $initialFormData = [
             'check_in' => $checkIn ?? $today,
             'check_out' => $checkOut ?? $tomorrow,
@@ -90,6 +104,8 @@ class BookingController extends Controller
             ];
         });
 
+        //jika tanggal yang dipilih sudah terdapat booking kirim ke halaman property dengan info tanggal yang di tilih tidak tersedia silahkan hubungi admin/ pilih property lain 
+
         return Inertia::render('Booking/Create', [
             'property' => $property->load(['amenities', 'media']),
             'initialFormData' => $initialFormData,
@@ -108,15 +124,6 @@ class BookingController extends Controller
      */
     public function store(CreateBookingRequest $request, Property $property): RedirectResponse
     {
-        Log::info('STORE HIT', [
-            'validated' => $request->validated(),
-            'property' => $property ? $property->id : null,
-            'auth' => auth()->check(),
-            'existing_user' => \App\Models\User::where('email', $request->guest_email)
-                ->orWhere('phone', $request->guest_phone)
-                ->first(),
-        ]);
-        
         try {
             $validated = $request->validated();
         
@@ -271,6 +278,7 @@ class BookingController extends Controller
         try {
             // ✅ FIX: Filter out invalid fields (like rate_breakdown) that might be sent from frontend
             // Only include fields that are valid for BookingRequest
+            
             $allowedFields = [
                 'property_id', 'check_in', 'check_in_date', 'check_out', 'check_out_date', 
                 'check_in_time', 'guest_male', 'guest_female', 'guest_children', 'guest_count',
@@ -367,6 +375,7 @@ class BookingController extends Controller
                     // Update booking total amount to include services
                     if ($servicesTotal > 0) {
                         $booking->update([
+                            'service_amount' => $servicesTotal,
                             'total_amount' => $booking->total_amount + $servicesTotal,
                         ]);
                         // Recalculate DP and remaining amount
@@ -433,27 +442,19 @@ class BookingController extends Controller
         ]);
 
         // ✅ AUTO LOGIN: Send welcome email with password (async to avoid timeout)
-        try {
-            // Dispatch email notification in background to avoid blocking booking creation
-            dispatch(function () use ($user, $password) {
-                try {
-                    $user->notify(new \App\Notifications\GuestWelcomeNotification($password));
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error('Failed to send welcome email in background', [
-                        'user_id' => $user->id,
-                        'email' => $user->email,
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString()
-                    ]);
-                }
-            })->afterResponse();
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('Failed to dispatch welcome email', [
-                'user_id' => $user->id,
-                'email' => $user->email,
-                'error' => $e->getMessage()
-            ]);
-        }
+        // Kirim email welcome dengan secure signed URL untuk set password
+try {
+    // Dispatch ke queue (lebih baik untuk email)
+    $user->notify(new \App\Notifications\GuestWelcomeNotification());
+
+} catch (\Exception $e) {
+    \Illuminate\Support\Facades\Log::error('Failed to send welcome email', [
+        'user_id' => $user->id,
+        'email' => $user->email,
+        'error' => $e->getMessage(),
+        'trace' => $e->getTraceAsString(),
+    ]);
+}
 
         return $user;
     }
@@ -506,17 +507,17 @@ class BookingController extends Controller
             $isNewUser = $user->created_at->diffInHours(now()) < 24;
             
             // If it's a new user, redirect to change password page
-            if ($isNewUser && !session('password_changed')) {
-                session(['redirect_after_password_change' => route('bookings.confirmation', $booking->booking_number)]);
-                return redirect()->route('password.change')
-                    ->with('info', 'Silakan ganti password Anda terlebih dahulu untuk melanjutkan.');
-            }
+            //if ($isNewUser && !session('password_changed')) {
+            //    session(['redirect_after_password_change' => route('bookings.confirmation', $booking->booking_number)]);
+            //    return redirect()->route('password.change')
+            //        ->with('info', 'Silakan ganti password Anda terlebih dahulu untuk melanjutkan.');
+            //}
         }
 
         // Load booking with check-in instructions
         $booking->load(['property', 'payments']);
-        $booking->checkin_instructions = $booking->getCheckinInstructions();
-        $booking->checkin_instructions_formatted = $booking->getFormattedCheckinInstructions();
+        //$booking->checkin_instructions = $booking->getCheckinInstructions();
+        //$booking->checkin_instructions_formatted = $booking->getFormattedCheckinInstructions();
 
         return Inertia::render('Booking/Confirmation', [
             'booking' => $booking,
@@ -819,4 +820,5 @@ class BookingController extends Controller
             return back()->withErrors(['error' => 'Gagal membatalkan booking: ' . $e->getMessage()]);
         }
     }
+
 } 

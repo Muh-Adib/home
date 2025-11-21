@@ -71,6 +71,7 @@ export interface Property {
     maps_link?: string;
     lat?: number;
     lng?: number;
+    tiktok_video_url?: string;
     capacity: number;
     capacity_max: number;
     bedroom_count: number;

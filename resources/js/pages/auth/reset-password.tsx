@@ -67,7 +67,7 @@ export default function ResetPassword({ email, token }: ResetPasswordProps) {
                             value={data.password}
                             onChange={(e) => setData('password', e.target.value)}
                             placeholder={t('auth.enter_new_password')}
-                            className="pl-10 pr-10 h-12 border-border focus:border-primary focus:ring-primary bg-background text-foreground"
+                            className="pl-10 h-12 border-border focus:border-brand-primary focus:ring-brand-primary "
                         />
                         <button
                             type="button"
@@ -100,7 +100,7 @@ export default function ResetPassword({ email, token }: ResetPasswordProps) {
                             value={data.password_confirmation}
                             onChange={(e) => setData('password_confirmation', e.target.value)}
                             placeholder={t('auth.enter_confirm_password')}
-                            className="pl-10 pr-10 h-12 border-border focus:border-primary focus:ring-primary bg-background text-foreground"
+                            className="pl-10 h-12 border-border focus:border-brand-primary focus:ring-brand-primary "
                         />
                         <button
                             type="button"
@@ -117,22 +117,22 @@ export default function ResetPassword({ email, token }: ResetPasswordProps) {
                     <InputError message={errors.password_confirmation} />
                 </div>
 
-                {/* Password Requirements */}
-                <div className="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
-                    <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+                 {/* Password Requirements */}
+                 <div className="rounded-lg bg-brand-primary-20 p-4">
+                    <h4 className="text-sm font-medium text-brand-primary mb-2">
                         {t('auth.password_requirements')}
                     </h4>
-                    <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                    <ul className="text-xs text-brand-primary space-y-1">
                         <li className="flex items-center">
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mr-2"></span>
+                            <span className="w-1.5 h-1.5 bg-brand-primary rounded-full mr-2"></span>
                             {t('auth.password_requirements_8_chars')}
                         </li>
                         <li className="flex items-center">
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mr-2"></span>
+                            <span className="w-1.5 h-1.5 bg-brand-primary rounded-full mr-2"></span>
                             {t('auth.password_requirements_uppercase_lowercase')}
                         </li>
                         <li className="flex items-center">
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mr-2"></span>
+                            <span className="w-1.5 h-1.5 bg-brand-primary rounded-full mr-2"></span>
                             {t('auth.password_requirements_number')}
                         </li>
                     </ul>
