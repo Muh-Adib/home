@@ -102,10 +102,10 @@ export default function PropertyShow({
   }, [state.checkInDate, state.checkOutDate, state.guestCount]);
 
   return (
-    <GuestLayout>
+    <GuestLayout variant='minimal'>
       <Head title={property.name} />
       
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="min-h-screen bg-brand-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
           
           <PropertyHeader property={property} />

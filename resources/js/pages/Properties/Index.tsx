@@ -141,6 +141,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
             <Head title={`${t('properties.browse_title')} - Homsjogja`} />
 
             <div className="min-h-screen bg-brand-background">
+                
                 <div className="max-w-7xl mx-auto space-y-4 md:space-y-6 px-4 py-4 md:px-6 md:py-6">
                     {/* Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

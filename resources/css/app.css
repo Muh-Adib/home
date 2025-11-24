@@ -500,6 +500,14 @@
   .bg-brand-background {
     background-color: hsl(var(--brand-background));
   }
+
+  .bg-destructive {
+    background-color: hsl(var(--destructive));
+  }
+
+  .bg-primary {
+    background-color: hsl(var(--primary));
+  }
   
   .text-brand-primary {
     color: hsl(var(--brand-primary));

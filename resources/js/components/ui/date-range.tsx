@@ -93,6 +93,8 @@ export function DateRange({
     const [warning, setWarning] = useState<string | null>(null);
     const [manualStartDate, setManualStartDate] = useState(startDate);
     const [manualEndDate, setManualEndDate] = useState(endDate);
+
+
     // Hapus hoveredDate state dan logika terkait
 
     // Update local state when props change
@@ -116,7 +118,7 @@ export function DateRange({
     };
 
     const nights = calculateNights(dateRange?.from, dateRange?.to);
-
+    const [numNights, setNumNights] = useState(nights || 1);
     // Memo selectedRange agar tidak flicker
     const selectedRange = useMemo(() => {
         if (!dateRange?.from) return undefined;
@@ -130,7 +132,7 @@ export function DateRange({
             const dateStr = format(date, 'yyyy-MM-dd');
 
             // Jika sedang di step 2 (selecting checkout), geser booking 1 hari
-            if (dateRange?.from && !dateRange?.to||dateRange?.to && dateRange?.from && (error || warning)) {
+            if (dateRange?.from && !dateRange?.to || dateRange?.to && dateRange?.from && (error || warning)) {
                 // Tanggal yang aslinya booked, sekarang dianggap available
                 // Tanggal sebelumnya (yang aslinya available) sekarang dianggap booked
                 const prevDay = addDays(date, -1);
@@ -152,12 +154,12 @@ export function DateRange({
             if (adminMode) {
                 return 1; // Admin can book even 1 night
             }
-            
+
             // Gunakan minStayNights yang sudah dihitung dari parent (dengan seasonal rate)
             // Hook use-property-minimum-stay sudah menghitung minimum stay dengan mempertimbangkan seasonal rate
             // Jadi kita hanya perlu adjust jika ada booked dates yang membatasi
             const baseMinStay = minStayNights;
-            
+
             // Cek apakah ada booking setelah tanggal check-in yang membatasi
             const nextDay = addDays(date, 1);
             const dayAfterNext = addDays(date, 2);
@@ -220,9 +222,10 @@ export function DateRange({
         console.log('🔄 Current dateRange state:', dateRange);
 
         // Jika range kosong/undefined, reset semua
-        if (!range) {
+        if (!range || !range.from && range.to) {
             console.log('🔄 Resetting date range - no range provided');
             setDateRange(undefined);
+            setNumNights(1);
             setWarning(null);
             if (onDateChange) {
                 onDateChange('', '');
@@ -230,12 +233,25 @@ export function DateRange({
             return;
         }
 
+        // 🆕 Jika user sudah punya range lengkap lalu klik tanggal lain → reset & jadikan start-date baru
+        if (dateRange?.from && dateRange?.to && range.from && !range.to) {
+            console.log("🔄 User clicked again after completing range → resetting");
+            setDateRange({
+                from: range.from, // jadikan klik baru sebagai start-date
+                to: undefined
+            });
+            setWarning(null);
+            if (onDateChange) onDateChange("", "");
+            return;
+        }
+
+
         // Kasus 1: Hanya tanggal 'from' yang dipilih (first click)
         if (range.from && !range.to) {
             console.log('🔄 First date selected:', range.from);
 
             // Jika sudah ada dateRange.from dan user klik tanggal yang sama, reset
-            if (dateRange?.from && range.from.getTime() === dateRange.from.getTime()) {
+            if (dateRange?.from && range.from.getTime() != dateRange.from.getTime()) {
                 console.log('🔄 Same start date clicked, resetting selection');
                 setDateRange(undefined);
                 setWarning(null);
@@ -265,6 +281,7 @@ export function DateRange({
                 return validateAndSetCompleteRange(startDate, endDate);
             }
 
+
             // Set sebagai start date baru
             console.log('🔄 Setting new start date, waiting for end date');
             setDateRange({
@@ -280,15 +297,16 @@ export function DateRange({
         if (range.from && range.to) {
             console.log('🔄 Complete range received:', range.from, 'to', range.to);
 
-            // Pastikan urutan tanggal benar
             let fromDate = range.from;
             let toDate = range.to;
 
+            // Urutkan tanggal agar dari < ke
             if (fromDate.getTime() > toDate.getTime()) {
                 console.log('🔄 Swapping dates - from was after to');
                 [fromDate, toDate] = [toDate, fromDate];
             }
 
+            // Lanjutkan ke validasi normal (minimum stay, dsb.)
             return validateAndSetCompleteRange(fromDate, toDate);
         }
 
@@ -297,11 +315,16 @@ export function DateRange({
             console.log('🔄 Validating complete range:', fromDate, 'to', toDate);
 
             const correctedRange = { from: fromDate, to: toDate };
+            // Tetapkan jumlah malam
+            setNumNights(differenceInDays(toDate, fromDate));
 
             // Validasi: cek apakah range mengandung tanggal yang sudah dipesan
             if (typeof rangeContainsBookedDates === 'function' && rangeContainsBookedDates(fromDate, toDate)) {
                 setWarning('Rentang tanggal yang dipilih mengandung tanggal yang sudah dipesan. Silakan pilih rentang tanggal lain.');
-                setDateRange(correctedRange);
+                setDateRange(undefined);
+                if (onDateChange) {
+                    onDateChange('', '');
+                }
                 return;
             }
 
@@ -347,24 +370,22 @@ export function DateRange({
         }
     };
 
-    // Handle manual input for admin mode
-    const handleManualInputChange = (field: 'start' | 'end', value: string) => {
-        if (field === 'start') {
-            setManualStartDate(value);
-            if (value && manualEndDate) {
-                onDateChange?.(value, manualEndDate);
-            } else if (value) {
-                onDateChange?.(value, '');
-            }
-        } else {
-            setManualEndDate(value);
-            if (manualStartDate && value) {
-                onDateChange?.(manualStartDate, value);
-            } else if (value) {
-                onDateChange?.('', value);
-            }
+    // ueseffect untuk mengganti tanggal
+    useEffect(() => {
+        if (!dateRange?.from) return;
+
+        const newEndDate = addDays(dateRange.from, Number(numNights));
+        setDateRange({ from: dateRange.from, to: newEndDate });
+
+        if (onDateChange) {
+            onDateChange(
+                dateRange.from.toISOString().split('T')[0],
+                newEndDate.toISOString().split('T')[0]
+            );
         }
-    };
+    }, [numNights]);
+
+
 
     // Admin mode: override min date restrictions
     const getEffectiveMinDate = (): Date | undefined => {
@@ -401,43 +422,6 @@ export function DateRange({
         return `${fromFormat} → ?`;
     };
 
-    // Get current step for user guidance
-    const getCurrentStep = () => {
-        if (!dateRange?.from) {
-            return {
-                step: 1,
-                message: '1️⃣ Pilih tanggal check-in',
-                description: 'Klik tanggal yang diinginkan untuk memulai'
-            };
-        }
-
-        if (dateRange.from && !dateRange.to) {
-            return {
-                step: 2,
-                message: '2️⃣ Pilih tanggal check-out',
-                description: `Minimal ${currentMinStay} malam dari ${format(dateRange.from, 'd MMM', { locale: id })}`
-            };
-        }
-
-        if (dateRange.from && dateRange.to) {
-            if (error || warning) {
-                return {
-                    step: 3,
-                    message: '⚠️ Perlu penyesuaian',
-                    description: 'Silakan sesuaikan pilihan tanggal'
-                };
-            }
-            return {
-                step: 3,
-                message: '✅ Tanggal siap digunakan',
-                description: `${nights} malam, ${format(dateRange.from, 'd MMM', { locale: id })} - ${format(dateRange.to, 'd MMM', { locale: id })}`
-            };
-        }
-
-        return { step: 1, message: '', description: '' };
-    };
-
-    const currentStepInfo = getCurrentStep();                   
 
     // Button sizing
     const getButtonHeight = () => {
@@ -453,36 +437,36 @@ export function DateRange({
     const maximumDate = adminMode ? addDays(new Date(), 365 * 2) : (maxDate ? new Date(maxDate) : addDays(new Date(), 90));
     const disabledDates = useMemo(() => {
         const matchers: any[] = [];
-        
+
         // Add date range restrictions
         if (!adminMode && minimumDate) {
             matchers.push({ before: minimumDate });
         }
-        
+
         if (!adminMode && maximumDate) {
             matchers.push({ after: maximumDate });
         }
-        
+
         // Add custom disabled logic
         matchers.push((date: Date) => {
             if (isDateBooked(date)) return true;
-            
+
             // No range restrictions in admin mode
             if (adminMode) {
                 if (!dateRange?.from || dateRange.to) return false;
                 return date <= dateRange.from;
             }
-            
+
             // Normal mode: apply range restrictions
             if (!dateRange?.from || dateRange.to) return false;
             return date <= dateRange.from || differenceInDays(date, dateRange.from) > 30;
         });
-        
+
         return matchers;
     }, [minimumDate, maximumDate, isDateBooked, dateRange, adminMode]);
 
     const calendarModifiers: Record<string, any> = {
-      booked: isDateBooked,
+        booked: isDateBooked,
     };
     if (dateRange?.from) calendarModifiers.rangeStart = (d: Date) => d.getTime() === dateRange.from!.getTime();
     if (dateRange?.to) calendarModifiers.rangeEnd = (d: Date) => d.getTime() === dateRange.to!.getTime();
@@ -547,50 +531,22 @@ export function DateRange({
                 </PopoverTrigger>
 
                 <PopoverContent
-                    className="p-0 w-auto !max-w-none"
+                    className="p-0 w-auto !max-w-none rounded-xl shadow-lg border bg-card"
                     align="start"
                     side="bottom"
-                    sideOffset={4}
+                    sideOffset={8}
                 >
-                    <div className="p-3">
+                    <div className="p-4 space-y-4">
+
+                        {/* Loading */}
                         {loading && (
-                            <div className="flex items-center justify-center p-8">
-                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                                <span className="ml-2 text-sm text-muted-foreground">
-                                    Memuat ketersediaan...
-                                </span>
+                            <div className="flex items-center gap-3 justify-center p-6">
+                                <div className="animate-spin h-5 w-5 rounded-full border-2 border-primary border-t-transparent" />
+                                <span className="text-sm text-muted-foreground">Memuat ketersediaan...</span>
                             </div>
                         )}
 
-                        {/* Step Indicator */}
-                        {!loading && (
-                            <div className="mb-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Info className="h-4 w-4 text-primary" />
-                                    <span className="text-sm font-medium text-primary">
-                                        {currentStepInfo.message}
-                                    </span>
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                    {currentStepInfo.description}
-                                </p>
-                            </div>
-                        )}
-
-                        {error && (
-                            <Alert variant="destructive" className="mb-3">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertDescription>{error}</AlertDescription>
-                            </Alert>
-                        )}
-
-                        {warning && !error && (
-                            <Alert className="mb-3 border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/20">
-                                <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                                <AlertDescription className="text-orange-700 dark:text-orange-300">{warning}</AlertDescription>
-                            </Alert>
-                        )}
-
+                        {/* Calendar */}
                         {!loading && (
                             <Calendar
                                 initialFocus
@@ -598,15 +554,13 @@ export function DateRange({
                                 defaultMonth={dateRange?.from || new Date()}
                                 selected={selectedRange}
                                 onSelect={handleDateSelect}
-                                numberOfMonths={1}
                                 disabled={disabledDates}
                                 modifiers={calendarModifiers}
                                 modifiersStyles={{
                                     selected: {
-                                        backgroundColor: 'hsl(var(--primary))',
-                                        color: 'hsl(var(--primary-foreground))',
-                                        fontWeight: 'bold',
-                                        border: '2px solid hsl(var(--primary))',
+                                        backgroundColor: 'hsl(var(--brand-accent))',
+                                        color: 'hsl(var(--brand-accent-foreground))',
+                                        fontWeight: 600,
                                     },
                                     booked: {
                                         backgroundColor: 'hsl(var(--destructive))',
@@ -616,131 +570,91 @@ export function DateRange({
                                     rangeStart: {
                                         backgroundColor: 'hsl(var(--primary))',
                                         color: 'hsl(var(--primary-foreground))',
-                                        fontWeight: 'bold',
-                                        border: '2px solid hsl(var(--primary))',
+                                        fontWeight: 600,
                                     },
                                     rangeEnd: {
                                         backgroundColor: 'hsl(var(--primary))',
                                         color: 'hsl(var(--primary-foreground))',
-                                        fontWeight: 'bold',
-                                        border: '2px solid hsl(var(--primary))',
+                                        fontWeight: 600,
                                     },
                                 }}
-                                className="rounded-md border-0"
+                                className="rounded-lg border-0"
                                 locale={id}
                                 fromDate={getEffectiveMinDate()}
                                 toDate={getEffectiveMaxDate()}
                             />
                         )}
 
-                        {/* Manual Input Section for Admin Mode */}
-                        {adminMode && showManualInput && (
-                            <div className="mt-3 p-2 bg-muted/30 dark:bg-muted/20 rounded-lg border border-border">
-                                <div className="flex items-center gap-1 mb-2">
-                                    <Info className="h-3 w-3 text-muted-foreground" />
-                                    <span className="text-xs font-medium text-muted-foreground">
-                                        Manual Input
-                                    </span>
-                                </div>
-                                <div className="space-y-2">
-                                    <div>
-                                        <Label htmlFor="manual-start" className="text-xs text-muted-foreground">
-                                            {startLabel}
-                                        </Label>
-                                        <Input
-                                            id="manual-start"
-                                            type="date"
-                                            value={manualStartDate}
-                                            onChange={(e) => handleManualInputChange('start', e.target.value)}
-                                            className="h-8 text-xs"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="manual-end" className="text-xs text-muted-foreground">
-                                            {endLabel}
-                                        </Label>
-                                        <Input
-                                            id="manual-end"
-                                            type="date"
-                                            value={manualEndDate}
-                                            onChange={(e) => handleManualInputChange('end', e.target.value)}
-                                            className="h-8 text-xs"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="mt-2 text-xs text-muted-foreground/60">
-                                    Admin: any date allowed
-                                </div>
-                            </div>
-                        )}
+                        {/* Footer info */}
+                        <div className="pt-3 border-t space-y-3 text-xs text-muted-foreground">
 
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t text-xs text-muted-foreground">
-                            <div className="flex-1">
-                                {!dateRange?.from && (
-                                    <span>Mulai dengan memilih tanggal check-in</span>
-                                )}
+                            <div>
+                                {!dateRange?.from && <span>Pilih tanggal check-in untuk memulai</span>}
+
                                 {dateRange?.from && !dateRange?.to && (
                                     <div className="space-y-1">
                                         <span className="text-primary font-medium">
                                             Check-in: {format(dateRange.from, 'd MMM yyyy', { locale: id })}
                                         </span>
-                                        <div className="text-xs">
-                                            Hover untuk preview, klik untuk konfirmasi
-                                        </div>
+                                        <p className="text-xs">`Minimal {currentMinStay} malam dari {format(dateRange.from, 'd MMM', { locale: id })}`</p>
                                     </div>
                                 )}
+
                                 {dateRange?.from && dateRange?.to && !error && !warning && (
-                                                                    <span className="text-green-600 dark:text-green-400 font-medium">
-                                    ✓ {nights} malam terpilih
-                                </span>
+                                    <span className="text-green-600 dark:text-green-400 font-medium">
+                                        ✓ {nights} malam terpilih, pilih tanggal awal atau reset
+                                    </span>
                                 )}
                             </div>
 
-                            {dateRange?.from && (
+                        {dateRange?.from && (
+                            <div className="flex items-center gap-2">
+                                <Label className="text-xs">Malam:</Label>
+                                <Input
+                                    type="number"
+                                    min={currentMinStay}
+                                    className="w-16 h-8 text-xs"
+                                    value={numNights}
+                                    onChange={(e) => {
+                                        const value = Number(e.target.value);
+                                        if (value > 0) setNumNights(value);
+                                    }}
+                                />
+
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-6 px-2 text-xs"
+                                    className="ml-auto h-6 px-2"
                                     onClick={() => {
                                         handleDateSelect(undefined);
                                         setWarning(null);
-                                        // Hapus hoveredDate state dan logika terkait
                                     }}
                                 >
                                     Reset
                                 </Button>
-                            )}
+                            </div>
+                        )}
+
                         </div>
 
-                        <div className="flex items-center gap-4 mt-2 pt-2 border-t text-xs">
+                        {/* Legend */}
+                        <div className="pt-2 border-t text-xs flex items-center gap-4">
                             <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 rounded bg-orange-500 opacity-80"></div>
+                                <div className="w-3 h-3 rounded bg-destructive"></div>
                                 <span>Dipesan</span>
                             </div>
+
                             <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 rounded bg-green-600 border border-green-700"></div>
+                                <div className="w-3 h-3 rounded bg-brand-accent border"></div>
                                 <span>Dipilih</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 rounded bg-green-500 opacity-40"></div>
-                                <span>Preview</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-background border border-border rounded"></div>
-                                <span>Tersedia</span>
-                            </div>
                         </div>
+                        
 
-                        {dateRange?.from && dateRange?.to && !isMinStayViolation && !error && !warning && (
-                            <Alert className="mt-2 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
-                                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                <AlertDescription className="text-green-700 dark:text-green-300">
-                                    Pilihan {nights} malam valid untuk reservasi
-                                </AlertDescription>
-                            </Alert>
-                        )}
+
                     </div>
                 </PopoverContent>
+
             </Popover>
         </div>
     );
