@@ -158,11 +158,7 @@ export default function PropertyShow({
           </div>
 
           {/* Similar Properties - Full Width After Booking */}
-          <div className="mt-16 relative">
-            {/* Decorative background elements for similar properties section */}
-            <div className="absolute -top-8 -left-8 w-40 h-40 bg-brand-primary/5 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-8 -right-8 w-48 h-48 bg-brand-accent/5 rounded-full blur-3xl"></div>
-            
+          <div className="mt-16 relative">       
             <SimilarProperties properties={similarProperties} />
           </div>
         </div>

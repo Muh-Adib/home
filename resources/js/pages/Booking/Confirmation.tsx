@@ -130,7 +130,7 @@ Mohon bantuannya untuk informasi lebih lanjut. Terima kasih!`;
     };
 
     const getWhatsAppLink = () => {
-        const phoneNumber = booking.property.owner?.phone || '6281234567890'; // Default number
+        const phoneNumber = '6281125000082'; // Default number
         const message = formatWhatsAppMessage();
         return `https://wa.me/${phoneNumber}?text=${message}`;
     };

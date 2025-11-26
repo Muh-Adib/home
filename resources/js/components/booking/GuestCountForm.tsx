@@ -48,42 +48,99 @@ export default function GuestCountForm({
             <div className="grid grid-cols-3 sm:grid-cols-3 gap-4 bg-muted/50 p-4 sm:p-6 rounded-lg border border-border">
                 <div className="space-y-2">
                     <Label htmlFor="guest_male" className="text-sm font-medium">{t('booking.male_adults')}</Label>
-                    <Input
-                        id="guest_male"
-                        type="number"
-                        min="0"
-                        value={guestMale}
-                        onChange={(e) => onGuestCountChange('male', parseInt(e.target.value) || 0)}
-                        className={`h-12 text-base ${errors?.guest_male ? 'border-red-500' : ''}`}
-                    />
+                    <div className="flex items-center gap-2">
+                        {/* Tombol - */}
+                        <button
+                            type="button"
+                            onClick={() => onGuestCountChange('male', Math.max(0, guestMale - 1))}
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                        >
+                            –
+                        </button>
+
+                        {/* Input */}
+                        <Input
+                            id="guest_male"
+                            type="number"
+                            min="0"
+                            value={guestMale}
+                            onChange={(e) => onGuestCountChange('male', parseInt(e.target.value) || 0)}
+                            className={`h-12 text-center text-base ${errors?.guest_male ? 'border-red-500' : ''}`}
+                        />
+
+                        {/* Tombol + */}
+                        <button
+                            type="button"
+                            onClick={() => onGuestCountChange('male', guestMale + 1)}
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                        >
+                            +
+                        </button>
+                    </div>
                     {errors?.guest_male && (
                         <p className="text-sm text-red-600">{errors.guest_male}</p>
                     )}
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="guest_female" className="text-sm font-medium">{t('booking.female_adults')}</Label>
-                    <Input
-                        id="guest_female"
-                        type="number"
-                        min="0"
-                        value={guestFemale}
-                        onChange={(e) => onGuestCountChange('female', parseInt(e.target.value) || 0)}
-                        className={`h-12 text-base ${errors?.guest_female ? 'border-red-500' : ''}`}
-                    />
+                    <div className="flex items-center gap-2">
+                        {/* Tombol - */}
+                        <button
+                            type="button"
+                            onClick={() => onGuestCountChange('female', Math.max(0, guestFemale - 1))}
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                        >
+                            –
+                        </button>
+                        <Input
+                            id="guest_female"
+                            type="number"
+                            min="0"
+                            value={guestFemale}
+                            onChange={(e) => onGuestCountChange('female', parseInt(e.target.value) || 0)}
+                            className={`h-12 text-base ${errors?.guest_female ? 'border-red-500' : ''}`}
+                        />
+                        {/* Tombol + */}
+                        <button
+                            type="button"
+                            onClick={() => onGuestCountChange('female', guestFemale + 1)}
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                        >
+                            +
+                        </button>
+                    </div>
                     {errors?.guest_female && (
                         <p className="text-sm text-red-600">{errors.guest_female}</p>
                     )}
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="guest_children" className="text-sm font-medium">{t('booking.children')}</Label>
-                    <Input
-                        id="guest_children"
-                        type="number"
-                        min="0"
-                        value={guestChildren}
-                        onChange={(e) => onGuestCountChange('children', parseInt(e.target.value) || 0)}
-                        className={`h-12 text-base ${errors?.guest_children ? 'border-red-500' : ''}`}
-                    />
+                    <div className="flex items-center gap-2">
+                        {/* Tombol - */}
+                        <button
+                            type="button"
+                            onClick={() => onGuestCountChange('children', Math.max(0, guestChildren - 1))}
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                        >
+                            –
+                        </button>
+                        <Input
+                            id="guest_children"
+                            type="number"
+                            min="0"
+                            value={guestChildren}
+                            onChange={(e) => onGuestCountChange('children', parseInt(e.target.value) || 0)}
+                            className={`h-12 text-base ${errors?.guest_children ? 'border-red-500' : ''}`}
+                        />
+                        {/* Tombol + */}
+                        <button
+                            type="button"
+                            onClick={() => onGuestCountChange('children', guestChildren + 1)}
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                        >
+                            +
+                        </button>
+                    </div>
                     {errors?.guest_children && (
                         <p className="text-sm text-red-600">{errors.guest_children}</p>
                     )}

@@ -42,8 +42,7 @@ Route::middleware('guest')->group(function () {
         ->middleware('signed')
         ->name('password.set');
 
-    Route::post('set-password/{user}', [NewPasswordController::class, 'storeSetPassword'])
-        ->middleware('signed');
+    Route::post('set-password/{user}', [NewPasswordController::class, 'storeSetPassword']);
 
 });
 

@@ -390,7 +390,7 @@ export default function Register() {
                 <div className="text-center">
                     <p className="text-xs text-gray-500">
                         {t('auth.terms_privacy')}{' '}
-                        <TextLink href="/terms" className="text-blue-600 hover:text-blue-700">
+                        <TextLink href="/tos" className="text-blue-600 hover:text-blue-700">
                             {t('auth.terms_of_service')}
                         </TextLink>{' '}
                         {t('auth.and')}{' '}
@@ -400,7 +400,7 @@ export default function Register() {
                     </p>
                 </div>
 
-                {/* Divider */}
+                {/* Divider 
                 <div className="relative my-6">
                     <div className="absolute inset-0 flex items-center">
                         <div className="w-full border-t border-gray-200"></div>
@@ -410,9 +410,9 @@ export default function Register() {
                             {t('auth.or_continue_with')}
                         </span>
                     </div>
-                </div>
+                </div>*/}
 
-                {/* Social Register Buttons */}
+                {/* Social Register Buttons 
                 <div className="grid grid-cols-2 gap-3">
                     <Button
                         type="button"
@@ -437,7 +437,7 @@ export default function Register() {
                         </svg>
                         Facebook
                     </Button>
-                </div>
+                </div>*/}
 
                 {/* Sign In Link */}
                 <div className="text-center">

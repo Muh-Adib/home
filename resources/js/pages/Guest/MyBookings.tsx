@@ -259,7 +259,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
 
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
-                <div className="bg-white border-b">
+                <div className="bg-primary border-b">
                     <div className="container mx-auto px-4 py-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>

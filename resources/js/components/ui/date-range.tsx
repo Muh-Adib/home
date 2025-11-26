@@ -91,25 +91,11 @@ export function DateRange({
         return undefined;
     });
     const [warning, setWarning] = useState<string | null>(null);
-    const [manualStartDate, setManualStartDate] = useState(startDate);
-    const [manualEndDate, setManualEndDate] = useState(endDate);
 
 
     // Hapus hoveredDate state dan logika terkait
 
-    // Update local state when props change
-    useEffect(() => {
-        if (startDate && endDate) {
-            setDateRange({
-                from: new Date(startDate),
-                to: new Date(endDate)
-            });
-        } else {
-            setDateRange(undefined);
-        }
-        setManualStartDate(startDate);
-        setManualEndDate(endDate);
-    }, [startDate, endDate]);
+
 
     // Calculate nights between dates
     const calculateNights = (from?: Date, to?: Date): number => {
@@ -118,7 +104,7 @@ export function DateRange({
     };
 
     const nights = calculateNights(dateRange?.from, dateRange?.to);
-    const [numNights, setNumNights] = useState(nights || 1);
+
     // Memo selectedRange agar tidak flicker
     const selectedRange = useMemo(() => {
         if (!dateRange?.from) return undefined;
@@ -218,97 +204,52 @@ export function DateRange({
 
     // Handle date selection
     const handleDateSelect = (range: DateRangeType | undefined) => {
-        console.log('🔄 handleDateSelect called with:', range);
-        console.log('🔄 Current dateRange state:', dateRange);
+        const hasCompleteRange = dateRange?.from && dateRange?.to;
 
-        // Jika range kosong/undefined, reset semua
-        if (!range || !range.from && range.to) {
-            console.log('🔄 Resetting date range - no range provided');
-            setDateRange(undefined);
-            setNumNights(1);
-            setWarning(null);
-            if (onDateChange) {
-                onDateChange('', '');
-            }
-            return;
-        }
+    // CASE 1: Reset jika kosong
+    if (!range || (!range.from && !range.to)) {
+        setDateRange(undefined);
 
-        // 🆕 Jika user sudah punya range lengkap lalu klik tanggal lain → reset & jadikan start-date baru
-        if (dateRange?.from && dateRange?.to && range.from && !range.to) {
-            console.log("🔄 User clicked again after completing range → resetting");
-            setDateRange({
-                from: range.from, // jadikan klik baru sebagai start-date
-                to: undefined
-            });
-            setWarning(null);
-            if (onDateChange) onDateChange("", "");
-            return;
-        }
+        setWarning(null);
+        onDateChange?.("", "");
+        return;
+    }
 
-
-        // Kasus 1: Hanya tanggal 'from' yang dipilih (first click)
-        if (range.from && !range.to) {
-            console.log('🔄 First date selected:', range.from);
-
-            // Jika sudah ada dateRange.from dan user klik tanggal yang sama, reset
-            if (dateRange?.from && range.from.getTime() != dateRange.from.getTime()) {
-                console.log('🔄 Same start date clicked, resetting selection');
-                setDateRange(undefined);
-                setWarning(null);
-                if (onDateChange) {
-                    onDateChange('', '');
-                }
-                return;
-            }
-
-            // Jika sudah ada dateRange.from dan user klik tanggal berbeda, 
-            // anggap sebagai pemilihan end date
-            if (dateRange?.from && !dateRange.to) {
-                console.log('🔄 Setting end date based on existing start date');
-                const fromDate = dateRange.from;
-                const toDate = range.from;
-
-                // Pastikan urutan tanggal benar
-                let startDate = fromDate;
-                let endDate = toDate;
-
-                if (startDate.getTime() > endDate.getTime()) {
-                    console.log('🔄 Swapping dates - start was after end');
-                    [startDate, endDate] = [endDate, startDate];
-                }
-
-                // Validasi range lengkap
-                return validateAndSetCompleteRange(startDate, endDate);
-            }
-
-
-            // Set sebagai start date baru
-            console.log('🔄 Setting new start date, waiting for end date');
+    // CASE 2: User SUDAH memilih range lengkap → klik tanggal baru
+    if (hasCompleteRange) {
+        console.log("🔄 Resetting and setting new start date");
+        if (range.from?.getTime() !== dateRange.from?.getTime()) {
+            // Set CLICK sebagai start baru
             setDateRange({
                 from: range.from,
                 to: undefined
             });
-            setWarning(null);
-            // Jangan tutup kalender, tunggu pemilihan tanggal kedua
-            return;
+        }
+        if (range.to?.getTime() !== dateRange.to?.getTime()) {
+            // Set CLICK sebagai start baru
+            setDateRange({
+                from: range.to,
+                to: undefined
+            });
         }
 
-        // Kasus 2: Kedua tanggal dipilih sekaligus (range complete dari calendar component)
-        if (range.from && range.to) {
-            console.log('🔄 Complete range received:', range.from, 'to', range.to);
+        setWarning(null);
+        return;
+    }
 
-            let fromDate = range.from;
-            let toDate = range.to;
+    // CASE 3: User memilih tanggal pertama (start)
+    if (range.from && !range.to) {
+        console.log("🔄 Start date chosen");
+        setDateRange({ from: range.from, to: undefined });
+        setWarning(null);
+        return;
+    }
 
-            // Urutkan tanggal agar dari < ke
-            if (fromDate.getTime() > toDate.getTime()) {
-                console.log('🔄 Swapping dates - from was after to');
-                [fromDate, toDate] = [toDate, fromDate];
-            }
-
-            // Lanjutkan ke validasi normal (minimum stay, dsb.)
-            return validateAndSetCompleteRange(fromDate, toDate);
-        }
+    // CASE 4: User memilih end-date → complete range
+    if (range.from && range.to) {
+        console.log("🔄 Complete range chosen");
+        return validateAndSetCompleteRange(range.from, range.to);
+    }
 
         // Fungsi helper untuk validasi dan set range lengkap
         function validateAndSetCompleteRange(fromDate: Date, toDate: Date) {
@@ -316,7 +257,6 @@ export function DateRange({
 
             const correctedRange = { from: fromDate, to: toDate };
             // Tetapkan jumlah malam
-            setNumNights(differenceInDays(toDate, fromDate));
 
             // Validasi: cek apakah range mengandung tanggal yang sudah dipesan
             if (typeof rangeContainsBookedDates === 'function' && rangeContainsBookedDates(fromDate, toDate)) {
@@ -370,22 +310,6 @@ export function DateRange({
         }
     };
 
-    // ueseffect untuk mengganti tanggal
-    useEffect(() => {
-        if (!dateRange?.from) return;
-
-        const newEndDate = addDays(dateRange.from, Number(numNights));
-        setDateRange({ from: dateRange.from, to: newEndDate });
-
-        if (onDateChange) {
-            onDateChange(
-                dateRange.from.toISOString().split('T')[0],
-                newEndDate.toISOString().split('T')[0]
-            );
-        }
-    }, [numNights]);
-
-
 
     // Admin mode: override min date restrictions
     const getEffectiveMinDate = (): Date | undefined => {
@@ -434,7 +358,7 @@ export function DateRange({
 
     // Memo disabledDates
     const minimumDate = adminMode ? undefined : (minDate ? new Date(minDate) : new Date());
-    const maximumDate = adminMode ? addDays(new Date(), 365 * 2) : (maxDate ? new Date(maxDate) : addDays(new Date(), 90));
+    const maximumDate = adminMode ? addDays(new Date(), 365 * 2) : (maxDate ? new Date(maxDate) : addDays(new Date(), 60));
     const disabledDates = useMemo(() => {
         const matchers: any[] = [];
 
@@ -606,35 +530,6 @@ export function DateRange({
                                     </span>
                                 )}
                             </div>
-
-                        {dateRange?.from && (
-                            <div className="flex items-center gap-2">
-                                <Label className="text-xs">Malam:</Label>
-                                <Input
-                                    type="number"
-                                    min={currentMinStay}
-                                    className="w-16 h-8 text-xs"
-                                    value={numNights}
-                                    onChange={(e) => {
-                                        const value = Number(e.target.value);
-                                        if (value > 0) setNumNights(value);
-                                    }}
-                                />
-
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="ml-auto h-6 px-2"
-                                    onClick={() => {
-                                        handleDateSelect(undefined);
-                                        setWarning(null);
-                                    }}
-                                >
-                                    Reset
-                                </Button>
-                            </div>
-                        )}
-
                         </div>
 
                         {/* Legend */}

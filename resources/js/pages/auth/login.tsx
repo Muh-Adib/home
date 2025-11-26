@@ -154,7 +154,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                     )}
                 </Button>
 
-                {/* Divider */}
+                {/* Divider 
                 <div className="relative my-6">
                     <div className="absolute inset-0 flex items-center">
                         <div className="w-full border-t border-gray-200 dark:border-gray-600"></div>
@@ -164,9 +164,9 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             {t('auth.or_continue_with')}
                         </span>
                     </div>
-                </div>
+                </div>*/}
 
-                {/* Social Login Buttons */}
+                {/* Social Login Buttons 
                 <div className="grid grid-cols-2 gap-3">
                     <Button
                         type="button"
@@ -191,7 +191,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         </svg>
                         Facebook
                     </Button>
-                </div>
+                </div>*/}
 
                 {/* Sign Up Link */}
                 <div className="text-center">

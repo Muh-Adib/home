@@ -12,13 +12,23 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('payment_methods', function (Blueprint $table) {
-            // Fee untuk payment gateway (dalam persen atau fixed amount)
-            $table->decimal('fee_percentage', 5, 2)->nullable()->after('sort_order')->default(0);
-            $table->decimal('fee_fixed', 12, 2)->nullable()->after('fee_percentage')->default(0);
-            $table->string('fee_type', 20)->nullable()->after('fee_fixed')->default('percentage'); // percentage atau fixed
-            
-            // Settings untuk iPaymu
-            $table->json('ipaymu_settings')->nullable()->after('fee_type'); // Store iPaymu specific settings
+
+            // Protect: Pastikan kolom belum ada sebelum menambahkan
+            if (!Schema::hasColumn('payment_methods', 'fee_percentage')) {
+                $table->decimal('fee_percentage', 5, 2)->default(0)->after('sort_order');
+            }
+
+            if (!Schema::hasColumn('payment_methods', 'fee_fixed')) {
+                $table->decimal('fee_fixed', 12, 2)->default(0)->after('fee_percentage');
+            }
+
+            if (!Schema::hasColumn('payment_methods', 'fee_type')) {
+                $table->string('fee_type', 20)->default('percentage')->after('fee_fixed');
+            }
+
+            if (!Schema::hasColumn('payment_methods', 'ipaymu_settings')) {
+                $table->json('ipaymu_settings')->nullable()->after('fee_type');
+            }
         });
     }
 
@@ -28,15 +38,19 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('payment_methods', function (Blueprint $table) {
-            $table->dropColumn(['fee_percentage', 'fee_fixed', 'fee_type', 'ipaymu_settings']);
+            // Drop only if the column exists
+            if (Schema::hasColumn('payment_methods', 'fee_percentage')) {
+                $table->dropColumn('fee_percentage');
+            }
+            if (Schema::hasColumn('payment_methods', 'fee_fixed')) {
+                $table->dropColumn('fee_fixed');
+            }
+            if (Schema::hasColumn('payment_methods', 'fee_type')) {
+                $table->dropColumn('fee_type');
+            }
+            if (Schema::hasColumn('payment_methods', 'ipaymu_settings')) {
+                $table->dropColumn('ipaymu_settings');
+            }
         });
     }
 };
-
-
-
-
-
-
-
-

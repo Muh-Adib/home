@@ -325,7 +325,7 @@ export function BookingSidebar({
                                     // Gunakan router.visit untuk navigasi GET dengan parameter query string
                                     router.visit(`/properties/${property.slug}/book?check_in=${checkInDate}&check_out=${checkOutDate}&guests=${guestCount}`, {
                                         method: 'get',
-                                        preserveScroll: true,
+                                        preserveScroll: false,
                                         preserveState: false,
                                         onError: (errors) => {
                                             console.error('Terjadi kesalahan:', errors);

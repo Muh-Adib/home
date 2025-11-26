@@ -65,17 +65,18 @@ class NewPasswordController extends Controller
      * Page untuk user baru membuat password pertama kali.
      * Signed route memastikan token aman & tidak bisa dimanipulasi.
      */
-    public function showSetPassword(Request $request): Response
+    public function showSetPassword(Request $request, User $user): Response
     {
-        // Validate signed URL
         if (! $request->hasValidSignature()) {
             abort(403, 'Invalid or expired link.');
         }
 
         return Inertia::render('auth/set-password', [
-            'email' => $request->query('email'),
+            'user' => $user->only(['id','email','name']),
+            'email' => $user->email,
         ]);
     }
+
 
     /**
      * Handle set password pertama kali untuk user baru.
@@ -93,6 +94,7 @@ class NewPasswordController extends Controller
         $email = $request->query('email');
 
         $user = User::where('email', $email)->first();
+        
 
         if (! $user) {
             throw ValidationException::withMessages([

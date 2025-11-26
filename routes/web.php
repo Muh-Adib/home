@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\LegalViewController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -64,21 +65,30 @@ Route::get('/', function () {
 })->name('home');
 
 //route dokumen penting
-Route::get('/terms', function () {
-    return Inertia::render('Terms');
-})->name('terms');
-Route::get('/privacy', function () {
-    return Inertia::render('Privacy');
-})->name('privacy');
-Route::get('/refund-policy', function () {
-    return Inertia::render('refund-policy');
-})->name('refund-policy');
+Route::get('/about', function () {
+    return Inertia::render('About');
+})->name('about');
+
 Route::get('/faq', function () {
-    return Inertia::render('faq');
+    return Inertia::render('FAQ');
 })->name('faq');
+
 Route::get('/support', function(){
     return Inertia::render('Support');
 })->name('support');
+
+
+Route::get('/{slug}', [LegalViewController::class, 'show'])
+    ->whereIn('slug', [
+        'tos',
+        'privacy',
+        'refund',
+        'cancel',
+        'payment',
+        'rules',
+        'cookies',
+        'disclaimer'
+    ]);
 
 // Public Property Routes
 Route::controller(PropertyController::class)->group(function () {
@@ -536,6 +546,30 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         // Property Settings
         Route::get('property', 'property')->name('property');
         Route::post('property', 'updateProperty')->name('property.update');
+    });
+
+    
+    // Legal Management
+    Route::controller(App\Http\Controllers\Admin\LegalPageController::class)->prefix('legal')->name('legal.')->group(function () {
+        // Main CRUD
+        Route::get('/', 'index')->name('index');
+        Route::get('/create', 'create')->name('create');
+        Route::post('/', 'store')->name('store');
+        Route::get('/{slug}/edit', 'edit')->name('edit');
+        Route::put('/{slug}',  'update')->name('update');
+        
+        // History & Archive
+        Route::get('/{slug}/history', 'history')->name('history');
+        Route::get('/archived/{id}', 'showArchived')->name('archived.show');
+        Route::post('/restore/{id}', 'restore')->name('restore');
+        
+        // Archive actions
+        Route::post('/{slug}/archive', 'archive')->name('archive');
+        Route::get('/trash', 'trash')->name('trash');
+        
+        // Delete actions
+        Route::delete('/archived/{id}/force', 'forceDelete')->name('archived.force-delete');
+        Route::delete('/{slug}/destroy-all', 'destroyAll')->name('destroy-all');
     });
 });
 

@@ -39,8 +39,8 @@ class GuestWelcomeNotification extends Notification
         // Generate signed URL aman
         $setPasswordUrl = URL::temporarySignedRoute(
             'password.set',
-            $this->expires,
-            ['user' => $notifiable->id]
+            now()->addMinutes(60),
+            ['user' => $user->id]
         );
 
         return (new MailMessage)

@@ -141,6 +141,7 @@ const getAdminNavItems = (userRole: User['role']) => {
         children: [
           { title: 'General Settings', href: '/admin/settings/general', icon: Settings },
           { title: 'System Logs', href: '/admin/settings/logs', icon: FileText },
+          { title: 'Legal', href: '/admin/legal/', icon: FileText },
         ]
       }
     ],
@@ -451,17 +452,15 @@ export default function AdminLayout({
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
-                        <form onSubmit={handleLogout} className="w-full">
-                          <button
-                            type="submit"
-                            disabled={logoutForm.processing}
-                            className="flex w-full items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          >
-                            <LogOut className="mr-2 h-4 w-4" />
-                            {logoutForm.processing ? "Logging out..." : "Log out"}
-                          </button>
-                        </form>
-                      </DropdownMenuItem>
+  <button
+    onClick={() => logoutForm.post('/logout')}
+    disabled={logoutForm.processing}
+    className="flex w-full items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-destructive/10 hover:text-destructive transition-colors"
+  >
+    <LogOut className="mr-2 h-4 w-4" />
+    {logoutForm.processing ? "Logging out..." : "Log out"}
+  </button>
+</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

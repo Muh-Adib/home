@@ -15,10 +15,14 @@ interface SetPasswordForm {
 
 interface SetPasswordProps {
     email: string;
-    token: string;
+    user: {
+        id: number | string;
+        email: string;
+        name: string;
+    };
 }
 
-export default function SetPassword({ email, token }: SetPasswordProps) {
+export default function SetPassword({ email, user }: SetPasswordProps) {
     const { t } = useTranslation();
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -26,12 +30,13 @@ export default function SetPassword({ email, token }: SetPasswordProps) {
     const { data, setData, post, processing, errors, reset } = useForm<SetPasswordForm>({
         password: '',
         password_confirmation: '',
+        email: email,
     });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        post('/set-password', {
+        post(window.location.pathname + window.location.search, {
             onSuccess: () => {
                 // Redirect to dashboard after successful password set
                 window.location.href = '/dashboard';
