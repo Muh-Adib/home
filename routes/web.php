@@ -80,13 +80,12 @@ Route::get('/support', function(){
 
 Route::get('/{slug}', [LegalViewController::class, 'show'])
     ->whereIn('slug', [
-        'tos',
-        'privacy',
-        'refund',
-        'cancel',
-        'payment',
-        'rules',
+        'tos', 
+        'privacy', 
         'cookies',
+        'refund-policy',
+        'payment-policy',
+        'copyright-policy',
         'disclaimer'
     ]);
 
