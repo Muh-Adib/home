@@ -110,9 +110,9 @@ export default function LegalPagesIndex({ legalPages, typeSlugMap }: IndexProps)
         'tos':             'bg-blue-100 text-blue-800 border-blue-200',     // Ketentuan Layanan
         'privacy':         'bg-purple-100 text-purple-800 border-purple-200', // Kebijakan Privasi
         'cookies':         'bg-orange-100 text-orange-800 border-orange-200',   // Kebijakan Cookies
-        'refund-policy':   'bg-green-100 text-green-800 border-green-200',      // Kebijakan Pengembalian Dana
-        'payment-policy':  'bg-teal-100 text-teal-800 border-teal-200',         // Kebijakan Pembayaran
-        'copyright-policy':'bg-gray-100 text-gray-800 border-gray-200',         // Hak Cipta / Kebijakan Hak Cipta
+        'refundpolicy':   'bg-green-100 text-green-800 border-green-200',      // Kebijakan Pengembalian Dana
+        'paymentpolicy':  'bg-teal-100 text-teal-800 border-teal-200',         // Kebijakan Pembayaran
+        'copyrightpolicy':'bg-gray-100 text-gray-800 border-gray-200',         // Hak Cipta / Kebijakan Hak Cipta
         'disclaimer':      'bg-red-100 text-red-800 border-red-200',            // Penafian
       };
       
@@ -138,7 +138,7 @@ export default function LegalPagesIndex({ legalPages, typeSlugMap }: IndexProps)
           <Link href="/admin/legal/create">
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="h-4 w-4 mr-2" />
-              Tambah Halaman Hukum {/* Add Legal Page */}
+              Tambah {/* Add Legal Page */}
             </Button>
           </Link>
         </div>
@@ -208,7 +208,7 @@ export default function LegalPagesIndex({ legalPages, typeSlugMap }: IndexProps)
               <Link href="/admin/legal/create">
                 <Button className="bg-blue-600 hover:bg-blue-700">
                   <Plus className="h-4 w-4 mr-2" />
-                  Buat Dokumen Hukum {/* Create Legal Document */}
+                  Buat Dokumen {/* Create Legal Document */}
                 </Button>
               </Link>
             </CardContent>
@@ -258,21 +258,21 @@ export default function LegalPagesIndex({ legalPages, typeSlugMap }: IndexProps)
                         <DropdownMenuLabel>Tindakan Cepat</DropdownMenuLabel> {/* Quick Actions */}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem asChild>
-                          <Link href={`/legal/${group.active.slug}`} target="_blank">
+                          <Link href={`/${group.active.slug}`} target="_blank">
                             <Eye className="h-4 w-4 mr-2" />
-                            Lihat Halaman Publik {/* View Public Page */}
+                            Lihat Halaman {/* View Public Page */}
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
                           <Link href={`/admin/legal/${group.active.slug}/edit`}>
                             <Edit className="h-4 w-4 mr-2" />
-                            Edit Dokumen {/* Edit Document */}
+                            Edit {/* Edit Document */}
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
                           <Link href={`/admin/legal/${group.active.slug}/history`}>
                             <History className="h-4 w-4 mr-2" />
-                            Lihat Semua Riwayat {/* View All History */}
+                            Semua Riwayat {/* View All History */}
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -281,14 +281,14 @@ export default function LegalPagesIndex({ legalPages, typeSlugMap }: IndexProps)
                           className="text-orange-600"
                         >
                           <Archive className="h-4 w-4 mr-2" />
-                          Arsipkan Dokumen {/* Archive Document */}
+                          Arsipkan {/* Archive Document */}
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleDestroyAll(group.active.slug, group.active.title)}
                           className="text-red-600"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Hapus Permanen {/* Delete Permanently */}
+                          Hapus {/* Delete Permanently */}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -404,7 +404,7 @@ export default function LegalPagesIndex({ legalPages, typeSlugMap }: IndexProps)
                       <Link href={`/admin/legal/${group.active.slug}/history`}>
                         <Button variant="outline" size="sm">
                           <History className="h-4 w-4 mr-2" />
-                          Riwayat Lengkap {/* Full History */}
+                          Riwayat {/* Full History */}
                         </Button>
                       </Link>
                     )}

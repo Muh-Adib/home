@@ -64,9 +64,9 @@ export default function LegalEdit({ legalPage }: EditProps) {
             'tos':             'bg-blue-100 text-blue-800 border-blue-200',     // Terms of Service
             'privacy':         'bg-purple-100 text-purple-800 border-purple-200', // Privacy Policy
             'cookies':         'bg-orange-100 text-orange-800 border-orange-200',   // Cookies Policy
-            'refund-policy':   'bg-green-100 text-green-800 border-green-200',      // Refund Policy
-            'payment-policy':  'bg-teal-100 text-teal-800 border-teal-200',         // Payment Policy
-            'copyright-policy':'bg-gray-100 text-gray-800 border-gray-200',         // Copy Rights / Copyright Policy
+            'refundpolicy':   'bg-green-100 text-green-800 border-green-200',      // Refund Policy
+            'paymentpolicy':  'bg-teal-100 text-teal-800 border-teal-200',         // Payment Policy
+            'copyrightpolicy':'bg-gray-100 text-gray-800 border-gray-200',         // Copy Rights / Copyright Policy
             'disclaimer':      'bg-red-100 text-red-800 border-red-200',            // Disclaimer
           };
           

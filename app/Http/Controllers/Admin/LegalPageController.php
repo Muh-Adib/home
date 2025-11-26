@@ -14,9 +14,9 @@ class LegalPageController extends Controller
         'Terms of Service' => 'tos',
         'Privacy Policy' => 'privacy',
         'Cookies Policy' => 'cookies',
-        'Refund Policy' => 'refund-policy',
-        'Payment Policy' => 'payment-policy',
-        'Copy Rights Policy' => 'copyright-policy',
+        'Refund Policy' => 'refundpolicy',
+        'Payment Policy' => 'paymentpolicy',
+        'Copy Rights Policy' => 'copyrightpolicy',
         'Disclaimer' => 'disclaimer',
     ];
 

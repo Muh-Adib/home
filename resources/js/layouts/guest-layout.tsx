@@ -263,13 +263,13 @@ export default function GuestLayout({
                                             </Link>
                                         </li>
                                         <li>
-                                            <Link href="/refund-policy" className="text-sm text-muted-foreground hover:text-brand-primary transition-colors">
-                                                {t('nav.refund-policy')}
+                                            <Link href="/refundpolicy" className="text-sm text-muted-foreground hover:text-brand-primary transition-colors">
+                                                {t('nav.refundpolicy')}
                                             </Link>
                                         </li>
                                         <li>
-                                            <Link href="/payment-policy" className="text-sm text-muted-foreground hover:text-brand-primary transition-colors">
-                                                {t('nav.payment-policy')}
+                                            <Link href="/paymentpolicy" className="text-sm text-muted-foreground hover:text-brand-primary transition-colors">
+                                                {t('nav.paymentpolicy')}
                                             </Link>
                                         </li>
                                         <li>
@@ -304,7 +304,7 @@ export default function GuestLayout({
 
                             <div className="mt-8 pt-8 border-t border-border">
                                 <p className="text-center text-sm text-muted-foreground">
-                                    © 2025 Homsjogja. <a href="/copyright-policy" >{t('nav.all_rights_reserved')}</a>
+                                    © 2025 Homsjogja. <a href="/copyrightpolicy" >{t('nav.all_rights_reserved')}</a>
                                 </p>
                             </div>
                         </div>

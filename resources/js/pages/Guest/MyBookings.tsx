@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import TextLink from '@/components/text-link';
 import BookingCard from '@/components/BookingCard';
 import {
     Calendar,
@@ -259,7 +260,7 @@ export default function MyBookings({ bookings, filters }: MyBookingsProps) {
 
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
-                <div className="bg-primary border-b">
+                <div className="bg-background border-b">
                     <div className="container mx-auto px-4 py-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>

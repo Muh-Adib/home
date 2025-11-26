@@ -98,8 +98,8 @@
     "privacy": "Kebijakan Privasi",
     "tos": "Syarat & Ketentuan",
     "cookies": "Kebijakan Cookies",
-    "refund-policy": "Kebijakan Pengembalian Dana",
-    "payment-policy": "Kebijakan Pembayaran",
+    "refundpolicy": "Kebijakan Pengembalian Dana",
+    "paymentpolicy": "Kebijakan Pembayaran",
     "disclaimer": "Penafian",
     "faq": "FAQ",
     "made_with_love_in_jogja": "Dibuat dengan ❤️ di Jogja",
@@ -283,6 +283,7 @@
     "logout":"Keluar"
   },
   "booking": {
+    "terms_privacy":"Dengan membuat booking, Anda menyetujui",
     "title": "Pesan Penginapan",
     "book_your_stay": "Pesan Penginapan Anda",
     "your_booking": "Pemesanan Anda",

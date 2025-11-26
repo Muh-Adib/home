@@ -84,8 +84,8 @@
     "privacy": "Privacy Policy",
     "tos": "Terms of Service",
     "cookies": "Cookie Policy",
-    "refund-policy": "Refund Policy",
-    "payment-policy": "Payment Policy",
+    "refundpolicy": "Refund Policy",
+    "paymentpolicy": "Payment Policy",
     "disclaimer": "Disclaimer",
     "faq": "FAQ",
     "made_with_love_in_jogja": "Made with ❤️ in Jogja",
@@ -269,6 +269,7 @@
     "logout":"Logout"
   },
   "booking": {
+    "terms_privacy":"By creating an booking, you agree to",
     "title": "Book Your Stay",
     "book_your_stay": "Book Your Stay",
     "your_booking": "Your Booking",

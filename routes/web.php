@@ -83,9 +83,9 @@ Route::get('/{slug}', [LegalViewController::class, 'show'])
         'tos', 
         'privacy', 
         'cookies',
-        'refund-policy',
-        'payment-policy',
-        'copyright-policy',
+        'refundpolicy',
+        'paymentpolicy',
+        'copyrightpolicy',
         'disclaimer'
     ]);
 

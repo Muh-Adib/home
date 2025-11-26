@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import TextLink from '@/components/text-link';
 import {
     ArrowLeft,
     Calendar,
@@ -551,6 +552,20 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                 {processing ? t('booking.processing') : t('booking.continue_confirmation')}
                                             </Button>
                                         </div>
+
+                                        {/* Terms and Privacy */}
+                <div className="text-center">
+                    <p className="text-xs text-gray-500">
+                        {t('booking.terms_privacy')}{' '}
+                        <TextLink href="/tos" className="text-blue-600 hover:text-blue-700">
+                            {t('auth.terms_of_service')}
+                        </TextLink>{' '}
+                        {t('auth.and')}{' '}
+                        <TextLink href="/privacy" className="text-blue-600 hover:text-blue-700">
+                            {t('auth.privacy_policy')}
+                        </TextLink>
+                    </p>
+                </div>
                                     </form>
                                 </CardContent>
                             </Card>
