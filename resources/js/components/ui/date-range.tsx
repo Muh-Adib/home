@@ -32,6 +32,7 @@ interface DateRangeProps {
         start?: string;
         end?: string;
     };
+    showFooter?: boolean;
     disabled?: boolean;
     autoTrigger?: boolean;
     triggerDelay?: number;
@@ -65,6 +66,7 @@ export function DateRange({
         start: 'Pilih tanggal masuk',
         end: 'Pilih tanggal keluar'
     },
+    showFooter = true,
     disabled = false,
     autoTrigger = false,
     triggerDelay = 500,
@@ -206,50 +208,50 @@ export function DateRange({
     const handleDateSelect = (range: DateRangeType | undefined) => {
         const hasCompleteRange = dateRange?.from && dateRange?.to;
 
-    // CASE 1: Reset jika kosong
-    if (!range || (!range.from && !range.to)) {
-        setDateRange(undefined);
+        // CASE 1: Reset jika kosong
+        if (!range || (!range.from && !range.to)) {
+            setDateRange(undefined);
 
-        setWarning(null);
-        onDateChange?.("", "");
-        return;
-    }
-
-    // CASE 2: User SUDAH memilih range lengkap → klik tanggal baru
-    if (hasCompleteRange) {
-        console.log("🔄 Resetting and setting new start date");
-        if (range.from?.getTime() !== dateRange.from?.getTime()) {
-            // Set CLICK sebagai start baru
-            setDateRange({
-                from: range.from,
-                to: undefined
-            });
-        }
-        if (range.to?.getTime() !== dateRange.to?.getTime()) {
-            // Set CLICK sebagai start baru
-            setDateRange({
-                from: range.to,
-                to: undefined
-            });
+            setWarning(null);
+            onDateChange?.("", "");
+            return;
         }
 
-        setWarning(null);
-        return;
-    }
+        // CASE 2: User SUDAH memilih range lengkap → klik tanggal baru
+        if (hasCompleteRange) {
+            console.log("🔄 Resetting and setting new start date");
+            if (range.from?.getTime() !== dateRange.from?.getTime()) {
+                // Set CLICK sebagai start baru
+                setDateRange({
+                    from: range.from,
+                    to: undefined
+                });
+            }
+            if (range.to?.getTime() !== dateRange.to?.getTime()) {
+                // Set CLICK sebagai start baru
+                setDateRange({
+                    from: range.to,
+                    to: undefined
+                });
+            }
 
-    // CASE 3: User memilih tanggal pertama (start)
-    if (range.from && !range.to) {
-        console.log("🔄 Start date chosen");
-        setDateRange({ from: range.from, to: undefined });
-        setWarning(null);
-        return;
-    }
+            setWarning(null);
+            return;
+        }
 
-    // CASE 4: User memilih end-date → complete range
-    if (range.from && range.to) {
-        console.log("🔄 Complete range chosen");
-        return validateAndSetCompleteRange(range.from, range.to);
-    }
+        // CASE 3: User memilih tanggal pertama (start)
+        if (range.from && !range.to) {
+            console.log("🔄 Start date chosen");
+            setDateRange({ from: range.from, to: undefined });
+            setWarning(null);
+            return;
+        }
+
+        // CASE 4: User memilih end-date → complete range
+        if (range.from && range.to) {
+            console.log("🔄 Complete range chosen");
+            return validateAndSetCompleteRange(range.from, range.to);
+        }
 
         // Fungsi helper untuk validasi dan set range lengkap
         function validateAndSetCompleteRange(fromDate: Date, toDate: Date) {
@@ -394,6 +396,9 @@ export function DateRange({
     };
     if (dateRange?.from) calendarModifiers.rangeStart = (d: Date) => d.getTime() === dateRange.from!.getTime();
     if (dateRange?.to) calendarModifiers.rangeEnd = (d: Date) => d.getTime() === dateRange.to!.getTime();
+    if (dateRange?.from && dateRange?.to) calendarModifiers.rangeMiddle = (d: Date) =>
+        d.getTime() > dateRange.from!.getTime() &&
+        d.getTime() < dateRange.to!.getTime();
 
 
     return (
@@ -495,11 +500,19 @@ export function DateRange({
                                         backgroundColor: 'hsl(var(--primary))',
                                         color: 'hsl(var(--primary-foreground))',
                                         fontWeight: 600,
+                                        borderRadius: '0.375rem 0 0 0.375rem',
                                     },
                                     rangeEnd: {
                                         backgroundColor: 'hsl(var(--primary))',
                                         color: 'hsl(var(--primary-foreground))',
                                         fontWeight: 600,
+                                        borderRadius: '0 0.375rem 0.375rem 0',
+                                    },
+                                    rangeMiddle: {
+                                        backgroundColor: 'hsl(var(--primary))',
+                                        color: 'hsl(var(--primary-foreground))',
+                                        fontWeight: 400,
+                                        borderRadius: '0',
                                     },
                                 }}
                                 className="rounded-lg border-0"
@@ -510,44 +523,44 @@ export function DateRange({
                         )}
 
                         {/* Footer info */}
-                        <div className="pt-3 border-t space-y-3 text-xs text-muted-foreground">
-
+                        {showFooter && (
                             <div>
-                                {!dateRange?.from && <span>Pilih tanggal check-in untuk memulai</span>}
+                                <div className="pt-3 border-t space-y-3 text-xs text-muted-foreground">
+                                    <div>
+                                        {!dateRange?.from && <span>Pilih tanggal check-in untuk memulai</span>}
 
-                                {dateRange?.from && !dateRange?.to && (
-                                    <div className="space-y-1">
-                                        <span className="text-primary font-medium">
-                                            Check-in: {format(dateRange.from, 'd MMM yyyy', { locale: id })}
-                                        </span>
-                                        <p className="text-xs">`Minimal {currentMinStay} malam dari {format(dateRange.from, 'd MMM', { locale: id })}`</p>
+                                        {dateRange?.from && !dateRange?.to && (
+                                            <div className="space-y-1">
+                                                <span className="text-primary font-medium">
+                                                    Check-in: {format(dateRange.from, 'd MMM yyyy', { locale: id })}
+                                                </span>
+                                                <p className="text-xs">`Minimal {currentMinStay} malam dari {format(dateRange.from, 'd MMM', { locale: id })}`</p>
+                                            </div>
+                                        )}
+
+                                        {dateRange?.from && dateRange?.to && !error && !warning && (
+                                            <span className="text-green-600 dark:text-green-400 font-medium">
+                                                ✓ {nights} malam terpilih, pilih tanggal awal atau reset
+                                            </span>
+                                        )}
                                     </div>
-                                )}
+                                </div>
 
-                                {dateRange?.from && dateRange?.to && !error && !warning && (
-                                    <span className="text-green-600 dark:text-green-400 font-medium">
-                                        ✓ {nights} malam terpilih, pilih tanggal awal atau reset
-                                    </span>
-                                )}
+                                <div className="pt-2 border-t text-xs flex items-center gap-4">
+                                    <div className="flex items-center gap-1">
+                                        <div className="w-3 h-3 rounded bg-destructive"></div>
+                                        <span>Dipesan</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                        <div className="w-3 h-3 rounded bg-brand-accent border"></div>
+                                        <span>Dipilih</span>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        {/* Legend */}
-                        <div className="pt-2 border-t text-xs flex items-center gap-4">
-                            <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 rounded bg-destructive"></div>
-                                <span>Dipesan</span>
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 rounded bg-brand-accent border"></div>
-                                <span>Dipilih</span>
-                            </div>
-                        </div>
-                        
-
-
+                        )}
                     </div>
+
                 </PopoverContent>
 
             </Popover>

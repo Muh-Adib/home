@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import GuestLayout from '@/layouts/guest-layout';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,6 @@ import {
     Calendar,
     ArrowUpDown
 } from 'lucide-react';
-import { DatePicker } from '@/components/ui/date-picker';
 import { getDefaultDateRange, formatDateRange } from '@/components/ui/date-range';
 import { type BreadcrumbItem, type PageProps } from '@/types';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +24,7 @@ import PropertyCardEnhanced from '@/components/ui/property-card-enhanced';
 import { type Property } from '@/types/property';
 import { type Amenity } from '@/types';
 import AmenityItem from '@/components/AmenityItem';
-
+import { DateRange } from '@/components/ui/date-range';
 
 interface PropertiesIndexProps {
     properties: {
@@ -71,9 +70,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
         { title: t('nav.browse_properties'), href: route('properties.index') }
     ];
 
-
-
-    const handleSearch = () => {
+    const handleSearch = (filters = localFilters) => {
         const params: any = {};
 
         if (localFilters.search) params.search = localFilters.search;
@@ -86,8 +83,9 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
         if (localFilters.checkOut) params.check_out = localFilters.checkOut;
 
         router.get('/properties', params, {
-            preserveState: true,
+            preserveState: false,   // 🔥 untuk update URL dan data
             preserveScroll: true,
+            replace: true           // 🔥 membuat URL langsung berubah (SPA style)
         });
     };
 
@@ -136,12 +134,23 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
         }
     }, []); // Empty dependency array means this runs once on mount
 
+    const handleDateRangeChange = (startDate: string, endDate: string) => {
+        setLocalFilters(prev => {
+            const updated = {
+                ...prev,
+                checkIn: startDate,
+                checkOut: endDate
+            };
+            if (startDate && endDate) { handleSearch(updated); } // 🔥 selalu pakai nilai terbaru
+            return updated;
+        });
+    };
+
     return (
         <GuestLayout variant='minimal'>
             <Head title={`${t('properties.browse_title')} - Homsjogja`} />
 
             <div className="min-h-screen bg-brand-background">
-                
                 <div className="max-w-7xl mx-auto space-y-4 md:space-y-6 px-4 py-4 md:px-6 md:py-6">
                     {/* Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -160,7 +169,6 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
                                 </span>
                             )}
                         </div>
-
 
                         <div className="flex items-center gap-2">
                             <Button
@@ -203,28 +211,25 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
                                     />
                                 </div>
 
-                                {/* Simple Date Inputs */}
-                                <div className="flex flex-col sm:flex-row gap-2">
-                                    <div className="flex-1">
-                                        <input
-                                            type="date"
-                                            value={localFilters.checkIn}
-                                            onChange={(e) => setLocalFilters(prev => ({ ...prev, checkIn: e.target.value }))}
-                                            min={new Date().toISOString().split('T')[0]}
-                                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all bg-background text-foreground"
-                                            placeholder={t('booking.check_in')}
-                                        />
-                                    </div>
-                                    <div className="flex-1">
-                                        <input
-                                            type="date"
-                                            value={localFilters.checkOut}
-                                            onChange={(e) => setLocalFilters(prev => ({ ...prev, checkOut: e.target.value }))}
-                                            min={localFilters.checkIn || new Date().toISOString().split('T')[0]}
-                                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all bg-background text-foreground"
-                                            placeholder={t('booking.check_out')}
-                                        />
-                                    </div>
+                                {/* Date Range Selector With Auto Minimum Stay */}
+                                <div className="flex-1">
+                                    <DateRange
+                                        startDate={localFilters.checkIn}
+                                        endDate={localFilters.checkOut}
+                                        onDateChange={handleDateRangeChange}
+                                        autoTrigger={true}
+                                        triggerDelay={300}
+                                        showFooter={false}
+                                        className="w-full"
+                                        size="lg"
+                                        showNights={true}
+                                        startLabel={t('booking.check_in')}
+                                        endLabel={t('booking.check_out')}
+                                        placeholder={{
+                                            start: t('booking.check_in'),
+                                            end: t('booking.check_out')
+                                        }}
+                                    />
                                 </div>
 
                                 <div className="flex flex-col sm:flex-row gap-2">
@@ -245,7 +250,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
                                         </SelectContent>
                                     </Select>
 
-                                    <Button onClick={handleSearch} className="bg-brand-primary hover:bg-brand-primary-dark text-white w-full sm:w-auto">
+                                    <Button onClick={() => handleSearch()} className="bg-brand-primary hover:bg-brand-primary-dark text-white w-full sm:w-auto">
                                         {t('common.search')}
                                     </Button>
                                 </div>
@@ -314,7 +319,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
                                         </div>
 
                                         <div className="flex flex-col sm:flex-row gap-3 pt-4 mt-4 border-t">
-                                            <Button onClick={handleSearch} className="bg-brand-primary hover:bg-brand-primary-dark text-white w-full sm:w-auto">
+                                            <Button onClick={() => handleSearch()} className="bg-brand-primary hover:bg-brand-primary-dark text-white w-full sm:w-auto">
                                                 {t('properties.apply_filters')}
                                             </Button>
                                             <Button variant="outline" onClick={clearFilters} className="border-brand-secondary text-brand-secondary hover:bg-brand-secondary hover:text-white w-full sm:w-auto">
@@ -329,7 +334,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
 
                     {/* Properties Grid */}
                     {properties.data.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                             {properties.data.map((property) => (
                                 <PropertyCardEnhanced
                                     key={property.id}

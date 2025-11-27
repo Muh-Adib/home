@@ -51,7 +51,7 @@ export const usePropertyMinimumStay = ({
     }> = [];
     
     let maxSeasonalMinStay = 0;
-    let appliedSeasonalRates: any[] = [];
+    const appliedSeasonalRates: any[] = [];
     
     // Loop melalui semua tanggal dari check-in sampai check-out (exclusive)
     const currentDate = new Date(checkIn);

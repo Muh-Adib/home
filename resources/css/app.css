@@ -520,6 +520,10 @@
   .text-brand-accent {
     color: hsl(var(--brand-accent));
   }
+
+  .text-destructive {
+    color: hsl(var(--destructive));
+  }
   
   .border-brand-primary {
     border-color: hsl(var(--brand-primary));
@@ -621,9 +625,15 @@
     border-color: hsl(var(--brand-accent-20));
   }
 }
+
 .bg-popover {
     background-color: hsl(var(--popover));
 }
+
+.bg-background {
+    background-color: hsl(var(--background));
+}
+
 .bg-card{
   background-color:hsl(var(--card));
 }

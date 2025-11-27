@@ -101,7 +101,7 @@ export default function AvailabilityCalendar({
                 const checkIn = new Date(booking.check_in);
                 const checkOut = new Date(booking.check_out);
                 
-                let current = new Date(checkIn);
+                const current = new Date(checkIn);
                 while (current < checkOut) {
                     const dateKey = current.toISOString().split('T')[0];
                     if (propertyAvailability[dateKey]) {

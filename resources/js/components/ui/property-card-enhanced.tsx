@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Building2, 
-  MapPin, 
-  Users, 
-  Bed, 
-  Bath, 
-  Star, 
-  Heart, 
+import {
+  Building2,
+  MapPin,
+  Users,
+  Bed,
+  Bath,
+  Star,
+  Heart,
   Crown
 } from 'lucide-react';
 import { Property } from '@/types/property';
@@ -25,8 +25,8 @@ interface PropertyCardEnhancedProps {
   showRating?: boolean;
 }
 
-export default function PropertyCardEnhanced({ 
-  property, 
+export default function PropertyCardEnhanced({
+  property,
   className = '',
   showLocationBadge = true,
   showRating = true
@@ -35,6 +35,16 @@ export default function PropertyCardEnhanced({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const { t } = useTranslation();
+
+  const { url } = usePage();
+  const searchParams = new URLSearchParams(url.split('?')[1]);
+
+  // Ambil nilai query param
+  const check_in = searchParams.get('check_in') ?? '';
+  const check_out = searchParams.get('check_out') ?? '';
+  const guests = searchParams.get('guests') ?? '';
+
+  const hasQuery = check_in && check_out && guests;
 
   const getLocationBadge = (address: string) => {
     const addressLower = address.toLowerCase();
@@ -62,18 +72,21 @@ export default function PropertyCardEnhanced({
       transition={{ duration: 0.3 }}
     >
       {/* Link seluruh card */}
-      <Link href={`/properties/${property.slug}`} className="block">
+      <Link href={
+        hasQuery
+          ? `/properties/${property.slug}?check_in=${check_in}&check_out=${check_out}&guests=${guests}`
+          : `/properties/${property.slug}`
+      } className="block">
         <Card className="overflow-hidden hover:shadow-2xl transition-all duration-500 border-0 shadow-lg bg-card group-hover:shadow-xl cursor-pointer">
-          
+
           {/* Gambar Properti */}
           <div className="aspect-[4/3] bg-muted relative overflow-hidden">
             {property.media && property.media.length > 0 && property.media[0]?.url && !imageError ? (
               <img
                 src={property.media[0].url}
                 alt={property.name}
-                className={`w-full h-full object-cover transition-transform duration-700 ${
-                  imageLoaded ? 'scale-100' : 'scale-110'
-                } group-hover:scale-110`}
+                className={`w-full h-full object-cover transition-transform duration-700 ${imageLoaded ? 'scale-100' : 'scale-110'
+                  } group-hover:scale-110`}
                 onLoad={() => setImageLoaded(true)}
                 onError={() => setImageError(true)}
               />
@@ -110,9 +123,8 @@ export default function PropertyCardEnhanced({
                 e.preventDefault();
                 setIsLiked(!isLiked);
               }}
-              className={`absolute top-3 right-3 bg-background hover:bg-background shadow-lg rounded-full p-2 transition-all duration-300 ${
-                isLiked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-              }`}
+              className={`absolute top-3 right-3 bg-background hover:bg-background shadow-lg rounded-full p-2 transition-all duration-300 ${isLiked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                }`}
               aria-label={isLiked ? 'Hapus dari favorit' : 'Tambah ke favorit'}
             >
               <Heart className={`h-4 w-4 transition-colors ${isLiked ? 'text-red-500 fill-current' : 'text-muted-foreground'}`} />
@@ -182,22 +194,31 @@ export default function PropertyCardEnhanced({
             )}
 
             {/* Harga */}
-            <div className="mt-5 pt-4 border-t border-border space-y-1 text-right">
-              <div className="text-sm text-destructive line-through">
+            <div className="mt-5 pt-4 border-t border-border text-right space-y-1">
+
+              {/* Harga coret */}
+              <div className="text-sm text-destructive line-through leading-none h-4 flex justify-end items-center">
                 {formatCurrency(inflatedRate)}
               </div>
-              <div className="text-2xl font-bold text-brand-accent">
-                {formatCurrency(currentRate)} <span className="text-sm text-muted-foreground font-normal">/ malam</span>
+
+              {/* Harga utama */}
+              <div className="text-xl font-bold text-brand-accent leading-none flex justify-end items-baseline gap-1">
+                <span>{formatCurrency(currentRate)}</span>
+                <span className="text-sm text-muted-foreground font-normal">/ malam</span>
               </div>
-              <div className="flex justify-end items-center gap-2 text-xs">
-                <Badge variant="destructive" className="text-[10px] py-0.5 px-1.5">
+
+              {/* Badge + Hemat */}
+              <div className="flex justify-end items-center gap-2 text-xs leading-none h-4">
+                <Badge variant="destructive" className="text-[10px] py-0.5 px-1.5 leading-none">
                   -{discountPercentage}%
                 </Badge>
-                <span className="text-green-600 font-semibold">
+                <span className="text-green-600 font-semibold leading-none">
                   Hemat {formatCurrency(discountAmount)}
                 </span>
               </div>
+
             </div>
+
           </CardContent>
         </Card>
       </Link>
