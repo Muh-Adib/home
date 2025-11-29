@@ -368,7 +368,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::post('booking-management', 'store')->name('booking-management.store');
         Route::get('booking-management/{booking:booking_number}', 'show')->name('booking-management.show');
         Route::get('booking-management/{booking:booking_number}/edit', 'edit')->name('booking-management.edit');
-        Route::put('booking-management/{booking:booking_number}', 'update')->name('booking-management.update');
+        Route::patch('booking-management/{booking:booking_number}', 'update')->name('booking-management.update');
         Route::delete('booking-management/{booking:booking_number}', 'destroy')->name('booking-management.destroy');
         Route::patch('booking-management/{booking:booking_number}/status', 'updateStatus')->name('booking-management.update-status');
     });
@@ -409,7 +409,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix
         Route::get('/{payment:payment_number}', 'show')->name('show');
         Route::get('/{payment:payment_number}/edit', 'edit')->name('edit');
         Route::put('/{payment:payment_number}', 'update')->name('update');
-        Route::patch('/{payment:payment_number}', 'update')->name('update.patch');
+        Route::post('/{payment:payment_number}', 'update')->name('update.patch');
         Route::delete('/{payment:payment_number}', 'destroy')->name('destroy');
         Route::patch('/{payment:payment_number}/verify', 'verify')->name('verify');
         Route::patch('/{payment:payment_number}/reject', 'reject')->name('reject');

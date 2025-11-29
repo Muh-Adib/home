@@ -1,36 +1,29 @@
 import React from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
-import { NavigationMenu, NavigationMenuItem, NavigationMenuList, navigationMenuTriggerStyle } from '@/components/ui/navigation-menu';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
 import {
-    Menu,
-    Search,
     Home,
     Building2,
     Calendar,
     CreditCard,
     LogIn,
     UserPlus,
-    Crown,
     Phone,
     Mail,
     User,
-    Settings,
-    HelpCircle,
     Info
 } from 'lucide-react';
-import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import LanguageSwitcher from '@/components/language-switcher';
 import AppearanceToggleDropdown from '@/components/appearance-dropdown';
 import { useTranslation } from 'react-i18next';
+import CookieConsent from "@/components/cookie-consent";
 
 interface GuestLayoutProps {
     children: React.ReactNode;
@@ -67,7 +60,7 @@ export default function GuestLayout({
     return (
         <div className="min-h-screen bg-background flex flex-col">
             {showHeader && (
-                <header className={`sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-sm ${variant === 'minimal' ? 'border-border shadow-sm' : 'border-border shadow-md'}`}>
+                <header className={`sticky top-0 z-50 w-full border-none bg-brand-accent-50 backdrop-blur-sm ${variant === 'minimal' ? 'border-border shadow-sm' : 'border-border shadow-md'}`}>
                     <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex items-center justify-between h-16">
                             {/* Logo */}
@@ -311,6 +304,8 @@ export default function GuestLayout({
                     </div>
                 </footer>
             )}
+            {/* Cookie Banner */}
+            <CookieConsent />
         </div>
     );
 } 

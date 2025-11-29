@@ -130,7 +130,8 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    scroll-behavior: smooth;
+    scrollbar-width: none; /* Firefox */
+    overflow-y: scroll;
   }
 
   html {
@@ -138,7 +139,7 @@
   }
 
   ::-webkit-scrollbar {
-    width: 8px;
+    display: none;
   }
 
   ::-webkit-scrollbar-track {
@@ -392,18 +393,21 @@
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 1;
+    line-clamp:1;
   }
   .line-clamp-2 {
     overflow: hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
+    line-clamp:2;
   }
   .line-clamp-3 {
     overflow: hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
   }
 
   /* Animation utilities */
@@ -718,6 +722,20 @@
 .dark .hero-section .text-yellow-400 {
     color: rgb(250 204 21); /* Dark mode - same color for consistency */
 }
+
+@keyframes slideUpMobile {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slideUpMobile {
+  animation: slideUpMobile 0.3s ease-out forwards;
+}
+
 
 /* Responsive adjustments */
 @media (max-width: 768px) {

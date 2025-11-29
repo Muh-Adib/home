@@ -1125,7 +1125,7 @@ class BookingManagementController extends Controller
             'override_amount' => 'nullable|numeric|min:0',
             'override_reason' => 'nullable|string|max:500',
         ]);
-        
+        dd($validated);
         // Additional validation rules
         $this->validateBookingRules($validated, $request);
 
@@ -1138,8 +1138,8 @@ class BookingManagementController extends Controller
         }
         
         // Check if dates changed - validate availability
-        if ($booking->check_in_date != $validated['check_in_date'] || 
-            $booking->check_out_date != $validated['check_out_date']) {
+        if ($booking->check_in->format('Y-m-d') != $validated['check_in_date'] || 
+            $booking->check_out->format('Y-m-d') != $validated['check_out_date']) {
             
             $isAvailable = $property->isAvailableForDates(
                 $validated['check_in_date'],
@@ -1157,16 +1157,16 @@ class BookingManagementController extends Controller
             
             // Recalculate rate if dates/guests/property changed
             $needsRecalculation = (
-                $booking->check_in_date != $validated['check_in_date'] ||
-                $booking->check_out_date != $validated['check_out_date'] ||
+                $booking->check_in->format('Y-m-d') != $validated['check_in_date'] ||
+                $booking->check_out->format('Y-m-d') != $validated['check_out_date'] ||
                 $booking->guest_count != ($validated['guest_male'] + $validated['guest_female'] + $validated['guest_children']) ||
                 $booking->property_id != $validated['property_id']
             );
             
             $updateData = [
                 'property_id' => $validated['property_id'],
-                'check_in_date' => $validated['check_in_date'],
-                'check_out_date' => $validated['check_out_date'],
+                'check_in' => $validated['check_in_date'],
+                'check_out' => $validated['check_out_date'],
                 'guest_male' => $validated['guest_male'],
                 'guest_female' => $validated['guest_female'],
                 'guest_children' => $validated['guest_children'],
@@ -1210,12 +1210,22 @@ class BookingManagementController extends Controller
                     " (Original: " . $booking->total_amount . ", New: " . $validated['override_amount'] . ")";
             }
             
+            // Recalculate DP and remaining amount
+            // Use new total_amount if recalculated, otherwise use current booking total_amount
+            $finalTotalAmount = $updateData['total_amount'] ?? $booking->total_amount;
+            $updateData['dp_amount'] = ($finalTotalAmount * $validated['dp_percentage']) / 100;
+            
+            // Calculate remaining amount based on current paid amount
+            $paidAmount = $booking->getTotalPaidAmount();
+            $updateData['remaining_amount'] = $finalTotalAmount - $paidAmount;
+            
             // Log changes before update
             $changes = [];
             foreach ($updateData as $key => $value) {
-                if ($booking->getOriginal($key) != $value) {
+                $oldValue = $booking->getOriginal($key);
+                if ($oldValue != $value) {
                     $changes[$key] = [
-                        'old' => $booking->getOriginal($key),
+                        'old' => $oldValue,
                         'new' => $value,
                     ];
                 }
@@ -1236,8 +1246,11 @@ class BookingManagementController extends Controller
             }
             
             // Create payment if payment data provided
-            if ($validated['payment_method_id'] && $validated['payment_amount']) {
+            if (!empty($validated['payment_method_id']) && !empty($validated['payment_amount']) && $validated['payment_amount'] > 0) {
                 $paymentMethod = \App\Models\PaymentMethod::findOrFail($validated['payment_method_id']);
+                
+                // Determine payment status - use 'verified' as default for admin-created payments
+                $paymentStatus = 'verified'; // Admin-created payments are auto-verified
                 
                 $payment = $booking->payments()->create([
                     'payment_method_id' => $validated['payment_method_id'],
@@ -1245,25 +1258,23 @@ class BookingManagementController extends Controller
                     'amount' => $validated['payment_amount'],
                     'payment_type' => 'dp',
                     'payment_method' => $paymentMethod->type,
-                    'payment_status' => $validated['payment_status'] ?? 'verified',
+                    'payment_status' => $paymentStatus,
                     'payment_date' => $validated['payment_date'] ?: now(),
-                    'reference_number' => $validated['reference_number'],
-                    'bank_name' => $validated['bank_name'] ?: $paymentMethod->bank_name,
-                    'account_number' => $validated['account_number'],
-                    'account_name' => $validated['account_name'],
-                    'verification_notes' => $validated['verification_notes'],
+                    'reference_number' => $validated['reference_number'] ?? null,
+                    'bank_name' => $validated['bank_name'] ?? $paymentMethod->bank_name,
+                    'account_number' => $validated['account_number'] ?? null,
+                    'account_name' => $validated['account_name'] ?? null,
+                    'verification_notes' => $validated['verification_notes'] ?? null,
                     'processed_by' => $user->id,
-                    'verified_by' => ($validated['payment_status'] ?? 'verified') === 'verified' ? $user->id : null,
-                    'verified_at' => ($validated['payment_status'] ?? 'verified') === 'verified' ? now() : null,
+                    'verified_by' => $user->id,
+                    'verified_at' => now(),
                 ]);
 
                 // Update booking payment status
                 $booking->updatePaymentStatus();
 
                 // Sinkronkan income jika payment verified
-                if (($validated['payment_status'] ?? 'verified') === 'verified') {
-                    app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
-                }
+                app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
             }
             
             // Create workflow entry for edit
@@ -1287,6 +1298,15 @@ class BookingManagementController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+            
+            \Log::error('Booking update failed', [
+                'booking_id' => $booking->id,
+                'booking_number' => $booking->booking_number,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
             
             return redirect()->back()
                 ->withInput()

@@ -6,6 +6,7 @@ import { type BreadcrumbItem, type User } from '@/types';
 import { type PropsWithChildren } from 'react';
 import { usePage } from '@inertiajs/react';
 import { type PageProps } from '@/types';
+import { ToastProvider } from "@/components/ToastProvider";
 import {
   LayoutGrid,
   Folder,
@@ -321,7 +322,7 @@ export default function AdminLayout({
   const { t } = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const logoutForm = useForm({});
+
 
   const navItems = getAdminNavItems(auth.user.role);
   const isGuest = auth.user.role === 'guest';
@@ -332,26 +333,10 @@ export default function AdminLayout({
     return null;
   }
 
-  const handleLogout = () => {
-    logoutForm.post('/logout');
-  };
-
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  const getRoleDisplayName = (role: User['role']) => {
-    const roleNames: Record<User['role'], string> = {
-      super_admin: 'Super Administrator',
-      property_owner: 'Property Owner',
-      property_manager: 'Property Manager',
-      front_desk: 'Front Desk',
-      finance: 'Finance',
-      housekeeping: 'Housekeeping',
-      guest: 'Guest',
-    };
-    return roleNames[role];
-  };
 
   return (
     <ErrorBoundary>
@@ -397,72 +382,10 @@ export default function AdminLayout({
                   )}
                 </div>
 
-
                 {/* Right Section */}
                 <div className="flex items-center space-x-4">
-                  {/* Theme Toggle */}
-                  <AppearanceToggleDropdown />
-
-                  {/* Language Switcher */}
-                  <LanguageSwitcher />
-
                   {/* Notifications */}
                   <NotificationBell userId={auth.user.id} />
-
-                  {/* User Menu */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                        <Avatar className="h-9 w-9">
-                          <AvatarImage src="" alt={auth.user.name} />
-                          <AvatarFallback>
-                            {auth.user.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-56" align="end" forceMount>
-                      <DropdownMenuLabel className="font-normal">
-                        <div className="flex flex-col space-y-1">
-                          <p className="text-sm font-medium leading-none text-brand-primary">{auth.user.name}</p>
-                          <p className="text-xs leading-none text-muted-foreground">
-                            {auth.user.email}
-                          </p>
-                          <Badge variant="secondary" className="w-fit text-xs bg-brand-primary-20 text-brand-primary border-brand-primary-30">
-                            {getRoleDisplayName(auth.user.role)}
-                          </Badge>
-                        </div>
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                        <Link href="/profile" className="cursor-pointer hover:bg-brand-primary-20">
-                          <UserIcon className="mr-2 h-4 w-4 text-brand-primary" />
-                          Profile
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href="/admin/settings" className="cursor-pointer hover:bg-brand-primary-20">
-                          <Settings className="mr-2 h-4 w-4 text-brand-primary" />
-                          Settings
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-  <button
-    onClick={() => logoutForm.post('/logout')}
-    disabled={logoutForm.processing}
-    className="flex w-full items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-destructive/10 hover:text-destructive transition-colors"
-  >
-    <LogOut className="mr-2 h-4 w-4" />
-    {logoutForm.processing ? "Logging out..." : "Log out"}
-  </button>
-</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
               </div>
             </div>
@@ -495,13 +418,11 @@ export default function AdminLayout({
 
           {/* Desktop Sidebar */}
           {showSidebar && (
-            <aside className={`hidden lg:flex lg:flex-col transition-all duration-300 ease-in-out ${
-              sidebarCollapsed ? 'w-16' : 'w-64'
-            } bg-brand-primary border-r border-brand-primary-20 shadow-lg`}>
+            <aside className={`hidden lg:flex lg:flex-col transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-64'
+              } bg-brand-primary border-r border-brand-primary-20 shadow-lg`}>
               {/* Header logo */}
-              <div className={`px-6 py-5 border-b border-white/20 bg-gradient-to-r from-brand-primary to-brand-primary-dark ${
-                sidebarCollapsed ? 'px-3' : ''
-              }`}>
+              <div className={`px-6 py-5 border-b border-white/20 bg-gradient-to-r from-brand-primary to-brand-primary-dark ${sidebarCollapsed ? 'px-3' : ''
+                }`}>
                 <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'}`}>
                   <div className={`bg-white/20 rounded-lg ${sidebarCollapsed ? 'p-2' : 'p-2'}`}>
                     <AppLogoIcon variant="primary" className={`text-white ${sidebarCollapsed ? 'h-5 w-5' : 'h-6 w-6'}`} />
@@ -514,7 +435,7 @@ export default function AdminLayout({
                   )}
                 </div>
               </div>
-              
+
               {/* Nav scrollable */}
               <div className="flex-1 overflow-y-auto px-2 py-4">
                 <TooltipProvider>
@@ -554,8 +475,9 @@ export default function AdminLayout({
                 </nav>
               )}
 
-              <div className="space-y-6">
+              <div className="container mx-auto">
                 {children}
+                <ToastProvider />
               </div>
             </div>
           </AppContent>
@@ -567,12 +489,15 @@ export default function AdminLayout({
 }
 
 // Admin Sidebar Content Component
-function AdminSidebarContent({ navItems, collapsed = false }: { 
+function AdminSidebarContent({ navItems, collapsed = false }: {
   navItems: ReturnType<typeof getAdminNavItems>;
   collapsed?: boolean;
 }) {
   const { t } = useTranslation();
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const page = usePage<PageProps>();
+  const { auth } = page.props;
+  const logoutForm = useForm({});
 
   const toggleExpanded = (title: string) => {
     if (collapsed) return; // Don't expand when collapsed
@@ -585,109 +510,223 @@ function AdminSidebarContent({ navItems, collapsed = false }: {
     setExpandedItems(newExpanded);
   };
 
+  const getRoleDisplayName = (role: User['role']) => {
+    const roleNames: Record<User['role'], string> = {
+      super_admin: 'Super Administrator',
+      property_owner: 'Property Owner',
+      property_manager: 'Property Manager',
+      front_desk: 'Front Desk',
+      finance: 'Finance',
+      housekeeping: 'Housekeeping',
+      guest: 'Guest',
+    };
+    return roleNames[role];
+  };
+
+  const getInitials = (name: string) => {
+    return name.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+  };
+
   return (
-    <nav className={`space-y-2 ${collapsed ? 'px-1' : 'px-3'}`}>
-      {navItems.map((item) => (
-        <div key={item.title}>
-          {item.children ? (
-            // Group with children
-            <div>
-              {collapsed ? (
+    <div className={`flex flex-col h-full ${collapsed ? 'px-1' : 'px-3'}`}>
+      {/* ===== Scrollable Navigation Area ===== */}
+      <nav className={`flex-1 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent pr-1`}>
+        {navItems.map((item) => (
+          <div key={item.title}>
+            {item.children ? (
+              // Group with children
+              <div>
+                {collapsed ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => toggleExpanded(item.title)}
+                        className={cn(
+                          "flex items-center w-full rounded-lg transition-all duration-200 group",
+                          "text-white hover:text-white hover:bg-white/15 hover:shadow-md",
+                          expandedItems.has(item.title) && "bg-white/25 text-white shadow-lg",
+                          "px-2 py-3 justify-center"
+                        )}
+                      >
+                        <item.icon className="h-5 w-5 group-hover:scale-110 transition-transform duration-200" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="bg-brand-primary text-white border-brand-primary-20">
+                      <p>{t(`nav.${item.title.toLowerCase().replace(/\s+/g, '_')}`)}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <button
+                    onClick={() => toggleExpanded(item.title)}
+                    className={cn(
+                      "flex items-center justify-between w-full px-4 py-3 text-sm font-semibold rounded-lg transition-all duration-200 group",
+                      "text-white hover:text-white hover:bg-white/15 hover:shadow-md",
+                      expandedItems.has(item.title) && "bg-white/25 text-white shadow-lg"
+                    )}
+                  >
+                    <div className="flex items-center">
+                      <item.icon className="mr-3 h-5 w-5 group-hover:scale-110 transition-transform duration-200" />
+                      <span className="text-sm font-semibold">
+                        {t(`nav.${item.title.toLowerCase().replace(/\s+/g, '_')}`)}
+                      </span>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 transition-transform duration-200",
+                        expandedItems.has(item.title) && "rotate-180"
+                      )}
+                    />
+                  </button>
+                )}
+
+                {!collapsed && expandedItems.has(item.title) && (
+                  <div className="ml-6 mt-2 space-y-1 border-l-2 border-white/20 pl-4">
+                    {item.children.map((child) => (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className="flex items-center px-3 py-2 text-sm text-white/85 rounded-md hover:text-white hover:bg-white/10 hover:shadow-sm transition-all duration-200 group"
+                      >
+                        <child.icon className="mr-3 h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                        {t(`nav.${child.title.toLowerCase().replace(/\s+/g, '_')}`)}
+                        {child.badge && (
+                          <Badge variant="secondary" className="ml-auto text-xs bg-brand-accent text-white border-0 font-semibold">
+                            {child.badge}
+                          </Badge>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Single item
+              collapsed ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button
-                      onClick={() => toggleExpanded(item.title)}
-                      className={cn(
-                        "flex items-center w-full rounded-lg transition-all duration-200 group",
-                        "text-white hover:text-white hover:bg-white/15 hover:shadow-md",
-                        expandedItems.has(item.title) && "bg-white/25 text-white shadow-lg",
-                        "px-2 py-3 justify-center"
-                      )}
+                    <Link
+                      href={item.href}
+                      className="flex items-center px-2 py-3 text-sm font-semibold text-white/90 rounded-lg hover:text-white hover:bg-white/15 hover:shadow-md transition-all duration-200 group justify-center"
                     >
                       <item.icon className="h-5 w-5 group-hover:scale-110 transition-transform duration-200" />
-                    </button>
+                    </Link>
                   </TooltipTrigger>
                   <TooltipContent side="right" className="bg-brand-primary text-white border-brand-primary-20">
-                    <p>{t(`nav.${item.title.toLowerCase().replace(/\s+/g, '_')}`)}</p>
+                    <p>{t(item.title.toLowerCase().replace(/\s+/g, '_'))}</p>
                   </TooltipContent>
                 </Tooltip>
               ) : (
-                <button
-                  onClick={() => toggleExpanded(item.title)}
-                  className={cn(
-                    "flex items-center justify-between w-full px-4 py-3 text-sm font-semibold rounded-lg transition-all duration-200 group",
-                    "text-white hover:text-white hover:bg-white/15 hover:shadow-md",
-                    expandedItems.has(item.title) && "bg-white/25 text-white shadow-lg"
-                  )}
+                <Link
+                  href={item.href}
+                  className="flex items-center px-4 py-3 text-sm font-semibold text-white/90 rounded-lg hover:text-white hover:bg-white/15 hover:shadow-md transition-all duration-200 group"
                 >
-                  <div className="flex items-center">
-                    <item.icon className="mr-3 h-5 w-5 group-hover:scale-110 transition-transform duration-200" />
-                    <span className="text-sm font-semibold">
-                      {t(`nav.${item.title.toLowerCase().replace(/\s+/g, '_')}`)}
-                    </span>
-                  </div>
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 transition-transform duration-200",
-                      expandedItems.has(item.title) && "rotate-180"
-                    )}
-                  />
-                </button>
-              )}
-
-              {!collapsed && expandedItems.has(item.title) && (
-                <div className="ml-6 mt-2 space-y-1 border-l-2 border-white/20 pl-4">
-                  {item.children.map((child) => (
-                    <Link
-                      key={child.href}
-                      href={child.href}
-                      className="flex items-center px-3 py-2 text-sm text-white/85 rounded-md hover:text-white hover:bg-white/10 hover:shadow-sm transition-all duration-200 group"
-                    >
-                      <child.icon className="mr-3 h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
-                      {t(`nav.${child.title.toLowerCase().replace(/\s+/g, '_')}`)}
-                      {child.badge && (
-                        <Badge variant="secondary" className="ml-auto text-xs bg-brand-accent text-white border-0 font-semibold">
-                          {child.badge}
-                        </Badge>
-                      )}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            // Single item
-            collapsed ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href={item.href}
-                    className="flex items-center px-2 py-3 text-sm font-semibold text-white/90 rounded-lg hover:text-white hover:bg-white/15 hover:shadow-md transition-all duration-200 group justify-center"
-                  >
-                    <item.icon className="h-5 w-5 group-hover:scale-110 transition-transform duration-200" />
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-brand-primary text-white border-brand-primary-20">
-                  <p>{t(item.title.toLowerCase().replace(/\s+/g, '_'))}</p>
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <Link
-                href={item.href}
-                className="flex items-center px-4 py-3 text-sm font-semibold text-white/90 rounded-lg hover:text-white hover:bg-white/15 hover:shadow-md transition-all duration-200 group"
-              >
-                <item.icon className="mr-3 h-5 w-5 group-hover:scale-110 transition-transform duration-200" />
-                <span>{t(item.title.toLowerCase().replace(/\s+/g, '_'))}</span>
-                {item.badge && (
-                  <Badge variant="secondary" className="ml-auto text-xs bg-brand-accent text-white border-0 font-semibold">
-                    {item.badge}
-                  </Badge>
-                )}
-              </Link>
-            )
+                  <item.icon className="mr-3 h-5 w-5 group-hover:scale-110 transition-transform duration-200" />
+                  <span>{t(item.title.toLowerCase().replace(/\s+/g, '_'))}</span>
+                  {item.badge && (
+                    <Badge variant="secondary" className="ml-auto text-xs bg-brand-accent text-white border-0 font-semibold">
+                      {item.badge}
+                    </Badge>
+                  )}
+                </Link>
+              )
+            )}
+          </div>
+        ))}
+      </nav>
+      {/* ===== Sticky Footer Section ===== */}
+      <div
+        className={cn(
+          'mt-4 border-t border-white/20 pt-4 flex flex-col gap-3',
+          collapsed && 'items-center'
+        )}
+      >
+        <div
+          className={cn(
+            "flex gap-3 items-center",
+            collapsed ? "justify-center" : "justify-between w-full"
           )}
+        >
+          {/* Language Switcher */}
+          <LanguageSwitcher
+            className={cn(
+              "flex-2 bg-transparant text-white hover:bg-white/30",
+              collapsed && "w-10 h-10 flex items-center justify-center flex-none p-0"
+            )}
+          />
+          {/* Appearance Toggle */}
+          <AppearanceToggleDropdown
+            className={cn(
+              "flex-1 bg-transparant text-white hover:bg-white/30 font-medium transition",
+              collapsed && "w-10 h-10 flex items-center justify-center flex-none p-0"
+            )}
+          />
         </div>
-      ))}
-    </nav>
+
+        {/* User Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className={cn(
+                'relative h-10 w-full text-white border border-white/20 rounded-xl hover:bg-white/20 transition-all',
+                collapsed && 'h-9 w-9 p-0 rounded-full border-0'
+              )}
+            >
+              <Avatar className="h-8 w-8">
+                <AvatarImage src="" alt={auth.user.name} />
+                <AvatarFallback>{getInitials(auth.user.name)}</AvatarFallback>
+              </Avatar>
+              {!collapsed && (
+                <span className="ml-3 text-sm font-medium truncate">{auth.user.name}</span>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent className="w-56" align="end" forceMount>
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-medium text-brand-primary">{auth.user.name}</p>
+                <p className="text-xs text-muted-foreground">{auth.user.email}</p>
+                <Badge variant="secondary" className="w-fit text-xs bg-brand-primary-20 text-brand-primary border-brand-primary-30">
+                  {getRoleDisplayName(auth.user.role)}
+                </Badge>
+              </div>
+            </DropdownMenuLabel>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem asChild>
+              <Link href="/profile" className="cursor-pointer hover:bg-brand-primary-20">
+                <UserIcon className="mr-2 h-4 w-4" />
+                Profile
+              </Link>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem asChild>
+              <Link href="/admin/settings" className="cursor-pointer hover:bg-brand-primary-20">
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem asChild>
+              <button
+                onClick={() => logoutForm.post('/logout')}
+                disabled={logoutForm.processing}
+                className="flex w-full items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-destructive/10 hover:text-destructive transition-colors"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                {logoutForm.processing ? 'Logging out...' : 'Log out'}
+              </button>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -129,7 +129,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
             : null
     );
 
-    const { data, setData, put, patch, delete: deletePayment, processing, errors } = useForm({
+    const { data, setData, post, patch, delete: deletePayment, processing, errors } = useForm({
         payment_method_id: payment.payment_method_id?.toString() || '',
         amount: payment.amount.toString(),
         payment_type: payment.payment_type,
@@ -160,7 +160,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
         if (data.payment_method_id) {
             const method = paymentMethods.find(m => m.id.toString() === data.payment_method_id.toString());
             setSelectedPaymentMethod(method || null);
-            
+
             if (method && !data.bank_name) {
                 setData(prev => ({
                     ...prev,
@@ -172,33 +172,34 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
         }
     }, [data.payment_method_id]);
 
-    const [updateMethod, setUpdateMethod] = useState<'put' | 'patch'>('put');
-
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
-        const formData = new FormData();
-        Object.keys(data).forEach(key => {
-            if (key === 'attachment' && data.attachment) {
-                formData.append(key, data.attachment);
-            } else if (key !== 'attachment') {
-                formData.append(key, String(data[key as keyof typeof data]));
-            }
-        });
 
-        const method = updateMethod === 'patch' ? patch : put;
-        method(`/admin/payments/${payment.payment_number}`, {
-            data: formData,
+        post(`/admin/payments/${payment.payment_number}`, {
+            data: {
+                ...data,
+                amount: parseFloat(data.amount),
+                _method: 'PATCH'
+            },
             forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                console.log('Payment updated successfully');
+            },
+            onError: (errors) => {
+                console.error('Update failed:', errors);
+            },
         });
-    };
+    }
 
     const handleDelete = () => {
         if (confirm('Are you sure you want to delete this payment? This action cannot be undone.')) {
             deletePayment(`/admin/payments/${payment.payment_number}`, {
                 onSuccess: () => {
-                    window.location.href = '/admin/payments';
+                    router.visit('/admin/payments');
                 },
+                onError: (e) => console.log('ERROR', e),
+                onFinish: () => console.log('FINISHED'),
             });
         }
     };
@@ -250,12 +251,6 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Link href="/admin/payments">
-                            <Button variant="ghost" size="sm">
-                                <ArrowLeft className="h-4 w-4 mr-2" />
-                                Back to Payments
-                            </Button>
-                        </Link>
                         <div>
                             <h1 className="text-3xl font-bold text-gray-900">Edit Payment</h1>
                             <p className="text-gray-600 mt-1">
@@ -314,8 +309,8 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                     <div className="grid md:grid-cols-2 gap-4">
                                         <div>
                                             <Label htmlFor="payment_method_id">Payment Method *</Label>
-                                            <Select 
-                                                value={data.payment_method_id.toString()} 
+                                            <Select
+                                                value={data.payment_method_id.toString()}
                                                 onValueChange={(value) => setData('payment_method_id', value)}
                                             >
                                                 <SelectTrigger className={errors.payment_method_id ? 'border-red-500' : ''}>
@@ -338,8 +333,8 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
 
                                         <div>
                                             <Label htmlFor="payment_type">Payment Type *</Label>
-                                            <Select 
-                                                value={data.payment_type} 
+                                            <Select
+                                                value={data.payment_type}
                                                 onValueChange={(value) => setData('payment_type', value as any)}
                                             >
                                                 <SelectTrigger className={errors.payment_type ? 'border-red-500' : ''}>
@@ -596,8 +591,8 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                 <CardContent className="space-y-4">
                                     <div>
                                         <Label htmlFor="payment_status">Status *</Label>
-                                        <Select 
-                                            value={data.payment_status} 
+                                        <Select
+                                            value={data.payment_status}
                                             onValueChange={(value) => setData('payment_status', value as any)}
                                         >
                                             <SelectTrigger className={errors.payment_status ? 'border-red-500' : ''}>
@@ -615,8 +610,8 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
 
                                     <div>
                                         <Label htmlFor="processed_by">Processed By</Label>
-                                        <Select 
-                                            value={data.processed_by.toString()} 
+                                        <Select
+                                            value={data.processed_by.toString()}
                                             onValueChange={(value) => setData('processed_by', value)}
                                         >
                                             <SelectTrigger>
@@ -640,8 +635,8 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                     {data.payment_status === 'verified' && (
                                         <div>
                                             <Label htmlFor="verified_by">Verified By</Label>
-                                            <Select 
-                                                value={data.verified_by.toString()} 
+                                            <Select
+                                                value={data.verified_by.toString()}
                                                 onValueChange={(value) => setData('verified_by', value)}
                                             >
                                                 <SelectTrigger>
@@ -700,8 +695,8 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                 <CardContent className="pt-6">
                                     <div className="space-y-3">
                                         <div className="flex gap-2">
-                                            <Button 
-                                                type="submit" 
+                                            <Button
+                                                type="submit"
                                                 className="flex-1"
                                                 disabled={processing}
                                             >
@@ -710,27 +705,6 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                             </Button>
                                         </div>
 
-                                        <div className="flex gap-2">
-                                            <Button
-                                                type="button"
-                                                variant={updateMethod === 'put' ? 'default' : 'outline'}
-                                                size="sm"
-                                                className="flex-1"
-                                                onClick={() => setUpdateMethod('put')}
-                                            >
-                                                Full Update
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant={updateMethod === 'patch' ? 'default' : 'outline'}
-                                                size="sm"
-                                                className="flex-1"
-                                                onClick={() => setUpdateMethod('patch')}
-                                            >
-                                                Partial Update
-                                            </Button>
-                                        </div>
-                                        
                                         <Link href="/admin/payments" className="block">
                                             <Button variant="outline" className="w-full">
                                                 Cancel

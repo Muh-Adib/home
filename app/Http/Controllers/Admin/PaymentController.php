@@ -423,7 +423,6 @@ class PaymentController extends Controller
                         'customer_email' => $booking->guest_email,
                     ]
                 );
-                dd($payment);
 
                 // Redirect ke payment URL atau return success dengan link
                 if ($payment->ipaymu_payment_url) {
@@ -786,7 +785,7 @@ class PaymentController extends Controller
         // Validation rules - make required fields conditional for PATCH
         $rules = [
             'payment_method_id' => [$isFullUpdate ? 'required' : 'nullable', 'exists:payment_methods,id'],
-            'amount' => [$isFullUpdate ? 'required' : 'nullable', 'numeric', 'min:1'],
+            'amount' => [$isFullUpdate ? 'required' : 'nullable', 'numeric', 'min:0'],
             'payment_type' => [$isFullUpdate ? 'required' : 'nullable', 'in:dp,remaining,full,refund,penalty'],
             'payment_status' => [$isFullUpdate ? 'required' : 'nullable', 'in:pending,verified,failed,cancelled'],
             'payment_date' => [$isFullUpdate ? 'required' : 'nullable', 'date'],
@@ -811,6 +810,7 @@ class PaymentController extends Controller
             
             // Check if amount is valid (excluding current payment from calculation) - only if amount is being updated
             if (isset($validated['amount'])) {
+                // cek apakah ada payment lainnya 
                 $paidAmount = $booking->payments()
                     ->where('payment_status', 'verified')
                     ->where('id', '!=', $payment->id)
@@ -916,13 +916,22 @@ class PaymentController extends Controller
             // Update payment record
             $payment->update($updateData);
 
+            // Status berubah menjadi verified
+            $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+            if ($payment->status === 'verified')
+            {
+                $booking->update(['dp_amount'=>$totalPaid]);
+                $booking->update(['dp_paid_amount'=>$totalPaid]);
+                $remainingPayment = $booking->total_amount - $totalPaid;
+                $booking->update(['remaining_amount'=>$remainingPayment]);
+            }
+
             // Handle perubahan status payment dan update booking payment status
             $newStatus = $validated['payment_status'] ?? $oldStatus;
             if ($oldStatus !== $newStatus) {
                 if ($newStatus === 'verified') {
-                    // Status berubah menjadi verified
-                $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-                
+                    
+          
                 if ($totalPaid >= $booking->total_amount) {
                     $booking->update(['payment_status' => 'fully_paid']);
                 } elseif (($validated['payment_type'] ?? $payment->payment_type) === 'dp') {
@@ -968,7 +977,7 @@ class PaymentController extends Controller
 
             DB::commit();
 
-            return redirect()->route('admin.payments.index')
+            return redirect()->back()
                 ->with('success', 'Payment updated successfully.');
 
         } catch (\Exception $e) {
@@ -1086,7 +1095,6 @@ class PaymentController extends Controller
     {
         $this->authorize('delete', $payment);
 
-        DB::beginTransaction();
         try {
             $booking = $payment->booking;
             $paymentNumber = $payment->payment_number;

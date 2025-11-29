@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 
 export default function TextFormatMarkdown({ text }: { text: string }) {
   return (
-    <div className="prose max-w-full whitespace-pre-wrap">
+    <div className="prose max-w-full">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

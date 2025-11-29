@@ -8,12 +8,13 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Booking, type Payment, type BreadcrumbItem, type PageProps, BookingGuest } from '@/types';
-import { 
-    Calendar, 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+    Calendar,
     ArrowLeft,
     Users,
     DollarSign,
@@ -37,7 +38,7 @@ import {
     Zap,
     Send,
     Link as LinkIcon,
-    Loader2
+    Loader2, X
 } from 'lucide-react';
 import RateBreakdownCard from '@/components/booking/RateBreakdownCard';
 
@@ -132,7 +133,7 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
         patchVerify(`/admin/bookings/${booking.booking_number}/checkout`);
     };
 
-    const formatCurrency = (value: number) => 
+    const formatCurrency = (value: number) =>
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 
     const getStatusBadge = (status: string) => {
@@ -197,7 +198,7 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title={`${booking.booking_number} - Booking Details`} />
-            
+
             <div className="space-y-6 p-4 md:p-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -210,140 +211,217 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                             {booking.guest_name} • {new Date(booking.check_in).toLocaleDateString()} - {new Date(booking.check_out).toLocaleDateString()}
                         </p>
                     </div>
-                    
+
                     <div className="flex gap-3">
                         {/* WhatsApp Button */}
                         {whatsappData && whatsappData.can_send && (
-                            <Button 
+                            <Button
                                 asChild
                                 variant="outline"
                                 className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
                             >
-                                <a 
+                                <a
                                     href={whatsappData.whatsapp_url}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    className="flex items-center"
                                 >
-                                    <MessageCircle className="h-4 w-4 mr-2" />
-                                    Chat Guest
+                                    <MessageCircle className="h-4 w-4" />
+                                    <span className="ml-2 hidden sm:inline">Chat Guest</span>
                                 </a>
                             </Button>
                         )}
-                        
+
                         {/* Action Buttons */}
                         {canCheckOut && (
                             <Button onClick={handleCheckOut} disabled={verifyProcessing}>
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Check Out
+                                <CheckCircle className="h-4 w-4" />
+                                <span className="ml-2">Check Out</span>
                             </Button>
                         )}
                         {canCheckIn && (
                             <Button onClick={handleCheckIn} disabled={verifyProcessing}>
-                                <User className="h-4 w-4 mr-2" />
-                                Check In
+                                <User className="h-4 w-4" />
+                                <span className="ml-2">Check In</span>
                             </Button>
                         )}
                         {canVerify && (
                             <Dialog>
                                 <DialogTrigger asChild>
                                     <Button>
-                                        <CheckCircle className="h-4 w-4 mr-2" />
-                                        Verify Booking
+                                        <CheckCircle className="h-4 w-4" />
+                                        <span className="ml-2">Verify Booking</span>
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
+
+                                <DialogContent
+                                    className="
+                                bg-white p-6 w-full max-w-full rounded-t-xl border-t
+                          
+                                /* MOBILE: bottom sheet */
+                                translate-y-full transition-transform duration-300
+                                data-[state=open]:translate-y-0
+                          
+                                /* DESKTOP: modal center */
+                                sm:max-w-lg sm:rounded-xl sm:py-6
+                                sm:fixed sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2
+                                sm:translate-y-0
+                              "
+                                >
+
+                                    <DialogHeader className="pr-10">
                                         <DialogTitle>Verify Booking</DialogTitle>
+                                        <DialogDescription>
+                                            Verifikasi Booking
+                                        </DialogDescription>
                                     </DialogHeader>
-                                    <form onSubmit={handleVerify} className="space-y-4">
-                                        <div className="space-y-2">
+
+                                    <form onSubmit={handleVerify} className="space-y-4 flex flex-col h-full sm:h-auto">
+                                        <div className="space-y-2 flex-1 overflow-auto sm:overflow-visible">
                                             <Label htmlFor="notes">Verification Notes</Label>
                                             <Textarea
                                                 id="notes"
                                                 value={verifyData.notes}
                                                 onChange={(e) => setVerifyData('notes', e.target.value)}
                                                 placeholder="Add verification notes..."
-                                                rows={3}
+                                                rows={4}
+                                                className="w-full"
                                             />
                                         </div>
+
                                         <div className="flex gap-3">
-                                            <Button type="submit" disabled={verifyProcessing} className="flex-1">
+                                            <Button
+                                                type="submit"
+                                                disabled={verifyProcessing}
+                                                className="flex-1"
+                                            >
                                                 {verifyProcessing ? 'Verifying...' : 'Verify Booking'}
                                             </Button>
                                         </div>
                                     </form>
                                 </DialogContent>
                             </Dialog>
+
                         )}
                         {canCancel && (
                             <Dialog>
                                 <DialogTrigger asChild>
                                     <Button variant="destructive">
                                         <XCircle className="h-4 w-4 mr-2" />
-                                        Cancel Booking
+                                        <span className="ml-2 hidden sm:inline">Cancel Booking</span>
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
+
+                                <DialogContent
+                                    className="
+                                bg-white p-6 w-full max-w-full rounded-t-xl border-t
+                          
+                                /* MOBILE: bottom sheet */
+                                translate-y-full transition-transform duration-300
+                                data-[state=open]:translate-y-0
+                          
+                                /* DESKTOP: modal center */
+                                sm:max-w-lg sm:rounded-xl sm:py-6
+                                sm:fixed sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2
+                                sm:translate-y-0
+                              "
+                                >
+
+                                    <DialogHeader className="pr-10">
                                         <DialogTitle>Cancel Booking</DialogTitle>
+                                        <DialogDescription>
+                                            Konfirmasi untuk cancel booking ini.
+                                        </DialogDescription>
                                     </DialogHeader>
-                                    <form onSubmit={handleCancel} className="space-y-4">
-                                        <div className="space-y-2">
+
+                                    <form onSubmit={handleCancel} className="space-y-4 flex flex-col h-full sm:h-auto">
+                                        <div className="space-y-2 flex-1 overflow-auto sm:overflow-visible">
                                             <Label htmlFor="cancellation_reason">Cancellation Reason *</Label>
                                             <Textarea
                                                 id="cancellation_reason"
                                                 value={cancelData.cancellation_reason}
                                                 onChange={(e) => setCancelData('cancellation_reason', e.target.value)}
                                                 placeholder="Reason for cancellation..."
-                                                rows={3}
+                                                rows={4}
                                                 required
+                                                className="w-full"
                                             />
                                         </div>
+
                                         <div className="flex gap-3">
-                                            <Button type="submit" disabled={cancelProcessing} variant="destructive" className="flex-1">
+                                            <Button
+                                                type="submit"
+                                                disabled={cancelProcessing}
+                                                variant="destructive"
+                                                className="flex-1"
+                                            >
                                                 {cancelProcessing ? 'Cancelling...' : 'Cancel Booking'}
                                             </Button>
                                         </div>
                                     </form>
                                 </DialogContent>
                             </Dialog>
+
                         )}
                         {canDelete && (
                             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                                 <DialogTrigger asChild>
                                     <Button variant="destructive">
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        Delete Booking
+                                        <Trash2 className="h-4 w-4" />
+                                        <span className="ml-2 hidden sm:inline">Delete Booking</span>
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent>
+
+                                <DialogContent
+                                    className="
+                                bg-white p-6 w-full max-w-full rounded-t-xl border-t
+                          
+                                /* MOBILE: bottom sheet */
+                                translate-y-full transition-transform duration-300
+                                data-[state=open]:translate-y-0
+                          
+                                /* DESKTOP: modal center */
+                                sm:max-w-lg sm:rounded-xl sm:py-6
+                                sm:fixed sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2
+                                sm:translate-y-0
+                              "
+                                >
+
                                     <DialogHeader>
                                         <DialogTitle>Hapus Booking</DialogTitle>
+                                        <DialogDescription>
+                                            Konfirmasi untuk menghapus booking ini.
+                                        </DialogDescription>
                                     </DialogHeader>
-                                    <form onSubmit={handleDelete} className="space-y-4">
-                                        <div className="space-y-2">
+
+                                    <form onSubmit={handleDelete} className="space-y-4 flex flex-col h-full sm:h-auto">
+
+                                        <div className="space-y-4 flex-1 overflow-auto sm:overflow-visible">
+
                                             <p className="text-sm text-muted-foreground">
-                                                Apakah Anda yakin ingin menghapus booking <strong>#{booking.booking_number}</strong>?
-                                                Tindakan ini tidak dapat dibatalkan.
+                                                Apakah Anda yakin ingin menghapus booking <strong>#{booking.booking_number}</strong>? Aksi ini tidak dapat dibatalkan.
                                             </p>
+
                                             {requiresExtraConfirmation && (
                                                 <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                                                    <p className="text-sm text-yellow-800">
-                                                        <AlertCircle className="h-4 w-4 inline mr-1" />
-                                                        Booking ini memiliki status khusus. Pastikan Anda benar-benar yakin untuk menghapusnya.
+                                                    <p className="text-sm text-yellow-800 flex items-center">
+                                                        <AlertCircle className="h-4 w-4 mr-2" />
+                                                        Booking ini memiliki status khusus. Pastikan Anda yakin.
                                                     </p>
                                                 </div>
                                             )}
+
                                             <div className="space-y-2">
-                                                <Label htmlFor="deletion_reason">Alasan Penghapusan (Opsional)</Label>
+                                                <Label htmlFor="deletion_reason">Alasan (Opsional)</Label>
                                                 <Textarea
                                                     id="deletion_reason"
                                                     value={deleteData.deletion_reason}
                                                     onChange={(e) => setDeleteData('deletion_reason', e.target.value)}
-                                                    placeholder="Masukkan alasan penghapusan..."
-                                                    rows={3}
+                                                    placeholder="Masukkan alasan..."
+                                                    rows={4}
                                                 />
                                             </div>
+
                                             {requiresExtraConfirmation && (
                                                 <div className="flex items-center space-x-2">
                                                     <input
@@ -354,11 +432,14 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                                         className="rounded border-gray-300"
                                                     />
                                                     <Label htmlFor="confirm_delete" className="text-sm">
-                                                        Saya mengkonfirmasi untuk menghapus booking ini
+                                                        Saya mengonfirmasi penghapusan ini.
                                                     </Label>
                                                 </div>
                                             )}
+
                                         </div>
+
+                                        {/* Buttons */}
                                         <div className="flex gap-3">
                                             <Button
                                                 type="button"
@@ -368,41 +449,48 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                                     setConfirmDelete(false);
                                                     setDeleteData('deletion_reason', '');
                                                 }}
-                                                disabled={deleteProcessing}
                                                 className="flex-1"
                                             >
                                                 Batal
                                             </Button>
+
                                             <Button
                                                 type="submit"
                                                 variant="destructive"
                                                 disabled={deleteProcessing || (requiresExtraConfirmation && !confirmDelete)}
                                                 className="flex-1"
                                             >
-                                                {deleteProcessing ? 'Menghapus...' : 'Hapus Booking'}
+                                                {deleteProcessing ? "Menghapus..." : "Hapus"}
                                             </Button>
                                         </div>
                                     </form>
                                 </DialogContent>
                             </Dialog>
                         )}
-                        <Button variant="outline" asChild>
-                            <Link href="/admin/booking-management">
-                                <ArrowLeft className="h-4 w-4 mr-2" />
-                                Back
-                            </Link>
-                        </Button>
                     </div>
                 </div>
 
                 {/* Main Content Tabs */}
                 <Tabs defaultValue="details" className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="details">Booking Details</TabsTrigger>
-                        <TabsTrigger value="guests">Guest Information</TabsTrigger>
-                        <TabsTrigger value="payments">Payments</TabsTrigger>
-                        <TabsTrigger value="workflow">Workflow</TabsTrigger>
+                    <TabsList
+                        className="w-full overflow-x-auto flex gap-2 p-1 sm:grid sm:grid-cols-4 sm:overflow-visible">
+                        <TabsTrigger value="details" className="whitespace-nowrap text-xs sm:text-sm px-3 py-2">
+                            Booking Details
+                        </TabsTrigger>
+
+                        <TabsTrigger value="guests" className="whitespace-nowrap text-xs sm:text-sm px-3 py-2">
+                            Guest Information
+                        </TabsTrigger>
+
+                        <TabsTrigger value="payments" className="whitespace-nowrap text-xs sm:text-sm px-3 py-2">
+                            Payments
+                        </TabsTrigger>
+
+                        <TabsTrigger value="workflow" className="whitespace-nowrap text-xs sm:text-sm px-3 py-2">
+                            Workflow
+                        </TabsTrigger>
                     </TabsList>
+
 
                     {/* Booking Details */}
                     <TabsContent value="details" className="space-y-6">
@@ -692,23 +780,27 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                     {/* Payments */}
                     <TabsContent value="payments" className="space-y-6">
                         {/* Payment Actions Header */}
-                        <div className="flex justify-between items-center">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                             <div>
                                 <h3 className="text-lg font-semibold">Payment History</h3>
                                 <p className="text-sm text-muted-foreground">
-                                    Total: {formatCurrency(booking.total_amount)} • 
-                                    Paid: {formatCurrency(booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0))} • 
+                                    Total: {formatCurrency(booking.total_amount)} •
+                                    Paid: {formatCurrency(booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0))} •
                                     Remaining: {formatCurrency(booking.total_amount - booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0))}
                                 </p>
                             </div>
-                            <div className="flex gap-2">
+                            {/* Actions */}
+                            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                                {/* Send Payment Link Dialog */}
                                 <Dialog open={showPaymentLinkDialog} onOpenChange={setShowPaymentLinkDialog}>
                                     <DialogTrigger asChild>
-                                        <Button variant="default" className="bg-brand-primary hover:bg-brand-primary-dark">
-                                            <Zap className="h-4 w-4 mr-2" />
-                                            Kirim Link Pembayaran
+                                        <Button size="sm" className="flex items-center gap-2 bg-brand-primary hover:bg-brand-primary-dark w-full sm:w-auto">
+                                            <Zap className="h-4 w-4" />
+                                            <span className="hidden sm:inline">Send Payment Link</span>
+                                            <span className="sm:hidden">Send Link</span>
                                         </Button>
                                     </DialogTrigger>
+                                    {/* Content */}
                                     <DialogContent className="sm:max-w-[500px]">
                                         <DialogHeader>
                                             <DialogTitle>Kirim Link Pembayaran</DialogTitle>
@@ -720,7 +812,7 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                             e.preventDefault();
                                             const paidAmount = booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0);
                                             const pendingAmount = booking.total_amount - paidAmount;
-                                            
+
                                             if (parseFloat(paymentLinkData.amount) > pendingAmount) {
                                                 alert(`Jumlah tidak boleh melebihi sisa tagihan: ${formatCurrency(pendingAmount)}`);
                                                 return;
@@ -867,61 +959,73 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                         </form>
                                     </DialogContent>
                                 </Dialog>
-                                <Button variant="outline" asChild>
+                                {/* Create Payment Button */}
+                                <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
                                     <Link href={`/admin/payments/booking/${booking.booking_number}/create`}>
                                         <Plus className="h-4 w-4 mr-2" />
-                                        Create Payment
+                                        <span className="hidden sm:inline">Create Payment</span>
+                                        <span className="sm:hidden">Create</span>
                                     </Link>
                                 </Button>
-                                <Button variant="outline" asChild>
+
+                                {/* Additional Payment */}
+                                <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
                                     <Link href={`/admin/payments/booking/${booking.booking_number}/additional`}>
                                         <CreditCard className="h-4 w-4 mr-2" />
-                                        Additional Payment
+                                        <span className="hidden sm:inline">Additional Payment</span>
+                                        <span className="sm:hidden">Extra</span>
                                     </Link>
                                 </Button>
                             </div>
                         </div>
 
+                        {/* Payment List */}
                         <div className="space-y-4">
-                            {booking.payments.map((payment) => (
+                            {booking.payments.map(payment => (
                                 <Card key={payment.id}>
-                                    <CardContent className="p-4">
-                                        <div className="flex justify-between items-start">
-                                            <div className="space-y-2">
-                                                <div className="flex items-center gap-3">
-                                                    <h4 className="font-medium">{payment.payment_number}</h4>
+                                    <CardContent className="p-4 space-y-4">
+
+                                        {/* Header Info */}
+                                        <div className="flex flex-wrap justify-between gap-2">
+                                            <div className="space-y-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h4 className="font-semibold">{payment.payment_number}</h4>
                                                     {getPaymentStatusBadge(payment.payment_status)}
                                                     <Badge variant="outline">{payment.payment_type}</Badge>
                                                 </div>
+
                                                 <p className="text-sm text-muted-foreground">
-                                                    {payment.paymentMethod?.name} • {new Date(payment.payment_date).toLocaleDateString()}
+                                                    {payment.paymentMethod?.name}
                                                 </p>
-                                                {payment.verification_notes && (
-                                                    <p className="text-sm">{payment.verification_notes}</p>
-                                                )}
-                                                {payment.reference_number && (
-                                                    <p className="text-sm text-muted-foreground">
-                                                        Ref: {payment.reference_number}
-                                                    </p>
-                                                )}
+
+                                                <p className="text-xs text-gray-500">
+                                                    Tanggal Pembayaran: <strong>{new Date(payment.payment_date).toLocaleDateString()}</strong>
+                                                </p>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="font-medium text-lg">{formatCurrency(payment.amount)}</p>
-                                                <div className="flex gap-2 mt-2">
-                                                    <Button variant="outline" size="sm" asChild>
-                                                        <Link href={`/admin/payments/${payment.payment_number}`}>
-                                                            <Eye className="h-4 w-4 mr-2" />
-                                                            View
-                                                        </Link>
-                                                    </Button>
-                                                    <Button variant="outline" size="sm" asChild>
-                                                        <Link href={`/admin/payments/${payment.payment_number}/edit`}>
-                                                            <Edit className="h-4 w-4 mr-2" />
-                                                            Edit
-                                                        </Link>
-                                                    </Button>
-                                                </div>
-                                            </div>
+                                        </div>
+
+                                        {/* Amount (centered style) */}
+                                        <div className="text-center py-2">
+                                            <p className="text-2xl font-bold text-brand-primary">
+                                                {formatCurrency(payment.amount)}
+                                            </p>
+                                        </div>
+
+                                        {/* Action Buttons - positioned bottom-right */}
+                                        <div className="flex justify-end gap-2 pt-2 border-t">
+                                            <Button variant="outline" size="sm" asChild>
+                                                <Link href={`/admin/payments/${payment.payment_number}`}>
+                                                    <Eye className="h-4 w-4 sm:mr-2" />
+                                                    <span className="hidden sm:inline">View</span>
+                                                </Link>
+                                            </Button>
+
+                                            <Button variant="outline" size="sm" asChild>
+                                                <Link href={`/admin/payments/${payment.payment_number}/edit`}>
+                                                    <Edit className="h-4 w-4 sm:mr-2" />
+                                                    <span className="hidden sm:inline">Edit</span>
+                                                </Link>
+                                            </Button>
                                         </div>
                                     </CardContent>
                                 </Card>

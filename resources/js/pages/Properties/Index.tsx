@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import GuestLayout from '@/layouts/guest-layout';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,6 @@ import {
     Search,
     SlidersHorizontal,
     X,
-    Calendar,
     ArrowUpDown
 } from 'lucide-react';
 import { getDefaultDateRange, formatDateRange } from '@/components/ui/date-range';
@@ -73,14 +72,14 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
     const handleSearch = (filters = localFilters) => {
         const params: any = {};
 
-        if (localFilters.search) params.search = localFilters.search;
-        if (localFilters.selectedAmenities.length > 0) {
-            params.amenities = localFilters.selectedAmenities.join(',');
+        if (filters.search) params.search = filters.search;
+        if (filters.selectedAmenities.length > 0) {
+            params.amenities = filters.selectedAmenities.join(',');
         }
-        if (localFilters.guests > 1) params.guests = localFilters.guests;
-        if (localFilters.sort !== 'featured') params.sort = localFilters.sort;
-        if (localFilters.checkIn) params.check_in = localFilters.checkIn;
-        if (localFilters.checkOut) params.check_out = localFilters.checkOut;
+        if (filters.guests > 1) params.guests = filters.guests;
+        if (filters.sort !== 'featured') params.sort = filters.sort;
+        if (filters.checkIn) params.check_in = filters.checkIn;
+        if (filters.checkOut) params.check_out = filters.checkOut;
 
         router.get('/properties', params, {
             preserveState: false,   // 🔥 untuk update URL dan data
@@ -129,21 +128,26 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
     // Auto-search on component mount if no existing filters
     useEffect(() => {
         if (!filters.check_in && !filters.check_out) {
-            // Trigger search with default dates
-            setTimeout(handleSearch, 100);
+            setTimeout(() => handleSearch(), 100);
         }
-    }, []); // Empty dependency array means this runs once on mount
 
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Handle perubahan range tanggal
     const handleDateRangeChange = (startDate: string, endDate: string) => {
-        setLocalFilters(prev => {
-            const updated = {
-                ...prev,
-                checkIn: startDate,
-                checkOut: endDate
-            };
-            if (startDate && endDate) { handleSearch(updated); } // 🔥 selalu pakai nilai terbaru
-            return updated;
-        });
+        const updatedFilters = {
+            ...localFilters,
+            checkIn: startDate,
+            checkOut: endDate,
+        };
+
+        setLocalFilters(updatedFilters);
+
+        // Jalankan search jika dua tanggal terisi
+        if (startDate && endDate) {
+            handleSearch(updatedFilters);
+        }
     };
 
     return (

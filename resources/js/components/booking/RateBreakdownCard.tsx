@@ -152,24 +152,24 @@ export default function RateBreakdownCard({
     // Backend calculates these values, so we should use them instead of recalculating
     // This prevents discrepancies due to floating point precision or calculation differences
     const summary = rateCalculation?.summary || rateCalculation?.breakdown?.summary;
-    
+
     // Use backend-calculated values first, fallback to calculation only if not available
-    const totalBaseRate = summary?.base_nights_rate ?? 
-                         rateCalculation?.total_base_amount ?? 
-                         rateCalculation?.base_amount ??
-                         sortedBreakdown.reduce((sum, day) => sum + day.base_rate, 0);
-    
+    const totalBaseRate = summary?.base_nights_rate ??
+        rateCalculation?.total_base_amount ??
+        rateCalculation?.base_amount ??
+        sortedBreakdown.reduce((sum, day) => sum + day.base_rate, 0);
+
     // Always use total_amount from backend as it's the source of truth
-    const totalFinalRate = rateCalculation?.total_amount ?? 
-                          sortedBreakdown.reduce((sum, day) => sum + day.final_rate, 0);
-    
+    const totalFinalRate = rateCalculation?.total_amount ??
+        sortedBreakdown.reduce((sum, day) => sum + day.final_rate, 0);
+
     // Use backend-calculated premiums, otherwise calculate from difference
-    const totalPremium = summary?.total_premiums ?? 
-                         (totalFinalRate - totalBaseRate);
-    
+    const totalPremium = summary?.total_premiums ??
+        (totalFinalRate - totalBaseRate);
+
     // Use backend-calculated average, otherwise calculate from final rate
-    const averageRate = summary?.average_nightly_rate ?? 
-                       (sortedBreakdown.length > 0 ? totalFinalRate / sortedBreakdown.length : 0);
+    const averageRate = summary?.average_nightly_rate ??
+        (sortedBreakdown.length > 0 ? totalFinalRate / sortedBreakdown.length : 0);
 
     // Get premium badges
     const getPremiumBadges = (day: DailyRateBreakdown) => {
@@ -223,7 +223,7 @@ export default function RateBreakdownCard({
     };
 
     return (
-        <Card>
+        <Card className='gap-0'>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Calendar className="h-5 w-5" />
@@ -232,8 +232,8 @@ export default function RateBreakdownCard({
             </CardHeader>
             <CardContent className="space-y-4">
                 {/* Summary Cards */}
-                <div className="grid grid-cols-3 gap-4">
-                    <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="grid grid-cols-1 gap-0">
+                    <div className="p-2 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                             <DollarSign className="h-4 w-4 text-muted-foreground" />
                             <span className="text-sm font-medium text-muted-foreground">
@@ -242,7 +242,7 @@ export default function RateBreakdownCard({
                         </div>
                         <p className="text-2xl font-bold">{formatCurrency(averageRate)}</p>
                     </div>
-                    <div className="p-4 bg-muted/50 rounded-lg">
+                    <div className="p-2 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                             <TrendingUp className="h-4 w-4 text-muted-foreground" />
                             <span className="text-sm font-medium text-muted-foreground">
@@ -251,7 +251,7 @@ export default function RateBreakdownCard({
                         </div>
                         <p className="text-2xl font-bold">{formatCurrency(totalBaseRate)}</p>
                     </div>
-                    <div className="p-4 bg-muted/50 rounded-lg">
+                    <div className="p-2 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                             <DollarSign className="h-4 w-4 text-muted-foreground" />
                             <span className="text-sm font-medium text-muted-foreground">

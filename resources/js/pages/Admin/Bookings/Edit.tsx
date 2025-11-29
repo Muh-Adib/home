@@ -10,7 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { DateRange } from '@/components/ui/date-range';
-import { 
+import {
     CalendarDays,
     Users,
     DollarSign,
@@ -82,7 +82,7 @@ interface BookingEditProps {
 
 export default function BookingEdit({ booking, properties, paymentMethods }: BookingEditProps) {
     const { t } = useTranslation();
-    
+
     // State management
     const [currentProperty, setCurrentProperty] = useState<Property | null>(booking.property || null);
     const [rateCalculation, setRateCalculation] = useState<RateCalculation | null>(null);
@@ -93,47 +93,38 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
     const [availabilityStatus, setAvailabilityStatus] = useState<'checking' | 'available' | 'unavailable' | null>(null);
     const [availabilityError, setAvailabilityError] = useState<string | null>(null);
     const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
-    
+
     // Rate override state
     const [manualRateOverride, setManualRateOverride] = useState(false);
     const [overrideAmount, setOverrideAmount] = useState(booking.total_amount || 0);
     const [overrideReason, setOverrideReason] = useState('');
-    
-    // Payment form state
-    const [showPaymentForm, setShowPaymentForm] = useState(false);
-    const [paymentData, setPaymentData] = useState({
-        payment_method_id: '',
-        amount: 0,
-        payment_date: new Date().toISOString().split('T')[0],
-        reference_number: '',
-        bank_name: '',
-        account_number: '',
-        account_name: '',
-        payment_status: 'verified' as 'pending' | 'verified',
-        verification_notes: '',
-    });
 
-    const { data, setData, put, processing, errors, reset } = useForm({
+    const { data, setData, patch, processing, errors, reset } = useForm({
         property_id: booking.property_id?.toString() || '',
         check_in_date: booking.check_in ? new Date(booking.check_in).toISOString().split('T')[0] : '',
         check_out_date: booking.check_out ? new Date(booking.check_out).toISOString().split('T')[0] : '',
-        guest_male: booking.guest_male || 1,
-        guest_female: booking.guest_female || 1,
-        guest_children: booking.guest_children || 0,
+        guest_male: booking.guest_male ?? 1,
+        guest_female: booking.guest_female ?? 1,
+        guest_children: booking.guest_children ?? 0,
         guest_name: booking.guest_name || '',
         guest_email: booking.guest_email || '',
         guest_phone: booking.guest_phone || '',
         guest_country: booking.guest_country || 'Indonesia',
         guest_id_number: booking.guest_id_number || '',
-        guest_gender: booking.guest_gender || 'male' as 'male' | 'female',
-        relationship_type: booking.relationship_type || 'keluarga' as 'keluarga' | 'teman' | 'kolega' | 'pasangan' | 'campuran',
+        guest_gender: booking.guest_gender || 'male',
+        relationship_type: booking.relationship_type || 'keluarga',
         special_requests: booking.special_requests || '',
         internal_notes: booking.internal_notes || '',
-        booking_status: booking.booking_status || 'confirmed' as 'pending_verification' | 'confirmed',
-        payment_status: booking.payment_status || 'fully_paid' as 'dp_pending' | 'dp_received' | 'fully_paid',
-        dp_percentage: booking.dp_percentage || 100,
+        booking_status: booking.booking_status || 'pending_verification',
+        payment_status: booking.payment_status || 'dp_pending',
+        dp_percentage: booking.dp_percentage || 50,
         check_in_time: booking.check_in_time || '15:00',
-        source: booking.source || 'direct' as 'direct' | 'phone' | 'walk_in' | 'ota',
+        source: booking.source || 'direct',
+
+        // Rate override fields
+        rate_override: false,
+        override_amount: null,
+        override_reason: null,
     });
 
     // Calculate total guests
@@ -169,14 +160,14 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
         const property = properties.find(p => p.id.toString() === propertyId);
         setCurrentProperty(property || null);
         setData('property_id', propertyId);
-        
+
         // Reset calculations
         setRateCalculation(null);
         setRateCalculationFull(null);
         setRateError(null);
         setAvailabilityStatus(null);
         setAvailabilityError(null);
-        
+
         // Load property availability and rates
         if (property && data.check_in_date && data.check_out_date) {
             checkAvailabilityAndCalculateRate(property.id, data.check_in_date, data.check_out_date);
@@ -186,11 +177,11 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
     // Check availability and calculate rate
     const checkAvailabilityAndCalculateRate = useCallback(async (propertyId: number, checkIn: string, checkOut: string) => {
         if (!checkIn || !checkOut) return;
-        
+
         setAvailabilityStatus('checking');
         setAvailabilityError(null);
         setIsCalculatingRate(true);
-        
+
         try {
             // Check availability (exclude current booking)
             const availabilityResponse = await fetch('/admin/api/admin/booking-management/check-availability', {
@@ -208,17 +199,17 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                     exclude_booking_id: booking.id, // Exclude current booking
                 }),
             });
-            
+
             if (availabilityResponse.ok) {
                 const availabilityData = await availabilityResponse.json();
                 setAvailabilityStatus(availabilityData.available ? 'available' : 'unavailable');
-                
+
                 if (!availabilityData.available) {
                     setAvailabilityError('Property tidak tersedia untuk tanggal yang dipilih');
                     setIsCalculatingRate(false);
                     return;
                 }
-                
+
                 // Calculate rate
                 const rateResponse = await fetch('/admin/api/admin/booking-management/calculate-rate', {
                     method: 'POST',
@@ -235,10 +226,10 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                         guest_count: totalGuests, // This will use the updated totalGuests from useMemo
                     }),
                 });
-                
+
                 if (rateResponse.ok) {
                     const rateData = await rateResponse.json();
-                    
+
                     if (rateData.success) {
                         const calculation = rateData.calculation || rateData;
                         setRateCalculation({
@@ -282,14 +273,14 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
     const handleDateRangeChange = useCallback((startDate: string, endDate: string) => {
         setData('check_in_date', startDate);
         setData('check_out_date', endDate);
-        
+
         // Clear previous calculations
         setRateCalculation(null);
         setRateCalculationFull(null);
         setRateError(null);
         setAvailabilityStatus(null);
         setAvailabilityError(null);
-        
+
         // Check availability and calculate rate if both dates are selected
         if (startDate && endDate && currentProperty) {
             checkAvailabilityAndCalculateRate(currentProperty.id, startDate, endDate);
@@ -297,20 +288,27 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
     }, [currentProperty, setData, checkAvailabilityAndCalculateRate]);
 
     // Handle guest count changes
-    const handleGenderCountChange = (genderType: 'male' | 'female' | 'children', newCount: number) => {
-        const countField = genderType === 'children' ? 'guest_children' : 
-                          genderType === 'male' ? 'guest_male' : 'guest_female';
+    const handleGenderCountChange = (genderType: 'male' | 'female' | 'children', value: string | number) => {
+        const countField = genderType === 'children' ? 'guest_children' :
+            genderType === 'male' ? 'guest_male' : 'guest_female';
+
+        // Ensure value is always a valid number (never null/undefined)
+        const newCount = value === '' || value === null || value === undefined ? 0 : Number(value) || 0;
         
+        // Ensure newCount is non-negative
+        const validCount = Math.max(0, newCount);
+
         // Calculate new total guests with updated count
         const newTotalGuests = (() => {
-            const male = genderType === 'male' ? newCount : (Number(data.guest_male) || 0);
-            const female = genderType === 'female' ? newCount : (Number(data.guest_female) || 0);
-            const children = genderType === 'children' ? newCount : (Number(data.guest_children) || 0);
+            const male = genderType === 'male' ? validCount : (Number(data.guest_male) || 0);
+            const female = genderType === 'female' ? validCount : (Number(data.guest_female) || 0);
+            const children = genderType === 'children' ? validCount : (Number(data.guest_children) || 0);
             return male + female + children;
         })();
-        
-        setData(countField, newCount);
-        
+
+        // Always set a valid number, never null/undefined
+        setData(countField, validCount);
+
         // Recalculate rate when guest count changes (use newTotalGuests directly in API call)
         if (data.check_in_date && data.check_out_date && currentProperty && newTotalGuests > 0) {
             setTimeout(async () => {
@@ -331,17 +329,17 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                             exclude_booking_id: booking.id,
                         }),
                     });
-                    
+
                     if (availabilityResponse.ok) {
                         const availabilityData = await availabilityResponse.json();
                         setAvailabilityStatus(availabilityData.available ? 'available' : 'unavailable');
-                        
+
                         if (!availabilityData.available) {
                             setAvailabilityError('Property tidak tersedia untuk tanggal yang dipilih');
                             setIsCalculatingRate(false);
                             return;
                         }
-                        
+
                         // Calculate rate with NEW guest count
                         const rateResponse = await fetch('/admin/api/admin/booking-management/calculate-rate', {
                             method: 'POST',
@@ -358,10 +356,10 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                 guest_count: newTotalGuests, // Use new total, not old totalGuests
                             }),
                         });
-                        
+
                         if (rateResponse.ok) {
                             const rateData = await rateResponse.json();
-                            
+
                             if (rateData.success) {
                                 const calculation = rateData.calculation || rateData;
                                 setRateCalculation({
@@ -406,15 +404,6 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
         }
     };
 
-    // Auto show/hide payment form based on booking status
-    useEffect(() => {
-        if (data.booking_status === 'confirmed' && data.payment_status !== 'dp_pending') {
-            setShowPaymentForm(true);
-        } else {
-            setShowPaymentForm(false);
-        }
-    }, [data.booking_status, data.payment_status]);
-
     // Format currency
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('id-ID', {
@@ -442,19 +431,19 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
     ];
 
     // Enhanced validation
-    const canSubmit = data.property_id && 
-                     data.check_in_date && 
-                     data.check_out_date && 
-                     data.guest_name.trim() && 
-                     data.guest_email.trim() && 
-                     data.guest_phone.trim() && 
-                     data.guest_country && 
-                     totalGuests > 0;
+    const canSubmit = data.property_id &&
+        data.check_in_date &&
+        data.check_out_date &&
+        data.guest_name.trim() &&
+        data.guest_email.trim() &&
+        data.guest_phone.trim() &&
+        data.guest_country &&
+        totalGuests > 0;
 
     // Validation messages
     const validationMessages = useMemo(() => {
         const messages: string[] = [];
-        
+
         if (!data.property_id) messages.push('Property harus dipilih');
         if (!data.check_in_date) messages.push('Check-in date harus diisi');
         if (!data.check_out_date) messages.push('Check-out date harus diisi');
@@ -462,52 +451,80 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
         if (!data.guest_email.trim()) messages.push('Email tamu utama harus diisi');
         if (!data.guest_phone.trim()) messages.push('Nomor telepon tamu utama harus diisi');
         if (totalGuests === 0) messages.push('Jumlah tamu minimal 1');
-        
+
         return messages;
     }, [data, totalGuests]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (!canSubmit) {
             return;
         }
-        
-        // Prepare form data with payment and rate override
-        const formData = {
-            ...data,
-            guest_count: totalGuests,
-            // Payment data (only if payment form is shown)
-            ...(showPaymentForm && {
-                payment_method_id: paymentData.payment_method_id,
-                payment_amount: paymentData.amount,
-                payment_date: paymentData.payment_date,
-                reference_number: paymentData.reference_number,
-                bank_name: paymentData.bank_name,
-                account_number: paymentData.account_number,
-                account_name: paymentData.account_name,
-                payment_status: paymentData.payment_status,
-                verification_notes: paymentData.verification_notes,
-            }),
-            // Rate override data
-            rate_override: manualRateOverride,
-            override_amount: manualRateOverride ? overrideAmount : null,
-            override_reason: manualRateOverride ? overrideReason : null,
+
+        // Prepare form data with all required fields - ensure all values are valid
+        const formData: any = {
+            property_id: String(data.property_id || ''),
+            check_in_date: String(data.check_in_date || ''),
+            check_out_date: String(data.check_out_date || ''),
+            guest_male: Math.max(0, parseInt(String(data.guest_male || 0), 10)),
+            guest_female: Math.max(0, parseInt(String(data.guest_female || 0), 10)),
+            guest_children: Math.max(0, parseInt(String(data.guest_children || 0), 10)),
+            guest_name: String(data.guest_name || '').trim(),
+            guest_email: String(data.guest_email || '').trim(),
+            guest_phone: String(data.guest_phone || '').trim(),
+            guest_country: String(data.guest_country || 'Indonesia'),
+            guest_id_number: data.guest_id_number ? String(data.guest_id_number).trim() : null,
+            guest_gender: String(data.guest_gender || 'male'),
+            relationship_type: String(data.relationship_type || 'keluarga'),
+            special_requests: data.special_requests ? String(data.special_requests).trim() : null,
+            internal_notes: data.internal_notes ? String(data.internal_notes).trim() : null,
+            booking_status: String(data.booking_status || 'pending_verification'),
+            payment_status: String(data.payment_status || 'dp_pending'),
+            dp_percentage: (() => {
+                const dp = parseInt(String(data.dp_percentage || 50), 10);
+                return [30, 50, 70, 100].includes(dp) ? dp : 50;
+            })(),
+            check_in_time: String(data.check_in_time || '15:00'),
+            source: String(data.source || 'direct'),
         };
-        
-        // Update form data before submission
-        Object.keys(formData).forEach(key => {
-            setData(key as any, formData[key as keyof typeof formData]);
-        });
-        
-        put(route('admin.booking-management.update', booking.booking_number), {
+
+        // Add rate override data if enabled
+        if (manualRateOverride && overrideAmount > 0 && overrideReason.trim().length >= 10) {
+            formData.rate_override = true;
+            formData.override_amount = Number(overrideAmount) || 0;
+            formData.override_reason = overrideReason.trim();
+        } else {
+            formData.rate_override = false;
+            formData.override_amount = null;
+            formData.override_reason = null;
+        }
+
+        // Convert nullable strings to null (not empty string) for backend
+        if (formData.guest_id_number === '') formData.guest_id_number = null;
+        if (formData.special_requests === '') formData.special_requests = null;
+        if (formData.internal_notes === '') formData.internal_notes = null;
+
+        // Use router.patch directly with prepared data to avoid loop
+        router.patch(route('admin.booking-management.update', booking.booking_number), formData, {
+            preserveState: false,
+            preserveScroll: false,
             onSuccess: () => {
                 router.visit(route('admin.booking-management.show', booking.booking_number));
             },
             onError: (errors: any) => {
                 console.error('Booking update failed:', errors);
                 if (errors.error) {
-                    setSyncFeedback(errors.error);
+                    setSyncFeedback(Array.isArray(errors.error) ? errors.error[0] : errors.error);
+                } else {
+                    // Show first validation error
+                    const firstErrorKey = Object.keys(errors)[0];
+                    if (firstErrorKey) {
+                        const firstError = errors[firstErrorKey];
+                        setSyncFeedback(Array.isArray(firstError) ? firstError[0] : String(firstError));
+                    } else {
+                        setSyncFeedback('Failed to update booking. Please check all fields.');
+                    }
                 }
             }
         });
@@ -516,11 +533,11 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
     // Calculate payment impact
     const paymentImpact = useMemo(() => {
         if (!rateCalculation) return null;
-        
+
         const originalAmount = booking.total_amount || 0;
         const newAmount = manualRateOverride ? overrideAmount : rateCalculation.total_amount;
         const difference = newAmount - originalAmount;
-        
+
         return {
             originalAmount,
             newAmount,
@@ -558,7 +575,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                         <AlertDescription>{syncFeedback}</AlertDescription>
                                     </Alert>
                                 )}
-                                
+
                                 {/* Validation Alert */}
                                 {validationMessages.length > 0 && (
                                     <Alert variant="destructive" className="mb-6">
@@ -578,8 +595,8 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                     {/* Property Selection */}
                                     <div>
                                         <Label htmlFor="property_id">Select Property *</Label>
-                                        <Select 
-                                            value={data.property_id} 
+                                        <Select
+                                            value={data.property_id}
                                             onValueChange={handlePropertyChange}
                                         >
                                             <SelectTrigger className={errors.property_id ? 'border-red-500' : ''}>
@@ -606,8 +623,8 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                         <div className="bg-slate-50 p-4 rounded-lg">
                                             <div className="flex items-start gap-3">
                                                 {currentProperty.cover_image && (
-                                                    <img 
-                                                        src={currentProperty.cover_image} 
+                                                    <img
+                                                        src={currentProperty.cover_image}
                                                         alt={currentProperty.name}
                                                         className="w-16 h-16 rounded-lg object-cover"
                                                     />
@@ -658,7 +675,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                 {errors.check_in_date || errors.check_out_date}
                                             </p>
                                         )}
-                                        
+
                                         {/* Enhanced Availability Status */}
                                         {availabilityStatus && (
                                             <div className="mt-2">
@@ -670,7 +687,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
-                                                
+
                                                 {availabilityStatus === 'available' && (
                                                     <Alert className="border-green-200 bg-green-50">
                                                         <CheckCircle className="h-4 w-4 text-green-600" />
@@ -679,7 +696,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
-                                                
+
                                                 {availabilityStatus === 'unavailable' && (
                                                     <Alert variant="destructive">
                                                         <AlertCircle className="h-4 w-4" />
@@ -698,7 +715,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                             <Users className="h-5 w-5 text-brand-primary" />
                                             <h3 className="text-lg font-semibold">Guest Count</h3>
                                         </div>
-                                        
+
                                         <div className="grid grid-cols-3 sm:grid-cols-3 gap-4 mb-4">
                                             <div className="space-y-2">
                                                 <Label htmlFor="guest_count_male">Male Adults</Label>
@@ -706,8 +723,8 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                     id="guest_count_male"
                                                     type="number"
                                                     min="0"
-                                                    value={data.guest_male}
-                                                    onChange={(e) => handleGenderCountChange('male', parseInt(e.target.value) || 0)}
+                                                    value={data.guest_male ?? 0}
+                                                    onChange={(e) => handleGenderCountChange('male', e.target.value)}
                                                     className={errors.guest_male ? 'border-red-500' : ''}
                                                 />
                                                 {errors.guest_male && (
@@ -720,8 +737,8 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                     id="guest_count_female"
                                                     type="number"
                                                     min="0"
-                                                    value={data.guest_female}
-                                                    onChange={(e) => handleGenderCountChange('female', parseInt(e.target.value) || 0)}
+                                                    value={data.guest_female ?? 0}
+                                                    onChange={(e) => handleGenderCountChange('female', e.target.value)}
                                                     className={errors.guest_female ? 'border-red-500' : ''}
                                                 />
                                                 {errors.guest_female && (
@@ -734,8 +751,8 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                     id="guest_count_children"
                                                     type="number"
                                                     min="0"
-                                                    value={data.guest_children}
-                                                    onChange={(e) => handleGenderCountChange('children', parseInt(e.target.value) || 0)}
+                                                    value={data.guest_children ?? 0}
+                                                    onChange={(e) => handleGenderCountChange('children', e.target.value)}
                                                     className={errors.guest_children ? 'border-red-500' : ''}
                                                 />
                                                 {errors.guest_children && (
@@ -757,7 +774,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                     Property Capacity: {currentProperty.capacity} - {currentProperty.capacity_max} guests
                                                 </div>
                                             )}
-                                            
+
                                             {extraBeds > 0 && currentProperty && currentProperty.extra_bed_rate && (
                                                 <div className="mt-2 flex items-center gap-2 text-sm">
                                                     <Bed className="h-4 w-4 text-brand-primary" />
@@ -792,8 +809,8 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                             </div>
                                             <div>
                                                 <Label htmlFor="guest_gender">Gender *</Label>
-                                                <Select 
-                                                    value={data.guest_gender} 
+                                                <Select
+                                                    value={data.guest_gender}
                                                     onValueChange={(value: 'male' | 'female') => setData('guest_gender', value)}
                                                 >
                                                     <SelectTrigger className={errors.guest_gender ? 'border-red-500' : ''}>
@@ -841,8 +858,8 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                             </div>
                                             <div>
                                                 <Label htmlFor="guest_country">Country *</Label>
-                                                <Select 
-                                                    value={data.guest_country} 
+                                                <Select
+                                                    value={data.guest_country}
                                                     onValueChange={(value) => setData('guest_country', value)}
                                                 >
                                                     <SelectTrigger className={errors.guest_country ? 'border-red-500' : ''}>
@@ -867,15 +884,15 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                 <Input
                                                     id="guest_id_number"
                                                     type="text"
-                                                    value={data.guest_id_number}
+                                                    value={data.guest_id_number || ''}
                                                     onChange={(e) => setData('guest_id_number', e.target.value)}
                                                     placeholder="KTP/Passport number"
                                                 />
                                             </div>
                                             <div>
                                                 <Label htmlFor="relationship_type">Relationship Type *</Label>
-                                                <Select 
-                                                    value={data.relationship_type} 
+                                                <Select
+                                                    value={data.relationship_type}
                                                     onValueChange={(value: any) => setData('relationship_type', value)}
                                                 >
                                                     <SelectTrigger className={errors.relationship_type ? 'border-red-500' : ''}>
@@ -906,7 +923,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                 <h3 className="text-lg font-semibold">Rate Comparison</h3>
                                                 <Badge variant="outline">Changes Detected</Badge>
                                             </div>
-                                            
+
                                             <div className="space-y-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
                                                 <div className="grid md:grid-cols-2 gap-4">
                                                     <div className="text-sm">
@@ -919,7 +936,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                             <span>{booking.nights || 0}</span>
                                                         </div>
                                                     </div>
-                                                    
+
                                                     <div className="text-sm">
                                                         <div className="flex justify-between mb-2">
                                                             <span className="font-medium">New Calculated Rate:</span>
@@ -933,7 +950,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                         </div>
                                                     </div>
                                                 </div>
-                                                
+
                                                 {paymentImpact && (
                                                     <div className="pt-2 border-t border-orange-300">
                                                         <div className="flex justify-between items-center">
@@ -959,7 +976,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                             <Calculator className="h-5 w-5 text-brand-primary" />
                                             <h3 className="text-lg font-semibold">Rate Adjustment</h3>
                                         </div>
-                                        
+
                                         <div className="space-y-4">
                                             <div className="flex items-center space-x-2">
                                                 <input
@@ -973,7 +990,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                     Manual Rate Adjustment
                                                 </Label>
                                             </div>
-                                            
+
                                             {manualRateOverride && (
                                                 <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                                                     {rateCalculation && (
@@ -984,7 +1001,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                             </div>
                                                         </div>
                                                     )}
-                                                    
+
                                                     <div>
                                                         <Label htmlFor="override_amount">Override Amount *</Label>
                                                         <Input
@@ -996,7 +1013,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                             placeholder="Enter custom amount"
                                                         />
                                                     </div>
-                                                    
+
                                                     <div>
                                                         <Label htmlFor="override_reason">Adjustment Reason *</Label>
                                                         <Textarea
@@ -1007,7 +1024,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                             placeholder="e.g., Early bird discount, Repeat customer, Special promotion..."
                                                         />
                                                     </div>
-                                                    
+
                                                     {rateCalculation && overrideAmount > 0 && (
                                                         <div className="text-sm">
                                                             <div className="flex justify-between">
@@ -1104,12 +1121,14 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                         </div>
                                     </div>
 
+                                    <Separator />
+
                                     {/* Special Requests */}
                                     <div>
                                         <Label htmlFor="special_requests">Special Requests (Optional)</Label>
                                         <Textarea
                                             id="special_requests"
-                                            value={data.special_requests}
+                                            value={data.special_requests || ''}
                                             onChange={(e) => setData('special_requests', e.target.value)}
                                             rows={3}
                                             placeholder="Any special requests or notes..."
@@ -1121,7 +1140,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                         <Label htmlFor="internal_notes">Internal Notes (Optional)</Label>
                                         <Textarea
                                             id="internal_notes"
-                                            value={data.internal_notes}
+                                            value={data.internal_notes || ''}
                                             onChange={(e) => setData('internal_notes', e.target.value)}
                                             rows={3}
                                             placeholder="Internal notes for staff..."
@@ -1129,8 +1148,8 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                     </div>
 
                                     <div className="flex justify-end pt-4">
-                                        <Button 
-                                            type="submit" 
+                                        <Button
+                                            type="submit"
                                             disabled={!canSubmit || processing}
                                             className="px-8"
                                         >
@@ -1194,14 +1213,14 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                 <div className="text-sm text-gray-600 mt-1">
                                                     for {rateCalculation.nights} nights • {rateCalculation.formatted.per_night}/night
                                                 </div>
-                                                
+
                                                 {(rateCalculation.seasonal_premium || 0) > 0 && (
                                                     <div className="text-xs text-green-600 mt-2 flex items-center justify-center">
                                                         <Sparkles className="h-3 w-3 mr-1" />
                                                         Special seasonal rates applied
                                                     </div>
                                                 )}
-                                                
+
                                                 {(rateCalculation.weekend_premium || 0) > 0 && (
                                                     <div className="text-xs text-amber-600 mt-1 flex items-center justify-center">
                                                         <Tag className="h-3 w-3 mr-1" />
@@ -1216,40 +1235,40 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                     <span>Base Rate ({rateCalculation.nights} nights)</span>
                                                     <span>{formatCurrency(rateCalculation.base_amount)}</span>
                                                 </div>
-                                                
+
                                                 {rateCalculation.weekend_premium > 0 && (
                                                     <div className="flex justify-between text-amber-600">
                                                         <span>Weekend Premium</span>
                                                         <span>+{formatCurrency(rateCalculation.weekend_premium)}</span>
                                                     </div>
                                                 )}
-                                                
+
                                                 {rateCalculation.seasonal_premium > 0 && (
                                                     <div className="flex justify-between text-green-600">
                                                         <span>Seasonal Premium</span>
                                                         <span>+{formatCurrency(rateCalculation.seasonal_premium)}</span>
                                                     </div>
                                                 )}
-                                                
+
                                                 {rateCalculation.extra_bed_amount > 0 && (
                                                     <div className="flex justify-between">
                                                         <span>Extra Beds ({rateCalculation.extra_beds})</span>
                                                         <span>+{formatCurrency(rateCalculation.extra_bed_amount)}</span>
                                                     </div>
                                                 )}
-                                                
+
                                                 <div className="flex justify-between">
                                                     <span>Cleaning Fee</span>
                                                     <span>{formatCurrency(rateCalculation.cleaning_fee)}</span>
                                                 </div>
-                                                
+
                                                 <div className="flex justify-between">
                                                     <span>Tax (0%)</span>
                                                     <span>{formatCurrency(rateCalculation.tax_amount)}</span>
                                                 </div>
-                                                
+
                                                 <Separator />
-                                                
+
                                                 <div className="flex justify-between font-semibold text-base">
                                                     <span>Total</span>
                                                     <span>{formatCurrency(rateCalculation.total_amount)}</span>
@@ -1321,11 +1340,11 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                     <div className="flex justify-between">
                                         <span>Payment:</span>
                                         <Badge variant={
-                                            data.payment_status === 'fully_paid' ? 'default' : 
-                                            data.payment_status === 'dp_received' ? 'secondary' : 'destructive'
+                                            data.payment_status === 'fully_paid' ? 'default' :
+                                                data.payment_status === 'dp_received' ? 'secondary' : 'destructive'
                                         }>
-                                            {data.payment_status === 'fully_paid' ? 'Fully Paid' : 
-                                             data.payment_status === 'dp_received' ? 'DP Received' : 'DP Pending'}
+                                            {data.payment_status === 'fully_paid' ? 'Fully Paid' :
+                                                data.payment_status === 'dp_received' ? 'DP Received' : 'DP Pending'}
                                         </Badge>
                                     </div>
                                 </div>

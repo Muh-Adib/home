@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Head, Link, usePage, router } from '@inertiajs/react';
 import GuestLayout from '@/layouts/guest-layout';
 import { Button } from '@/components/ui/button';
@@ -6,39 +6,20 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import {
-    Building2,
     MapPin,
-    Users,
-    Bed,
-    Bath,
     Star,
     ArrowRight,
     Search,
-    Calendar,
-    CreditCard,
     Shield,
     Sparkles,
-    Heart,
     Award,
-    CheckCircle,
-    TrendingUp,
-    Sun,
-    Moon,
     Crown,
-    Coffee,
-    Camera,
-    Play,
-    Clock,
-    Wifi,
-    Car,
-    Utensils,
     Quote,
     User
 } from 'lucide-react';
 import { type SharedData } from '@/types';
 import { useTranslation } from 'react-i18next';
 import { Property } from '@/types/property';
-import { formatCurrency } from '@/utils/formatCurrency';
 
 // Import new components
 import HeroSlideshow from '@/components/ui/hero-slideshow';
@@ -78,13 +59,13 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
         guests: number;
     }) => {
         setSearchLoading(true);
-        
+
         const searchParams = new URLSearchParams({
             check_in: params.checkIn,
             check_out: params.checkOut,
             guests: params.guests.toString()
         });
-        
+
         try {
             await router.visit(`/properties?${searchParams.toString()}`);
         } finally {
@@ -123,9 +104,9 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
             <div className="min-h-screen bg-background">
                 {/* Hero Section - Enhanced with Swiper */}
-                <section className="hero-section relative min-h-screen flex items-center justify-center overflow-hidden" style={{marginTop: '-10vh'}}>
+                <section className="hero-section relative min-h-screen flex items-center justify-center overflow-hidden" style={{ marginTop: '-10vh' }}>
                     {/* Background Slideshow - Z-index 0 (paling belakang) */}
-                    <HeroSlideshow 
+                    <HeroSlideshow
                         images={slideshowImages}
                         autoPlay={true}
                         interval={6000}
@@ -136,13 +117,13 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
                     {/* Content Container - Z-index 10 (di atas slideshow) */}
                     <div className="container mx-auto px-6 relative z-10 text-center pt-20">
-                        <motion.div 
+                        <motion.div
                             className="hero-content max-w-4xl mx-auto"
                             initial={{ opacity: 0, y: 50 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.8, delay: 0.2 }}
                         >
-                            
+
                             {/* Modern Badge */}
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
@@ -155,9 +136,9 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                     Homestay Terpercaya di Jogja
                                 </Badge>
                             </motion.div>
-                            
+
                             {/* Modern Typography */}
-                            <motion.div 
+                            <motion.div
                                 className="text-center mb-8"
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -170,7 +151,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                     </span>
                                     <span className="block font-light">Impian Anda</span>
                                 </h1>
-                                
+
                                 {/* Subtitle */}
                                 <div className="text-xl md:text-2xl text-white/80 font-light tracking-wide">
                                     <span className="block">Pengalaman menginap yang tak terlupakan</span>
@@ -179,15 +160,15 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                             </motion.div>
 
                             {/* Enhanced Description */}
-                            <motion.div 
+                            <motion.div
                                 className="max-w-3xl mx-auto mb-12"
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.6, delay: 0.8 }}
                             >
                                 <p className="text-lg text-white/90 leading-relaxed text-center">
-                                    Dari dekat Malioboro hingga Taman Sari, rasakan kehangatan 
-                                    <span className="text-brand-accent font-medium"> hospitality Jogja</span> yang autentik. 
+                                    Dari dekat Malioboro hingga Taman Sari, rasakan kehangatan
+                                    <span className="text-brand-accent font-medium"> hospitality Jogja</span> yang autentik.
                                     Setiap homestay menawarkan pengalaman unik yang tak terlupakan.
                                 </p>
                             </motion.div>
@@ -199,17 +180,17 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                 transition={{ duration: 0.8, delay: 1.0 }}
                                 className="max-w-4xl mx-auto"
                             >
-                                <HeroSearchBar 
+                                <HeroSearchBar
                                     onSearch={handleQuickSearch}
                                     loading={searchLoading}
                                 />
                             </motion.div>
                         </motion.div>
-                        </div>
+                    </div>
                 </section>
 
                 {/* Stats Section - Enhanced with animations */}
-                <motion.section 
+                <motion.section
                     className="py-20 bg-brand-accent-50"
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
@@ -224,7 +205,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                 { value: "98%", label: "Rating Positif", color: "text-primary" },
                                 { value: "24/7", label: "Dukungan", color: "text-primary" }
                             ].map((stat, index) => (
-                                <motion.div 
+                                <motion.div
                                     key={index}
                                     className="space-y-3"
                                     initial={{ opacity: 0, y: 20 }}
@@ -241,7 +222,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                 </motion.section>
 
                 {/* Features Section - Enhanced with scroll animations */}
-                <motion.section 
+                <motion.section
                     className="py-20 bg-background"
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
@@ -249,7 +230,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                     viewport={{ once: true }}
                 >
                     <div className="container mx-auto px-6">
-                        <motion.div 
+                        <motion.div
                             className="text-center mb-16"
                             initial={{ opacity: 0, y: 30 }}
                             whileInView={{ opacity: 1, y: 0 }}
@@ -288,7 +269,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                     iconColor: "text-purple-600"
                                 }
                             ].map((feature, index) => (
-                                <motion.div 
+                                <motion.div
                                     key={index}
                                     className="text-center space-y-6"
                                     initial={{ opacity: 0, y: 30 }}
@@ -298,11 +279,11 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                 >
                                     <div className={`w-20 h-20 bg-gradient-to-br ${feature.color} rounded-2xl flex items-center justify-center mx-auto`}>
                                         <feature.icon className={`h-10 w-10 ${feature.iconColor}`} />
-                                </div>
-                                <h3 className="text-2xl font-bold text-foreground">
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-foreground">
                                         {feature.title}
-                                </h3>
-                                <p className="text-muted-foreground leading-relaxed">
+                                    </h3>
+                                    <p className="text-muted-foreground leading-relaxed">
                                         {feature.description}
                                     </p>
                                 </motion.div>
@@ -313,43 +294,43 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
                 {/* Featured Properties - Enhanced with new cards */}
                 {featuredProperties.length > 0 && (
-                                    <motion.section 
-                    className="py-20 bg-muted"
-                    initial={{ opacity: 0 }}
-                    whileInView={{ opacity: 1 }}
-                    transition={{ duration: 0.6 }}
-                    viewport={{ once: true }}
-                >
-                    <div className="container mx-auto px-6">
-                        <motion.div 
-                            className="text-center mb-16"
-                            initial={{ opacity: 0, y: 30 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6 }}
-                            viewport={{ once: true }}
-                        >
-                            <Badge className="mb-6 bg-background text-primary border border-border px-4 py-2">
-                                <Star className="h-4 w-4 mr-2" />
-                                Pilihan Terbaik
-                            </Badge>
-                            <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
-                                Homestay Terfavorit
-                            </h2>
-                            <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-light">
-                                Koleksi terbaik homestay dengan citarasa Jogja yang autentik
-                            </p>
-                        </motion.div>
+                    <motion.section
+                        className="py-20 bg-muted"
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        transition={{ duration: 0.6 }}
+                        viewport={{ once: true }}
+                    >
+                        <div className="container mx-auto px-6">
+                            <motion.div
+                                className="text-center mb-16"
+                                initial={{ opacity: 0, y: 30 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.6 }}
+                                viewport={{ once: true }}
+                            >
+                                <Badge className="mb-6 bg-background text-primary border border-border px-4 py-2">
+                                    <Star className="h-4 w-4 mr-2" />
+                                    Pilihan Terbaik
+                                </Badge>
+                                <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
+                                    Homestay Terfavorit
+                                </h2>
+                                <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-light">
+                                    Koleksi terbaik homestay dengan citarasa Jogja yang autentik
+                                </p>
+                            </motion.div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
                                 {featuredProperties.slice(0, 6).map((property, index) => (
                                     <motion.div
-                                        key={property.id} 
+                                        key={property.id}
                                         initial={{ opacity: 0, y: 30 }}
                                         whileInView={{ opacity: 1, y: 0 }}
                                         transition={{ duration: 0.6, delay: index * 0.1 }}
                                         viewport={{ once: true }}
                                     >
-                                        <PropertyCardEnhanced 
+                                        <PropertyCardEnhanced
                                             property={property}
                                             showLocationBadge={true}
                                             showRating={true}
@@ -358,7 +339,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                 ))}
                             </div>
 
-                            <motion.div 
+                            <motion.div
                                 className="text-center mt-16"
                                 initial={{ opacity: 0, y: 20 }}
                                 whileInView={{ opacity: 1, y: 0 }}
@@ -377,7 +358,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                 )}
 
                 {/* Testimonials Section - New */}
-                <motion.section 
+                <motion.section
                     className="py-20 bg-brand-accent-50"
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
@@ -385,7 +366,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                     viewport={{ once: true }}
                 >
                     <div className="container mx-auto px-6">
-                        <motion.div 
+                        <motion.div
                             className="text-center mb-16"
                             initial={{ opacity: 0, y: 30 }}
                             whileInView={{ opacity: 1, y: 0 }}
@@ -438,7 +419,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                 </motion.section>
 
                 {/* Properties Map Section */}
-                <motion.section 
+                <motion.section
                     className="py-20 bg-gray-50"
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
@@ -464,7 +445,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                 Jelajahi peta interaktif untuk menemukan homestay terbaik di berbagai lokasi strategis di Yogyakarta
                             </p>
                         </motion.div>
-                        
+
                         <motion.div
                             initial={{ opacity: 0, y: 30 }}
                             whileInView={{ opacity: 1, y: 0 }}
@@ -478,7 +459,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                 </motion.section>
 
                 {/* CTA Section - Enhanced with background illustration */}
-                <motion.section 
+                <motion.section
                     className="py-20 bg-brand-primary text-white relative overflow-hidden"
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
@@ -494,7 +475,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                     </div>
 
                     <div className="container mx-auto px-6 text-center relative z-10">
-                        <motion.div 
+                        <motion.div
                             className="max-w-4xl mx-auto"
                             initial={{ opacity: 0, y: 30 }}
                             whileInView={{ opacity: 1, y: 0 }}
@@ -502,20 +483,20 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                             viewport={{ once: true }}
                         >
                             <Badge className="mb-8 bg-white/20 text-white border-white/30 backdrop-blur-sm">
-  <Sparkles className="h-4 w-4 mr-2" />
-  Temukan Kenyamanan Ala Jogja
-</Badge>
+                                <Sparkles className="h-4 w-4 mr-2" />
+                                Temukan Kenyamanan Ala Jogja
+                            </Badge>
 
-<h2 className="text-4xl md:text-6xl font-bold mb-8">
-  Dari Homestay ke Villa,
-  <span className="block mt-2">Semua Ada di Homsjogja</span>
-</h2>
+                            <h2 className="text-4xl md:text-6xl font-bold mb-8">
+                                Dari Homestay ke Villa,
+                                <span className="block mt-2">Semua Ada di Homsjogja</span>
+                            </h2>
 
-<p className="text-xl mb-12 opacity-90 leading-relaxed max-w-2xl mx-auto">
-  Setiap tempat membawa cerita, setiap inap menghadirkan kehangatan.  
-  Bersama Homsjogja, rasakan keramahan Jogja di setiap perjalanan Anda.
-</p>
-                            
+                            <p className="text-xl mb-12 opacity-90 leading-relaxed max-w-2xl mx-auto">
+                                Setiap tempat membawa cerita, setiap inap menghadirkan kehangatan.
+                                Bersama Homsjogja, rasakan keramahan Jogja di setiap perjalanan Anda.
+                            </p>
+
                             <div className="flex flex-col sm:flex-row gap-4 justify-center">
                                 {!auth.user ? (
                                     <>
