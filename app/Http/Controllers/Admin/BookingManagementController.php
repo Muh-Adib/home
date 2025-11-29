@@ -1111,21 +1111,13 @@ class BookingManagementController extends Controller
             'dp_percentage' => 'required|integer|in:30,50,70,100',
             'check_in_time' => 'required|string',
             'source' => 'required|in:direct,phone,walk_in,ota',
-            // Payment fields
-            'payment_method_id' => 'nullable|exists:payment_methods,id',
-            'payment_amount' => 'nullable|numeric|min:0',
-            'payment_date' => 'nullable|date',
-            'reference_number' => 'nullable|string|max:100',
-            'bank_name' => 'nullable|string|max:255',
-            'account_number' => 'nullable|string|max:100',
-            'account_name' => 'nullable|string|max:255',
-            'verification_notes' => 'nullable|string|max:1000',
+
             // Rate override fields
             'rate_override' => 'nullable|boolean',
             'override_amount' => 'nullable|numeric|min:0',
             'override_reason' => 'nullable|string|max:500',
         ]);
-        dd($validated);
+
         // Additional validation rules
         $this->validateBookingRules($validated, $request);
 
@@ -1243,38 +1235,6 @@ class BookingManagementController extends Controller
                     'updated_by' => $user->id,
                     'updated_by_name' => $user->name,
                 ]);
-            }
-            
-            // Create payment if payment data provided
-            if (!empty($validated['payment_method_id']) && !empty($validated['payment_amount']) && $validated['payment_amount'] > 0) {
-                $paymentMethod = \App\Models\PaymentMethod::findOrFail($validated['payment_method_id']);
-                
-                // Determine payment status - use 'verified' as default for admin-created payments
-                $paymentStatus = 'verified'; // Admin-created payments are auto-verified
-                
-                $payment = $booking->payments()->create([
-                    'payment_method_id' => $validated['payment_method_id'],
-                    'payment_number' => \App\Models\Payment::generatePaymentNumber(),
-                    'amount' => $validated['payment_amount'],
-                    'payment_type' => 'dp',
-                    'payment_method' => $paymentMethod->type,
-                    'payment_status' => $paymentStatus,
-                    'payment_date' => $validated['payment_date'] ?: now(),
-                    'reference_number' => $validated['reference_number'] ?? null,
-                    'bank_name' => $validated['bank_name'] ?? $paymentMethod->bank_name,
-                    'account_number' => $validated['account_number'] ?? null,
-                    'account_name' => $validated['account_name'] ?? null,
-                    'verification_notes' => $validated['verification_notes'] ?? null,
-                    'processed_by' => $user->id,
-                    'verified_by' => $user->id,
-                    'verified_at' => now(),
-                ]);
-
-                // Update booking payment status
-                $booking->updatePaymentStatus();
-
-                // Sinkronkan income jika payment verified
-                app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
             }
             
             // Create workflow entry for edit
