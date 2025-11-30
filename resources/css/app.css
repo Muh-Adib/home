@@ -386,37 +386,16 @@
   .hero-text-shadow-lg {
     text-shadow: 4px 4px 8px rgba(0,0,0,0.9);
   }
-  
-  /* Line clamp utilities */
-  .line-clamp-1 {
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 1;
-    line-clamp:1;
-  }
-  .line-clamp-2 {
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp:2;
-  }
-  .line-clamp-3 {
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-  }
 
   /* Animation utilities */
   .animate-fade-in {
     animation: fadeIn 0.6s ease-in-out;
   }
+
   .animate-slide-up {
     animation: slideUp 0.6s ease-out;
   }
+  
   .animate-scale-in {
     animation: scaleIn 0.4s ease-out;
   }

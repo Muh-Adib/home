@@ -159,7 +159,7 @@ export default function PropertyCardEnhanced({
               </div>
 
               {/* Deskripsi */}
-              <p className="hidden md:block text-muted-foreground text-sm line-clamp-2" title={property.description}>
+              <p className="hidden md:line-clamp-3 text-muted-foreground text-sm leading-relaxed" title={property.description}>
                 {property.description}
               </p>
             </div>
