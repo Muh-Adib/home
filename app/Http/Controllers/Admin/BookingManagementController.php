@@ -1072,10 +1072,25 @@ class BookingManagementController extends Controller
         // Get payment methods for inline payment form
         $paymentMethods = \App\Models\PaymentMethod::active()->get();
 
+        // Get active service masters for extra services
+        $serviceMasters = \App\Models\ServiceMaster::active()->ordered()->get()->map(function ($service) {
+            return [
+                'id' => $service->id,
+                'name' => $service->name,
+                'description' => $service->description,
+                'service_type' => $service->service_type,
+                'service_type_label' => $service->getServiceTypeLabel(),
+                'unit_price' => (float) $service->unit_price,
+                'thumbnail_url' => $service->thumbnail_url,
+                'is_active' => $service->is_active,
+            ];
+        });
+
         return Inertia::render('Admin/Bookings/Edit', [
             'booking' => $booking,
             'properties' => $properties,
             'paymentMethods' => $paymentMethods,
+            'serviceMasters' => $serviceMasters,
         ]);
     }
 
@@ -1106,17 +1121,31 @@ class BookingManagementController extends Controller
             'relationship_type' => 'required|in:keluarga,teman,kolega,pasangan,campuran',
             'special_requests' => 'nullable|string|max:1000',
             'internal_notes' => 'nullable|string|max:1000',
-            'booking_status' => 'required|in:pending_verification,confirmed',
+            'booking_status' => 'required|in:pending_verification,confirmed,cancelled,checked_in,checked_out,no_show',
             'payment_status' => 'nullable|in:dp_pending,dp_received,fully_paid',
             'dp_percentage' => 'required|integer|in:30,50,70,100',
             'check_in_time' => 'required|string',
             'source' => 'required|in:direct,phone,walk_in,ota',
-
-            // Rate override fields
+        // Rate override fields
             'rate_override' => 'nullable|boolean',
             'override_amount' => 'nullable|numeric|min:0',
             'override_reason' => 'nullable|string|max:500',
+            // Extra services - validate only if services array exists and is not empty
+            'services' => 'nullable|array',
         ]);
+
+        // Add services validation only if services array is not empty
+        $services = $request->input('services');
+        if (!empty($services) && is_array($services) && count($services) > 0) {
+            $request->validate([
+                'services.*.service_master_id' => 'nullable|exists:service_masters,id',
+                'services.*.service_name' => 'required|string|max:255',
+                'services.*.service_type' => 'required|string',
+                'services.*.quantity' => 'required|integer|min:1',
+                'services.*.unit_price' => 'required|numeric|min:0',
+                'services.*.total_price' => 'required|numeric|min:0',
+            ]);
+        }
 
         // Additional validation rules
         $this->validateBookingRules($validated, $request);
@@ -1192,6 +1221,22 @@ class BookingManagementController extends Controller
                 $updateData['base_amount'] = $rateCalculation->baseAmount;
                 $updateData['extra_bed_amount'] = $rateCalculation->extraBedAmount;
                 $updateData['nights'] = $rateCalculation->nights;
+
+                // Sync BookingDailyRevenue
+                // Delete existing daily revenue records
+                $booking->dailyRevenues()->delete();
+
+                // Create new daily revenue records from breakdown
+                if (isset($rateCalculation->breakdown['daily_breakdown'])) {
+                    foreach ($rateCalculation->breakdown['daily_breakdown'] as $date => $dailyData) {
+                        \App\Models\BookingDailyRevenue::create([
+                            'booking_id' => $booking->id,
+                            'property_id' => $property->id,
+                            'tanggal' => $dailyData['date'],
+                            'amount' => $dailyData['final_rate'],
+                        ]);
+                    }
+                }
             } elseif ($validated['rate_override']) {
                 $updateData['total_amount'] = $validated['override_amount'];
                 
@@ -1200,6 +1245,85 @@ class BookingManagementController extends Controller
                     "[" . now() . "] Rate override by " . $user->name . 
                     ": " . $validated['override_reason'] . 
                     " (Original: " . $booking->total_amount . ", New: " . $validated['override_amount'] . ")";
+                
+                // Note: For manual override, we might not have a daily breakdown.
+                // We could either delete daily revenues or try to distribute the amount.
+                // For now, let's keep it simple and maybe just not update daily revenue or clear it?
+                // If we clear it, reports might be wrong.
+                // Ideally we should distribute it, but that's complex.
+                // Let's leave it as is for override, or maybe warn user.
+                // But if dates changed AND override is used, the old daily revenue is definitely wrong (dates mismatch).
+                
+                if ($needsRecalculation) {
+                    // If dates changed, we MUST update daily revenue to match new dates.
+                    // Since it's an override, we can distribute the override amount evenly or just set zero?
+                    // Let's distribute evenly for now to keep reports somewhat sane.
+                    $booking->dailyRevenues()->delete();
+                    
+                    $nights = \Carbon\Carbon::parse($validated['check_in_date'])
+                        ->diffInDays(\Carbon\Carbon::parse($validated['check_out_date']));
+                    
+                    if ($nights > 0) {
+                        $dailyAmount = $validated['override_amount'] / $nights;
+                        $startDate = \Carbon\Carbon::parse($validated['check_in_date']);
+                        
+                        for ($i = 0; $i < $nights; $i++) {
+                            \App\Models\BookingDailyRevenue::create([
+                                'booking_id' => $booking->id,
+                                'property_id' => $property->id,
+                                'tanggal' => $startDate->copy()->addDays($i)->format('Y-m-d'),
+                                'amount' => $dailyAmount,
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            // Sync Services
+            $servicesTotal = 0;
+            if (isset($services)) { // Check if services field was present in request
+                // Remove existing services
+                $booking->services()->delete();
+                
+                if (!empty($services) && is_array($services)) {
+                    foreach ($services as $serviceData) {
+                        $bookingService = \App\Models\BookingService::create([
+                            'booking_id' => $booking->id,
+                            'service_master_id' => $serviceData['service_master_id'] ?? null,
+                            'service_name' => $serviceData['service_name'],
+                            'service_type' => $serviceData['service_type'],
+                            'quantity' => $serviceData['quantity'],
+                            'unit_price' => $serviceData['unit_price'],
+                            'total_price' => $serviceData['total_price'],
+                        ]);
+                        $servicesTotal += $bookingService->total_price;
+                    }
+                }
+            } else {
+                // If services not in request, keep existing services and calculate their total
+                $servicesTotal = $booking->services()->sum('total_price');
+            }
+
+            // Update total amount with services
+            if (isset($updateData['total_amount'])) {
+                $updateData['total_amount'] += $servicesTotal;
+            } else {
+                // If total_amount wasn't recalculated (no changes to dates/guests and no override),
+                // we still need to update it if services changed.
+                
+                if (!$needsRecalculation && !$validated['rate_override']) {
+                     // Recalculate base to be safe and ensure consistency
+                     $rateCalculation = $this->rateCalculationService->calculateRate(
+                        $property,
+                        $validated['check_in_date'],
+                        $validated['check_out_date'],
+                        $validated['guest_male'] + $validated['guest_female'] + $validated['guest_children']
+                    );
+                    $updateData['total_amount'] = $rateCalculation->totalAmount + $servicesTotal;
+                } else {
+                    // If we did recalculate or override, we already set total_amount (base), so add services
+                    $updateData['total_amount'] += $servicesTotal;
+                }
             }
             
             // Recalculate DP and remaining amount
@@ -1239,7 +1363,7 @@ class BookingManagementController extends Controller
             
             // Create workflow entry for edit
             $booking->workflow()->create([
-                'step' => 'edited',
+                'step' => 'staff_review',
                 'status' => 'completed',
                 'processed_by' => $user->id,
                 'processed_at' => now(),

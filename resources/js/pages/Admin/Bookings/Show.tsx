@@ -38,7 +38,7 @@ import {
     Zap,
     Send,
     Link as LinkIcon,
-    Loader2, X
+    Loader2,
 } from 'lucide-react';
 import RateBreakdownCard from '@/components/booking/RateBreakdownCard';
 
@@ -133,6 +133,10 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
         patchVerify(`/admin/bookings/${booking.booking_number}/checkout`);
     };
 
+    const handleEdit = () => {
+        router.get(`/admin/bookings/${booking.booking_number}/edit`);
+    };
+
     const formatCurrency = (value: number) =>
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 
@@ -176,6 +180,7 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
     const canCancel = ['pending', 'confirmed'].includes(booking.booking_status);
     const canCheckIn = booking.payment_status === 'fully_paid';
     const canCheckOut = booking.booking_status === 'checked_in';
+    const canEdit = auth?.user?.role === 'super_admin';
     const canDelete = auth?.user?.role === 'super_admin';
     const requiresExtraConfirmation = ['checked_in', 'confirmed', 'fully_paid'].includes(booking.booking_status) || booking.payment_status === 'fully_paid';
 
@@ -201,7 +206,7 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
 
             <div className="space-y-6 p-4 md:p-6">
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex flex-col gap-2">
                     <div>
                         <div className="flex items-center gap-3 mb-2">
                             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{booking.booking_number}</h1>
@@ -250,7 +255,7 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                 <DialogTrigger asChild>
                                     <Button>
                                         <CheckCircle className="h-4 w-4" />
-                                        <span className="ml-2">Verify Booking</span>
+                                        <span className="ml-2">Verify</span>
                                     </Button>
                                 </DialogTrigger>
 
@@ -303,12 +308,18 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                             </Dialog>
 
                         )}
+                        {canEdit && (
+                            <Button onClick={handleEdit} disabled={verifyProcessing}>
+                                <Edit className="h-4 w-4" />
+                                <span className="ml-2 hidden sm:inline">Edit</span>
+                            </Button>
+                        )}
                         {canCancel && (
                             <Dialog>
                                 <DialogTrigger asChild>
                                     <Button variant="destructive">
                                         <XCircle className="h-4 w-4 mr-2" />
-                                        <span className="ml-2 hidden sm:inline">Cancel Booking</span>
+                                        <span className="ml-2 hidden sm:inline">Cancel</span>
                                     </Button>
                                 </DialogTrigger>
 
@@ -368,7 +379,7 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                 <DialogTrigger asChild>
                                     <Button variant="destructive">
                                         <Trash2 className="h-4 w-4" />
-                                        <span className="ml-2 hidden sm:inline">Delete Booking</span>
+                                        <span className="ml-2 hidden sm:inline">Delete</span>
                                     </Button>
                                 </DialogTrigger>
 

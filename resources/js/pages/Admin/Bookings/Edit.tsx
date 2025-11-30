@@ -11,43 +11,28 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { DateRange } from '@/components/ui/date-range';
 import {
-    CalendarDays,
     Users,
     DollarSign,
     CheckCircle,
     AlertCircle,
     Building2,
-    Phone,
-    Mail,
-    Globe,
-    IdCard,
-    User,
     Edit,
     Bed,
-    Clock,
     Calculator,
-    RefreshCw,
     Info,
     Sparkles,
     Tag,
-    Percent,
-    CreditCard,
-    Shield,
-    Calendar,
-    TrendingUp,
-    TrendingDown,
-    Activity,
+    AlertTriangle,
     Loader2,
     Save,
-    FileText,
-    Eye,
-    ArrowUpDown,
-    AlertTriangle
+    ArrowUpDown
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { type BreadcrumbItem, type Booking, type Property } from '@/types';
 import AdminLayout from '@/layouts/admin-layout';
 import RateBreakdownCard from '@/components/booking/RateBreakdownCard';
+import ExtraServiceSelector, { type ServiceMaster, type SelectedService } from '@/components/ExtraServiceSelector';
+import { bookingsService } from '@/lib/api';
 
 interface PaymentMethod {
     id: number;
@@ -78,15 +63,16 @@ interface BookingEditProps {
     booking: Booking;
     properties: Property[];
     paymentMethods: PaymentMethod[];
+    serviceMasters: ServiceMaster[];
 }
 
-export default function BookingEdit({ booking, properties, paymentMethods }: BookingEditProps) {
+export default function BookingEdit({ booking, properties, paymentMethods, serviceMasters = [] }: BookingEditProps) {
     const { t } = useTranslation();
 
     // State management
     const [currentProperty, setCurrentProperty] = useState<Property | null>(booking.property || null);
     const [rateCalculation, setRateCalculation] = useState<RateCalculation | null>(null);
-    const [rateCalculationFull, setRateCalculationFull] = useState<any | null>(null); // Full rate calculation with daily_breakdown
+    const [rateCalculationFull, setRateCalculationFull] = useState<any | null>(null);
     const [isCalculatingRate, setIsCalculatingRate] = useState(false);
     const [rateError, setRateError] = useState<string | null>(null);
     const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
@@ -98,6 +84,9 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
     const [manualRateOverride, setManualRateOverride] = useState(false);
     const [overrideAmount, setOverrideAmount] = useState(booking.total_amount || 0);
     const [overrideReason, setOverrideReason] = useState('');
+
+    // Extra services state
+    const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
 
     const { data, setData, patch, processing, errors, reset } = useForm({
         property_id: booking.property_id?.toString() || '',
@@ -125,7 +114,25 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
         rate_override: false,
         override_amount: null,
         override_reason: null,
+
+        // Services
+        services: [] as any[],
     });
+
+    // Initialize selected services from booking
+    useEffect(() => {
+        if (booking.services && booking.services.length > 0) {
+            const initialServices = booking.services.map((s: any) => ({
+                service_master_id: s.service_master_id,
+                service_name: s.service_name,
+                service_type: s.service_type,
+                quantity: s.quantity,
+                unit_price: s.unit_price,
+                total_price: s.total_price,
+            }));
+            setSelectedServices(initialServices);
+        }
+    }, [booking.services]);
 
     // Calculate total guests
     const totalGuests = useMemo(() => {
@@ -144,6 +151,11 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
         const totalForExtraBeds = Math.ceil(male + female + Math.ceil((children - currentProperty.capacity) * 0.5));
         return Math.max(0, totalForExtraBeds - currentProperty.capacity);
     }, [currentProperty, data.guest_male, data.guest_female, data.guest_children]);
+
+    // Calculate services total
+    const servicesTotal = useMemo(() => {
+        return selectedServices.reduce((sum, s) => sum + s.total_price, 0);
+    }, [selectedServices]);
 
     // Detect changes for rate recalculation
     const hasChanges = useMemo(() => {
@@ -210,51 +222,36 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                     return;
                 }
 
-                // Calculate rate
-                const rateResponse = await fetch('/admin/api/admin/booking-management/calculate-rate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        property_id: propertyId,
-                        check_in: checkIn,
-                        check_out: checkOut,
-                        guest_count: totalGuests, // This will use the updated totalGuests from useMemo
-                    }),
+                // Calculate rate using bookingsService
+                const rateData = await bookingsService.calculateRate({
+                    property_id: propertyId,
+                    check_in: checkIn,
+                    check_out: checkOut,
+                    guest_count: totalGuests,
                 });
 
-                if (rateResponse.ok) {
-                    const rateData = await rateResponse.json();
-
-                    if (rateData.success) {
-                        const calculation = rateData.calculation || rateData;
-                        setRateCalculation({
-                            nights: calculation.nights,
-                            base_amount: calculation.base_amount,
-                            weekend_premium: calculation.weekend_premium || 0,
-                            seasonal_premium: calculation.seasonal_premium || 0,
-                            extra_bed_amount: calculation.extra_bed_amount || 0,
-                            cleaning_fee: calculation.cleaning_fee || 0,
-                            tax_amount: calculation.tax_amount || 0,
-                            total_amount: calculation.total_amount,
-                            extra_beds: calculation.extra_beds || 0,
-                            formatted: {
-                                total_amount: 'Rp ' + calculation.total_amount.toLocaleString('id-ID'),
-                                per_night: 'Rp ' + Math.round(calculation.total_amount / calculation.nights).toLocaleString('id-ID')
-                            }
-                        });
-                        // Store full calculation with daily_breakdown
-                        setRateCalculationFull(rateData.calculation || rateData);
-                        setRateError(null);
-                    } else {
-                        setRateError(rateData.message || 'Rate calculation failed');
-                    }
+                if (rateData && rateData.success) {
+                    const calculation = rateData.calculation || rateData;
+                    setRateCalculation({
+                        nights: calculation.nights,
+                        base_amount: calculation.base_amount,
+                        weekend_premium: calculation.weekend_premium || 0,
+                        seasonal_premium: calculation.seasonal_premium || 0,
+                        extra_bed_amount: calculation.extra_bed_amount || 0,
+                        cleaning_fee: calculation.cleaning_fee || 0,
+                        tax_amount: calculation.tax_amount || 0,
+                        total_amount: calculation.total_amount,
+                        extra_beds: calculation.extra_beds || 0,
+                        formatted: {
+                            total_amount: 'Rp ' + calculation.total_amount.toLocaleString('id-ID'),
+                            per_night: 'Rp ' + Math.round(calculation.total_amount / calculation.nights).toLocaleString('id-ID')
+                        }
+                    });
+                    // Store full calculation with daily_breakdown
+                    setRateCalculationFull(rateData.calculation || rateData);
+                    setRateError(null);
                 } else {
-                    setRateError('Failed to calculate rate');
+                    setRateError(rateData?.message || 'Rate calculation failed');
                 }
             } else {
                 setAvailabilityStatus('unavailable');
@@ -292,111 +289,50 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
         const countField = genderType === 'children' ? 'guest_children' :
             genderType === 'male' ? 'guest_male' : 'guest_female';
 
-        // Ensure value is always a valid number (never null/undefined)
         const newCount = value === '' || value === null || value === undefined ? 0 : Number(value) || 0;
-        
-        // Ensure newCount is non-negative
         const validCount = Math.max(0, newCount);
 
-        // Calculate new total guests with updated count
-        const newTotalGuests = (() => {
-            const male = genderType === 'male' ? validCount : (Number(data.guest_male) || 0);
-            const female = genderType === 'female' ? validCount : (Number(data.guest_female) || 0);
-            const children = genderType === 'children' ? validCount : (Number(data.guest_children) || 0);
-            return male + female + children;
-        })();
-
-        // Always set a valid number, never null/undefined
         setData(countField, validCount);
 
-        // Recalculate rate when guest count changes (use newTotalGuests directly in API call)
+        // Recalculate rate when guest count changes
+        const male = genderType === 'male' ? validCount : (Number(data.guest_male) || 0);
+        const female = genderType === 'female' ? validCount : (Number(data.guest_female) || 0);
+        const children = genderType === 'children' ? validCount : (Number(data.guest_children) || 0);
+        const newTotalGuests = male + female + children;
+
         if (data.check_in_date && data.check_out_date && currentProperty && newTotalGuests > 0) {
             setTimeout(async () => {
                 try {
-                    // Check availability first
-                    const availabilityResponse = await fetch('/admin/api/admin/booking-management/check-availability', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'Accept': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            property_id: currentProperty.id,
-                            check_in: data.check_in_date,
-                            check_out: data.check_out_date,
-                            exclude_booking_id: booking.id,
-                        }),
+                    setIsCalculatingRate(true);
+                    const rateData = await bookingsService.calculateRate({
+                        property_id: currentProperty.id,
+                        check_in: data.check_in_date,
+                        check_out: data.check_out_date,
+                        guest_count: newTotalGuests,
                     });
 
-                    if (availabilityResponse.ok) {
-                        const availabilityData = await availabilityResponse.json();
-                        setAvailabilityStatus(availabilityData.available ? 'available' : 'unavailable');
-
-                        if (!availabilityData.available) {
-                            setAvailabilityError('Property tidak tersedia untuk tanggal yang dipilih');
-                            setIsCalculatingRate(false);
-                            return;
-                        }
-
-                        // Calculate rate with NEW guest count
-                        const rateResponse = await fetch('/admin/api/admin/booking-management/calculate-rate', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'Accept': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                property_id: currentProperty.id,
-                                check_in: data.check_in_date,
-                                check_out: data.check_out_date,
-                                guest_count: newTotalGuests, // Use new total, not old totalGuests
-                            }),
-                        });
-
-                        if (rateResponse.ok) {
-                            const rateData = await rateResponse.json();
-
-                            if (rateData.success) {
-                                const calculation = rateData.calculation || rateData;
-                                setRateCalculation({
-                                    nights: calculation.nights,
-                                    base_amount: calculation.base_amount,
-                                    weekend_premium: calculation.weekend_premium || 0,
-                                    seasonal_premium: calculation.seasonal_premium || 0,
-                                    extra_bed_amount: calculation.extra_bed_amount || 0,
-                                    cleaning_fee: calculation.cleaning_fee || 0,
-                                    tax_amount: calculation.tax_amount || 0,
-                                    total_amount: calculation.total_amount,
-                                    extra_beds: calculation.extra_beds || 0,
-                                    formatted: {
-                                        total_amount: 'Rp ' + (calculation.total_amount || 0).toLocaleString('id-ID'),
-                                        per_night: 'Rp ' + Math.round((calculation.total_amount || 0) / (calculation.nights || 1)).toLocaleString('id-ID')
-                                    }
-                                });
-                                // Store full calculation with daily_breakdown
-                                setRateCalculationFull(rateData.calculation || rateData);
-                                setRateError(null);
-                            } else {
-                                setRateError(rateData.error || 'Rate calculation failed');
-                                setRateCalculation(null);
-                                setRateCalculationFull(null);
+                    if (rateData && rateData.success) {
+                        const calculation = rateData.calculation || rateData;
+                        setRateCalculation({
+                            nights: calculation.nights,
+                            base_amount: calculation.base_amount,
+                            weekend_premium: calculation.weekend_premium || 0,
+                            seasonal_premium: calculation.seasonal_premium || 0,
+                            extra_bed_amount: calculation.extra_bed_amount || 0,
+                            cleaning_fee: calculation.cleaning_fee || 0,
+                            tax_amount: calculation.tax_amount || 0,
+                            total_amount: calculation.total_amount,
+                            extra_beds: calculation.extra_beds || 0,
+                            formatted: {
+                                total_amount: 'Rp ' + (calculation.total_amount || 0).toLocaleString('id-ID'),
+                                per_night: 'Rp ' + Math.round((calculation.total_amount || 0) / (calculation.nights || 1)).toLocaleString('id-ID')
                             }
-                        } else {
-                            const errorData = await rateResponse.json().catch(() => ({}));
-                            setRateError(errorData.error || errorData.message || 'Failed to calculate rate');
-                            setRateCalculation(null);
-                            setRateCalculationFull(null);
-                        }
+                        });
+                        setRateCalculationFull(rateData.calculation || rateData);
+                        setRateError(null);
                     }
                 } catch (error) {
                     console.error('Error recalculating rate on guest change:', error);
-                    setRateError(error instanceof Error ? error.message : 'Error calculating rate');
-                    setRateCalculation(null);
-                    setRateCalculationFull(null);
                 } finally {
                     setIsCalculatingRate(false);
                 }
@@ -462,7 +398,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
             return;
         }
 
-        // Prepare form data with all required fields - ensure all values are valid
+        // Prepare form data
         const formData: any = {
             property_id: String(data.property_id || ''),
             check_in_date: String(data.check_in_date || ''),
@@ -487,6 +423,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
             })(),
             check_in_time: String(data.check_in_time || '15:00'),
             source: String(data.source || 'direct'),
+            services: selectedServices,
         };
 
         // Add rate override data if enabled
@@ -500,31 +437,41 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
             formData.override_reason = null;
         }
 
-        // Convert nullable strings to null (not empty string) for backend
-        if (formData.guest_id_number === '') formData.guest_id_number = null;
-        if (formData.special_requests === '') formData.special_requests = null;
-        if (formData.internal_notes === '') formData.internal_notes = null;
-
-        // Use router.patch directly with prepared data to avoid loop
         router.patch(route('admin.booking-management.update', booking.booking_number), formData, {
-            preserveState: false,
-            preserveScroll: false,
+            preserveState: true,
+            preserveScroll: true,
             onSuccess: () => {
+                // Only navigate away on success
                 router.visit(route('admin.booking-management.show', booking.booking_number));
             },
             onError: (errors: any) => {
                 console.error('Booking update failed:', errors);
+
+                // Scroll to top to show error message
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+
+                // Collect all error messages
+                const errorMessages: string[] = [];
+
                 if (errors.error) {
-                    setSyncFeedback(Array.isArray(errors.error) ? errors.error[0] : errors.error);
+                    // Handle general error field
+                    errorMessages.push(Array.isArray(errors.error) ? errors.error[0] : errors.error);
                 } else {
-                    // Show first validation error
-                    const firstErrorKey = Object.keys(errors)[0];
-                    if (firstErrorKey) {
-                        const firstError = errors[firstErrorKey];
-                        setSyncFeedback(Array.isArray(firstError) ? firstError[0] : String(firstError));
-                    } else {
-                        setSyncFeedback('Failed to update booking. Please check all fields.');
-                    }
+                    // Handle validation errors for specific fields
+                    Object.keys(errors).forEach(key => {
+                        const error = errors[key];
+                        const errorMsg = Array.isArray(error) ? error[0] : String(error);
+                        // Format the error message with field name
+                        const fieldName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        errorMessages.push(`${fieldName}: ${errorMsg}`);
+                    });
+                }
+
+                // Set the feedback message
+                if (errorMessages.length > 0) {
+                    setSyncFeedback(errorMessages.join('\n'));
+                } else {
+                    setSyncFeedback('Failed to update booking. Please check all fields.');
                 }
             }
         });
@@ -535,7 +482,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
         if (!rateCalculation) return null;
 
         const originalAmount = booking.total_amount || 0;
-        const newAmount = manualRateOverride ? overrideAmount : rateCalculation.total_amount;
+        const newAmount = (manualRateOverride ? overrideAmount : rateCalculation.total_amount) + servicesTotal;
         const difference = newAmount - originalAmount;
 
         return {
@@ -544,7 +491,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
             difference,
             percentage: originalAmount > 0 ? (difference / originalAmount) * 100 : 0,
         };
-    }, [rateCalculation, manualRateOverride, overrideAmount, booking.total_amount]);
+    }, [rateCalculation, manualRateOverride, overrideAmount, booking.total_amount, servicesTotal]);
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs} title="Edit Booking" subtitle="Edit booking details">
@@ -557,9 +504,9 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                     </p>
                 </div>
 
-                <div className="grid lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Main Form */}
-                    <div className="lg:col-span-2">
+                    <div className="lg:col-span-2 space-y-6">
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
@@ -576,7 +523,6 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                     </Alert>
                                 )}
 
-                                {/* Validation Alert */}
                                 {validationMessages.length > 0 && (
                                     <Alert variant="destructive" className="mb-6">
                                         <AlertCircle className="h-4 w-4" />
@@ -647,7 +593,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                         </div>
                                     )}
 
-                                    {/* Date Range with Enhanced UX */}
+                                    {/* Date Range */}
                                     <div>
                                         <Label>Check-in & Check-out Dates *</Label>
                                         <DateRange
@@ -676,18 +622,15 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                             </p>
                                         )}
 
-                                        {/* Enhanced Availability Status */}
+                                        {/* Availability Status */}
                                         {availabilityStatus && (
                                             <div className="mt-2">
                                                 {availabilityStatus === 'checking' && (
                                                     <Alert>
                                                         <Loader2 className="h-4 w-4 animate-spin" />
-                                                        <AlertDescription>
-                                                            Checking availability...
-                                                        </AlertDescription>
+                                                        <AlertDescription>Checking availability...</AlertDescription>
                                                     </Alert>
                                                 )}
-
                                                 {availabilityStatus === 'available' && (
                                                     <Alert className="border-green-200 bg-green-50">
                                                         <CheckCircle className="h-4 w-4 text-green-600" />
@@ -696,7 +639,6 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
-
                                                 {availabilityStatus === 'unavailable' && (
                                                     <Alert variant="destructive">
                                                         <AlertCircle className="h-4 w-4" />
@@ -709,14 +651,14 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                         )}
                                     </div>
 
-                                    {/* Guest Count with Real-time Updates */}
+                                    {/* Guest Count */}
                                     <div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 mb-2">
                                             <Users className="h-5 w-5 text-brand-primary" />
                                             <h3 className="text-lg font-semibold">Guest Count</h3>
                                         </div>
 
-                                        <div className="grid grid-cols-3 sm:grid-cols-3 gap-4 mb-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                                             <div className="space-y-2">
                                                 <Label htmlFor="guest_count_male">Male Adults</Label>
                                                 <Input
@@ -727,9 +669,6 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                     onChange={(e) => handleGenderCountChange('male', e.target.value)}
                                                     className={errors.guest_male ? 'border-red-500' : ''}
                                                 />
-                                                {errors.guest_male && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.guest_male}</p>
-                                                )}
                                             </div>
                                             <div className="space-y-2">
                                                 <Label htmlFor="guest_count_female">Female Adults</Label>
@@ -741,9 +680,6 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                     onChange={(e) => handleGenderCountChange('female', e.target.value)}
                                                     className={errors.guest_female ? 'border-red-500' : ''}
                                                 />
-                                                {errors.guest_female && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.guest_female}</p>
-                                                )}
                                             </div>
                                             <div className="space-y-2">
                                                 <Label htmlFor="guest_count_children">Children</Label>
@@ -755,26 +691,14 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                     onChange={(e) => handleGenderCountChange('children', e.target.value)}
                                                     className={errors.guest_children ? 'border-red-500' : ''}
                                                 />
-                                                {errors.guest_children && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.guest_children}</p>
-                                                )}
                                             </div>
                                         </div>
 
-                                        {/* Enhanced Guest Count Summary */}
-                                        <div className="bg-slate-50 p-4 sm:p-6 rounded-lg">
+                                        <div className="bg-slate-50 p-4 rounded-lg">
                                             <div className="flex items-center justify-between mb-2">
                                                 <span className="font-medium">Total Guests:</span>
-                                                <Badge variant="secondary">
-                                                    {totalGuests} guests
-                                                </Badge>
+                                                <Badge variant="secondary">{totalGuests} guests</Badge>
                                             </div>
-                                            {currentProperty && (
-                                                <div className="text-sm text-gray-600">
-                                                    Property Capacity: {currentProperty.capacity} - {currentProperty.capacity_max} guests
-                                                </div>
-                                            )}
-
                                             {extraBeds > 0 && currentProperty && currentProperty.extra_bed_rate && (
                                                 <div className="mt-2 flex items-center gap-2 text-sm">
                                                     <Bed className="h-4 w-4 text-brand-primary" />
@@ -792,38 +716,25 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                     {/* Primary Guest Info */}
                                     <div>
                                         <h3 className="text-lg font-semibold mb-4">Primary Guest Information</h3>
-                                        <div className="grid md:grid-cols-3 gap-4">
-                                            <div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="md:col-span-2">
                                                 <Label htmlFor="guest_name">Full Name *</Label>
                                                 <Input
                                                     id="guest_name"
-                                                    type="text"
                                                     value={data.guest_name}
                                                     onChange={(e) => setData('guest_name', e.target.value)}
                                                     className={errors.guest_name ? 'border-red-500' : ''}
-                                                    placeholder="Enter full name"
                                                 />
-                                                {errors.guest_name && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.guest_name}</p>
-                                                )}
                                             </div>
                                             <div>
-                                                <Label htmlFor="guest_gender">Gender *</Label>
-                                                <Select
-                                                    value={data.guest_gender}
-                                                    onValueChange={(value: 'male' | 'female') => setData('guest_gender', value)}
-                                                >
-                                                    <SelectTrigger className={errors.guest_gender ? 'border-red-500' : ''}>
-                                                        <SelectValue placeholder="Select gender" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="male">Male</SelectItem>
-                                                        <SelectItem value="female">Female</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                {errors.guest_gender && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.guest_gender}</p>
-                                                )}
+                                                <Label htmlFor="guest_email">Email Address *</Label>
+                                                <Input
+                                                    id="guest_email"
+                                                    type="email"
+                                                    value={data.guest_email}
+                                                    onChange={(e) => setData('guest_email', e.target.value)}
+                                                    className={errors.guest_email ? 'border-red-500' : ''}
+                                                />
                                             </div>
                                             <div>
                                                 <Label htmlFor="guest_phone">Phone Number *</Label>
@@ -833,28 +744,22 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                     value={data.guest_phone}
                                                     onChange={(e) => setData('guest_phone', e.target.value)}
                                                     className={errors.guest_phone ? 'border-red-500' : ''}
-                                                    placeholder="+62xxx"
                                                 />
-                                                {errors.guest_phone && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.guest_phone}</p>
-                                                )}
                                             </div>
-                                        </div>
-
-                                        <div className="grid md:grid-cols-2 gap-4 mt-4">
                                             <div>
-                                                <Label htmlFor="guest_email">Email Address *</Label>
-                                                <Input
-                                                    id="guest_email"
-                                                    type="email"
-                                                    value={data.guest_email}
-                                                    onChange={(e) => setData('guest_email', e.target.value)}
-                                                    className={errors.guest_email ? 'border-red-500' : ''}
-                                                    placeholder="guest@example.com"
-                                                />
-                                                {errors.guest_email && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.guest_email}</p>
-                                                )}
+                                                <Label htmlFor="guest_gender">Gender *</Label>
+                                                <Select
+                                                    value={data.guest_gender}
+                                                    onValueChange={(value: 'male' | 'female') => setData('guest_gender', value)}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select gender" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="male">Male</SelectItem>
+                                                        <SelectItem value="female">Female</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
                                             </div>
                                             <div>
                                                 <Label htmlFor="guest_country">Country *</Label>
@@ -862,7 +767,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                     value={data.guest_country}
                                                     onValueChange={(value) => setData('guest_country', value)}
                                                 >
-                                                    <SelectTrigger className={errors.guest_country ? 'border-red-500' : ''}>
+                                                    <SelectTrigger>
                                                         <SelectValue placeholder="Select country" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -872,174 +777,20 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                         <SelectItem value="Other">Other</SelectItem>
                                                     </SelectContent>
                                                 </Select>
-                                                {errors.guest_country && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.guest_country}</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="grid md:grid-cols-2 gap-4 mt-4">
-                                            <div>
-                                                <Label htmlFor="guest_id_number">ID Number (Optional)</Label>
-                                                <Input
-                                                    id="guest_id_number"
-                                                    type="text"
-                                                    value={data.guest_id_number || ''}
-                                                    onChange={(e) => setData('guest_id_number', e.target.value)}
-                                                    placeholder="KTP/Passport number"
-                                                />
-                                            </div>
-                                            <div>
-                                                <Label htmlFor="relationship_type">Relationship Type *</Label>
-                                                <Select
-                                                    value={data.relationship_type}
-                                                    onValueChange={(value: any) => setData('relationship_type', value)}
-                                                >
-                                                    <SelectTrigger className={errors.relationship_type ? 'border-red-500' : ''}>
-                                                        <SelectValue placeholder="Select relationship" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="keluarga">Family</SelectItem>
-                                                        <SelectItem value="teman">Friends</SelectItem>
-                                                        <SelectItem value="kolega">Colleagues</SelectItem>
-                                                        <SelectItem value="pasangan">Couple</SelectItem>
-                                                        <SelectItem value="campuran">Mixed</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                {errors.relationship_type && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.relationship_type}</p>
-                                                )}
                                             </div>
                                         </div>
                                     </div>
 
                                     <Separator />
 
-                                    {/* Rate Information with Comparison */}
-                                    {hasChanges && (
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-4">
-                                                <ArrowUpDown className="h-5 w-5 text-orange-600" />
-                                                <h3 className="text-lg font-semibold">Rate Comparison</h3>
-                                                <Badge variant="outline">Changes Detected</Badge>
-                                            </div>
-
-                                            <div className="space-y-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
-                                                <div className="grid md:grid-cols-2 gap-4">
-                                                    <div className="text-sm">
-                                                        <div className="flex justify-between mb-2">
-                                                            <span className="font-medium">Original Booking Rate:</span>
-                                                            <span className="font-semibold">{formatCurrency(booking.total_amount || 0)}</span>
-                                                        </div>
-                                                        <div className="flex justify-between">
-                                                            <span>Nights:</span>
-                                                            <span>{booking.nights || 0}</span>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="text-sm">
-                                                        <div className="flex justify-between mb-2">
-                                                            <span className="font-medium">New Calculated Rate:</span>
-                                                            <span className="font-semibold">
-                                                                {rateCalculation ? formatCurrency(rateCalculation.total_amount) : 'Calculating...'}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex justify-between">
-                                                            <span>Nights:</span>
-                                                            <span>{rateCalculation?.nights || 0}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {paymentImpact && (
-                                                    <div className="pt-2 border-t border-orange-300">
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="font-medium">Rate Impact:</span>
-                                                            <div className="text-right">
-                                                                <div className={`font-semibold ${paymentImpact.difference >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                                                    {paymentImpact.difference >= 0 ? '+' : ''}{formatCurrency(paymentImpact.difference)}
-                                                                </div>
-                                                                <div className="text-xs text-gray-600">
-                                                                    ({paymentImpact.percentage >= 0 ? '+' : ''}{paymentImpact.percentage.toFixed(1)}%)
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Rate Override Section */}
+                                    {/* Extra Services */}
                                     <div>
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <Calculator className="h-5 w-5 text-brand-primary" />
-                                            <h3 className="text-lg font-semibold">Rate Adjustment</h3>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <div className="flex items-center space-x-2">
-                                                <input
-                                                    type="checkbox"
-                                                    id="manual_rate_override"
-                                                    checked={manualRateOverride}
-                                                    onChange={(e) => setManualRateOverride(e.target.checked)}
-                                                    className="rounded border-gray-300"
-                                                />
-                                                <Label htmlFor="manual_rate_override" className="text-sm font-medium">
-                                                    Manual Rate Adjustment
-                                                </Label>
-                                            </div>
-
-                                            {manualRateOverride && (
-                                                <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                                                    {rateCalculation && (
-                                                        <div className="text-sm text-gray-600">
-                                                            <div className="flex justify-between">
-                                                                <span>Calculated Rate:</span>
-                                                                <span className="font-medium">{formatCurrency(rateCalculation.total_amount)}</span>
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    <div>
-                                                        <Label htmlFor="override_amount">Override Amount *</Label>
-                                                        <Input
-                                                            id="override_amount"
-                                                            type="number"
-                                                            min="0"
-                                                            value={overrideAmount}
-                                                            onChange={(e) => setOverrideAmount(parseFloat(e.target.value) || 0)}
-                                                            placeholder="Enter custom amount"
-                                                        />
-                                                    </div>
-
-                                                    <div>
-                                                        <Label htmlFor="override_reason">Adjustment Reason *</Label>
-                                                        <Textarea
-                                                            id="override_reason"
-                                                            value={overrideReason}
-                                                            onChange={(e) => setOverrideReason(e.target.value)}
-                                                            rows={2}
-                                                            placeholder="e.g., Early bird discount, Repeat customer, Special promotion..."
-                                                        />
-                                                    </div>
-
-                                                    {rateCalculation && overrideAmount > 0 && (
-                                                        <div className="text-sm">
-                                                            <div className="flex justify-between">
-                                                                <span>Adjustment:</span>
-                                                                <span className={`font-medium ${overrideAmount < rateCalculation.total_amount ? 'text-green-600' : 'text-red-600'}`}>
-                                                                    {overrideAmount < rateCalculation.total_amount ? '-' : '+'}
-                                                                    {formatCurrency(Math.abs(overrideAmount - rateCalculation.total_amount))}
-                                                                    ({Math.round(((overrideAmount - rateCalculation.total_amount) / rateCalculation.total_amount) * 100)}%)
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
+                                        <ExtraServiceSelector
+                                            services={serviceMasters}
+                                            selectedServices={selectedServices}
+                                            onServicesChange={setSelectedServices}
+                                            nights={rateCalculation?.nights || 1}
+                                        />
                                     </div>
 
                                     <Separator />
@@ -1047,7 +798,7 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                     {/* Booking Settings */}
                                     <div>
                                         <h3 className="text-lg font-semibold mb-4">Booking Settings</h3>
-                                        <div className="grid md:grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div>
                                                 <Label htmlFor="booking_status">Booking Status *</Label>
                                                 <Select value={data.booking_status} onValueChange={(value: any) => setData('booking_status', value)}>
@@ -1088,51 +839,6 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                                 </Select>
                                             </div>
                                         </div>
-
-                                        <div className="grid md:grid-cols-2 gap-4 mt-4">
-                                            <div>
-                                                <Label htmlFor="dp_percentage">Down Payment Percentage</Label>
-                                                <Select value={data.dp_percentage.toString()} onValueChange={(value: any) => setData('dp_percentage', parseInt(value))}>
-                                                    <SelectTrigger>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="30">30%</SelectItem>
-                                                        <SelectItem value="50">50%</SelectItem>
-                                                        <SelectItem value="70">70%</SelectItem>
-                                                        <SelectItem value="100">100% (Full Payment)</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <Label htmlFor="check_in_time">Check-in Time</Label>
-                                                <Select value={data.check_in_time} onValueChange={(value: any) => setData('check_in_time', value)}>
-                                                    <SelectTrigger>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="14:00">2:00 PM</SelectItem>
-                                                        <SelectItem value="15:00">3:00 PM</SelectItem>
-                                                        <SelectItem value="16:00">4:00 PM</SelectItem>
-                                                        <SelectItem value="17:00">5:00 PM</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <Separator />
-
-                                    {/* Special Requests */}
-                                    <div>
-                                        <Label htmlFor="special_requests">Special Requests (Optional)</Label>
-                                        <Textarea
-                                            id="special_requests"
-                                            value={data.special_requests || ''}
-                                            onChange={(e) => setData('special_requests', e.target.value)}
-                                            rows={3}
-                                            placeholder="Any special requests or notes..."
-                                        />
                                     </div>
 
                                     {/* Internal Notes */}
@@ -1171,10 +877,10 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                         </Card>
                     </div>
 
-                    {/* Enhanced Sidebar */}
+                    {/* Sidebar */}
                     <div className="space-y-6">
                         {/* Rate Calculation Sidebar */}
-                        <Card className="md:sticky md:top-6">
+                        <Card className="lg:sticky lg:top-6">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Calculator className="h-5 w-5" />
@@ -1182,171 +888,106 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                {/* Enhanced Rate Calculation Display */}
-                                <div className="space-y-3">
-                                    {isCalculatingRate && (
-                                        <Alert>
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                            <AlertDescription>
-                                                Calculating rates...
-                                            </AlertDescription>
-                                        </Alert>
-                                    )}
+                                {isCalculatingRate && (
+                                    <Alert>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <AlertDescription>Calculating rates...</AlertDescription>
+                                    </Alert>
+                                )}
 
-                                    {rateError && (
-                                        <Alert variant="destructive">
-                                            <AlertCircle className="h-4 w-4" />
-                                            <AlertTitle>Calculation Error</AlertTitle>
-                                            <AlertDescription>
-                                                {rateError}
-                                            </AlertDescription>
-                                        </Alert>
-                                    )}
-
-                                    {rateCalculation && (
-                                        <div className="space-y-4">
-                                            {/* Enhanced Main Price Display */}
-                                            <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                                                <div className="text-3xl font-bold text-brand-primary">
-                                                    {rateCalculation.formatted.total_amount}
-                                                </div>
-                                                <div className="text-sm text-gray-600 mt-1">
-                                                    for {rateCalculation.nights} nights • {rateCalculation.formatted.per_night}/night
-                                                </div>
-
-                                                {(rateCalculation.seasonal_premium || 0) > 0 && (
-                                                    <div className="text-xs text-green-600 mt-2 flex items-center justify-center">
-                                                        <Sparkles className="h-3 w-3 mr-1" />
-                                                        Special seasonal rates applied
-                                                    </div>
-                                                )}
-
-                                                {(rateCalculation.weekend_premium || 0) > 0 && (
-                                                    <div className="text-xs text-amber-600 mt-1 flex items-center justify-center">
-                                                        <Tag className="h-3 w-3 mr-1" />
-                                                        Weekend premium included
-                                                    </div>
-                                                )}
+                                {rateCalculation && (
+                                    <div className="space-y-4">
+                                        <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                                            <div className="text-3xl font-bold text-brand-primary">
+                                                {formatCurrency((manualRateOverride ? overrideAmount : rateCalculation.total_amount) + servicesTotal)}
                                             </div>
-
-                                            {/* Enhanced Rate Breakdown */}
-                                            <div className="space-y-2 text-sm">
-                                                <div className="flex justify-between">
-                                                    <span>Base Rate ({rateCalculation.nights} nights)</span>
-                                                    <span>{formatCurrency(rateCalculation.base_amount)}</span>
-                                                </div>
-
-                                                {rateCalculation.weekend_premium > 0 && (
-                                                    <div className="flex justify-between text-amber-600">
-                                                        <span>Weekend Premium</span>
-                                                        <span>+{formatCurrency(rateCalculation.weekend_premium)}</span>
-                                                    </div>
-                                                )}
-
-                                                {rateCalculation.seasonal_premium > 0 && (
-                                                    <div className="flex justify-between text-green-600">
-                                                        <span>Seasonal Premium</span>
-                                                        <span>+{formatCurrency(rateCalculation.seasonal_premium)}</span>
-                                                    </div>
-                                                )}
-
-                                                {rateCalculation.extra_bed_amount > 0 && (
-                                                    <div className="flex justify-between">
-                                                        <span>Extra Beds ({rateCalculation.extra_beds})</span>
-                                                        <span>+{formatCurrency(rateCalculation.extra_bed_amount)}</span>
-                                                    </div>
-                                                )}
-
-                                                <div className="flex justify-between">
-                                                    <span>Cleaning Fee</span>
-                                                    <span>{formatCurrency(rateCalculation.cleaning_fee)}</span>
-                                                </div>
-
-                                                <div className="flex justify-between">
-                                                    <span>Tax (0%)</span>
-                                                    <span>{formatCurrency(rateCalculation.tax_amount)}</span>
-                                                </div>
-
-                                                <Separator />
-
-                                                <div className="flex justify-between font-semibold text-base">
-                                                    <span>Total</span>
-                                                    <span>{formatCurrency(rateCalculation.total_amount)}</span>
-                                                </div>
+                                            <div className="text-sm text-gray-600 mt-1">
+                                                Total Amount
                                             </div>
                                         </div>
-                                    )}
 
-                                    {/* No Rate Calculation State */}
-                                    {!rateCalculation && !isCalculatingRate && !rateError && (
-                                        <div className="text-center py-8 text-gray-500">
-                                            <Calculator className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                                            <p>Make changes to see rate calculation</p>
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span>Base Rate ({rateCalculation.nights} nights)</span>
+                                                <span>{formatCurrency(rateCalculation.base_amount)}</span>
+                                            </div>
+                                            {rateCalculation.weekend_premium > 0 && (
+                                                <div className="flex justify-between text-amber-600">
+                                                    <span>Weekend Premium</span>
+                                                    <span>+{formatCurrency(rateCalculation.weekend_premium)}</span>
+                                                </div>
+                                            )}
+                                            {rateCalculation.extra_bed_amount > 0 && (
+                                                <div className="flex justify-between">
+                                                    <span>Extra Beds ({rateCalculation.extra_beds})</span>
+                                                    <span>+{formatCurrency(rateCalculation.extra_bed_amount)}</span>
+                                                </div>
+                                            )}
+                                            {servicesTotal > 0 && (
+                                                <div className="flex justify-between text-blue-600 font-medium">
+                                                    <span>Extra Services</span>
+                                                    <span>+{formatCurrency(servicesTotal)}</span>
+                                                </div>
+                                            )}
+                                            <Separator />
+                                            <div className="flex justify-between font-semibold text-base">
+                                                <span>Total</span>
+                                                <span>{formatCurrency((manualRateOverride ? overrideAmount : rateCalculation.total_amount) + servicesTotal)}</span>
+                                            </div>
                                         </div>
-                                    )}
-                                </div>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
 
-                        {/* Rate Breakdown Per Malam */}
-                        {rateCalculationFull && data.check_in_date && data.check_out_date && (
-                            <RateBreakdownCard
-                                rateCalculation={rateCalculationFull}
-                                checkIn={data.check_in_date}
-                                checkOut={data.check_out_date}
-                            />
-                        )}
-
-                        {/* Booking Summary Card */}
+                        {/* Rate Override Section */}
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <Info className="h-5 w-5" />
-                                    Booking Summary
+                                    <Tag className="h-5 w-5" />
+                                    Rate Adjustment
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-3">
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <span>Booking Number:</span>
-                                        <span className="font-medium">{booking.booking_number}</span>
+                            <CardContent>
+                                <div className="space-y-4">
+                                    <div className="flex items-center space-x-2">
+                                        <input
+                                            type="checkbox"
+                                            id="manual_rate_override"
+                                            checked={manualRateOverride}
+                                            onChange={(e) => setManualRateOverride(e.target.checked)}
+                                            className="rounded border-gray-300"
+                                        />
+                                        <Label htmlFor="manual_rate_override" className="text-sm font-medium">
+                                            Manual Rate Adjustment
+                                        </Label>
                                     </div>
-                                    <div className="flex justify-between">
-                                        <span>Property:</span>
-                                        <span className="font-medium">{currentProperty?.name || booking.property?.name}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Check-in:</span>
-                                        <span>{data.check_in_date ? formatDate(data.check_in_date) : 'Not set'}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Check-out:</span>
-                                        <span>{data.check_out_date ? formatDate(data.check_out_date) : 'Not set'}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Nights:</span>
-                                        <span>{rateCalculation?.nights || booking.nights || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Primary Guest:</span>
-                                        <span className="font-medium">{data.guest_name || 'Not set'}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Status:</span>
-                                        <Badge variant={data.booking_status === 'confirmed' ? 'default' : 'secondary'}>
-                                            {data.booking_status === 'confirmed' ? 'Confirmed' : 'Pending Verification'}
-                                        </Badge>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Payment:</span>
-                                        <Badge variant={
-                                            data.payment_status === 'fully_paid' ? 'default' :
-                                                data.payment_status === 'dp_received' ? 'secondary' : 'destructive'
-                                        }>
-                                            {data.payment_status === 'fully_paid' ? 'Fully Paid' :
-                                                data.payment_status === 'dp_received' ? 'DP Received' : 'DP Pending'}
-                                        </Badge>
-                                    </div>
+
+                                    {manualRateOverride && (
+                                        <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                            <div>
+                                                <Label htmlFor="override_amount">Override Amount *</Label>
+                                                <Input
+                                                    id="override_amount"
+                                                    type="number"
+                                                    min="0"
+                                                    value={overrideAmount}
+                                                    onChange={(e) => setOverrideAmount(parseFloat(e.target.value) || 0)}
+                                                    placeholder="Enter custom amount"
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="override_reason">Adjustment Reason *</Label>
+                                                <Textarea
+                                                    id="override_reason"
+                                                    value={overrideReason}
+                                                    onChange={(e) => setOverrideReason(e.target.value)}
+                                                    rows={2}
+                                                    placeholder="Reason for adjustment..."
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
@@ -1376,9 +1017,6 @@ export default function BookingEdit({ booking, properties, paymentMethods }: Boo
                                             <span className={`font-semibold ${paymentImpact.difference >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                                                 {paymentImpact.difference >= 0 ? '+' : ''}{formatCurrency(paymentImpact.difference)}
                                             </span>
-                                        </div>
-                                        <div className="text-xs text-gray-600 text-center">
-                                            ({paymentImpact.percentage >= 0 ? '+' : ''}{paymentImpact.percentage.toFixed(1)}% change)
                                         </div>
                                     </div>
                                 </CardContent>
