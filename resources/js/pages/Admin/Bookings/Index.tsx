@@ -5,20 +5,20 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { 
-    BookingTimeline, 
-    BookingStats, 
-    BookingFilters, 
-    BookingCard, 
-    ViewModeToggle 
+import {
+    BookingTimeline,
+    BookingStats,
+    BookingFilters,
+    BookingCard,
+    ViewModeToggle
 } from '@/components/booking';
 import { type Booking, type BreadcrumbItem, type User, type PaginatedData, type PageProps, type Property } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
-import { 
-    Calendar, 
-    Plus, 
-    Search, 
-    Filter, 
+import {
+    Calendar,
+    Plus,
+    Search,
+    Filter,
     MoreHorizontal,
     Edit,
     Eye,
@@ -43,11 +43,17 @@ import {
     ChevronRight,
     RefreshCw,
     Download,
-    Settings
+    Upload,
+    Settings,
+    FileSpreadsheet
 } from 'lucide-react';
-import { useState, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useState, useCallback, useRef } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { useForm } from '@inertiajs/react';
+import { toast } from 'sonner';
 
 interface BookingsIndexProps {
     bookings: PaginatedData<Booking>;
@@ -79,6 +85,12 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
     const [viewMode, setViewMode] = useState<'card' | 'table' | 'timeline'>('card');
     const [loadingActions, setLoadingActions] = useState<Record<string, boolean>>({});
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isImportOpen, setIsImportOpen] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const { data: importData, setData: setImportData, post: postImport, processing: importProcessing, errors: importErrors, reset: resetImport } = useForm({
+        file: null as File | null,
+    });
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -188,9 +200,36 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
     }, []);
 
     const handleExport = useCallback(() => {
-        // Export functionality can be implemented here
-        alert('Export functionality will be implemented');
-    }, []);
+        const queryParams = new URLSearchParams();
+        if (filters.search) queryParams.append('search', filters.search);
+        if (filters.status) queryParams.append('status', filters.status);
+        if (filters.property_id) queryParams.append('property_id', filters.property_id);
+        if (filters.date_from) queryParams.append('date_from', filters.date_from);
+        if (filters.date_to) queryParams.append('date_to', filters.date_to);
+
+        window.location.href = `/admin/bookings/export/download?${queryParams.toString()}`;
+    }, [filters]);
+
+    const handleImportSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!importData.file) {
+            toast.error('Please select a file to import');
+            return;
+        }
+
+        postImport('/admin/bookings/import/upload', {
+            onSuccess: () => {
+                setIsImportOpen(false);
+                resetImport();
+                toast.success('Bookings imported successfully');
+                router.reload({ only: ['bookings'] });
+            },
+            onError: (errors) => {
+                toast.error('Failed to import bookings');
+                console.error(errors);
+            }
+        });
+    };
 
     // Utility functions
     const getBookingStatusBadge = (status: Booking['booking_status']) => {
@@ -202,7 +241,7 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
             cancelled: { variant: 'destructive' as const, label: 'Cancelled', icon: XCircle },
             no_show: { variant: 'destructive' as const, label: 'No Show', icon: XCircle },
         };
-        
+
         const config = statusConfig[status];
         const Icon = config.icon;
         return (
@@ -219,7 +258,7 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
             dp_paid: { variant: 'default', label: 'DP Paid' },
             fully_paid: { variant: 'default', label: 'Fully Paid' },
         };
-        
+
         const config = statusConfig[status] || { variant: 'outline' as const, label: status };
         return (
             <Badge variant={config.variant}>
@@ -247,14 +286,14 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                             Manage guest bookings, reservations, and calendar timeline
                         </p>
                     </div>
-                    
+
                     <div className="flex flex-col sm:flex-row gap-2">
-                        <ViewModeToggle 
+                        <ViewModeToggle
                             viewMode={viewMode}
                             onViewModeChange={setViewMode}
                         />
-                        <Button 
-                            variant="outline" 
+                        <Button
+                            variant="outline"
                             size="sm"
                             onClick={handleRefresh}
                             disabled={isRefreshing}
@@ -268,6 +307,10 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                                 New Booking
                             </Link>
                         </Button>
+                        <Button variant="outline" size="sm" onClick={() => setIsImportOpen(true)}>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Import
+                        </Button>
                         <Button variant="outline" size="sm" onClick={handleExport}>
                             <Download className="h-4 w-4 mr-2" />
                             Export
@@ -275,13 +318,59 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                     </div>
                 </div>
 
+                <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Import Bookings</DialogTitle>
+                            <DialogDescription>
+                                Upload an Excel or CSV file to import bookings.
+                                The file should follow the standard format.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <form onSubmit={handleImportSubmit} className="space-y-4">
+                            <div className="grid w-full max-w-sm items-center gap-1.5">
+                                <Label htmlFor="import-file">Booking File</Label>
+                                <Input
+                                    id="import-file"
+                                    type="file"
+                                    accept=".xlsx,.xls,.csv"
+                                    onChange={(e) => setImportData('file', e.target.files ? e.target.files[0] : null)}
+                                />
+                                {importErrors.file && (
+                                    <p className="text-sm text-destructive">{importErrors.file}</p>
+                                )}
+                            </div>
+
+                            <div className="bg-muted p-3 rounded-md text-sm">
+                                <div className="flex items-center gap-2 font-medium mb-1">
+                                    <FileSpreadsheet className="h-4 w-4" />
+                                    <span>Supported Columns</span>
+                                </div>
+                                <p className="text-muted-foreground text-xs">
+                                    booking_number, property, guest_name, guest_email, check_in, check_out, status, payment_status, total_amount
+                                </p>
+                            </div>
+
+                            <DialogFooter>
+                                <Button type="button" variant="outline" onClick={() => setIsImportOpen(false)}>
+                                    Cancel
+                                </Button>
+                                <Button type="submit" disabled={importProcessing}>
+                                    {importProcessing ? 'Importing...' : 'Import Bookings'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
                 {/* Statistics */}
                 {statistics && (
                     <BookingStats statistics={statistics} />
                 )}
 
                 {/* Filters */}
-                <BookingFilters 
+                <BookingFilters
                     filters={filters}
                     properties={properties}
                     totalBookings={bookings.total}
@@ -382,7 +471,7 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                                                     </Button>
 
                                                     {canVerify && booking.booking_status === 'pending_verification' && (
-                                                        <Button 
+                                                        <Button
                                                             onClick={() => handleVerify(booking)}
                                                             size="sm"
                                                             variant="default"
@@ -405,7 +494,7 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                                                                     View Details
                                                                 </Link>
                                                             </DropdownMenuItem>
-                                                            
+
                                                             {canEdit && (
                                                                 <DropdownMenuItem asChild>
                                                                     <Link href={`/admin/bookings/${booking.booking_number}/edit`}>
@@ -414,7 +503,7 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                                                                     </Link>
                                                                 </DropdownMenuItem>
                                                             )}
-                                                            
+
                                                             {canVerify && booking.booking_status === 'pending_verification' && (
                                                                 <>
                                                                     <DropdownMenuItem onClick={() => handleVerify(booking)}>
@@ -427,25 +516,25 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                                                                     </DropdownMenuItem>
                                                                 </>
                                                             )}
-                                                            
+
                                                             {canCheckIn && booking.payment_status === 'fully_paid' && (
                                                                 <DropdownMenuItem onClick={() => handleCheckIn(booking)}>
                                                                     <UserCheck className="h-4 w-4 mr-2" />
                                                                     Check In
                                                                 </DropdownMenuItem>
                                                             )}
-                                                            
+
                                                             {canCheckIn && booking.booking_status === 'checked_in' && (
                                                                 <DropdownMenuItem onClick={() => handleCheckOut(booking)}>
                                                                     <UserX className="h-4 w-4 mr-2" />
                                                                     Check Out
                                                                 </DropdownMenuItem>
                                                             )}
-                                                            
+
                                                             <DropdownMenuSeparator />
-                                                            
+
                                                             {canCancel && ['pending_verification', 'confirmed'].includes(booking.booking_status) && (
-                                                                <DropdownMenuItem 
+                                                                <DropdownMenuItem
                                                                     onClick={() => handleCancel(booking)}
                                                                     className="text-destructive"
                                                                 >
@@ -471,7 +560,7 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                         <div className="text-sm text-muted-foreground">
                             Showing {bookings.from} to {bookings.to} of {bookings.total} bookings
                         </div>
-                        
+
                         <div className="flex items-center gap-2">
                             {bookings.links.map((link, index) => (
                                 <Button
@@ -494,7 +583,7 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                             <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
                             <h3 className="text-lg font-semibold mb-2">No bookings found</h3>
                             <p className="text-muted-foreground text-center mb-4">
-                                {filters.search || filters.status !== 'all' 
+                                {filters.search || filters.status !== 'all'
                                     ? 'Try adjusting your search criteria or filters'
                                     : 'No bookings have been made yet'
                                 }

@@ -371,6 +371,10 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::patch('booking-management/{booking:booking_number}', 'update')->name('booking-management.update');
         Route::delete('booking-management/{booking:booking_number}', 'destroy')->name('booking-management.destroy');
         Route::patch('booking-management/{booking:booking_number}/status', 'updateStatus')->name('booking-management.update-status');
+        
+        // Import/Export
+        Route::get('bookings/export/download', 'export')->name('bookings.export');
+        Route::post('bookings/import/upload', 'import')->name('bookings.import');
     });
     
     // Booking Management API

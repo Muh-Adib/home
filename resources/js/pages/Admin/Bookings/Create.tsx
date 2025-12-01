@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateRange } from '@/components/ui/date-range';
-import { 
+import {
     CalendarDays,
     Users,
     DollarSign,
@@ -47,6 +47,7 @@ import { useTranslation } from 'react-i18next';
 import { type BreadcrumbItem } from '@/types';
 import AdminLayout from '@/layouts/admin-layout';
 import ExtraServiceSelector, { type ServiceMaster as ExtraServiceMaster, type SelectedService } from '@/components/ExtraServiceSelector';
+import GuestCountForm from '@/components/booking/GuestCountForm';
 import { bookingsService } from '@/lib/api';
 import RateBreakdownCard from '@/components/booking/RateBreakdownCard';
 
@@ -152,7 +153,7 @@ interface CreateBookingProps {
 
 export default function CreateBooking({ properties, selectedProperty, prefilledData, availabilityData: initialAvailabilityData, paymentMethods, serviceMasters = [] }: CreateBookingProps) {
     const { t } = useTranslation();
-    
+
     // State management
     const [currentProperty, setCurrentProperty] = useState<Property | null>(selectedProperty || null);
     const [rateCalculation, setRateCalculation] = useState<RateCalculation | null>(null);
@@ -164,7 +165,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     const [availabilityStatus, setAvailabilityStatus] = useState<'checking' | 'available' | 'unavailable' | null>(null);
     const [availabilityError, setAvailabilityError] = useState<string | null>(null);
     const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
-    
+
     // Payment form state
     const [showPaymentForm, setShowPaymentForm] = useState(false);
     const [paymentData, setPaymentData] = useState({
@@ -178,7 +179,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         payment_status: 'verified' as 'pending' | 'verified',
         verification_notes: '',
     });
-    
+
     // Rate override state
     const [manualRateOverride, setManualRateOverride] = useState(false);
     const [overrideAmount, setOverrideAmount] = useState(0);
@@ -223,10 +224,15 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
     // Calculate total guests
     const totalGuests = useMemo(() => {
+        if (!currentProperty) return 0;
         const male = Number(data.guest_male) || 0;
         const female = Number(data.guest_female) || 0;
         const children = Number(data.guest_children) || 0;
-        return male + female + children;
+        let effectiveGuests = male + female + children;
+        if (currentProperty.capacity < currentProperty.capacity_max) {
+            effectiveGuests = male + female + Math.floor(children / 2);
+        };
+        return effectiveGuests;
     }, [data.guest_male, data.guest_female, data.guest_children]);
 
     // Calculate extra beds needed
@@ -235,8 +241,12 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         const male = Number(data.guest_male) || 0;
         const female = Number(data.guest_female) || 0;
         const children = Number(data.guest_children) || 0;
-        const totalForExtraBeds = Math.ceil(male + female + Math.ceil((children - currentProperty.capacity) * 0.5));
-        return Math.max(0, totalForExtraBeds - currentProperty.capacity);
+        // Children count logic based on capacity
+        let effectiveGuests = male + female + children;
+        if (currentProperty.capacity < currentProperty.capacity_max) {
+            effectiveGuests = male + female + Math.floor(children / 2);
+        }
+        return Math.max(0, effectiveGuests - currentProperty.capacity);
     }, [currentProperty, data.guest_male, data.guest_female, data.guest_children]);
 
     // Handle property change
@@ -244,19 +254,19 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         const property = properties.find(p => p.id.toString() === propertyId);
         setCurrentProperty(property || null);
         setData('property_id', propertyId);
-        
+
         // Reset calculations
         setRateCalculation(null);
         setRateCalculationFull(null);
         setRateError(null);
         setAvailabilityStatus(null);
         setAvailabilityError(null);
-        
+
         // Load property date range data and availability
         if (property) {
             loadPropertyDateRange(property.id);
             loadPropertyAvailabilityAndRatesAdmin(property.id);
-            
+
             // Update capacity if needed
             if (totalGuests > property.capacity_max) {
                 setData('guest_male', Math.floor(property.capacity_max / 2));
@@ -271,10 +281,10 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         try {
             const startDate = new Date().toISOString().split('T')[0];
             const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            
+
             // Use ADMIN endpoint with property_id
-                const data = await bookingsService.getPropertyDateRange(propertyId, startDate, endDate);
-            
+            const data = await bookingsService.getPropertyDateRange(propertyId, startDate, endDate);
+
             if (data && (data.success || data.data)) {
                 const responseData = data.data || data;
                 if (responseData.success || responseData) {
@@ -320,7 +330,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         try {
             const startDate = new Date().toISOString().split('T')[0];
             const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            
+
             // Use the same API pattern as customer booking show page
             const response = await fetch(`/admin/api/admin/booking-management/property-date-range?property_id=${propertyId}&start_date=${startDate}&end_date=${endDate}`, {
                 method: 'GET',
@@ -331,7 +341,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                     'Accept': 'application/json',
                 },
             });
-            
+
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
@@ -354,10 +364,10 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     // Check availability for selected dates with improved UX
     const checkAvailability = useCallback(async (propertyId: number, checkIn: string, checkOut: string) => {
         if (!checkIn || !checkOut) return;
-        
+
         setAvailabilityStatus('checking');
         setAvailabilityError(null);
-        
+
         try {
             // Use the same API pattern as customer booking show page
             const response = await fetch('/admin/api/admin/booking-management/check-availability', {
@@ -374,7 +384,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                     check_out: checkOut,
                 }),
             });
-            
+
             if (response.ok) {
                 const result = await response.json();
                 // Use the result from backend - it already checks overlap correctly
@@ -408,21 +418,26 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
         try {
             // Use API helper with CSRF token handling
+            let effectiveGuestCount = totalGuests;
+            if (currentProperty.capacity < currentProperty.capacity_max) {
+                effectiveGuestCount = totalGuests - Number(data.guest_children) + Math.floor(Number(data.guest_children) / 2);
+            }
+
             const result = await bookingsService.calculateRate({
                 property_id: currentProperty.id,
                 check_in: checkIn,
                 check_out: checkOut,
-                guest_count: totalGuests,
+                guest_count: effectiveGuestCount,
             });
             console.log('Rate calculation response (calculateRateFromBackendData):', result);
-            
+
             if (!result.success || !result.calculation) {
                 throw new Error(result.error || result.message || 'Rate calculation failed - calculation data not found');
             }
 
             const calculation = result.calculation;
             console.log('Rate calculation data:', calculation);
-            
+
             return {
                 nights: calculation.nights || 0,
                 base_amount: calculation.base_amount || 0,
@@ -447,18 +462,18 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     const handleDateRangeChange = useCallback((startDate: string, endDate: string) => {
         setData('check_in_date', startDate);
         setData('check_out_date', endDate);
-        
+
         // Clear previous calculations
         setRateCalculation(null);
         setRateCalculationFull(null);
         setRateError(null);
         setAvailabilityStatus(null);
         setAvailabilityError(null);
-        
+
         // Check availability and calculate rate if both dates are selected
         if (startDate && endDate && currentProperty) {
             setIsCalculatingRate(true);
-            
+
             // Use the same API pattern as customer booking show page
             const checkAvailabilityAndRate = async () => {
                 try {
@@ -467,35 +482,39 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                         property_id: currentProperty.id,
                         check_in: startDate,
                         check_out: endDate,
-                        guest_count: totalGuests,
+                        guest_count: (currentProperty.capacity < currentProperty.capacity_max)
+                            ? totalGuests - Number(data.guest_children) + Math.floor(Number(data.guest_children) / 2)
+                            : totalGuests,
                     });
-                    
+
                     if (availabilityData && availabilityData.success) {
                         // Use the availability result from backend - it already checks overlap correctly
                         // Backend returns 'available' field that indicates if dates are available
-                        const isAvailable = availabilityData.availability?.available ?? 
+                        const isAvailable = availabilityData.availability?.available ??
                             (availabilityData.booked_dates?.length === 0 && availabilityData.booked_periods?.length === 0);
-                        
+
                         setAvailabilityStatus(isAvailable ? 'available' : 'unavailable');
-                        
+
                         if (!isAvailable) {
                             setAvailabilityError('Property tidak tersedia untuk tanggal yang dipilih');
                             setIsCalculatingRate(false);
                             return;
                         }
-                        
+
                         // Calculate rate using ADMIN API
                         const rateData = await bookingsService.calculateRate({
                             property_id: currentProperty.id,
                             check_in: startDate,
                             check_out: endDate,
-                            guest_count: totalGuests,
+                            guest_count: (currentProperty.capacity < currentProperty.capacity_max)
+                                ? totalGuests - Number(data.guest_children) + Math.floor(Number(data.guest_children) / 2)
+                                : totalGuests,
                         });
-                        
+
                         if (rateData && rateData.success && rateData.calculation) {
                             const calculation = rateData.calculation;
                             console.log('Setting rate calculation:', calculation);
-                            
+
                             setRateCalculation({
                                 nights: calculation.nights || 0,
                                 base_amount: calculation.base_amount || 0,
@@ -532,7 +551,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                     console.error('Error in checkAvailabilityAndRate:', error);
                     setRateCalculation(null);
                     setRateCalculationFull(null);
-                    
+
                     // Extract error message from response
                     let errorMessage = 'Error calculating rate';
                     if (error instanceof Error) {
@@ -543,14 +562,14 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                     } else if (error?.message) {
                         errorMessage = error.message;
                     }
-                    
+
                     setRateError(errorMessage);
                     setAvailabilityError(errorMessage);
                 } finally {
                     setIsCalculatingRate(false);
                 }
             };
-            
+
             // Execute with delay for better UX
             setTimeout(checkAvailabilityAndRate, 300);
         }
@@ -558,9 +577,9 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
     // Handle guest count changes with real-time recalculation
     const handleGenderCountChange = (genderType: 'male' | 'female' | 'children', newCount: number) => {
-        const countField = genderType === 'children' ? 'guest_children' : 
-                          genderType === 'male' ? 'guest_male' : 'guest_female';
-        
+        const countField = genderType === 'children' ? 'guest_children' :
+            genderType === 'male' ? 'guest_male' : 'guest_female';
+
         // Calculate new total guests with updated count
         const newTotalGuests = (() => {
             const male = genderType === 'male' ? newCount : (data.guest_male || 0);
@@ -568,9 +587,9 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             const children = genderType === 'children' ? newCount : (data.guest_children || 0);
             return male + female + children;
         })();
-        
+
         setData(countField, newCount);
-        
+
         // Recalculate rate when guest count changes with debounce
         if (data.check_in_date && data.check_out_date && currentProperty && newTotalGuests > 0) {
             setIsCalculatingRate(true);
@@ -581,16 +600,18 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                         property_id: currentProperty.id,
                         check_in: data.check_in_date,
                         check_out: data.check_out_date,
-                        guest_count: newTotalGuests, // Use new total, not old totalGuests
+                        guest_count: (currentProperty.capacity < currentProperty.capacity_max)
+                            ? newTotalGuests - (genderType === 'children' ? newCount : (data.guest_children || 0)) + Math.floor((genderType === 'children' ? newCount : (data.guest_children || 0)) / 2)
+                            : newTotalGuests,
                     });
-                    
+
                     if (rateData) {
                         console.log('Rate calculation response (guest change):', rateData);
-                        
+
                         if (rateData.success && rateData.calculation) {
                             const calculation = rateData.calculation;
                             console.log('Setting rate calculation (guest change):', calculation);
-                            
+
                             setRateCalculation({
                                 nights: calculation.nights || 0,
                                 base_amount: calculation.base_amount || 0,
@@ -621,7 +642,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                     console.error('Error calculating rate on guest count change:', error);
                     setRateCalculation(null);
                     setRateCalculationFull(null);
-                    
+
                     // Extract error message
                     let errorMessage = 'Error calculating rate';
                     if (error instanceof Error) {
@@ -632,7 +653,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                     } else if (error?.message) {
                         errorMessage = error.message;
                     }
-                    
+
                     setRateError(errorMessage);
                 } finally {
                     setIsCalculatingRate(false);
@@ -684,7 +705,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             setShowPaymentForm(false);
         }
     }, [data.booking_status, data.payment_status, data.dp_percentage, totalBookingAmount]);
-    
+
     // Sync paymentData to form state when paymentData changes - real-time sync
     useEffect(() => {
         if (showPaymentForm || (data.booking_status === 'confirmed' && data.payment_status !== 'dp_pending')) {
@@ -718,17 +739,17 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             }
         }
     }, [
-        paymentData.payment_method_id, 
-        paymentData.amount, 
-        paymentData.payment_date, 
+        paymentData.payment_method_id,
+        paymentData.amount,
+        paymentData.payment_date,
         paymentData.reference_number,
         paymentData.bank_name,
         paymentData.account_number,
         paymentData.account_name,
         paymentData.verification_notes,
         paymentData.payment_status,
-        showPaymentForm, 
-        data.booking_status, 
+        showPaymentForm,
+        data.booking_status,
         data.payment_status
     ]);
 
@@ -768,23 +789,23 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     // Enhanced validation with better feedback
     // ✅ FIX: More flexible validation for admin - allow submit even if availability/rate check fails
     // Admin should be able to create booking manually even with warnings
-    const canSubmit = data.property_id && 
-                     data.check_in_date && 
-                     data.check_out_date && 
-                     data.guest_name.trim() && 
-                     data.guest_email.trim() && 
-                     data.guest_phone.trim() && 
-                     data.guest_country && 
-                     totalGuests > 0 &&
-                     // Allow submit even if availabilityStatus is null or unavailable (admin can override)
-                     // Allow submit even if rateCalculation is null (will be calculated on backend)
-                     (!availabilityStatus || availabilityStatus === 'available' || availabilityStatus === 'unavailable') &&
-                     !isCalculatingRate; // Only block if currently calculating
+    const canSubmit = data.property_id &&
+        data.check_in_date &&
+        data.check_out_date &&
+        data.guest_name.trim() &&
+        data.guest_email.trim() &&
+        data.guest_phone.trim() &&
+        data.guest_country &&
+        totalGuests > 0 &&
+        // Allow submit even if availabilityStatus is null or unavailable (admin can override)
+        // Allow submit even if rateCalculation is null (will be calculated on backend)
+        (!availabilityStatus || availabilityStatus === 'available' || availabilityStatus === 'unavailable') &&
+        !isCalculatingRate; // Only block if currently calculating
 
     // Validation messages
     const validationMessages = useMemo(() => {
         const messages: string[] = [];
-        
+
         if (!data.property_id) messages.push('Property harus dipilih');
         if (!data.check_in_date) messages.push('Check-in date harus diisi');
         if (!data.check_out_date) messages.push('Check-out date harus diisi');
@@ -792,13 +813,13 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         if (!data.guest_email.trim()) messages.push('Email tamu utama harus diisi');
         if (!data.guest_phone.trim()) messages.push('Nomor telepon tamu utama harus diisi');
         if (totalGuests === 0) messages.push('Jumlah tamu minimal 1');
-        
+
         // Rate override validation
         if (manualRateOverride) {
             if (!overrideAmount || overrideAmount <= 0) messages.push('Override amount harus diisi dan lebih dari 0');
             if (!overrideReason || overrideReason.trim().length < 10) messages.push('Override reason harus diisi minimal 10 karakter');
         }
-        
+
         // ✅ FIX: Show warnings instead of blocking for availability/rate issues
         // Admin can still submit, but will see warnings
         if (availabilityStatus === 'unavailable') {
@@ -807,22 +828,22 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         if (!rateCalculation && !isCalculatingRate && data.check_in_date && data.check_out_date) {
             messages.push('⚠️ Warning: Rate calculation belum tersedia, akan dihitung di backend');
         }
-        
+
         // Info: availability/rate akan dicek ulang di backend. Submit tetap diizinkan.
-        
+
         return messages;
     }, [data, totalGuests, rateCalculation, availabilityStatus, manualRateOverride, overrideAmount, overrideReason]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (!canSubmit) {
             return;
         }
-        
+
         // Check if payment is required
         const isPaymentRequired = data.booking_status === 'confirmed' && data.payment_status !== 'dp_pending';
-        
+
         // Frontend validation: Check if payment data is required but missing
         if (isPaymentRequired) {
             if (!paymentData.payment_method_id || paymentData.payment_method_id === '') {
@@ -840,19 +861,19 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                 return;
             }
         }
-        
+
         // Prepare payment data - ensure it's always included if payment is required
         let paymentFormData: Record<string, any> = {};
         if (showPaymentForm || isPaymentRequired) {
             // Ensure payment_method_id is string, not empty - get directly from paymentData
-            const paymentMethodId = paymentData.payment_method_id && paymentData.payment_method_id !== '' 
-                ? String(paymentData.payment_method_id) 
+            const paymentMethodId = paymentData.payment_method_id && paymentData.payment_method_id !== ''
+                ? String(paymentData.payment_method_id)
                 : null;
             // Ensure payment_amount is number and > 0 - get directly from paymentData
-            const paymentAmount = paymentData.amount && paymentData.amount > 0 
-                ? Number(paymentData.amount) 
+            const paymentAmount = paymentData.amount && paymentData.amount > 0
+                ? Number(paymentData.amount)
                 : null;
-            
+
             paymentFormData = {
                 payment_method_id: paymentMethodId,
                 payment_amount: paymentAmount,
@@ -864,7 +885,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                 payment_status_payment: paymentData.payment_status || 'verified',
                 verification_notes: paymentData.verification_notes || null,
             };
-            
+
             console.log('Payment form data prepared:', {
                 paymentMethodId,
                 paymentAmount,
@@ -873,7 +894,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                 hasPaymentAmount: !!paymentAmount,
             });
         }
-        
+
         // Debug: Log payment data before submission
         console.log('Payment data before submission:', {
             showPaymentForm,
@@ -881,7 +902,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             paymentData,
             paymentFormData,
         });
-        
+
         // Prepare ALL form data including payment - merge everything together
         const allFormData: any = {
             ...data,
@@ -897,7 +918,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             // Extra services - send empty array instead of null if no services
             services: selectedServices.length > 0 ? selectedServices : [],
         };
-        
+
         console.log('Final form data before submission:', {
             payment_method_id: allFormData.payment_method_id,
             payment_amount: allFormData.payment_amount,
@@ -905,7 +926,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             payment_status: allFormData.payment_status,
             hasPaymentData: !!(allFormData.payment_method_id && allFormData.payment_amount),
         });
-        
+
         // Update form data state with ALL data including payment
         // Update all form fields including payment data
         Object.keys(allFormData).forEach(key => {
@@ -915,7 +936,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                 setData(key as any, value);
             }
         });
-        
+
         // Force update payment data directly to form state
         // This ensures payment data is definitely included
         if (isPaymentRequired || showPaymentForm) {
@@ -948,7 +969,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                 setData('verification_notes' as any, paymentFormData.verification_notes);
             }
         }
-        
+
         // Submit form - Inertia will use the updated form state
         post(route('admin.booking-management.store'), {
             preserveScroll: true,
@@ -997,7 +1018,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs} title="Booking Create" subtitle="Create Booking">
-         
+
             <div className="space-y-6">
                 {/* Header */}
                 <div>
@@ -1044,8 +1065,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                     {/* Property Selection */}
                                     <div>
                                         <Label htmlFor="property_id">Select Property *</Label>
-                                        <Select 
-                                            value={data.property_id} 
+                                        <Select
+                                            value={data.property_id}
                                             onValueChange={handlePropertyChange}
                                         >
                                             <SelectTrigger className={errors.property_id ? 'border-red-500' : ''}>
@@ -1072,8 +1093,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                         <div className="bg-slate-50 p-4 rounded-lg">
                                             <div className="flex items-start gap-3">
                                                 {currentProperty.cover_image && (
-                                                    <img 
-                                                        src={currentProperty.cover_image} 
+                                                    <img
+                                                        src={currentProperty.cover_image}
                                                         alt={currentProperty.name}
                                                         className="w-16 h-16 rounded-lg object-cover"
                                                     />
@@ -1125,7 +1146,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                 {errors.check_in_date || errors.check_out_date}
                                             </p>
                                         )}
-                                        
+
                                         {/* Enhanced Availability Status */}
                                         {availabilityStatus && (
                                             <div className="mt-2">
@@ -1137,7 +1158,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
-                                                
+
                                                 {availabilityStatus === 'available' && (
                                                     <Alert className="border-green-200 bg-green-50">
                                                         <CheckCircle className="h-4 w-4 text-green-600" />
@@ -1146,7 +1167,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
-                                                
+
                                                 {availabilityStatus === 'unavailable' && (
                                                     <Alert variant="destructive">
                                                         <AlertCircle className="h-4 w-4" />
@@ -1180,82 +1201,24 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                     </div>
 
                                     {/* Guest Count with Real-time Updates */}
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <Users className="h-5 w-5 text-brand-primary" />
-                                            <h3 className="text-lg font-semibold">Guest Count</h3>
-                                        </div>
-                                        
-                                        <div className="grid grid-cols-3 sm:grid-cols-3 gap-4 mb-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="guest_count_male">Male Adults</Label>
-                                                <Input
-                                                    id="guest_count_male"
-                                                    type="number"
-                                                    min="0"
-                                                    value={data.guest_male}
-                                                    onChange={(e) => handleGenderCountChange('male', parseInt(e.target.value) || 0)}
-                                                    className={errors.guest_male ? 'border-red-500' : ''}
-                                                />
-                                                {errors.guest_male && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.guest_male}</p>
-                                                )}
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="guest_count_female">Female Adults</Label>
-                                                <Input
-                                                    id="guest_count_female"
-                                                    type="number"
-                                                    min="0"
-                                                    value={data.guest_female}
-                                                    onChange={(e) => handleGenderCountChange('female', parseInt(e.target.value) || 0)}
-                                                    className={errors.guest_female ? 'border-red-500' : ''}
-                                                />
-                                                {errors.guest_female && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.guest_female}</p>
-                                                )}
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="guest_count_children">Children</Label>
-                                                <Input
-                                                    id="guest_count_children"
-                                                    type="number"
-                                                    min="0"
-                                                    value={data.guest_children}
-                                                    onChange={(e) => handleGenderCountChange('children', parseInt(e.target.value) || 0)}
-                                                    className={errors.guest_children ? 'border-red-500' : ''}
-                                                />
-                                                {errors.guest_children && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.guest_children}</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Enhanced Guest Count Summary */}
-                                        <div className="bg-slate-50 p-4 sm:p-6 rounded-lg">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="font-medium">Total Guests:</span>
-                                                <Badge variant="secondary">
-                                                    {totalGuests} guests
-                                                </Badge>
-                                            </div>
-                                            {currentProperty && (
-                                                <div className="text-sm text-gray-600">
-                                                    Property Capacity: {currentProperty.capacity} - {currentProperty.capacity_max} guests
-                                                </div>
-                                            )}
-                                            
-                                            {extraBeds > 0 && currentProperty && currentProperty.extra_bed_rate && (
-                                                <div className="mt-2 flex items-center gap-2 text-sm">
-                                                    <Bed className="h-4 w-4 text-brand-primary" />
-                                                    <span>Extra beds needed: {extraBeds}</span>
-                                                    <span className="text-gray-600">
-                                                        (+{formatCurrency(extraBeds * currentProperty.extra_bed_rate)}/night)
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                                    {currentProperty && (
+                                        <GuestCountForm
+                                            guestMale={data.guest_male}
+                                            guestFemale={data.guest_female}
+                                            guestChildren={data.guest_children}
+                                            totalGuests={totalGuests}
+                                            extraBeds={extraBeds}
+                                            capacity={currentProperty.capacity}
+                                            capacityMax={currentProperty.capacity_max}
+                                            extraBedRate={currentProperty.extra_bed_rate || 0}
+                                            errors={{
+                                                guest_male: errors.guest_male,
+                                                guest_female: errors.guest_female,
+                                                guest_children: errors.guest_children,
+                                            }}
+                                            onGuestCountChange={handleGenderCountChange}
+                                        />
+                                    )}
 
                                     <Separator />
 
@@ -1279,8 +1242,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                             </div>
                                             <div>
                                                 <Label htmlFor="guest_gender">Gender *</Label>
-                                                <Select 
-                                                    value={data.guest_gender} 
+                                                <Select
+                                                    value={data.guest_gender}
                                                     onValueChange={(value: 'male' | 'female') => setData('guest_gender', value)}
                                                 >
                                                     <SelectTrigger className={errors.guest_gender ? 'border-red-500' : ''}>
@@ -1328,8 +1291,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                             </div>
                                             <div>
                                                 <Label htmlFor="guest_country">Country *</Label>
-                                                <Select 
-                                                    value={data.guest_country} 
+                                                <Select
+                                                    value={data.guest_country}
                                                     onValueChange={(value) => setData('guest_country', value)}
                                                 >
                                                     <SelectTrigger className={errors.guest_country ? 'border-red-500' : ''}>
@@ -1361,8 +1324,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                             </div>
                                             <div>
                                                 <Label htmlFor="relationship_type">Relationship Type *</Label>
-                                                <Select 
-                                                    value={data.relationship_type} 
+                                                <Select
+                                                    value={data.relationship_type}
                                                     onValueChange={(value: any) => setData('relationship_type', value)}
                                                 >
                                                     <SelectTrigger className={errors.relationship_type ? 'border-red-500' : ''}>
@@ -1464,11 +1427,11 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
                                     {/* Rate Override Section */}
                                     <div>
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <Calculator className="h-5 w-5 text-brand-primary" />
-                                        <h3 className="text-lg font-semibold">Rate Adjustment</h3>
-                                    </div>
-                                        
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <Calculator className="h-5 w-5 text-brand-primary" />
+                                            <h3 className="text-lg font-semibold">Rate Adjustment</h3>
+                                        </div>
+
                                         <div className="space-y-4">
                                             <div className="flex items-center space-x-2">
                                                 <input
@@ -1482,7 +1445,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                     Manual Rate Adjustment
                                                 </Label>
                                             </div>
-                                            
+
                                             {manualRateOverride && (
                                                 <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                                                     {rateCalculation && (
@@ -1493,7 +1456,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                             </div>
                                                         </div>
                                                     )}
-                                                    
+
                                                     <div>
                                                         <Label htmlFor="override_amount">Override Amount *</Label>
                                                         <Input
@@ -1505,7 +1468,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                             placeholder="Enter custom amount"
                                                         />
                                                     </div>
-                                                    
+
                                                     <div>
                                                         <Label htmlFor="override_reason">Adjustment Reason *</Label>
                                                         <Textarea
@@ -1516,7 +1479,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                             placeholder="e.g., Early bird discount, Repeat customer, Special promotion..."
                                                         />
                                                     </div>
-                                                    
+
                                                     {rateCalculation && overrideAmount > 0 && (
                                                         <div className="text-sm">
                                                             <div className="flex justify-between">
@@ -1544,13 +1507,13 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                 <h3 className="text-lg font-semibold">Payment Information</h3>
                                                 <Badge variant="secondary">Required for Confirmed Booking</Badge>
                                             </div>
-                                            
+
                                             <div className="space-y-4 p-4 bg-green-50 rounded-lg border border-green-200">
                                                 <div className="grid md:grid-cols-2 gap-4">
                                                     <div>
                                                         <Label htmlFor="payment_method_id">Payment Method *</Label>
-                                                        <Select 
-                                                            value={paymentData.payment_method_id} 
+                                                        <Select
+                                                            value={paymentData.payment_method_id}
                                                             onValueChange={(value) => {
                                                                 console.log('Payment method selected:', value);
                                                                 setPaymentData(prev => ({ ...prev, payment_method_id: value }));
@@ -1558,9 +1521,9 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                                 setData('payment_method_id' as any, value);
                                                             }}
                                                         >
-                                                        <SelectTrigger className={'payment_method_id' in errors ? 'border-red-500' : ''}>
-                                                            <SelectValue placeholder="Select payment method" />
-                                                        </SelectTrigger>
+                                                            <SelectTrigger className={'payment_method_id' in errors ? 'border-red-500' : ''}>
+                                                                <SelectValue placeholder="Select payment method" />
+                                                            </SelectTrigger>
                                                             <SelectContent>
                                                                 {paymentMethods.map((method) => (
                                                                     <SelectItem key={method.id} value={method.id.toString()}>
@@ -1571,13 +1534,13 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         </Select>
                                                         {'payment_method_id' in errors && (
                                                             <p className="text-sm text-red-500 mt-1">
-                                                                {Array.isArray((errors as any).payment_method_id) 
-                                                                    ? (errors as any).payment_method_id[0] 
+                                                                {Array.isArray((errors as any).payment_method_id)
+                                                                    ? (errors as any).payment_method_id[0]
                                                                     : (errors as any).payment_method_id}
                                                             </p>
                                                         )}
                                                     </div>
-                                                    
+
                                                     <div>
                                                         <Label htmlFor="payment_amount">Payment Amount *</Label>
                                                         <Input
@@ -1597,14 +1560,14 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         />
                                                         {'payment_amount' in errors && (
                                                             <p className="text-sm text-red-500 mt-1">
-                                                                {Array.isArray((errors as any).payment_amount) 
-                                                                    ? (errors as any).payment_amount[0] 
+                                                                {Array.isArray((errors as any).payment_amount)
+                                                                    ? (errors as any).payment_amount[0]
                                                                     : (errors as any).payment_amount}
                                                             </p>
                                                         )}
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div className="grid md:grid-cols-2 gap-4">
                                                     <div>
                                                         <Label htmlFor="payment_date">Payment Date *</Label>
@@ -1615,7 +1578,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                             onChange={(e) => setPaymentData(prev => ({ ...prev, payment_date: e.target.value }))}
                                                         />
                                                     </div>
-                                                    
+
                                                     <div>
                                                         <Label htmlFor="reference_number">Reference Number</Label>
                                                         <Input
@@ -1626,7 +1589,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         />
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div className="grid md:grid-cols-3 gap-4">
                                                     <div>
                                                         <Label htmlFor="bank_name">Bank Name</Label>
@@ -1637,7 +1600,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                             placeholder="Bank name"
                                                         />
                                                     </div>
-                                                    
+
                                                     <div>
                                                         <Label htmlFor="account_number">Account Number</Label>
                                                         <Input
@@ -1647,7 +1610,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                             placeholder="Account number"
                                                         />
                                                     </div>
-                                                    
+
                                                     <div>
                                                         <Label htmlFor="account_name">Account Name</Label>
                                                         <Input
@@ -1658,7 +1621,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         />
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div>
                                                     <Label htmlFor="verification_notes">Payment Notes</Label>
                                                     <Textarea
@@ -1669,7 +1632,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         placeholder="Additional payment notes..."
                                                     />
                                                 </div>
-                                                
+
                                                 <div className="text-sm text-gray-600">
                                                     <div className="flex justify-between">
                                                         <span>Base Amount:</span>
@@ -1687,7 +1650,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         <span>Total Booking Amount:</span>
                                                         <span className="font-medium">
                                                             {formatCurrency(
-                                                                (rateCalculation?.total_amount || 0) + 
+                                                                (rateCalculation?.total_amount || 0) +
                                                                 selectedServices.reduce((sum, s) => sum + s.total_price, 0)
                                                             )}
                                                         </span>
@@ -1700,8 +1663,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         <span>Remaining:</span>
                                                         <span className="font-medium">
                                                             {formatCurrency(
-                                                                ((rateCalculation?.total_amount || 0) + 
-                                                                selectedServices.reduce((sum, s) => sum + s.total_price, 0)) - 
+                                                                ((rateCalculation?.total_amount || 0) +
+                                                                    selectedServices.reduce((sum, s) => sum + s.total_price, 0)) -
                                                                 paymentData.amount
                                                             )}
                                                         </span>
@@ -1752,8 +1715,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                     </div>
 
                                     <div className="flex justify-end pt-4">
-                                        <Button 
-                                            type="submit" 
+                                        <Button
+                                            type="submit"
                                             disabled={!canSubmit || processing}
                                             className="px-8 bg-brand-primary text-white hover:bg-brand-primary-dark"
                                         >
@@ -1832,7 +1795,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                
+
                                 {/* Enhanced Rate Calculation Display */}
                                 <div className="space-y-3">
                                     {isCalculatingRate && (
@@ -1857,7 +1820,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                     {rateCalculation && (
                                         <div className="space-y-4">
                                             {/* Enhanced Main Price Display */}
-                                                <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                                            <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
                                                 <div className="text-3xl font-bold text-brand-primary">
                                                     {formatCurrency(totalBookingAmount)}
                                                 </div>
@@ -1869,14 +1832,14 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         Base: {rateCalculation.formatted.total_amount} • Services: {formatCurrency(servicesTotal)}
                                                     </div>
                                                 )}
-                                                
+
                                                 {(rateCalculation.seasonal_premium || 0) > 0 && (
                                                     <div className="text-xs text-green-600 mt-2 flex items-center justify-center">
                                                         <Sparkles className="h-3 w-3 mr-1" />
                                                         Special seasonal rates applied
                                                     </div>
                                                 )}
-                                                
+
                                                 {(rateCalculation.weekend_premium || 0) > 0 && (
                                                     <div className="text-xs text-amber-600 mt-1 flex items-center justify-center">
                                                         <Tag className="h-3 w-3 mr-1" />
@@ -1891,47 +1854,47 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                     <span>Base Rate ({rateCalculation.nights} nights)</span>
                                                     <span>{formatCurrency(rateCalculation.base_amount)}</span>
                                                 </div>
-                                                
+
                                                 {rateCalculation.weekend_premium > 0 && (
                                                     <div className="flex justify-between text-amber-600">
                                                         <span>Weekend Premium</span>
                                                         <span>+{formatCurrency(rateCalculation.weekend_premium)}</span>
                                                     </div>
                                                 )}
-                                                
+
                                                 {rateCalculation.seasonal_premium > 0 && (
                                                     <div className="flex justify-between text-green-600">
                                                         <span>Seasonal Premium</span>
                                                         <span>+{formatCurrency(rateCalculation.seasonal_premium)}</span>
                                                     </div>
                                                 )}
-                                                
+
                                                 {rateCalculation.extra_bed_amount > 0 && (
                                                     <div className="flex justify-between">
                                                         <span>Extra Beds ({rateCalculation.extra_beds})</span>
                                                         <span>+{formatCurrency(rateCalculation.extra_bed_amount)}</span>
                                                     </div>
                                                 )}
-                                                
+
                                                 <div className="flex justify-between">
                                                     <span>Cleaning Fee</span>
                                                     <span>{formatCurrency(rateCalculation.cleaning_fee)}</span>
                                                 </div>
-                                                
+
                                                 <div className="flex justify-between">
                                                     <span>Tax (0%)</span>
                                                     <span>{formatCurrency(rateCalculation.tax_amount)}</span>
                                                 </div>
-                                                
+
                                                 {servicesTotal > 0 && (
                                                     <div className="flex justify-between text-blue-600">
                                                         <span>Extra Services</span>
                                                         <span>+{formatCurrency(servicesTotal)}</span>
                                                     </div>
                                                 )}
-                                                
+
                                                 <Separator />
-                                                
+
                                                 <div className="flex justify-between font-semibold text-base">
                                                     <span>Total</span>
                                                     <span>{formatCurrency(totalBookingAmount)}</span>
@@ -1974,7 +1937,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                         <div className="flex justify-between">
                                             <span>Property:</span>
                                             <span className="font-medium">{currentProperty.name}</span>
-                    </div>
+                                        </div>
                                         <div className="flex justify-between">
                                             <span>Check-in:</span>
                                             <span>{formatDate(data.check_in_date)}</span>
@@ -2000,11 +1963,11 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                         <div className="flex justify-between">
                                             <span>Payment:</span>
                                             <Badge variant={
-                                                data.payment_status === 'fully_paid' ? 'default' : 
-                                                data.payment_status === 'dp_received' ? 'secondary' : 'destructive'
+                                                data.payment_status === 'fully_paid' ? 'default' :
+                                                    data.payment_status === 'dp_received' ? 'secondary' : 'destructive'
                                             }>
-                                                {data.payment_status === 'fully_paid' ? 'Fully Paid' : 
-                                                 data.payment_status === 'dp_received' ? 'DP Received' : 'DP Pending'}
+                                                {data.payment_status === 'fully_paid' ? 'Fully Paid' :
+                                                    data.payment_status === 'dp_received' ? 'DP Received' : 'DP Pending'}
                                             </Badge>
                                         </div>
                                     </div>

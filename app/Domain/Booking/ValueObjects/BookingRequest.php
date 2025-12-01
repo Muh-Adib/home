@@ -51,10 +51,15 @@ class BookingRequest
         return $this->guestMale + $this->guestFemale + $this->guestChildren;
     }
 
-    public function getEffectiveGuestCount(): float
+    public function getEffectiveGuestCount(int $capacity, int $capacityMax): int
     {
-        // Children count as 0.5 for extra bed calculation
-        return $this->guestMale + $this->guestFemale + ($this->guestChildren * 0.5);
+        // If capacity < capacityMax, apply special child logic (floor(children / 2))
+        // Otherwise (capacity == capacityMax), children count as 1
+        if ($capacity < $capacityMax) {
+            return $this->guestMale + $this->guestFemale + (int) floor($this->guestChildren / 2);
+        }
+
+        return $this->guestMale + $this->guestFemale + $this->guestChildren;
     }
 
     public function toArray(): array

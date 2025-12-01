@@ -98,7 +98,7 @@ export default function GuestCountForm({
                             min="0"
                             value={guestFemale}
                             onChange={(e) => onGuestCountChange('female', parseInt(e.target.value) || 0)}
-                            className={`h-12 text-base ${errors?.guest_female ? 'border-red-500' : ''}`}
+                            className={`h-12 text-center text-base ${errors?.guest_female ? 'border-red-500' : ''}`}
                         />
                         {/* Tombol + */}
                         <button
@@ -130,7 +130,7 @@ export default function GuestCountForm({
                             min="0"
                             value={guestChildren}
                             onChange={(e) => onGuestCountChange('children', parseInt(e.target.value) || 0)}
-                            className={`h-12 text-base ${errors?.guest_children ? 'border-red-500' : ''}`}
+                            className={`h-12 text-center text-base ${errors?.guest_children ? 'border-red-500' : ''}`}
                         />
                         {/* Tombol + */}
                         <button

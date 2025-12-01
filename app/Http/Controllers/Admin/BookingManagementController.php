@@ -19,6 +19,9 @@ use Inertia\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\BookingsExport;
+use App\Imports\BookingsImport;
 
 /**
  * BookingManagementController - Controller untuk mengelola booking admin
@@ -331,16 +334,28 @@ class BookingManagementController extends Controller
         }
 
         try {
+            // ✅ Calculate guest_count with conditional logic based on property capacity
+            $guestMale = (int)$validated['guest_male'];
+            $guestFemale = (int)$validated['guest_female'];
+            $guestChildren = (int)$validated['guest_children'];
+            
+            // Apply conditional logic: if capacity < capacity_max, children count as floor(children/2)
+            if ($property->capacity < $property->capacity_max) {
+                $guestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
+            } else {
+                $guestCount = $guestMale + $guestFemale + $guestChildren;
+            }
+
             // ✅ FIX: Transform data to match BookingRequest format
             $bookingData = [
                 'property_id' => $validated['property_id'],
                 'check_in' => $validated['check_in_date'],
                 'check_out' => $validated['check_out_date'],
                 'check_in_time' => '15:00',
-                'guest_count' => $validated['guest_male'] + $validated['guest_female'] + $validated['guest_children'],
-                'guest_male' => $validated['guest_male'],
-                'guest_female' => $validated['guest_female'],
-                'guest_children' => $validated['guest_children'],
+                'guest_male' => $guestMale,
+                'guest_female' => $guestFemale,
+                'guest_children' => $guestChildren,
+                'guest_count' => $guestCount, // Use calculated guest count
                 'guest_name' => $validated['guest_name'],
                 'guest_email' => $validated['guest_email'],
                 'guest_phone' => $validated['guest_phone'],
@@ -373,6 +388,7 @@ class BookingManagementController extends Controller
             
             // ✅ FIX: Use new BookingService with BookingRequest
             $bookingRequest = \App\Domain\Booking\ValueObjects\BookingRequest::fromArray($bookingData);
+            //dd($bookingRequest,$validated);
             $booking = $this->bookingService->createBooking($bookingRequest, $guestUser);
             
             // ✅ FIX: Admin-specific updates
@@ -898,10 +914,10 @@ class BookingManagementController extends Controller
     /**
      * Additional validation rules for booking creation/update
      */
-    private function validateBookingRules(array $validated, Request $request): void
+    private function validateBookingRules(array $validated, Request $request, bool $isEdit = false): void
     {
-        // Payment requirement validation
-        if ($validated['booking_status'] === 'confirmed' && $validated['payment_status'] !== 'dp_pending') {
+        // Payment requirement validation (only for new bookings, not edits)
+        if (!$isEdit && $validated['booking_status'] === 'confirmed' && $validated['payment_status'] !== 'dp_pending') {
             $errors = [];
             
             if (empty($validated['payment_method_id'])) {
@@ -941,21 +957,42 @@ class BookingManagementController extends Controller
             }
         }
         
-        // Guest count validation
-        $totalGuests = $validated['guest_male'] + $validated['guest_female'] + $validated['guest_children'];
-        if ($totalGuests <= 0) {
+        // Guest count validation with conditional logic
+        $property = Property::find($validated['property_id']);
+        
+        if (!$property) {
             throw new \Illuminate\Validation\ValidationException(
                 validator([], []),
-                ['guest_count' => ['Total guest count must be at least 1']]
+                ['property_id' => ['Property not found']]
             );
         }
         
-        // Property capacity validation
-        $property = Property::find($validated['property_id']);
-        if ($property && $totalGuests > $property->capacity_max) {
+        $guestMale = (int)($validated['guest_male'] ?? 0);
+        $guestFemale = (int)($validated['guest_female'] ?? 0);
+        $guestChildren = (int)($validated['guest_children'] ?? 0);
+        
+        // Calculate total guests (actual people)
+        $totalGuests = $guestMale + $guestFemale + $guestChildren;
+        
+        // Calculate effective guest count for capacity check (with conditional logic)
+        if ($property->capacity < $property->capacity_max) {
+            $effectiveGuestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
+        } else {
+            $effectiveGuestCount = $guestMale + $guestFemale + $guestChildren;
+        }
+        
+        if ($totalGuests <= 0) {
             throw new \Illuminate\Validation\ValidationException(
                 validator([], []),
-                ['guest_count' => ["Guest count ({$totalGuests}) exceeds property maximum capacity ({$property->capacity_max})"]]
+                ['guest_male' => ['At least one guest is required']]
+            );
+        }
+        
+        // Property capacity validation using effective guest count
+        if ($effectiveGuestCount > $property->capacity_max) {
+            throw new \Illuminate\Validation\ValidationException(
+                validator([], []),
+                ['guest_children' => ["Guest count ({$effectiveGuestCount}) exceeds property maximum capacity ({$property->capacity_max})"]]
             );
         }
     }
@@ -1147,8 +1184,15 @@ class BookingManagementController extends Controller
             ]);
         }
 
-        // Additional validation rules
-        $this->validateBookingRules($validated, $request);
+        // Additional validation rules - handle ValidationException properly for Inertia
+        try {
+            $this->validateBookingRules($validated, $request, true);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            if ($request->header('X-Inertia')) {
+                return back()->withErrors($e->errors());
+            }
+            throw $e;
+        }
 
         $property = Property::findOrFail($validated['property_id']);
         $user = $request->user();
@@ -1176,11 +1220,22 @@ class BookingManagementController extends Controller
         try {
             DB::beginTransaction();
             
+            // Calculate guest_count with conditional logic
+            $guestMale = (int)$validated['guest_male'];
+            $guestFemale = (int)$validated['guest_female'];
+            $guestChildren = (int)$validated['guest_children'];
+            
+            if ($property->capacity < $property->capacity_max) {
+                $guestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
+            } else {
+                $guestCount = $guestMale + $guestFemale + $guestChildren;
+            }
+            
             // Recalculate rate if dates/guests/property changed
             $needsRecalculation = (
                 $booking->check_in->format('Y-m-d') != $validated['check_in_date'] ||
                 $booking->check_out->format('Y-m-d') != $validated['check_out_date'] ||
-                $booking->guest_count != ($validated['guest_male'] + $validated['guest_female'] + $validated['guest_children']) ||
+                $booking->guest_count != $guestCount ||
                 $booking->property_id != $validated['property_id']
             );
             
@@ -1188,10 +1243,10 @@ class BookingManagementController extends Controller
                 'property_id' => $validated['property_id'],
                 'check_in' => $validated['check_in_date'],
                 'check_out' => $validated['check_out_date'],
-                'guest_male' => $validated['guest_male'],
-                'guest_female' => $validated['guest_female'],
-                'guest_children' => $validated['guest_children'],
-                'guest_count' => $validated['guest_male'] + $validated['guest_female'] + $validated['guest_children'],
+                'guest_male' => $guestMale,
+                'guest_female' => $guestFemale,
+                'guest_children' => $guestChildren,
+                'guest_count' => $guestCount, // Use calculated guest count
                 'guest_name' => $validated['guest_name'],
                 'guest_email' => $validated['guest_email'],
                 'guest_phone' => $validated['guest_phone'],
@@ -1214,7 +1269,7 @@ class BookingManagementController extends Controller
                     $property,
                     $validated['check_in_date'],
                     $validated['check_out_date'],
-                    $validated['guest_male'] + $validated['guest_female'] + $validated['guest_children']
+                    $guestCount // Use calculated guest count
                 );
                 
                 $updateData['total_amount'] = $rateCalculation->totalAmount;
@@ -2084,6 +2139,32 @@ class BookingManagementController extends Controller
             return back()->withErrors([
                 'error' => 'Gagal menghapus booking: ' . $e->getMessage(),
             ]);
+        }
+    }
+
+
+    /**
+     * Export bookings to Excel
+     */
+    public function export(Request $request)
+    {
+        return Excel::download(new BookingsExport($request->all()), 'bookings.xlsx');
+    }
+
+    /**
+     * Import bookings from Excel
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,csv',
+        ]);
+
+        try {
+            Excel::import(new BookingsImport, $request->file('file'));
+            return back()->with('success', 'Bookings imported successfully.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Import failed: ' . $e->getMessage()]);
         }
     }
 }

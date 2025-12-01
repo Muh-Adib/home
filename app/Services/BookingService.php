@@ -56,7 +56,7 @@ class BookingService
                         $property,
                         $request->checkInDate,
                         $request->checkOutDate,
-                        $request->guestCount
+                        $request->getEffectiveGuestCount($property->capacity, $property->capacity_max)
                     );
                     $request->setRateCalculation($rateCalculation->toArray());
                     $request->setTotalAmount($rateCalculation->totalAmount);
@@ -113,7 +113,7 @@ class BookingService
                         $property,
                         $request->checkInDate,
                         $request->checkOutDate,
-                        $request->guestCount
+                        $request->getEffectiveGuestCount($property->capacity, $property->capacity_max)
                     );
                     $request->setRateCalculation($rateCalculation->toArray());
                     $request->setTotalAmount($rateCalculation->totalAmount);

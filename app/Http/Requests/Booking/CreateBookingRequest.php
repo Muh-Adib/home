@@ -92,22 +92,30 @@ class CreateBookingRequest extends FormRequest
         $guestMale = (int)$this->input('guest_male', 0);
         $guestFemale = (int)$this->input('guest_female', 0);
         $guestChildren = (int)$this->input('guest_children', 0);
-        $totalGuests = $guestMale + $guestFemale + $guestChildren;
         
-        if ($totalGuests <= 0) {
+        
+
+        // Get property from route model binding
+        $property = $this->route('property');
+
+        if ($property->capacity < $property->capacity_max) {
+            $effectiveGuestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
+        } else {
+            $effectiveGuestCount = $guestMale + $guestFemale + $guestChildren;
+        }
+        
+        if ($effectiveGuestCount <= 0) {
             $validator->errors()->add('guest_count', 'Total tamu harus lebih dari 0.');
             return;
         }
 
-        // Get property from route model binding
-        $property = $this->route('property');
-        if ($property && $totalGuests > $property->capacity_max) {
+        if ($property && $effectiveGuestCount > $property->capacity_max) {
             $validator->errors()->add('guest_count', "Jumlah tamu melebihi kapasitas maksimal ({$property->capacity_max} orang).");
         }
 
         // ✅ FIX: Set calculated guest_count if not provided
         if (!$this->input('guest_count')) {
-            $this->merge(['guest_count' => $totalGuests]);
+            $this->merge(['guest_count' => $effectiveGuestCount]);
         }
     }
 

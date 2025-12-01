@@ -184,14 +184,22 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
         return property.extra_bed_rate || 0;
     }, [rateCalculation, property.extra_bed_rate]);
 
-    // Calculate total guests whenever individual counts change
+    // Calculate total guests and effective guests whenever individual counts change
     useEffect(() => {
-        const total = data.guest_male + data.guest_female + data.guest_children;
+        const total = data.guest_male + data.guest_female + Math.floor(data.guest_children / 2);
         setTotalGuests(total);
 
-        // Calculate extra beds needed: max(0, totalGuests - capacity)
-        // This matches the backend calculation in RateCalculationService
-        const extraBedsNeeded = Math.max(0, total - property.capacity);
+        // Calculate effective guests for extra bed calculation
+        // If capacity < capacity_max: Children count: 1->0, 2->1, 3->1, 4->2, etc. (floor(children / 2))
+        // If capacity == capacity_max: Children count as 1
+        let effectiveGuests = data.guest_male + data.guest_female + data.guest_children;
+
+        if (property.capacity < property.capacity_max) {
+            effectiveGuests = data.guest_male + data.guest_female + Math.floor(data.guest_children / 2);
+        }
+
+        // Calculate extra beds needed: max(0, effectiveGuests - capacity)
+        const extraBedsNeeded = Math.max(0, effectiveGuests - property.capacity);
         setExtraBeds(extraBedsNeeded);
     }, [data.guest_male, data.guest_female, data.guest_children, property.capacity]);
 
@@ -205,37 +213,23 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
             setData('guest_female', newCount);
         }
 
-        // Recalculate rate when guest count changes
-        if (data.check_in && data.check_out) {
-            setTimeout(async () => {
-                try {
-                    const result = await propertiesService.calculateRate(property.slug, {
-                        check_in: data.check_in,
-                        check_out: data.check_out,
-                        guest_count: totalGuests,
-                    });
-
-                    if (result.success) {
-                        setRateCalculation(result.calculation);
-                        setAvailabilityStatus('available');
-                    } else {
-                        setAvailabilityStatus('unavailable');
-                    }
-                } catch (error) {
-                    console.error('Error calculating rate:', error);
-                    setAvailabilityStatus('unavailable');
-                }
-            }, 300);
-        }
+        // Note: Rate calculation effect will trigger automatically due to data dependency
     };
 
     // Calculate rate
     const calculateRate = useCallback(async () => {
         try {
+            // Calculate effective guest count for rate calculation
+            let effectiveGuestCount = data.guest_male + data.guest_female + data.guest_children;
+
+            if (property.capacity < property.capacity_max) {
+                effectiveGuestCount = data.guest_male + data.guest_female + Math.floor(data.guest_children / 2);
+            }
+
             const result = await propertiesService.calculateRate(property.slug, {
                 check_in: data.check_in,
                 check_out: data.check_out,
-                guest_count: totalGuests,
+                guest_count: effectiveGuestCount, // Send effective count to API
             });
 
             if (result.success) {
@@ -248,7 +242,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
             console.error('Error calculating rate:', error);
             setAvailabilityStatus('unavailable');
         }
-    }, [property.slug, data.check_in, data.check_out, totalGuests]);
+    }, [property.slug, data.check_in, data.check_out, data.guest_male, data.guest_female, data.guest_children]);
 
     // Calculate rate when dates or guest count change
     useEffect(() => {
@@ -259,7 +253,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                 calculateRate();
             }, 100);
         }
-    }, [data.check_in, data.check_out, totalGuests]);
+    }, [data.check_in, data.check_out, totalGuests, data.guest_male, data.guest_female, data.guest_children]);
 
     // Handle field changes
     const handleFieldChange = <K extends keyof BookingFormData>(field: K, value: BookingFormData[K]) => {
@@ -334,7 +328,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
         data.guest_email.trim() &&
         data.guest_phone.trim() &&
         data.guest_country &&
-        totalGuests > 0 &&
+        totalGuests > 1 &&
         availabilityStatus === 'available' &&
         rateCalculation !== null;
 
@@ -432,8 +426,8 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                         {/* Check-in Time Selection */}
                                         <div className="space-y-3">
                                             <Label className="text-base font-medium">{t('booking.check_in_time')}</Label>
-                                            <Select 
-                                                value={data.check_in_time} 
+                                            <Select
+                                                value={data.check_in_time}
                                                 onValueChange={(value: string) => handleFieldChange('check_in_time', value)}
                                             >
                                                 <SelectTrigger className={`h-12 text-base ${bookingErrors.check_in_time ? 'border-red-500' : ''}`}>
@@ -474,9 +468,9 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                     <Alert className="border-green-500/20 bg-green-500/10">
                                                         <CheckCircle className="h-4 w-4 text-green-600" />
                                                         <AlertDescription className="text-green-600">
-                                                            {t('booking.property_available', { 
-                                                                total: rateCalculation.total_amount.toLocaleString(), 
-                                                                nights: rateCalculation.nights 
+                                                            {t('booking.property_available', {
+                                                                total: rateCalculation.total_amount.toLocaleString(),
+                                                                nights: rateCalculation.nights
                                                             })}
                                                         </AlertDescription>
                                                     </Alert>
@@ -554,18 +548,18 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                         </div>
 
                                         {/* Terms and Privacy */}
-                <div className="text-center">
-                    <p className="text-xs text-gray-500">
-                        {t('booking.terms_privacy')}{' '}
-                        <TextLink href="/tos" className="text-blue-600 hover:text-blue-700">
-                            {t('auth.terms_of_service')}
-                        </TextLink>{' '}
-                        {t('auth.and')}{' '}
-                        <TextLink href="/privacy" className="text-blue-600 hover:text-blue-700">
-                            {t('auth.privacy_policy')}
-                        </TextLink>
-                    </p>
-                </div>
+                                        <div className="text-center">
+                                            <p className="text-xs text-gray-500">
+                                                {t('booking.terms_privacy')}{' '}
+                                                <TextLink href="/tos" className="text-blue-600 hover:text-blue-700">
+                                                    {t('auth.terms_of_service')}
+                                                </TextLink>{' '}
+                                                {t('auth.and')}{' '}
+                                                <TextLink href="/privacy" className="text-blue-600 hover:text-blue-700">
+                                                    {t('auth.privacy_policy')}
+                                                </TextLink>
+                                            </p>
+                                        </div>
                                     </form>
                                 </CardContent>
                             </Card>

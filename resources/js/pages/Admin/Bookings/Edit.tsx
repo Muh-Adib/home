@@ -31,6 +31,7 @@ import { useTranslation } from 'react-i18next';
 import { type BreadcrumbItem, type Booking, type Property } from '@/types';
 import AdminLayout from '@/layouts/admin-layout';
 import RateBreakdownCard from '@/components/booking/RateBreakdownCard';
+import GuestCountForm from '@/components/booking/GuestCountForm';
 import ExtraServiceSelector, { type ServiceMaster, type SelectedService } from '@/components/ExtraServiceSelector';
 import { bookingsService } from '@/lib/api';
 
@@ -139,7 +140,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
         const male = Number(data.guest_male) || 0;
         const female = Number(data.guest_female) || 0;
         const children = Number(data.guest_children) || 0;
-        return male + female + children;
+        return male + female + Math.floor(children / 2);
     }, [data.guest_male, data.guest_female, data.guest_children]);
 
     // Calculate extra beds needed
@@ -148,8 +149,12 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
         const male = Number(data.guest_male) || 0;
         const female = Number(data.guest_female) || 0;
         const children = Number(data.guest_children) || 0;
-        const totalForExtraBeds = Math.ceil(male + female + Math.ceil((children - currentProperty.capacity) * 0.5));
-        return Math.max(0, totalForExtraBeds - currentProperty.capacity);
+        // Children count logic based on capacity
+        let effectiveGuests = male + female + children;
+        if (currentProperty.capacity < currentProperty.capacity_max) {
+            effectiveGuests = male + female + Math.floor(children / 2);
+        }
+        return Math.max(0, effectiveGuests - currentProperty.capacity);
     }, [currentProperty, data.guest_male, data.guest_female, data.guest_children]);
 
     // Calculate services total
@@ -652,64 +657,24 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                     </div>
 
                                     {/* Guest Count */}
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Users className="h-5 w-5 text-brand-primary" />
-                                            <h3 className="text-lg font-semibold">Guest Count</h3>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="guest_count_male">Male Adults</Label>
-                                                <Input
-                                                    id="guest_count_male"
-                                                    type="number"
-                                                    min="0"
-                                                    value={data.guest_male ?? 0}
-                                                    onChange={(e) => handleGenderCountChange('male', e.target.value)}
-                                                    className={errors.guest_male ? 'border-red-500' : ''}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="guest_count_female">Female Adults</Label>
-                                                <Input
-                                                    id="guest_count_female"
-                                                    type="number"
-                                                    min="0"
-                                                    value={data.guest_female ?? 0}
-                                                    onChange={(e) => handleGenderCountChange('female', e.target.value)}
-                                                    className={errors.guest_female ? 'border-red-500' : ''}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="guest_count_children">Children</Label>
-                                                <Input
-                                                    id="guest_count_children"
-                                                    type="number"
-                                                    min="0"
-                                                    value={data.guest_children ?? 0}
-                                                    onChange={(e) => handleGenderCountChange('children', e.target.value)}
-                                                    className={errors.guest_children ? 'border-red-500' : ''}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-slate-50 p-4 rounded-lg">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="font-medium">Total Guests:</span>
-                                                <Badge variant="secondary">{totalGuests} guests</Badge>
-                                            </div>
-                                            {extraBeds > 0 && currentProperty && currentProperty.extra_bed_rate && (
-                                                <div className="mt-2 flex items-center gap-2 text-sm">
-                                                    <Bed className="h-4 w-4 text-brand-primary" />
-                                                    <span>Extra beds needed: {extraBeds}</span>
-                                                    <span className="text-gray-600">
-                                                        (+{formatCurrency(extraBeds * currentProperty.extra_bed_rate)}/night)
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                                    {currentProperty && (
+                                        <GuestCountForm
+                                            guestMale={data.guest_male}
+                                            guestFemale={data.guest_female}
+                                            guestChildren={data.guest_children}
+                                            totalGuests={totalGuests}
+                                            extraBeds={extraBeds}
+                                            capacity={currentProperty.capacity}
+                                            capacityMax={currentProperty.capacity_max}
+                                            extraBedRate={currentProperty.extra_bed_rate || 0}
+                                            errors={{
+                                                guest_male: errors.guest_male,
+                                                guest_female: errors.guest_female,
+                                                guest_children: errors.guest_children,
+                                            }}
+                                            onGuestCountChange={handleGenderCountChange}
+                                        />
+                                    )}
 
                                     <Separator />
 
