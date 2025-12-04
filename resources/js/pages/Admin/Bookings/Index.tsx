@@ -54,6 +54,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
+import { ExportFilterDialog, type ExportFilters } from '@/components/booking/ExportFilterDialog';
+import { ImportPreviewDialog } from '@/components/booking/ImportPreviewDialog';
+import axios from 'axios';
 
 interface BookingsIndexProps {
     bookings: PaginatedData<Booking>;
@@ -86,6 +89,11 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
     const [loadingActions, setLoadingActions] = useState<Record<string, boolean>>({});
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isImportOpen, setIsImportOpen] = useState(false);
+    const [isExportOpen, setIsExportOpen] = useState(false);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    const [importPreview, setImportPreview] = useState<any>(null);
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [isImporting, setIsImporting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { data: importData, setData: setImportData, post: postImport, processing: importProcessing, errors: importErrors, reset: resetImport } = useForm({
@@ -199,36 +207,89 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
         });
     }, []);
 
-    const handleExport = useCallback(() => {
+    const handleExport = useCallback((exportFilters: ExportFilters) => {
         const queryParams = new URLSearchParams();
-        if (filters.search) queryParams.append('search', filters.search);
-        if (filters.status) queryParams.append('status', filters.status);
-        if (filters.property_id) queryParams.append('property_id', filters.property_id);
-        if (filters.date_from) queryParams.append('date_from', filters.date_from);
-        if (filters.date_to) queryParams.append('date_to', filters.date_to);
 
-        window.location.href = `/admin/bookings/export/download?${queryParams.toString()}`;
+        // Add export filters
+        if (exportFilters.date_from) queryParams.append('date_from', exportFilters.date_from);
+        if (exportFilters.date_to) queryParams.append('date_to', exportFilters.date_to);
+        if (exportFilters.property_id) queryParams.append('property_id', exportFilters.property_id);
+        if (exportFilters.status) queryParams.append('status', exportFilters.status);
+
+        // Also include current page filters if not overridden
+        if (!exportFilters.property_id && filters.property_id) queryParams.append('property_id', filters.property_id);
+        if (!exportFilters.status && filters.status) queryParams.append('status', filters.status);
+        if (filters.search) queryParams.append('search', filters.search);
+
+        // Create a temporary link and click it to trigger download
+        // This is more reliable than window.location.href for handling Content-Disposition headers
+        const link = document.createElement('a');
+        link.href = `/admin/bookings/export/download?${queryParams.toString()}`;
+        link.download = 'bookings.xlsx'; // Fallback filename
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }, [filters]);
 
-    const handleImportSubmit = (e: React.FormEvent) => {
+    const handleImportSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!importData.file) {
             toast.error('Please select a file to import');
             return;
         }
 
-        postImport('/admin/bookings/import/upload', {
-            onSuccess: () => {
+        try {
+            // First, get preview
+            const formData = new FormData();
+            formData.append('file', importData.file);
+
+            const response = await axios.post('/admin/bookings/import/preview', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            if (response.data.success) {
+                setImportPreview(response.data.preview);
+                setImportFile(importData.file);
                 setIsImportOpen(false);
-                resetImport();
-                toast.success('Bookings imported successfully');
-                router.reload({ only: ['bookings'] });
-            },
-            onError: (errors) => {
-                toast.error('Failed to import bookings');
-                console.error(errors);
+                setIsPreviewOpen(true);
             }
-        });
+        } catch (error: any) {
+            toast.error('Failed to preview import: ' + (error.response?.data?.error || error.message));
+            console.error(error);
+        }
+    };
+
+    const handleConfirmImport = async (acceptedRows: number[]) => {
+        if (!importFile) return;
+
+        setIsImporting(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', importFile);
+            acceptedRows.forEach((row, index) => {
+                formData.append(`accepted_rows[${index}]`, row.toString());
+            });
+
+            await axios.post('/admin/bookings/import/confirmed', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            setIsPreviewOpen(false);
+            setImportPreview(null);
+            setImportFile(null);
+            resetImport();
+            toast.success('Bookings imported successfully');
+            router.reload({ only: ['bookings'] });
+        } catch (error: any) {
+            toast.error('Failed to import bookings: ' + (error.response?.data?.error || error.message));
+            console.error(error);
+        } finally {
+            setIsImporting(false);
+        }
     };
 
     // Utility functions
@@ -311,13 +372,22 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                             <Upload className="h-4 w-4 mr-2" />
                             Import
                         </Button>
-                        <Button variant="outline" size="sm" onClick={handleExport}>
+                        <Button variant="outline" size="sm" onClick={() => setIsExportOpen(true)}>
                             <Download className="h-4 w-4 mr-2" />
                             Export
                         </Button>
                     </div>
                 </div>
 
+                {/* Export Filter Dialog */}
+                <ExportFilterDialog
+                    open={isExportOpen}
+                    onOpenChange={setIsExportOpen}
+                    properties={properties}
+                    onExport={handleExport}
+                />
+
+                {/* Import Dialog */}
                 <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
                     <DialogContent>
                         <DialogHeader>
@@ -363,6 +433,15 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                         </form>
                     </DialogContent>
                 </Dialog>
+
+                {/* Import Preview Dialog */}
+                <ImportPreviewDialog
+                    open={isPreviewOpen}
+                    onOpenChange={setIsPreviewOpen}
+                    preview={importPreview}
+                    onConfirm={handleConfirmImport}
+                    loading={isImporting}
+                />
 
                 {/* Statistics */}
                 {statistics && (
@@ -598,6 +677,6 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                     </Card>
                 )}
             </div>
-        </AdminLayout>
+        </AdminLayout >
     );
 } 

@@ -339,6 +339,12 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
 Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('dashboard', [DashboardController::class, 'admin'])->name('dashboard');
     
+    // Check-In/Out Dashboard
+    Route::controller(App\Http\Controllers\Admin\CheckInOutController::class)->group(function () {
+        Route::get('bookings/check-in-out', 'index')->name('bookings.check-in-out');
+        Route::get('bookings/check-in-out/generate-text', 'generateText')->name('bookings.check-in-out.generate-text');
+    });
+
     // Booking Management - Consolidated under BookingManagementController
     Route::controller(App\Http\Controllers\Admin\BookingManagementController::class)->group(function () {
         // Main booking routes
@@ -374,18 +380,21 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         
         // Import/Export
         Route::get('bookings/export/download', 'export')->name('bookings.export');
-        Route::post('bookings/import/upload', 'import')->name('bookings.import');
+        Route::post('bookings/import/preview', 'importPreview')->name('bookings.import.preview');
+        Route::post('bookings/import/confirmed', 'importConfirmed')->name('bookings.import.confirmed');
     });
-    
-    // Booking Management API
-    Route::prefix('api/admin/booking-management')->name('api.admin.booking-management.')->group(function () {
-        $controller = App\Http\Controllers\Admin\BookingManagementController::class;
-        Route::get('timeline', [$controller, 'timeline']);
-        Route::post('check-availability', [$controller, 'checkAvailability']);
-        Route::post('calculate-rate', [$controller, 'calculateRate']);
-        Route::post('availability-and-rates', [$controller, 'availabilityAndRates']);
-        Route::get('property-date-range', [$controller, 'getPropertyDateRange']);
-    });
+
+
+});
+
+// Booking Management API (Authenticated but custom prefix)
+Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->prefix('api/admin/booking-management')->name('api.admin.booking-management.')->group(function () {
+    $controller = App\Http\Controllers\Admin\BookingManagementController::class;
+    Route::get('timeline', [$controller, 'timeline']);
+    Route::post('check-availability', [$controller, 'checkAvailability']);
+    Route::post('calculate-rate', [$controller, 'calculateRate']);
+    Route::post('availability-and-rates', [$controller, 'availabilityAndRates']);
+    Route::get('property-date-range', [$controller, 'getPropertyDateRange']);
 
 });
 

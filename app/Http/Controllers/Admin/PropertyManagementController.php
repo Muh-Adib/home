@@ -122,6 +122,7 @@ class PropertyManagementController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'address' => 'required|string',
+            'location' => 'required|in:selatan,utara',
             'maps_link' => 'nullable|string',
             'tiktok_video_url' => [
                 'nullable',
@@ -156,6 +157,15 @@ class PropertyManagementController extends Controller
             'seo_description' => 'nullable|string|max:255',
             'amenities' => 'array',
             'amenities.*' => 'exists:amenities,id',
+            'current_keybox_code' => 'nullable|string|size:3',
+            'checkin_instructions' => 'nullable|array',
+            'checkin_instructions.welcome' => 'nullable|string|max:500',
+            'checkin_instructions.keybox_location' => 'nullable|string|max:500',
+            'checkin_instructions.keybox_code' => 'nullable|string|max:500',
+            'checkin_instructions.checkin_time' => 'nullable|string|max:200',
+            'checkin_instructions.emergency_contact' => 'nullable|string|max:200',
+            'checkin_instructions.additional_info' => 'nullable|array',
+            'checkin_instructions.additional_info.*' => 'string|max:300',
         ];
 
         // Only super_admin can assign owner_id, property_owner creates for themselves
@@ -374,6 +384,7 @@ class PropertyManagementController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'address' => 'required|string',
+            'location' => 'required|in:selatan,utara',
             'maps_link' => 'nullable|string',
             'tiktok_video_url' => [
                 'nullable',
@@ -409,6 +420,7 @@ class PropertyManagementController extends Controller
             'seo_description' => 'nullable|string',
             'amenities' => 'array',
             'amenities.*' => 'exists:amenities,id',
+            'current_keybox_code' => 'nullable|string|size:3',
             'checkin_instructions' => 'nullable|array',
             'checkin_instructions.welcome' => 'nullable|string|max:500',
             'checkin_instructions.keybox_location' => 'nullable|string|max:500',

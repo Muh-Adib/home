@@ -49,7 +49,9 @@ createInertiaApp({
         );
     },
     progress: {
-        color: '#4B5563',
+        color: '#074baa',      // warna dasar (tetap diperlukan)
+        showSpinner: false,     // matikan spinner bawaan
+        includeCSS: true        // tetap gunakan struktur NProgress, tapi style kamu yang override
     },
 });
 // This will set light / dark mode on load...

@@ -132,7 +132,7 @@ interface DashboardData {
     upcomingBookings?: GuestBooking[]; // For guest users
 }
 
-interface DashboardProps extends DashboardData {}
+interface DashboardProps extends DashboardData { }
 
 // Interface untuk stat item yang akan ditampilkan
 interface StatItem {
@@ -346,23 +346,30 @@ function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: Dashboar
     const userStats = getStatsForRole(user.role);
 
     const formatValue = (value: number | string, format?: string) => {
-        if (typeof value === 'string') return value;
-        
+        // Jika string berisi angka desimal (misal "10000.00"), ubah ke number
+        const numericValue = Number(value);
+
         switch (format) {
             case 'currency':
-                const numericValue = Number(value); // pastikan jadi number
-                return new Intl.NumberFormat('id-ID', {
+                if (isNaN(numericValue)) return value; // antisipasi input tidak valid
+
+                const formatted = new Intl.NumberFormat('id-ID', {
                     style: 'currency',
                     currency: 'IDR',
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 0
                 }).format(numericValue);
+
+                return formatted;
+
             case 'percentage':
-                return `${value}%`;
+                return `${numericValue}%`;
+
             default:
-                return value.toLocaleString('id-ID');
+                return numericValue.toLocaleString('id-ID');
         }
     };
+
 
     return (
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
@@ -370,7 +377,7 @@ function DashboardStats({ user, kpis, quickStats }: { user: User; kpis: Dashboar
                 const Icon = stat.icon;
                 const TrendIcon = stat.trend === 'up' ? TrendingUp : TrendingDown;
                 const trendColor = stat.trend === 'up' ? 'text-green-600' : 'text-red-600';
-                
+
                 return (
                     <Card key={index} className="hover:shadow-md transition-shadow">
                         <CardContent className="p-4 md:p-6">
@@ -473,15 +480,15 @@ function RoleBasedActions({ user }: { user: User }) {
     );
 }
 
-export default function Dashboard({ 
-    kpis, 
-    recentActivity, 
-    todaysAgenda, 
-    quickStats, 
-    revenueChart, 
-    bookingTrends, 
+export default function Dashboard({
+    kpis,
+    recentActivity,
+    todaysAgenda,
+    quickStats,
+    revenueChart,
+    bookingTrends,
     propertyPerformance,
-    upcomingBookings 
+    upcomingBookings
 }: DashboardProps) {
     const page = usePage<PageProps>();
     const { auth } = page.props;
@@ -521,7 +528,7 @@ export default function Dashboard({
     return (
         <AdminLayout breadcrumbs={breadcrumbs} title="Dashboard">
             <Head title="Dashboard - Homsjogja" />
-            
+
             <div className="space-y-6">
                 {/* Header Section */}
                 <div className="space-y-2">
@@ -568,36 +575,36 @@ export default function Dashboard({
                                 <CardContent className="space-y-3">
                                     {recentActivity.slice(0, 5).map((activity, index) => (
                                         <div key={index} className="flex items-start space-x-3">
-                                        <div className="flex-shrink-0">
-                                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                            {React.createElement(getIconComponent(activity.icon), {
-                                              className: "h-4 w-4 text-blue-600"
-                                            })}
-                                          </div>
+                                            <div className="flex-shrink-0">
+                                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                                    {React.createElement(getIconComponent(activity.icon), {
+                                                        className: "h-4 w-4 text-blue-600"
+                                                    })}
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-gray-900">
+                                                    {activity.title}
+                                                </p>
+
+                                                {/* Kalau activity.description ada link */}
+                                                <p className="text-sm text-gray-500">
+                                                    <a
+                                                        href={activity.href}
+                                                        className="text-blue-600 hover:underline"
+                                                        target="_blank" // kalau mau buka tab baru
+                                                        rel="noopener noreferrer"
+                                                    >
+                                                        {activity.description}
+                                                    </a>
+                                                </p>
+
+                                                <p className="text-xs text-gray-400 mt-1">
+                                                    {activity.time}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-sm font-medium text-gray-900">
-                                            {activity.title}
-                                          </p>
-                                      
-                                          {/* Kalau activity.description ada link */}
-                                          <p className="text-sm text-gray-500">
-                                            <a
-                                              href={activity.href}
-                                              className="text-blue-600 hover:underline"
-                                              target="_blank" // kalau mau buka tab baru
-                                              rel="noopener noreferrer"
-                                            >
-                                              {activity.description}
-                                            </a>
-                                          </p>
-                                      
-                                          <p className="text-xs text-gray-400 mt-1">
-                                            {activity.time}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      
+
                                     ))}
                                 </CardContent>
                             </Card>
@@ -650,11 +657,11 @@ export default function Dashboard({
                             </CardHeader>
                             <CardContent>
                                 <div className="h-64 flex items-center justify-center text-gray-500">
-                                
+
                                 </div>
                             </CardContent>
                         </Card>
-                        
+
                         <ChartRevenue data={revenueChart} />
                         <ChartBookingTrends data={bookingTrends} />
                         <ChartPropertyPerformance data={propertyPerformance} />

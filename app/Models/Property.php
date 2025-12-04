@@ -21,6 +21,7 @@ class Property extends Model
         'slug',
         'description',
         'address',
+        'location',
         'maps_link',
         'tiktok_video_url',
         'lat',

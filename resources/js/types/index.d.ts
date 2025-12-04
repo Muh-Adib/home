@@ -68,6 +68,7 @@ export interface Property {
     slug: string;
     description: string;
     address: string;
+    location: 'selatan' | 'utara';
     maps_link?: string;
     lat?: number;
     lng?: number;
@@ -103,6 +104,17 @@ export interface Property {
     cover_image?: string;
     formatted_base_rate?: string;
     bookings?: Booking[];
+    current_keybox_code: string;
+    checkin_instructions: CheckinInstructions;
+}
+
+export interface CheckinInstructions {
+    welcome: string;
+    keybox_location: string;
+    keybox_code: string;
+    checkin_time: string;
+    emergency_contact: string;
+    additional_info: string[];
 }
 
 export interface PropertyMedia {

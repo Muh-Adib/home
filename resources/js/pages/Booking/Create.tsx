@@ -256,7 +256,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
     }, [data.check_in, data.check_out, totalGuests, data.guest_male, data.guest_female, data.guest_children]);
 
     // Handle field changes
-    const handleFieldChange = <K extends keyof BookingFormData>(field: K, value: BookingFormData[K]) => {
+    const handleFieldChange = <K extends Extract<keyof BookingFormData, string>>(field: K, value: BookingFormData[K]) => {
         setData(field, value);
     };
 

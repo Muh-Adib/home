@@ -130,7 +130,7 @@ class PaymentController extends Controller
             'refunded_payments' => Payment::where('payment_status', 'refunded')->count(),
             'total_payments' => Payment::count(),
             'today_amount' => Payment::where('payment_date', now()->toDateString())->sum('amount'),
-            'month_amount' => Payment::where('payment_date', now()->startOfMonth()->toDateString())->sum('amount'),
+            'month_amount' => Payment::whereMonth('payment_date', now()->month)->sum('amount'),
         ];
 
         return Inertia::render('Admin/Payments/Index', [

@@ -30,24 +30,6 @@ class RateCalculationService
             $checkOutDate
         );
         
-        // Debug: Log seasonal rates found
-        if (!empty($seasonalRates)) {
-            Log::debug('Seasonal rates found for property', [
-                'property_id' => $property->id,
-                'check_in' => $checkInDate->format('Y-m-d'),
-                'check_out' => $checkOutDate->format('Y-m-d'),
-                'rates' => array_map(function($rate) {
-                    return $rate ? [
-                        'name' => $rate->name,
-                        'type' => $rate->rate_type,
-                        'value' => $rate->rate_value,
-                        'start_date' => $rate->start_date->format('Y-m-d'),
-                        'end_date' => $rate->end_date->format('Y-m-d'),
-                    ] : null;
-                }, $seasonalRates)
-            ]);
-        }
-        
         // Initialize calculation variables
         $totalBaseAmount = 0;
         $totalWeekendPremium = 0;

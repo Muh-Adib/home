@@ -22,6 +22,7 @@ use Carbon\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\BookingsExport;
 use App\Imports\BookingsImport;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * BookingManagementController - Controller untuk mengelola booking admin
@@ -1069,7 +1070,14 @@ class BookingManagementController extends Controller
             $propertiesQuery->where('owner_id', $user->id);
         }
         
-        $properties = $propertiesQuery->active()->get(['id', 'name']);
+        $properties = $propertiesQuery->active()->get([
+            'id', 
+            'name', 
+            'capacity', 
+            'capacity_max', 
+            'base_rate', 
+            'extra_bed_rate'
+        ]);
 
         return Inertia::render('Admin/Bookings/Index', [
             'bookings' => $bookings,
@@ -2142,27 +2150,62 @@ class BookingManagementController extends Controller
         }
     }
 
-
     /**
      * Export bookings to Excel
      */
+
     public function export(Request $request)
     {
-        return Excel::download(new BookingsExport($request->all()), 'bookings.xlsx');
+        \Log::info('Export requested with filters:', $request->all());
+        
+        try {
+            $export = new BookingsExport($request->all());
+            $filename = $export->getFilename();
+            
+            // Use Excel::download with explicit security headers
+            return Excel::download($export, $filename, \Maatwebsite\Excel\Excel::XLSX, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'X-Content-Type-Options' => 'nosniff',
+                'Content-Security-Policy' => "default-src 'none'",
+                'X-Download-Options' => 'noopen',
+                'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                'Pragma' => 'no-cache',
+                'Expires' => '0',
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Export failed: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Export failed: ' . $e->getMessage()]);
+        }
     }
 
     /**
-     * Import bookings from Excel
+     * Preview import changes
      */
-    public function import(Request $request)
+    public function importPreview(Request $request)
+    {
+        $controller = app(\App\Http\Controllers\Admin\BookingImportPreviewController::class);
+        return $controller->preview($request);
+    }
+
+    /**
+     * Import bookings with confirmed rows
+     */
+    public function importConfirmed(Request $request)
     {
         $request->validate([
             'file' => 'required|mimes:xlsx,csv',
+            'accepted_rows' => 'nullable|array',
         ]);
 
         try {
-            Excel::import(new BookingsImport, $request->file('file'));
-            return back()->with('success', 'Bookings imported successfully.');
+            $acceptedRows = $request->input('accepted_rows', []);
+            $importer = new BookingsImport($acceptedRows);
+            Excel::import($importer, $request->file('file'));
+            
+            $count = $importer->getImportedCount();
+            return back()->with('success', "{$count} Bookings imported successfully.");
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'Import failed: ' . $e->getMessage()]);
         }

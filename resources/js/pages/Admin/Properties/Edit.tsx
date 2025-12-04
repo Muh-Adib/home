@@ -49,6 +49,7 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
         name: property.name || '',
         description: property.description || '',
         address: property.address || '',
+        location: property.location || 'selatan' as 'selatan' | 'utara',
         lat: property.lat || null as number | null,
         lng: property.lng || null as number | null,
         maps_link: property.maps_link || '',
@@ -74,6 +75,15 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
         seo_title: property.seo_title || '',
         seo_description: property.seo_description || '',
         amenities: property.amenities?.map((a: Amenity) => a.id) || [],
+        current_keybox_code: property.current_keybox_code || '',
+        checkin_instructions: property.checkin_instructions || {
+            welcome: 'Selamat datang!',
+            keybox_location: 'Keybox terletak di depan pintu masuk',
+            keybox_code: 'Kode keybox: {{keybox_code}}',
+            checkin_time: 'Check-in time: 14:00 - 22:00',
+            emergency_contact: 'Hubungi kami jika ada kendala: 0811-2500-082',
+            additional_info: ['WiFi password tersedia di dalam rumah', 'Harap menjaga kebersihan selama menginap']
+        },
     });
 
     // Sync selectedAmenities with form data
@@ -261,6 +271,42 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                     className={errors.address ? 'border-red-500' : ''}
                                 />
                                 {errors.address && <p className="text-sm text-red-500">{errors.address}</p>}
+                            </div>
+
+                            {/* Location Area */}
+                            <div>
+                                <Label>Location Area *</Label>
+                                <div className="flex gap-4 mt-2">
+                                    <div className="flex items-center space-x-2">
+                                        <input
+                                            type="radio"
+                                            id="location-selatan"
+                                            name="location"
+                                            value="selatan"
+                                            checked={data.location === 'selatan'}
+                                            onChange={(e) => setData('location', e.target.value as 'selatan' | 'utara')}
+                                            className="h-4 w-4"
+                                        />
+                                        <Label htmlFor="location-selatan" className="font-normal cursor-pointer">
+                                            🏡 SELATAN
+                                        </Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <input
+                                            type="radio"
+                                            id="location-utara"
+                                            name="location"
+                                            value="utara"
+                                            checked={data.location === 'utara'}
+                                            onChange={(e) => setData('location', e.target.value as 'selatan' | 'utara')}
+                                            className="h-4 w-4"
+                                        />
+                                        <Label htmlFor="location-utara" className="font-normal cursor-pointer">
+                                            🏡 UTARA
+                                        </Label>
+                                    </div>
+                                </div>
+                                {errors.location && <p className="text-sm text-red-600 mt-1">{errors.location}</p>}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -651,6 +697,133 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                 {data.house_rules && (
                                     <TextFormatMarkdown text={data.house_rules} />
                                 )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Keybox Information */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Info className="h-5 w-5" />
+                                Keybox Information
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <Label htmlFor="current_keybox_code">Keybox Code (3 Digits)</Label>
+                                <Input
+                                    id="current_keybox_code"
+                                    type="text"
+                                    maxLength={3}
+                                    pattern="\d{3}"
+                                    value={data.current_keybox_code}
+                                    onChange={(e) => setData('current_keybox_code', e.target.value.replace(/\D/g, '').slice(0, 3))}
+                                    placeholder="123"
+                                    className={errors.current_keybox_code ? 'border-red-500' : ''}
+                                />
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Masukkan kode keybox 3 digit (contoh: 123)
+                                </p>
+                                {errors.current_keybox_code && <p className="text-sm text-red-600 mt-1">{errors.current_keybox_code}</p>}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Check-in Instructions */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Check-in Instructions</CardTitle>
+                            <p className="text-sm text-muted-foreground mt-2">
+                                Gunakan placeholder dinamis: <code className="text-xs bg-gray-100 px-1 rounded">{'{{keybox_code}}'}</code>, <code className="text-xs bg-gray-100 px-1 rounded">{'{{property_name}}'}</code>, <code className="text-xs bg-gray-100 px-1 rounded">{'{{address}}'}</code>
+                            </p>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <Label htmlFor="checkin_welcome">Welcome Message</Label>
+                                <Input
+                                    id="checkin_welcome"
+                                    value={data.checkin_instructions.welcome}
+                                    onChange={(e) => setData('checkin_instructions', { ...data.checkin_instructions, welcome: e.target.value })}
+                                    placeholder="Selamat datang di {'{{property_name}}'}!"
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="checkin_keybox_location">Keybox Location</Label>
+                                <Input
+                                    id="checkin_keybox_location"
+                                    value={data.checkin_instructions.keybox_location}
+                                    onChange={(e) => setData('checkin_instructions', { ...data.checkin_instructions, keybox_location: e.target.value })}
+                                    placeholder="Keybox terletak di depan pintu masuk"
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="checkin_keybox_code">Keybox Code Template</Label>
+                                <Input
+                                    id="checkin_keybox_code"
+                                    value={data.checkin_instructions.keybox_code}
+                                    onChange={(e) => setData('checkin_instructions', { ...data.checkin_instructions, keybox_code: e.target.value })}
+                                    placeholder="Kode keybox: {'{{keybox_code}}'}"
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="checkin_time">Check-in Time</Label>
+                                <Input
+                                    id="checkin_time"
+                                    value={data.checkin_instructions.checkin_time}
+                                    onChange={(e) => setData('checkin_instructions', { ...data.checkin_instructions, checkin_time: e.target.value })}
+                                    placeholder="Check-in time: 14:00 - 22:00"
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="checkin_emergency">Emergency Contact</Label>
+                                <Input
+                                    id="checkin_emergency"
+                                    value={data.checkin_instructions.emergency_contact}
+                                    onChange={(e) => setData('checkin_instructions', { ...data.checkin_instructions, emergency_contact: e.target.value })}
+                                    placeholder="Hubungi kami jika ada kendala: 0811-2500-082"
+                                />
+                            </div>
+                            <div>
+                                <Label>Additional Information</Label>
+                                {data.checkin_instructions.additional_info.map((info, index) => (
+                                    <div key={index} className="flex gap-2 mt-2">
+                                        <Input
+                                            value={info}
+                                            onChange={(e) => {
+                                                const newInfo = [...data.checkin_instructions.additional_info];
+                                                newInfo[index] = e.target.value;
+                                                setData('checkin_instructions', { ...data.checkin_instructions, additional_info: newInfo });
+                                            }}
+                                            placeholder={`Info ${index + 1}`}
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => {
+                                                const newInfo = data.checkin_instructions.additional_info.filter((_, i) => i !== index);
+                                                setData('checkin_instructions', { ...data.checkin_instructions, additional_info: newInfo });
+                                            }}
+                                        >
+                                            ×
+                                        </Button>
+                                    </div>
+                                ))}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        setData('checkin_instructions', {
+                                            ...data.checkin_instructions,
+                                            additional_info: [...data.checkin_instructions.additional_info, '']
+                                        });
+                                    }}
+                                    className="mt-2"
+                                >
+                                    + Add Info
+                                </Button>
                             </div>
                         </CardContent>
                     </Card>

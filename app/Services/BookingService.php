@@ -105,7 +105,8 @@ class BookingService
                         ? Property::findOrFail($request->propertyId)
                         : Property::lockForUpdate()->findOrFail($request->propertyId);
 
-                    if (!$this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate)) {
+                    // Exclude current booking from availability check when updating
+                    if (!$this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate, $booking->id)) {
                         throw new \Exception('Property tidak tersedia untuk tanggal yang dipilih.');
                     }
 
@@ -238,9 +239,36 @@ class BookingService
 
     /**
      * Validate property availability
+     * @param int|null $excludeBookingId Optional booking ID to exclude from availability check (for updates)
      */
-    private function validatePropertyAvailability(Property $property, string $checkIn, string $checkOut): bool
+    private function validatePropertyAvailability(Property $property, string $checkIn, string $checkOut, ?int $excludeBookingId = null): bool
     {
+        // For updates, we need to exclude the current booking
+        if ($excludeBookingId) {
+            // Manual check with exclusion
+            $conflicts = Booking::where('property_id', $property->id)
+                ->where('booking_status', '!=', 'cancelled')
+                ->where('id', '!=', $excludeBookingId)
+                ->where(function ($query) use ($checkIn, $checkOut) {
+                    $query->where(function ($q) use ($checkIn, $checkOut) {
+                        $q->where('check_in', '<=', $checkIn)
+                          ->where('check_out', '>', $checkIn);
+                    })
+                    ->orWhere(function ($q) use ($checkIn, $checkOut) {
+                        $q->where('check_in', '<', $checkOut)
+                          ->where('check_out', '>=', $checkOut);
+                    })
+                    ->orWhere(function ($q) use ($checkIn, $checkOut) {
+                        $q->where('check_in', '>=', $checkIn)
+                          ->where('check_out', '<=', $checkOut);
+                    });
+                })
+                ->count();
+            
+            return $conflicts === 0;
+        }
+        
+        // For new bookings, use availabilityService
         $availability = $this->availabilityService->checkAvailability($property, $checkIn, $checkOut);
         
         return $availability['available'];

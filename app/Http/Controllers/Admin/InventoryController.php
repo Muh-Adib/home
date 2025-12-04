@@ -45,6 +45,8 @@ class InventoryController extends Controller
             'image' => ['nullable','image','max:4096'],
         ]);
 
+        // !jika ada item dengan sku yang sama berikan opsi untuk restore item dengan alretdialog
+
         $path = null;
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('inventory/items', 'public');
@@ -152,6 +154,15 @@ class InventoryController extends Controller
 
         return back()->with('success', 'Item berhasil dihapus');
     }
+
+    /**
+     * Item Restore Index
+     */
+
+    /**
+     * Item Restore 
+     */
+
 
     public function purchasesIndex(Request $request)
     {
