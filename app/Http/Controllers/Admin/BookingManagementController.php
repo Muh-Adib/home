@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\Property;
 use App\Models\User;
 use App\Services\BookingService;
+use App\Services\AvailabilityService;
 use App\Services\RateCalculationService;
 use App\Services\PaymentIncomeSyncService;
 use App\Services\PaymentGatewayService;
@@ -2185,7 +2186,10 @@ class BookingManagementController extends Controller
      */
     public function importPreview(Request $request)
     {
-        $controller = app(\App\Http\Controllers\Admin\BookingImportPreviewController::class);
+        $availabilityService = app(\App\Services\AvailabilityService::class);
+        $rateCalculationService = app(\App\Services\RateCalculationService::class);
+        
+        $controller = new \App\Http\Controllers\Admin\BookingImportPreviewController($availabilityService, $rateCalculationService);
         return $controller->preview($request);
     }
 
