@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Str;
@@ -150,9 +151,9 @@ class Booking extends Model
         return $this->hasMany(BookingGuest::class);
     }
 
-    public function primaryGuest(): HasMany
+    public function primaryGuest(): HasOne
     {
-        return $this->hasMany(BookingGuest::class)->where('guest_type', 'primary');
+        return $this->hasOne(BookingGuest::class)->where('guest_type', 'primary');
     }
 
     public function services(): HasMany
