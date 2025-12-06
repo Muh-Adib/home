@@ -132,7 +132,7 @@ class BookingsService {
      * Check availability (admin)
      */
     async checkAvailability(data: CheckAvailabilityRequest): Promise<CheckAvailabilityResponse> {
-        return ApiClient.post('/admin/api/admin/booking-management/check-availability', data);
+        return ApiClient.post('/api/admin/booking-management/check-availability', data);
     }
 
     /**
@@ -144,7 +144,7 @@ class BookingsService {
         check_out: string;
         guest_count: number;
     }): Promise<any> {
-        return ApiClient.post('/admin/api/admin/booking-management/calculate-rate', data);
+        return ApiClient.post('/api/admin/booking-management/calculate-rate', data);
     }
 
     /**
@@ -156,16 +156,18 @@ class BookingsService {
         check_out: string;
         guest_count: number;
     }): Promise<any> {
-        return ApiClient.post('/admin/api/admin/booking-management/availability-and-rates', data);
+        return ApiClient.post('/api/admin/booking-management/availability-and-rates', data);
     }
 
     /**
      * Get property date range (admin)
      */
     async getPropertyDateRange(propertyId: number, startDate: string, endDate: string): Promise<any> {
-        return ApiClient.get(
-            `/admin/api/admin/booking-management/property-date-range?property_id=${propertyId}&start_date=${startDate}&end_date=${endDate}`
-        );
+        return ApiClient.post('/api/admin/booking-management/property-date-range', {
+            property_id: propertyId,
+            start_date: startDate,
+            end_date: endDate,
+        });
     }
 
     /**

@@ -398,6 +398,7 @@ export default function AdminLayout({
           {/* Mobile Sidebar */}
           <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
             <SheetContent side="left" className="w-72 p-0 bg-brand-primary border-r border-brand-primary-20">
+              <SheetTitle className="sr-only">Admin Navigation</SheetTitle>
               {/* Header logo */}
               <div className="px-6 py-5 border-b border-white/20 bg-gradient-to-r from-brand-primary to-brand-primary-dark">
                 <div className="flex items-center space-x-3">

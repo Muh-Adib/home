@@ -394,7 +394,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
     Route::post('check-availability', [$controller, 'checkAvailability']);
     Route::post('calculate-rate', [$controller, 'calculateRate']);
     Route::post('availability-and-rates', [$controller, 'availabilityAndRates']);
-    Route::get('property-date-range', [$controller, 'getPropertyDateRange']);
+    Route::post('property-date-range', [$controller, 'getPropertyDateRange']);
 
 });
 

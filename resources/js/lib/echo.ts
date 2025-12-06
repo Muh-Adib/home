@@ -20,10 +20,10 @@ let isEchoAvailable = false;
 // Get WebSocket URL without using React hooks
 function getWebSocketUrlSafe(): string {
     // Development environment
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return 'http://localhost:6001';
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.endsWith('.test')) {
+        return `${window.location.protocol}//${window.location.hostname}:6001`;
     }
-    
+
     // Production - gunakan URL dari window.location dengan port WebSocket
     const baseUrl = window.location.origin;
     // Force HTTPS for WebSocket in production
@@ -50,7 +50,7 @@ function createEchoInstance(): Echo<any> | null {
     try {
         // Get WebSocket URL dinamis dari utility function (non-hook version)
         const wsUrl = getWebSocketUrlSafe();
-        
+
         console.log('🔌 Creating Echo instance with URL:', wsUrl);
 
         const echo = new Echo({
@@ -121,14 +121,14 @@ function initializeEcho(): Echo<any> | null {
         }
 
         if (!echoInstance) {
-                echoInstance = createEchoInstance();
-            
+            echoInstance = createEchoInstance();
+
             // Test connection after a short delay
             setTimeout(async () => {
                 if (echoInstance) {
                     const wsUrl = getWebSocketUrlSafe();
                     const isConnected = await testWebSocketConnection(wsUrl);
-                    
+
                     if (!isConnected) {
                         console.warn('🔄 WebSocket connection test failed, fallback will be used');
                         isEchoAvailable = false;
@@ -151,17 +151,17 @@ function initializeEcho(): Echo<any> | null {
 // Export functions untuk use di hooks
 export function getEcho(): { echo: Echo<any> | null; isAvailable: boolean } {
     const echo = initializeEcho();
-    
+
     // Check if Echo is actually working
     const socket = (echo?.connector as any)?.socket;
     const isSocketConnected = socket?.connected || false;
-    
+
     // Update availability based on actual connection status
     isEchoAvailable = isEchoAvailable && isSocketConnected;
-    
+
     return {
         echo,
-        isAvailable: isEchoAvailable 
+        isAvailable: isEchoAvailable
     };
 }
 

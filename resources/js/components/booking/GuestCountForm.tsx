@@ -45,7 +45,7 @@ export default function GuestCountForm({
                 <h3 className="text-lg font-semibold text-foreground">{t('booking.guest_count')}</h3>
             </div>
 
-            <div className="grid grid-cols-3 sm:grid-cols-3 gap-4 bg-muted/50 p-4 sm:p-6 rounded-lg border border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-muted/50 p-4 sm:p-6 rounded-lg border border-border">
                 <div className="space-y-2">
                     <Label htmlFor="guest_male" className="text-sm font-medium">{t('booking.male_adults')}</Label>
                     <div className="flex items-center gap-2">
@@ -53,7 +53,7 @@ export default function GuestCountForm({
                         <button
                             type="button"
                             onClick={() => onGuestCountChange('male', Math.max(0, guestMale - 1))}
-                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80 shrink-0"
                         >
                             –
                         </button>
@@ -65,14 +65,14 @@ export default function GuestCountForm({
                             min="0"
                             value={guestMale}
                             onChange={(e) => onGuestCountChange('male', parseInt(e.target.value) || 0)}
-                            className={`h-12 text-center text-base ${errors?.guest_male ? 'border-red-500' : ''}`}
+                            className={`h-12 text-center text-base flex-1 min-w-0 w-auto ${errors?.guest_male ? 'border-red-500' : ''}`}
                         />
 
                         {/* Tombol + */}
                         <button
                             type="button"
                             onClick={() => onGuestCountChange('male', guestMale + 1)}
-                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80 shrink-0"
                         >
                             +
                         </button>
@@ -88,7 +88,7 @@ export default function GuestCountForm({
                         <button
                             type="button"
                             onClick={() => onGuestCountChange('female', Math.max(0, guestFemale - 1))}
-                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80 shrink-0"
                         >
                             –
                         </button>
@@ -98,13 +98,13 @@ export default function GuestCountForm({
                             min="0"
                             value={guestFemale}
                             onChange={(e) => onGuestCountChange('female', parseInt(e.target.value) || 0)}
-                            className={`h-12 text-center text-base ${errors?.guest_female ? 'border-red-500' : ''}`}
+                            className={`h-12 text-center text-base flex-1 min-w-0 w-auto ${errors?.guest_female ? 'border-red-500' : ''}`}
                         />
                         {/* Tombol + */}
                         <button
                             type="button"
                             onClick={() => onGuestCountChange('female', guestFemale + 1)}
-                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80 shrink-0"
                         >
                             +
                         </button>
@@ -120,7 +120,7 @@ export default function GuestCountForm({
                         <button
                             type="button"
                             onClick={() => onGuestCountChange('children', Math.max(0, guestChildren - 1))}
-                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80 shrink-0"
                         >
                             –
                         </button>
@@ -130,13 +130,13 @@ export default function GuestCountForm({
                             min="0"
                             value={guestChildren}
                             onChange={(e) => onGuestCountChange('children', parseInt(e.target.value) || 0)}
-                            className={`h-12 text-center text-base ${errors?.guest_children ? 'border-red-500' : ''}`}
+                            className={`h-12 text-center text-base flex-1 min-w-0 w-auto ${errors?.guest_children ? 'border-red-500' : ''}`}
                         />
                         {/* Tombol + */}
                         <button
                             type="button"
                             onClick={() => onGuestCountChange('children', guestChildren + 1)}
-                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80"
+                            className="h-12 w-12 flex items-center justify-center rounded-md border bg-muted hover:bg-muted/80 shrink-0"
                         >
                             +
                         </button>

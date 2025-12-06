@@ -493,7 +493,7 @@ export function DateRange({
                 </PopoverTrigger>
 
                 <PopoverContent
-                    className="p-0 w-auto !max-w-none rounded-xl shadow-lg border bg-card"
+                    className="p-0 w-auto max-w-[calc(100vw-2rem)] sm:!max-w-none rounded-xl shadow-lg border bg-card"
                     align="start"
                     side="bottom"
                     sideOffset={8}
