@@ -565,6 +565,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         Route::controller(App\Http\Controllers\Admin\GowaAdminController::class)->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/qr-code', 'getQRCode')->name('qr-code');
+            Route::post('/send-message', 'sendMessage')->name('send-message');
             Route::post('/logout', 'logout')->name('logout');
             Route::post('/reconnect', 'reconnect')->name('reconnect');
             Route::get('/status', 'getStatus')->name('status');

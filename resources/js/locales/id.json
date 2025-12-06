@@ -331,7 +331,11 @@
     "loading_qr": "Membuat QR code...",
     "whatsapp_number": "Nomor WhatsApp",
     "last_connected": "Terakhir Terhubung",
-    "actions": "Aksi"
+    "actions": "Aksi",
+    "send_message": "Kirim Pesan",
+    "send_message_description": "Kirim pesan test atau broadcast",
+    "message_sent": "Pesan berhasil dikirim",
+    "message_failed": "Gagal mengirim pesan"
   },
   "booking": {
     "terms_privacy": "Dengan membuat booking, Anda menyetujui",

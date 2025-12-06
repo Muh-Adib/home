@@ -362,6 +362,80 @@ export default function GowaManagement({ config, devices, isConnected: initialIs
                     </CardContent>
                 </Card>
 
+                {/* Send Message Card */}
+                {isConnected && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>📤 Send WhatsApp Message</CardTitle>
+                            <CardDescription>Send test message or broadcast to WhatsApp number</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <form
+                                onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    const formData = new FormData(e.currentTarget);
+                                    const phone = formData.get('phone') as string;
+                                    const message = formData.get('message') as string;
+
+                                    try {
+                                        const response = await fetch(route('admin.gowa.send-message'), {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                                            },
+                                            body: JSON.stringify({ phone, message }),
+                                        });
+
+                                        const data = await response.json();
+
+                                        if (data.success) {
+                                            toast.success('Message sent successfully!');
+                                            e.currentTarget.reset();
+                                        } else {
+                                            toast.error(data.message || 'Failed to send message');
+                                        }
+                                    } catch (error) {
+                                        toast.error('Failed to send message');
+                                        console.error(error);
+                                    }
+                                }}
+                                className="space-y-4"
+                            >
+                                <div className="space-y-2">
+                                    <Label htmlFor="send_phone">Phone Number (with country code)</Label>
+                                    <Input
+                                        id="send_phone"
+                                        name="phone"
+                                        type="text"
+                                        placeholder="628123456789"
+                                        required
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Format: Country code + number (e.g., 628123456789 for Indonesia)
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="send_message">Message</Label>
+                                    <textarea
+                                        id="send_message"
+                                        name="message"
+                                        className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        placeholder="Type your message here..."
+                                        required
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Max 4096 characters
+                                    </p>
+                                </div>
+                                <Button type="submit">
+                                    Send Message
+                                </Button>
+                            </form>
+                        </CardContent>
+                    </Card>
+                )}
+
                 {/* Debug Panel */}
                 <Card className="border-yellow-200 bg-yellow-50">
                     <CardHeader>

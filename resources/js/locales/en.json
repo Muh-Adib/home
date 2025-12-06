@@ -317,7 +317,11 @@
     "loading_qr": "Generating QR code...",
     "whatsapp_number": "WhatsApp Number",
     "last_connected": "Last Connected",
-    "actions": "Actions"
+    "actions": "Actions",
+    "send_message": "Send Message",
+    "send_message_description": "Send test message or broadcast",
+    "message_sent": "Message sent successfully",
+    "message_failed": "Failed to send message"
   },
   "booking": {
     "terms_privacy": "By creating an booking, you agree to",

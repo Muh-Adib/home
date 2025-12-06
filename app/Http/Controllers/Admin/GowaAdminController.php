@@ -64,6 +64,42 @@ class GowaAdminController extends Controller
     }
 
     /**
+     * Send WhatsApp message
+     */
+    public function sendMessage(Request $request): JsonResponse
+    {
+        $request->validate([
+            'phone' => 'required|string',
+            'message' => 'required|string|max:4096',
+        ]);
+
+        try {
+            $result = $this->gowaService->sendMessage(
+                $request->phone,
+                $request->message
+            );
+
+            if ($result['success']) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Message sent successfully',
+                    'data' => $result['data'],
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => $result['error'] ?? 'Failed to send message',
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error sending message: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Logout from WhatsApp
      */
     public function logout(): JsonResponse
