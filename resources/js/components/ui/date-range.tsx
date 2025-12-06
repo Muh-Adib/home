@@ -429,31 +429,64 @@ export function DateRange({
                         )}
                         disabled={disabled}
                     >
-                        <div className={cn(
-                            "flex items-center gap-1 min-w-0 flex-1"
-                        )}>
-                            <CalendarIcon className={cn(
-                                "shrink-0",
-                                "h-3 w-3"
-                            )} />
-                            <span className="truncate text-left">
-                                {formatDisplayText()}
-                            </span>
-                            {showNights && nights > 0 && (
-                                <Badge
-                                    variant={isMinStayViolation ? "destructive" : "secondary"}
-                                    className={cn(
-                                        "ml-auto shrink-0",
-                                        "text-xs px-1"
+                        {!dateRange?.from ? (
+                            // Empty state - no dates selected
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <CalendarIcon className="shrink-0 h-3.5 w-3.5" />
+                                <span className="truncate text-left">{startLabel}</span>
+                            </div>
+                        ) : (
+                            // Dates selected - show separated layout
+                            <div className="flex items-center justify-between gap-2 min-w-0 flex-1">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <CalendarIcon className="shrink-0 h-3.5 w-3.5 text-primary" />
+
+                                    {/* Check-in */}
+                                    <div className="flex flex-col leading-tight min-w-0 px-2">
+                                        <span className="text-[11px] text-muted-foreground leading-none">{startLabel}</span>
+                                        <span className="text-sm font-semibold leading-none mt-1 truncate">
+                                            {format(dateRange.from, 'd MMM yyyy', { locale: id })}
+                                        </span>
+                                    </div>
+
+                                    {dateRange.to && (
+                                        <>
+                                            {/* Divider */}
+                                            <div className="h-8 w-px bg-border shrink-0 mx-1" />
+
+                                            {/* Check-out */}
+                                            <div className="flex flex-col leading-tight min-w-0 px-2">
+                                                <span className="text-[11px] text-muted-foreground leading-none">{endLabel}</span>
+                                                <span className="text-sm font-semibold leading-none mt-1 truncate">
+                                                    {format(dateRange.to, 'd MMM yyyy', { locale: id })}
+                                                </span>
+                                            </div>
+                                        </>
                                     )}
-                                >
-                                    {nights} mlm
-                                </Badge>
-                            )}
-                        </div>
+
+                                    {!dateRange.to && (
+                                        <span className="text-xs text-muted-foreground ml-1">→ Pilih check-out</span>
+                                    )}
+                                </div>
+
+                                {/* Nights badge - positioned on the right */}
+                                {dateRange.to && showNights && nights > 0 && (
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <div className="h-6 w-px bg-border" />
+                                        <Badge
+                                            variant={isMinStayViolation ? "destructive" : "secondary"}
+                                            className="text-xs px-2 py-0.5"
+                                        >
+                                            {nights} mlm
+                                        </Badge>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         <ChevronDown className={cn(
-                            "shrink-0 opacity-50 transition-transform duration-200",
-                            "h-3 w-3",
+                            "shrink-0 opacity-50 transition-transform duration-200 ml-2",
+                            "h-3.5 w-3.5",
                             isOpen && "rotate-180"
                         )} />
                     </Button>

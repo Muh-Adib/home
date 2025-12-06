@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { DateRange } from '@/components/ui/date-range';
-import { 
+import {
     Calendar as CalendarIcon,
     Calculator,
     RefreshCw,
@@ -21,6 +21,9 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Property } from '@/types/property';
+import type { User } from '@/types';
+import RateCountdownTimer from '@/components/booking/RateCountdownTimer';
+import { AuthModal } from './AuthModal';
 
 interface BookingSidebarProps {
     property: Property;
@@ -49,6 +52,10 @@ interface BookingSidebarProps {
     hasSeasonalPremium?: boolean;
     hasWeekendPremium?: boolean;
     isRateReady?: boolean;
+    // Auth data
+    auth?: {
+        user: User | null;
+    };
 }
 
 export function BookingSidebar({
@@ -69,9 +76,12 @@ export function BookingSidebar({
     isCalculatingRate,
     hasSeasonalPremium,
     hasWeekendPremium,
-    isRateReady
+    isRateReady,
+    // Auth props
+    auth
 }: BookingSidebarProps) {
     const { t } = useTranslation();
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
     const handleDateRangeChange = (startDate: string, endDate: string) => {
         onDateRangeChange(startDate, endDate);
@@ -79,13 +89,13 @@ export function BookingSidebar({
 
     const handleGuestCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let count = parseInt(e.target.value) || 1;
-        
+
         // Jika input melebihi kapasitas maksimum, set ke kapasitas maksimum
         if (count > property.capacity_max) {
             count = property.capacity_max;
             e.target.value = property.capacity_max.toString();
         }
-        
+
         onGuestCountChange(count);
     };
 
@@ -93,7 +103,7 @@ export function BookingSidebar({
 
     return (
         <div className="space-y-4 sm:space-y-6">
-            <Card className="md:sticky md:top-6 shadow-xl border-0 bg-gradient-to-br from-background to-muted/30 card-modern">
+            <Card className="md:sticky md:top-6 shadow-xl border-0 bg-gradient-to-br from-background to-muted/30 card-modern gap-0">
                 <CardHeader className="bg-gradient-to-r from-brand-primary/10 to-brand-primary/5 border-b border-brand-primary/20 p-4 sm:p-6">
                     <CardTitle className="flex items-center gap-2 text-foreground text-lg sm:text-xl">
                         <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5 text-brand-primary" />
@@ -101,11 +111,10 @@ export function BookingSidebar({
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 sm:p-6">
-                    
+
                     {/* Date Range Picker */}
                     <div className="space-y-3">
                         <div id="date-range">
-                            <Label htmlFor="date-range">{t('booking.check_in_checkout_dates')}</Label>
                             <DateRange
                                 startDate={checkInDate}
                                 endDate={checkOutDate}
@@ -132,7 +141,7 @@ export function BookingSidebar({
                                     end: t('booking.check_out')
                                 }}
                             />
-                            
+
                             {/* Minimum Stay Information */}
                             {checkInDate && checkOutDate && (
                                 <div className="mt-2">
@@ -147,7 +156,7 @@ export function BookingSidebar({
                                             </AlertDescription>
                                         </Alert>
                                     )}
-                                    
+
                                     {effectiveMinStay.reason === 'weekend' && (
                                         <Alert className="bg-amber-50 border-amber-200">
                                             <Tag className="h-4 w-4 text-amber-600" />
@@ -156,7 +165,7 @@ export function BookingSidebar({
                                             </AlertDescription>
                                         </Alert>
                                     )}
-                                    
+
                                     {effectiveMinStay.reason === 'weekday' && (
                                         <Alert className="bg-blue-50 border-blue-200">
                                             <CalendarIcon className="h-4 w-4 text-blue-600" />
@@ -165,7 +174,7 @@ export function BookingSidebar({
                                             </AlertDescription>
                                         </Alert>
                                     )}
-                                    
+
                                     {effectiveMinStay.reason === 'sandwiched_between_bookings' && (
                                         <Alert className="bg-gray-50 border-gray-200">
                                             <Info className="h-4 w-4 text-gray-600" />
@@ -174,7 +183,7 @@ export function BookingSidebar({
                                             </AlertDescription>
                                         </Alert>
                                     )}
-                                    
+
                                     {!meetsMinimumStay && (
                                         <Alert variant="destructive" className="mt-2">
                                             <AlertCircle className="h-4 w-4" />
@@ -186,7 +195,7 @@ export function BookingSidebar({
                                 </div>
                             )}
                         </div>
-                        
+
                         <div>
                             <Label htmlFor="guests">{t('booking.guests')}</Label>
                             <Input
@@ -246,7 +255,7 @@ export function BookingSidebar({
                                     const inflatedPrice = Math.round(originalPrice * 1.17); // Naikkan 17%
                                     const discountAmount = inflatedPrice - originalPrice;
                                     const discountPercentage = Math.round((discountAmount / inflatedPrice) * 100);
-                                    
+
                                     return (
                                         <>
                                             {/* Main Price Display with Fake Discount */}
@@ -255,46 +264,54 @@ export function BookingSidebar({
                                                 <div className="absolute -top-2 -right-2 bg-brand-accent text-white text-xs font-bold px-3 py-1 rounded-full transform rotate-12 shadow-lg">
                                                     -{discountPercentage}%
                                                 </div>
-                                                
+
                                                 {/* Original Price (Crossed Out) */}
                                                 <div className="text-lg text-muted-foreground line-through mb-1">
                                                     Rp {inflatedPrice.toLocaleString()}
                                                 </div>
-                                                
+
                                                 {/* Discounted Price */}
                                                 <div className="text-3xl font-bold text-brand-primary">
                                                     Rp {originalPrice.toLocaleString()}
                                                 </div>
-                                                
+
                                                 {/* Savings Info */}
                                                 <div className="text-sm text-brand-secondary font-semibold mt-1">
                                                     Hemat Rp {discountAmount.toLocaleString()}!
                                                 </div>
-                                                
+
                                                 <div className="text-sm text-muted-foreground mt-1">
                                                     {t('properties.for')} {rateCalculation.nights} {t('booking.nights')} • Rp {Math.round(originalPrice / rateCalculation.nights).toLocaleString()}/{t('booking.night')}
                                                 </div>
-                                                
-                                                {/* Limited Time Offer */}
-                                                <div className="text-xs text-brand-accent mt-2 font-semibold animate-pulse">
-                                                    ⏰ Penawaran Terbatas! Berakhir dalam 23:59:45
+
+                                                {/* Rate Countdown Timer */}
+                                                <div className="mt-3 flex justify-center">
+                                                    <RateCountdownTimer
+                                                        expiryMinutes={15}
+                                                        onExpire={() => {
+                                                            if (checkInDate && checkOutDate) {
+                                                                onDateRangeChange(checkInDate, checkOutDate);
+                                                            }
+                                                        }}
+                                                        className="w-full max-w-xs text-center"
+                                                    />
                                                 </div>
                                             </div>
-                                            
+
                                             {hasSeasonalPremium && (
                                                 <div className="text-xs text-brand-accent mt-2 flex items-center justify-center">
                                                     <Sparkles className="h-3 w-3 mr-1" />
                                                     {t('properties.special_seasonal_rates')}
                                                 </div>
                                             )}
-                                            
+
                                             {hasWeekendPremium && (
                                                 <div className="text-xs text-brand-secondary mt-1 flex items-center justify-center">
                                                     <Tag className="h-3 w-3 mr-1" />
                                                     {t('properties.weekend_premium_included')}
                                                 </div>
                                             )}
-                                            
+
                                             {/* Minimum Stay Info */}
                                             <div className="text-xs text-muted-foreground mt-2 flex items-center justify-center flex-wrap">
                                                 <Clock className="h-3 w-3 mr-1" />
@@ -316,12 +333,19 @@ export function BookingSidebar({
 
                     {/* Action Buttons */}
                     <div className="space-y-2">
-                        <Button 
-                            size="lg" 
+                        <Button
+                            size="lg"
                             className="w-full bg-brand-primary hover:bg-brand-primary-90 disabled:opacity-50 shadow-lg text-white transition-colors"
                             disabled={!canSubmit}
                             onClick={() => {
                                 if (canSubmit) {
+                                    // Check if user is authenticated
+                                    if (!auth?.user) {
+                                        // Show auth modal for guest users
+                                        setShowAuthModal(true);
+                                        return;
+                                    }
+
                                     // Gunakan router.visit untuk navigasi GET dengan parameter query string
                                     router.visit(`/properties/${property.slug}/book?check_in=${checkInDate}&check_out=${checkOutDate}&guests=${guestCount}`, {
                                         method: 'get',
@@ -374,6 +398,13 @@ export function BookingSidebar({
                     </Button>
                 </CardContent>
             </Card>
+
+            {/* Auth Modal */}
+            <AuthModal
+                open={showAuthModal}
+                onOpenChange={setShowAuthModal}
+                returnUrl={`/properties/${property.slug}?check_in=${checkInDate}&check_out=${checkOutDate}&guests=${guestCount}`}
+            />
         </div>
     );
 } 

@@ -560,6 +560,20 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         Route::post('property', 'updateProperty')->name('property.update');
     });
 
+    // GOWA WhatsApp Management
+    Route::prefix('gowa')->name('gowa.')->group(function () {
+        Route::controller(App\Http\Controllers\Admin\GowaAdminController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/qr-code', 'getQRCode')->name('qr-code');
+            Route::post('/logout', 'logout')->name('logout');
+            Route::post('/reconnect', 'reconnect')->name('reconnect');
+            Route::get('/status', 'getStatus')->name('status');
+            Route::put('/config', 'updateConfig')->name('config.update');
+            Route::get('/test-connection', 'testConnection')->name('test-connection');
+            Route::get('/debug-status', 'debugStatus')->name('debug-status');
+        });
+    });
+
     
     // Legal Management
     Route::controller(App\Http\Controllers\Admin\LegalPageController::class)->prefix('legal')->name('legal.')->group(function () {

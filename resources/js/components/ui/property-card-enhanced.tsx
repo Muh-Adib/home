@@ -57,8 +57,8 @@ export default function PropertyCardEnhanced({
 
   const locationBadge = getLocationBadge(property.address);
 
-  // Harga diskon tiruan
-  const currentRate = property.base_rate || 0;
+  // Use calculated rate per night (includes all premiums for the selected dates)
+  const currentRate = property.current_rate_per_night || property.base_rate;
   const inflatedRate = Math.round(currentRate * 1.17);
   const discountAmount = inflatedRate - currentRate;
   const discountPercentage = Math.round((discountAmount / inflatedRate) * 100);

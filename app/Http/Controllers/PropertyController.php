@@ -234,8 +234,12 @@ class PropertyController extends Controller
                         $dailyBreakdown = $rateResult['breakdown']['daily_breakdown'] ?? [];
                         $dateDailyData = $dailyBreakdown[$dateStr] ?? null;
                         
-                        // Extract seasonal rate info from daily breakdown
+                        // Extract seasonal rate info and amounts from daily breakdown
                         $seasonalRateApplied = null;
+                        $weekendPremiumAmount = 0;
+                        $seasonalPremiumAmount = 0;
+                        $extraBedRate = $property->extra_bed_rate;
+                        
                         if ($dateDailyData && isset($dateDailyData['seasonal_rate']) && $dateDailyData['seasonal_rate']) {
                             // Get seasonal rate info from daily breakdown (includes min_stay_nights)
                             $seasonalRateData = $dateDailyData['seasonal_rate'];
@@ -244,6 +248,11 @@ class PropertyController extends Controller
                             $premiums = $dateDailyData['premiums'] ?? [];
                             $seasonalPremium = array_filter($premiums, fn($p) => ($p['type'] ?? '') === 'seasonal');
                             $seasonalPremium = !empty($seasonalPremium) ? array_values($seasonalPremium)[0] : null;
+                            
+                            // Get seasonal premium amount
+                            if ($seasonalPremium) {
+                                $seasonalPremiumAmount = $seasonalPremium['amount'] ?? 0;
+                            }
                             
                             $seasonalRateApplied = [
                                 [
@@ -254,17 +263,36 @@ class PropertyController extends Controller
                                     'description' => $seasonalPremium['description'] ?? $seasonalRateData['name'] ?? '',
                                 ]
                             ];
+                            
+                            // Get extra bed rate from seasonal rate if available
+                            if (isset($seasonalRateData['extra_bed_rate']) && $seasonalRateData['extra_bed_rate'] !== null) {
+                                $extraBedRate = $seasonalRateData['extra_bed_rate'];
+                            }
                         } elseif (!empty($rateResult['rate_breakdown']['seasonal_rates_applied'])) {
                             // Fallback to aggregated seasonal rates if daily breakdown not available
                             $seasonalRateApplied = $rateResult['rate_breakdown']['seasonal_rates_applied'];
+                            $seasonalPremiumAmount = $rateResult['seasonal_premium'] / $rateResult['nights'];
+                        }
+                        
+                        // Get weekend premium amount from premiums
+                        if ($dateDailyData && isset($dateDailyData['premiums'])) {
+                            $premiums = $dateDailyData['premiums'];
+                            $weekendPremium = array_filter($premiums, fn($p) => ($p['type'] ?? '') === 'weekend');
+                            if (!empty($weekendPremium)) {
+                                $weekendPremium = array_values($weekendPremium)[0];
+                                $weekendPremiumAmount = $weekendPremium['amount'] ?? 0;
+                            }
                         }
                         
                         $availabilityAndRates['rates'][$dateStr] = [
-                            'base_rate' => $rateResult['base_amount'] / $rateResult['nights'],
-                            'weekend_premium' => $rateResult['weekend_premium'] > 0,
-                            'seasonal_premium' => $rateResult['seasonal_premium'] / $rateResult['nights'], // Send actual amount per night
+                            'base_rate' => $property->base_rate,
+                            'final_rate' => $dateDailyData['final_rate'] ?? $property->base_rate,
+                            'weekend_premium_amount' => $weekendPremiumAmount,
+                            'seasonal_premium_amount' => $seasonalPremiumAmount,
                             'seasonal_rate_applied' => $seasonalRateApplied,
                             'is_weekend' => $currentDate->isWeekend(),
+                            'has_seasonal_rate' => $seasonalRateApplied !== null,
+                            'extra_bed_rate' => $extraBedRate,
                         ];
                     } catch (\Exception $e) {
                         // Skip if rate calculation fails for this date

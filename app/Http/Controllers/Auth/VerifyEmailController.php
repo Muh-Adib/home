@@ -16,6 +16,13 @@ class VerifyEmailController extends Controller
     {
        
         if ($request->user()->hasVerifiedEmail()) {
+            // Check for intended URL
+            $manualIntended = session()->pull('intended_url');
+            
+            if ($manualIntended) {
+                return redirect($manualIntended);
+            }
+            
             return redirect()->intended(route('dashboard', absolute: false).'?verified=1');
         }
 
@@ -24,6 +31,13 @@ class VerifyEmailController extends Controller
             $user = $request->user();
 
             event(new Verified($user));
+        }
+
+        // Check for intended URL after verification
+        $manualIntended = session()->pull('intended_url');
+        
+        if ($manualIntended) {
+            return redirect($manualIntended);
         }
 
         return redirect()->intended(route('dashboard', absolute: false).'?verified=1');

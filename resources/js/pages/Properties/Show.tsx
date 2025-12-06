@@ -21,14 +21,15 @@ interface PropertyShowProps extends PageProps {
   availabilityData: AvailabilityData;
 }
 
-export default function PropertyShow({ 
-  property, 
-  similarProperties, 
-  searchParams, 
-  availabilityData 
+export default function PropertyShow({
+  property,
+  similarProperties,
+  searchParams,
+  availabilityData,
+  auth
 }: PropertyShowProps) {
   const { t } = useTranslation();
-  
+
   // State management
   const { state, actions, computed } = usePropertyState({
     initialGuestCount: searchParams.guests || 2,
@@ -37,7 +38,7 @@ export default function PropertyShow({
   });
 
   // Rate calculation
-  const { 
+  const {
     rateCalculation,
     rateError,
     isCalculatingRate,
@@ -104,20 +105,20 @@ export default function PropertyShow({
   return (
     <GuestLayout variant='minimal'>
       <Head title={property.name} />
-      
+
       <div className="min-h-screen bg-brand-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-          
+
           <PropertyHeader property={property} />
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
-            
+
             {/* Main Content */}
             <div className="xl:col-span-2 space-y-8 relative">
               {/* Decorative background elements */}
               <div className="absolute -top-4 -left-4 w-32 h-32 bg-brand-primary/5 rounded-full blur-3xl pointer-events-none"></div>
               <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-brand-accent/5 rounded-full blur-3xl pointer-events-none"></div>
-              
+
               {/* Image Gallery */}
               <div className="relative w-full overflow-hidden rounded-lg">
                 <PropertyGallery
@@ -154,11 +155,13 @@ export default function PropertyShow({
               hasSeasonalPremium={hasSeasonalPremium}
               hasWeekendPremium={hasWeekendPremium}
               isRateReady={isRateReady}
+              // Pass auth data
+              auth={auth}
             />
           </div>
 
           {/* Similar Properties - Full Width After Booking */}
-          <div className="mt-16 relative">       
+          <div className="mt-16 relative">
             <SimilarProperties properties={similarProperties} />
           </div>
         </div>

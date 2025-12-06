@@ -18,8 +18,13 @@ class RegisteredUserController extends Controller
     /**
      * Show the registration page.
      */
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        // Store redirect URL in session if provided
+        if ($request->has('redirect')) {
+            $request->session()->put('intended_url', $request->query('redirect'));
+        }
+
         return Inertia::render('auth/register');
     }
 
@@ -54,9 +59,23 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
+        // Update last login
+        $user->update([
+            'last_login' => now(),
+        ]);
+
         // Check if email verification is required
         if (config('app.require_email_verification', true)) {
+            // Don't pull intended_url yet, keep it for after verification
             return to_route('verification.notice');
+        }
+
+        // Only pull intended URL if no email verification required
+        $manualIntended = session()->pull('intended_url');
+
+        // Redirect to intended URL or dashboard
+        if ($manualIntended) {
+            return redirect($manualIntended);
         }
 
         return to_route('dashboard');

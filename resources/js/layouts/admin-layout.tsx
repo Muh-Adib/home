@@ -33,7 +33,8 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
-  Package
+  Package,
+  MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -141,6 +142,7 @@ const getAdminNavItems = (userRole: User['role']) => {
         icon: Settings,
         children: [
           { title: 'General Settings', href: '/admin/settings/general', icon: Settings },
+          { title: 'WhatsApp GOWA', href: '/admin/gowa', icon: MessageSquare },
           { title: 'System Logs', href: '/admin/settings/logs', icon: FileText },
           { title: 'Legal', href: '/admin/legal/', icon: FileText },
         ]

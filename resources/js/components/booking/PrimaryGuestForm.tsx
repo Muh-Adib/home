@@ -29,14 +29,6 @@ const countries = [
     'Germany', 'France', 'Netherlands', 'Other'
 ];
 
-const relationshipOptions = [
-    { value: 'keluarga', label: 'Family' },
-    { value: 'teman', label: 'Friends' },
-    { value: 'kolega', label: 'Colleagues' },
-    { value: 'pasangan', label: 'Couple' },
-    { value: 'campuran', label: 'Mixed' },
-];
-
 export default function PrimaryGuestForm({
     guestName,
     guestEmail,
@@ -48,6 +40,14 @@ export default function PrimaryGuestForm({
     onFieldChange
 }: PrimaryGuestFormProps) {
     const { t } = useTranslation();
+
+    const relationshipOptions = [
+        { value: 'keluarga', label: t('booking.family') },
+        { value: 'teman', label: t('booking.friends') },
+        { value: 'kolega', label: t('booking.colleagues') },
+        { value: 'pasangan', label: t('booking.couple') },
+        { value: 'campuran', label: t('booking.mixed') },
+    ];
 
     return (
         <div className="space-y-4">

@@ -12,7 +12,7 @@ import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
 import { type BreadcrumbItem, type NavItem, type SharedData, type User } from '@/types';
 import { Link, usePage, router } from '@inertiajs/react';
-import { BookOpen, CreditCard, Folder, LayoutGrid, ListChecks, Menu, Search, Settings, Users, BarChart3, Shield, Wrench, Home, Package, DollarSign, FileText, LogIn, UserPlus, LucideIcon, Building2, Sparkles, Calendar } from 'lucide-react';
+import { BookOpen, CreditCard, Folder, LayoutGrid, ListChecks, Menu, Search, Settings, Users, BarChart3, Shield, Wrench, Home, Package, DollarSign, FileText, LogIn, UserPlus, LucideIcon, Building2, Sparkles, Calendar, MessageSquare } from 'lucide-react';
 import AppLogo from './app-logo';
 import LanguageSwitcher from '@/components/language-switcher';
 import { useTranslation } from 'react-i18next';
@@ -119,7 +119,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
     const getInitials = useInitials();
     const mainNavItems = getHeaderNavItemsForRole(auth.user);
     const isWelcome = isWelcomePage(page.url);
-    
+
     // Scroll state for slide-up parallax header
     const [isScrolled, setIsScrolled] = useState(false);
     const [isHidden, setIsHidden] = useState(false);
@@ -129,26 +129,26 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
     // Lightweight scroll handler using requestAnimationFrame
     const updateHeader = () => {
         const currentScrollY = window.scrollY;
-        
+
         const scrollThreshold = window.innerHeight * 0.3;
-        
+
         if (currentScrollY > scrollThreshold) {
             setIsScrolled(true);
-            
-    
-                // Slide up when scrolling down, slide down when scrolling up
-                if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
-                    setIsHidden(true);
-                } else {
-                    setIsHidden(false);
-                }
-            
-            
+
+
+            // Slide up when scrolling down, slide down when scrolling up
+            if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+                setIsHidden(true);
+            } else {
+                setIsHidden(false);
+            }
+
+
         } else {
             setIsScrolled(false);
             setIsHidden(false);
         }
-        
+
         lastScrollY.current = currentScrollY;
         ticking.current = false;
     };
@@ -197,9 +197,9 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                     <div className="flex h-full flex-col justify-between text-sm">
                                         <div className="flex flex-col space-y-2">
                                             {mainNavItems.map((item) => (
-                                                <Link 
-                                                    key={item.title} 
-                                                    href={item.href} 
+                                                <Link
+                                                    key={item.title}
+                                                    href={item.href}
                                                     className="flex items-center space-x-3 rounded-lg px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-medium bg-transparent"
                                                 >
                                                     {item.icon && <Icon iconNode={item.icon} className="h-5 w-5" />}
@@ -229,9 +229,9 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                     </div>
 
                     {/* Logo - Link to appropriate dashboard based on authentication */}
-                    <Link 
-                        href={isAuthenticated(auth.user) ? route('dashboard') : route('home')} 
-                        prefetch 
+                    <Link
+                        href={isAuthenticated(auth.user) ? route('dashboard') : route('home')}
+                        prefetch
                         className="flex items-center space-x-2"
                     >
                         <AppLogo transparent={!isScrolled && isWelcome} />
@@ -270,46 +270,46 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
 
                     <div className="ml-auto flex items-center space-x-2">
                         <div className="relative flex items-center space-x-1">
-                            
+
                             {/* Conditional Rendering: Notification Bell - Only show for authenticated users (not guests or unauthenticated) */}
                             {isAuthenticated(auth.user) && !isGuest(auth.user) && (
-                                <NotificationBell 
-                                    userId={auth.user.id} 
-                                    className={cn("ml-1", isWelcome && !isScrolled && "text-white hover:bg-white/20 bg-transparent")} 
+                                <NotificationBell
+                                    userId={auth.user.id}
+                                    className={cn("ml-1", isWelcome && !isScrolled && "text-white hover:bg-white/20 bg-transparent")}
                                 />
                             )}
                             {isAuthenticated(auth.user) && (
-                            <div className="hidden lg:flex">
-                                {rightNavItems.map((item) => (
-                                    <TooltipProvider key={item.title} delayDuration={0}>
-                                        <Tooltip>
-                                            <TooltipTrigger>
-                                                <a
-                                                    href={item.href}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className={cn(
-                                                        "group text-accent-foreground ring-offset-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring ml-1 inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent p-0 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
-                                                        isWelcome && !isScrolled && "text-white hover:bg-white/20",
-                                                        (isWelcome && isScrolled) || !isWelcome ? "text-gray-700 hover:bg-gray-100" : ""
-                                                    )}
-                                                >
-                                                    <span className="sr-only">{t(`nav.${item.title}`)}</span>
-                                                    {item.icon && <Icon iconNode={item.icon} className="size-5 opacity-80 group-hover:opacity-100" />}
-                                                </a>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>{t(`nav.${item.title}`)}</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                ))}
-                            </div>)}
+                                <div className="hidden lg:flex">
+                                    {rightNavItems.map((item) => (
+                                        <TooltipProvider key={item.title} delayDuration={0}>
+                                            <Tooltip>
+                                                <TooltipTrigger>
+                                                    <a
+                                                        href={item.href}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className={cn(
+                                                            "group text-accent-foreground ring-offset-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring ml-1 inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent p-0 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+                                                            isWelcome && !isScrolled && "text-white hover:bg-white/20",
+                                                            (isWelcome && isScrolled) || !isWelcome ? "text-gray-700 hover:bg-gray-100" : ""
+                                                        )}
+                                                    >
+                                                        <span className="sr-only">{t(`nav.${item.title}`)}</span>
+                                                        {item.icon && <Icon iconNode={item.icon} className="size-5 opacity-80 group-hover:opacity-100" />}
+                                                    </a>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>{t(`nav.${item.title}`)}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    ))}
+                                </div>)}
                         </div>
-                        
+
                         {/* Language Switcher */}
                         <LanguageSwitcher className={cn(isWelcome && !isScrolled && "text-white hover:bg-white/20 bg-transparent")} />
-                        
+
                         {/* Conditional Rendering: User Menu vs Login/Register Buttons */}
                         {isAuthenticated(auth.user) ? (
                             // Authenticated User - Show user dropdown menu

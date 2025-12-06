@@ -29,8 +29,9 @@ export interface AvailabilityData {
     booked_periods: string[][];
     rates: Record<string, {
         base_rate: number;
-        weekend_premium: boolean;
-        seasonal_premium: number;
+        final_rate: number;
+        weekend_premium_amount: number;
+        seasonal_premium_amount: number;
         seasonal_rate_applied?: {
             name: string;
             rate_type: string;
@@ -39,6 +40,8 @@ export interface AvailabilityData {
             min_stay_nights: number;
         }[];
         is_weekend: boolean;
+        has_seasonal_rate: boolean;
+        extra_bed_rate: number;
     }>;
     property_info: {
         base_rate: number;
@@ -65,9 +68,9 @@ interface UseRateCalculationReturn {
     isRateReady: boolean;
 }
 
-export function useRateCalculation({ 
-    availabilityData, 
-    guestCount 
+export function useRateCalculation({
+    availabilityData,
+    guestCount
 }: UseRateCalculationProps): UseRateCalculationReturn {
     const { t } = useTranslation();
     const [rateCalculation, setRateCalculation] = useState<RateCalculation | null>(null);
@@ -80,25 +83,26 @@ export function useRateCalculation({
         const toDate = new Date(checkOut);
         const dateArray: string[] = [];
         const current = new Date(fromDate);
-        
+
         while (current < toDate) {
             dateArray.push(current.toISOString().split('T')[0]);
             current.setDate(current.getDate() + 1);
         }
-        
+
         return dateArray;
     }, []);
 
     // Check if dates are available
     const checkAvailability = useCallback((dateArray: string[]): boolean => {
         if (!availabilityData?.booked_dates) return true;
-        
-        return !dateArray.some(date => 
+
+        return !dateArray.some(date =>
             availabilityData.booked_dates.includes(date)
         );
     }, [availabilityData]);
 
     // Calculate daily rates
+    // Calculate daily rates using actual amounts from server
     const calculateDailyRates = useCallback((dateArray: string[]) => {
         if (!availabilityData?.rates || !availabilityData?.property_info) {
             return { baseAmount: 0, weekendPremium: 0, seasonalPremium: 0 };
@@ -107,7 +111,6 @@ export function useRateCalculation({
         let baseAmount = 0;
         let weekendPremium = 0;
         let seasonalPremium = 0;
-        const weekendPremiumPercent = Number(availabilityData.property_info.weekend_premium_percent) || 0;
 
         dateArray.forEach(date => {
             const dailyRate = availabilityData.rates[date];
@@ -116,47 +119,61 @@ export function useRateCalculation({
                 return;
             }
 
-            // Ensure all values are numbers with validation
+            // Use actual amounts from server (no recalculation needed)
             const dailyBaseRate = Number(dailyRate.base_rate) || 0;
-            const dailySeasonalPremium = Number(dailyRate.seasonal_premium) || 0;
-            
+            const dailyWeekendPremium = Number(dailyRate.weekend_premium_amount) || 0;
+            const dailySeasonalPremium = Number(dailyRate.seasonal_premium_amount) || 0;
+
             // Validate the numbers
             if (isNaN(dailyBaseRate)) {
-                console.error(`❌ Invalid base rate for ${date}:`, dailyRate.base_rate);
+                console.error(`❌ Invalid final rate for ${date}:`, dailyRate.final_rate);
                 return;
             }
-            
+
             baseAmount += dailyBaseRate;
-            
-            // Add seasonal premium if exists
+            weekendPremium += dailyWeekendPremium;
+            seasonalPremium += dailySeasonalPremium;
+
+            // Log for debugging
             if (dailySeasonalPremium > 0) {
-                seasonalPremium += dailySeasonalPremium;
                 console.log(`🎪 ${date}: Seasonal premium = ${dailySeasonalPremium.toLocaleString('id-ID')} ${dailyRate.seasonal_rate_applied ? `(${dailyRate.seasonal_rate_applied[0].name})` : ''}`);
             }
-            
-            if (dailyRate.weekend_premium) {
-                const premiumAmount = dailyBaseRate * (weekendPremiumPercent / 100);
-                weekendPremium += premiumAmount;
-                console.log(`🎯 ${date}: Weekend premium = ${dailyBaseRate} * ${weekendPremiumPercent}% = ${premiumAmount}`);
+
+            if (dailyWeekendPremium > 0) {
+                console.log(`🎯 ${date}: Weekend premium = ${dailyWeekendPremium.toLocaleString('id-ID')}`);
             }
-            
-            console.log(`📊 ${date}: base=${dailyBaseRate.toLocaleString('id-ID')}, seasonal=${dailySeasonalPremium.toLocaleString('id-ID')}, weekend=${dailyRate.weekend_premium}, running_total=${(baseAmount + seasonalPremium).toLocaleString('id-ID')}`);
+
+            console.log(`📊 ${date}: final_rate=${dailyBaseRate.toLocaleString('id-ID')}, seasonal=${dailySeasonalPremium.toLocaleString('id-ID')}, weekend=${dailyWeekendPremium.toLocaleString('id-ID')}, running_total=${baseAmount.toLocaleString('id-ID')}`);
         });
 
         return { baseAmount, weekendPremium, seasonalPremium };
     }, [availabilityData]);
 
-    // Calculate extra beds
-    const calculateExtraBeds = useCallback((nights: number) => {
+    // Calculate extra beds with seasonal rate support
+    const calculateExtraBeds = useCallback((checkIn: string, checkOut: string) => {
         if (!availabilityData?.property_info) return { extraBeds: 0, extraBedAmount: 0 };
 
         const capacity = Number(availabilityData.property_info.capacity) || 0;
-        const extraBedRate = Number(availabilityData.property_info.extra_bed_rate) || 0;
         const extraBeds = Math.max(0, guestCount - capacity);
-        const extraBedAmount = extraBeds * extraBedRate * nights;
+
+        if (extraBeds === 0) {
+            return { extraBeds: 0, extraBedAmount: 0 };
+        }
+
+        // Calculate extra bed amount using daily rates (supports seasonal extra bed rates)
+        const dateArray = generateDateArray(checkIn, checkOut);
+        let extraBedAmount = 0;
+
+        dateArray.forEach(date => {
+            const dailyRate = availabilityData.rates?.[date];
+            if (dailyRate) {
+                const dailyExtraBedRate = Number(dailyRate.extra_bed_rate) || Number(availabilityData.property_info.extra_bed_rate) || 0;
+                extraBedAmount += extraBeds * dailyExtraBedRate;
+            }
+        });
 
         return { extraBeds, extraBedAmount };
-    }, [availabilityData, guestCount]);
+    }, [availabilityData, guestCount, generateDateArray]);
 
     // Main rate calculation function
     const calculateRate = useCallback((checkIn: string, checkOut: string): RateCalculation | null => {
@@ -174,7 +191,7 @@ export function useRateCalculation({
         // Validate date format
         const checkInDate = new Date(checkIn);
         const checkOutDate = new Date(checkOut);
-        
+
         if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
             console.error('❌ Invalid date format');
             throw new Error('Invalid date format');
@@ -189,7 +206,7 @@ export function useRateCalculation({
             // Generate date array
             const dateArray = generateDateArray(checkIn, checkOut);
             console.log('📅 Date array:', dateArray);
-            
+
             // Check availability
             if (!checkAvailability(dateArray)) {
                 throw new Error(t('properties.property_not_available'));
@@ -197,10 +214,10 @@ export function useRateCalculation({
 
             // Calculate daily rates
             const { baseAmount, weekendPremium, seasonalPremium } = calculateDailyRates(dateArray);
-            
+
             // Calculate nights and extra beds
             const nights = dateArray.length;
-            const { extraBeds, extraBedAmount } = calculateExtraBeds(nights);
+            const { extraBeds, extraBedAmount } = calculateExtraBeds(checkIn, checkOut);
 
             // Calculate cleaning fee
             const cleaningFee = Number(availabilityData.property_info.cleaning_fee) || 0;
@@ -263,15 +280,15 @@ export function useRateCalculation({
     const calculateRateAsync = useCallback(async (checkIn: string, checkOut: string) => {
         setIsCalculatingRate(true);
         setRateError(null);
-        
+
         try {
             // Use setTimeout to show loading state briefly
             await new Promise(resolve => setTimeout(resolve, 300));
-            
+
             const calculation = calculateRate(checkIn, checkOut);
             setRateCalculation(calculation);
             console.log('✅ Rate calculated:', calculation?.formatted.total_amount);
-            
+
             return calculation;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : t('properties.calculation_error');

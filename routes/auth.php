@@ -44,6 +44,19 @@ Route::middleware('guest')->group(function () {
 
     Route::post('set-password/{user}', [NewPasswordController::class, 'storeSetPassword']);
 
+    // WhatsApp Authentication Routes
+    Route::post('auth/whatsapp/check-number', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'checkNumber'])
+        ->name('auth.whatsapp.check-number');
+    
+    Route::post('auth/whatsapp/request-otp', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'requestOtp'])
+        ->name('auth.whatsapp.request-otp');
+    
+    Route::post('auth/whatsapp/verify-otp', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'verifyOtp'])
+        ->name('auth.whatsapp.verify-otp');
+    
+    Route::post('auth/whatsapp/resend-otp', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'resendOtp'])
+        ->name('auth.whatsapp.resend-otp');
+
 });
 
 Route::middleware('auth')->group(function () {

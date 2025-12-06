@@ -8,7 +8,6 @@ interface PaymentOptionsFormProps {
 
 const dpOptions = [
     { value: 50, label: '50% Down Payment', description: 'Pay 50% now, 50% later' },
-    { value: 70, label: '70% Down Payment', description: 'Pay 70% now, 30% later' },
     { value: 100, label: '100% Full Payment', description: 'Pay 100% now' },
 ];
 
