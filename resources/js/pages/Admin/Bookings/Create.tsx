@@ -279,8 +279,15 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     // Load property availability and rates data (same as customer booking show page)
     const loadPropertyAvailabilityAndRatesAdmin = async (propertyId: number) => {
         try {
-            const startDate = new Date().toISOString().split('T')[0];
-            const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            // Start date = 2 bulan yang telah berlalu
+            const start = new Date();
+            start.setMonth(start.getMonth() - 2);
+            const startDate = start.toISOString().split('T')[0];
+
+            // End date = 90 hari dari sekarang
+            const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+                .toISOString()
+                .split('T')[0];
 
             // Use ADMIN endpoint with property_id
             const data = await bookingsService.getPropertyDateRange(propertyId, startDate, endDate);
@@ -331,24 +338,16 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             const startDate = new Date().toISOString().split('T')[0];
             const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-            // Use the same API pattern as customer booking show page
-            const response = await fetch(`/admin/api/admin/booking-management/property-date-range?property_id=${propertyId}&start_date=${startDate}&end_date=${endDate}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                },
-            });
+            // Use bookingsService instead of direct fetch
+            const data = await bookingsService.getPropertyDateRange(propertyId, startDate, endDate);
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    setAvailabilityData(data);
+            if (data && (data.success || data.data)) {
+                const responseData = data.data || data;
+                if (responseData.success || responseData) {
+                    setAvailabilityData(responseData);
                     setAvailabilityError(null);
                 } else {
-                    setAvailabilityError(data.error || 'Failed to load availability data');
+                    setAvailabilityError(responseData.error || 'Failed to load availability data');
                 }
             } else {
                 setAvailabilityError('Failed to load availability data');
@@ -369,35 +368,27 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         setAvailabilityError(null);
 
         try {
-            // Use the same API pattern as customer booking show page
-            const response = await fetch('/admin/api/admin/booking-management/check-availability', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    property_id: propertyId,
-                    check_in: checkIn,
-                    check_out: checkOut,
-                }),
+            // Use bookingsService instead of direct fetch
+            // This fixes the double prefix issue as the service handles the URL
+            const result = await bookingsService.checkAvailability({
+                property_id: propertyId,
+                check_in: checkIn,
+                check_out: checkOut,
+                guest_count: totalGuests
             });
 
-            if (response.ok) {
-                const result = await response.json();
+            if (result) {
                 // Use the result from backend - it already checks overlap correctly
                 setAvailabilityStatus(result.available ? 'available' : 'unavailable');
                 if (!result.available) {
-                    setAvailabilityError('Property tidak tersedia untuk tanggal yang dipilih');
+                    setAvailabilityError(result.message || 'Property tidak tersedia untuk tanggal yang dipilih');
                     // Log for debugging
                     console.log('Availability check result:', {
                         property_id: propertyId,
                         check_in: checkIn,
                         check_out: checkOut,
                         available: result.available,
-                        booked_dates: result.booked_dates || [],
+                        conflicts: result.conflicts || [],
                     });
                 }
             } else {
@@ -408,7 +399,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             setAvailabilityStatus('unavailable');
             setAvailabilityError('Error checking availability');
         }
-    }, []);
+    }, [totalGuests]);
 
     // Calculate rate from backend data with improved error handling
     const calculateRateFromBackendData = useCallback(async (checkIn: string, checkOut: string) => {

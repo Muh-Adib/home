@@ -20,6 +20,8 @@
             })();
         </script>
 
+        <script defer src="http://umami-eogc4gkks0080kc0kck8og88.72.60.233.233.sslip.io/script.js" data-website-id="20a0dc87-67d7-44f4-95b7-d1efa140d1ed"></script>
+
         {{-- Inline style to set the HTML background color based on our theme in app.css --}}
         <style>
             html {

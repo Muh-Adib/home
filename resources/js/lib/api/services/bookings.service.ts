@@ -162,13 +162,15 @@ class BookingsService {
     /**
      * Get property date range (admin)
      */
-    async getPropertyDateRange(propertyId: number, startDate: string, endDate: string): Promise<any> {
-        return ApiClient.post('/api/admin/booking-management/property-date-range', {
+    async getPropertyDateRange(propertyId: number,startDate: string,endDate: string ): Promise<any> {
+        const payload = {
             property_id: propertyId,
             start_date: startDate,
             end_date: endDate,
-        });
-    }
+        };
+
+        return ApiClient.post('/api/admin/booking-management/property-date-range', payload);
+}
 
     /**
      * Get timeline (admin)
