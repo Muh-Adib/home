@@ -201,7 +201,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
 
         try {
             // Check availability (exclude current booking)
-            const availabilityResponse = await fetch('/admin/api/admin/booking-management/check-availability', {
+            const availabilityResponse = await fetch('/api/admin/booking-management/check-availability', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

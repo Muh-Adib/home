@@ -267,7 +267,7 @@ export default function RateBreakdownCard({
                 <Separator />
 
                 {/* Daily Breakdown Table */}
-                <div className="rounded-md border overflow-x-auto">
+                <div className="rounded-md border overflow-x-auto max-w-full">
                     <Table>
                         <TableHeader>
                             <TableRow>

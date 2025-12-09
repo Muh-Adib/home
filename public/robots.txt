@@ -1,2 +1,3 @@
 User-agent: *
-Disallow:
+Allow: /
+Sitemap: {{APP_URL}}/sitemap.xml

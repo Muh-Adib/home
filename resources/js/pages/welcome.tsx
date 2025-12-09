@@ -37,6 +37,8 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
     const { t } = useTranslation();
     const [isVisible, setIsVisible] = useState(false);
     const [searchLoading, setSearchLoading] = useState(false);
+    const appName = "Homsjogja";
+    const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
 
     // Prepare slideshow images
     const slideshowImages = featuredProperties
@@ -99,7 +101,25 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
 
     return (
         <GuestLayout variant="minimal">
-            <Head title={`${t('welcome_page.title')} - Homsjogja`} />
+            <Head>
+                <title>{`${t('welcome_page.title')} - ${appName}`}</title>
+                <meta name="description" content="Temukan homestay terbaik di Jogja dengan harga terjangkau. Homsjogja menyediakan penginapan nyaman, aman, dan strategis dekat Malioboro." />
+                <link rel="canonical" href={appUrl} />
+
+                {/* Open Graph / Facebook */}
+                <meta property="og:type" content="website" />
+                <meta property="og:url" content={appUrl} />
+                <meta property="og:title" content={`${t('welcome_page.title')} - ${appName}`} />
+                <meta property="og:description" content="Temukan homestay terbaik di Jogja dengan harga terjangkau. Homsjogja menyediakan penginapan nyaman, aman, dan strategis dekat Malioboro." />
+                <meta property="og:image" content={`${appUrl}/og-image.jpg`} />
+
+                {/* Twitter */}
+                <meta property="twitter:card" content="summary_large_image" />
+                <meta property="twitter:url" content={appUrl} />
+                <meta property="twitter:title" content={`${t('welcome_page.title')} - ${appName}`} />
+                <meta property="twitter:description" content="Temukan homestay terbaik di Jogja dengan harga terjangkau. Homsjogja menyediakan penginapan nyaman, aman, dan strategis dekat Malioboro." />
+                <meta property="twitter:image" content={`${appUrl}/og-image.jpg`} />
+            </Head>
 
             <div className="min-h-screen bg-background">
                 {/* Hero Section - Enhanced with Swiper */}

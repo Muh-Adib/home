@@ -233,7 +233,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             effectiveGuests = male + female + Math.floor(children / 2);
         };
         return effectiveGuests;
-    }, [data.guest_male, data.guest_female, data.guest_children]);
+    }, [currentProperty, data.guest_male, data.guest_female, data.guest_children]);
 
     // Calculate extra beds needed
     const extraBeds = useMemo(() => {
@@ -265,7 +265,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         // Load property date range data and availability
         if (property) {
             loadPropertyDateRange(property.id);
-            loadPropertyAvailabilityAndRatesAdmin(property.id);
+            //loadPropertyAvailabilityAndRatesAdmin(property.id);
 
             // Update capacity if needed
             if (totalGuests > property.capacity_max) {
@@ -285,9 +285,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             const startDate = start.toISOString().split('T')[0];
 
             // End date = 90 hari dari sekarang
-            const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
-                .toISOString()
-                .split('T')[0];
+            const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
             // Use ADMIN endpoint with property_id
             const data = await bookingsService.getPropertyDateRange(propertyId, startDate, endDate);
@@ -335,8 +333,15 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     const loadPropertyDateRange = async (propertyId: number) => {
         setIsLoadingAvailability(true);
         try {
-            const startDate = new Date().toISOString().split('T')[0];
-            const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            // Start date = 2 bulan yang telah berlalu
+            const start = new Date();
+            start.setMonth(start.getMonth() - 2);
+            const startDate = start.toISOString().split('T')[0];
+
+            // End date = 90 hari dari sekarang
+            const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+                .toISOString()
+                .split('T')[0];
 
             // Use bookingsService instead of direct fetch
             const data = await bookingsService.getPropertyDateRange(propertyId, startDate, endDate);
@@ -473,9 +478,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                         property_id: currentProperty.id,
                         check_in: startDate,
                         check_out: endDate,
-                        guest_count: (currentProperty.capacity < currentProperty.capacity_max)
-                            ? totalGuests - Number(data.guest_children) + Math.floor(Number(data.guest_children) / 2)
-                            : totalGuests,
+                        guest_count: totalGuests,
                     });
 
                     if (availabilityData && availabilityData.success) {
@@ -497,9 +500,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                             property_id: currentProperty.id,
                             check_in: startDate,
                             check_out: endDate,
-                            guest_count: (currentProperty.capacity < currentProperty.capacity_max)
-                                ? totalGuests - Number(data.guest_children) + Math.floor(Number(data.guest_children) / 2)
-                                : totalGuests,
+                            guest_count: totalGuests,
                         });
 
                         if (rateData && rateData.success && rateData.calculation) {
@@ -571,18 +572,10 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
         const countField = genderType === 'children' ? 'guest_children' :
             genderType === 'male' ? 'guest_male' : 'guest_female';
 
-        // Calculate new total guests with updated count
-        const newTotalGuests = (() => {
-            const male = genderType === 'male' ? newCount : (data.guest_male || 0);
-            const female = genderType === 'female' ? newCount : (data.guest_female || 0);
-            const children = genderType === 'children' ? newCount : (data.guest_children || 0);
-            return male + female + children;
-        })();
-
         setData(countField, newCount);
 
         // Recalculate rate when guest count changes with debounce
-        if (data.check_in_date && data.check_out_date && currentProperty && newTotalGuests > 0) {
+        if (data.check_in_date && data.check_out_date && currentProperty && totalGuests > 0) {
             setIsCalculatingRate(true);
             setTimeout(async () => {
                 try {
@@ -591,9 +584,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                         property_id: currentProperty.id,
                         check_in: data.check_in_date,
                         check_out: data.check_out_date,
-                        guest_count: (currentProperty.capacity < currentProperty.capacity_max)
-                            ? newTotalGuests - (genderType === 'children' ? newCount : (data.guest_children || 0)) + Math.floor((genderType === 'children' ? newCount : (data.guest_children || 0)) / 2)
-                            : newTotalGuests,
+                        guest_count: totalGuests,
                     });
 
                     if (rateData) {
@@ -659,12 +650,6 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             loadPropertyAvailabilityAndRatesAdmin(selectedProperty.id);
         }
     }, [selectedProperty]);
-
-    // Auto-generate guest list when counts change
-    useEffect(() => {
-        // This effect is no longer needed as guest details are removed.
-        // Keeping it for now in case it's re-introduced later.
-    }, [totalGuests, data.guest_male, data.guest_female, data.guest_children]);
 
     // Calculate services total
     const servicesTotal = useMemo(() => {
@@ -1010,7 +995,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     return (
         <AdminLayout breadcrumbs={breadcrumbs} title="Booking Create" subtitle="Create Booking">
 
-            <div className="space-y-6">
+            <div className="">
                 {/* Header */}
                 <div>
                     <h1 className="text-3xl font-bold text-brand-primary">Create New Booking</h1>
@@ -1730,54 +1715,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                     </div>
 
                     {/* Enhanced Rate Calculation Sidebar */}
-                    <div className="space-y-6">
-                        {/* Guest Summary Card */}
-                        {/* This section is no longer needed as guest details are removed. */}
-                        {/* Keeping it for now in case it's re-introduced later. */}
-                        {/*
-                        <Card className="md:sticky md:top-6">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Users className="h-5 w-5" />
-                                    Guest Summary
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-sm">
-                                        <span>Total Guests:</span>
-                                        <Badge variant="secondary">{totalGuests}</Badge>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span>Male Adults:</span>
-                                        <span>{guestDetails.filter(g => g.gender === 'male' && g.age_category === 'adult').length}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span>Female Adults:</span>
-                                        <span>{guestDetails.filter(g => g.gender === 'female' && g.age_category === 'adult').length}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span>Children:</span>
-                                        <span>{guestDetails.filter(g => g.age_category === 'child').length}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span>Infants:</span>
-                                        <span>{guestDetails.filter(g => g.age_category === 'infant').length}</span>
-                                    </div>
-                                </div>
-                                
-                                {extraBeds > 0 && currentProperty && (
-                                    <div className="pt-2 border-t">
-                                        <div className="flex items-center gap-2 text-sm text-brand-primary">
-                                            <Bed className="h-4 w-4" />
-                                            <span>Extra beds needed: {extraBeds}</span>
-                                        </div>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                        */}
-
+                    <div className="space-y-6 min-w-0">
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
