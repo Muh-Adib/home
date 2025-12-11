@@ -21,6 +21,10 @@ echo "🔐 Setting proper permissions..."
 chmod -R 777 storage bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
 
+# Force clear persistent bootstrap cache (prevents CollisionServiceProvider error)
+echo "🧹 Cleaning bootstrap cache..."
+rm -f bootstrap/cache/*.php
+
 # Create log file with proper permissions
 echo "📝 Creating log files..."
 touch storage/logs/laravel.log

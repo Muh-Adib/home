@@ -3,8 +3,16 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="description" content="Homsjogja - Homestay Terbaik di Yogyakarta">
+        <meta name="description" content="{{ data_get($page, 'props.seo.description', 'Homsjogja - Homestay Terbaik di Yogyakarta') }}">
         <meta property="og:type" content="website">
+        <meta property="og:title" content="{{ data_get($page, 'props.seo.title', 'Homsjogja') }}">
+        <meta property="og:description" content="{{ data_get($page, 'props.seo.description', 'Homsjogja - Homestay Terbaik di Yogyakarta') }}">
+        <meta property="og:image" content="{{ data_get($page, 'props.seo.image', asset('logo.svg')) }}">
+        
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="{{ data_get($page, 'props.seo.title', 'Homsjogja') }}">
+        <meta name="twitter:description" content="{{ data_get($page, 'props.seo.description', 'Homsjogja - Homestay Terbaik di Yogyakarta') }}">
+        <meta name="twitter:image" content="{{ data_get($page, 'props.seo.image', asset('logo.svg')) }}">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
@@ -22,7 +30,7 @@
             })();
         </script>
 
-        <script defer src="http://umami-eogc4gkks0080kc0kck8og88.72.60.233.233.sslip.io/script.js" data-website-id="20a0dc87-67d7-44f4-95b7-d1efa140d1ed"></script>
+        <script defer src="https://umami.homsjogja.cloud/script.js" data-website-id="20a0dc87-67d7-44f4-95b7-d1efa140d1ed"></script>
 
         {{-- Inline style to set the HTML background color based on our theme in app.css --}}
         <style>
@@ -35,7 +43,7 @@
             }
         </style>
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        <title inertia>{{ data_get($page, 'props.seo.title', config('app.name', 'Laravel')) }}</title>
 
         @php
             // Prioritaskan favicon dari settings, jika tidak ada gunakan logo brand
