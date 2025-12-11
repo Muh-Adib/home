@@ -15,6 +15,11 @@ createServer((page) =>
         page,
         render: ReactDOMServer.renderToString,
         title: (title) => `${title} - ${appName}`,
+        defaults: {
+            future: {
+                useDataInertiaHeadAttribute: true,
+            },
+        },
         resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx')),
         setup: ({ App, props }) => {
             /* eslint-disable */
@@ -49,5 +54,6 @@ createServer((page) =>
             );
         },
     }),
-    { cluster: true }
+    { cluster: true },
+
 );
