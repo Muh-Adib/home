@@ -7,6 +7,7 @@
  * Get fresh CSRF token from meta tag
  */
 function getCsrfToken(): string {
+    if (typeof document === 'undefined') return '';
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta?.getAttribute('content') || '';
 }
@@ -27,7 +28,7 @@ export async function apiFetch(
     headers.set('Content-Type', 'application/json');
     headers.set('Accept', 'application/json');
     headers.set('X-Requested-With', 'XMLHttpRequest');
-    
+
     // Add CSRF token if available
     if (csrfToken) {
         headers.set('X-CSRF-TOKEN', csrfToken);
@@ -46,9 +47,9 @@ export async function apiFetch(
         // Handle 419 CSRF token mismatch
         if (response.status === 419 && retryCount < maxRetries) {
             console.warn('CSRF token expired (419), refreshing page to get new token...');
-            
+
             // Reload page to get fresh CSRF token
-            window.location.reload();
+            if (typeof window !== 'undefined') window.location.reload();
             throw new Error('CSRF token expired, page reloaded');
         }
 
@@ -58,7 +59,7 @@ export async function apiFetch(
             try {
                 const errorData = await response.clone().json();
                 const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`;
-                
+
                 // Create error object with response data
                 const error = new Error(errorMessage) as any;
                 error.response = {
@@ -81,7 +82,7 @@ export async function apiFetch(
         // If it's a 419 error and we haven't retried yet, reload page
         if (error instanceof Error && error.message.includes('419') && retryCount < maxRetries) {
             console.warn('CSRF token expired (419), refreshing page to get new token...');
-            window.location.reload();
+            if (typeof window !== 'undefined') window.location.reload();
         }
         throw error;
     }
