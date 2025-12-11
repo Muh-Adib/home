@@ -103,13 +103,14 @@ export default function PropertyShow({
     }
   }, [state.checkInDate, state.checkOutDate, state.guestCount]);
 
-  const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+  const appUrl = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
   const propertyUrl = `${appUrl}/properties/${property.slug}`;
   const metaImage = images[0]?.url || `${appUrl}/og-image.jpg`;
   const metaDescription = property.description?.substring(0, 160) || `Book ${property.name} at Homsjogja.`;
 
   // JSON-LD Structured Data
-  const jsonLd = {
+  // JSON-LD Structured Data
+  const jsonLd: any = {
     "@context": "https://schema.org",
     "@type": "LodgingBusiness",
     "name": property.name,
@@ -126,9 +127,30 @@ export default function PropertyShow({
     "amenityFeature": property.amenities?.map(amenity => ({
       "@type": "LocationFeatureSpecification",
       "name": amenity.name,
-      "value": true
-    }))
+      "value": "true"
+    })),
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Room Offers",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "price": property.base_rate.toString(),
+          "priceCurrency": "IDR",
+          "availability": "https://schema.org/InStock",
+          "url": `${propertyUrl}#booking`
+        }
+      ]
+    }
   };
+
+  if (property.rating_avg && property.approved_reviews_count) {
+    jsonLd.aggregateRating = {
+      "@type": "AggregateRating",
+      "ratingValue": parseFloat(property.rating_avg.toString()).toFixed(1),
+      "reviewCount": property.approved_reviews_count.toString()
+    };
+  }
 
   return (
     <GuestLayout variant='minimal'>

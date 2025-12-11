@@ -182,7 +182,8 @@ class PropertyController extends Controller
                 $query->where('is_active', true)
                       ->orderBy('priority', 'desc');
             }
-        ]);
+        ])->loadCount('approvedReviews')
+          ->loadAvg('approvedReviews as rating_avg', 'rating');
 
         // Get search parameters
         $checkIn = $request->get('check_in') ?: today()->toDateString();
