@@ -52,4 +52,9 @@ createInertiaApp({
         showSpinner: false,     // matikan spinner bawaan
         includeCSS: true        // tetap gunakan struktur NProgress, tapi style kamu yang override
     },
+    defaults: {
+        future: {
+            useDataInertiaHeadAttribute: true,
+        },
+    },
 });
