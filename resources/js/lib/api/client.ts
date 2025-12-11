@@ -34,6 +34,7 @@ export interface RequestConfig extends RequestInit {
  * Get CSRF token from meta tag
  */
 function getCsrfToken(): string {
+    if (typeof document === 'undefined') return '';
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta?.getAttribute('content') || '';
 }
@@ -42,6 +43,7 @@ function getCsrfToken(): string {
  * Get auth token from storage (if using token-based auth)
  */
 function getAuthToken(): string | null {
+    if (typeof window === 'undefined') return null;
     return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
 }
 
@@ -66,7 +68,7 @@ function sleep(ms: number): Promise<void> {
  */
 async function parseErrorResponse(response: Response): Promise<ApiError> {
     let errorData: any = {};
-    
+
     try {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
@@ -136,7 +138,7 @@ async function apiRequest<T = any>(
 
     // Prepare headers
     const headers = new Headers(fetchOptions.headers);
-    
+
     // Set default headers
     if (!headers.has('Content-Type') && !(fetchOptions.body instanceof FormData)) {
         headers.set('Content-Type', 'application/json');

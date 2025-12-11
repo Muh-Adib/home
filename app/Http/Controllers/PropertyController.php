@@ -153,7 +153,12 @@ class PropertyController extends Controller
                 'sort' => $sortBy,
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
-            ]
+            ],
+            'seo' => [
+                'title' => 'Sewa Homestay Terbaik di Yogyakarta - Homsjogja',
+                'description' => 'Temukan homestay terbaik di Yogyakarta untuk liburan Anda. Fasilitas lengkap, lokasi strategis, dan harga terjangkau.',
+                'image' => asset('logo.svg'),
+            ],
         ]);
     }
 
@@ -387,6 +392,11 @@ class PropertyController extends Controller
                 'guests' => $guestCount,
             ],
             'availabilityData' => $availabilityAndRates,
+            'seo' => [
+                'title' => $property->name . ' - Homsjogja',
+                'description' => Str::limit($property->description, 155, '...') ?: "Book {$property->name} at Homsjogja.",
+                'image' => $property->media->first()?->url ?? asset('og-image.jpg'),
+            ],
         ]);
     }
 

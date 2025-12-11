@@ -1,7 +1,7 @@
 import './bootstrap.js';
 import '../css/app.css';
 
-import { createRoot } from 'react-dom/client';
+import { hydrateRoot } from 'react-dom/client'
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import i18n from './lib/i18n';
@@ -39,8 +39,7 @@ createInertiaApp({
     title: (title) => `${title} - ${appName}`,
     resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx')),
     setup({ el, App, props }) {
-        const root = createRoot(el);
-        root.render(
+        hydrateRoot(el,
             <QueryClientProvider client={queryClient}>
                 <I18nextProvider i18n={i18n}>
                     <App {...props} />
@@ -54,6 +53,3 @@ createInertiaApp({
         includeCSS: true        // tetap gunakan struktur NProgress, tapi style kamu yang override
     },
 });
-// This will set light / dark mode on load...
-initializeTheme();
-

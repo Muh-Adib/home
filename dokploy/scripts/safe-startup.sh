@@ -44,6 +44,10 @@ exit_with_success() {
 
 echo "🚀 Starting Property Management System (Safe Mode)..."
 
+# Force clear persistent bootstrap cache (prevents CollisionServiceProvider error)
+log_info "🧹 Cleaning bootstrap cache..."
+rm -f bootstrap/cache/*.php
+
 # Check if we're in the right directory
 if [ ! -f "artisan" ]; then
     exit_with_error "Laravel artisan not found - invalid deployment"

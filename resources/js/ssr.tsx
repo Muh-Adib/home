@@ -3,6 +3,10 @@ import createServer from '@inertiajs/react/server';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import ReactDOMServer from 'react-dom/server';
 import { type RouteName, route } from 'ziggy-js';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { I18nextProvider } from 'react-i18next';
+import i18n from './lib/i18n';
+// Hapus import AOS atau initializeTheme jika mereka dieksekusi di level global di file sumbernya.
 
 const appName = import.meta.env.VITE_APP_NAME || 'Homsjogja';
 
@@ -14,17 +18,36 @@ createServer((page) =>
         resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx')),
         setup: ({ App, props }) => {
             /* eslint-disable */
-            // @ts-expect-error
-            global.route<RouteName> = (name, params, absolute) =>
-                route(name, params as any, absolute, {
-                    // @ts-expect-error
+            // ... (Kode Ziggy Global Routes Anda di sini, sudah benar)
+            // @ts-ignore
+            global.route = (name, params, absolute) =>
+                route(name, params, absolute, {
+                    // @ts-ignore
                     ...page.props.ziggy,
-                    // @ts-expect-error
+                    // @ts-ignore
                     location: new URL(page.props.ziggy.location),
                 });
             /* eslint-enable */
 
-            return <App {...props} />;
+            // Buat QueryClient baru untuk setiap request (sudah benar untuk isolasi request)
+            const queryClient = new QueryClient({
+                defaultOptions: {
+                    queries: {
+                        retry: false, // Penting untuk SSR, jangan retry jika gagal di server
+                        // Jika Anda menggunakan data fetching di server, Anda perlu
+                        // menambahkan dehydrator di sini dan rehydrator di app.tsx
+                    },
+                },
+            });
+
+            return (
+                <QueryClientProvider client={queryClient}>
+                    <I18nextProvider i18n={i18n}>
+                        <App {...props} />
+                    </I18nextProvider>
+                </QueryClientProvider>
+            );
         },
     }),
+    { cluster: true }
 );
