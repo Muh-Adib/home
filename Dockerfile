@@ -99,6 +99,7 @@ COPY . .
 
 # Copy built assets from node stage
 COPY --from=node-builder /app/public/build ./public/build
+COPY --from=node-builder /app/bootstrap/ssr ./bootstrap/ssr
 
 
 # Install PHP dependencies (production optimized)

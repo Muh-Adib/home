@@ -12,7 +12,9 @@ declare global {
 }
 
 // Setup Socket.IO for Laravel Echo
-window.io = io;
+if (typeof window !== 'undefined') {
+    window.io = io;
+}
 
 let echoInstance: Echo<any> | null = null;
 let isEchoAvailable = false;

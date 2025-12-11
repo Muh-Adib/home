@@ -2,15 +2,20 @@ import axios from 'axios';
 window.axios = axios;
 
 // Konfigurasi base URL untuk HTTPS
-window.axios.defaults.baseURL = import.meta.env.VITE_APP_URL || window.location.origin;
-window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+if (typeof window !== 'undefined') {
+    window.axios.defaults.baseURL = import.meta.env.VITE_APP_URL || window.location.origin;
+    window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+}
 
 // Function to get and update CSRF token
 function updateCsrfToken() {
+    if (typeof document === 'undefined') return null;
     const csrfTokenMeta = document.head.querySelector('meta[name="csrf-token"]');
     if (csrfTokenMeta && csrfTokenMeta.getAttribute('content')) {
         const token = csrfTokenMeta.getAttribute('content');
-        window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token;
+        if (typeof window !== 'undefined') {
+            window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token;
+        }
         return token;
     }
     return null;
@@ -37,6 +42,8 @@ axios.interceptors.request.use(
 axios.interceptors.response.use(
     (response) => response,
     async (error) => {
+        if (typeof window === 'undefined') return Promise.reject(error);
+
         const originalRequest = error.config;
 
         // Handle 419 (CSRF token expired)
@@ -69,7 +76,7 @@ axios.interceptors.response.use(
         }
 
         return Promise.reject(error);
-}
+    }
 );
 
 // Echo is an optional dependency that can be used for real-time features
