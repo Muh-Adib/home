@@ -57,6 +57,8 @@ export interface Property {
   current_total_rate?: number;
   current_rate_per_night?: number;
   formatted_current_rate?: string;
+  approved_reviews_count?: number;
+  rating_avg?: number;
   has_seasonal_rate?: boolean;
   seasonal_rate_info?: Array<{
     name: string;

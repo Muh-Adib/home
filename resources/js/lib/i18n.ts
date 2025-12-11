@@ -4,11 +4,12 @@ import { initReactI18next } from 'react-i18next';
 import en from '../locales/en.json';
 import id from '../locales/id.json';
 
-// Locale bawaan didapat dari elemen HTML (<html lang="...">) yg di-set oleh Laravel
-const defaultLng = document.documentElement.getAttribute('lang')?.substring(0, 2) || 'id';
+// Safe language detection for SSR
+const isServer = typeof window === 'undefined';
+const defaultLng = !isServer ? (document.documentElement.getAttribute('lang')?.substring(0, 2) || 'id') : 'id';
 
 // Check localStorage for persisted language
-const storedLanguage = localStorage.getItem('i18nextLng');
+const storedLanguage = !isServer ? localStorage.getItem('i18nextLng') : null;
 const initialLanguage = storedLanguage || defaultLng;
 
 // Resources translation
@@ -25,23 +26,23 @@ void i18n
     lng: initialLanguage,
     fallbackLng: 'en',
     debug: false, // Set to true for debugging
-    
+
     interpolation: {
       escapeValue: false, // React sudah meng-handle XSS
     },
-    
+
     // React specific options
     react: {
       useSuspense: false, // Disable suspense to avoid loading issues
     },
-    
+
     // Additional options for better performance
     load: 'languageOnly', // Only load the main language (e.g., 'en' instead of 'en-US')
-    
+
     // Namespace options
     defaultNS: 'translation',
     ns: ['translation'],
-    
+
     // Key separator
     keySeparator: '.',
     nsSeparator: ':',
@@ -50,8 +51,10 @@ void i18n
 // Export a function to change language and persist it
 export const changeLanguage = (language: string) => {
   void i18n.changeLanguage(language);
-  localStorage.setItem('i18nextLng', language);
-  document.documentElement.setAttribute('lang', language);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('i18nextLng', language);
+    document.documentElement.setAttribute('lang', language);
+  }
 };
 
 // Export current language getter

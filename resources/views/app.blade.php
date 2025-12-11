@@ -3,16 +3,16 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="description" content="{{ data_get($page, 'props.seo.description', 'Homsjogja - Homestay Terbaik di Yogyakarta') }}">
-        <meta property="og:type" content="website">
-        <meta property="og:title" content="{{ data_get($page, 'props.seo.title', 'Homsjogja') }}">
-        <meta property="og:description" content="{{ data_get($page, 'props.seo.description', 'Homsjogja - Homestay Terbaik di Yogyakarta') }}">
-        <meta property="og:image" content="{{ data_get($page, 'props.seo.image', asset('logo.svg')) }}">
+        <meta name="description" content="{{ data_get($page, 'props.seo.description', 'Homsjogja - Homestay Terbaik di Yogyakarta') }}" inertia>
+        <meta property="og:type" content="website" inertia>
+        <meta property="og:title" content="{{ data_get($page, 'props.seo.title', 'Homsjogja') }}" inertia>
+        <meta property="og:description" content="{{ data_get($page, 'props.seo.description', 'Homsjogja - Homestay Terbaik di Yogyakarta') }}" inertia>
+        <meta property="og:image" content="{{ data_get($page, 'props.seo.image', asset('logo.svg')) }}" inertia>
         
-        <meta name="twitter:card" content="summary_large_image">
-        <meta name="twitter:title" content="{{ data_get($page, 'props.seo.title', 'Homsjogja') }}">
-        <meta name="twitter:description" content="{{ data_get($page, 'props.seo.description', 'Homsjogja - Homestay Terbaik di Yogyakarta') }}">
-        <meta name="twitter:image" content="{{ data_get($page, 'props.seo.image', asset('logo.svg')) }}">
+        <meta name="twitter:card" content="summary_large_image" inertia>
+        <meta name="twitter:title" content="{{ data_get($page, 'props.seo.title', 'Homsjogja') }}" inertia>
+        <meta name="twitter:description" content="{{ data_get($page, 'props.seo.description', 'Homsjogja - Homestay Terbaik di Yogyakarta') }}" inertia>
+        <meta name="twitter:image" content="{{ data_get($page, 'props.seo.image', asset('logo.svg')) }}" inertia>
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
