@@ -7,17 +7,17 @@ interface BookingTimelineHeaderProps {
     cellWidth?: number;
 }
 
-export default function BookingTimelineHeader({ dates, cellWidth = 120 }: BookingTimelineHeaderProps) {
+export default function BookingTimelineHeader({ dates, cellWidth = 60 }: BookingTimelineHeaderProps) {
     return (
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+        <div className="bg-white border-b border-gray-200 shadow-sm">
             <div className="flex">
-                {/* Empty cell for property names column */}
-                <div className="w-64 flex-shrink-0 border-r border-gray-200 bg-gray-50 p-3">
+                {/* Property names column (Sticky Left) */}
+                <div className="w-36 sm:w-52 flex-shrink-0 border-r border-gray-200 bg-gray-50 p-3 sticky left-0 z-30 shadow-[1px_0_0_0_rgba(209,213,219,0.5)]">
                     <h3 className="text-sm font-semibold text-gray-700">Properties</h3>
                 </div>
-                
+
                 {/* Timeline dates */}
-                <div className="flex overflow-x-auto">
+                <div className="flex">
                     {dates.map((date, index) => (
                         <div
                             key={index}
@@ -41,11 +41,6 @@ export default function BookingTimelineHeader({ dates, cellWidth = 120 }: Bookin
                                 )}>
                                     {formatDateShort(date)}
                                 </div>
-                                {isToday(date) && (
-                                    <div className="text-xs text-blue-600 font-medium">
-                                        Today
-                                    </div>
-                                )}
                             </div>
                         </div>
                     ))}

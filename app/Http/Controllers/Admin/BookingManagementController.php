@@ -749,11 +749,13 @@ class BookingManagementController extends Controller
                         'id' => $booking->id,
                         'booking_number' => $booking->booking_number,
                         'guest_name' => $booking->guest_name,
+                        'guest_count' => $booking->guest_count,
                         'check_in' => $booking->check_in->toDateString(),
                         'check_out' => $booking->check_out->toDateString(),
                         'nights' => $booking->nights,
                         'total_amount' => $booking->total_amount,
                         'booking_status' => $booking->booking_status,
+                        'payment_status' => $booking->payment_status,
                         'status_color' => $this->getStatusColor($booking->booking_status),
                     ];
                 })->values(),

@@ -85,7 +85,7 @@ interface BookingsIndexProps {
 export default function BookingsIndex({ bookings, filters, properties, statistics }: BookingsIndexProps) {
     const page = usePage<PageProps>();
     const { auth } = page.props;
-    const [viewMode, setViewMode] = useState<'card' | 'table' | 'timeline'>('card');
+    const [viewMode, setViewMode] = useState<'card' | 'table' | 'timeline'>('timeline');
     const [loadingActions, setLoadingActions] = useState<Record<string, boolean>>({});
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isImportOpen, setIsImportOpen] = useState(false);

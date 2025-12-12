@@ -51,7 +51,7 @@ export default function RateManagementIndex({ properties }: Props) {
     });
 
     const handleViewRates = useCallback((property: Property & { id: number }) => {
-        router.visit(`/admin/rate-management/properties/${property.id}`);
+        router.visit(`/admin/properties/${property.slug}/seasonal-rates`);
     }, []);
 
     const handleEditProperty = useCallback((property: Property) => {

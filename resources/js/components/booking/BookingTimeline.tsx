@@ -1,20 +1,26 @@
-import React, { useState, useMemo } from 'react';
-import { type Property, type Booking } from '@/types';
-import { generateTimelineDates } from '@/utils/date';
-import BookingTimelineHeader from './BookingTimelineHeader';
-import BookingTimelineRow from './BookingTimelineRow';
-import BookingDetailModal from './BookingDetailModal';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-    ChevronLeft, 
-    ChevronRight, 
+import React, { useState, useMemo, useRef, useEffect } from "react";
+
+import { generateTimelineDates } from "@/utils/date";
+import BookingTimelineHeader from "./BookingTimelineHeader";
+import BookingTimelineRow from "./BookingTimelineRow";
+import BookingDetailModal from "./BookingDetailModal";
+import { Booking, Property, BookingStatus, PaymentStatus } from "@/types";
+import { Link } from "@inertiajs/react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+    ChevronLeft,
+    ChevronRight,
     Calendar,
     Plus,
-    Filter,
-    RefreshCw
-} from 'lucide-react';
-import { Link } from '@inertiajs/react';
+    RefreshCw,
+    Maximize2,
+    Minimize2,
+    ZoomIn,
+    ZoomOut,
+    Search,
+} from "lucide-react";
+import axios from "axios";
 
 interface BookingTimelineProps {
     properties: Property[];
@@ -22,6 +28,7 @@ interface BookingTimelineProps {
     startDate?: Date;
     days?: number;
     cellWidth?: number;
+    rowHeight?: number;
     canVerify?: boolean;
     canCancel?: boolean;
     canCheckIn?: boolean;
@@ -30,148 +37,308 @@ interface BookingTimelineProps {
 
 export default function BookingTimeline({
     properties,
-    bookings,
+    bookings: initialBookings,
     startDate,
-    days = 14,
-    cellWidth = 120,
+    days = 30, // Default changed to 30 as requested
+    cellWidth: initialWidth = 120,
+    rowHeight: initialRowHeight = 60,
     canVerify = false,
     canCancel = false,
     canCheckIn = false,
-    onRefresh
+    onRefresh,
 }: BookingTimelineProps) {
+    const timelineRef = useRef<HTMLDivElement | null>(null);
+    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+    // State
+    const [localBookings, setLocalBookings] = useState<Booking[]>(initialBookings);
     const [currentStartDate, setCurrentStartDate] = useState(startDate || new Date());
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [cellWidth, setCellWidth] = useState(initialWidth);
+    const [rowHeight, setRowHeight] = useState(initialRowHeight);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [controlsVisible, setControlsVisible] = useState(true);
+    const [extraDays, setExtraDays] = useState(0);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-    // Generate timeline dates
-    const timelineDates = useMemo(() => 
-        generateTimelineDates(days, currentStartDate), 
-        [days, currentStartDate]
+    // Drag State
+    const [isDragging, setIsDragging] = useState(false);
+    const [startX, setStartX] = useState(0);
+    const [scrollLeft, setScrollLeft] = useState(0);
+
+    // Handle body overflow for fullscreen
+    useEffect(() => {
+        if (isFullscreen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [isFullscreen]);
+
+    // Dynamic Days Calculation
+    useEffect(() => {
+        const calculateMinDays = () => {
+            if (scrollContainerRef.current) {
+                const containerWidth = scrollContainerRef.current.clientWidth;
+                // Subtract property column width (approx 260px)
+                const availableWidth = containerWidth - 260;
+                const neededDays = Math.ceil(availableWidth / cellWidth);
+                if (neededDays > days + extraDays) {
+                    setExtraDays(prev => Math.max(prev, neededDays - days + 5)); // Add buffer
+                }
+            }
+        };
+
+        // Run initially and on resize
+        calculateMinDays();
+        window.addEventListener('resize', calculateMinDays);
+        return () => window.removeEventListener('resize', calculateMinDays);
+    }, [cellWidth, days]);
+
+    // Update local bookings when prop changes (e.g. manual refresh)
+    useEffect(() => {
+        setLocalBookings(initialBookings);
+    }, [initialBookings]);
+
+    const timelineDates = useMemo(
+        () => generateTimelineDates(days + extraDays, currentStartDate),
+        [days, extraDays, currentStartDate]
     );
 
-    // Group bookings by property
     const bookingsByProperty = useMemo(() => {
         const grouped: Record<number, Booking[]> = {};
-        
-        properties.forEach(property => {
-            grouped[property.id] = bookings.filter(booking => 
-                booking.property_id === property.id
-            );
+        properties.forEach((p) => {
+            grouped[p.id] = localBookings.filter((b) => b.property_id === p.id);
         });
-        
         return grouped;
-    }, [properties, bookings]);
+    }, [properties, localBookings]);
 
-    // Calculate timeline width
     const timelineWidth = timelineDates.length * cellWidth;
 
-    const handleBookingClick = (booking: Booking) => {
-        setSelectedBooking(booking);
-        setIsModalOpen(true);
-    };
+    // Fullscreen Listener
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            const isFull = !!document.fullscreenElement;
+            setIsFullscreen(isFull);
+            setControlsVisible(!isFull);
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
 
-    const handleModalClose = () => {
-        setIsModalOpen(false);
-        setSelectedBooking(null);
-    };
+    // Fetch More Bookings
+    const fetchMoreBookings = async (newExtraDays: number) => {
+        if (isLoadingMore) return;
 
-    const navigateTimeline = (direction: 'prev' | 'next') => {
-        const newDate = new Date(currentStartDate);
-        if (direction === 'prev') {
-            newDate.setDate(newDate.getDate() - days);
-        } else {
-            newDate.setDate(newDate.getDate() + days);
+        setIsLoadingMore(true);
+        try {
+            // Calculate new date range
+            // Start from the end of CURRENT loaded range
+            const currentEndDate = new Date(currentStartDate);
+            currentEndDate.setDate(currentEndDate.getDate() + days + extraDays);
+
+            // Fetch next batch (e.g. 14 days)
+            const nextEndDate = new Date(currentEndDate);
+            nextEndDate.setDate(nextEndDate.getDate() + 14);
+
+            const response = await axios.get('/api/admin/booking-management/timeline', {
+                params: {
+                    start_date: currentEndDate.toISOString().split('T')[0],
+                    end_date: nextEndDate.toISOString().split('T')[0],
+                }
+            });
+
+            if (response.data && response.data.timeline) {
+                const newBookings = response.data.timeline as Booking[];
+                setLocalBookings(prev => {
+                    // Merge and deduplicate
+                    const existingIds = new Set(prev.map(b => b.id));
+                    const uniqueNew = newBookings.filter(b => !existingIds.has(b.id));
+                    return [...prev, ...uniqueNew];
+                });
+            }
+        } catch (error) {
+            console.error("Failed to fetch more bookings", error);
+        } finally {
+            setIsLoadingMore(false);
         }
+    };
+
+    // Infinite Scroll & Drag Handler
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const target = e.currentTarget;
+        if (target.scrollLeft + target.clientWidth >= target.scrollWidth - 300) {
+            const newExtra = extraDays + 7;
+            setExtraDays(newExtra);
+            fetchMoreBookings(newExtra);
+        }
+    };
+
+    // Mouse Drag Handlers
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (!scrollContainerRef.current) return;
+        setIsDragging(true);
+        setStartX(e.pageX - scrollContainerRef.current.offsetLeft);
+        setScrollLeft(scrollContainerRef.current.scrollLeft);
+        scrollContainerRef.current.style.cursor = 'grabbing';
+    };
+
+    const handleMouseLeave = () => {
+        setIsDragging(false);
+        if (scrollContainerRef.current) scrollContainerRef.current.style.cursor = 'grab';
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+        if (scrollContainerRef.current) scrollContainerRef.current.style.cursor = 'grab';
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isDragging || !scrollContainerRef.current) return;
+        e.preventDefault();
+        const x = e.pageX - scrollContainerRef.current.offsetLeft;
+        const walk = (x - startX) * 1.5; // Scroll-fast multiplier
+        scrollContainerRef.current.scrollLeft = scrollLeft - walk;
+    };
+
+
+    const navigateTimeline = (dir: "prev" | "next") => {
+        const newDate = new Date(currentStartDate);
+        dir === "prev"
+            ? newDate.setDate(newDate.getDate() - days)
+            : newDate.setDate(newDate.getDate() + days);
         setCurrentStartDate(newDate);
+        // setExtraDays(0); 
+        if (scrollContainerRef.current) scrollContainerRef.current.scrollLeft = 0;
     };
 
     const goToToday = () => {
         setCurrentStartDate(new Date());
+        setExtraDays(0);
+        if (scrollContainerRef.current) scrollContainerRef.current.scrollLeft = 0;
+    };
+
+    const toggleFullscreen = () => {
+        const el = timelineRef.current;
+        if (!document.fullscreenElement) {
+            el?.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    };
+
+    const zoomOut = () => {setCellWidth((v) => Math.max(35, v - 20));
+        setRowHeight((v) => Math.max(35, v - 20));
+    };
+    const zoomIn = () =>{ setCellWidth((v) => Math.min(200, v + 20));
+    setRowHeight((v) => Math.min(200, v + 20));
+    };
+    const zoomReset = () => {
+        setCellWidth(initialWidth);
+        setRowHeight(initialRowHeight);
     };
 
     const formatDateRange = () => {
         const start = timelineDates[0];
         const end = timelineDates[timelineDates.length - 1];
-        return `${start.toLocaleDateString('id-ID', { 
-            day: 'numeric', 
-            month: 'short' 
-        })} - ${end.toLocaleDateString('id-ID', { 
-            day: 'numeric', 
-            month: 'short',
-            year: 'numeric'
+        return `${start.toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+        })} - ${end.toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
         })}`;
     };
 
     return (
-        <div className="space-y-4">
-            {/* Header Controls */}
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <CardTitle className="flex items-center gap-2">
-                                <Calendar className="h-5 w-5" />
-                                Booking Timeline
-                            </CardTitle>
-                            <div className="text-sm text-gray-600">
-                                {formatDateRange()}
+        <div
+            className={`space-y-4 group ${isFullscreen ? 'bg-white h-screen overflow-hidden flex flex-col' : ''}`} // Full height in FS
+            ref={timelineRef}
+            // onMouseMove removed for performance, using CSS group-hover instead
+            onMouseLeave={() => isFullscreen && setControlsVisible(false)}
+        >
+            {/* Header */}
+            <div className={`transition-all duration-300 ease-in-out z-50 ${isFullscreen ? (controlsVisible ? 'opacity-100 translate-y-0 absolute w-full top-0' : 'opacity-0 -translate-y-full absolute w-full top-0 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto') : ''}`}>
+                <Card className={`border-none shadow-md rounded-2xl bg-white/95 backdrop-blur ${isFullscreen ? 'rounded-none' : ''}`}>
+                    <CardHeader className="pb-3">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl font-semibold">
+                                    <Calendar className="h-5 w-5 text-blue-600" />
+                                    Booking Timeline
+                                </CardTitle>
+                                <div className="text-xs sm:text-sm text-gray-600 font-medium">
+                                    {formatDateRange()}
+                                </div>
+                                {isLoadingMore && <div className="text-xs text-blue-500 animate-pulse">Loading more...</div>}
+                            </div>
+
+                            <div className={`flex items-center flex-wrap justify-center gap-1 sm:gap-2 ${isFullscreen && !controlsVisible ? 'pointer-events-none' : ''}`}>
+                                <Button variant="outline" size="icon" onClick={() => navigateTimeline("prev")}>
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <Button size="sm" className="hidden sm:block bg-blue-600 text-white" onClick={goToToday}>
+                                    Today
+                                </Button>
+                                <Button variant="outline" size="icon" onClick={() => navigateTimeline("next")}>
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                                <Button size="icon" className="sm:hidden bg-blue-600 text-white" onClick={goToToday}>
+                                    <Calendar className="h-4 w-4" />
+                                </Button>
+                                {onRefresh && (
+                                    <Button variant="outline" size="icon" onClick={onRefresh}>
+                                        <RefreshCw className="h-4 w-4" />
+                                    </Button>
+                                )}
+                                <Button variant="outline" size="icon" onClick={zoomOut}>
+                                    <ZoomOut className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="icon" onClick={zoomReset}>
+                                    <Search className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="icon" onClick={zoomIn}>
+                                    <ZoomIn className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="icon" onClick={toggleFullscreen}>
+                                    {!isFullscreen ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+                                </Button>
+                                <Button asChild size="sm" className="bg-green-600 hover:bg-green-700 text-white rounded-lg">
+                                    <Link href="/admin/bookings/create">
+                                        <Plus className="h-4 w-4 mr-2" /> New
+                                    </Link>
+                                </Button>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={goToToday}
-                            >
-                                Today
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => navigateTimeline('prev')}
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => navigateTimeline('next')}
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
-                            {onRefresh && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={onRefresh}
-                                >
-                                    <RefreshCw className="h-4 w-4" />
-                                </Button>
-                            )}
-                            <Button asChild size="sm">
-                                <Link href="/admin/bookings/create">
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    New Booking
-                                </Link>
-                            </Button>
-                        </div>
-                    </div>
-                </CardHeader>
-            </Card>
+                    </CardHeader>
+                </Card>
+            </div>
 
-            {/* Timeline Container */}
-            <Card>
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <div style={{ width: Math.max(timelineWidth + 256, 720) }}>
-                            {/* Timeline Header */}
-                            <BookingTimelineHeader 
-                                dates={timelineDates} 
-                                cellWidth={cellWidth} 
-                            />
+            {/* Timeline Area */}
+            <Card className={`rounded-2xl shadow-md border-none overflow-hidden bg-white ${isFullscreen ? 'h-full rounded-none flex-1 mt-0' : ''}`}>
+                <CardContent className={`p-0 ${isFullscreen ? 'h-full' : ''}`}>
 
-                            {/* Timeline Rows */}
-                            <div className="relative">
+                    <div
+                        ref={scrollContainerRef}
+                        onScroll={handleScroll}
+                        onMouseDown={handleMouseDown}
+                        onMouseLeave={handleMouseLeave}
+                        onMouseUp={handleMouseUp}
+                        onMouseMove={handleMouseMove}
+                        className={`overflow-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-500 transition-colors cursor-grab ${isFullscreen ? 'h-full' : 'max-h-[75vh]'}`}
+                    >
+                        <div className="min-w-fit transition-all duration-100" style={{ width: timelineWidth + 260 }}>
+
+                            {/* Sticky header */}
+                            <div className={`sticky ${isFullscreen ? (controlsVisible ? 'top-[80px]' : 'top-0') : 'top-0'} z-30 bg-white shadow-sm transition-all duration-300`}>
+                                <BookingTimelineHeader dates={timelineDates} cellWidth={cellWidth} />
+                            </div>
+
+                            <div className="relative divide-y select-none">
                                 {properties.map((property) => (
                                     <BookingTimelineRow
                                         key={property.id}
@@ -179,35 +346,31 @@ export default function BookingTimeline({
                                         bookings={bookingsByProperty[property.id] || []}
                                         timelineDates={timelineDates}
                                         cellWidth={cellWidth}
-                                        onBookingClick={handleBookingClick}
+                                        rowHeight={rowHeight}
+                                        onBookingClick={setSelectedBooking}
                                     />
                                 ))}
-
-                                {/* Empty state */}
-                                {properties.length === 0 && (
-                                    <div className="flex items-center justify-center py-12 text-gray-500">
-                                        <div className="text-center">
-                                            <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                                            <p className="text-lg font-medium">No properties found</p>
-                                            <p className="text-sm">Add properties to see them in the timeline</p>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>
+
                 </CardContent>
             </Card>
 
-            {/* Booking Detail Modal */}
-            <BookingDetailModal
-                booking={selectedBooking}
-                isOpen={isModalOpen}
-                onClose={handleModalClose}
-                canVerify={canVerify}
-                canCancel={canCancel}
-                canCheckIn={canCheckIn}
-            />
+            <div className={isFullscreen ? "fixed z-[100] top-0 left-0 w-full h-full pointer-events-none flex items-center justify-center p-4" : ""}>
+                <div className="pointer-events-auto">
+                    <BookingDetailModal
+                        booking={selectedBooking}
+                        isOpen={!!selectedBooking}
+                        onClose={() => setSelectedBooking(null)}
+                        canVerify={canVerify}
+                        canCancel={canCancel}
+                        canCheckIn={canCheckIn}
+                    />
+                </div>
+            </div>
+
+            {/* Helper function handled via useEffect now */}
         </div>
     );
-} 
+}

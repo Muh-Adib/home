@@ -1,110 +1,126 @@
-import React from 'react';
-import { type Property, type Booking } from '@/types';
-import { calculateBookingPosition, isBookingInRange } from '@/utils/date';
-import BookingItem from './BookingItem';
-import { Building2, Users, DollarSign } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import React from "react";
+import { type Property, type Booking } from "@/types";
+import {
+    calculateBookingPosition,
+    isBookingInRange,
+    isToday,
+} from "@/utils/date";
+import BookingItem from "./BookingItem";
 
 interface BookingTimelineRowProps {
     property: Property;
     bookings: Booking[];
     timelineDates: Date[];
     cellWidth?: number;
+    rowHeight?: number;
     onBookingClick: (booking: Booking) => void;
 }
 
-export default function BookingTimelineRow({ 
-    property, 
-    bookings, 
-    timelineDates, 
-    cellWidth = 120,
-    onBookingClick 
+export default function BookingTimelineRow({
+    property,
+    bookings,
+    timelineDates,
+    cellWidth = 60,
+    rowHeight = 72,
+    onBookingClick,
 }: BookingTimelineRowProps) {
-    // Filter bookings that are in the timeline range
     const timelineStart = timelineDates[0];
     const timelineEnd = timelineDates[timelineDates.length - 1];
-    
-    const relevantBookings = bookings.filter(booking => 
+
+    const relevantBookings = bookings.filter((booking) =>
         isBookingInRange(booking, timelineStart, timelineEnd)
     );
 
-    // Get property cover image
-    const coverImage = property.media?.find(m => m.file_type === 'image' && m.is_featured)?.url || 
-                      property.media?.find(m => m.file_type === 'image')?.url;
+    // property image
+    const coverImage =
+        property.media?.find((m) => m.file_type === "image" && m.is_featured)?.url ||
+        property.media?.find((m) => m.file_type === "image")?.url;
 
     return (
-        <div className="flex border-b border-gray-200 hover:bg-gray-50 transition-colors">
-            {/* Property Info Column - Fixed position */}
-            <div className="w-64 flex-shrink-0 border-r border-gray-200 p-3 bg-white sticky left-0 z-10">
-                <div className="flex items-start gap-3">
+        <div
+            className="flex border-b border-gray-200 bg-white hover:bg-gray-50 transition-colors"
+            style={{ height: rowHeight }}
+        >
+
+            {/* PROPERTY INFO (Sticky + compact + mobile friendly) */}
+            <div
+                className="
+                    w-36 sm:w-52 flex-shrink-0 border-r border-gray-200 
+                    p-2 sm:p-3 bg-white sticky left-0 z-30
+                    shadow-[1px_0_0_0_rgba(209,213,219,0.5)]
+                    overflow-hidden flex items-center
+                "
+                style={{ height: rowHeight }}
+            >
+                <div className="flex items-center gap-3">
                     {coverImage && (
-                        <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
-                            <img 
-                                src={coverImage} 
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden shadow-sm flex-shrink-0">
+                            <img
+                                src={coverImage}
                                 alt={property.name}
                                 className="w-full h-full object-cover"
                             />
                         </div>
                     )}
+
+                    {/* Name more visible but truncated */}
                     <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-gray-900 truncate">
+                        <span className="font-semibold text-gray-900 text-sm sm:text-base truncate block">
                             {property.name}
-                        </h4>
-                        <p className="text-sm text-gray-600 truncate">
-                            {property.address}
-                        </p>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                            <div className="flex items-center gap-1">
-                                <Users className="h-3 w-3" />
-                                <span>{property.capacity}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <DollarSign className="h-3 w-3" />
-                                <span>{formatCurrency(property.base_rate)}</span>
-                            </div>
-                        </div>
+                        </span>
                     </div>
                 </div>
             </div>
 
-            {/* Timeline Cells */}
-            <div className="flex relative">
-                {timelineDates.map((date, index) => (
+            {/* TIMELINE CELLS (compact & smooth scroll) */}
+            <div className="flex relative overflow-hidden" style={{ height: rowHeight }}>
+                {timelineDates.map((date, idx) => (
                     <div
-                        key={index}
-                        className="border-r border-gray-200 relative"
-                        style={{ width: cellWidth, height: '100px' }}
+                        key={idx}
+                        className="relative border-r border-gray-200"
+                        style={{
+                            width: cellWidth,
+                            height: "100%",
+                        }}
                     >
-                        {/* Background for weekend days */}
+                        {/* Weekend subtle background */}
                         {(date.getDay() === 0 || date.getDay() === 6) && (
-                            <div className="absolute inset-0 bg-orange-50 opacity-30" />
+                            <div className="absolute inset-0 bg-orange-100/20" />
+                        )}
+
+                        {/* Today highlight */}
+                        {isToday(date) && (
+                            <div className="absolute inset-0 bg-blue-200/20 ring-1 ring-blue-300/40" />
                         )}
                     </div>
                 ))}
 
-                {/* Booking Items */}
+                {/* BOOKING ITEMS */}
                 {relevantBookings.map((booking) => {
-                    const position = calculateBookingPosition(booking, timelineDates, cellWidth);
-                    
-                    if (!position.visible) return null;
+                    const pos = calculateBookingPosition(
+                        booking,
+                        timelineDates,
+                        cellWidth
+                    );
+
+                    if (!pos.visible) return null;
 
                     return (
                         <div
                             key={booking.id}
                             className="absolute"
                             style={{
-                                left: position.left,
-                                width: position.width,
-                                height: '100px',
-                                zIndex: 10
+                                left: pos.left,
+                                width: pos.width,
+                                height: "100%", // Fill row height
+                                zIndex: 20,
                             }}
                         >
                             <BookingItem
                                 booking={booking}
+                                width={pos.width}
+                                nights={pos.nights}
                                 onClick={onBookingClick}
-                                cellWidth={cellWidth}
-                                width={position.width}
-                                nights={position.nights}
                             />
                         </div>
                     );
@@ -112,4 +128,4 @@ export default function BookingTimelineRow({
             </div>
         </div>
     );
-} 
+}

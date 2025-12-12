@@ -38,7 +38,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
     const [isVisible, setIsVisible] = useState(false);
     const [searchLoading, setSearchLoading] = useState(false);
     const appName = "Homsjogja";
-    const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const appUrl = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
 
     // Prepare slideshow images
     const slideshowImages = featuredProperties
