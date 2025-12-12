@@ -70,7 +70,7 @@ export async function apiFetch(
                 throw error;
             } catch (parseError) {
                 // If parsing fails, throw generic error
-                if (parseError instanceof Error && parseError.response) {
+                if (parseError instanceof Error && (parseError as any).response) {
                     throw parseError;
                 }
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
