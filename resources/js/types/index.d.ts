@@ -158,6 +158,10 @@ export interface PropertyAmenity {
     amenity?: Amenity;
 }
 
+// Export reusable status types
+export type BookingStatus = 'pending_verification' | 'confirmed' | 'checked_in' | 'checked_out' | 'cancelled' | 'no_show';
+export type PaymentStatus = 'dp_pending' | 'dp_received' | 'fully_paid' | 'overdue' | 'refunded';
+
 export interface Booking {
     id: number;
     property_id: number;
@@ -183,8 +187,8 @@ export interface Booking {
     dp_amount: number;
     total_amount: number;
     remaining_amount: number;
-    booking_status: 'pending_verification' | 'confirmed' | 'checked_in' | 'checked_out' | 'cancelled' | 'no_show';
-    payment_status: 'dp_pending' | 'dp_received' | 'fully_paid' | 'overdue' | 'refunded';
+    booking_status: BookingStatus;
+    payment_status: PaymentStatus;
     verification_status: 'pending' | 'approved' | 'rejected';
     special_requests?: string;
     internal_notes?: string;

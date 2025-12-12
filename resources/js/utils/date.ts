@@ -107,7 +107,7 @@ export function generateTimelineDates(days: number = 14, startFrom?: Date): Date
 export function calculateBookingPosition(
     booking: { check_in: string; check_out: string },
     timelineDates: Date[],
-    cellWidth: number = 120
+    cellWidth: number = 60
 ): { left: number; width: number; visible: boolean; nights: number } {
     const checkIn = new Date(booking.check_in);
     const checkOut = new Date(booking.check_out);
@@ -126,7 +126,7 @@ export function calculateBookingPosition(
     
     // Calculate width based on number of nights
     // Each night takes up one cell width
-    const left = startIndex * cellWidth;
+    const left = (startIndex * cellWidth)+(cellWidth/2);
     const width = nights * cellWidth;
     
     // Check if booking is visible in timeline

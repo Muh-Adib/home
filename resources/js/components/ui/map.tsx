@@ -4,12 +4,14 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
 // Fix for default markers in React Leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
+if (typeof window !== 'undefined') {
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    });
+}
 
 interface MapProps {
     lat: number;
@@ -26,11 +28,11 @@ interface MapProps {
 // Component untuk update map position ketika props berubah
 const MapUpdater: React.FC<{ lat: number; lng: number; zoom: number }> = ({ lat, lng, zoom }) => {
     const map = useMap();
-    
+
     useEffect(() => {
         map.setView([lat, lng], zoom);
     }, [lat, lng, zoom, map]);
-    
+
     return null;
 };
 
@@ -43,7 +45,7 @@ const DraggableMarker: React.FC<{
     onLocationChange?: (lat: number, lng: number) => void;
 }> = ({ lat, lng, propertyName, address, onLocationChange }) => {
     const [position, setPosition] = useState<[number, number]>([lat, lng]);
-    
+
     useEffect(() => {
         setPosition([lat, lng]);
     }, [lat, lng]);
@@ -137,11 +139,16 @@ export const Map: React.FC<MapProps> = ({
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Prevent rendering on server (SSR)
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
     // Validasi koordinat
     const isValidCoordinate = (coord: number) => {
         return typeof coord === 'number' && !isNaN(coord) && isFinite(coord);
     };
-    
+
     const isValidLat = isValidCoordinate(lat) && lat >= -90 && lat <= 90;
     const isValidLng = isValidCoordinate(lng) && lng >= -180 && lng <= 180;
 
@@ -157,7 +164,7 @@ export const Map: React.FC<MapProps> = ({
     // Jika koordinat tidak valid, tampilkan pesan error
     if (!isValidLat || !isValidLng) {
         return (
-            <div 
+            <div
                 style={{ height: '100%', width: '100%' }}
                 className={`rounded-lg border bg-gray-100 flex items-center justify-center ${className}`}
             >
@@ -180,7 +187,7 @@ export const Map: React.FC<MapProps> = ({
     // Tampilkan loading state
     if (isLoading) {
         return (
-            <div 
+            <div
                 style={{ height: '100%', width: '100%' }}
                 className={`rounded-lg border bg-gray-100 flex items-center justify-center ${className}`}
             >
@@ -195,7 +202,7 @@ export const Map: React.FC<MapProps> = ({
     // Tampilkan error state
     if (error) {
         return (
-            <div 
+            <div
                 style={{ height, width: '100%' }}
                 className={`rounded-lg border bg-red-50 flex items-center justify-center ${className}`}
             >
@@ -203,7 +210,7 @@ export const Map: React.FC<MapProps> = ({
                     <div className="text-4xl mb-2">❌</div>
                     <p className="font-medium">Gagal memuat peta</p>
                     <p className="text-sm text-red-400 mt-1">{error}</p>
-                    <button 
+                    <button
                         onClick={() => {
                             setError(null);
                             setIsLoading(true);
@@ -219,7 +226,7 @@ export const Map: React.FC<MapProps> = ({
     }
 
     return (
-        <div 
+        <div
             style={{ height, width: '100%' }}
             className={`rounded-lg border overflow-hidden ${className}`}
         >
@@ -234,9 +241,9 @@ export const Map: React.FC<MapProps> = ({
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                
+
                 <MapUpdater lat={lat} lng={lng} zoom={zoom} />
-                
+
                 {draggable ? (
                     <DraggableMarker
                         lat={lat}

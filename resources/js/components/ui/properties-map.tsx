@@ -6,12 +6,14 @@ import L from 'leaflet';
 import { MapPin, Users, DollarSign, Landmark, GraduationCap, Building2, Train } from 'lucide-react';
 
 // Fix for default markers in React Leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
+if (typeof window !== 'undefined') {
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    });
+}
 
 // Create custom icon for properties with hover effect
 const createPropertyIcon = () => {
@@ -62,9 +64,9 @@ const createLandmarkIcon = (type: 'landmark' | 'university' | 'supermarket' | 'p
         mosque: { bg: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)', emoji: '🕌', size: 32 },
         church: { bg: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)', emoji: '⛪', size: 32 },
     };
-    
+
     const config = iconConfig[type] || iconConfig.landmark;
-    
+
     return L.divIcon({
         className: 'custom-landmark-marker',
         html: `
@@ -146,7 +148,7 @@ const YOGYAKARTA_LANDMARKS = [
         id: 'uny',
         name: 'Universitas Negeri Yogyakarta (UNY)',
         type: 'university' as const,
-        lat: -7.77360316251077, 
+        lat: -7.77360316251077,
         lng: 110.38625506480156,
         description: 'Universitas Negeri Yogyakarta - Kampus pendidikan terkemuka',
     },
@@ -170,7 +172,7 @@ const YOGYAKARTA_LANDMARKS = [
         id: 'pgri',
         name: 'Universitas PGRI Yogyakarta',
         type: 'university' as const,
-        lat: -7.8063274666027445, 
+        lat: -7.8063274666027445,
         lng: 110.3406499900733,
         description: 'Universitas PGRI Yogyakarta - Kampus di pusat kota Yogyakarta',
     },
@@ -187,11 +189,11 @@ const YOGYAKARTA_LANDMARKS = [
         id: 'stasiun-lempuyangan',
         name: 'Stasiun Lempuyangan',
         type: 'station' as const,
-        lat: -7.790226224742601, 
+        lat: -7.790226224742601,
         lng: 110.37515302330576,
         description: 'Stasiun Lempuyangan - Stasiun kereta api di Yogyakarta',
     }
-    
+
 ];
 
 interface Property {
@@ -219,29 +221,29 @@ interface PropertiesMapProps {
 // Component untuk update map bounds ketika properties berubah
 const MapBoundsUpdater: React.FC<{ properties: Property[]; includeLandmarks?: boolean }> = ({ properties, includeLandmarks = true }) => {
     const map = useMap();
-    
+
     useEffect(() => {
         const allPoints: [number, number][] = properties.map(prop => [prop.lat, prop.lng]);
-        
+
         // Include landmarks in bounds calculation
         if (includeLandmarks) {
             YOGYAKARTA_LANDMARKS.forEach(landmark => {
                 allPoints.push([landmark.lat, landmark.lng]);
             });
         }
-        
+
         if (allPoints.length === 0) return;
-        
+
         // Calculate bounds dari semua points
         const bounds = L.latLngBounds(allPoints);
-        
+
         // Fit map to bounds dengan padding
         map.fitBounds(bounds, {
             padding: [80, 80],
             maxZoom: 14,
         });
     }, [properties, includeLandmarks, map]);
-    
+
     return null;
 };
 
@@ -255,6 +257,11 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
     const [properties, setProperties] = useState<Property[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Prevent rendering on server
+    if (typeof window === 'undefined') {
+        return null;
+    }
 
     // Inject custom CSS for popup styling and hover effects
     useEffect(() => {
@@ -308,14 +315,14 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
     // Calculate default center dari properties atau use provided center
     const mapCenter = useMemo(() => {
         if (center) return center;
-        
+
         if (properties.length > 0) {
             // Calculate center dari semua properties
             const avgLat = properties.reduce((sum, p) => sum + p.lat, 0) / properties.length;
             const avgLng = properties.reduce((sum, p) => sum + p.lng, 0) / properties.length;
             return [avgLat, avgLng] as [number, number];
         }
-        
+
         // Default center: Yogyakarta
         return [-7.7972, 110.3688] as [number, number];
     }, [properties, center]);
@@ -325,10 +332,10 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
             try {
                 setLoading(true);
                 setError(null);
-                
+
                 const response = await fetch('/api/properties/map-coordinates');
                 const data = await response.json();
-                
+
                 if (data.success && data.properties) {
                     setProperties(data.properties);
                 } else {
@@ -348,7 +355,7 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
     // Loading state
     if (loading) {
         return (
-            <div 
+            <div
                 style={{ height, width: '100%' }}
                 className={`rounded-lg border bg-gray-100 flex items-center justify-center ${className}`}
             >
@@ -363,7 +370,7 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
     // Error state
     if (error) {
         return (
-            <div 
+            <div
                 style={{ height, width: '100%' }}
                 className={`rounded-lg border bg-red-50 flex items-center justify-center ${className}`}
             >
@@ -379,7 +386,7 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
     // No properties state
     if (properties.length === 0) {
         return (
-            <div 
+            <div
                 style={{ height, width: '100%' }}
                 className={`rounded-lg border bg-gray-100 flex items-center justify-center ${className}`}
             >
@@ -393,7 +400,7 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
     }
 
     return (
-        <div 
+        <div
             style={{ height, width: '100%' }}
             className={`rounded-lg border-2 border-gray-200 overflow-hidden shadow-lg ${className}`}
         >
@@ -412,10 +419,10 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
                     url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                     subdomains="abcd"
                 />
-                
+
                 {/* Update bounds ketika properties berubah */}
                 <MapBoundsUpdater properties={properties} />
-                
+
                 {/* Render landmark markers */}
                 {YOGYAKARTA_LANDMARKS.map((landmark) => (
                     <Marker
@@ -445,7 +452,7 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
                         </Popup>
                     </Marker>
                 ))}
-                
+
                 {/* Render markers untuk setiap property */}
                 {properties.map((property) => (
                     <Marker
@@ -456,8 +463,8 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
                         <Popup className="custom-popup" maxWidth={320}>
                             <div className="min-w-[250px] max-w-[300px]">
                                 {property.image_url && (
-                                    <img 
-                                        src={property.image_url} 
+                                    <img
+                                        src={property.image_url}
                                         alt={property.name}
                                         className="w-full h-36 object-cover rounded-lg mb-3 shadow-sm"
                                     />
