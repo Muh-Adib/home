@@ -59,7 +59,7 @@ import { ImportPreviewDialog } from '@/components/booking/ImportPreviewDialog';
 import axios from 'axios';
 
 interface BookingsIndexProps {
-    bookings: PaginatedData<Booking>;
+    bookings: Booking[];
     filters: {
         search?: string;
         status?: string;
@@ -452,7 +452,7 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                 <BookingFilters
                     filters={filters}
                     properties={properties}
-                    totalBookings={bookings.total}
+                    totalBookings={bookings.length}
                     onFiltersChange={handleFiltersChange}
                 />
 
@@ -462,18 +462,19 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                     <div className="space-y-4">
                         <BookingTimeline
                             properties={properties}
-                            bookings={bookings.data}
-                            days={14}
+                            bookings={bookings} // Direct array access
+                            days={30}
                             canVerify={canVerify}
                             canCancel={canCancel}
                             canCheckIn={canCheckIn}
                             onRefresh={handleRefresh}
+                            autoFetch={true}
                         />
                     </div>
                 ) : viewMode === 'card' ? (
                     /* Card View */
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {bookings.data.map((booking) => (
+                        {bookings.map((booking) => (
                             <BookingCard
                                 key={booking.id}
                                 booking={booking}
@@ -506,7 +507,7 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {bookings.data.map((booking) => (
+                                    {bookings.map((booking) => (
                                         <TableRow key={booking.id}>
                                             <TableCell>
                                                 <div>
@@ -633,30 +634,10 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                     </Card>
                 )}
 
-                {/* Pagination */}
-                {bookings.last_page > 1 && viewMode !== 'timeline' && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <div className="text-sm text-muted-foreground">
-                            Showing {bookings.from} to {bookings.to} of {bookings.total} bookings
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            {bookings.links.map((link, index) => (
-                                <Button
-                                    key={index}
-                                    variant={link.active ? 'default' : 'outline'}
-                                    size="sm"
-                                    disabled={!link.url}
-                                    onClick={() => link.url && router.get(link.url)}
-                                    dangerouslySetInnerHTML={{ __html: link.label }}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                )}
+                {/* Pagination Removed */}
 
                 {/* Empty State */}
-                {bookings.data.length === 0 && (
+                {bookings.length === 0 && (
                     <Card>
                         <CardContent className="flex flex-col items-center justify-center py-12">
                             <Calendar className="h-12 w-12 text-muted-foreground mb-4" />

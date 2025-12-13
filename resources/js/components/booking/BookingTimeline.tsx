@@ -33,31 +33,64 @@ interface BookingTimelineProps {
     canCancel?: boolean;
     canCheckIn?: boolean;
     onRefresh?: () => void;
+    autoFetch?: boolean;
 }
 
 export default function BookingTimeline({
     properties,
     bookings: initialBookings,
     startDate,
-    days = 30, // Default changed to 30 as requested
+    days = 30,
     cellWidth: initialWidth = 120,
     rowHeight: initialRowHeight = 60,
     canVerify = false,
     canCancel = false,
     canCheckIn = false,
     onRefresh,
+    autoFetch = false,
 }: BookingTimelineProps) {
     const timelineRef = useRef<HTMLDivElement | null>(null);
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
     // State
-    const [localBookings, setLocalBookings] = useState<Booking[]>(initialBookings);
+    // If autoFetch is true, we ignore initialBookings to avoid flashing incomplete data
+    const [localBookings, setLocalBookings] = useState<Booking[]>(autoFetch ? [] : initialBookings);
     const [currentStartDate, setCurrentStartDate] = useState(startDate || new Date());
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [cellWidth, setCellWidth] = useState(initialWidth);
     const [rowHeight, setRowHeight] = useState(initialRowHeight);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [controlsVisible, setControlsVisible] = useState(true);
+
+    // Initial fetch for Index page or when autoFetch is true
+    useEffect(() => {
+        if (autoFetch) {
+            const fetchInitialData = async () => {
+                try {
+                    const start = currentStartDate;
+                    const end = new Date(currentStartDate);
+                    end.setDate(end.getDate() + days);
+
+                    const response = await axios.get('/api/admin/booking-management/timeline', {
+                        params: {
+                            start_date: start.toISOString().split('T')[0],
+                            end_date: end.toISOString().split('T')[0],
+                        }
+                    });
+
+                    if (response.data && response.data.bookings) {
+                        const fetchedBookings = response.data.bookings as Booking[];
+                        setLocalBookings(fetchedBookings);
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch initial timeline data", error);
+                }
+            };
+            fetchInitialData();
+        } else {
+             setLocalBookings(initialBookings);
+        }
+    }, [autoFetch, initialBookings]);
     const [extraDays, setExtraDays] = useState(0);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
 
@@ -151,8 +184,10 @@ export default function BookingTimeline({
                 }
             });
 
-            if (response.data && response.data.timeline) {
-                const newBookings = response.data.timeline as Booking[];
+            if (response.data && response.data.bookings) {
+                // Backend now returns flat bookings array
+                const newBookings = response.data.bookings as Booking[];
+                
                 setLocalBookings(prev => {
                     // Merge and deduplicate
                     const existingIds = new Set(prev.map(b => b.id));
@@ -166,6 +201,28 @@ export default function BookingTimeline({
             setIsLoadingMore(false);
         }
     };
+
+    // Initial fetch if required (e.g. when used in Index page with paginated data)
+    /* 
+       Note: We add a new prop `fetchInitialData` to control this.
+       Ideally, we should add it to the component interface.
+       For now, we can check if bookings prop is empty or suspicious, but explicit prop is better.
+       Let's assume the user will simply update Index.tsx to pass empty bookings if they want a fetch.
+       Or we can add a simple check: if bookings.length < someThreshold and we expect more?
+       Better: Add a useEffect to fetch if localBookings is empty? No, that might be valid.
+       
+       Let's stick to fixing the API response handling first as requested.
+       If the user wants the Index page to work better, they should likely modify Index.tsx to pass correct data
+       OR we can add a fetch-on-mount behavior here.
+    */
+   
+    /* For the Timeline on Index page issue: 
+       The component receives paginated data (e.g. 15 items).
+       A quick fix is to fetch the full range on mount if we detect we are in a 'limited' context?
+       But we don't know the context.
+       
+       Let's just fix the API handling for now, as that's the explicit error "fetching seems wrong/not fitting".
+    */
 
     // Infinite Scroll & Drag Handler
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -230,11 +287,13 @@ export default function BookingTimeline({
         }
     };
 
-    const zoomOut = () => {setCellWidth((v) => Math.max(35, v - 20));
-        setRowHeight((v) => Math.max(35, v - 20));
+    const zoomOut = () => {
+        setCellWidth((v) => Math.max(35, v - 10));
+        setRowHeight((v) => Math.max(35, v - 10));
     };
-    const zoomIn = () =>{ setCellWidth((v) => Math.min(200, v + 20));
-    setRowHeight((v) => Math.min(200, v + 20));
+    const zoomIn = () => {
+        setCellWidth((v) => Math.min(200, v + 10));
+        setRowHeight((v) => Math.min(200, v + 10));
     };
     const zoomReset = () => {
         setCellWidth(initialWidth);

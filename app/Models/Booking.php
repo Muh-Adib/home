@@ -99,24 +99,8 @@ class Booking extends Model
         static::creating(function ($booking) {
             // Only generate if booking_number is explicitly null or empty
             if (empty($booking->booking_number) || $booking->booking_number === '') {
-                // Generate base booking number
-                $baseNumber = self::generateBookingNumber();
-                
-                // Quick check if exists - if yes, immediately add microsecond suffix
-                // This avoids multiple retry loops
-                if (self::where('booking_number', $baseNumber)->exists()) {
-                    // Immediately use microsecond suffix for guaranteed uniqueness
-                    $microseconds = substr(str_replace('.', '', (string)microtime(true)), -6);
-                    $booking->booking_number = $baseNumber . '-' . $microseconds;
-                    
-                    // Final check - if still exists (very rare), add random suffix
-                    if (self::where('booking_number', $booking->booking_number)->exists()) {
-                        $random = strtoupper(Str::random(4));
-                        $booking->booking_number = $baseNumber . '-' . $microseconds . $random;
-                    }
-                } else {
-                    $booking->booking_number = $baseNumber;
-                }
+                // Generate booking number - now with built-in locking and duplicate prevention
+                $booking->booking_number = self::generateBookingNumber();
             }
             
             // Auto calculate nights
@@ -330,32 +314,47 @@ class Booking extends Model
         $prefix = 'BK';
         $date = now()->format('ymd');
         
-        // Optimized: Use simple query without lock for better performance
-        // Lock is only needed in high-concurrency scenarios
-        $lastBooking = self::whereDate('created_at', today())
-            ->orderByRaw('CAST(SUBSTR(booking_number, -3) AS INTEGER) DESC')
-            ->first();
-        
-        $sequence = $lastBooking ? 
-                   intval(substr($lastBooking->booking_number, -3)) + 1 : 1;
-        
-        // Cap sequence at 999 to avoid issues
-        if ($sequence > 999) {
-            $sequence = 1; // Reset or use microsecond suffix
-        }
-        
-        $bookingNumber = $prefix . $date . sprintf('%03d', $sequence);
-        
-        // Quick check - if exists, increment sequence once (no retry loop)
-        if (self::where('booking_number', $bookingNumber)->exists()) {
-            $sequence++;
-            if ($sequence > 999) {
+        // Use database transaction with locking to prevent race conditions
+        return \DB::transaction(function () use ($prefix, $date) {
+            // Find the highest sequence number for today, including soft-deleted records
+            // Use withTrashed() to check ALL records (including soft-deleted) to avoid duplicates
+            $lastBooking = self::withTrashed()
+                ->where('booking_number', 'LIKE', $prefix . $date . '%')
+                ->lockForUpdate() // Lock to prevent concurrent access
+                ->orderByRaw('CAST(SUBSTR(booking_number, -4) AS UNSIGNED) DESC')
+                ->first();
+            
+            // Extract sequence from last booking number
+            if ($lastBooking && preg_match('/\d{4}$/', $lastBooking->booking_number, $matches)) {
+                $sequence = intval($matches[0]) + 1;
+            } else {
                 $sequence = 1;
             }
-            $bookingNumber = $prefix . $date . sprintf('%03d', $sequence);
-        }
-        
-        return $bookingNumber;
+            
+            // Cap sequence at 9999 (4 digits)
+            if ($sequence > 9999) {
+                // If we exceed 9999 bookings in a day, add microsecond suffix
+                $microseconds = substr(str_replace('.', '', (string)microtime(true)), -6);
+                return $prefix . $date . '9999-' . $microseconds;
+            }
+            
+            $bookingNumber = $prefix . $date . sprintf('%04d', $sequence);
+            
+            // Final safety check - if somehow still exists, add microsecond suffix
+            $attempts = 0;
+            while (self::withTrashed()->where('booking_number', $bookingNumber)->exists() && $attempts < 10) {
+                $sequence++;
+                if ($sequence > 9999) {
+                    $microseconds = substr(str_replace('.', '', (string)microtime(true)), -6);
+                    $bookingNumber = $prefix . $date . '9999-' . $microseconds;
+                    break;
+                }
+                $bookingNumber = $prefix . $date . sprintf('%04d', $sequence);
+                $attempts++;
+            }
+            
+            return $bookingNumber;
+        });
     }
 
     // Helper Methods
