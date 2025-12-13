@@ -700,27 +700,18 @@ class BookingManagementController extends Controller
     /**
      * Get timeline data for properties
      */
+    /**
+     * Get timeline data for properties
+     */
     public function timeline(Request $request)
     {
         $user = $request->user();
         $startDate = $request->get('start_date', now()->startOfMonth()->toDateString());
         $endDate = $request->get('end_date', now()->addMonths(2)->endOfMonth()->toDateString());
         
-        // Get properties
-        $propertiesQuery = Property::query()->with(['owner']);
-        if ($user->role === 'property_owner') {
-            $propertiesQuery->where('owner_id', $user->id);
-        }
-        $properties = $propertiesQuery->active()->get();
-        
         // Get bookings for timeline
-        $bookings = Booking::query()
+        $bookingsQuery = Booking::query()
             ->with(['property'])
-            ->whereHas('property', function ($query) use ($user) {
-                if ($user->role === 'property_owner') {
-                    $query->where('owner_id', $user->id);
-                }
-            })
             ->where(function ($query) use ($startDate, $endDate) {
                 $query->whereBetween('check_in', [$startDate, $endDate])
                       ->orWhereBetween('check_out', [$startDate, $endDate])
@@ -728,48 +719,39 @@ class BookingManagementController extends Controller
                           $q->where('check_in', '<=', $startDate)
                             ->where('check_out', '>=', $endDate);
                       });
-            })
-            ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
-            ->get();
-        
-        // Build timeline data
-        $timeline = [];
-        foreach ($properties as $property) {
-            $propertyBookings = $bookings->where('property_id', $property->id);
-            
-            $timeline[] = [
-                'property' => [
-                    'id' => $property->id,
-                    'name' => $property->name,
-                    'base_rate' => $property->base_rate,
-                    'formatted_base_rate' => $property->formatted_base_rate,
-                ],
-                'bookings' => $propertyBookings->map(function ($booking) {
-                    return [
-                        'id' => $booking->id,
-                        'booking_number' => $booking->booking_number,
-                        'guest_name' => $booking->guest_name,
-                        'guest_count' => $booking->guest_count,
-                        'check_in' => $booking->check_in->toDateString(),
-                        'check_out' => $booking->check_out->toDateString(),
-                        'nights' => $booking->nights,
-                        'total_amount' => $booking->total_amount,
-                        'booking_status' => $booking->booking_status,
-                        'payment_status' => $booking->payment_status,
-                        'status_color' => $this->getStatusColor($booking->booking_status),
-                    ];
-                })->values(),
-            ];
+            });
+
+        // Filter by property owner role
+        if ($user->role === 'property_owner') {
+            $bookingsQuery->whereHas('property', function ($query) use ($user) {
+                $query->where('owner_id', $user->id);
+            });
         }
         
+        // Filter by specific property if requested
+        if ($request->filled('property_id') && $request->property_id !== 'all') {
+            $bookingsQuery->where('property_id', $request->property_id);
+        }
+
+        // Filter by status if requested
+        if ($request->filled('status') && $request->status !== 'all') {
+            $bookingsQuery->where('booking_status', $request->status);
+        }
+        
+        $bookings = $bookingsQuery->orderBy('check_in')->get()->map(function ($booking) {
+            $booking->status_color = $this->getStatusColor($booking->booking_status);
+            return $booking;
+        });
+
         return response()->json([
-            'timeline' => $timeline,
+            'bookings' => $bookings,
             'date_range' => [
                 'start_date' => $startDate,
                 'end_date' => $endDate,
             ],
         ]);
     }
+
 
     /**
      * Display timeline view page
@@ -784,12 +766,63 @@ class BookingManagementController extends Controller
             $propertiesQuery->where('owner_id', $user->id);
         }
         $properties = $propertiesQuery->active()->get(['id', 'name']);
+
+        // Date range
+        $startDate = $request->get('start_date', now()->startOfMonth()->toDateString());
+        $endDate = $request->get('end_date', now()->addMonths(2)->endOfMonth()->toDateString());
+        
+        $bookingsQuery = Booking::query()
+            ->with(['property'])
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('check_in', [$startDate, $endDate])
+                      ->orWhereBetween('check_out', [$startDate, $endDate])
+                      ->orWhere(function ($q) use ($startDate, $endDate) {
+                          $q->where('check_in', '<=', $startDate)
+                            ->where('check_out', '>=', $endDate);
+                      });
+            });
+
+        // Filter by property owner role
+        if ($user->role === 'property_owner') {
+            $bookingsQuery->whereHas('property', function ($query) use ($user) {
+                $query->where('owner_id', $user->id);
+            });
+        }
+        
+        // Filter by specific property if requested
+        if ($request->filled('property_id') && $request->property_id !== 'all') {
+            $bookingsQuery->where('property_id', $request->property_id);
+        }
+
+        // Filter by status if requested
+        if ($request->filled('status') && $request->status !== 'all') {
+            $bookingsQuery->where('booking_status', $request->status);
+        }
+
+        $bookings = $bookingsQuery->get()->map(function ($booking) {
+            $booking->status_color = $this->getStatusColor($booking->booking_status);
+            return $booking;
+        });
+
+        // Calculate stats based on current filter context
+        $stats = [
+            'total_bookings' => $bookings->count(),
+            'pending_verification' => $bookings->where('booking_status', 'pending_verification')->count(),
+            'confirmed' => $bookings->where('booking_status', 'confirmed')->count(),
+            'checked_in' => $bookings->where('booking_status', 'checked_in')->count(),
+            'total_revenue' => $bookings->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out', 'completed'])->sum('total_amount'),
+        ];
         
         return Inertia::render('Admin/Bookings/Timeline', [
             'properties' => $properties,
+            'bookings' => $bookings,
+            'stats' => $stats,
             'filters' => [
-                'start_date' => $request->get('start_date', now()->startOfMonth()->toDateString()),
-                'end_date' => $request->get('end_date', now()->addMonths(2)->endOfMonth()->toDateString()),
+                'property_id' => $request->get('property_id'),
+                'status' => $request->get('status'),
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'days' => $request->get('days', '30'),
             ]
         ]);
     }
@@ -1063,7 +1096,7 @@ class BookingManagementController extends Controller
             $query->where('check_out', '<=', $request->get('date_to'));
         }
 
-        $bookings = $query->latest()->paginate(15);
+        $bookings = $query->orderBy('check_in', 'desc')->get();
 
         // Get properties for filter dropdown
         $propertiesQuery = Property::query();
