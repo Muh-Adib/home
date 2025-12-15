@@ -188,6 +188,9 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
     // Extra services state
     const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
 
+    // Payment proof file state
+    const [paymentProof, setPaymentProof] = useState<File | null>(null);
+
     const { data, setData, post, processing, errors, reset } = useForm({
         property_id: prefilledData?.property_id || '',
         check_in_date: prefilledData?.check_in_date || '',
@@ -836,6 +839,14 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                 }
                 return;
             }
+            // Check payment proof
+            if ((data.payment_status === 'dp_received' || data.payment_status === 'fully_paid') && !paymentProof) {
+                setSyncFeedback('Payment proof is required for DP or Fully Paid status');
+                if (!showPaymentForm) {
+                    setShowPaymentForm(true);
+                }
+                return;
+            }
         }
 
         // Prepare payment data - ensure it's always included if payment is required
@@ -893,6 +904,8 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             override_reason: manualRateOverride ? overrideReason : null,
             // Extra services - send empty array instead of null if no services
             services: selectedServices.length > 0 ? selectedServices : [],
+            // Payment proof file
+            payment_proof: paymentProof,
         };
 
         console.log('Final form data before submission:', {
@@ -901,74 +914,24 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
             booking_status: allFormData.booking_status,
             payment_status: allFormData.payment_status,
             hasPaymentData: !!(allFormData.payment_method_id && allFormData.payment_amount),
+            hasPaymentProof: !!allFormData.payment_proof,
         });
 
-        // Update form data state with ALL data including payment
-        // Update all form fields including payment data
-        Object.keys(allFormData).forEach(key => {
-            const value = allFormData[key];
-            // Only update if value is not undefined
-            if (value !== undefined) {
-                setData(key as any, value);
-            }
-        });
-
-        // Force update payment data directly to form state
-        // This ensures payment data is definitely included
-        if (isPaymentRequired || showPaymentForm) {
-            if (paymentFormData.payment_method_id) {
-                setData('payment_method_id' as any, paymentFormData.payment_method_id);
-            }
-            if (paymentFormData.payment_amount) {
-                setData('payment_amount' as any, paymentFormData.payment_amount);
-            }
-            if (paymentFormData.payment_date) {
-                setData('payment_date' as any, paymentFormData.payment_date);
-            }
-            if (paymentFormData.payment_status_payment) {
-                setData('payment_status_payment' as any, paymentFormData.payment_status_payment);
-            }
-            // Optional fields
-            if (paymentFormData.reference_number !== undefined) {
-                setData('reference_number' as any, paymentFormData.reference_number);
-            }
-            if (paymentFormData.bank_name !== undefined) {
-                setData('bank_name' as any, paymentFormData.bank_name);
-            }
-            if (paymentFormData.account_number !== undefined) {
-                setData('account_number' as any, paymentFormData.account_number);
-            }
-            if (paymentFormData.account_name !== undefined) {
-                setData('account_name' as any, paymentFormData.account_name);
-            }
-            if (paymentFormData.verification_notes !== undefined) {
-                setData('verification_notes' as any, paymentFormData.verification_notes);
-            }
-        }
-
-        // Submit form - Inertia will use the updated form state
-        post(route('admin.booking-management.store'), {
+        // Submit form using router.post which handles FormData automatically
+        router.post(route('admin.booking-management.store'), allFormData, {
             preserveScroll: true,
+            forceFormData: true, // Force FormData to ensure file upload works
             onSuccess: () => {
                 // Redirect to bookings list
                 router.visit(route('admin.booking-management.index'));
             },
             onError: (errors: any) => {
                 console.error('Booking creation failed:', errors);
-                console.error('Payment data that should have been sent:', {
-                    paymentData,
-                    paymentFormData,
-                    allFormData: {
-                        payment_method_id: allFormData.payment_method_id,
-                        payment_amount: allFormData.payment_amount,
-                    },
-                    isPaymentRequired,
-                    showPaymentForm,
-                });
+
                 // Show all validation errors
                 if (errors.error) {
                     setSyncFeedback(Array.isArray(errors.error) ? errors.error.join(', ') : errors.error);
-                } else if (errors.payment_method_id || errors.payment_amount) {
+                } else if (errors.payment_method_id || errors.payment_amount || errors.payment_proof) {
                     // Auto-show payment form if payment errors
                     if (!showPaymentForm) {
                         setShowPaymentForm(true);
@@ -980,12 +943,15 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                     if (errors.payment_amount) {
                         errorMessages.push(Array.isArray(errors.payment_amount) ? errors.payment_amount[0] : errors.payment_amount);
                     }
-                    setSyncFeedback(errorMessages.join(', ') || 'Please fill in payment information');
+                    if (errors.payment_proof) {
+                        errorMessages.push(Array.isArray(errors.payment_proof) ? errors.payment_proof[0] : errors.payment_proof);
+                    }
+                    setSyncFeedback(errorMessages.join(', ') || 'Please check payment information');
                 } else {
                     // Show first error if any
                     const firstError = Object.values(errors)[0];
                     if (firstError) {
-                        setSyncFeedback(Array.isArray(firstError) ? firstError[0] : firstError);
+                        setSyncFeedback(Array.isArray(firstError) ? firstError[0] : (firstError as string));
                     }
                 }
             }
@@ -1607,6 +1573,47 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                         rows={2}
                                                         placeholder="Additional payment notes..."
                                                     />
+                                                </div>
+
+                                                <div>
+                                                    <Label htmlFor="payment_proof">
+                                                        Payment Proof {(data.payment_status === 'dp_received' || data.payment_status === 'fully_paid') && <span className="text-red-500">*</span>}
+                                                    </Label>
+                                                    <Input
+                                                        id="payment_proof"
+                                                        type="file"
+                                                        accept=".jpg,.jpeg,.png,.pdf"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) {
+                                                                // Validate file size (5MB)
+                                                                if (file.size > 5 * 1024 * 1024) {
+                                                                    setSyncFeedback('File size must be less than 5MB');
+                                                                    e.target.value = '';
+                                                                    return;
+                                                                }
+                                                                setPaymentProof(file);
+                                                            }
+                                                        }}
+                                                        className={'payment_proof' in errors ? 'border-red-500' : ''}
+                                                    />
+                                                    {paymentProof && (
+                                                        <p className="text-sm text-gray-600 mt-1">
+                                                            Selected: {paymentProof.name} ({(paymentProof.size / 1024).toFixed(2)} KB)
+                                                        </p>
+                                                    )}
+                                                    {'payment_proof' in errors && (
+                                                        <p className="text-sm text-red-500 mt-1">
+                                                            {Array.isArray((errors as any).payment_proof)
+                                                                ? (errors as any).payment_proof[0]
+                                                                : (errors as any).payment_proof}
+                                                        </p>
+                                                    )}
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        Accepted formats: JPG, PNG, PDF. Max size: 5MB. Images will be converted to WebP.
+                                                        {(data.payment_status === 'dp_received' || data.payment_status === 'fully_paid') &&
+                                                            ' (Required for DP/Fully Paid)'}
+                                                    </p>
                                                 </div>
 
                                                 <div className="text-sm text-gray-600">
