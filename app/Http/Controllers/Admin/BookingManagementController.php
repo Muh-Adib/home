@@ -24,6 +24,9 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\BookingsExport;
 use App\Imports\BookingsImport;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * BookingManagementController - Controller untuk mengelola booking admin
@@ -252,6 +255,20 @@ class BookingManagementController extends Controller
             'account_name' => 'nullable|string|max:255',
             'payment_status_payment' => 'nullable|in:pending,verified', // Renamed to avoid conflict with booking payment_status
             'verification_notes' => 'nullable|string|max:1000',
+            // Payment proof attachment
+            'payment_proof' => [
+                'nullable',
+                'file',
+                'mimes:jpg,jpeg,png,pdf',
+                'max:5120', // 5MB
+                function ($attribute, $value, $fail) use ($request) {
+                    $paymentStatus = $request->input('payment_status');
+                    // Required if payment status is dp_received or fully_paid
+                    if (in_array($paymentStatus, ['dp_received', 'fully_paid']) && !$value) {
+                        $fail('Payment proof is required when payment status is DP or Fully Paid.');
+                    }
+                },
+            ],
             // Rate override fields
             'rate_override' => 'nullable|boolean',
             'override_amount' => 'nullable|numeric|min:0',
@@ -458,6 +475,56 @@ class BookingManagementController extends Controller
                 // Sinkronkan income jika payment verified
                 if ($paymentStatusPayment === 'verified') {
                     app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
+                }
+
+                // Handle payment proof attachment
+                if ($request->hasFile('payment_proof')) {
+                    $file = $request->file('payment_proof');
+                    $extension = strtolower($file->getClientOriginalExtension());
+                    $baseFilename = $booking->booking_number . '_' . time();
+                    
+                    // Check if file is an image that needs WebP conversion
+                    $isImage = in_array($extension, ['jpg', 'jpeg', 'png']);
+                    
+                    if ($isImage) {
+                        // Convert to WebP and delete original
+                        $webpFilename = $baseFilename . '.webp';
+                        $tempPath = $file->storeAs('payments/proof/temp', $file->hashName(), 'public');
+                        $tempFullPath = Storage::disk('public')->path($tempPath);
+                        $webpPath = 'payments/proof/' . $webpFilename;
+                        $webpFullPath = Storage::disk('public')->path($webpPath);
+                        
+                        // Ensure directory exists
+                        $directory = dirname($webpFullPath);
+                        if (!file_exists($directory)) {
+                            mkdir($directory, 0755, true);
+                        }
+                        
+                        // Convert to WebP using Intervention Image v3
+                        $manager = new ImageManager(new Driver());
+                        $image = $manager->read($tempFullPath);
+                        
+                        // Resize if too large (max 1920x1920 for payment proofs)
+                        if ($image->width() > 1920 || $image->height() > 1920) {
+                            $image->scaleDown(1920, 1920);
+                        }
+                        
+                        // Save as WebP with quality 85
+                        $image->toWebp(85)->save($webpFullPath);
+                        
+                        // Delete temporary original file
+                        Storage::disk('public')->delete($tempPath);
+                        
+                        $finalPath = $webpPath;
+                    } else {
+                        // For PDF, store as-is
+                        $pdfFilename = $baseFilename . '.pdf';
+                        $finalPath = $file->storeAs('payments/proof', $pdfFilename, 'public');
+                    }
+                    
+                    $payment->update([
+                        'attachment_path' => $finalPath,
+                    ]);
                 }
             }
 
