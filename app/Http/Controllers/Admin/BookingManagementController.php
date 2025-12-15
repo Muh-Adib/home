@@ -1154,13 +1154,15 @@ class BookingManagementController extends Controller
             $query->where('property_id', $request->get('property_id'));
         }
 
-        // Date filter
+        // Date filter (Overlap Logic)
         if ($request->filled('date_from')) {
-            $query->where('check_in', '>=', $request->get('date_from'));
+            // Include bookings that end on or after date_from (Active during period)
+            $query->where('check_out', '>=', $request->get('date_from'));
         }
         
         if ($request->filled('date_to')) {
-            $query->where('check_out', '<=', $request->get('date_to'));
+            // Include bookings that start on or before date_to (Active during period)
+            $query->where('check_in', '<=', $request->get('date_to'));
         }
 
         $bookings = $query->orderBy('check_in', 'desc')->get();
