@@ -1,12 +1,15 @@
 import AdminLayout from '@/layouts/admin-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useForm, Link, router } from '@inertiajs/react';
+import { useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, ArrowUpDown, Search, Package, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
 
 interface Item {
   id: number;
@@ -20,13 +23,19 @@ interface Item {
   is_below_min: boolean;
 }
 
-export default function Items({ items }: any) {
+interface ItemsProps {
+  items: Item[]; // Changed from paginator to array
+}
+
+export default function Items({ items }: ItemsProps) {
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const { data, setData, post, put, delete: deleteItem, processing, reset, errors } = useForm({
+  const { data, setData, post, processing, reset, errors } = useForm({
     name: '',
     sku: '',
     unit: 'pcs',
@@ -34,6 +43,24 @@ export default function Items({ items }: any) {
     category: '',
     image: null as File | null,
   });
+
+  const handleSort = (key: string) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+
+    // Trigger server-side sort
+    router.get('/admin/inventory/items', {
+      sort: key,
+      direction: direction
+    }, {
+      preserveState: true,
+      preserveScroll: true,
+      only: ['items']
+    });
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,13 +79,9 @@ export default function Items({ items }: any) {
           setEditingItem(null);
           router.reload();
         },
-        onError: () => {
-          // Errors will be handled by Inertia
-        },
       });
     } else {
-      post('/admin/inventory/items', {
-        data: formData,
+      router.post('/admin/inventory/items', formData, {
         forceFormData: true,
         onSuccess: () => {
           reset();
@@ -85,11 +108,15 @@ export default function Items({ items }: any) {
   const handleDelete = (item: Item) => {
     setItemToDelete(item);
     setShowDeleteDialog(true);
+    // Use Inertia delete method directly inside the confirm handler for simplicity here
   };
+
+  // Custom delete hook usage wasn't standard, implementing direct call
+  const { delete: destroy } = useForm();
 
   const confirmDelete = () => {
     if (itemToDelete) {
-      deleteItem(`/admin/inventory/items/${itemToDelete.id}`, {
+      destroy(`/admin/inventory/items/${itemToDelete.id}`, {
         onSuccess: () => {
           setShowDeleteDialog(false);
           setItemToDelete(null);
@@ -105,165 +132,278 @@ export default function Items({ items }: any) {
     reset();
   };
 
+  // Filter items client-side for immediate search feedback if list is loaded
+  // Although server-side search is better for large datasets, user asked to remove pagination implicitly suggesting loading all.
+  // We can filter the `items` prop.
+  const filteredItems = items.filter(item =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (item.sku && item.sku.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   return (
-    <AdminLayout title="Inventaris - Items" breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Operasional', href: '/admin/inventory/items' }, { title: 'Items' }]}>
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
+    <AdminLayout title="Inventaris" breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Inventory', href: '/admin/inventory/items' }]}>
+      <div className="flex flex-col gap-6">
+
+        {/* Form Section */}
+        <Card className="border-none shadow-md bg-white/50 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle>{isEditMode ? 'Edit Item' : 'Tambah Item'}</CardTitle>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-bold flex items-center gap-2">
+                  <Package className="h-5 w-5 text-primary" />
+                  {isEditMode ? 'Edit Item' : 'Tambah Item Baru'}
+                </CardTitle>
+                <CardDescription>
+                  {isEditMode ? 'Perbarui informasi item inventaris.' : 'Tambahkan item baru ke dalam inventaris sistem.'}
+                </CardDescription>
+              </div>
+              {isEditMode && (
+                <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                  Batal Edit
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <form className="space-y-3" onSubmit={submit}>
-              <div>
-                <Label>Nama</Label>
-                <Input 
-                  value={data.name} 
-                  onChange={(e) => setData('name', e.target.value)} 
-                  required
-                />
-                {errors.name && <p className="text-sm text-red-500 mt-1">{errors.name}</p>}
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <Label>SKU</Label>
-                  <Input value={data.sku} onChange={(e) => setData('sku', e.target.value)} />
-                  {errors.sku && <p className="text-sm text-red-500 mt-1">{errors.sku}</p>}
+            <form className="grid gap-4" onSubmit={submit}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nama Item</Label>
+                  <Input
+                    placeholder="Contoh: Sabun Cuci Tangan"
+                    value={data.name}
+                    onChange={(e) => setData('name', e.target.value)}
+                    required
+                    className="bg-background/50"
+                  />
+                  {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
                 </div>
-                <div>
-                  <Label>Satuan</Label>
-                  <Input value={data.unit} onChange={(e) => setData('unit', e.target.value)} required />
-                  {errors.unit && <p className="text-sm text-red-500 mt-1">{errors.unit}</p>}
-                </div>
-                <div>
-                  <Label>Minimal Stok</Label>
-                  <Input type="number" step="0.0001" value={data.min_stock} onChange={(e) => setData('min_stock', e.target.value)} />
-                  {errors.min_stock && <p className="text-sm text-red-500 mt-1">{errors.min_stock}</p>}
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
+                <div className="space-y-2">
                   <Label>Kategori</Label>
-                  <Input value={data.category} onChange={(e) => setData('category', e.target.value)} />
-                  {errors.category && <p className="text-sm text-red-500 mt-1">{errors.category}</p>}
+                  <Input
+                    placeholder="Contoh: Kebersihan"
+                    value={data.category}
+                    onChange={(e) => setData('category', e.target.value)}
+                    className="bg-background/50"
+                  />
+                  {errors.category && <p className="text-sm text-red-500">{errors.category}</p>}
                 </div>
               </div>
-              <div>
-                <Label>Foto Item {isEditMode && '(kosongkan jika tidak ingin mengubah)'}</Label>
-                <Input type="file" accept="image/*" onChange={(e) => setData('image', e.target.files?.[0] || null)} />
-                {errors.image && <p className="text-sm text-red-500 mt-1">{errors.image}</p>}
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>SKU</Label>
+                  <Input
+                    placeholder="Optional"
+                    value={data.sku}
+                    onChange={(e) => setData('sku', e.target.value)}
+                    className="bg-background/50"
+                  />
+                  {errors.sku && <p className="text-sm text-red-500">{errors.sku}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label>Satuan</Label>
+                  <Input
+                    placeholder="pcs, box, ltr"
+                    value={data.unit}
+                    onChange={(e) => setData('unit', e.target.value)}
+                    required
+                    className="bg-background/50"
+                  />
+                  {errors.unit && <p className="text-sm text-red-500">{errors.unit}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label>Min. Stok Alert</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={data.min_stock}
+                    onChange={(e) => setData('min_stock', e.target.value)}
+                    className="bg-background/50"
+                  />
+                  {errors.min_stock && <p className="text-sm text-red-500">{errors.min_stock}</p>}
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button type="submit" disabled={processing}>
-                  {processing ? 'Menyimpan...' : isEditMode ? 'Update' : 'Simpan'}
+
+              <div className="space-y-2">
+                <Label>Foto Item</Label>
+                <div className="flex items-center gap-4">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setData('image', e.target.files?.[0] || null)}
+                    className="cursopointer bg-background/50 file:text-primary"
+                  />
+                  {isEditMode && editingItem?.image_path && (
+                    <div className="relative h-10 w-10 rounded overflow-hidden border">
+                      <img src={`/storage/${editingItem.image_path}`} alt="Preview" className="h-full w-full object-cover" />
+                    </div>
+                  )}
+                </div>
+                {errors.image && <p className="text-sm text-red-500">{errors.image}</p>}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button type="submit" disabled={processing} className="min-w-[120px]">
+                  {processing ? (
+                    <span className="flex items-center gap-2">Processing...</span>
+                  ) : (
+                    isEditMode ? 'Simpan Perubahan' : 'Simpan Item Baru'
+                  )}
                 </Button>
-                {isEditMode && (
-                  <Button type="button" variant="outline" onClick={cancelEdit} disabled={processing}>
-                    Batal
-                  </Button>
-                )}
               </div>
             </form>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Daftar Item</CardTitle>
+
+        {/* List Section */}
+        <Card className="border-none shadow-md overflow-hidden flex flex-col h-full bg-white/50 backdrop-blur-sm">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <CardTitle>Daftar Inventory</CardTitle>
+                <CardDescription>Total {items.length} item terdaftar dalam sistem.</CardDescription>
+              </div>
+              <div className="relative w-full md:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Cari item..."
+                  className="pl-9 bg-background/50"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="py-2 pr-4">Foto</th>
-                    <th className="py-2 pr-4">Nama</th>
-                    <th className="py-2 pr-4">SKU</th>
-                    <th className="py-2 pr-4">Satuan</th>
-                    <th className="py-2 pr-4">Min Stok</th>
-                    <th className="py-2 pr-4">Stok</th>
-                    <th className="py-2 pr-4">Kategori</th>
-                    <th className="py-2 pr-4">Aksi</th>
+          <Separator />
+          <div className="flex-1 overflow-auto max-h-[600px]">
+            <table className="w-full text-sm item-table">
+              <thead className="sticky top-0 bg-background/95 backdrop-blur z-10 border-b shadow-sm">
+                <tr className="text-left text-muted-foreground font-medium">
+                  <th className="py-3 px-4 w-[80px]">Foto</th>
+                  <th className="py-3 px-4 cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('name')}>
+                    <div className="flex items-center gap-1">Item <ArrowUpDown className="h-3 w-3" /></div>
+                  </th>
+                  <th className="py-3 px-4 cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('category')}>
+                    <div className="flex items-center gap-1">Kategori <ArrowUpDown className="h-3 w-3" /></div>
+                  </th>
+                  <th className="py-3 px-4 cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('sku')}>
+                    <div className="flex items-center gap-1">SKU <ArrowUpDown className="h-3 w-3" /></div>
+                  </th>
+                  <th className="py-3 px-4 text-center cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('current_stock')}>
+                    <div className="flex items-center justify-center gap-1">Stok Aktual <ArrowUpDown className="h-3 w-3" /></div>
+                  </th>
+                  <th className="py-3 px-4 text-center cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('min_stock')}>
+                    <div className="flex items-center justify-center gap-1">Min. Stok <ArrowUpDown className="h-3 w-3" /></div>
+                  </th>
+                  <th className="py-3 px-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filteredItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                      Tidak ada item yang ditemukan.
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {items?.data?.map((it: Item) => (
-                    <tr key={it.id} className="border-b">
-                      <td className="py-2 pr-4">
-                        {it.image_path ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={`/storage/${it.image_path}`} alt={it.name} className="h-10 w-10 object-cover rounded" />
+                ) : (
+                  filteredItems.map((item) => (
+                    <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
+                      <td className="py-3 px-4">
+                        {item.image_path ? (
+                          <div className="h-10 w-10 rounded-lg overflow-hidden border shadow-sm group-hover:scale-105 transition-transform">
+                            <img src={`/storage/${item.image_path}`} alt={item.name} className="h-full w-full object-cover" />
+                          </div>
                         ) : (
-                          <div className="h-10 w-10 bg-muted rounded" />
+                          <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground border">
+                            <Package className="h-5 w-5 opacity-50" />
+                          </div>
                         )}
                       </td>
-                      <td className="py-2 pr-4">{it.name}</td>
-                      <td className="py-2 pr-4">{it.sku || '-'}</td>
-                      <td className="py-2 pr-4">{it.unit}</td>
-                      <td className="py-2 pr-4">{Number(it.min_stock || 0)}</td>
-                      <td className={`py-2 pr-4 ${it.is_below_min ? 'text-red-600 font-semibold' : ''}`}>{Number(it.current_stock || 0)}</td>
-                      <td className="py-2 pr-4">{it.category || '-'}</td>
-                      <td className="py-2 pr-4">
-                        <div className="flex gap-2">
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-foreground">{item.name}</div>
+                        <div className="text-xs text-muted-foreground">{item.unit}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        {item.category ? (
+                          <Badge variant="outline" className="font-normal">{item.category}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs italic">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-xs text-muted-foreground">
+                        {item.sku || '-'}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex flex-col items-center">
+                          <span className={cn(
+                            "font-bold text-base",
+                            item.is_below_min ? "text-red-500" : "text-green-600"
+                          )}>
+                            {Number(item.current_stock)}
+                          </span>
+                          {item.is_below_min && (
+                            <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4 mt-1">Low Stock</Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center text-muted-foreground">
+                        {Number(item.min_stock)}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex justify-end gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(it)}
-                            disabled={processing}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => handleEdit(item)}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDelete(it)}
-                            disabled={processing}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDelete(item)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-4 bg-muted/20 border-t text-xs text-muted-foreground flex justify-between items-center">
+            <span>Menampilkan {filteredItems.length} items</span>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> Stok Aman</span>
+              <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"></div> Stok Menipis</span>
             </div>
-            <div className="flex items-center justify-between mt-4 text-sm">
-              <div>Menampilkan {items?.from || 0}-{items?.to || 0} dari {items?.total || 0}</div>
-              <div className="flex gap-2">
-                {items?.links?.map((l: any) => (
-                  <Link key={l.label} href={l.url || '#'} className={`px-2 py-1 rounded ${l.active ? 'bg-accent' : 'hover:bg-accent/60'} ${!l.url ? 'pointer-events-none opacity-50' : ''}`}>{l.label.replace('&laquo;','«').replace('&raquo;','»')}</Link>
-                ))}
-              </div>
-            </div>
-          </CardContent>
+          </div>
         </Card>
       </div>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Hapus Item</DialogTitle>
+            <DialogTitle>Konfirmasi Penghapusan</DialogTitle>
             <DialogDescription>
-              Apakah Anda yakin ingin menghapus item "{itemToDelete?.name}"? 
-              Tindakan ini tidak dapat dibatalkan. Item yang memiliki riwayat stock movement atau usage tidak dapat dihapus.
+              Apakah Anda yakin ingin menghapus item <span className="font-bold text-foreground">"{itemToDelete?.name}"</span>?
+              <br /><br />
+              <span className="p-2 bg-yellow-100 text-yellow-800 rounded text-xs block border border-yellow-200">
+                ⚠️ Item yang memiliki riwayat penggunaan tidak dapat dihapus permanen, namun akan dinonaktifkan.
+              </span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowDeleteDialog(false)}
-              disabled={processing}
-            >
-              Batal
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDelete}
-              disabled={processing}
-            >
-              {processing ? 'Menghapus...' : 'Hapus'}
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Batal</Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Hapus Item
             </Button>
           </DialogFooter>
         </DialogContent>

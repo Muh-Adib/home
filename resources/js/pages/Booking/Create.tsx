@@ -469,7 +469,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                                                         <CheckCircle className="h-4 w-4 text-green-600" />
                                                         <AlertDescription className="text-green-600">
                                                             {t('booking.property_available', {
-                                                                total: rateCalculation.total_amount.toLocaleString(),
+                                                                total: rateCalculation.total_amount.toLocaleString("id-ID"),
                                                                 nights: rateCalculation.nights
                                                             })}
                                                         </AlertDescription>

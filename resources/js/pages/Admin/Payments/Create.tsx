@@ -108,7 +108,7 @@ export default function PaymentCreate({ bookings, paymentMethods, users, selecte
         if (data.booking_id) {
             const booking = bookings.find(b => b.id.toString() === data.booking_id.toString());
             setSelectedBookingData(booking || null);
-            
+
             // Auto-set payment amount based on booking status
             if (booking) {
                 if (booking.payment_status === 'dp_pending') {
@@ -133,7 +133,7 @@ export default function PaymentCreate({ bookings, paymentMethods, users, selecte
         if (data.payment_method_id) {
             const method = paymentMethods.find(m => m.id.toString() === data.payment_method_id.toString());
             setSelectedPaymentMethod(method || null);
-            
+
             if (method) {
                 setData(prev => ({
                     ...prev,
@@ -147,7 +147,7 @@ export default function PaymentCreate({ bookings, paymentMethods, users, selecte
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         const formData = new FormData();
         Object.keys(data).forEach(key => {
             if (key === 'attachment' && data.attachment) {
@@ -230,8 +230,8 @@ export default function PaymentCreate({ bookings, paymentMethods, users, selecte
                                 <CardContent className="space-y-4">
                                     <div>
                                         <Label htmlFor="booking_id">Select Booking *</Label>
-                                        <Select 
-                                            value={data.booking_id.toString()} 
+                                        <Select
+                                            value={data.booking_id.toString()}
                                             onValueChange={(value) => setData('booking_id', value)}
                                         >
                                             <SelectTrigger className={errors.booking_id ? 'border-red-500' : ''}>
@@ -266,8 +266,8 @@ export default function PaymentCreate({ bookings, paymentMethods, users, selecte
                                                     <p><strong>Property:</strong> {selectedBookingData.property.name}</p>
                                                 </div>
                                                 <div>
-                                                    <p><strong>Check-in:</strong> {new Date(selectedBookingData.check_in).toLocaleDateString()}</p>
-                                                    <p><strong>Check-out:</strong> {new Date(selectedBookingData.check_out).toLocaleDateString()}</p>
+                                                    <p><strong>Check-in:</strong> {new Date(selectedBookingData.check_in).toLocaleDateString("id-ID")}</p>
+                                                    <p><strong>Check-out:</strong> {new Date(selectedBookingData.check_out).toLocaleDateString("id-ID")}</p>
                                                     <p><strong>Status:</strong> <span className="capitalize">{selectedBookingData.payment_status.replace('_', ' ')}</span></p>
                                                 </div>
                                                 <div className="md:col-span-2">
@@ -293,8 +293,8 @@ export default function PaymentCreate({ bookings, paymentMethods, users, selecte
                                     <div className="grid md:grid-cols-2 gap-4">
                                         <div>
                                             <Label htmlFor="payment_method_id">Payment Method *</Label>
-                                            <Select 
-                                                value={data.payment_method_id.toString()} 
+                                            <Select
+                                                value={data.payment_method_id.toString()}
                                                 onValueChange={(value) => setData('payment_method_id', value)}
                                             >
                                                 <SelectTrigger className={errors.payment_method_id ? 'border-red-500' : ''}>
@@ -317,8 +317,8 @@ export default function PaymentCreate({ bookings, paymentMethods, users, selecte
 
                                         <div>
                                             <Label htmlFor="payment_type">Payment Type *</Label>
-                                            <Select 
-                                                value={data.payment_type} 
+                                            <Select
+                                                value={data.payment_type}
                                                 onValueChange={(value) => setData('payment_type', value as any)}
                                             >
                                                 <SelectTrigger className={errors.payment_type ? 'border-red-500' : ''}>
@@ -519,8 +519,8 @@ export default function PaymentCreate({ bookings, paymentMethods, users, selecte
                                 <CardContent className="space-y-4">
                                     <div>
                                         <Label htmlFor="payment_status">Status *</Label>
-                                        <Select 
-                                            value={data.payment_status} 
+                                        <Select
+                                            value={data.payment_status}
                                             onValueChange={(value) => setData('payment_status', value as any)}
                                         >
                                             <SelectTrigger className={errors.payment_status ? 'border-red-500' : ''}>
@@ -538,8 +538,8 @@ export default function PaymentCreate({ bookings, paymentMethods, users, selecte
 
                                     <div>
                                         <Label htmlFor="processed_by">Processed By</Label>
-                                        <Select 
-                                            value={data.processed_by.toString()} 
+                                        <Select
+                                            value={data.processed_by.toString()}
                                             onValueChange={(value) => setData('processed_by', value)}
                                         >
                                             <SelectTrigger>
@@ -558,8 +558,8 @@ export default function PaymentCreate({ bookings, paymentMethods, users, selecte
                                     {data.payment_status === 'verified' && (
                                         <div>
                                             <Label htmlFor="verified_by">Verified By</Label>
-                                            <Select 
-                                                value={data.verified_by.toString()} 
+                                            <Select
+                                                value={data.verified_by.toString()}
                                                 onValueChange={(value) => setData('verified_by', value)}
                                             >
                                                 <SelectTrigger>
@@ -617,15 +617,15 @@ export default function PaymentCreate({ bookings, paymentMethods, users, selecte
                             <Card>
                                 <CardContent className="pt-6">
                                     <div className="space-y-3">
-                                        <Button 
-                                            type="submit" 
+                                        <Button
+                                            type="submit"
                                             className="w-full"
                                             disabled={processing}
                                         >
                                             <Save className="h-4 w-4 mr-2" />
                                             {processing ? 'Creating...' : 'Create Payment'}
                                         </Button>
-                                        
+
                                         <Link href="/admin/payments" className="block">
                                             <Button variant="outline" className="w-full">
                                                 Cancel

@@ -49,7 +49,7 @@ interface PaymentDetail {
         bank_name: string;
         qr_code: string;
         instructions: string;
-        is_active: boolean; 
+        is_active: boolean;
     };
     payment_status: string;
     payment_date: string;
@@ -174,7 +174,7 @@ export default function PaymentShow() {
     return (
         <>
             <Head title={`Payment ${payment.payment_number} - Admin Dashboard`} />
-            
+
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
                 <div className="bg-white border-b">
@@ -360,16 +360,16 @@ export default function PaymentShow() {
                                                                 fileExists={payment.attachment_exists}
                                                             >
                                                                 <Button variant="outline" size="sm">
-                                                            <Eye className="h-4 w-4 mr-2" />
+                                                                    <Eye className="h-4 w-4 mr-2" />
                                                                     Preview
-                                                    </Button>
+                                                                </Button>
                                                             </FilePreviewModal>
-                                                    <Button variant="outline" size="sm" asChild>
+                                                            <Button variant="outline" size="sm" asChild>
                                                                 <a href={payment.attachment_full_path || payment.attachment_path} download={payment.attachment_filename}>
-                                                            <Download className="h-4 w-4 mr-2" />
-                                                            Download
-                                                        </a>
-                                                    </Button>
+                                                                    <Download className="h-4 w-4 mr-2" />
+                                                                    Download
+                                                                </a>
+                                                            </Button>
                                                         </>
                                                     )}
                                                 </div>
@@ -379,10 +379,10 @@ export default function PaymentShow() {
                                             {payment.attachment_exists && payment.attachment_type === 'image' && (
                                                 <div className="border rounded-lg overflow-hidden">
                                                     <div className="relative group">
-                                                    <img
+                                                        <img
                                                             src={payment.attachment_full_path || payment.attachment_path}
                                                             alt="Payment proof preview"
-                                                        className="w-full h-auto max-h-96 object-contain bg-gray-50"
+                                                            className="w-full h-auto max-h-96 object-contain bg-gray-50"
                                                         />
                                                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
                                                             <FilePreviewModal
@@ -392,9 +392,9 @@ export default function PaymentShow() {
                                                                 fileType={payment.attachment_type}
                                                                 fileExists={payment.attachment_exists}
                                                             >
-                                                                <Button 
-                                                                    variant="secondary" 
-                                                                    size="sm" 
+                                                                <Button
+                                                                    variant="secondary"
+                                                                    size="sm"
                                                                     className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                                                                 >
                                                                     <Eye className="h-4 w-4 mr-2" />
@@ -434,7 +434,7 @@ export default function PaymentShow() {
                                                         <div>
                                                             <p className="font-medium text-red-900">File Tidak Ditemukan</p>
                                                             <p className="text-sm text-red-700">
-                                                                File bukti pembayaran tidak dapat ditemukan di server. 
+                                                                File bukti pembayaran tidak dapat ditemukan di server.
                                                                 Hubungi administrator sistem.
                                                             </p>
                                                         </div>
@@ -570,11 +570,11 @@ export default function PaymentShow() {
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <span className="text-sm font-medium text-gray-500">Check-in</span>
-                                                <div className="font-medium">{new Date(payment.booking.check_in).toLocaleDateString()}</div>
+                                                <div className="font-medium">{new Date(payment.booking.check_in).toLocaleDateString("id-ID")}</div>
                                             </div>
                                             <div>
                                                 <span className="text-sm font-medium text-gray-500">Check-out</span>
-                                                <div className="font-medium">{new Date(payment.booking.check_out).toLocaleDateString()}</div>
+                                                <div className="font-medium">{new Date(payment.booking.check_out).toLocaleDateString("id-ID")}</div>
                                             </div>
                                         </div>
 

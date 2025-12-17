@@ -49,7 +49,7 @@ export default function RateCalculationCard({
                     <div className="space-y-1 mt-2">
                         <div className="flex items-center gap-2">
                             <span className="text-lg text-muted-foreground line-through">
-                                Rp {discountInfo.original_price.toLocaleString()}
+                                Rp {discountInfo.original_price.toLocaleString("id-ID")}
                             </span>
                             <Badge variant="destructive" className="text-xs">
                                 -{discountInfo.discount_percent}%
@@ -57,12 +57,12 @@ export default function RateCalculationCard({
                         </div>
                         <div>
                             <span className="text-3xl font-bold text-red-600">
-                                Rp {discountInfo.final_price.toLocaleString()}
+                                Rp {discountInfo.final_price.toLocaleString("id-ID")}
                             </span>
                             <span className="text-muted-foreground ml-1">total</span>
                         </div>
                         <div className="text-sm text-muted-foreground">
-                            (Rp {Math.round(discountInfo.final_price / discountInfo.nights).toLocaleString()}/night)
+                            (Rp {Math.round(discountInfo.final_price / discountInfo.nights).toLocaleString("id-ID")}/night)
                         </div>
                     </div>
                 )}
@@ -76,7 +76,7 @@ export default function RateCalculationCard({
                                 <div className="flex justify-between items-center">
                                     <span className="text-muted-foreground">Original Price</span>
                                     <span className="text-muted-foreground line-through">
-                                        Rp {discountInfo.original_price.toLocaleString()}
+                                        Rp {discountInfo.original_price.toLocaleString("id-ID")}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center">
@@ -87,7 +87,7 @@ export default function RateCalculationCard({
                                         </Badge>
                                     </div>
                                     <span className="text-red-600 font-medium">
-                                        -Rp {discountInfo.discount_amount.toLocaleString()}
+                                        -Rp {discountInfo.discount_amount.toLocaleString("id-ID")}
                                     </span>
                                 </div>
                             </>
@@ -97,7 +97,7 @@ export default function RateCalculationCard({
                         {rateCalculation.extra_bed_amount > 0 && (
                             <div className="flex justify-between items-center">
                                 <span className="text-muted-foreground">Extra beds</span>
-                                <span className="font-medium text-foreground">Rp {rateCalculation.extra_bed_amount.toLocaleString()}</span>
+                                <span className="font-medium text-foreground">Rp {rateCalculation.extra_bed_amount.toLocaleString("id-ID")}</span>
                             </div>
                         )}
 
@@ -107,7 +107,7 @@ export default function RateCalculationCard({
                         <div className="flex justify-between items-center text-lg font-bold">
                             <span className="text-foreground">Total</span>
                             <span className="text-red-600">
-                                Rp {rateCalculation.total_amount.toLocaleString()}
+                                Rp {rateCalculation.total_amount.toLocaleString("id-ID")}
                             </span>
                         </div>
 
@@ -122,13 +122,13 @@ export default function RateCalculationCard({
                         <div className="flex justify-between">
                             <span className="text-foreground">Down Payment ({dpPercentage}%)</span>
                             <span className="font-medium text-foreground">
-                                Rp {(rateCalculation.total_amount * dpPercentage / 100).toLocaleString()}
+                                Rp {(rateCalculation.total_amount * dpPercentage / 100).toLocaleString("id-ID")}
                             </span>
                         </div>
                         <div className="flex justify-between text-sm text-muted-foreground">
                             <span>Remaining</span>
                             <span>
-                                Rp {(rateCalculation.total_amount * (100 - dpPercentage) / 100).toLocaleString()}
+                                Rp {(rateCalculation.total_amount * (100 - dpPercentage) / 100).toLocaleString("id-ID")}
                             </span>
                         </div>
                     </div>

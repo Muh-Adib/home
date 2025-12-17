@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-    CheckCircle, 
+import {
+    CheckCircle,
     Clock,
     CreditCard,
     FileText,
@@ -116,15 +116,15 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
     return (
         <GuestLayout>
             <Head title={`${t('payment.success_title')} - ${booking.booking_number}`} />
-            
+
             <div className="space-y-6 p-4 md:p-6">
                 {/* Success Header */}
                 <div className="text-center mb-8">
                     <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <CheckCircle className="h-8 w-8 text-green-600" />
                     </div>
-                                    <h1 className="text-3xl font-bold text-foreground mb-2">{t('payment.success_title')}</h1>
-                <p className="text-muted-foreground">{t('payment.success_description')}</p>
+                    <h1 className="text-3xl font-bold text-foreground mb-2">{t('payment.success_title')}</h1>
+                    <p className="text-muted-foreground">{t('payment.success_description')}</p>
                 </div>
 
                 <div className="grid lg:grid-cols-3 gap-8">
@@ -147,7 +147,7 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
                                     <div className="flex items-center justify-between">
                                         <span className="font-medium">{t('payment.amount_paid')}:</span>
                                         <span className="text-xl font-bold text-green-600">
-                                            Rp {payment.amount.toLocaleString()}
+                                            Rp {payment.amount.toLocaleString("id-ID")}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between">
@@ -156,7 +156,7 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span className="font-medium">{t('payment.submitted')}:</span>
-                                        <span>{new Date(payment.created_at).toLocaleString()}</span>
+                                        <span>{new Date(payment.created_at).toLocaleString("id-ID")}</span>
                                     </div>
                                     {payment.notes && (
                                         <div>
@@ -200,7 +200,7 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
                         <Alert className="border-blue-200 bg-blue-50">
                             <Clock className="h-4 w-4" />
                             <AlertDescription>
-                                <strong>{t('common.important')}:</strong> {t('payment.keep_confirmation_text')} 
+                                <strong>{t('common.important')}:</strong> {t('payment.keep_confirmation_text')}
                                 <strong>{booking.booking_number}</strong>
                             </AlertDescription>
                         </Alert>
@@ -240,8 +240,8 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
                                     <div className="space-y-4">
                                         <div className="aspect-video bg-slate-200 rounded-lg overflow-hidden">
                                             {booking.property.cover_image ? (
-                                                <img 
-                                                    src={booking.property.cover_image} 
+                                                <img
+                                                    src={booking.property.cover_image}
                                                     alt={booking.property.name}
                                                     className="w-full h-full object-cover"
                                                 />
@@ -251,7 +251,7 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
                                                 </div>
                                             )}
                                         </div>
-                                        
+
                                         <div>
                                             <h3 className="font-semibold">{booking.property.name}</h3>
                                             <div className="flex items-center text-sm text-gray-600 mt-1">
@@ -280,15 +280,15 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
                                         <div className="space-y-2 text-sm">
                                             <div className="flex justify-between">
                                                 <span>{t('payment.total_amount')}:</span>
-                                                <span>Rp {booking.total_amount.toLocaleString()}</span>
+                                                <span>Rp {booking.total_amount.toLocaleString("id-ID")}</span>
                                             </div>
                                             <div className="flex justify-between text-green-600 font-semibold">
                                                 <span>{t('payment.paid')} ({booking.dp_percentage}%):</span>
-                                                <span>Rp {booking.dp_amount.toLocaleString()}</span>
+                                                <span>Rp {booking.dp_amount.toLocaleString("id-ID")}</span>
                                             </div>
                                             <div className="flex justify-between text-gray-600">
                                                 <span>{t('payment.remaining_balance')}:</span>
-                                                <span>Rp {booking.remaining_amount.toLocaleString()}</span>
+                                                <span>Rp {booking.remaining_amount.toLocaleString("id-ID")}</span>
                                             </div>
                                         </div>
 
@@ -297,7 +297,7 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
                                                 {t('payment.payment_status')}: {getStatusBadge(payment.status)}
                                             </div>
                                             <div className="text-xs text-green-600 mt-1">
-                                                {t('payment.submitted_on')} {new Date(payment.created_at).toLocaleDateString()}
+                                                {t('payment.submitted_on')} {new Date(payment.created_at).toLocaleDateString("id-ID")}
                                             </div>
                                         </div>
                                     </div>
@@ -332,7 +332,7 @@ export default function PaymentSuccess({ payment, booking }: PaymentSuccessProps
                         </div>
                     </div>
                 </div>
-                    </div>
-    </GuestLayout>
-);
+            </div>
+        </GuestLayout>
+    );
 } 

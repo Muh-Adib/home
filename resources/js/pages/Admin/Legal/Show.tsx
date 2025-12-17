@@ -50,7 +50,7 @@ export default function ShowLegalPage({ legalPage }: ShowLegalPageProps) {
 
           <div>
             <h2 className="text-lg font-semibold mb-1">Published At</h2>
-            <p>{legalPage.published_at ? new Date(legalPage.published_at).toLocaleDateString() : '-'}</p>
+            <p>{legalPage.published_at ? new Date(legalPage.published_at).toLocaleDateString("id-ID") : '-'}</p>
           </div>
         </div>
 

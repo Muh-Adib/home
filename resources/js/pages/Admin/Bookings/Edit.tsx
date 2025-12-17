@@ -396,8 +396,8 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
         return messages;
     }, [data, totalGuests]);
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
 
         if (!canSubmit) {
             return;
@@ -500,12 +500,12 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs} title="Edit Booking" subtitle="Edit booking details">
-            <div className="space-y-6">
+            <div className="space-y-6 pb-32 lg:pb-0">
                 {/* Header */}
                 <div>
-                    <h1 className="text-3xl font-bold text-brand-primary">Edit Booking</h1>
+                    <h1 className="text-3xl font-bold text-brand-primary">Ubah Booking</h1>
                     <p className="text-muted-foreground mt-1">
-                        Edit booking details for {booking.booking_number}
+                        Ubah detail booking untuk {booking.booking_number}
                     </p>
                 </div>
 
@@ -516,7 +516,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Edit className="h-5 w-5" />
-                                    Booking Information
+                                    Informasi Booking
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
@@ -531,7 +531,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                 {validationMessages.length > 0 && (
                                     <Alert variant="destructive" className="mb-6">
                                         <AlertCircle className="h-4 w-4" />
-                                        <AlertTitle>Validation Errors</AlertTitle>
+                                        <AlertTitle>Kesalahan Validasi</AlertTitle>
                                         <AlertDescription>
                                             <ul className="list-disc list-inside space-y-1">
                                                 {validationMessages.map((message, index) => (
@@ -545,13 +545,13 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                 <form onSubmit={handleSubmit} className="space-y-6">
                                     {/* Property Selection */}
                                     <div>
-                                        <Label htmlFor="property_id">Select Property *</Label>
+                                        <Label htmlFor="property_id">Pilih Properti *</Label>
                                         <Select
                                             value={data.property_id}
                                             onValueChange={handlePropertyChange}
                                         >
                                             <SelectTrigger className={errors.property_id ? 'border-red-500' : ''}>
-                                                <SelectValue placeholder="Choose a property" />
+                                                <SelectValue placeholder="Pilih properti" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {properties.map((property) => (
@@ -586,11 +586,11 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                                                         <div className="flex items-center gap-1">
                                                             <Users className="h-3 w-3" />
-                                                            <span>Capacity: {currentProperty.capacity} - {currentProperty.capacity_max}</span>
+                                                            <span>Kapasitas: {currentProperty.capacity} - {currentProperty.capacity_max}</span>
                                                         </div>
                                                         <div className="flex items-center gap-1">
                                                             <DollarSign className="h-3 w-3" />
-                                                            <span>Base Rate: {currentProperty.formatted_base_rate}</span>
+                                                            <span>Tarif Dasar: {currentProperty.formatted_base_rate}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -600,7 +600,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
 
                                     {/* Date Range */}
                                     <div>
-                                        <Label>Check-in & Check-out Dates *</Label>
+                                        <Label>Tanggal Check-in & Check-out *</Label>
                                         <DateRange
                                             startDate={data.check_in_date}
                                             endDate={data.check_out_date}
@@ -633,14 +633,14 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                                 {availabilityStatus === 'checking' && (
                                                     <Alert>
                                                         <Loader2 className="h-4 w-4 animate-spin" />
-                                                        <AlertDescription>Checking availability...</AlertDescription>
+                                                        <AlertDescription>Mengecek ketersediaan...</AlertDescription>
                                                     </Alert>
                                                 )}
                                                 {availabilityStatus === 'available' && (
                                                     <Alert className="border-green-200 bg-green-50">
                                                         <CheckCircle className="h-4 w-4 text-green-600" />
                                                         <AlertDescription className="text-green-800">
-                                                            Property is available for selected dates
+                                                            Properti tersedia untuk tanggal yang dipilih
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
@@ -648,7 +648,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                                     <Alert variant="destructive">
                                                         <AlertCircle className="h-4 w-4" />
                                                         <AlertDescription>
-                                                            {availabilityError || 'Property is not available for selected dates'}
+                                                            {availabilityError || 'Properti tidak tersedia untuk tanggal yang dipilih'}
                                                         </AlertDescription>
                                                     </Alert>
                                                 )}
@@ -680,10 +680,10 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
 
                                     {/* Primary Guest Info */}
                                     <div>
-                                        <h3 className="text-lg font-semibold mb-4">Primary Guest Information</h3>
+                                        <h3 className="text-lg font-semibold mb-4">Informasi Tamu Utama</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div className="md:col-span-2">
-                                                <Label htmlFor="guest_name">Full Name *</Label>
+                                                <Label htmlFor="guest_name">Nama Lengkap *</Label>
                                                 <Input
                                                     id="guest_name"
                                                     value={data.guest_name}
@@ -692,7 +692,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                                 />
                                             </div>
                                             <div>
-                                                <Label htmlFor="guest_email">Email Address *</Label>
+                                                <Label htmlFor="guest_email">Alamat Email *</Label>
                                                 <Input
                                                     id="guest_email"
                                                     type="email"
@@ -702,7 +702,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                                 />
                                             </div>
                                             <div>
-                                                <Label htmlFor="guest_phone">Phone Number *</Label>
+                                                <Label htmlFor="guest_phone">Nomor Telepon *</Label>
                                                 <Input
                                                     id="guest_phone"
                                                     type="tel"
@@ -712,34 +712,34 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                                 />
                                             </div>
                                             <div>
-                                                <Label htmlFor="guest_gender">Gender *</Label>
+                                                <Label htmlFor="guest_gender">Jenis Kelamin *</Label>
                                                 <Select
                                                     value={data.guest_gender}
                                                     onValueChange={(value: 'male' | 'female') => setData('guest_gender', value)}
                                                 >
                                                     <SelectTrigger>
-                                                        <SelectValue placeholder="Select gender" />
+                                                        <SelectValue placeholder="Pilih jenis kelamin" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="male">Male</SelectItem>
-                                                        <SelectItem value="female">Female</SelectItem>
+                                                        <SelectItem value="male">Laki-laki</SelectItem>
+                                                        <SelectItem value="female">Perempuan</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
                                             <div>
-                                                <Label htmlFor="guest_country">Country *</Label>
+                                                <Label htmlFor="guest_country">Negara *</Label>
                                                 <Select
                                                     value={data.guest_country}
                                                     onValueChange={(value) => setData('guest_country', value)}
                                                 >
                                                     <SelectTrigger>
-                                                        <SelectValue placeholder="Select country" />
+                                                        <SelectValue placeholder="Pilih negara" />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="Indonesia">Indonesia</SelectItem>
                                                         <SelectItem value="Malaysia">Malaysia</SelectItem>
                                                         <SelectItem value="Singapore">Singapore</SelectItem>
-                                                        <SelectItem value="Other">Other</SelectItem>
+                                                        <SelectItem value="Other">Lainnya</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
@@ -762,42 +762,42 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
 
                                     {/* Booking Settings */}
                                     <div>
-                                        <h3 className="text-lg font-semibold mb-4">Booking Settings</h3>
+                                        <h3 className="text-lg font-semibold mb-4">Pengaturan Booking</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div>
-                                                <Label htmlFor="booking_status">Booking Status *</Label>
+                                                <Label htmlFor="booking_status">Status Booking *</Label>
                                                 <Select value={data.booking_status} onValueChange={(value: any) => setData('booking_status', value)}>
                                                     <SelectTrigger>
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="pending_verification">Pending Verification</SelectItem>
-                                                        <SelectItem value="confirmed">Confirmed</SelectItem>
+                                                        <SelectItem value="pending_verification">Menunggu Verifikasi</SelectItem>
+                                                        <SelectItem value="confirmed">Dikonfirmasi</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
                                             <div>
-                                                <Label htmlFor="payment_status">Payment Status *</Label>
+                                                <Label htmlFor="payment_status">Status Pembayaran *</Label>
                                                 <Select value={data.payment_status} onValueChange={(value: any) => setData('payment_status', value)}>
                                                     <SelectTrigger>
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="dp_pending">DP Pending</SelectItem>
-                                                        <SelectItem value="dp_received">DP Received</SelectItem>
-                                                        <SelectItem value="fully_paid">Fully Paid</SelectItem>
+                                                        <SelectItem value="dp_received">DP Diterima</SelectItem>
+                                                        <SelectItem value="fully_paid">Lunas</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
                                             <div>
-                                                <Label htmlFor="source">Booking Source</Label>
+                                                <Label htmlFor="source">Sumber Booking</Label>
                                                 <Select value={data.source} onValueChange={(value: any) => setData('source', value)}>
                                                     <SelectTrigger>
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="direct">Direct</SelectItem>
-                                                        <SelectItem value="phone">Phone</SelectItem>
+                                                        <SelectItem value="direct">Langsung (Direct)</SelectItem>
+                                                        <SelectItem value="phone">Telepon</SelectItem>
                                                         <SelectItem value="walk_in">Walk-in</SelectItem>
                                                         <SelectItem value="ota">OTA</SelectItem>
                                                     </SelectContent>
@@ -808,17 +808,17 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
 
                                     {/* Internal Notes */}
                                     <div>
-                                        <Label htmlFor="internal_notes">Internal Notes (Optional)</Label>
+                                        <Label htmlFor="internal_notes">Catatan Internal (Opsional)</Label>
                                         <Textarea
                                             id="internal_notes"
                                             value={data.internal_notes || ''}
                                             onChange={(e) => setData('internal_notes', e.target.value)}
                                             rows={3}
-                                            placeholder="Internal notes for staff..."
+                                            placeholder="Catatan internal untuk staf..."
                                         />
                                     </div>
 
-                                    <div className="flex justify-end pt-4">
+                                    <div className="hidden lg:flex justify-end pt-4">
                                         <Button
                                             type="submit"
                                             disabled={!canSubmit || processing}
@@ -827,7 +827,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                             {processing ? (
                                                 <>
                                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                    Updating Booking...
+                                                    Update Booking...
                                                 </>
                                             ) : (
                                                 <>
@@ -849,14 +849,14 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Calculator className="h-5 w-5" />
-                                    Rate Calculation
+                                    Perhitungan Tarif
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {isCalculatingRate && (
                                     <Alert>
                                         <Loader2 className="h-4 w-4 animate-spin" />
-                                        <AlertDescription>Calculating rates...</AlertDescription>
+                                        <AlertDescription>Menghitung tarif...</AlertDescription>
                                     </Alert>
                                 )}
 
@@ -867,30 +867,30 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                                 {formatCurrency((manualRateOverride ? overrideAmount : rateCalculation.total_amount) + servicesTotal)}
                                             </div>
                                             <div className="text-sm text-gray-600 mt-1">
-                                                Total Amount
+                                                Total Pembayaran
                                             </div>
                                         </div>
 
                                         <div className="space-y-2 text-sm">
                                             <div className="flex justify-between">
-                                                <span>Base Rate ({rateCalculation.nights} nights)</span>
+                                                <span>Tarif Dasar ({rateCalculation.nights} malam)</span>
                                                 <span>{formatCurrency(rateCalculation.base_amount)}</span>
                                             </div>
                                             {rateCalculation.weekend_premium > 0 && (
                                                 <div className="flex justify-between text-amber-600">
-                                                    <span>Weekend Premium</span>
+                                                    <span>Premium Akhir Pekan</span>
                                                     <span>+{formatCurrency(rateCalculation.weekend_premium)}</span>
                                                 </div>
                                             )}
                                             {rateCalculation.extra_bed_amount > 0 && (
                                                 <div className="flex justify-between">
-                                                    <span>Extra Beds ({rateCalculation.extra_beds})</span>
+                                                    <span>Extra Bed ({rateCalculation.extra_beds})</span>
                                                     <span>+{formatCurrency(rateCalculation.extra_bed_amount)}</span>
                                                 </div>
                                             )}
                                             {servicesTotal > 0 && (
                                                 <div className="flex justify-between text-blue-600 font-medium">
-                                                    <span>Extra Services</span>
+                                                    <span>Layanan Tambahan</span>
                                                     <span>+{formatCurrency(servicesTotal)}</span>
                                                 </div>
                                             )}
@@ -910,7 +910,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Tag className="h-5 w-5" />
-                                    Rate Adjustment
+                                    Penyesuaian Tarif
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
@@ -924,31 +924,31 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                             className="rounded border-gray-300"
                                         />
                                         <Label htmlFor="manual_rate_override" className="text-sm font-medium">
-                                            Manual Rate Adjustment
+                                            Penyesuaian Tarif Manual
                                         </Label>
                                     </div>
 
                                     {manualRateOverride && (
                                         <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                                             <div>
-                                                <Label htmlFor="override_amount">Override Amount *</Label>
+                                                <Label htmlFor="override_amount">Jumlah Penyesuaian *</Label>
                                                 <Input
                                                     id="override_amount"
                                                     type="number"
                                                     min="0"
                                                     value={overrideAmount}
                                                     onChange={(e) => setOverrideAmount(parseFloat(e.target.value) || 0)}
-                                                    placeholder="Enter custom amount"
+                                                    placeholder="Masukkan jumlah manual"
                                                 />
                                             </div>
                                             <div>
-                                                <Label htmlFor="override_reason">Adjustment Reason *</Label>
+                                                <Label htmlFor="override_reason">Alasan Penyesuaian *</Label>
                                                 <Textarea
                                                     id="override_reason"
                                                     value={overrideReason}
                                                     onChange={(e) => setOverrideReason(e.target.value)}
                                                     rows={2}
-                                                    placeholder="Reason for adjustment..."
+                                                    placeholder="Alasan penyesuaian..."
                                                 />
                                             </div>
                                         </div>
@@ -963,22 +963,22 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <AlertTriangle className="h-5 w-5 text-orange-600" />
-                                        Payment Impact
+                                        Dampak Pembayaran
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-3">
                                     <div className="text-sm space-y-2">
                                         <div className="flex justify-between">
-                                            <span>Original Amount:</span>
+                                            <span>Jumlah Awal:</span>
                                             <span className="font-medium">{formatCurrency(paymentImpact.originalAmount)}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span>New Amount:</span>
+                                            <span>Jumlah Baru:</span>
                                             <span className="font-medium">{formatCurrency(paymentImpact.newAmount)}</span>
                                         </div>
                                         <Separator />
                                         <div className="flex justify-between">
-                                            <span>Difference:</span>
+                                            <span>Selisih:</span>
                                             <span className={`font-semibold ${paymentImpact.difference >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                                                 {paymentImpact.difference >= 0 ? '+' : ''}{formatCurrency(paymentImpact.difference)}
                                             </span>
@@ -987,6 +987,30 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                                 </CardContent>
                             </Card>
                         )}
+                    </div>
+                </div>
+            </div>
+            {/* Mobile Sticky Footer */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 lg:hidden safe-area-bottom">
+                <div className="flex items-center justify-between p-4 gap-4 max-w-7xl mx-auto">
+                    <div className="flex flex-col flex-1 min-w-0">
+                        <span className="text-[10px] uppercase tracking-wider text-gray-500 font-medium">Estimasi Total</span>
+                        <span className="text-lg font-bold text-brand-primary truncate">
+                            {formatCurrency((manualRateOverride ? overrideAmount : (rateCalculation?.total_amount || booking.total_amount || 0)) + servicesTotal)}
+                        </span>
+                    </div>
+                    <div className="w-1/3 min-w-[120px]">
+                        <Button
+                            onClick={() => handleSubmit()}
+                            disabled={!canSubmit || processing}
+                            className="w-full bg-brand-primary text-white hover:bg-brand-primary-dark shadow-sm rounded-lg h-12"
+                        >
+                            {processing ? (
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            ) : (
+                                <span className="text-sm font-semibold">Simpan</span>
+                            )}
+                        </Button>
                     </div>
                 </div>
             </div>

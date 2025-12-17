@@ -267,21 +267,21 @@ export function BookingSidebar({
 
                                                 {/* Original Price (Crossed Out) */}
                                                 <div className="text-lg text-muted-foreground line-through mb-1">
-                                                    Rp {inflatedPrice.toLocaleString()}
+                                                    Rp {inflatedPrice.toLocaleString("id-ID")}
                                                 </div>
 
                                                 {/* Discounted Price */}
                                                 <div className="text-3xl font-bold text-brand-primary">
-                                                    Rp {originalPrice.toLocaleString()}
+                                                    Rp {originalPrice.toLocaleString("id-ID")}
                                                 </div>
 
                                                 {/* Savings Info */}
                                                 <div className="text-sm text-brand-secondary font-semibold mt-1">
-                                                    Hemat Rp {discountAmount.toLocaleString()}!
+                                                    Hemat Rp {discountAmount.toLocaleString("id-ID")}!
                                                 </div>
 
                                                 <div className="text-sm text-muted-foreground mt-1">
-                                                    {t('properties.for')} {rateCalculation.nights} {t('booking.nights')} • Rp {Math.round(originalPrice / rateCalculation.nights).toLocaleString()}/{t('booking.night')}
+                                                    {t('properties.for')} {rateCalculation.nights} {t('booking.nights')} • Rp {Math.round(originalPrice / rateCalculation.nights).toLocaleString("id-ID")}/{t('booking.night')}
                                                 </div>
 
                                                 {/* Rate Countdown Timer */}

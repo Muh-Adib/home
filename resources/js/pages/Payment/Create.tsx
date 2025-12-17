@@ -9,9 +9,9 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { 
-    ArrowLeft, 
-    CreditCard, 
+import {
+    ArrowLeft,
+    CreditCard,
     Building2,
     MapPin,
     Calendar,
@@ -75,10 +75,10 @@ interface PaymentCreateProps {
     defaultExpiryHours: number;
 }
 
-export default function PaymentCreate({ 
-    booking, 
-    paymentMethods, 
-    pendingAmount, 
+export default function PaymentCreate({
+    booking,
+    paymentMethods,
+    pendingAmount,
     paidAmount,
     paymentType,
     nights,
@@ -133,7 +133,7 @@ export default function PaymentCreate({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (isSubmitting || processing) {
             return;
         }
@@ -149,7 +149,7 @@ export default function PaymentCreate({
         }
 
         if (data.amount > pendingAmount) {
-            alert(`Jumlah pembayaran tidak boleh melebihi sisa tagihan: Rp ${pendingAmount.toLocaleString()}`);
+            alert(`Jumlah pembayaran tidak boleh melebihi sisa tagihan: Rp ${pendingAmount.toLocaleString("id-ID")}`);
             return;
         }
 
@@ -199,7 +199,7 @@ export default function PaymentCreate({
     return (
         <GuestLayout>
             <Head title={`${t('payment.create_payment')} - ${booking.booking_number}`} />
-            
+
             <div className="space-y-6 p-4 md:p-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -211,7 +211,7 @@ export default function PaymentCreate({
                             Pembayaran untuk booking {booking.booking_number}
                         </p>
                     </div>
-                    
+
                     <Link href={route('my-bookings') || '/my-bookings'}>
                         <Button variant="outline" className="flex items-center gap-2">
                             <ArrowLeft className="h-4 w-4" />
@@ -265,8 +265,8 @@ export default function PaymentCreate({
                                         <Label className="text-base font-medium mb-4 block">
                                             Metode Pembayaran *
                                         </Label>
-                                        <RadioGroup 
-                                            value={selectedMethod?.id.toString()} 
+                                        <RadioGroup
+                                            value={selectedMethod?.id.toString()}
                                             onValueChange={(value) => {
                                                 const method = ipaymuMethods.find(m => m.id.toString() === value);
                                                 if (method) handleMethodSelect(method);
@@ -276,21 +276,20 @@ export default function PaymentCreate({
                                             {ipaymuMethods.map((method) => (
                                                 <div
                                                     key={method.id}
-                                                    className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover-lift ${
-                                                        selectedMethod?.id === method.id
+                                                    className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover-lift ${selectedMethod?.id === method.id
                                                             ? 'border-brand-primary bg-brand-primary-20 ring-2 ring-brand-primary-30 shadow-md'
                                                             : 'border-border hover:border-brand-primary/50 hover:bg-muted/50'
-                                                    }`}
+                                                        }`}
                                                     onClick={() => handleMethodSelect(method)}
                                                 >
                                                     <div className="flex items-start justify-between">
                                                         <div className="flex items-start gap-3 flex-1">
-                                                            <RadioGroupItem 
-                                                                value={method.id.toString()} 
+                                                            <RadioGroupItem
+                                                                value={method.id.toString()}
                                                                 id={`method-${method.id}`}
                                                                 className="mt-1"
                                                             />
-                                                            <label 
+                                                            <label
                                                                 htmlFor={`method-${method.id}`}
                                                                 className="flex-1 cursor-pointer"
                                                             >
@@ -307,15 +306,15 @@ export default function PaymentCreate({
                                                                         )}
                                                                     </div>
                                                                 </div>
-                                                                
+
                                                                 {/* Fee Information */}
                                                                 {method.fee_amount > 0 && (
                                                                     <div className="ml-9 mt-2 p-3 bg-muted/50 rounded-lg border border-border">
                                                                         <div className="flex justify-between items-center text-sm">
                                                                             <span className="text-muted-foreground">Biaya Transaksi:</span>
                                                                             <span className="font-medium text-orange-600">
-                                                                                {method.fee_type === 'percentage' 
-                                                                                    ? `${method.fee_percentage}%` 
+                                                                                {method.fee_type === 'percentage'
+                                                                                    ? `${method.fee_percentage}%`
                                                                                     : formatCurrency(method.fee_fixed || 0)}
                                                                             </span>
                                                                         </div>
@@ -408,7 +407,7 @@ export default function PaymentCreate({
                                     <Alert>
                                         <Shield className="h-4 w-4" />
                                         <AlertDescription>
-                                            Anda akan diarahkan ke halaman pembayaran iPaymu yang aman. 
+                                            Anda akan diarahkan ke halaman pembayaran iPaymu yang aman.
                                             Setelah pembayaran berhasil, Anda akan kembali ke halaman ini.
                                         </AlertDescription>
                                     </Alert>
@@ -457,9 +456,9 @@ export default function PaymentCreate({
                                             <span>{booking.property.address}</span>
                                         </div>
                                     </div>
-                                    
+
                                     <Separator />
-                                    
+
                                     {/* Booking Details */}
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2 text-sm">
@@ -483,9 +482,9 @@ export default function PaymentCreate({
                                             <span className="font-mono">{booking.booking_number}</span>
                                         </div>
                                     </div>
-                                    
+
                                     <Separator />
-                                    
+
                                     {/* Payment Summary */}
                                     <div className="space-y-2 pt-2">
                                         <div className="flex justify-between text-sm">

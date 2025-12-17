@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { initializeTheme } from './hooks/use-appearance';
+import GlobalPageLoader from '@/components/GlobalPageLoader';
 
 // Initialize theme
 initializeTheme();
@@ -42,16 +43,14 @@ createInertiaApp({
         hydrateRoot(el,
             <QueryClientProvider client={queryClient}>
                 <I18nextProvider i18n={i18n}>
-                    <App {...props} />
+                    <GlobalPageLoader>
+                        <App {...props} />
+                    </GlobalPageLoader>
                 </I18nextProvider>
             </QueryClientProvider>
         );
     },
-    progress: {
-        color: '#074baa',      // warna dasar (tetap diperlukan)
-        showSpinner: false,     // matikan spinner bawaan
-        includeCSS: true        // tetap gunakan struktur NProgress, tapi style kamu yang override
-    },
+    progress: false,
     defaults: {
         future: {
             useDataInertiaHeadAttribute: true,

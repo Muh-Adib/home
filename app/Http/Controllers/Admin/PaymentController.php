@@ -977,6 +977,12 @@ class PaymentController extends Controller
 
             DB::commit();
 
+            // Redirect based on context
+            if ($booking) {
+                return redirect()->route('admin.bookings.show', $booking->booking_number)
+                    ->with('success', 'Payment updated successfully.');
+            }
+
             return redirect()->back()
                 ->with('success', 'Payment updated successfully.');
 
@@ -1133,6 +1139,12 @@ class PaymentController extends Controller
             ]);
 
             DB::commit();
+
+            // Redirect based on context
+            if ($booking) {
+                return redirect()->route('admin.bookings.show', $booking->booking_number)
+                    ->with('success', 'Payment deleted successfully.');
+            }
 
             return redirect()->route('admin.payments.index')
                 ->with('success', 'Payment deleted successfully.');

@@ -120,7 +120,7 @@ export default function CreateAdditional({ booking, paymentMethods, users }: Cre
         if (data.payment_method_id) {
             const method = paymentMethods.find(m => m.id.toString() === data.payment_method_id.toString());
             setSelectedPaymentMethod(method || null);
-            
+
             if (method) {
                 setData(prev => ({
                     ...prev,
@@ -134,7 +134,7 @@ export default function CreateAdditional({ booking, paymentMethods, users }: Cre
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         const formData = new FormData();
         Object.keys(data).forEach(key => {
             if (key === 'attachment' && data.attachment) {
@@ -186,7 +186,7 @@ export default function CreateAdditional({ booking, paymentMethods, users }: Cre
             fully_paid: { label: 'Fully Paid', variant: 'default' as const },
             refunded: { label: 'Refunded', variant: 'outline' as const },
         };
-        
+
         const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: 'outline' as const };
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
@@ -199,7 +199,7 @@ export default function CreateAdditional({ booking, paymentMethods, users }: Cre
             checked_out: { label: 'Checked Out', variant: 'outline' as const },
             cancelled: { label: 'Cancelled', variant: 'destructive' as const },
         };
-        
+
         const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: 'outline' as const };
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
@@ -270,14 +270,14 @@ export default function CreateAdditional({ booking, paymentMethods, users }: Cre
                                         <Label className="text-sm font-medium text-muted-foreground">Check-in</Label>
                                         <p className="text-sm flex items-center gap-1">
                                             <Calendar className="h-3 w-3" />
-                                            {new Date(booking.check_in).toLocaleDateString()}
+                                            {new Date(booking.check_in).toLocaleDateString("id-ID")}
                                         </p>
                                     </div>
                                     <div>
                                         <Label className="text-sm font-medium text-muted-foreground">Check-out</Label>
                                         <p className="text-sm flex items-center gap-1">
                                             <Calendar className="h-3 w-3" />
-                                            {new Date(booking.check_out).toLocaleDateString()}
+                                            {new Date(booking.check_out).toLocaleDateString("id-ID")}
                                         </p>
                                     </div>
                                 </div>

@@ -17,16 +17,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import GuestLayout from '@/layouts/guest-layout';
 import SettingsLayout from '@/layouts/settings/layout';
-import { 
-    User, 
-    Mail, 
-    Shield, 
-    CheckCircle, 
-    AlertCircle, 
-    Save, 
-    Phone, 
-    MapPin, 
-    FileText, 
+import {
+    User,
+    Mail,
+    Shield,
+    CheckCircle,
+    AlertCircle,
+    Save,
+    Phone,
+    MapPin,
+    FileText,
     Camera,
     Globe,
     Cake,
@@ -119,21 +119,21 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
         e.preventDefault();
 
         const formData = new FormData();
-        
+
         // Add basic user data (required fields)
         formData.append('name', data.name);
         formData.append('email', data.email);
-        
+
         // Add phone (send even if empty to allow clearing)
         if (data.phone !== undefined) {
             formData.append('phone', data.phone || '');
         }
-        
+
         // Add avatar only if file is selected (new upload)
         if (data.avatar instanceof File) {
             formData.append('avatar', data.avatar);
         }
-        
+
         // Add profile data - send all fields even if empty to allow clearing
         if (data.address !== undefined) {
             formData.append('address', data.address || '');
@@ -241,7 +241,7 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                                             onChange={handleAvatarChange}
                                             className="hidden"
                                         />
-                                        
+
                                         <div className="text-center space-y-2">
                                             <h3 className="text-xl font-semibold text-brand-primary">{user.name}</h3>
                                             <p className="text-muted-foreground">{user.email}</p>
@@ -503,8 +503,8 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                             <CardContent className="pt-6">
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                     <div className="flex items-center gap-4">
-                                        <Button 
-                                            disabled={processing} 
+                                        <Button
+                                            disabled={processing}
                                             className="bg-gradient-to-r from-brand-primary to-brand-primary-dark hover:from-brand-primary-dark hover:to-brand-primary h-12 px-8"
                                         >
                                             {processing ? (
@@ -536,7 +536,7 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                                     </div>
 
                                     <div className="text-sm text-muted-foreground">
-                                        {t('settings.last_updated')}: {new Date(user.updated_at || user.created_at).toLocaleDateString()}
+                                        {t('settings.last_updated')}: {new Date(user.updated_at || user.created_at).toLocaleDateString("id-ID")}
                                     </div>
                                 </div>
                             </CardContent>
@@ -556,7 +556,7 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                                 <p className="text-muted-foreground">
                                     {t('settings.security_description')}
                                 </p>
-                                
+
                                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
                                     <div>
                                         <h4 className="font-medium">{t('settings.password')}</h4>
@@ -568,7 +568,7 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                                         </Button>
                                     </Link>
                                 </div>
-                                
+
                                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
                                     <div>
                                         <h4 className="font-medium">{t('settings.two_factor')}</h4>
@@ -580,7 +580,7 @@ export default function Profile({ mustVerifyEmail, status, user }: ProfileProps)
                         </CardContent>
                     </Card>
 
-                  
+
                 </div>
             </SettingsLayout>
         </GuestLayout>

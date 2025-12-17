@@ -464,8 +464,13 @@ Route::middleware(['auth', 'role:super_admin,property_manager,housekeeping,front
     Route::delete('items/{item}', [$controller, 'itemsDestroy'])->name('items.destroy');
     Route::get('purchases', [$controller, 'purchasesIndex'])->name('purchases.index');
     Route::post('purchases', [$controller, 'purchasesStore'])->name('purchases.store');
+    Route::put('purchases/{purchase}', [$controller, 'purchasesUpdate'])->name('purchases.update');
+    Route::delete('purchases/{purchase}', [$controller, 'purchasesDestroy'])->name('purchases.destroy');
+
     Route::get('usages', [$controller, 'usagesIndex'])->name('usages.index');
     Route::post('usages', [$controller, 'usagesStore'])->name('usages.store');
+    Route::put('usages/{usage}', [$controller, 'usagesUpdate'])->name('usages.update');
+    Route::delete('usages/{usage}', [$controller, 'usagesDestroy'])->name('usages.destroy');
 });
 
 /*

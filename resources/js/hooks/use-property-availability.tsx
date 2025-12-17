@@ -108,7 +108,7 @@ export function usePropertyAvailability(
 
         const checkIn = from.toISOString().split('T')[0];
         const checkOut = to.toISOString().split('T')[0];
-        
+
         // Check if any dates in range are booked
         const dateRange: string[] = [];
         const current = new Date(from);
@@ -117,7 +117,7 @@ export function usePropertyAvailability(
             current.setDate(current.getDate() + 1);
         }
 
-        const hasBookedDates = dateRange.some(date => 
+        const hasBookedDates = dateRange.some(date =>
             availabilityData.booked_dates.includes(date)
         );
 
@@ -154,7 +154,7 @@ export function usePropertyAvailability(
         // Calculate subtotal
         const subtotal = baseAmount + weekendPremium + seasonalPremium + extraBedAmount + cleaningFee;
 
-                    // Calculate tax (0% - tax removed)
+        // Calculate tax (0% - tax removed)
         const taxAmount = 0; // Tax removed - set to 0
 
         // Calculate total
@@ -170,8 +170,8 @@ export function usePropertyAvailability(
             tax_amount: taxAmount,
             total_amount: totalAmount,
             formatted: {
-                total_amount: 'Rp ' + totalAmount.toLocaleString(),
-                per_night: 'Rp ' + Math.round(totalAmount / nights).toLocaleString()
+                total_amount: 'Rp ' + totalAmount.toLocaleString("id-ID"),
+                per_night: 'Rp ' + Math.round(totalAmount / nights).toLocaleString("id-ID")
             }
         };
 
@@ -203,7 +203,7 @@ export function usePropertyAvailability(
     const isDateInBookedPeriod = useCallback((date: Date) => {
         if (!availabilityData?.booked_periods) return false;
         const dateStr = date.toISOString().split('T')[0];
-        
+
         return availabilityData.booked_periods.some(([start, end]) => {
             return dateStr >= start && dateStr < end;
         });
@@ -217,12 +217,12 @@ export function usePropertyAvailability(
 
     const getNextAvailableDate = useCallback(() => {
         if (!availabilityData?.rates) return null;
-        
+
         const today = new Date();
         const availableDates = Object.keys(availabilityData.rates)
             .filter(date => date >= today.toISOString().split('T')[0])
             .sort();
-        
+
         return availableDates[0] ? new Date(availableDates[0]) : null;
     }, [availabilityData]);
 
@@ -231,22 +231,22 @@ export function usePropertyAvailability(
         availabilityData,
         selectedRange,
         currentRateCalculation,
-        
+
         // Loading states
         isLoading,
         error: error as Error | null,
-        
+
         // Actions
         setSelectedRange,
         refetch,
-        
+
         // Helper functions
         isDateBooked,
         isDateInBookedPeriod,
         getDailyRate,
         getNextAvailableDate,
         calculateRateForRange,
-        
+
         // Computed values
         isRangeValid: !!(selectedRange.from && selectedRange.to && currentRateCalculation),
         bookedDates: availabilityData?.booked_dates || [],
