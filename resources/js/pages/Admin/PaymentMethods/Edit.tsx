@@ -48,8 +48,8 @@ interface PaymentMethodEditProps {
 
 export default function PaymentMethodEdit({ paymentMethod }: PaymentMethodEditProps) {
     const [dynamicInstructions, setDynamicInstructions] = useState<string[]>(
-        paymentMethod.instructions && paymentMethod.instructions.length > 0 
-            ? paymentMethod.instructions 
+        paymentMethod.instructions && paymentMethod.instructions.length > 0
+            ? paymentMethod.instructions
             : ['']
     );
 
@@ -82,14 +82,14 @@ export default function PaymentMethodEdit({ paymentMethod }: PaymentMethodEditPr
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-    
+
         setData("instructions",
             dynamicInstructions.filter(i => i.trim() !== "")
         );
-    
+
         patch(`/admin/payment-methods/${paymentMethod.id}`);
     };
-    
+
     const addInstruction = () => {
         setDynamicInstructions([...dynamicInstructions, '']);
     };
@@ -197,9 +197,9 @@ export default function PaymentMethodEdit({ paymentMethod }: PaymentMethodEditPr
                             {paymentMethod.qr_code && (
                                 <div className="mt-2">
                                     <p className="text-sm text-gray-600">Current QR Code:</p>
-                                    <img 
-                                        src={`/storage/${paymentMethod.qr_code}`} 
-                                        alt="Current QR Code" 
+                                    <img
+                                        src={`/storage/${paymentMethod.qr_code}`}
+                                        alt="Current QR Code"
                                         className="w-32 h-32 object-cover border rounded-md mt-1"
                                     />
                                 </div>
@@ -386,7 +386,7 @@ export default function PaymentMethodEdit({ paymentMethod }: PaymentMethodEditPr
                                     <p className="text-sm text-gray-600">
                                         Add step-by-step instructions for customers on how to make payments using this method.
                                     </p>
-                                    
+
                                     {dynamicInstructions.map((instruction, index) => (
                                         <div key={index} className="flex gap-2">
                                             <div className="flex-1">
@@ -408,7 +408,7 @@ export default function PaymentMethodEdit({ paymentMethod }: PaymentMethodEditPr
                                             )}
                                         </div>
                                     ))}
-                                    
+
                                     <Button
                                         type="button"
                                         variant="outline"
@@ -466,15 +466,15 @@ export default function PaymentMethodEdit({ paymentMethod }: PaymentMethodEditPr
                             <Card>
                                 <CardContent className="pt-6">
                                     <div className="space-y-3">
-                                        <Button 
-                                            type="submit" 
+                                        <Button
+                                            type="submit"
                                             className="w-full"
                                             disabled={processing}
                                         >
                                             <Save className="h-4 w-4 mr-2" />
                                             {processing ? 'Updating...' : 'Update Payment Method'}
                                         </Button>
-                                        
+
                                         <Link href="/admin/payment-methods" className="block">
                                             <Button variant="outline" className="w-full">
                                                 Cancel
@@ -488,8 +488,8 @@ export default function PaymentMethodEdit({ paymentMethod }: PaymentMethodEditPr
                             <Card>
                                 <CardContent className="pt-6">
                                     <div className="text-sm text-gray-600 space-y-2">
-                                        <p><strong>Created:</strong> {new Date(paymentMethod.created_at).toLocaleDateString()}</p>
-                                        <p><strong>Last Updated:</strong> {new Date(paymentMethod.updated_at).toLocaleDateString()}</p>
+                                        <p><strong>Created:</strong> {new Date(paymentMethod.created_at).toLocaleDateString("id-ID")}</p>
+                                        <p><strong>Last Updated:</strong> {new Date(paymentMethod.updated_at).toLocaleDateString("id-ID")}</p>
                                         <p><strong>ID:</strong> {paymentMethod.id}</p>
                                     </div>
                                 </CardContent>

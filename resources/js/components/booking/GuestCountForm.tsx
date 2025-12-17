@@ -39,7 +39,7 @@ export default function GuestCountForm({
     const guestCountError = totalGuests > capacityMax;
 
     return (
-       <div className="space-y-4 w-full max-w-3xl mx-auto">
+        <div className="space-y-4 w-full max-w-3xl mx-auto">
             <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary" />
                 <h3 className="text-lg font-semibold text-foreground">{t('booking.guest_count')}</h3>
@@ -170,7 +170,7 @@ export default function GuestCountForm({
                         <Bed className="h-4 w-4 text-primary" />
                         <span className="font-medium text-foreground">{t('booking.extra_beds_needed')}: {extraBeds}</span>
                         <span className="text-muted-foreground">
-                            (+Rp {(extraBeds * extraBedRate).toLocaleString()}/night)
+                            (+Rp {(extraBeds * extraBedRate).toLocaleString("id-ID")}/night)
                         </span>
                     </div>
                 )}

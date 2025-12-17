@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Booking;
+use App\Models\BookingDailyRevenue;
 use App\Models\Payment;
 use App\Models\Property;
 use App\Models\User;
@@ -169,11 +170,19 @@ class DashboardController extends Controller
         $lastMonth = Carbon::now()->subMonth()->startOfMonth();
         $lastMonthEnd = Carbon::now()->subMonth()->endOfMonth();
 
-        // Filter by user role
+        // Filter by user role for base queries
+        $dailyRevenueQuery = BookingDailyRevenue::query()
+            ->whereHas('booking', function ($q) {
+                $q->whereIn('booking_status', ['confirmed', 'checked_in', 'completed']);
+            });
+
         $bookingQuery = Booking::query();
         $paymentQuery = Payment::query();
         
         if ($user->role === 'property_owner') {
+            $dailyRevenueQuery->whereHas('property', function ($q) use ($user) {
+                $q->where('owner_id', $user->id);
+            });
             $bookingQuery->whereHas('property', function ($q) use ($user) {
                 $q->where('owner_id', $user->id);
             });
@@ -183,9 +192,9 @@ class DashboardController extends Controller
         }
 
         // This month's data
-        $thisMonthRevenue = (clone $paymentQuery)
-            ->where('payment_status', 'verified')
-            ->whereBetween('verified_at', [$thisMonth, now()])
+        // Revenue: Based on Daily Rates (Accrual)
+        $thisMonthRevenue = (clone $dailyRevenueQuery)
+            ->whereBetween('tanggal', [$thisMonth, now()])
             ->sum('amount');
 
         $thisMonthBookings = (clone $bookingQuery)
@@ -195,9 +204,8 @@ class DashboardController extends Controller
         $thisMonthOccupancy = $this->calculateOccupancyRate($user, $thisMonth, now());
 
         // Last month's data for comparison
-        $lastMonthRevenue = (clone $paymentQuery)
-            ->where('payment_status', 'verified')
-            ->whereBetween('verified_at', [$lastMonth, $lastMonthEnd])
+        $lastMonthRevenue = (clone $dailyRevenueQuery)
+            ->whereBetween('tanggal', [$lastMonth, $lastMonthEnd])
             ->sum('amount');
 
         $lastMonthBookings = (clone $bookingQuery)
@@ -340,6 +348,7 @@ class DashboardController extends Controller
                     'description' => "Property: {$booking->property->name}",
                     'time' => $booking->property->check_in_time ?? '14:00',
                     'booking_id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
                     'status' => $booking->booking_status,
                 ];
             });
@@ -360,6 +369,7 @@ class DashboardController extends Controller
                     'description' => "Property: {$booking->property->name}",
                     'time' => $booking->property->check_out_time ?? '12:00',
                     'booking_id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
                     'status' => $booking->booking_status,
                 ];
             });
@@ -381,6 +391,7 @@ class DashboardController extends Controller
                     'description' => "Guest: {$booking->guest_name} - Property: {$booking->property->name}",
                     'time' => null,
                     'booking_id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
                     'status' => 'pending',
                 ];
             });
@@ -438,16 +449,18 @@ class DashboardController extends Controller
             $monthStart = $current->copy()->startOfMonth();
             $monthEnd = $current->copy()->endOfMonth();
 
-            $paymentQuery = Payment::where('payment_status', 'verified')
-                ->whereBetween('verified_at', [$monthStart, $monthEnd]);
+            $revenueQuery = BookingDailyRevenue::whereBetween('tanggal', [$monthStart, $monthEnd])
+                ->whereHas('booking', function ($q) {
+                    $q->whereIn('booking_status', ['confirmed', 'checked_in', 'completed']);
+                });
 
             if ($user->role === 'property_owner') {
-                $paymentQuery->whereHas('booking.property', function ($q) use ($user) {
+                $revenueQuery->whereHas('property', function ($q) use ($user) {
                     $q->where('owner_id', $user->id);
                 });
             }
 
-            $revenue = $paymentQuery->sum('amount');
+            $revenue = $revenueQuery->sum('amount');
 
             $months[] = [
                 'month' => $current->format('M Y'),

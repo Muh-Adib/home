@@ -145,7 +145,7 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
         if (paymentMethodType === 'manual' && data.payment_method_id) {
             const method = paymentMethods.find(m => m.id.toString() === data.payment_method_id.toString());
             setSelectedPaymentMethod(method || null);
-            
+
             if (method) {
                 setData(prev => ({
                     ...prev,
@@ -198,7 +198,7 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
             fully_paid: { label: 'Fully Paid', variant: 'default' as const },
             refunded: { label: 'Refunded', variant: 'outline' as const },
         };
-        
+
         const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: 'outline' as const };
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
@@ -211,7 +211,7 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
             checked_out: { label: 'Checked Out', variant: 'outline' as const },
             cancelled: { label: 'Cancelled', variant: 'destructive' as const },
         };
-        
+
         const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: 'outline' as const };
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
@@ -274,14 +274,14 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                         <Label className="text-sm font-medium text-muted-foreground">Check-in</Label>
                                         <p className="text-sm flex items-center gap-1">
                                             <Calendar className="h-3 w-3" />
-                                            {new Date(booking.check_in).toLocaleDateString()}
+                                            {new Date(booking.check_in).toLocaleDateString("id-ID")}
                                         </p>
                                     </div>
                                     <div>
                                         <Label className="text-sm font-medium text-muted-foreground">Check-out</Label>
                                         <p className="text-sm flex items-center gap-1">
                                             <Calendar className="h-3 w-3" />
-                                            {new Date(booking.check_out).toLocaleDateString()}
+                                            {new Date(booking.check_out).toLocaleDateString("id-ID")}
                                         </p>
                                     </div>
                                 </div>
@@ -334,8 +334,8 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                     {/* Payment Method Type Selection */}
                                     <div className="space-y-4">
                                         <Label className="text-base font-semibold">Metode Pembayaran *</Label>
-                                        <RadioGroup 
-                                            value={paymentMethodType} 
+                                        <RadioGroup
+                                            value={paymentMethodType}
                                             onValueChange={(value: 'ipaymu' | 'manual') => {
                                                 setPaymentMethodType(value);
                                                 setData('payment_method_type', value);
@@ -346,11 +346,10 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                             className="grid grid-cols-2 gap-4"
                                         >
                                             <div
-                                                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover-lift ${
-                                                    paymentMethodType === 'ipaymu'
+                                                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover-lift ${paymentMethodType === 'ipaymu'
                                                         ? 'border-brand-primary bg-brand-primary-20 ring-2 ring-brand-primary-30 shadow-md'
                                                         : 'border-border hover:border-brand-primary/50'
-                                                }`}
+                                                    }`}
                                                 onClick={() => {
                                                     setPaymentMethodType('ipaymu');
                                                     setData('payment_method_type', 'ipaymu');
@@ -372,11 +371,10 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                             </div>
 
                                             <div
-                                                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover-lift ${
-                                                    paymentMethodType === 'manual'
+                                                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover-lift ${paymentMethodType === 'manual'
                                                         ? 'border-brand-primary bg-brand-primary-20 ring-2 ring-brand-primary-30 shadow-md'
                                                         : 'border-border hover:border-brand-primary/50'
-                                                }`}
+                                                    }`}
                                                 onClick={() => {
                                                     setPaymentMethodType('manual');
                                                     setData('payment_method_type', 'manual');
@@ -453,7 +451,7 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                             <Alert>
                                                 <Info className="h-4 w-4" />
                                                 <AlertDescription>
-                                                    Link pembayaran akan dibuat dan dapat dikirim ke guest. 
+                                                    Link pembayaran akan dibuat dan dapat dikirim ke guest.
                                                     Pembayaran akan diverifikasi otomatis setelah berhasil.
                                                 </AlertDescription>
                                             </Alert>
@@ -702,7 +700,7 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                             <Switch
                                                 id="auto_confirm"
                                                 checked={data.auto_confirm}
-                                                onCheckedChange={(checked:boolean) => setData('auto_confirm', checked)}
+                                                onCheckedChange={(checked: boolean) => setData('auto_confirm', checked)}
                                             />
                                             <Label htmlFor="auto_confirm">
                                                 Auto-confirm booking when fully paid
@@ -717,8 +715,8 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                                 Cancel
                                             </Button>
                                         </Link>
-                                        <Button 
-                                            type="submit" 
+                                        <Button
+                                            type="submit"
                                             disabled={processing}
                                             className="bg-brand-primary hover:bg-brand-primary-dark"
                                         >

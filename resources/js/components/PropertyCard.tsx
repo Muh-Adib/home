@@ -57,8 +57,8 @@ interface PropertyCardProps {
  * - Full TypeScript support
  * - Accessible design with proper alt texts
  */
-export default function PropertyCard({ 
-    property, 
+export default function PropertyCard({
+    property,
     viewMode = 'grid',
     buildPropertyUrl,
     showFullDescription = false,
@@ -68,13 +68,13 @@ export default function PropertyCard({
     customButton,
     className,
     classNames,
-    ...rest 
+    ...rest
 }: PropertyCardProps) {
     const { t } = useTranslation();
-    
+
     // Get featured image with fallback
     const featuredImage = property.media?.[0];
-    
+
     // Default URL builder if none provided
     const getPropertyUrl = (prop: Property) => {
         if (buildPropertyUrl) {
@@ -82,19 +82,19 @@ export default function PropertyCard({
         }
         return `/properties/${prop.slug}`;
     };
-    
+
     // Common image component
     const PropertyImage = () => (
         <div className={cn(
             "bg-slate-200 relative overflow-hidden",
-            viewMode === 'list' 
-                ? "md:w-80 aspect-video md:aspect-square" 
+            viewMode === 'list'
+                ? "md:w-80 aspect-video md:aspect-square"
                 : "aspect-video",
             classNames?.image
         )}>
             {featuredImage ? (
-                <img 
-                    src={featuredImage.url} 
+                <img
+                    src={featuredImage.url}
                     alt={featuredImage.alt_text || property.name}
                     className={cn(
                         "w-full h-full object-cover",
@@ -107,7 +107,7 @@ export default function PropertyCard({
                     <Building2 className="h-12 w-12 text-blue-400" />
                 </div>
             )}
-            
+
             {/* Featured Badge */}
             {property.is_featured && (
                 <Badge className="absolute top-3 left-3 bg-yellow-500 text-white">
@@ -115,7 +115,7 @@ export default function PropertyCard({
                     {t('properties.featured')}
                 </Badge>
             )}
-            
+
             {/* Seasonal Rate Badge */}
             {property.has_seasonal_rate && (
                 <Badge className="absolute top-3 right-3 bg-green-500 text-white">
@@ -123,7 +123,7 @@ export default function PropertyCard({
                     {t('properties.special_offer')}
                 </Badge>
             )}
-            
+
             {/* Heart Button for Grid View */}
             {viewMode === 'grid' && (
                 <Button
@@ -136,7 +136,7 @@ export default function PropertyCard({
             )}
         </div>
     );
-    
+
     // Property features component
     const PropertyFeatures = ({ detailed = false }) => (
         !hideFeatures && (
@@ -160,7 +160,7 @@ export default function PropertyCard({
             </div>
         )
     );
-    
+
     // Amenities preview component - Updated to use AmenityItem
     const AmenitiesPreview = ({ showNames = false }) => (
         property.amenities && property.amenities.length > 0 && (
@@ -170,7 +170,7 @@ export default function PropertyCard({
                 classNames?.amenities
             )}>
                 {property.amenities.slice(0, maxAmenities).map((amenity: Amenity, index: number) => (
-                    <AmenityItem 
+                    <AmenityItem
                         key={`amenity-${amenity.id || amenity.name}-${index}`}
                         amenity={amenity}
                         variant="badge"
@@ -178,9 +178,9 @@ export default function PropertyCard({
                     />
                 ))}
                 {property.amenities.length > maxAmenities && (
-                    <Badge 
+                    <Badge
                         key={`more-amenities-${property.id}`}
-                        variant="outline" 
+                        variant="outline"
                         className="text-xs bg-gray-50"
                     >
                         +{property.amenities.length - maxAmenities} {t('common.more')}
@@ -189,17 +189,17 @@ export default function PropertyCard({
             </div>
         )
     );
-    
+
     // Price display component with fake discount
     const PriceDisplay = ({ size = 'base' }) => {
         if (hidePrice) return null;
-        
+
         // Calculate fake discount
         const currentRate = property.current_rate || property.base_rate || 0;
         const inflatedRate = Math.round(currentRate * 1.17); // Naikkan 17%
         const discountAmount = inflatedRate - currentRate;
         const discountPercentage = Math.round((discountAmount / inflatedRate) * 100);
-        
+
         return (
             <div className={cn(classNames?.price)}>
                 <div className="flex items-baseline">
@@ -208,29 +208,29 @@ export default function PropertyCard({
                         "text-gray-500 line-through mr-2",
                         size === 'large' ? "text-lg" : "text-base"
                     )}>
-                        Rp {inflatedRate.toLocaleString()}
+                        Rp {inflatedRate.toLocaleString("id-ID")}
                     </span>
-                    
+
                     {/* Discounted Price */}
                     <span className={cn(
                         "font-bold text-red-600",
                         size === 'large' ? "text-2xl" : "text-xl"
                     )}>
-                        Rp {currentRate.toLocaleString()}
+                        Rp {currentRate.toLocaleString("id-ID")}
                     </span>
                     <span className="text-gray-600 text-sm ml-1">/{t('common.per_night')}</span>
                 </div>
-                
+
                 {/* Discount Badge */}
                 <div className="flex items-center mt-1">
                     <Badge variant="destructive" className="text-xs mr-2">
                         -{discountPercentage}%
                     </Badge>
                     <span className="text-xs text-green-600 font-semibold">
-                        Hemat Rp {discountAmount.toLocaleString()}
+                        Hemat Rp {discountAmount.toLocaleString("id-ID")}
                     </span>
                 </div>
-                
+
                 {property.has_seasonal_rate && property.seasonal_rate_info && (
                     <div className="text-xs text-green-600 mt-1 flex items-center">
                         <Sparkles className="h-3 w-3 mr-1" />
@@ -240,18 +240,18 @@ export default function PropertyCard({
             </div>
         );
     };
-    
+
     // Action button component
     const ActionButton = () => {
         if (customButton) {
             return <>{customButton}</>;
         }
-        
+
         // For grid view, we don't need Link since the entire card is clickable
         if (viewMode === 'grid') {
             return (
-                <Button 
-                    size={viewMode === 'grid' ? "sm" : "default"} 
+                <Button
+                    size={viewMode === 'grid' ? "sm" : "default"}
                     className={cn(
                         "bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700",
                         classNames?.button
@@ -264,8 +264,8 @@ export default function PropertyCard({
         // For list view, we need the Link since the card is not clickable
         return (
             <Link href={getPropertyUrl(property)}>
-                <Button 
-                    size={viewMode === 'list' ? "default" : "sm"} 
+                <Button
+                    size={viewMode === 'list' ? "default" : "sm"}
                     className={cn(
                         "bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700",
                         classNames?.button
@@ -276,7 +276,7 @@ export default function PropertyCard({
             </Link>
         );
     };
-    
+
     // List View Layout
     if (viewMode === 'list') {
         return (
@@ -287,7 +287,7 @@ export default function PropertyCard({
             )} {...rest}>
                 <div className="flex flex-col md:flex-row">
                     <PropertyImage />
-                    
+
                     <div className={cn("flex-1 p-6", classNames?.content)}>
                         <div className="flex justify-between items-start mb-3">
                             <div className="flex-1">
@@ -302,12 +302,12 @@ export default function PropertyCard({
                                     <span className="line-clamp-1 text-sm">{property.address}</span>
                                 </div>
                             </div>
-                            
+
                             <Button variant="ghost" size="sm" className="flex-shrink-0 ml-2">
                                 <Heart className="h-4 w-4" />
                             </Button>
                         </div>
-                        
+
                         <p className={cn(
                             "text-gray-600 text-sm mb-4",
                             showFullDescription ? "" : "line-clamp-2",
@@ -315,10 +315,10 @@ export default function PropertyCard({
                         )}>
                             {property.description}
                         </p>
-                        
+
                         <PropertyFeatures detailed={true} />
                         <AmenitiesPreview showNames={true} />
-                        
+
                         <div className="flex items-center justify-between">
                             <PriceDisplay size="large" />
                             <ActionButton />
@@ -328,54 +328,54 @@ export default function PropertyCard({
             </Card>
         );
     }
-    
+
     // Grid View Layout (default)
     return (
         <Link href={getPropertyUrl(property)}>
-        <Card className={cn(
-            "overflow-hidden hover:shadow-xl transition-all duration-300 group border-0 shadow-md",
-            classNames?.card,
-            className
-        )} {...rest}>
-            <PropertyImage />
-            
-            <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                    <CardTitle className={cn(
-                        "text-lg line-clamp-1 flex-1",
-                        classNames?.title
+            <Card className={cn(
+                "overflow-hidden hover:shadow-xl transition-all duration-300 group border-0 shadow-md",
+                classNames?.card,
+                className
+            )} {...rest}>
+                <PropertyImage />
+
+                <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                        <CardTitle className={cn(
+                            "text-lg line-clamp-1 flex-1",
+                            classNames?.title
+                        )}>
+                            {property.name}
+                        </CardTitle>
+                    </div>
+                    <div className="flex items-center text-gray-600">
+                        <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                        <span className="line-clamp-1 text-sm">{property.address}</span>
+                    </div>
+                </CardHeader>
+
+                <CardContent className={cn("space-y-4", classNames?.content)}>
+                    <p className={cn(
+                        "text-gray-600 text-sm",
+                        showFullDescription ? "" : "line-clamp-2",
+                        classNames?.description
                     )}>
-                        {property.name}
-                    </CardTitle>
-                </div>
-                <div className="flex items-center text-gray-600">
-                    <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
-                    <span className="line-clamp-1 text-sm">{property.address}</span>
-                </div>
-            </CardHeader>
-            
-            <CardContent className={cn("space-y-4", classNames?.content)}>
-                <p className={cn(
-                    "text-gray-600 text-sm",
-                    showFullDescription ? "" : "line-clamp-2",
-                    classNames?.description
-                )}>
-                    {property.description}
-                </p>
-                
-                <PropertyFeatures />
-                <AmenitiesPreview />
-                
-                <div className="flex flex-col gap-2 pt-2 items-center">
-                    <div className="w-full">
-                        <PriceDisplay />
+                        {property.description}
+                    </p>
+
+                    <PropertyFeatures />
+                    <AmenitiesPreview />
+
+                    <div className="flex flex-col gap-2 pt-2 items-center">
+                        <div className="w-full">
+                            <PriceDisplay />
+                        </div>
+                        <div className="w-full">
+                            <ActionButton />
+                        </div>
                     </div>
-                    <div className="w-full">
-                        <ActionButton />
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
+                </CardContent>
+            </Card>
         </Link>
     );
 }

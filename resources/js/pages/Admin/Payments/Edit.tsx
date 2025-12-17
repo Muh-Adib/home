@@ -287,8 +287,8 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                                 <p><strong>Property:</strong> {payment.booking.property.name}</p>
                                             </div>
                                             <div>
-                                                <p><strong>Check-in:</strong> {new Date(payment.booking.check_in).toLocaleDateString()}</p>
-                                                <p><strong>Check-out:</strong> {new Date(payment.booking.check_out).toLocaleDateString()}</p>
+                                                <p><strong>Check-in:</strong> {new Date(payment.booking.check_in).toLocaleDateString("id-ID")}</p>
+                                                <p><strong>Check-out:</strong> {new Date(payment.booking.check_out).toLocaleDateString("id-ID")}</p>
                                                 <p><strong>Status:</strong> <span className="capitalize">{payment.booking.payment_status.replace('_', ' ')}</span></p>
                                                 <p><strong>Total Amount:</strong> {formatCurrency(payment.booking.total_amount)}</p>
                                             </div>
@@ -574,10 +574,10 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                 <CardContent className="space-y-3">
                                     <div className="text-sm space-y-2">
                                         <p><strong>Payment Number:</strong> {payment.payment_number}</p>
-                                        <p><strong>Created:</strong> {new Date(payment.created_at).toLocaleDateString()}</p>
-                                        <p><strong>Last Updated:</strong> {new Date(payment.updated_at).toLocaleDateString()}</p>
+                                        <p><strong>Created:</strong> {new Date(payment.created_at).toLocaleDateString("id-ID")}</p>
+                                        <p><strong>Last Updated:</strong> {new Date(payment.updated_at).toLocaleDateString("id-ID")}</p>
                                         {payment.verified_at && (
-                                            <p><strong>Verified:</strong> {new Date(payment.verified_at).toLocaleDateString()}</p>
+                                            <p><strong>Verified:</strong> {new Date(payment.verified_at).toLocaleDateString("id-ID")}</p>
                                         )}
                                     </div>
                                 </CardContent>

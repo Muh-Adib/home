@@ -156,8 +156,8 @@ export default function PaymentSettings({ settings, paymentMethods }: PaymentSet
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <Label htmlFor="default_dp_percentage">Persentase DP Default *</Label>
-                                    <Select 
-                                        value={data.default_dp_percentage.toString()} 
+                                    <Select
+                                        value={data.default_dp_percentage.toString()}
                                         onValueChange={(value) => setData('default_dp_percentage', parseInt(value))}
                                     >
                                         <SelectTrigger className={errors.default_dp_percentage ? 'border-red-500' : ''}>
@@ -245,8 +245,8 @@ export default function PaymentSettings({ settings, paymentMethods }: PaymentSet
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <Label htmlFor="payment_deadline_hours">Deadline Pembayaran *</Label>
-                                    <Select 
-                                        value={data.payment_deadline_hours.toString()} 
+                                    <Select
+                                        value={data.payment_deadline_hours.toString()}
                                         onValueChange={(value) => setData('payment_deadline_hours', parseInt(value))}
                                     >
                                         <SelectTrigger className={errors.payment_deadline_hours ? 'border-red-500' : ''}>
@@ -270,8 +270,8 @@ export default function PaymentSettings({ settings, paymentMethods }: PaymentSet
 
                                 <div>
                                     <Label htmlFor="auto_cancel_hours">Auto-Cancel Setelah *</Label>
-                                    <Select 
-                                        value={data.auto_cancel_hours.toString()} 
+                                    <Select
+                                        value={data.auto_cancel_hours.toString()}
                                         onValueChange={(value) => setData('auto_cancel_hours', parseInt(value))}
                                     >
                                         <SelectTrigger className={errors.auto_cancel_hours ? 'border-red-500' : ''}>
@@ -343,19 +343,17 @@ export default function PaymentSettings({ settings, paymentMethods }: PaymentSet
                                     {paymentMethods.map((method) => (
                                         <div
                                             key={method.id}
-                                            className={`p-3 rounded-lg border-2 ${
-                                                method.is_active 
-                                                    ? 'border-green-200 bg-green-50' 
+                                            className={`p-3 rounded-lg border-2 ${method.is_active
+                                                    ? 'border-green-200 bg-green-50'
                                                     : 'border-gray-200 bg-gray-50'
-                                            }`}
+                                                }`}
                                         >
                                             <div className="flex items-center justify-between mb-2">
                                                 <Badge className={getPaymentMethodTypeColor(method.type)}>
                                                     {method.type.replace('_', ' ')}
                                                 </Badge>
-                                                <div className={`w-2 h-2 rounded-full ${
-                                                    method.is_active ? 'bg-green-500' : 'bg-gray-400'
-                                                }`} />
+                                                <div className={`w-2 h-2 rounded-full ${method.is_active ? 'bg-green-500' : 'bg-gray-400'
+                                                    }`} />
                                             </div>
                                             <p className="text-sm font-medium">{method.name}</p>
                                             <p className="text-xs text-gray-500">Urutan: {method.display_order}</p>
@@ -436,11 +434,11 @@ export default function PaymentSettings({ settings, paymentMethods }: PaymentSet
                                     <br />
                                     • Jumlah dasar: Rp 1.000.000
                                     <br />
-                                    • Biaya layanan ({data.service_fee_percentage}%): Rp {(1000000 * data.service_fee_percentage / 100).toLocaleString()}
+                                    • Biaya layanan ({data.service_fee_percentage}%): Rp {(1000000 * data.service_fee_percentage / 100).toLocaleString("id-ID")}
                                     <br />
-                                    • Pajak ({data.tax_percentage}%): Rp {(1000000 * data.tax_percentage / 100).toLocaleString()}
+                                    • Pajak ({data.tax_percentage}%): Rp {(1000000 * data.tax_percentage / 100).toLocaleString("id-ID")}
                                     <br />
-                                    • <strong>Total: Rp {(1000000 * (1 + (data.service_fee_percentage + data.tax_percentage) / 100)).toLocaleString()}</strong>
+                                    • <strong>Total: Rp {(1000000 * (1 + (data.service_fee_percentage + data.tax_percentage) / 100)).toLocaleString("id-ID")}</strong>
                                 </AlertDescription>
                             </Alert>
                         </CardContent>
@@ -450,8 +448,8 @@ export default function PaymentSettings({ settings, paymentMethods }: PaymentSet
                     <Alert>
                         <AlertTriangle className="h-4 w-4" />
                         <AlertDescription>
-                            Perubahan pada payment settings akan berpengaruh pada booking baru secara langsung. 
-                            Booking yang sudah ada akan tetap menggunakan ketentuan pembayaran aslinya. 
+                            Perubahan pada payment settings akan berpengaruh pada booking baru secara langsung.
+                            Booking yang sudah ada akan tetap menggunakan ketentuan pembayaran aslinya.
                             Harap tinjau semua pengaturan dengan teliti sebelum menyimpan.
                         </AlertDescription>
                     </Alert>
