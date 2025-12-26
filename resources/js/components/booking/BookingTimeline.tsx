@@ -88,7 +88,7 @@ export default function BookingTimeline({
             };
             fetchInitialData();
         } else {
-             setLocalBookings(initialBookings);
+            setLocalBookings(initialBookings);
         }
     }, [autoFetch, initialBookings]);
     const [extraDays, setExtraDays] = useState(0);
@@ -187,7 +187,7 @@ export default function BookingTimeline({
             if (response.data && response.data.bookings) {
                 // Backend now returns flat bookings array
                 const newBookings = response.data.bookings as Booking[];
-                
+
                 setLocalBookings(prev => {
                     // Merge and deduplicate
                     const existingIds = new Set(prev.map(b => b.id));
@@ -202,6 +202,32 @@ export default function BookingTimeline({
         }
     };
 
+    // Scroll to today on mount
+    useEffect(() => {
+        // Run only once on mount to set initial scroll position
+        if (scrollContainerRef.current && timelineDates.length > 0) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // Get start date from timeline (should match currentStartDate)
+            const start = timelineDates[0];
+
+            // Check if today is after start date
+            if (today > start) {
+                // Calculate difference in days
+                const diffTime = today.getTime() - start.getTime();
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+                // Scroll to today position
+                if (diffDays > 0) {
+                    // We scroll exactly to today so it appears as the first column
+                    const scrollPos = diffDays * cellWidth;
+                    scrollContainerRef.current.scrollLeft = scrollPos;
+                }
+            }
+        }
+    }, []); // Empty dependency array prevents re-scrolling on updates
+
     // Initial fetch if required (e.g. when used in Index page with paginated data)
     /* 
        Note: We add a new prop `fetchInitialData` to control this.
@@ -215,7 +241,7 @@ export default function BookingTimeline({
        If the user wants the Index page to work better, they should likely modify Index.tsx to pass correct data
        OR we can add a fetch-on-mount behavior here.
     */
-   
+
     /* For the Timeline on Index page issue: 
        The component receives paginated data (e.g. 15 items).
        A quick fix is to fetch the full range on mount if we detect we are in a 'limited' context?

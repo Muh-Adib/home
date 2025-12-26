@@ -462,13 +462,14 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                     <div className="space-y-4">
                         <BookingTimeline
                             properties={properties}
-                            bookings={bookings} // Direct array access
-                            days={30}
+                            bookings={bookings} // Direct array access from controller (already filtered)
+                            startDate={new Date(filters.date_from || new Date())} // Use filter date or today
+                            days={(Math.ceil((new Date(filters.date_to || '').getTime() - new Date(filters.date_from || '').getTime()) / (1000 * 60 * 60 * 24)) + 1) || 90} // Calculate days range (inclusive)
                             canVerify={canVerify}
                             canCancel={canCancel}
                             canCheckIn={canCheckIn}
                             onRefresh={handleRefresh}
-                            autoFetch={true}
+                            autoFetch={false} // Disable auto-fetch to use controller data
                         />
                     </div>
                 ) : viewMode === 'card' ? (

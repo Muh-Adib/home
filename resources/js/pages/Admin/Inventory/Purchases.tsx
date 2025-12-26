@@ -47,12 +47,19 @@ export default function Purchases({ items, properties, purchases, filters }: any
   const { data, setData, post, put, delete: destroy, processing, reset, errors, clearErrors } = useForm({
     inventory_item_id: '',
     property_id: '',
-    quantity: '',
-    unit_cost: '',
-    movement_date: new Date().toISOString().slice(0, 10),
+    quantity: '0',
+    unit_cost: '0',
+    movement_date: '', // Initialize empty to avoid hydration mismatch
     vendor_name: '',
     notes: '',
   });
+
+  // Set default date on client side only
+  useEffect(() => {
+    if (!data.movement_date) {
+      setData('movement_date', new Date().toISOString().slice(0, 10));
+    }
+  }, []);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,7 +140,7 @@ export default function Purchases({ items, properties, purchases, filters }: any
                 <div className="space-y-2">
                   <Label htmlFor="item">Item</Label>
                   <Select
-                    value={data.inventory_item_id?.toString()}
+                    value={data.inventory_item_id?.toString() || ''}
                     onValueChange={(val) => setData('inventory_item_id', val)}
                     disabled={!!editItem}
                   >
@@ -151,12 +158,12 @@ export default function Purchases({ items, properties, purchases, filters }: any
 
                 <div className="space-y-2">
                   <Label htmlFor="property">Property (Opsional)</Label>
-                  <Select value={data.property_id?.toString()} onValueChange={(val) => setData('property_id', val)}>
+                  <Select value={data.property_id?.toString() || 'global'} onValueChange={(val) => setData('property_id', val === 'global' ? '' : val)}>
                     <SelectTrigger id="property">
                       <SelectValue placeholder="Global (Office/Gudang Utama)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Global (Office/Gudang Utama)</SelectItem>
+                      <SelectItem value="global">Global (Office/Gudang Utama)</SelectItem>
                       {properties?.map((p: any) => (
                         <SelectItem key={p.id} value={p.id?.toString()}>{p.name}</SelectItem>
                       ))}
@@ -171,7 +178,7 @@ export default function Purchases({ items, properties, purchases, filters }: any
                     <Input
                       id="qty"
                       type="number"
-                      step="0.01"
+                      step="1"
                       value={data.quantity}
                       onChange={(e) => setData('quantity', e.target.value)}
                       className={cn(errors.quantity && "border-red-500")}
@@ -183,6 +190,7 @@ export default function Purchases({ items, properties, purchases, filters }: any
                     <Input
                       id="cost"
                       type="number"
+                      step="100"
                       value={data.unit_cost}
                       onChange={(e) => setData('unit_cost', e.target.value)}
                       className={cn(errors.unit_cost && "border-red-500")}
@@ -269,7 +277,7 @@ export default function Purchases({ items, properties, purchases, filters }: any
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="font-semibold text-base">{m.item?.name}</div>
-                        <div className="text-sm text-muted-foreground mt-1">
+                        <div className="text-sm text-muted-foreground mt-1" suppressHydrationWarning>
                           {new Date(m.movement_date).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}
                         </div>
                       </div>
@@ -296,7 +304,7 @@ export default function Purchases({ items, properties, purchases, filters }: any
                       </div>
                       <div>
                         <div className="text-muted-foreground text-xs text-right">Total Biaya</div>
-                        <div className="font-medium text-right text-green-600">{rp(Number(m.total_cost))}</div>
+                        <div className="font-medium text-right text-green-600" suppressHydrationWarning>{rp(Number(m.total_cost))}</div>
                       </div>
                     </div>
                     {m.vendor_name && (
@@ -330,7 +338,7 @@ export default function Purchases({ items, properties, purchases, filters }: any
                     ) : (
                       purchases?.data?.map((m: any) => (
                         <TableRow key={m.id}>
-                          <TableCell className="whitespace-nowrap">
+                          <TableCell className="whitespace-nowrap" suppressHydrationWarning>
                             {new Date(m.movement_date).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}
                           </TableCell>
                           <TableCell>
@@ -338,8 +346,8 @@ export default function Purchases({ items, properties, purchases, filters }: any
                             {m.notes && <div className="text-xs text-muted-foreground truncate max-w-[150px]">{m.notes}</div>}
                           </TableCell>
                           <TableCell>{Number(m.quantity)} <span className="text-muted-foreground text-xs">{m.item?.unit}</span></TableCell>
-                          <TableCell>{rp(Number(m.unit_cost))}</TableCell>
-                          <TableCell className="text-right font-medium text-green-600">
+                          <TableCell suppressHydrationWarning>{rp(Number(m.unit_cost))}</TableCell>
+                          <TableCell className="text-right font-medium text-green-600" suppressHydrationWarning>
                             {rp(Number(m.total_cost))}
                           </TableCell>
                           <TableCell>{m.vendor_name || '-'}</TableCell>
@@ -383,7 +391,9 @@ export default function Purchases({ items, properties, purchases, filters }: any
                       className={cn(!l.url && "opacity-50 pointer-events-none")}
                     >
                       {l.url ? (
-                        <Link href={l.url} dangerouslySetInnerHTML={{ __html: l.label }} />
+                        <Link href={l.url}>
+                          <span dangerouslySetInnerHTML={{ __html: l.label }} />
+                        </Link>
                       ) : (
                         <span dangerouslySetInnerHTML={{ __html: l.label }} />
                       )}

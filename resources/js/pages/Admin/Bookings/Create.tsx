@@ -417,16 +417,14 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
 
         try {
             // Use API helper with CSRF token handling
-            let effectiveGuestCount = totalGuests;
-            if (currentProperty.capacity < currentProperty.capacity_max) {
-                effectiveGuestCount = totalGuests - Number(data.guest_children) + Math.floor(Number(data.guest_children) / 2);
-            }
-
+            // NOTE: totalGuests already includes the logic for children (0.5) if capacity < max
+            // So we don't need to recalculate effectiveGuestCount here
+            
             const result = await bookingsService.calculateRate({
                 property_id: currentProperty.id,
                 check_in: checkIn,
                 check_out: checkOut,
-                guest_count: effectiveGuestCount,
+                guest_count: totalGuests, // Use totalGuests directly
             });
             console.log('Rate calculation response (calculateRateFromBackendData):', result);
 

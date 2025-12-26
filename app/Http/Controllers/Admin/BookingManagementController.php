@@ -223,6 +223,9 @@ class BookingManagementController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // Increase execution time for processing heavy request (images, emails, etc)
+        set_time_limit(300);
+
         // Base validation rules
         $rules = [
             'property_id' => 'required|exists:properties,id',
@@ -563,13 +566,15 @@ class BookingManagementController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             \Log::error('Manual booking creation validation failed: ' . $e->getMessage());
             return back()->withErrors($e->errors());
-        } catch (\Exception $e) {
-            \Log::error('Manual booking creation failed: ' . $e->getMessage(), [
+        } catch (\Throwable $e) {
+            // Catch both Exception and Error (PHP 7+) to handle Fatal Warnings too
+            \Log::error('Manual booking creation failed (FATAL/Exception): ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
+                'request_data' => $request->except(['payment_proof']),
             ]);
-            return back()->withErrors(['error' => 'Failed to create booking: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Failed to create booking (System Error): ' . $e->getMessage()]);
         }
     }
     
@@ -1155,14 +1160,23 @@ class BookingManagementController extends Controller
         }
 
         // Date filter (Overlap Logic)
-        if ($request->filled('date_from')) {
+        $dateFrom = $request->get('date_from');
+        $dateTo = $request->get('date_to');
+
+        // Set default dates if not provided (T-30 to T+60)
+        if (empty($dateFrom) && empty($dateTo)) {
+            $dateFrom = now()->subDays(30)->toDateString();
+            $dateTo = now()->addDays(60)->toDateString();
+        }
+
+        if ($dateFrom) {
             // Include bookings that end on or after date_from (Active during period)
-            $query->where('check_out', '>=', $request->get('date_from'));
+            $query->where('check_out', '>=', $dateFrom);
         }
         
-        if ($request->filled('date_to')) {
+        if ($dateTo) {
             // Include bookings that start on or before date_to (Active during period)
-            $query->where('check_in', '<=', $request->get('date_to'));
+            $query->where('check_in', '<=', $dateTo);
         }
 
         $bookings = $query->orderBy('check_in', 'desc')->get();
@@ -1192,8 +1206,9 @@ class BookingManagementController extends Controller
                 'status' => $request->get('status'),
                 'payment_status' => $request->get('payment_status'),
                 'property_id' => $request->get('property_id'),
-                'date_from' => $request->get('date_from'),
-                'date_to' => $request->get('date_to'),
+                'property_id' => $request->get('property_id'),
+                'date_from' => $dateFrom, // Return effective date from
+                'date_to' => $dateTo,     // Return effective date to
             ]
         ]);
     }

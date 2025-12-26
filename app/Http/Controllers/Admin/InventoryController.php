@@ -255,7 +255,7 @@ class InventoryController extends Controller
             (int)$data['inventory_item_id'],
             (float)$data['quantity'],
             (float)$data['unit_cost'],
-            null, // property_id null: expense global
+            $data['property_id'] ?? null,
             $data['movement_date'],
             $request->user()->id,
             $data['notes'] ?? null,
