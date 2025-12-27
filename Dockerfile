@@ -15,7 +15,7 @@ COPY package*.json ./
 # Install Node dependencies dengan error handling
 RUN echo "=== Installing Node dependencies ===" && \
     npm cache clean --force && \
-    npm ci --legacy-peer-deps --verbose || npm install --legacy-peer-deps --verbose
+    npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
 # Build inputs
 COPY tsconfig.json ./
@@ -32,7 +32,7 @@ RUN npm run build && \
     ls -la public/build/
 
 # Production PHP stage dengan Nixpacks compatibility
-FROM php:8.3-fpm-alpine AS php-stage
+FROM php:8.4-fpm-alpine AS php-stage
 
 # Install system dependencies
 RUN apk add --no-cache \
