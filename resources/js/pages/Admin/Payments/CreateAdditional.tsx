@@ -424,7 +424,7 @@ export default function CreateAdditional({ booking, paymentMethods, users }: Cre
                                         <Input
                                             id="amount"
                                             type="number"
-                                            step="0.01"
+                                            step="1"
                                             min="1"
                                             value={data.amount}
                                             onChange={(e) => setData('amount', e.target.value)}

@@ -20,7 +20,8 @@ import {
     Target,
     CalendarDays
 } from 'lucide-react';
-import { DateRange, formatDateRange } from '@/components/ui/date-range';
+import { DatePicker } from '@/components/ui/date-picker';
+import { format } from 'date-fns';
 import { type BreadcrumbItem } from '@/types';
 
 interface Property {
@@ -72,7 +73,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
         name: '',
         start_date: '',
         end_date: '',
-        rate_type: 'percentage',
+        rate_type: 'fixed',
         rate_value: 0,
         extra_bed_rate: null,
         min_stay_nights: 1,
@@ -287,7 +288,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                                     <div>
                                                         <p className="text-sm font-medium text-foreground">Period</p>
                                                         <p className="text-sm text-muted-foreground">
-                                                            {formatDateRange(rate.start_date, rate.end_date)}
+                                                            {formatDate(rate.start_date)} - {formatDate(rate.end_date)}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -389,33 +390,35 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                     {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
                                 </div>
 
-                                <div className="md:col-span-2">
-                                    <Label>Period (Start - End Date) *</Label>
-                                    <DateRange
-                                        startDate={data.start_date}
-                                        endDate={data.end_date}
-                                        onDateChange={(startDate, endDate) => {
-                                            setData(prev => ({
-                                                ...prev,
-                                                start_date: startDate,
-                                                end_date: endDate
-                                            }));
-                                        }}
-                                        minDate={new Date(
-                                            new Date().setMonth(new Date().getMonth() - 1)
-                                        ).toISOString().split('T')[0]}
-                                        size="md"
-                                        showNights={true}
-                                        startLabel="Start Date"
-                                        endLabel="End Date"
-                                        className={errors.start_date || errors.end_date ? 'border-destructive' : ''}
-                                        adminMode={true}
-                                    />
-                                    {(errors.start_date || errors.end_date) && (
-                                        <p className="text-sm text-destructive mt-1">
-                                            {errors.start_date || errors.end_date}
-                                        </p>
-                                    )}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <Label>Start Date *</Label>
+                                        <DatePicker
+                                            date={data.start_date ? new Date(data.start_date) : undefined}
+                                            onDateChange={(date) => {
+                                                setData('start_date', date ? format(date, 'yyyy-MM-dd') : '');
+                                            }}
+                                            placeholder="Select start date"
+                                            className={errors.start_date ? 'border-destructive' : ''}
+                                        />
+                                        {errors.start_date && (
+                                            <p className="text-sm text-destructive mt-1">{errors.start_date}</p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <Label>End Date *</Label>
+                                        <DatePicker
+                                            date={data.end_date ? new Date(data.end_date) : undefined}
+                                            onDateChange={(date) => {
+                                                setData('end_date', date ? format(date, 'yyyy-MM-dd') : '');
+                                            }}
+                                            placeholder="Select end date"
+                                            className={errors.end_date ? 'border-destructive' : ''}
+                                        />
+                                        {errors.end_date && (
+                                            <p className="text-sm text-destructive mt-1">{errors.end_date}</p>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div>
@@ -437,7 +440,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                     <Input
                                         id="rate_value"
                                         type="number"
-                                        step="0.01"
+                                        step="50000"
                                         value={data.rate_value}
                                         onChange={(e) => setData('rate_value', parseFloat(e.target.value) || 0)}
                                         className={errors.rate_value ? 'border-destructive' : ''}
@@ -450,7 +453,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                     <Input
                                         id="extra_bed_rate"
                                         type="number"
-                                        step="0.01"
+                                        step="5000"
                                         value={data.extra_bed_rate ?? ''}
                                         onChange={(e) => setData('extra_bed_rate', e.target.value ? parseFloat(e.target.value) : null)}
                                         placeholder="Kosongkan untuk menggunakan tarif property"

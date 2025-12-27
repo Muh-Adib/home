@@ -344,8 +344,8 @@ export default function PaymentSettings({ settings, paymentMethods }: PaymentSet
                                         <div
                                             key={method.id}
                                             className={`p-3 rounded-lg border-2 ${method.is_active
-                                                    ? 'border-green-200 bg-green-50'
-                                                    : 'border-gray-200 bg-gray-50'
+                                                ? 'border-green-200 bg-green-50'
+                                                : 'border-gray-200 bg-gray-50'
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between mb-2">
@@ -383,7 +383,7 @@ export default function PaymentSettings({ settings, paymentMethods }: PaymentSet
                                         <Input
                                             id="service_fee_percentage"
                                             type="number"
-                                            step="0.01"
+                                            step="1"
                                             min="0"
                                             max="100"
                                             value={data.service_fee_percentage}
@@ -407,7 +407,7 @@ export default function PaymentSettings({ settings, paymentMethods }: PaymentSet
                                         <Input
                                             id="tax_percentage"
                                             type="number"
-                                            step="0.01"
+                                            step="1"
                                             min="0"
                                             max="100"
                                             value={data.tax_percentage}

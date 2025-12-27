@@ -157,7 +157,7 @@ export default function EditExtraService({ service, serviceTypes }: EditExtraSer
                                         <Input
                                             id="unit_price"
                                             type="number"
-                                            step="0.01"
+                                            step="1"
                                             min="0"
                                             value={data.unit_price}
                                             onChange={(e) =>

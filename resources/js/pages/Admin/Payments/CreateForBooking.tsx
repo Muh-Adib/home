@@ -541,7 +541,7 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                             <Input
                                                 id="amount"
                                                 type="number"
-                                                step="0.01"
+                                                step="1"
                                                 min="1"
                                                 max={booking.remaining_amount}
                                                 value={data.amount}

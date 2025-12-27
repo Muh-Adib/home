@@ -217,7 +217,7 @@ export default function Items({ items }: ItemsProps) {
                   <Label>Min. Stok Alert</Label>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="1"
                     value={data.min_stock}
                     onChange={(e) => setData('min_stock', e.target.value)}
                     className="bg-background/50"

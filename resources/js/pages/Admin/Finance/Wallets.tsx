@@ -105,7 +105,7 @@ export default function Wallets({ wallets, properties, paymentMethods, walletCat
                   </div>
                   <div>
                     <Label>Saldo Tabungan Bulanan (opsional)</Label>
-                    <Input type="number" step="0.01" min="0" value={data.savings_monthly_amount} onChange={(e) => setData('savings_monthly_amount', e.target.value)} placeholder="Jumlah tabungan bulanan" />
+                    <Input type="number" step="1" min="0" value={data.savings_monthly_amount} onChange={(e) => setData('savings_monthly_amount', e.target.value)} placeholder="Jumlah tabungan bulanan" />
                   </div>
                 </>
               )}
@@ -117,7 +117,7 @@ export default function Wallets({ wallets, properties, paymentMethods, walletCat
                   </div>
                   <div>
                     <Label>Target Tanggal (opsional)</Label>
-                    <Input type="date" value={data.target_date} onChange={(e) => setData('target_date', e.target.value)} min={new Date().toISOString().slice(0,10)} />
+                    <Input type="date" value={data.target_date} onChange={(e) => setData('target_date', e.target.value)} min={new Date().toISOString().slice(0, 10)} />
                   </div>
                 </>
               )}
@@ -151,7 +151,7 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
     from_wallet_id: '',
     to_wallet_id: '',
     amount: '',
-    transaction_date: new Date().toISOString().slice(0,10),
+    transaction_date: new Date().toISOString().slice(0, 10),
     description: '',
   });
 
@@ -171,9 +171,9 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <Label>Dari Wallet <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full border rounded h-9 px-2 bg-background" 
-            value={data.from_wallet_id} 
+          <select
+            className="w-full border rounded h-9 px-2 bg-background"
+            value={data.from_wallet_id}
             onChange={(e) => setData('from_wallet_id', e.target.value)}
             required
           >
@@ -196,9 +196,9 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
 
         <div>
           <Label>Ke Wallet <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full border rounded h-9 px-2 bg-background" 
-            value={data.to_wallet_id} 
+          <select
+            className="w-full border rounded h-9 px-2 bg-background"
+            value={data.to_wallet_id}
             onChange={(e) => setData('to_wallet_id', e.target.value)}
             required
           >
@@ -223,14 +223,14 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <Label>Nominal <span className="text-red-500">*</span></Label>
-          <Input 
-            type="number" 
-            step="0.01" 
-            min="0.01" 
-            placeholder="0" 
-            value={data.amount} 
-            onChange={(e) => setData('amount', e.target.value)} 
-            required 
+          <Input
+            type="number"
+            step="1"
+            min="0.01"
+            placeholder="0"
+            value={data.amount}
+            onChange={(e) => setData('amount', e.target.value)}
+            required
           />
           {errors.amount && (
             <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
@@ -239,11 +239,11 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
 
         <div>
           <Label>Tanggal <span className="text-red-500">*</span></Label>
-          <Input 
-            type="date" 
-            value={data.transaction_date} 
-            onChange={(e) => setData('transaction_date', e.target.value)} 
-            required 
+          <Input
+            type="date"
+            value={data.transaction_date}
+            onChange={(e) => setData('transaction_date', e.target.value)}
+            required
           />
           {errors.transaction_date && (
             <p className="text-xs text-red-500 mt-1">{errors.transaction_date}</p>
@@ -253,10 +253,10 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
 
       <div>
         <Label>Keterangan (opsional)</Label>
-        <Input 
-          placeholder="Deskripsi transfer" 
-          value={data.description} 
-          onChange={(e) => setData('description', e.target.value)} 
+        <Input
+          placeholder="Deskripsi transfer"
+          value={data.description}
+          onChange={(e) => setData('description', e.target.value)}
         />
         {errors.description && (
           <p className="text-xs text-red-500 mt-1">{errors.description}</p>
@@ -282,7 +282,7 @@ function InlineTransactionForm({ walletId, walletCategories }: { walletId: numbe
     direction: 'in' as 'in' | 'out',
     category: 'other',
     amount: '',
-    transaction_date: new Date().toISOString().slice(0,10),
+    transaction_date: new Date().toISOString().slice(0, 10),
     description: '',
   });
 
@@ -314,7 +314,7 @@ function InlineTransactionForm({ walletId, walletCategories }: { walletId: numbe
         </div>
         <div>
           <Label className="text-xs">Nominal <span className="text-red-500">*</span></Label>
-          <Input type="number" step="0.01" min="0.01" placeholder="0" value={data.amount} onChange={(e) => setData('amount', e.target.value)} required />
+          <Input type="number" step="1" min="0.01" placeholder="0" value={data.amount} onChange={(e) => setData('amount', e.target.value)} required />
         </div>
       </div>
       <div className="grid gap-2 md:grid-cols-2">
@@ -366,7 +366,7 @@ function WalletCard({ wallet: w, wallets, paymentMethods, walletCategories }: an
             <span className="text-sm">{progress.toFixed(1)}%</span>
           </div>
           <div className="w-full bg-background rounded-full h-2 mb-1">
-            <div 
+            <div
               className={`h-2 rounded-full ${isTargetAchieved ? 'bg-green-500' : 'bg-blue-500'}`}
               style={{ width: `${Math.min(100, progress)}%` }}
             />
@@ -382,9 +382,9 @@ function WalletCard({ wallet: w, wallets, paymentMethods, walletCategories }: an
 
       {/* Print/Report Button */}
       <div className="mb-3">
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => window.open(`/admin/finance/wallets/${w.id}/report`, '_blank')}
         >
           Cetak Laporan

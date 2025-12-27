@@ -383,7 +383,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                             <Input
                                                 id="amount"
                                                 type="number"
-                                                step="0.01"
+                                                step="1"
                                                 min="0"
                                                 value={data.amount}
                                                 onChange={(e) => setData('amount', e.target.value)}

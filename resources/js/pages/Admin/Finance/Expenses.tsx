@@ -33,7 +33,7 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
     expense_type: 'fixed',
     description: '',
     amount: '',
-    expense_date: new Date().toISOString().slice(0,10),
+    expense_date: new Date().toISOString().slice(0, 10),
     vendor_name: '',
     receipt_number: '',
     payment_method: '',
@@ -82,7 +82,7 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
   // Group expenses by property
   const groupedExpenses = useMemo(() => {
     const grouped: Record<string | 'general', any[]> = {};
-    
+
     expenses?.data?.forEach((expense: any) => {
       const key = expense.property_id ? `property_${expense.property_id}` : 'general';
       if (!grouped[key]) {
@@ -113,7 +113,7 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
   }, [viewMode, expenses, groupedExpenses]);
 
   return (
-    <AdminLayout title="Pengeluaran" breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Keuangan', href: '/admin/finance' }, { title: 'Pengeluaran' }] }>
+    <AdminLayout title="Pengeluaran" breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Keuangan', href: '/admin/finance' }, { title: 'Pengeluaran' }]}>
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-1">
           <CardHeader>
@@ -137,8 +137,8 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
                 <div>
                   <Label>Kategori</Label>
                   <select className="w-full border rounded h-9 px-2 bg-background" value={data.expense_category} onChange={(e) => {
-                  setData('expense_category', e.target.value);
-                }}>
+                    setData('expense_category', e.target.value);
+                  }}>
                     {Object.entries(expenseCategories || {}).map(([key, label]: any) => (
                       <option key={key} value={key}>{label}</option>
                     ))}
@@ -147,8 +147,8 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
                 <div>
                   <Label>Tipe</Label>
                   <select className="w-full border rounded h-9 px-2 bg-background" value={data.expense_type} onChange={(e) => {
-                  setData('expense_type', e.target.value);
-                }}>
+                    setData('expense_type', e.target.value);
+                  }}>
                     {Object.entries(expenseTypes || {}).map(([key, label]: any) => (
                       <option key={key} value={key}>{label}</option>
                     ))}
@@ -164,7 +164,7 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label>Nominal <span className="text-red-500">*</span></Label>
-                  <Input type="number" step="0.01" min="0" value={data.amount} onChange={(e) => {
+                  <Input type="number" step="1" min="0" value={data.amount} onChange={(e) => {
                     setData('amount', e.target.value);
                   }} required />
                 </div>
@@ -246,27 +246,24 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
               <button
                 type="button"
                 onClick={() => setViewMode('all')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  viewMode === 'all' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${viewMode === 'all' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
               >
                 Semua
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('by_property')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  viewMode === 'by_property' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${viewMode === 'by_property' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
               >
                 Per Property
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('general')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  viewMode === 'general' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${viewMode === 'general' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
               >
                 Perusahaan (Umum)
               </button>
@@ -297,8 +294,8 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
               </select>
               <div className="md:col-span-6 flex gap-2">
                 <Button type="submit" variant="secondary">Filter</Button>
-                <Button 
-                  type="button" 
+                <Button
+                  type="button"
                   variant={filter.is_inventory === 'true' ? 'default' : 'outline'}
                   onClick={() => {
                     setFilter('is_inventory', filter.is_inventory === 'true' ? '' : 'true');
@@ -328,38 +325,38 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
                           <h3 className="font-semibold">{property?.name || `Property ID: ${propertyId}`}</h3>
                           <span className="text-sm font-medium">{formatRupiah(total)}</span>
                         </div>
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="py-2 pr-4">Tanggal</th>
-                    <th className="py-2 pr-4">Kategori</th>
-                    <th className="py-2 pr-4">Tipe</th>
-                    <th className="py-2 pr-4">Deskripsi</th>
-                    <th className="py-2 pr-4 text-right">Nominal</th>
-                  </tr>
-                </thead>
-                <tbody>
+                        <table className="min-w-full text-sm">
+                          <thead>
+                            <tr className="text-left border-b">
+                              <th className="py-2 pr-4">Tanggal</th>
+                              <th className="py-2 pr-4">Kategori</th>
+                              <th className="py-2 pr-4">Tipe</th>
+                              <th className="py-2 pr-4">Deskripsi</th>
+                              <th className="py-2 pr-4 text-right">Nominal</th>
+                            </tr>
+                          </thead>
+                          <tbody>
                             {expensesList?.map((row: any) => (
-                    <tr key={row.id} className="border-b hover:bg-muted/50">
-                      <td className="py-2 pr-4">{row.expense_date}</td>
-                      <td className="py-2 pr-4 uppercase">{row.expense_category}</td>
-                      <td className="py-2 pr-4">
-                        <div className="flex items-center gap-2">
-                          <span className="capitalize">{row.expense_type}</span>
-                          {isFromInventory(row) && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" title="Dari Inventory">
-                              <Package className="w-3 h-3" />
-                              Inventory
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2 pr-4">{row.description || '-'}</td>
-                      <td className="py-2 pr-0 text-right font-medium">{formatRupiah(Number(row.amount))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                              <tr key={row.id} className="border-b hover:bg-muted/50">
+                                <td className="py-2 pr-4">{row.expense_date}</td>
+                                <td className="py-2 pr-4 uppercase">{row.expense_category}</td>
+                                <td className="py-2 pr-4">
+                                  <div className="flex items-center gap-2">
+                                    <span className="capitalize">{row.expense_type}</span>
+                                    {isFromInventory(row) && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" title="Dari Inventory">
+                                        <Package className="w-3 h-3" />
+                                        Inventory
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-2 pr-4">{row.description || '-'}</td>
+                                <td className="py-2 pr-0 text-right font-medium">{formatRupiah(Number(row.amount))}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     );
                   })}
@@ -417,7 +414,7 @@ export default function Expenses({ expenses, expenseCategories, expenseTypes, pr
               <div>Menampilkan {expenses?.from || 0}-{expenses?.to || 0} dari {expenses?.total || 0}</div>
               <div className="flex gap-2">
                 {expenses?.links?.map((l: any) => (
-                  <Link key={l.label} href={l.url || '#'} className={`px-2 py-1 rounded ${l.active ? 'bg-accent' : 'hover:bg-accent/60'} ${!l.url ? 'pointer-events-none opacity-50' : ''}`}>{l.label.replace('&laquo;','«').replace('&raquo;','»')}</Link>
+                  <Link key={l.label} href={l.url || '#'} className={`px-2 py-1 rounded ${l.active ? 'bg-accent' : 'hover:bg-accent/60'} ${!l.url ? 'pointer-events-none opacity-50' : ''}`}>{l.label.replace('&laquo;', '«').replace('&raquo;', '»')}</Link>
                 ))}
               </div>
             </div>

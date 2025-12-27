@@ -1485,7 +1485,7 @@ export default function CreateBooking({ properties, selectedProperty, prefilledD
                                                             id="payment_amount"
                                                             type="number"
                                                             min="0"
-                                                            step="0.01"
+                                                            step="500"
                                                             value={paymentData.amount}
                                                             onChange={(e) => {
                                                                 const amount = parseFloat(e.target.value) || 0;

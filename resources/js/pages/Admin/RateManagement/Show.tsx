@@ -7,9 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-    CalendarDays, 
-    DollarSign, 
+import {
+    CalendarDays,
+    DollarSign,
     Edit,
     Save,
     Plus,
@@ -125,7 +125,7 @@ export default function RateManagementShow({ property, seasonalRates, rateCalend
 
     const handleUpdateSeasonalRate = useCallback(async () => {
         if (!editingSeasonalRate) return;
-        
+
         try {
             await router.put(route('admin.rate-management.seasonal-rates.update', editingSeasonalRate.id), newSeasonalRate, {
                 onSuccess: () => {
@@ -417,9 +417,9 @@ export default function RateManagementShow({ property, seasonalRates, rateCalend
                                             <div>
                                                 <Label htmlFor="new_rate_value">
                                                     Rate Value {
-                                                        newSeasonalRate.rate_type === 'percentage' ? '(%)' : 
-                                                        newSeasonalRate.rate_type === 'multiplier' ? '(multiplier)' : 
-                                                        '(IDR)'
+                                                        newSeasonalRate.rate_type === 'percentage' ? '(%)' :
+                                                            newSeasonalRate.rate_type === 'multiplier' ? '(multiplier)' :
+                                                                '(IDR)'
                                                     }
                                                 </Label>
                                                 <Input
@@ -438,7 +438,7 @@ export default function RateManagementShow({ property, seasonalRates, rateCalend
                                                 <Input
                                                     id="new_extra_bed_rate"
                                                     type="number"
-                                                    step="0.01"
+                                                    step="1"
                                                     value={newSeasonalRate.extra_bed_rate ?? ''}
                                                     onChange={(e) => setNewSeasonalRate(prev => ({ ...prev, extra_bed_rate: e.target.value ? parseFloat(e.target.value) : null }))}
                                                     className="mt-1"
@@ -530,8 +530,8 @@ export default function RateManagementShow({ property, seasonalRates, rateCalend
                                                             {rate.is_active ? 'Active' : 'Inactive'}
                                                         </Badge>
                                                         <Badge variant="outline">
-                                                            {rate.rate_type === 'percentage' ? 'Percentage' : 
-                                                             rate.rate_type === 'multiplier' ? 'Multiplier' : 'Fixed'}
+                                                            {rate.rate_type === 'percentage' ? 'Percentage' :
+                                                                rate.rate_type === 'multiplier' ? 'Multiplier' : 'Fixed'}
                                                         </Badge>
                                                         {rate.priority && (
                                                             <Badge variant="secondary" className="text-xs">
@@ -539,7 +539,7 @@ export default function RateManagementShow({ property, seasonalRates, rateCalend
                                                             </Badge>
                                                         )}
                                                     </div>
-                                                    
+
                                                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 text-sm">
                                                         <div>
                                                             <span className="text-muted-foreground">Period:</span>
@@ -573,17 +573,17 @@ export default function RateManagementShow({ property, seasonalRates, rateCalend
                                                         </div>
                                                     )}
                                                 </div>
-                                                
+
                                                 <div className="flex items-center space-x-2 ml-4">
-                                                    <Button 
-                                                        variant="outline" 
+                                                    <Button
+                                                        variant="outline"
                                                         size="sm"
                                                         onClick={() => handleEditSeasonalRate(rate)}
                                                     >
                                                         <Edit className="w-4 h-4" />
                                                     </Button>
-                                                    <Button 
-                                                        variant="outline" 
+                                                    <Button
+                                                        variant="outline"
                                                         size="sm"
                                                         onClick={() => handleDeleteSeasonalRate(rate.id)}
                                                         className="text-destructive hover:text-destructive/80"

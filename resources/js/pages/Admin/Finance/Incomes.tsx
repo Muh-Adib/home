@@ -30,7 +30,7 @@ export default function Incomes({ incomes, properties, wallets }: any) {
     source: 'extra',
     description: '',
     amount: '',
-    income_date: new Date().toISOString().slice(0,10),
+    income_date: new Date().toISOString().slice(0, 10),
     wallet_id: null,
     notes: '',
   });
@@ -61,7 +61,7 @@ export default function Incomes({ incomes, properties, wallets }: any) {
   };
 
   return (
-    <AdminLayout title="Pendapatan" breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Keuangan', href: '/admin/finance' }, { title: 'Pendapatan' }] }>
+    <AdminLayout title="Pendapatan" breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Keuangan', href: '/admin/finance' }, { title: 'Pendapatan' }]}>
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-1">
           <CardHeader>
@@ -93,7 +93,7 @@ export default function Incomes({ incomes, properties, wallets }: any) {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label>Nominal <span className="text-red-500">*</span></Label>
-                  <Input type="number" step="0.01" min="0" value={data.amount} onChange={(e) => setData('amount', e.target.value)} required />
+                  <Input type="number" step="1" min="0" value={data.amount} onChange={(e) => setData('amount', e.target.value)} required />
                 </div>
                 <div>
                   <Label>Tanggal <span className="text-red-500">*</span></Label>
@@ -160,7 +160,7 @@ export default function Incomes({ incomes, properties, wallets }: any) {
               <div>Menampilkan {incomes?.from || 0}-{incomes?.to || 0} dari {incomes?.total || 0}</div>
               <div className="flex gap-2">
                 {incomes?.links?.map((l: any) => (
-                  <Link key={l.label} href={l.url || '#'} className={`px-2 py-1 rounded ${l.active ? 'bg-accent' : 'hover:bg-accent/60'} ${!l.url ? 'pointer-events-none opacity-50' : ''}`}>{l.label.replace('&laquo;','«').replace('&raquo;','»')}</Link>
+                  <Link key={l.label} href={l.url || '#'} className={`px-2 py-1 rounded ${l.active ? 'bg-accent' : 'hover:bg-accent/60'} ${!l.url ? 'pointer-events-none opacity-50' : ''}`}>{l.label.replace('&laquo;', '«').replace('&raquo;', '»')}</Link>
                 ))}
               </div>
             </div>

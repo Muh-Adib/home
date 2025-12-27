@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { type Booking, type PaymentMethod, type BreadcrumbItem, type PageProps } from '@/types';
-import { 
+import {
     ArrowLeft,
     CreditCard,
     Building2,
@@ -69,13 +69,13 @@ export default function ManualPayment({ booking, bookings, paymentMethods }: Man
         post('/admin/payments/manual-payment');
     };
 
-    const formatCurrency = (value: number) => 
+    const formatCurrency = (value: number) =>
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Manual Payment Entry" />
-            
+
             <div className="space-y-6 p-4 md:p-6">
                 <div className="flex items-center justify-between">
                     <div>
@@ -163,7 +163,7 @@ export default function ManualPayment({ booking, bookings, paymentMethods }: Man
                                             <Input
                                                 id="amount"
                                                 type="number"
-                                                step="0.01"
+                                                step="1"
                                                 value={data.amount}
                                                 onChange={(e) => setData('amount', e.target.value)}
                                                 placeholder="0.00"

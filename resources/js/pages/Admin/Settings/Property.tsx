@@ -231,8 +231,8 @@ export default function PropertySettings({ settings, amenities }: PropertySettin
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <Label htmlFor="max_images_per_property">Maximum Images per Property *</Label>
-                                    <Select 
-                                        value={data.max_images_per_property.toString()} 
+                                    <Select
+                                        value={data.max_images_per_property.toString()}
                                         onValueChange={(value) => setData('max_images_per_property', parseInt(value))}
                                     >
                                         <SelectTrigger className={errors.max_images_per_property ? 'border-red-500' : ''}>
@@ -253,8 +253,8 @@ export default function PropertySettings({ settings, amenities }: PropertySettin
 
                                 <div>
                                     <Label htmlFor="image_max_size_mb">Maximum Image Size *</Label>
-                                    <Select 
-                                        value={data.image_max_size_mb.toString()} 
+                                    <Select
+                                        value={data.image_max_size_mb.toString()}
                                         onValueChange={(value) => setData('image_max_size_mb', parseInt(value))}
                                     >
                                         <SelectTrigger className={errors.image_max_size_mb ? 'border-red-500' : ''}>
@@ -276,8 +276,8 @@ export default function PropertySettings({ settings, amenities }: PropertySettin
 
                             <div>
                                 <Label htmlFor="allowed_image_types">Allowed Image Types *</Label>
-                                <Select 
-                                    value={data.allowed_image_types} 
+                                <Select
+                                    value={data.allowed_image_types}
                                     onValueChange={(value) => setData('allowed_image_types', value)}
                                 >
                                     <SelectTrigger className={errors.allowed_image_types ? 'border-red-500' : ''}>
@@ -374,7 +374,7 @@ export default function PropertySettings({ settings, amenities }: PropertySettin
                                         <Input
                                             id="default_weekend_premium"
                                             type="number"
-                                            step="0.01"
+                                            step="1"
                                             min="0"
                                             max="100"
                                             value={data.default_weekend_premium}
@@ -491,7 +491,7 @@ export default function PropertySettings({ settings, amenities }: PropertySettin
                                     </div>
                                 </div>
                             ))}
-                            
+
                             {Object.keys(amenityCategories).length === 0 && (
                                 <p className="text-gray-500 text-center py-4">
                                     No amenities configured yet. Add amenities in the Amenities management section.
@@ -504,8 +504,8 @@ export default function PropertySettings({ settings, amenities }: PropertySettin
                     <Alert>
                         <Info className="h-4 w-4" />
                         <AlertDescription>
-                            Property settings will apply to all new properties. Existing properties will retain their current 
-                            configuration unless manually updated. Changes to pricing features may require property owners 
+                            Property settings will apply to all new properties. Existing properties will retain their current
+                            configuration unless manually updated. Changes to pricing features may require property owners
                             to update their rate settings.
                         </AlertDescription>
                     </Alert>
@@ -514,7 +514,7 @@ export default function PropertySettings({ settings, amenities }: PropertySettin
                     <Alert>
                         <AlertTriangle className="h-4 w-4" />
                         <AlertDescription>
-                            Disabling property approval will allow immediate listing of new properties. Ensure you have 
+                            Disabling property approval will allow immediate listing of new properties. Ensure you have
                             adequate moderation processes in place before making this change.
                         </AlertDescription>
                     </Alert>
