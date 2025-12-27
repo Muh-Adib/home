@@ -113,10 +113,8 @@ COPY . .
 COPY --from=node-builder /app/public/build ./public/build
 COPY --from=node-builder /app/bootstrap/ssr ./bootstrap/ssr
 
-# Generate optimized autoloader and run scripts
-RUN composer dump-autoload --optimize && \
-    composer run-script post-root-package-install && \
-    composer run-script post-create-project-cmd
+# Generate optimized autoloader (skip artisan scripts that require DB during build)
+RUN composer dump-autoload --optimize --no-scripts
 
 # Create application user first
 RUN addgroup -g 1000 www && \
@@ -145,8 +143,6 @@ COPY dokploy/config/mime.types /etc/nginx/mime.types
 COPY dokploy/config/fastcgi_params /etc/nginx/fastcgi_params
 COPY dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY dokploy/config/php-fpm.conf /etc/php-fpm.conf
-
-
 
 # Copy safe startup script and echo config generator
 COPY dokploy/scripts/safe-startup.sh /usr/local/bin/safe-startup.sh
