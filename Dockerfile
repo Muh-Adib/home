@@ -68,17 +68,17 @@ RUN apk add --no-cache \
 # PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
     docker-php-ext-install -j$(nproc) \
-        pdo_mysql \
-        pdo_pgsql \
-        pdo_sqlite \
-        mbstring \
-        exif \
-        pcntl \
-        bcmath \
-        gd \
-        zip \
-        intl \
-        opcache
+    pdo_mysql \
+    pdo_pgsql \
+    pdo_sqlite \
+    mbstring \
+    exif \
+    pcntl \
+    bcmath \
+    gd \
+    zip \
+    intl \
+    opcache
 
 # Install and enable Redis extension (safe)
 RUN pecl install redis && \
@@ -88,8 +88,17 @@ RUN pecl install redis && \
 # Cleanup build tools
 RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev || true
 
-# Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# Copy composer files first to leverage cache
+COPY composer.json composer.lock ./
+
+# Install PHP dependencies (production optimized, no scripts/autoloader yet)
+RUN composer install \
+    --no-dev \
+    --no-scripts \
+    --no-autoloader \
+    --no-interaction \
+    --no-progress \
+    --prefer-dist
 
 # Workdir consistent with Nixpacks configs (nginx root and supervisor use /app)
 WORKDIR /app
@@ -101,15 +110,10 @@ COPY . .
 COPY --from=node-builder /app/public/build ./public/build
 COPY --from=node-builder /app/bootstrap/ssr ./bootstrap/ssr
 
-
-# Install PHP dependencies (production optimized)
-RUN composer install \
-    --no-dev \
-    --optimize-autoloader \
-    --no-interaction \
-    --no-progress \
-    --prefer-dist && \
-    composer dump-autoload --optimize
+# Generate optimized autoloader and run scripts
+RUN composer dump-autoload --optimize && \
+    composer run-script post-root-package-install && \
+    composer run-script post-create-project-cmd
 
 # Create application user first
 RUN addgroup -g 1000 www && \
