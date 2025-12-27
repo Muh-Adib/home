@@ -31,23 +31,75 @@ class RateManagementController extends Controller
     ) {}
 
     /**
-     * Show rate management dashboard
+     * Show rate management dashboard with 60-day calendar view per property
      */
     public function index(Request $request): Response
     {
+        // Calculate 60-day window: today -30 to today +30
+        $today = now()->startOfDay();
+        $startDate = $today->copy()->subDays(30);
+        $endDate = $today->copy()->addDays(30);
+
         $properties = Property::with(['seasonalRates' => function ($query) {
-            $query->orderBy('priority', 'desc')->orderBy('start_date', 'asc');
+            $query->where('is_active', true)
+                  ->orderBy('priority', 'desc')
+                  ->orderBy('start_date', 'asc');
         }])
+        ->where('status', 'active')
+        ->orderBy('name')
         ->get()
-        ->map(function ($property) {
-            $today = now();
-            $activeRates = $property->seasonalRates->where('is_active', true);
-            $upcomingRates = $activeRates->filter(function ($rate) use ($today) {
-                return $rate->start_date > $today;
-            });
+        ->map(function ($property) use ($today, $startDate, $endDate) {
+            $activeRates = $property->seasonalRates;
             $currentRate = $activeRates->filter(function ($rate) use ($today) {
                 return $rate->start_date <= $today && $rate->end_date >= $today;
             })->first();
+            
+            // Build 60-day rate calendar
+            $rateCalendar = [];
+            $current = $startDate->copy();
+            while ($current <= $endDate) {
+                $dateString = $current->format('Y-m-d');
+                $isWeekend = $current->isFriday() || $current->isSaturday() || $current->isSunday();
+                
+                // Find applicable seasonal rate for this date
+                $applicableRate = $activeRates->first(function ($rate) use ($current) {
+                    return $rate->start_date <= $current && $rate->end_date >= $current;
+                });
+                
+                // Calculate effective rate
+                $baseRate = $property->base_rate;
+                $effectiveRate = $baseRate;
+                $rateSource = 'base';
+                $rateName = null;
+                $extraBedRate = $property->extra_bed_rate;
+                
+                if ($applicableRate) {
+                    $effectiveRate = $applicableRate->calculateRate($baseRate);
+                    $rateSource = 'seasonal';
+                    $rateName = $applicableRate->name;
+                    // Use seasonal extra_bed_rate if set
+                    if ($applicableRate->extra_bed_rate !== null) {
+                        $extraBedRate = $applicableRate->extra_bed_rate;
+                    }
+                } elseif ($isWeekend && $property->weekend_premium_percent > 0) {
+                    $effectiveRate = $baseRate * (1 + $property->weekend_premium_percent / 100);
+                    $rateSource = 'weekend';
+                }
+                
+                $rateCalendar[] = [
+                    'date' => $dateString,
+                    'day' => (int) $current->format('d'),
+                    'dow' => $current->dayOfWeek, // 0=Sunday
+                    'is_weekend' => $isWeekend,
+                    'is_today' => $current->isSameDay($today),
+                    'rate' => $effectiveRate,
+                    'rate_source' => $rateSource, // base, weekend, seasonal
+                    'rate_name' => $rateName,
+                    'extra_bed_rate' => $extraBedRate,
+                ];
+                
+                $current->addDay();
+            }
             
             return [
                 'id' => $property->id,
@@ -56,13 +108,11 @@ class RateManagementController extends Controller
                 'address' => $property->address,
                 'status' => $property->status,
                 'base_rate' => $property->base_rate,
+                'extra_bed_rate' => $property->extra_bed_rate,
                 'weekend_premium_percent' => $property->weekend_premium_percent,
-                'weekend_premium_type' => $property->weekend_premium_type ?? 'percentage',
-                'weekend_premium_fixed' => $property->weekend_premium_fixed ?? 0,
                 'capacity' => $property->capacity,
                 'capacity_max' => $property->capacity_max,
                 'active_seasonal_rates_count' => $activeRates->count(),
-                'upcoming_seasonal_rates_count' => $upcomingRates->count(),
                 'current_seasonal_rate' => $currentRate ? [
                     'id' => $currentRate->id,
                     'name' => $currentRate->name,
@@ -70,36 +120,18 @@ class RateManagementController extends Controller
                     'end_date' => $currentRate->end_date->format('Y-m-d'),
                     'rate_type' => $currentRate->rate_type,
                     'rate_value' => $currentRate->rate_value,
+                    'extra_bed_rate' => $currentRate->extra_bed_rate,
                 ] : null,
-                'seasonal_rates' => $property->seasonalRates->map(function ($rate) {
-                    return [
-                        'id' => $rate->id,
-                        'name' => $rate->name,
-                        'start_date' => $rate->start_date->format('Y-m-d'),
-                        'end_date' => $rate->end_date->format('Y-m-d'),
-                        'rate_type' => $rate->rate_type,
-                        'rate_value' => $rate->rate_value,
-                        'is_active' => $rate->is_active,
-                        'priority' => $rate->priority,
-                    ];
-                })->toArray(),
+                'rate_calendar' => $rateCalendar,
             ];
         });
 
-        // Simple pagination
-        $perPage = 10;
-        $currentPage = $request->get('page', 1);
-        $total = $properties->count();
-        $offset = ($currentPage - 1) * $perPage;
-        $paginatedProperties = $properties->slice($offset, $perPage)->values();
-
         return Inertia::render('Admin/RateManagement/Index', [
-            'properties' => [
-                'data' => $paginatedProperties,
-                'current_page' => $currentPage,
-                'last_page' => ceil($total / $perPage),
-                'per_page' => $perPage,
-                'total' => $total,
+            'properties' => $properties,
+            'dateRange' => [
+                'start' => $startDate->format('Y-m-d'),
+                'end' => $endDate->format('Y-m-d'),
+                'today' => $today->format('Y-m-d'),
             ],
         ]);
     }

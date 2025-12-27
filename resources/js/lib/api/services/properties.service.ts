@@ -70,12 +70,22 @@ export interface RateCalculation {
 }
 
 export interface AvailabilityData {
-    available: boolean;
-    dates: Record<string, {
+    available?: boolean;
+    success?: boolean;
+    property_id?: number | string;
+    date_range?: {
+        start: string;
+        end: string;
+    };
+    booked_dates?: string[];
+    booked_periods?: Array<{ start: string; end: string }> | string[][];
+    dates?: Record<string, {
         available: boolean;
         rate?: number;
         seasonal_rate?: any;
     }>;
+    rates?: Record<string, any>;
+    property_info?: any;
 }
 
 export interface AvailabilityAndRatesResponse {

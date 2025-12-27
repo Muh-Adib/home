@@ -63,12 +63,11 @@ class BookingService
 
                     $booking = $this->bookingRepository->create($request, $property, $userId);
 
-                    // ✅ FIX: Always save daily revenue (not just for paid bookings)
-                    // This ensures breakdown is stored immediately
-                    // Insert ke booking_daily_revenue jika payment_status sudah 'paid'
-                    if ($booking->payment_status === 'paid') {
+                    // ✅ Always save daily revenue for confirmed/paid bookings
+                    // This ensures breakdown is stored for accurate monthly reporting
+                    if (in_array($booking->booking_status, ['confirmed', 'checked_in', 'completed']) || $booking->payment_status === 'paid') {
                         \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
-                        $this->insertDailyRevenueFromCalculation($booking, $rateCalculation->toArray());
+                        $this->insertDailyRevenueWithBreakdown($booking, $property, $rateCalculation->toArray());
                     }
 
                     event(new BookingCreated($booking, $user));
@@ -121,11 +120,10 @@ class BookingService
 
                     $booking = $this->bookingRepository->update($booking, $request, $property);
 
-                // Hapus dan insert ulang daily revenue jika payment_status sudah 'paid'
-                
-                if ($booking->payment_status === 'paid') {
+                // ✅ Save daily revenue for all confirmed bookings with breakdown
+                if (in_array($booking->booking_status, ['confirmed', 'checked_in', 'completed']) || $booking->payment_status === 'paid') {
                     \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
-                    $this->insertDailyRevenueFromCalculation($booking, $rateCalculation->toArray());
+                    $this->insertDailyRevenueWithBreakdown($booking, $property, $rateCalculation->toArray());
                 }
 
                     return $booking;
@@ -148,7 +146,89 @@ class BookingService
     }
 
     /**
-     * Insert daily revenue from rate calculation array (used during booking creation)
+     * Insert daily revenue with detailed breakdown
+     */
+    private function insertDailyRevenueWithBreakdown(Booking $booking, Property $property, array $rateCalculation): void
+    {
+        $breakdown = $rateCalculation['breakdown']['daily_breakdown'] ?? null;
+        
+        if (!$breakdown || !is_array($breakdown)) {
+            // Fallback to simple insertion if no breakdown
+            $this->insertDailyRevenueFromCalculation($booking, $rateCalculation);
+            return;
+        }
+        
+        // Delete existing daily revenue for this booking
+        \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+        
+        // Insert new daily revenue records with breakdown
+        $revenueData = [];
+        foreach ($breakdown as $tanggal => $detail) {
+            if ($tanggal >= $booking->check_out->format('Y-m-d')) {
+                continue;
+            }
+            
+            $baseAmount = $detail['base_rate'] ?? $property->base_rate ?? 0;
+            $finalRate = $detail['final_rate'] ?? $baseAmount;
+            
+            // Extract premiums from the calculation
+            $weekendPremium = 0;
+            $seasonalPremium = 0;
+            $rateType = 'base';
+            $rateName = null;
+            
+            if (isset($detail['premiums']) && is_array($detail['premiums'])) {
+                foreach ($detail['premiums'] as $premium) {
+                    if ($premium['type'] === 'weekend') {
+                        $weekendPremium = $premium['amount'] ?? 0;
+                        $rateType = 'weekend';
+                    } elseif ($premium['type'] === 'seasonal') {
+                        $seasonalPremium = $premium['amount'] ?? 0;
+                        $rateType = 'seasonal';
+                        $rateName = $premium['name'] ?? null;
+                    }
+                }
+            }
+            
+            // Check if seasonal rate exists
+            if (isset($detail['seasonal_rate']) && $detail['seasonal_rate']) {
+                $rateType = 'seasonal';
+                $rateName = $detail['seasonal_rate']['name'] ?? null;
+            }
+            
+            // Get extra bed amount for this day
+            $extraBedAmount = $detail['extra_bed_rate'] ?? 0;
+            $extraBeds = max(0, $booking->guest_count - $property->capacity);
+            $extraBedTotal = $extraBeds * $extraBedAmount;
+            
+            // Determine if weekend
+            $dayName = $detail['day_name'] ?? '';
+            $isWeekend = in_array($dayName, ['Friday', 'Saturday', 'Sunday']);
+            
+            $revenueData[] = [
+                'booking_id' => $booking->id,
+                'property_id' => $booking->property_id,
+                'tanggal' => $tanggal,
+                'amount' => $finalRate,
+                'base_amount' => $baseAmount,
+                'weekend_premium' => $weekendPremium,
+                'seasonal_premium' => $seasonalPremium,
+                'extra_bed_amount' => $extraBedTotal,
+                'rate_type' => $rateType,
+                'rate_name' => $rateName,
+                'is_weekend' => $isWeekend,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        
+        if (!empty($revenueData)) {
+            \App\Models\BookingDailyRevenue::insert($revenueData);
+        }
+    }
+
+    /**
+     * Insert daily revenue from rate calculation array (legacy fallback)
      */
     private function insertDailyRevenueFromCalculation(Booking $booking, array $rateCalculation): void
     {
@@ -179,6 +259,13 @@ class BookingService
                 'property_id' => $booking->property_id,
                 'tanggal' => $tanggal,
                 'amount' => $finalRate,
+                'base_amount' => $detail['base_rate'] ?? 0,
+                'weekend_premium' => 0,
+                'seasonal_premium' => 0,
+                'extra_bed_amount' => 0,
+                'rate_type' => 'base',
+                'rate_name' => null,
+                'is_weekend' => false,
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
@@ -187,16 +274,6 @@ class BookingService
         if (!empty($revenueData)) {
             \App\Models\BookingDailyRevenue::insert($revenueData);
         }
-    }
-
-    /**
-     * Insert daily revenue from booking's virtual rate_calculation attribute
-     */
-    private function insertDailyRevenue(Booking $booking): void
-    {
-        // Get rate calculation (now a virtual attribute from booking_daily_revenue or recalculated)
-        $rateCalculation = $booking->rate_calculation;
-        $this->insertDailyRevenueFromCalculation($booking, $rateCalculation);
     }
 
     /**

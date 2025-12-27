@@ -1,50 +1,85 @@
 "use client"
 
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart"
+import { Area, AreaChart, CartesianGrid, XAxis, ResponsiveContainer, YAxis, Tooltip } from "recharts"
 
 const chartConfig = {
   revenue: {
     label: "Revenue",
-    color: "hsl(var(--chart-1))",
+    color: "hsl(160, 60%, 45%)",
   },
-} satisfies ChartConfig
+}
 
-export function ChartRevenue({ data }: { data: { month_short: string; revenue: number }[] }) {
+interface ChartRevenueProps {
+  data: { month_short: string; revenue: number }[];
+}
+
+export function ChartRevenue({ data }: ChartRevenueProps) {
+  const formatCurrency = (value: number) => {
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1)}M`;
+    }
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(0)}K`;
+    }
+    return value.toString();
+  };
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white border rounded-lg shadow-lg p-3">
+          <p className="font-medium text-sm">{label}</p>
+          <p className="text-emerald-600 font-semibold">
+            Rp {payload[0].value.toLocaleString('id-ID')}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+        <p className="text-sm">No revenue data available</p>
+      </div>
+    );
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Revenue (12 months)</CardTitle>
-        <CardDescription>Total revenue verified</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig}>
-          <AreaChart data={data} margin={{ left: 12, right: 12 }}>
-            <CartesianGrid vertical={false} />
-            <XAxis dataKey="month_short" tickLine={false} axisLine={false} tickMargin={8} />
-            <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-            <Area
-              dataKey="revenue"
-              type="natural"
-              fill="var(--color-revenue)"
-              stroke="var(--color-revenue)"
-              fillOpacity={0.4}
-            />
-          </AreaChart>
-        </ChartContainer>
-      </CardContent>
-    </Card>
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+        <XAxis
+          dataKey="month_short"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={8}
+          tick={{ fontSize: 12 }}
+        />
+        <YAxis
+          tickFormatter={formatCurrency}
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 11 }}
+          width={50}
+        />
+        <Tooltip content={<CustomTooltip />} />
+        <Area
+          type="monotone"
+          dataKey="revenue"
+          stroke="#10b981"
+          strokeWidth={2}
+          fillOpacity={1}
+          fill="url(#colorRevenue)"
+        />
+      </AreaChart>
+    </ResponsiveContainer>
   )
 }

@@ -40,7 +40,7 @@ class PropertySeasonalRateController extends Controller
      */
     public function store(Request $request, Property $property): RedirectResponse
     {
-        $this->authorize('update', $property);
+        $this->authorize('managePricing', $property);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -70,7 +70,7 @@ class PropertySeasonalRateController extends Controller
      */
     public function update(Request $request, Property $property, PropertySeasonalRate $seasonalRate): RedirectResponse
     {
-        $this->authorize('update', $property);
+        $this->authorize('managePricing', $property);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -99,7 +99,7 @@ class PropertySeasonalRateController extends Controller
      */
     public function destroy(Property $property, PropertySeasonalRate $seasonalRate): RedirectResponse
     {
-        $this->authorize('update', $property);
+        $this->authorize('managePricing', $property);
 
         $seasonalRate->delete();
 

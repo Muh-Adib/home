@@ -45,8 +45,11 @@ class DashboardController extends Controller
         // Quick stats
         $quickStats = $this->getQuickStats($user);
         
-        // Revenue chart data
+        // Revenue chart data with breakdown
         $revenueChart = $this->getRevenueChartData($user);
+        
+        // Revenue breakdown by source
+        $revenueBreakdown = $this->getRevenueBreakdown($user);
         
         // Booking trends
         $bookingTrends = $this->getBookingTrends($user);
@@ -60,6 +63,7 @@ class DashboardController extends Controller
             'todaysAgenda' => $todaysAgenda,
             'quickStats' => $quickStats,
             'revenueChart' => $revenueChart,
+            'revenueBreakdown' => $revenueBreakdown,
             'bookingTrends' => $bookingTrends,
             'propertyPerformance' => $propertyPerformance,
         ]);
@@ -504,34 +508,50 @@ class DashboardController extends Controller
 
     private function getPropertyPerformance($user): array
     {
+        $thisMonth = Carbon::now()->startOfMonth();
+        
         $propertyQuery = Property::query();
         if ($user->role === 'property_owner') {
             $propertyQuery->where('owner_id', $user->id);
         }
 
-        return $propertyQuery->active()
-            ->withCount(['bookings as total_bookings'])
-            ->withSum(['bookings as total_revenue'], 'total_amount')
-            ->orderByDesc('total_revenue')
-            ->limit(5)
-            ->get()
-            ->map(function ($property) {
-                $occupancyRate = $this->calculateOccupancyRate(
-                    auth()->user(), 
-                    Carbon::now()->startOfMonth(), 
-                    now(),
-                    $property->id
-                );
+        // Get properties with their performance metrics using BookingDailyRevenue
+        $properties = $propertyQuery->active()->limit(5)->get();
+        
+        return $properties->map(function ($property) use ($thisMonth) {
+            // Get this month's revenue from daily breakdown
+            $monthlyRevenue = BookingDailyRevenue::where('property_id', $property->id)
+                ->whereBetween('tanggal', [$thisMonth, now()])
+                ->whereHas('booking', function ($q) {
+                    $q->whereIn('booking_status', ['confirmed', 'checked_in', 'completed']);
+                })
+                ->sum('amount');
+            
+            // Get booking count for this month
+            $bookingCount = Booking::where('property_id', $property->id)
+                ->whereIn('booking_status', ['confirmed', 'checked_in', 'completed'])
+                ->whereBetween('created_at', [$thisMonth, now()])
+                ->count();
+            
+            // Calculate occupancy rate
+            $occupancyRate = $this->calculateOccupancyRate(
+                auth()->user(), 
+                $thisMonth, 
+                now(),
+                $property->id
+            );
 
-                return [
-                    'id' => $property->id,
-                    'name' => $property->name,
-                    'total_bookings' => $property->total_bookings ?? 0,
-                    'total_revenue' => $property->total_revenue ?? 0,
-                    'occupancy_rate' => round($occupancyRate, 1),
-                ];
-            })
-            ->toArray();
+            return [
+                'id' => $property->id,
+                'name' => $property->name,
+                'total_bookings' => $bookingCount,
+                'total_revenue' => $monthlyRevenue,
+                'occupancy_rate' => round($occupancyRate, 1),
+            ];
+        })
+        ->sortByDesc('total_revenue')
+        ->values()
+        ->toArray();
     }
 
     private function calculateOccupancyRate($user, $startDate, $endDate, $propertyId = null): float
@@ -582,4 +602,54 @@ class DashboardController extends Controller
 
         return $totalDays > 0 ? ($bookedDays / $totalDays) * 100 : 0;
     }
-} 
+
+    /**
+     * Get revenue breakdown by source (base, weekend premium, seasonal premium)
+     */
+    private function getRevenueBreakdown($user): array
+    {
+        $thisMonth = Carbon::now()->startOfMonth();
+        $lastMonth = Carbon::now()->subMonth()->startOfMonth();
+        $lastMonthEnd = Carbon::now()->subMonth()->endOfMonth();
+        
+        $ownerId = $user->role === 'property_owner' ? $user->id : null;
+        
+        // Get this month's breakdown
+        $thisMonthBreakdown = BookingDailyRevenue::getRevenueBreakdown($thisMonth, now(), null, $ownerId);
+        
+        // Get last month's breakdown for comparison
+        $lastMonthBreakdown = BookingDailyRevenue::getRevenueBreakdown($lastMonth, $lastMonthEnd, null, $ownerId);
+        
+        // Calculate percentages for pie chart
+        $total = $thisMonthBreakdown['total'] ?: 1; // Avoid division by zero
+        
+        return [
+            'current_month' => [
+                'total' => $thisMonthBreakdown['total'],
+                'base_amount' => $thisMonthBreakdown['base_amount'],
+                'weekend_premium' => $thisMonthBreakdown['weekend_premium'],
+                'seasonal_premium' => $thisMonthBreakdown['seasonal_premium'],
+                'extra_bed_amount' => $thisMonthBreakdown['extra_bed_amount'],
+                'days_count' => $thisMonthBreakdown['days_count'],
+                'weekend_days' => $thisMonthBreakdown['weekend_days'],
+                'seasonal_days' => $thisMonthBreakdown['seasonal_days'],
+            ],
+            'last_month' => [
+                'total' => $lastMonthBreakdown['total'],
+                'base_amount' => $lastMonthBreakdown['base_amount'],
+                'weekend_premium' => $lastMonthBreakdown['weekend_premium'],
+                'seasonal_premium' => $lastMonthBreakdown['seasonal_premium'],
+            ],
+            'percentages' => [
+                'base' => round(($thisMonthBreakdown['base_amount'] / $total) * 100, 1),
+                'weekend' => round(($thisMonthBreakdown['weekend_premium'] / $total) * 100, 1),
+                'seasonal' => round(($thisMonthBreakdown['seasonal_premium'] / $total) * 100, 1),
+                'extra_bed' => round(($thisMonthBreakdown['extra_bed_amount'] / $total) * 100, 1),
+            ],
+            'change' => $lastMonthBreakdown['total'] > 0 
+                ? round((($thisMonthBreakdown['total'] - $lastMonthBreakdown['total']) / $lastMonthBreakdown['total']) * 100, 1)
+                : 0,
+        ];
+    }
+}
+ 

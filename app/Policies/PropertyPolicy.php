@@ -23,6 +23,7 @@ class PropertyPolicy
     public function view(User $user, Property $property): bool
     {
         // Semua authenticated user dapat melihat property detail
+        // Front desk juga bisa melihat untuk keperluan rate management
         return true;
     }
 
@@ -112,8 +113,8 @@ class PropertyPolicy
             return $property->owner_id === $user->id;
         }
 
-        // Manager dapat manage pricing
-        return $user->role === 'property_manager';
+        // Manager dan front_desk dapat manage pricing (untuk seasonal rates)
+        return in_array($user->role, ['property_manager', 'front_desk']);
     }
 
     /**

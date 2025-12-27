@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
-import { formatCurrency } from '@/lib/utils';
+import { formatTime} from '@/utils/dateUtils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,9 +15,9 @@ import { KpiTile } from '@/components/property/KpiTile';
 import { ChartPerformance } from '@/components/property/ChartPerformance';
 import { Skeleton, SkeletonCard, SkeletonChart, SkeletonBookingList } from '@/components/ui/skeleton-loader';
 import { usePropertyStats } from '@/hooks/usePropertyStats';
-import { 
-    Building2, 
-    Edit, 
+import {
+    Building2,
+    Edit,
     ArrowLeft,
     MapPin,
     Users,
@@ -41,6 +41,7 @@ import {
     Filter,
     Download
 } from 'lucide-react';
+import TextFormatMarkdown from '@/components/text-mark-down';
 
 interface SeasonalRate {
     id: number;
@@ -126,12 +127,12 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
     const [selectedPreset, setSelectedPreset] = useState('this-month');
 
     // Use the stats hook for enhanced data
-    const { 
-        data: enhancedStats, 
-        isLoading: statsLoading, 
+    const {
+        data: enhancedStats,
+        isLoading: statsLoading,
         dateRangePresets,
         formatCurrency: formatCurrencyHook,
-        formatPercentage 
+        formatPercentage
     } = usePropertyStats({
         propertyId: property.id.toString(),
         from: dateRange.from,
@@ -179,7 +180,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title={`${property.name} - Admin Dashboard`} />
-            
+
             <div className="space-y-6 p-4 md:p-6">
                 {/* Header - Mobile Optimized */}
                 <div className="flex flex-col space-y-4">
@@ -191,7 +192,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                 Back
                             </Link>
                         </Button>
-                        
+
                         <div className="flex-1 min-w-0">
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                                 <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight line-clamp-2">{safeProperty.name}</h1>
@@ -214,7 +215,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                             </div>
                         </div>
                     </div>
-                    
+
                     {/* Action Buttons - Mobile Optimized */}
                     <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                         <div className="flex gap-2">
@@ -242,47 +243,51 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                     </div>
                 </div>
 
-                {/* KPI Tiles - Modern Compact Design */}
+                {/* KPI Tiles - Modern Gradient Design */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                     <KpiTile
-                        title="Total Revenue"
-                        value={formatCurrency(safeStats.total_revenue)}
+                        title="Total Pendapatan"
+                        value={formatCurrency(enhancedStats?.kpis?.revenue_total || safeStats.total_revenue)}
                         trend={enhancedStats?.kpis ? {
-                            value: 12.5,
-                            period: 'vs last month'
+                            value: Math.round(((enhancedStats.kpis.revenue_total - safeStats.total_revenue) / Math.max(safeStats.total_revenue, 1)) * 100),
+                            period: 'vs periode lalu'
                         } : undefined}
                         icon={<DollarSign className="h-5 w-5" />}
                         loading={statsLoading}
+                        gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
                     />
                     <KpiTile
-                        title="Occupancy Rate"
-                        value={`${safeStats.occupancy_rate}%`}
+                        title="Okupansi"
+                        value={`${enhancedStats?.kpis?.occupancy_rate || safeStats.occupancy_rate}%`}
                         trend={enhancedStats?.kpis ? {
-                            value: 8.2,
-                            period: 'vs last month'
+                            value: Math.round(enhancedStats.kpis.occupancy_rate - safeStats.occupancy_rate),
+                            period: 'vs periode lalu'
                         } : undefined}
                         icon={<TrendingUp className="h-5 w-5" />}
                         loading={statsLoading}
+                        gradient="bg-gradient-to-br from-blue-500 to-indigo-600"
                     />
                     <KpiTile
-                        title="Total Bookings"
-                        value={safeStats.total_bookings}
+                        title="Total Booking"
+                        value={enhancedStats?.kpis?.total_bookings || safeStats.total_bookings}
                         trend={enhancedStats?.kpis ? {
-                            value: 15.3,
-                            period: 'vs last month'
+                            value: Math.round(((enhancedStats.kpis.total_bookings - safeStats.total_bookings) / Math.max(safeStats.total_bookings, 1)) * 100),
+                            period: 'vs periode lalu'
                         } : undefined}
                         icon={<Calendar className="h-5 w-5" />}
                         loading={statsLoading}
+                        gradient="bg-gradient-to-br from-amber-500 to-orange-600"
                     />
                     <KpiTile
-                        title="Average Rating"
+                        title="Rating Rata-rata"
                         value={safeStats.average_rating ? safeStats.average_rating.toFixed(1) : 'N/A'}
-                        trend={enhancedStats?.kpis ? {
-                            value: 2.1,
-                            period: 'vs last month'
+                        trend={enhancedStats?.kpis?.average_rating ? {
+                            value: Math.round((enhancedStats.kpis.average_rating - safeStats.average_rating) * 10),
+                            period: 'vs periode lalu'
                         } : undefined}
                         icon={<Star className="h-5 w-5" />}
                         loading={statsLoading}
+                        gradient="bg-gradient-to-br from-purple-500 to-pink-600"
                     />
                 </div>
 
@@ -293,7 +298,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                         {statsLoading ? (
                             <SkeletonChart />
                         ) : (
-                            <ChartPerformance 
+                            <ChartPerformance
                                 data={enhancedStats?.trend || []}
                                 loading={statsLoading}
                             />
@@ -371,111 +376,136 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                     </div>
                 </div>
 
-                {/* Main Content Tabs - Restructured to 3 Main Tabs */}
+                {/* Main Content Tabs - Modern Design */}
                 <Tabs defaultValue="details" className="space-y-6">
-                    <div className="overflow-x-auto">
-                        <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1 rounded-lg">
-                            <TabsTrigger value="details" className="text-sm sm:text-base data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md">
+                    <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                        <TabsList className="inline-flex w-full sm:w-auto min-w-full sm:min-w-0 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-xl border shadow-sm">
+                            <TabsTrigger
+                                value="details"
+                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/20 data-[state=inactive]:text-gray-600 dark:data-[state=inactive]:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                            >
                                 <Building2 className="h-4 w-4 mr-2" />
-                                Details
+                                <span className="hidden sm:inline">Detail Properti</span>
+                                <span className="sm:hidden">Detail</span>
                             </TabsTrigger>
-                            <TabsTrigger value="price" className="text-sm sm:text-base data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md">
+                            <TabsTrigger
+                                value="price"
+                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/20 data-[state=inactive]:text-gray-600 dark:data-[state=inactive]:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                            >
                                 <DollarSign className="h-4 w-4 mr-2" />
-                                Price
+                                <span className="hidden sm:inline">Harga & Tarif</span>
+                                <span className="sm:hidden">Harga</span>
                             </TabsTrigger>
-                            <TabsTrigger value="booking" className="text-sm sm:text-base data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md">
+                            <TabsTrigger
+                                value="booking"
+                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/20 data-[state=inactive]:text-gray-600 dark:data-[state=inactive]:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                            >
                                 <List className="h-4 w-4 mr-2" />
-                                Booking
+                                <span className="hidden sm:inline">Riwayat Booking</span>
+                                <span className="sm:hidden">Booking</span>
                             </TabsTrigger>
                         </TabsList>
                     </div>
 
-                    {/* Details Tab - Enhanced with Amenities and Media */}
+                    {/* Details Tab - Enhanced with Better Styling */}
                     <TabsContent value="details" className="space-y-6">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                             {/* Basic Information */}
-                            <Card className="card-modern">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
+                            <Card className="border-0 shadow-lg">
+                                <CardHeader className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-t-lg">
+                                    <CardTitle className="flex items-center gap-2 text-blue-700">
                                         <Building2 className="h-5 w-5" />
-                                        Basic Information
+                                        Informasi Properti
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="space-y-4">
+                                <CardContent className="space-y-4 pt-4">
                                     <div>
-                                        <label className="text-sm font-medium text-muted-foreground">Description</label>
-                                        <p className="mt-1 text-sm leading-relaxed">{safeProperty.description}</p>
+                                        <label className="text-sm font-medium text-muted-foreground">Deskripsi</label>
+                                        <div className="mt-2 prose prose-sm max-w-none">
+                                            <TextFormatMarkdown text={safeProperty.description || 'Tidak ada deskripsi'} />
+                                        </div>
                                     </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-sm font-medium text-muted-foreground">Capacity</label>
+
+                                    <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                                        <div className="p-3 bg-gray-50 rounded-lg">
+                                            <label className="text-xs font-medium text-muted-foreground">Kapasitas Tamu</label>
                                             <div className="flex items-center mt-1">
-                                                <Users className="h-4 w-4 mr-2" />
-                                                <span className="text-sm">{safeProperty.capacity} - {safeProperty.capacity_max} guests</span>
+                                                <Users className="h-4 w-4 mr-2 text-blue-500" />
+                                                <span className="text-base font-semibold">{safeProperty.capacity} - {safeProperty.capacity_max} orang</span>
                                             </div>
                                         </div>
-                                        <div>
-                                            <label className="text-sm font-medium text-muted-foreground">Rooms</label>
-                                            <div className="flex items-center gap-4 mt-1">
+                                        <div className="p-3 bg-gray-50 rounded-lg">
+                                            <label className="text-xs font-medium text-muted-foreground">Kamar</label>
+                                            <div className="flex items-center gap-3 mt-1">
                                                 <div className="flex items-center">
-                                                    <Bed className="h-4 w-4 mr-1" />
-                                                    <span className="text-sm">{safeProperty.bedroom_count}</span>
+                                                    <Bed className="h-4 w-4 mr-1 text-indigo-500" />
+                                                    <span className="font-semibold">{safeProperty.bedroom_count}</span>
                                                 </div>
                                                 <div className="flex items-center">
-                                                    <Bath className="h-4 w-4 mr-1" />
-                                                    <span className="text-sm">{safeProperty.bathroom_count}</span>
+                                                    <Bath className="h-4 w-4 mr-1 text-cyan-500" />
+                                                    <span className="font-semibold">{safeProperty.bathroom_count}</span>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <label className="text-sm font-medium text-muted-foreground">Owner</label>
-                                        <p className="mt-1 text-sm">{safeProperty.owner?.name || 'No owner assigned'}</p>
+                                    <div className="pt-4 border-t">
+                                        <label className="text-sm font-medium text-muted-foreground">Pemilik</label>
+                                        <p className="mt-1 text-sm font-medium">{safeProperty.owner?.name || 'Belum ada pemilik'}</p>
                                     </div>
                                 </CardContent>
                             </Card>
 
                             {/* Check-in/out & Rules */}
-                            <Card className="card-modern">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
+                            <Card className="border-0 shadow-lg">
+                                <CardHeader className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-t-lg">
+                                    <CardTitle className="flex items-center gap-2 text-emerald-700">
                                         <Clock className="h-5 w-5" />
-                                        Check-in/out & Rules
+                                        Jadwal & Peraturan
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="space-y-4">
+                                <CardContent className="space-y-4 pt-4">
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-sm font-medium text-muted-foreground">Check-in</label>
-                                            <p className="mt-1 text-sm">{safeProperty.check_in_time}</p>
+                                        <div className="p-4 bg-emerald-50 rounded-xl text-center">
+                                            <label className="text-xs font-medium text-emerald-600">Check-in</label>
+                                            <p className="mt-1 text-2xl font-bold text-emerald-700">
+                                                {safeProperty.check_in_time ? formatTime(safeProperty.check_in_time) : '-'} WIB
+                                            </p>
                                         </div>
-                                        <div>
-                                            <label className="text-sm font-medium text-muted-foreground">Check-out</label>
-                                            <p className="mt-1 text-sm">{safeProperty.check_out_time}</p>
+                                        <div className="p-4 bg-orange-50 rounded-xl text-center">
+                                            <label className="text-xs font-medium text-orange-600">Check-out</label>
+                                            <p className="mt-1 text-2xl font-bold text-orange-700">
+                                                {safeProperty.check_out_time ? formatTime(safeProperty.check_out_time) : '-'} WIB
+                                            </p>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                                        <div>
-                                            <label className="text-xs sm:text-sm font-medium text-muted-foreground">Min Stay Weekday</label>
-                                            <p className="mt-1 text-sm">{safeProperty.min_stay_weekday} nights</p>
+                                    <div className="grid grid-cols-3 gap-3 pt-4 border-t">
+                                        <div className="text-center p-3 bg-gray-50 rounded-lg">
+                                            <label className="text-xs font-medium text-muted-foreground">Min. Weekday</label>
+                                            <p className="mt-1 text-lg font-bold">{safeProperty.min_stay_weekday}</p>
+                                            <span className="text-xs text-muted-foreground">malam</span>
                                         </div>
-                                        <div>
-                                            <label className="text-xs sm:text-sm font-medium text-muted-foreground">Min Stay Weekend</label>
-                                            <p className="mt-1 text-sm">{safeProperty.min_stay_weekend} nights</p>
+                                        <div className="text-center p-3 bg-gray-50 rounded-lg">
+                                            <label className="text-xs font-medium text-muted-foreground">Min. Weekend</label>
+                                            <p className="mt-1 text-lg font-bold">{safeProperty.min_stay_weekend}</p>
+                                            <span className="text-xs text-muted-foreground">malam</span>
                                         </div>
-                                        <div>
-                                            <label className="text-xs sm:text-sm font-medium text-muted-foreground">Min Stay Peak</label>
-                                            <p className="mt-1 text-sm">{safeProperty.min_stay_peak} nights</p>
+                                        <div className="text-center p-3 bg-gray-50 rounded-lg">
+                                            <label className="text-xs font-medium text-muted-foreground">Min. Peak</label>
+                                            <p className="mt-1 text-lg font-bold">{safeProperty.min_stay_peak}</p>
+                                            <span className="text-xs text-muted-foreground">malam</span>
                                         </div>
                                     </div>
 
                                     {safeProperty.house_rules && (
-                                        <div>
-                                            <label className="text-sm font-medium text-muted-foreground">House Rules</label>
-                                            <p className="mt-1 text-sm whitespace-pre-wrap">{safeProperty.house_rules}</p>
+                                        <div className="pt-4 border-t">
+                                            <label className="text-sm font-medium text-muted-foreground">Peraturan Rumah</label>
+                                            <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                                <div className="text-sm text-amber-800">
+                                                    <TextFormatMarkdown text={safeProperty.house_rules} />
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </CardContent>
@@ -530,8 +560,8 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                                         {safeProperty.media.slice(0, 8).map((media: any, index: number) => (
                                             <div key={media.id || index} className="relative aspect-video rounded-lg overflow-hidden border">
-                                                <img 
-                                                    src={media.url || '/placeholder-image.jpg'} 
+                                                <img
+                                                    src={media.url || '/placeholder-image.jpg'}
                                                     alt={media.alt_text || safeProperty.name}
                                                     className="w-full h-full object-cover"
                                                     loading="lazy"
@@ -588,98 +618,107 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                     {/* Price Tab - Enhanced with Seasonal Rates */}
                     <TabsContent value="price" className="space-y-6">
                         {/* Basic Pricing Information */}
-                        <Card className="card-modern">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
+                        <Card className="border-0 shadow-lg">
+                            <CardHeader className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-t-lg">
+                                <CardTitle className="flex items-center gap-2 text-green-700">
                                     <DollarSign className="h-5 w-5" />
-                                    Basic Pricing
+                                    Tarif Dasar
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                                    <div className="text-center p-4 border rounded-lg bg-muted/30">
-                                        <label className="text-sm font-medium text-muted-foreground">Base Rate</label>
+                            <CardContent className="pt-4">
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="text-center p-4 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl text-white">
+                                        <label className="text-xs font-medium text-white/80">Harga Dasar</label>
                                         <p className="text-xl sm:text-2xl font-bold mt-1">{formatCurrency(safeProperty.base_rate)}</p>
-                                        <p className="text-xs sm:text-sm text-muted-foreground">per night</p>
+                                        <p className="text-xs text-white/70">per malam</p>
                                     </div>
-                                    
-                                    <div className="text-center p-4 border rounded-lg bg-muted/30">
-                                        <label className="text-sm font-medium text-muted-foreground">Weekend Premium</label>
-                                        <p className="text-xl sm:text-2xl font-bold mt-1">{safeProperty.weekend_premium_percent}%</p>
-                                        <p className="text-xs sm:text-sm text-muted-foreground">
+
+                                    <div className="text-center p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white">
+                                        <label className="text-xs font-medium text-white/80">Premium Weekend</label>
+                                        <p className="text-xl sm:text-2xl font-bold mt-1">+{safeProperty.weekend_premium_percent}%</p>
+                                        <p className="text-xs text-white/70">
                                             {formatCurrency(safeProperty.base_rate * (1 + safeProperty.weekend_premium_percent / 100))}
                                         </p>
                                     </div>
-                                    
-                                    <div className="text-center p-4 border rounded-lg bg-muted/30">
-                                        <label className="text-sm font-medium text-muted-foreground">Cleaning Fee</label>
+
+                                    <div className="text-center p-4 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl text-white">
+                                        <label className="text-xs font-medium text-white/80">Biaya Kebersihan</label>
                                         <p className="text-xl sm:text-2xl font-bold mt-1">{formatCurrency(safeProperty.cleaning_fee)}</p>
-                                        <p className="text-xs sm:text-sm text-muted-foreground">one-time</p>
+                                        <p className="text-xs text-white/70">sekali bayar</p>
                                     </div>
-                                    
-                                    <div className="text-center p-4 border rounded-lg bg-muted/30">
-                                        <label className="text-sm font-medium text-muted-foreground">Extra Bed Rate</label>
+
+                                    <div className="text-center p-4 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl text-white">
+                                        <label className="text-xs font-medium text-white/80">Extra Bed</label>
                                         <p className="text-xl sm:text-2xl font-bold mt-1">{formatCurrency(safeProperty.extra_bed_rate)}</p>
-                                        <p className="text-xs sm:text-sm text-muted-foreground">per night</p>
+                                        <p className="text-xs text-white/70">per malam</p>
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
 
                         {/* Seasonal Rates Section */}
-                        <Card className="card-modern">
-                            <CardHeader className="flex items-center justify-between">
-                                <CardTitle className="flex items-center gap-2">
+                        <Card className="border-0 shadow-lg">
+                            <CardHeader className="flex items-center justify-between bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-t-lg">
+                                <CardTitle className="flex items-center gap-2 text-purple-700">
                                     <Calendar className="h-5 w-5" />
-                                    Seasonal Rates ({safeProperty.seasonalRates?.length || 0})
+                                    Tarif Musiman ({safeProperty.seasonalRates?.length || 0})
                                 </CardTitle>
-                                <Button asChild size="sm">
+                                <Button asChild size="sm" className="bg-purple-600 hover:bg-purple-700">
                                     <Link href={`/admin/properties/${safeProperty.slug}/seasonal-rates`}>
                                         <Plus className="h-4 w-4 mr-2" />
-                                        Manage
+                                        Kelola
                                     </Link>
                                 </Button>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="pt-4">
                                 {safeProperty.seasonalRates && safeProperty.seasonalRates.length > 0 ? (
                                     <div className="space-y-3">
-                                        {safeProperty.seasonalRates.slice(0, 6).map((rate: any, index: number) => (
-                                            <div key={rate.id || index} className="flex items-center justify-between p-3 sm:p-4 border rounded-lg bg-muted/20">
-                                                <div className="min-w-0 flex-1">
-                                                    <h4 className="font-medium text-sm sm:text-base truncate">{rate.name || 'Unnamed rate'}</h4>
-                                                    <p className="text-xs sm:text-sm text-muted-foreground">
-                                                        {new Date(rate.start_date || Date.now()).toLocaleDateString('id-ID')} - {new Date(rate.end_date || Date.now()).toLocaleDateString('id-ID')}
-                                                    </p>
+                                        {safeProperty.seasonalRates.slice(0, 6).map((rate: any, index: number) => {
+                                            const isActive = rate.is_active && new Date(rate.start_date) <= new Date() && new Date(rate.end_date) >= new Date();
+                                            return (
+                                                <div key={rate.id || index} className={`relative flex items-center justify-between p-4 rounded-xl border-2 transition-all ${isActive ? 'border-green-500 bg-green-50' : 'border-gray-100 bg-gray-50'}`}>
+                                                    {isActive && (
+                                                        <div className="absolute -top-2 -left-2">
+                                                            <Badge className="bg-green-500 text-white text-xs">Aktif</Badge>
+                                                        </div>
+                                                    )}
+                                                    <div className="min-w-0 flex-1">
+                                                        <h4 className="font-semibold text-base">{rate.name || 'Tarif Tanpa Nama'}</h4>
+                                                        <p className="text-sm text-muted-foreground mt-1">
+                                                            📅 {new Date(rate.start_date || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} - {new Date(rate.end_date || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                        </p>
+                                                        <div className="flex items-center gap-2 mt-2">
+                                                            <Badge variant="outline" className="text-xs">Prioritas: {rate.priority || 0}</Badge>
+                                                            {!rate.is_active && <Badge variant="secondary" className="text-xs">Nonaktif</Badge>}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right flex-shrink-0 ml-4">
+                                                        <Badge className={`text-base px-3 py-1 ${rate.rate_type === 'percentage' ? 'bg-blue-500 text-white' :
+                                                            rate.rate_type === 'fixed' ? 'bg-green-500 text-white' :
+                                                                'bg-purple-500 text-white'
+                                                            }`}>
+                                                            {rate.rate_type === 'percentage' ? `${(rate.rate_value || 0) > 0 ? '+' : ''}${rate.rate_value || 0}%` :
+                                                                rate.rate_type === 'fixed' ? formatCurrency(rate.rate_value || 0) :
+                                                                    `${rate.rate_value || 0}x`}
+                                                        </Badge>
+                                                        <p className="text-xs text-muted-foreground mt-2 capitalize">{rate.rate_type}</p>
+                                                    </div>
                                                 </div>
-                                                <div className="text-right flex-shrink-0 ml-3">
-                                                    <Badge className={
-                                                        rate.rate_type === 'percentage' ? 'bg-blue-100 text-blue-800' :
-                                                        rate.rate_type === 'fixed' ? 'bg-green-100 text-green-800' :
-                                                        'bg-purple-100 text-purple-800'
-                                                    }>
-                                                        {rate.rate_type === 'percentage' ? `${(rate.rate_value || 0) > 0 ? '+' : ''}${rate.rate_value || 0}%` :
-                                                         rate.rate_type === 'fixed' ? formatCurrency(rate.rate_value || 0) :
-                                                         `${rate.rate_value || 0}x`}
-                                                    </Badge>
-                                                    <p className="text-xs text-muted-foreground mt-1">
-                                                        Priority {rate.priority || 0}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                         {safeProperty.seasonalRates.length > 6 && (
-                                            <div className="text-center p-3 border-2 border-dashed border-muted-foreground/25 rounded-lg">
-                                                <p className="text-sm text-muted-foreground">
-                                                    And {safeProperty.seasonalRates.length - 6} more rates...
+                                            <Link href={`/admin/properties/${safeProperty.slug}/seasonal-rates`} className="block text-center p-3 border-2 border-dashed border-purple-300 rounded-xl hover:bg-purple-50 transition-colors">
+                                                <p className="text-sm text-purple-600 font-medium">
+                                                    Lihat {safeProperty.seasonalRates.length - 6} tarif lainnya →
                                                 </p>
-                                            </div>
+                                            </Link>
                                         )}
                                     </div>
                                 ) : (
-                                    <Alert>
-                                        <Info className="h-4 w-4" />
-                                        <AlertDescription>
-                                            No seasonal rates configured yet. Click "Manage" to set up dynamic pricing based on seasons, holidays, and demand.
+                                    <Alert className="bg-purple-50 border-purple-200">
+                                        <Info className="h-4 w-4 text-purple-600" />
+                                        <AlertDescription className="text-purple-800">
+                                            Belum ada tarif musiman. Klik "Kelola" untuk mengatur harga dinamis berdasarkan musim, hari libur, dan permintaan.
                                         </AlertDescription>
                                     </Alert>
                                 )}
@@ -687,53 +726,86 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                         </Card>
                     </TabsContent>
 
-                    {/* Booking Tab - Enhanced */}
+                    {/* Booking Tab - Enhanced with Today Indicators */}
                     <TabsContent value="booking" className="space-y-6">
                         {/* Recent Bookings */}
-                        <Card className="card-modern">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
+                        <Card className="border-0 shadow-lg">
+                            <CardHeader className="bg-gradient-to-r from-orange-500/10 to-amber-500/10 rounded-t-lg">
+                                <CardTitle className="flex items-center gap-2 text-orange-700">
                                     <List className="h-5 w-5" />
-                                    Recent Bookings ({safeProperty.bookings?.length || 0})
+                                    Riwayat Booking ({safeProperty.bookings?.length || 0})
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="pt-4">
                                 {statsLoading ? (
                                     <SkeletonBookingList />
                                 ) : safeProperty.bookings && safeProperty.bookings.length > 0 ? (
                                     <div className="space-y-3">
-                                        {safeProperty.bookings.map((booking: any, index: number) => (
-                                            <div key={booking.id || index} className="flex items-center justify-between p-3 sm:p-4 border rounded-lg bg-muted/20">
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="font-medium text-sm sm:text-base truncate">{booking.booking_number || 'No booking number'}</p>
-                                                    <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                                                        {booking.guest_name || 'No guest name'} • {booking.guest_count || 0} guests
-                                                    </p>
-                                                    <p className="text-xs sm:text-sm text-muted-foreground">
-                                                        {new Date(booking.check_in || Date.now()).toLocaleDateString('id-ID')} - {new Date(booking.check_out || Date.now()).toLocaleDateString('id-ID')}
-                                                    </p>
+                                        {safeProperty.bookings.map((booking: any, index: number) => {
+                                            const today = new Date().toDateString();
+                                            const checkInDate = new Date(booking.check_in || Date.now());
+                                            const checkOutDate = new Date(booking.check_out || Date.now());
+                                            const isCheckInToday = checkInDate.toDateString() === today;
+                                            const isCheckOutToday = checkOutDate.toDateString() === today;
+                                            const isStaying = checkInDate <= new Date() && checkOutDate >= new Date();
+
+                                            return (
+                                                <div key={booking.id || index} className={`relative flex items-center justify-between p-4 rounded-xl border-2 transition-all ${isCheckInToday ? 'border-green-500 bg-green-50' :
+                                                    isCheckOutToday ? 'border-orange-500 bg-orange-50' :
+                                                        isStaying ? 'border-blue-500 bg-blue-50' :
+                                                            'border-gray-100 bg-gray-50'
+                                                    }`}>
+                                                    {/* Today Indicators */}
+                                                    {isCheckInToday && (
+                                                        <div className="absolute -top-2 -left-2">
+                                                            <Badge className="bg-green-500 text-white text-xs animate-pulse">🔑 Check-in Hari Ini</Badge>
+                                                        </div>
+                                                    )}
+                                                    {isCheckOutToday && (
+                                                        <div className="absolute -top-2 -left-2">
+                                                            <Badge className="bg-orange-500 text-white text-xs animate-pulse">🚪 Check-out Hari Ini</Badge>
+                                                        </div>
+                                                    )}
+                                                    {!isCheckInToday && !isCheckOutToday && isStaying && (
+                                                        <div className="absolute -top-2 -left-2">
+                                                            <Badge className="bg-blue-500 text-white text-xs">🏠 Sedang Menginap</Badge>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="font-semibold text-base">{booking.booking_number || 'No. Booking'}</p>
+                                                        <p className="text-sm text-muted-foreground mt-1">
+                                                            👤 {booking.guest_name || 'Nama Tamu'} • {booking.guest_count || 0} orang
+                                                        </p>
+                                                        <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+                                                            <span className="text-green-600">📥 {checkInDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                                                            <span>→</span>
+                                                            <span className="text-orange-600">📤 {checkOutDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right flex-shrink-0 ml-4">
+                                                        <Badge className={`${booking.booking_status === 'confirmed' ? 'bg-green-500' :
+                                                            booking.booking_status === 'pending_verification' ? 'bg-amber-500' :
+                                                                booking.booking_status === 'checked_in' ? 'bg-blue-500' :
+                                                                    booking.booking_status === 'checked_out' ? 'bg-gray-500' :
+                                                                        booking.booking_status === 'cancelled' ? 'bg-red-500' :
+                                                                            'bg-gray-400'
+                                                            } text-white`}>
+                                                            {(booking.booking_status || 'unknown').replace(/_/g, ' ')}
+                                                        </Badge>
+                                                        <p className="text-lg font-bold mt-2 text-emerald-600">
+                                                            {formatCurrency(booking.total_amount || 0)}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div className="text-right flex-shrink-0 ml-3">
-                                                    <Badge className={
-                                                        booking.booking_status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                                                        booking.booking_status === 'pending_verification' ? 'bg-yellow-100 text-yellow-800' :
-                                                        booking.booking_status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                                                        'bg-gray-100 text-gray-800'
-                                                    }>
-                                                        {(booking.booking_status || 'unknown').replace('_', ' ').toUpperCase()}
-                                                    </Badge>
-                                                    <p className="text-xs sm:text-sm font-medium mt-1">
-                                                        {formatCurrency(booking.total_amount || 0)}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 ) : (
-                                    <Alert>
-                                        <Info className="h-4 w-4" />
-                                        <AlertDescription>
-                                            No bookings found for this property yet.
+                                    <Alert className="bg-orange-50 border-orange-200">
+                                        <Info className="h-4 w-4 text-orange-600" />
+                                        <AlertDescription className="text-orange-800">
+                                            Belum ada booking untuk properti ini.
                                         </AlertDescription>
                                     </Alert>
                                 )}

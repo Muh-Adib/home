@@ -81,6 +81,32 @@ export interface GuestBooking {
     payment_status: string;
 }
 
+export interface RevenueBreakdown {
+    current_month: {
+        total: number;
+        base_amount: number;
+        weekend_premium: number;
+        seasonal_premium: number;
+        extra_bed_amount: number;
+        days_count: number;
+        weekend_days: number;
+        seasonal_days: number;
+    };
+    last_month: {
+        total: number;
+        base_amount: number;
+        weekend_premium: number;
+        seasonal_premium: number;
+    };
+    percentages: {
+        base: number;
+        weekend: number;
+        seasonal: number;
+        extra_bed: number;
+    };
+    change: number;
+}
+
 export interface DashboardData {
     kpis: {
         revenue: KPIData;
@@ -92,7 +118,9 @@ export interface DashboardData {
     todaysAgenda: TodayAgenda[];
     quickStats: QuickStats;
     revenueChart: RevenueChart[];
+    revenueBreakdown?: RevenueBreakdown;
     bookingTrends: BookingTrend[];
     propertyPerformance: PropertyPerformance[];
     upcomingBookings?: GuestBooking[];
 }
+

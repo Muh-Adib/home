@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Switch } from '@/components/ui/switch';
 import {
     Calendar,
     Plus,
@@ -18,18 +19,26 @@ import {
     DollarSign,
     Clock,
     Target,
-    CalendarDays
+    CalendarDays,
+    Bed,
+    ArrowLeft,
+    CheckCircle,
+    XCircle,
+    ChevronRight,
+    Sun,
 } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 import { format } from 'date-fns';
 import { type BreadcrumbItem } from '@/types';
+import { formatCurrency } from '@/lib/utils';
 
 interface Property {
     id: number;
     name: string;
     slug: string;
     base_rate: number;
-    formatted_base_rate: string;
+    formatted_base_rate?: string;
+    extra_bed_rate?: number;
 }
 
 interface SeasonalRate {
@@ -83,23 +92,30 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
         description: '',
     });
 
-    const formatCurrency = (amount: number) => {
-        return `Rp ${amount.toLocaleString('id-ID')}`;
-    };
+    // Use formatted_base_rate if available, otherwise format from base_rate
+    const displayBaseRate = property.formatted_base_rate || formatCurrency(property.base_rate);
 
-    const formatDate = (dateString: string) => {
+    const formatShortDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('id-ID', {
             day: 'numeric',
-            month: 'short',
-            year: 'numeric'
+            month: 'short'
         });
     };
 
-    const getRateTypeColor = (type: string) => {
+    const getRateTypeLabel = (type: string) => {
         switch (type) {
-            case 'percentage': return 'bg-brand-primary-20 text-brand-primary';
-            case 'fixed': return 'bg-brand-secondary-20 text-brand-secondary';
-            case 'multiplier': return 'bg-brand-accent-20 text-brand-accent';
+            case 'percentage': return 'Persentase';
+            case 'fixed': return 'Harga Tetap';
+            case 'multiplier': return 'Pengali';
+            default: return type;
+        }
+    };
+
+    const getRateTypeClass = (type: string) => {
+        switch (type) {
+            case 'percentage': return 'bg-info text-info';
+            case 'fixed': return 'bg-success text-success';
+            case 'multiplier': return 'bg-warning text-warning';
             default: return 'bg-muted text-muted-foreground';
         }
     };
@@ -131,11 +147,29 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
         }
     };
 
-    const getPriorityColor = (priority: number) => {
+    const getPriorityClass = (priority: number) => {
         if (priority >= 90) return 'bg-destructive/20 text-destructive';
-        if (priority >= 70) return 'bg-brand-accent-30 text-brand-accent';
-        if (priority >= 50) return 'bg-brand-secondary-30 text-brand-secondary';
+        if (priority >= 70) return 'bg-warning text-warning';
         return 'bg-muted text-muted-foreground';
+    };
+
+    const isRateActive = (rate: SeasonalRate) => {
+        const now = new Date();
+        const start = new Date(rate.start_date);
+        const end = new Date(rate.end_date);
+        return rate.is_active && now >= start && now <= end;
+    };
+
+    const isRateUpcoming = (rate: SeasonalRate) => {
+        const now = new Date();
+        const start = new Date(rate.start_date);
+        return rate.is_active && now < start;
+    };
+
+    const isRatePast = (rate: SeasonalRate) => {
+        const now = new Date();
+        const end = new Date(rate.end_date);
+        return now > end;
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -193,168 +227,288 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
         { title: 'Seasonal Rates', href: '#' },
     ];
 
+    const activeRates = seasonalRates.filter(r => isRateActive(r));
+    const upcomingRates = seasonalRates.filter(r => isRateUpcoming(r));
+
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title={`Seasonal Rates - ${property.name}`} />
 
-            <div className="space-y-6">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold text-foreground">Seasonal Rates</h1>
-                        <p className="text-muted-foreground mt-1">
-                            Manage seasonal pricing for {property.name}
+            <div className="space-y-4 md:space-y-6">
+                {/* Mobile-First Header */}
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                            <Link href={route('admin.properties.show', property.slug)} className="md:hidden">
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <ArrowLeft className="h-4 w-4" />
+                                </Button>
+                            </Link>
+                            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Tarif Musiman</h1>
+                        </div>
+                        <p className="text-sm md:text-base text-muted-foreground">
+                            Atur harga spesial untuk {property.name}
                         </p>
                     </div>
                     <div className="flex gap-2">
-                        <Link href={route('admin.properties.show', property.slug)}>
-                            <Button variant="outline">
-                                Back to Property
+                        <Link href={route('admin.properties.show', property.slug)} className="hidden md:block">
+                            <Button variant="outline" size="sm">
+                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                Kembali
                             </Button>
                         </Link>
-                        <Button onClick={() => setShowCreateModal(true)}>
+                        <Button onClick={() => setShowCreateModal(true)} className="flex-1 sm:flex-none">
                             <Plus className="h-4 w-4 mr-2" />
-                            Add Seasonal Rate
+                            Tambah Tarif
                         </Button>
                     </div>
                 </div>
 
-                {/* Property Info */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <DollarSign className="h-5 w-5" />
-                            Property Pricing Info
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div>
-                                <Label className="text-sm font-medium text-muted-foreground">Base Rate</Label>
-                                <p className="text-2xl font-bold text-foreground">{property.formatted_base_rate}</p>
-                                <p className="text-sm text-muted-foreground">per night</p>
+                {/* Stats Cards - Using universal semantic classes */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                    <Card className="bg-info">
+                        <CardContent className="p-3 md:p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                                <DollarSign className="h-4 w-4 text-info" />
+                                <span className="text-xs text-info font-medium">Base Rate</span>
                             </div>
-                            <div>
-                                <Label className="text-sm font-medium text-muted-foreground">Active Rates</Label>
-                                <p className="text-2xl font-bold text-brand-secondary">
-                                    {seasonalRates.filter(r => r.is_active).length}
-                                </p>
-                                <p className="text-sm text-muted-foreground">seasonal rates</p>
-                            </div>
-                            <div>
-                                <Label className="text-sm font-medium text-muted-foreground">Upcoming</Label>
-                                <p className="text-2xl font-bold text-brand-primary">
-                                    {seasonalRates.filter(r => new Date(r.start_date) > new Date()).length}
-                                </p>
-                                <p className="text-sm text-muted-foreground">future rates</p>
-                            </div>
-                            <div>
-                                <Label className="text-sm font-medium text-muted-foreground">Peak Seasons</Label>
-                                <p className="text-2xl font-bold text-destructive">
-                                    {seasonalRates.filter(r => r.priority >= 90).length}
-                                </p>
-                                <p className="text-sm text-muted-foreground">high priority</p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                            <p className="text-lg md:text-xl font-bold text-info">{displayBaseRate}</p>
+                            <p className="text-xs text-muted-foreground">/malam</p>
+                        </CardContent>
+                    </Card>
 
-                {/* Seasonal Rates List */}
-                <div className="space-y-4">
+                    <Card className="bg-success">
+                        <CardContent className="p-3 md:p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                                <CheckCircle className="h-4 w-4 text-success" />
+                                <span className="text-xs text-success font-medium">Aktif</span>
+                            </div>
+                            <p className="text-lg md:text-xl font-bold text-success">{activeRates.length}</p>
+                            <p className="text-xs text-muted-foreground">tarif berlaku</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-warning">
+                        <CardContent className="p-3 md:p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Calendar className="h-4 w-4 text-warning" />
+                                <span className="text-xs text-warning font-medium">Mendatang</span>
+                            </div>
+                            <p className="text-lg md:text-xl font-bold text-warning">{upcomingRates.length}</p>
+                            <p className="text-xs text-muted-foreground">dijadwalkan</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardContent className="p-3 md:p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Target className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground font-medium">Total</span>
+                            </div>
+                            <p className="text-lg md:text-xl font-bold text-foreground">{seasonalRates.length}</p>
+                            <p className="text-xs text-muted-foreground">tarif</p>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Rates List */}
+                <div className="space-y-3">
                     {sortedRates.length > 0 ? (
-                        sortedRates.map((rate) => (
-                            <Card key={rate.id} className={`${!rate.is_active ? 'opacity-60' : ''}`}>
-                                <CardContent className="p-6">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-3 mb-2">
-                                                <h3 className="text-lg font-semibold">{rate.name}</h3>
-                                                <Badge className={getRateTypeColor(rate.rate_type)}>
-                                                    {rate.rate_type}
-                                                </Badge>
-                                                <Badge className={getPriorityColor(rate.priority)}>
-                                                    Priority {rate.priority}
-                                                </Badge>
-                                                {!rate.is_active && (
-                                                    <Badge variant="secondary">
-                                                        Inactive
+                        sortedRates.map((rate) => {
+                            const isCurrentlyActive = isRateActive(rate);
+                            const isUpcoming = isRateUpcoming(rate);
+                            const isPast = isRatePast(rate);
+
+                            return (
+                                <Card
+                                    key={rate.id}
+                                    className={`overflow-hidden transition-all duration-200 ${isPast ? 'opacity-60' : ''
+                                        } ${isCurrentlyActive ? 'ring-2 ring-primary' : ''}`}
+                                >
+                                    <CardContent className="p-0">
+                                        {/* Status Bar */}
+                                        <div className={`h-1 ${isCurrentlyActive ? 'bg-primary' :
+                                                isUpcoming ? 'bg-warning' :
+                                                    isPast ? 'bg-muted-foreground/50' :
+                                                        !rate.is_active ? 'bg-destructive' : 'bg-muted'
+                                            }`} />
+
+                                        <div className="p-4">
+                                            {/* Header Row */}
+                                            <div className="flex items-start justify-between gap-3 mb-3">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                        <h3 className="font-semibold text-base md:text-lg truncate">{rate.name}</h3>
+                                                        {isCurrentlyActive && (
+                                                            <Badge className="bg-success text-success whitespace-nowrap">
+                                                                <CheckCircle className="h-3 w-3 mr-1" />
+                                                                Aktif
+                                                            </Badge>
+                                                        )}
+                                                        {isUpcoming && (
+                                                            <Badge className="bg-warning text-warning whitespace-nowrap">
+                                                                <Clock className="h-3 w-3 mr-1" />
+                                                                Mendatang
+                                                            </Badge>
+                                                        )}
+                                                        {isPast && (
+                                                            <Badge className="bg-surface text-surface whitespace-nowrap">
+                                                                Berakhir
+                                                            </Badge>
+                                                        )}
+                                                        {!rate.is_active && (
+                                                            <Badge variant="destructive" className="whitespace-nowrap">
+                                                                <XCircle className="h-3 w-3 mr-1" />
+                                                                Nonaktif
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                        <CalendarDays className="h-3.5 w-3.5" />
+                                                        <span>{formatShortDate(rate.start_date)}</span>
+                                                        <ChevronRight className="h-3 w-3" />
+                                                        <span>{formatShortDate(rate.end_date)}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions - Desktop */}
+                                                <div className="hidden sm:flex items-center gap-1">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleEdit(rate)}
+                                                        className="h-8 w-8"
+                                                    >
+                                                        <Edit className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleDelete(rate)}
+                                                        className="h-8 w-8 text-destructive hover:text-destructive/80"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            {/* Info Grid */}
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-3">
+                                                {/* Rate Type & Value */}
+                                                <div className="bg-muted rounded-lg p-2.5 md:p-3">
+                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                        <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <span className="text-xs text-muted-foreground font-medium">Tarif</span>
+                                                    </div>
+                                                    <p className="font-semibold text-sm md:text-base text-foreground">{formatRateValue(rate)}</p>
+                                                    <Badge className={`${getRateTypeClass(rate.rate_type)} text-xs mt-1`}>
+                                                        {getRateTypeLabel(rate.rate_type)}
                                                     </Badge>
+                                                </div>
+
+                                                {/* Calculated Rate */}
+                                                <div className="bg-muted rounded-lg p-2.5 md:p-3">
+                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                        <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <span className="text-xs text-muted-foreground font-medium">Hasil</span>
+                                                    </div>
+                                                    <p className="font-semibold text-sm md:text-base text-primary">
+                                                        {formatCurrency(calculateExampleRate(rate))}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">/malam</p>
+                                                </div>
+
+                                                {/* Extra Bed Rate */}
+                                                <div className="bg-muted rounded-lg p-2.5 md:p-3">
+                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                        <Bed className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <span className="text-xs text-muted-foreground font-medium">Extra Bed</span>
+                                                    </div>
+                                                    {rate.extra_bed_rate ? (
+                                                        <>
+                                                            <p className="font-semibold text-sm md:text-base text-warning">
+                                                                {formatCurrency(rate.extra_bed_rate)}
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground">/malam</p>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <p className="font-semibold text-sm md:text-base text-muted-foreground">
+                                                                {property.extra_bed_rate ? formatCurrency(property.extra_bed_rate) : '-'}
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground">dari property</p>
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {/* Min Stay & Priority */}
+                                                <div className="bg-muted rounded-lg p-2.5 md:p-3">
+                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <span className="text-xs text-muted-foreground font-medium">Min. Inap</span>
+                                                    </div>
+                                                    <p className="font-semibold text-sm md:text-base text-foreground">{rate.min_stay_nights} malam</p>
+                                                    <Badge className={`${getPriorityClass(rate.priority)} text-xs mt-1`}>
+                                                        P{rate.priority}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+
+                                            {/* Additional Info */}
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {rate.applies_to_weekends_only && (
+                                                    <Badge variant="outline" className="text-xs">
+                                                        <Sun className="h-3 w-3 mr-1" />
+                                                        Weekend Only
+                                                    </Badge>
+                                                )}
+                                                {rate.description && (
+                                                    <span className="text-xs text-muted-foreground line-clamp-1">
+                                                        {rate.description}
+                                                    </span>
                                                 )}
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                                                <div className="flex items-center gap-2">
-                                                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                                                    <div>
-                                                        <p className="text-sm font-medium text-foreground">Period</p>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            {formatDate(rate.start_date)} - {formatDate(rate.end_date)}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-2">
-                                                    <Target className="h-4 w-4 text-muted-foreground" />
-                                                    <div>
-                                                        <p className="text-sm font-medium text-foreground">Rate Impact</p>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            {formatRateValue(rate)} → {formatCurrency(calculateExampleRate(rate))}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-2">
-                                                    <Clock className="h-4 w-4 text-muted-foreground" />
-                                                    <div>
-                                                        <p className="text-sm font-medium text-foreground">Min Stay</p>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            {rate.min_stay_nights} nights
-                                                        </p>
-                                                    </div>
-                                                </div>
+                                            {/* Mobile Actions */}
+                                            <div className="flex sm:hidden items-center gap-2 mt-3 pt-3 border-t">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleEdit(rate)}
+                                                    className="flex-1"
+                                                >
+                                                    <Edit className="h-4 w-4 mr-2" />
+                                                    Edit
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleDelete(rate)}
+                                                    className="text-destructive hover:text-destructive/80"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
                                             </div>
-
-                                            {rate.description && (
-                                                <p className="text-sm text-muted-foreground mt-3">
-                                                    {rate.description}
-                                                </p>
-                                            )}
                                         </div>
-
-                                        <div className="flex items-center gap-2 ml-4">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleEdit(rate)}
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleDelete(rate)}
-                                                className="text-destructive hover:text-destructive/80"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))
+                                    </CardContent>
+                                </Card>
+                            );
+                        })
                     ) : (
                         <Card>
                             <CardContent className="text-center py-12">
-                                <Calendar className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+                                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Calendar className="h-8 w-8 text-muted-foreground" />
+                                </div>
                                 <h3 className="text-lg font-semibold text-foreground mb-2">
-                                    No seasonal rates configured
+                                    Belum ada tarif musiman
                                 </h3>
-                                <p className="text-muted-foreground mb-4">
-                                    Start by creating your first seasonal rate to optimize pricing
+                                <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
+                                    Buat tarif musiman untuk mengoptimalkan harga property Anda di periode tertentu
                                 </p>
                                 <Button onClick={() => setShowCreateModal(true)}>
                                     <Plus className="h-4 w-4 mr-2" />
-                                    Add Seasonal Rate
+                                    Tambah Tarif Musiman
                                 </Button>
                             </CardContent>
                         </Card>
@@ -369,104 +523,115 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                         reset();
                     }
                 }}>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
-                            <DialogTitle>
-                                {editingRate ? 'Edit Seasonal Rate' : 'Create Seasonal Rate'}
+                            <DialogTitle className="flex items-center gap-2">
+                                {editingRate ? <Edit className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+                                {editingRate ? 'Edit Tarif Musiman' : 'Tambah Tarif Musiman'}
                             </DialogTitle>
                         </DialogHeader>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="md:col-span-2">
-                                    <Label htmlFor="name">Rate Name *</Label>
-                                    <Input
-                                        id="name"
-                                        value={data.name}
-                                        onChange={(e) => setData('name', e.target.value)}
-                                        placeholder="e.g., Christmas Holiday Premium"
-                                        className={errors.name ? 'border-destructive' : ''}
-                                    />
-                                    {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
-                                </div>
+                            {/* Name */}
+                            <div>
+                                <Label htmlFor="name">Nama Tarif *</Label>
+                                <Input
+                                    id="name"
+                                    value={data.name}
+                                    onChange={(e) => setData('name', e.target.value)}
+                                    placeholder="Contoh: Libur Natal, High Season"
+                                    className={errors.name ? 'border-destructive' : ''}
+                                />
+                                {errors.name && <p className="text-sm text-destructive mt-1">{errors.name}</p>}
+                            </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <Label>Start Date *</Label>
-                                        <DatePicker
-                                            date={data.start_date ? new Date(data.start_date) : undefined}
-                                            onDateChange={(date) => {
-                                                setData('start_date', date ? format(date, 'yyyy-MM-dd') : '');
-                                            }}
-                                            placeholder="Select start date"
-                                            className={errors.start_date ? 'border-destructive' : ''}
-                                        />
-                                        {errors.start_date && (
-                                            <p className="text-sm text-destructive mt-1">{errors.start_date}</p>
-                                        )}
-                                    </div>
-                                    <div>
-                                        <Label>End Date *</Label>
-                                        <DatePicker
-                                            date={data.end_date ? new Date(data.end_date) : undefined}
-                                            onDateChange={(date) => {
-                                                setData('end_date', date ? format(date, 'yyyy-MM-dd') : '');
-                                            }}
-                                            placeholder="Select end date"
-                                            className={errors.end_date ? 'border-destructive' : ''}
-                                        />
-                                        {errors.end_date && (
-                                            <p className="text-sm text-destructive mt-1">{errors.end_date}</p>
-                                        )}
-                                    </div>
-                                </div>
-
+                            {/* Date Range */}
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <Label htmlFor="rate_type">Rate Type *</Label>
+                                    <Label>Tanggal Mulai *</Label>
+                                    <DatePicker
+                                        date={data.start_date ? new Date(data.start_date) : undefined}
+                                        onDateChange={(date) => {
+                                            setData('start_date', date ? format(date, 'yyyy-MM-dd') : '');
+                                        }}
+                                        placeholder="Pilih tanggal"
+                                        className={errors.start_date ? 'border-destructive' : ''}
+                                    />
+                                    {errors.start_date && (
+                                        <p className="text-sm text-destructive mt-1">{errors.start_date}</p>
+                                    )}
+                                </div>
+                                <div>
+                                    <Label>Tanggal Selesai *</Label>
+                                    <DatePicker
+                                        date={data.end_date ? new Date(data.end_date) : undefined}
+                                        onDateChange={(date) => {
+                                            setData('end_date', date ? format(date, 'yyyy-MM-dd') : '');
+                                        }}
+                                        placeholder="Pilih tanggal"
+                                        className={errors.end_date ? 'border-destructive' : ''}
+                                    />
+                                    {errors.end_date && (
+                                        <p className="text-sm text-destructive mt-1">{errors.end_date}</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Rate Type & Value */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <Label htmlFor="rate_type">Tipe Tarif *</Label>
                                     <Select value={data.rate_type} onValueChange={(value: any) => setData('rate_type', value)}>
                                         <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="percentage">Percentage (+/-50%)</SelectItem>
-                                            <SelectItem value="fixed">Fixed Amount</SelectItem>
-                                            <SelectItem value="multiplier">Multiplier (1.5x)</SelectItem>
+                                            <SelectItem value="fixed">Harga Tetap (Rp)</SelectItem>
+                                            <SelectItem value="percentage">Persentase (+/-)</SelectItem>
+                                            <SelectItem value="multiplier">Pengali (1.5x)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
 
                                 <div>
-                                    <Label htmlFor="rate_value">Rate Value *</Label>
+                                    <Label htmlFor="rate_value">Nilai Tarif *</Label>
                                     <Input
                                         id="rate_value"
                                         type="number"
-                                        step="50000"
+                                        step={data.rate_type === 'fixed' ? '50000' : '0.1'}
                                         value={data.rate_value}
                                         onChange={(e) => setData('rate_value', parseFloat(e.target.value) || 0)}
                                         className={errors.rate_value ? 'border-destructive' : ''}
                                     />
-                                    {errors.rate_value && <p className="text-sm text-destructive">{errors.rate_value}</p>}
+                                    {errors.rate_value && <p className="text-sm text-destructive mt-1">{errors.rate_value}</p>}
                                 </div>
+                            </div>
 
-                                <div>
-                                    <Label htmlFor="extra_bed_rate">Extra Bed Rate (Optional)</Label>
-                                    <Input
-                                        id="extra_bed_rate"
-                                        type="number"
-                                        step="5000"
-                                        value={data.extra_bed_rate ?? ''}
-                                        onChange={(e) => setData('extra_bed_rate', e.target.value ? parseFloat(e.target.value) : null)}
-                                        placeholder="Kosongkan untuk menggunakan tarif property"
-                                        className={errors.extra_bed_rate ? 'border-destructive' : ''}
-                                    />
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        Jika dikosongkan, akan menggunakan extra_bed_rate dari property
-                                    </p>
-                                    {errors.extra_bed_rate && <p className="text-sm text-destructive">{errors.extra_bed_rate}</p>}
-                                </div>
+                            {/* Extra Bed Rate */}
+                            <div>
+                                <Label htmlFor="extra_bed_rate" className="flex items-center gap-2">
+                                    <Bed className="h-4 w-4" />
+                                    Extra Bed Rate
+                                </Label>
+                                <Input
+                                    id="extra_bed_rate"
+                                    type="number"
+                                    step="5000"
+                                    value={data.extra_bed_rate ?? ''}
+                                    onChange={(e) => setData('extra_bed_rate', e.target.value ? parseFloat(e.target.value) : null)}
+                                    placeholder="Kosongkan untuk menggunakan tarif property"
+                                    className={errors.extra_bed_rate ? 'border-destructive' : ''}
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Tarif property: {property.extra_bed_rate ? formatCurrency(property.extra_bed_rate) : 'Belum diatur'}
+                                </p>
+                                {errors.extra_bed_rate && <p className="text-sm text-destructive">{errors.extra_bed_rate}</p>}
+                            </div>
 
+                            {/* Priority & Min Stay */}
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <Label htmlFor="priority">Priority (0-100) *</Label>
+                                    <Label htmlFor="priority">Prioritas (0-100) *</Label>
                                     <Input
                                         id="priority"
                                         type="number"
@@ -476,10 +641,13 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         onChange={(e) => setData('priority', parseInt(e.target.value) || 0)}
                                         className={errors.priority ? 'border-destructive' : ''}
                                     />
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Semakin tinggi, semakin diprioritaskan
+                                    </p>
                                 </div>
 
                                 <div>
-                                    <Label htmlFor="min_stay_nights">Min Stay (nights) *</Label>
+                                    <Label htmlFor="min_stay_nights">Min. Menginap *</Label>
                                     <Input
                                         id="min_stay_nights"
                                         type="number"
@@ -488,26 +656,55 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         onChange={(e) => setData('min_stay_nights', parseInt(e.target.value) || 1)}
                                         className={errors.min_stay_nights ? 'border-destructive' : ''}
                                     />
+                                    <p className="text-xs text-muted-foreground mt-1">malam</p>
                                 </div>
+                            </div>
 
-                                <div className="md:col-span-2">
-                                    <Label htmlFor="description">Description</Label>
-                                    <Input
-                                        id="description"
-                                        value={data.description}
-                                        onChange={(e) => setData('description', e.target.value)}
-                                        placeholder="Optional description"
+                            {/* Switches */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label>Aktif</Label>
+                                        <p className="text-xs text-muted-foreground">Tarif berlaku saat diaktifkan</p>
+                                    </div>
+                                    <Switch
+                                        checked={data.is_active}
+                                        onCheckedChange={(checked) => setData('is_active', checked)}
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label className="flex items-center gap-2">
+                                            <Sun className="h-4 w-4" />
+                                            Weekend Only
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">Hanya berlaku Jumat-Minggu</p>
+                                    </div>
+                                    <Switch
+                                        checked={data.applies_to_weekends_only}
+                                        onCheckedChange={(checked) => setData('applies_to_weekends_only', checked)}
                                     />
                                 </div>
                             </div>
 
+                            {/* Description */}
+                            <div>
+                                <Label htmlFor="description">Deskripsi</Label>
+                                <Input
+                                    id="description"
+                                    value={data.description}
+                                    onChange={(e) => setData('description', e.target.value)}
+                                    placeholder="Catatan tambahan (opsional)"
+                                />
+                            </div>
+
                             {/* Rate Preview */}
                             {data.rate_value > 0 && (
-                                <Alert>
+                                <Alert className="bg-muted">
                                     <TrendingUp className="h-4 w-4" />
                                     <AlertDescription>
-                                        <strong>Preview:</strong> Base rate {property.formatted_base_rate} →{' '}
-                                        <span className="font-semibold">
+                                        <strong>Preview:</strong> {displayBaseRate} →{' '}
+                                        <span className="font-semibold text-primary">
                                             {formatCurrency(
                                                 data.rate_type === 'percentage'
                                                     ? property.base_rate * (1 + data.rate_value / 100)
@@ -516,11 +713,17 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                                         : property.base_rate * data.rate_value
                                             )}
                                         </span>
+                                        {data.extra_bed_rate && (
+                                            <span className="text-warning ml-2">
+                                                (Extra Bed: {formatCurrency(data.extra_bed_rate)})
+                                            </span>
+                                        )}
                                     </AlertDescription>
                                 </Alert>
                             )}
 
-                            <div className="flex justify-end gap-2 pt-4">
+                            {/* Form Actions */}
+                            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -529,11 +732,12 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         setEditingRate(null);
                                         reset();
                                     }}
+                                    className="w-full sm:w-auto"
                                 >
-                                    Cancel
+                                    Batal
                                 </Button>
-                                <Button type="submit" disabled={processing}>
-                                    {processing ? 'Saving...' : editingRate ? 'Update' : 'Create'}
+                                <Button type="submit" disabled={processing} className="w-full sm:w-auto">
+                                    {processing ? 'Menyimpan...' : editingRate ? 'Perbarui' : 'Simpan'}
                                 </Button>
                             </div>
                         </form>

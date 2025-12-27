@@ -3,15 +3,22 @@ import { Head, useForm } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { type BreadcrumbItem, type PageProps } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
-import { 
-    BarChart3, 
+import {
     TrendingUp,
     TrendingDown,
     DollarSign,
@@ -21,16 +28,18 @@ import {
     CreditCard,
     Download,
     Filter,
-    ArrowUp,
-    ArrowDown,
-    Minus,
-    PieChart,
-    Clock,
-    CheckCircle,
-    AlertCircle,
-    MapPin
+    ArrowUpRight,
+    ArrowDownRight,
+    ChevronRight,
+    Sparkles,
+    Zap,
+    Target,
+    Globe,
+    ChevronDown,
+    FileSpreadsheet,
+    BarChart3,
 } from 'lucide-react';
-import { DateRange, getDefaultDateRange } from '@/components/ui/date-range';
+import { DateRange } from '@/components/ui/date-range';
 
 interface ReportsOverview {
     totalRevenue: number;
@@ -101,27 +110,110 @@ interface ReportsIndexProps extends PageProps {
     };
 }
 
+// Modern KPI Card
+function KPICard({
+    title,
+    value,
+    growth,
+    icon: Icon,
+    gradient,
+    prefix = '',
+    suffix = ''
+}: {
+    title: string;
+    value: number | string;
+    growth?: number;
+    icon: any;
+    gradient: string;
+    prefix?: string;
+    suffix?: string;
+}) {
+    const formatValue = (val: number | string) => {
+        if (typeof val === 'number') {
+            if (prefix === 'Rp') {
+                if (val >= 1000000000) return `${(val / 1000000000).toFixed(1)} M`; // Milyar
+                if (val >= 1000000) return `${(val / 1000000).toFixed(1)} Jt`; // Juta
+                if (val >= 1000) return `${(val / 1000).toFixed(0)} Rb`; // Ribu
+            }
+            return val.toLocaleString('id-ID');
+        }
+        return val;
+    };
+
+    return (
+        <div className={`relative overflow-hidden rounded-2xl p-4 sm:p-5 ${gradient}`}>
+            <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                    <p className="text-xs sm:text-sm font-medium text-white/80">{title}</p>
+                    <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+                        {prefix && prefix !== 'Rp' && prefix}{formatValue(value)}{suffix}
+                    </p>
+                    {growth !== undefined && (
+                        <div className={`flex items-center gap-1 text-xs font-medium ${growth >= 0 ? 'text-emerald-200' : 'text-red-200'}`}>
+                            {growth >= 0 ? (
+                                <ArrowUpRight className="h-3 w-3" />
+                            ) : (
+                                <ArrowDownRight className="h-3 w-3" />
+                            )}
+                            <span>{Math.abs(growth)}%</span>
+                        </div>
+                    )}
+                </div>
+                <div className="p-2 sm:p-3 rounded-xl bg-white/20">
+                    <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                </div>
+            </div>
+            {/* Decorative elements */}
+            <div className="absolute -right-4 -bottom-4 w-24 h-24 rounded-full bg-white/10" />
+            <div className="absolute -right-2 -bottom-2 w-16 h-16 rounded-full bg-white/10" />
+        </div>
+    );
+}
+
+// Circular Progress Ring
+function CircularProgress({ value, size = 80, color = '#8b5cf6' }: { value: number; size?: number; color?: string }) {
+    const radius = (size - 8) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (value / 100) * circumference;
+
+    return (
+        <div className="relative" style={{ width: size, height: size }}>
+            <svg className="w-full h-full -rotate-90">
+                <circle
+                    cx={size / 2} cy={size / 2} r={radius}
+                    stroke="#e5e7eb" strokeWidth="6" fill="none"
+                />
+                <circle
+                    cx={size / 2} cy={size / 2} r={radius}
+                    stroke={color} strokeWidth="6" fill="none"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={offset}
+                    strokeLinecap="round"
+                    className="transition-all duration-700"
+                />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-lg font-bold">
+                {value}%
+            </span>
+        </div>
+    );
+}
+
 export default function ReportsIndex({ data, properties, filters }: ReportsIndexProps) {
     const { data: filterData, setData: setFilterData, get: getFilter } = useForm({
         date_from: filters.date_from || '',
         date_to: filters.date_to || '',
         property_id: filters.property_id || 'all',
-        report_type: filters.report_type || 'revenue',
     });
 
-    const page = usePage<PageProps>();
-    const { auth } = page.props;
     const [selectedPeriod, setSelectedPeriod] = useState(filters.period || 'month');
+    const [isExporting, setIsExporting] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
-        { title: 'Reports & Analytics' },
+        { title: 'Reports' },
     ];
-
-    const handleFilter = (e: React.FormEvent) => {
-        e.preventDefault();
-        getFilter('/admin/reports', { preserveState: true });
-    };
 
     const handlePeriodChange = (newPeriod: string) => {
         setSelectedPeriod(newPeriod);
@@ -131,467 +223,402 @@ export default function ReportsIndex({ data, properties, filters }: ReportsIndex
         });
     };
 
-    const formatCurrency = (value: number) => 
+    const handleExport = async (type: string) => {
+        setIsExporting(true);
+        try {
+            // Create form with hidden fields for POST data
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/admin/reports/export';
+
+            // Add CSRF token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (csrfToken) {
+                const tokenInput = document.createElement('input');
+                tokenInput.type = 'hidden';
+                tokenInput.name = '_token';
+                tokenInput.value = csrfToken;
+                form.appendChild(tokenInput);
+            }
+
+            // Add form fields
+            const fields = {
+                type: type,
+                format: 'csv',
+                date_from: filterData.date_from || '',
+                date_to: filterData.date_to || '',
+                property_id: filterData.property_id === 'all' ? '' : filterData.property_id,
+            };
+
+            Object.entries(fields).forEach(([name, value]) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        } finally {
+            setTimeout(() => setIsExporting(false), 2000);
+        }
+    };
+
+    const formatCurrency = (value: number) =>
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 
-    const getGrowthIndicator = (growth: number) => {
-        if (growth > 0) return { icon: ArrowUp, color: 'text-green-600' };
-        if (growth < 0) return { icon: ArrowDown, color: 'text-red-600' };
-        return { icon: Minus, color: 'text-gray-600' };
+    const formatShort = (value: number) => {
+        if (value >= 1000000000) return `Rp ${(value / 1000000000).toFixed(1)} M`; // Milyar
+        if (value >= 1000000) return `Rp ${(value / 1000000).toFixed(1)} Jt`; // Juta
+        if (value >= 1000) return `Rp ${(value / 1000).toFixed(0)} Rb`; // Ribu
+        return `Rp ${value.toLocaleString('id-ID')}`;
     };
 
-    const getStatusBadge = (status: string) => {
-        const statusConfig: Record<string, { variant: any; label: string }> = {
-            'pending_verification': { variant: 'secondary', label: 'Pending' },
-            'confirmed': { variant: 'default', label: 'Confirmed' },
-            'checked_in': { variant: 'default', label: 'Checked In' },
-            'checked_out': { variant: 'outline', label: 'Checked Out' },
-            'cancelled': { variant: 'destructive', label: 'Cancelled' },
-            'no_show': { variant: 'destructive', label: 'No Show' },
+    const getStatusColor = (status: string) => {
+        const colors: Record<string, string> = {
+            'confirmed': 'bg-emerald-500',
+            'pending_verification': 'bg-amber-500',
+            'checked_in': 'bg-blue-500',
+            'checked_out': 'bg-gray-500',
+            'cancelled': 'bg-red-500',
         };
-
-        const config = statusConfig[status] || { variant: 'secondary', label: status };
-        return <Badge variant={config.variant}>{config.label}</Badge>;
+        return colors[status] || 'bg-gray-400';
     };
 
-    const getStatusIcon = (status: string) => {
-        const icons: Record<string, any> = {
-            'pending_verification': Clock,
-            'confirmed': CheckCircle,
-            'checked_in': Users,
-            'checked_out': CheckCircle,
-            'cancelled': AlertCircle,
-            'no_show': AlertCircle,
-        };
-        return icons[status] || Clock;
-    };
+    const maxRevenue = Math.max(...(data.topProperties?.map(p => p.revenue) || [0]), 1);
 
     return (
-        <AdminLayout breadcrumbs={breadcrumbs} title="Reports & Analytics" subtitle="Comprehensive insights into your property management performance">
-            <Head title="Reports & Analytics - Admin Dashboard" />
-            
-            <div className="space-y-6 p-4 md:p-6">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Reports & Analytics</h1>
-                        <p className="text-muted-foreground">
-                            Comprehensive insights into your property management performance
-                        </p>
-                    </div>
-                    
-                    <div className="flex flex-col sm:flex-row gap-2">
-                        <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
-                            <SelectTrigger className="w-full sm:w-auto">
-                                <SelectValue placeholder="Select Period" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="week">This Week</SelectItem>
-                                <SelectItem value="month">This Month</SelectItem>
-                                <SelectItem value="quarter">This Quarter</SelectItem>
-                                <SelectItem value="year">This Year</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        
-                        <Button variant="outline" className="w-full sm:w-auto">
-                            <Download className="h-4 w-4 mr-2" />
-                            Export Reports
-                        </Button>
-                    </div>
-                </div>
+        <AdminLayout breadcrumbs={breadcrumbs}>
+            <Head title="Laporan - Admin" />
 
-                {/* Filters */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Filter className="h-5 w-5" />
-                            Filters
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={handleFilter} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="md:col-span-2">
-                                <Label>Date Range</Label>
-                                <DateRange
-                                    startDate={filterData.date_from}
-                                    endDate={filterData.date_to}
-                                    onDateChange={(startDate, endDate) => {
-                                        setFilterData('date_from', startDate);
-                                        setFilterData('date_to', endDate);
-                                    }}
-                                    size="md"
-                                    showNights={false}
-                                    startLabel="From Date"
-                                    endLabel="To Date"
-                                />
-                            </div>
-
-                            <div>
-                                <Label htmlFor="property_id">Property</Label>
-                                <Select value={filterData.property_id} onValueChange={(value) => setFilterData('property_id', value)}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="All Properties" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Properties</SelectItem>
-                                        {properties?.map((property) => (
-                                            <SelectItem key={property.id} value={property.id.toString()}>
-                                                {property.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <Label htmlFor="report_type">Report Type</Label>
-                                <Select value={filterData.report_type} onValueChange={(value) => setFilterData('report_type', value)}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="revenue">Revenue Report</SelectItem>
-                                        <SelectItem value="occupancy">Occupancy Report</SelectItem>
-                                        <SelectItem value="guests">Guest Report</SelectItem>
-                                        <SelectItem value="properties">Property Performance</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="flex items-end">
-                                <Button type="submit" className="w-full">
-                                    <BarChart3 className="h-4 w-4 mr-2" />
-                                    Generate Report
-                                </Button>
-                            </div>
-                        </form>
-                    </CardContent>
-                </Card>
-
-                {/* Overview Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                            <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{formatCurrency(data.overview.totalRevenue)}</div>
-                            <div className="flex items-center text-xs text-muted-foreground">
-                                {(() => {
-                                    const { icon: Icon, color } = getGrowthIndicator(data.overview.revenueGrowth);
-                                    return (
-                                        <div className={`flex items-center gap-1 ${color}`}>
-                                            <Icon className="h-3 w-3" />
-                                            <span>{Math.abs(data.overview.revenueGrowth)}% from last period</span>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{data.overview.totalBookings}</div>
-                            <div className="flex items-center text-xs text-muted-foreground">
-                                {(() => {
-                                    const { icon: Icon, color } = getGrowthIndicator(data.overview.bookingsGrowth);
-                                    return (
-                                        <div className={`flex items-center gap-1 ${color}`}>
-                                            <Icon className="h-3 w-3" />
-                                            <span>{Math.abs(data.overview.bookingsGrowth)}% from last period</span>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Average Booking Value</CardTitle>
-                            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{formatCurrency(data.overview.averageBookingValue)}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Per booking
+            <div className="min-h-screen pb-20">
+                {/* Hero Header */}
+                <div className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 -mx-4 sm:-mx-6 px-4 sm:px-6 py-6 sm:py-8 mb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2">
+                                <Sparkles className="h-6 w-6 text-yellow-400" />
+                                Laporan & Analitik
+                            </h1>
+                            <p className="text-purple-200 mt-1 text-sm sm:text-base">
+                                Pantau performa bisnis secara real-time
                             </p>
-                        </CardContent>
-                    </Card>
+                        </div>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Occupancy Rate</CardTitle>
-                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex flex-wrap gap-2">
+                            {/* Period Pills */}
+                            <div className="flex gap-1 bg-white/10 rounded-full p-1">
+                                {[{ key: 'week', label: 'Minggu' }, { key: 'month', label: 'Bulan' }, { key: 'quarter', label: 'Kuartal' }, { key: 'year', label: 'Tahun' }].map((period) => (
+                                    <button
+                                        key={period.key}
+                                        onClick={() => handlePeriodChange(period.key)}
+                                        className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-full transition-all ${selectedPeriod === period.key
+                                            ? 'bg-white text-slate-900'
+                                            : 'text-white/80 hover:text-white hover:bg-white/10'
+                                            }`}
+                                    >
+                                        {period.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Mobile Filter Button */}
+                            <Sheet open={showFilters} onOpenChange={setShowFilters}>
+                                <SheetTrigger asChild>
+                                    <Button variant="outline" size="sm" className="sm:hidden bg-white/10 border-white/20 text-white">
+                                        <Filter className="h-4 w-4" />
+                                    </Button>
+                                </SheetTrigger>
+                                <SheetContent side="bottom" className="h-[70vh] rounded-t-2xl">
+                                    <div className="px-2">
+                                        <SheetHeader className="pb-4 border-b">
+                                            <SheetTitle className="text-lg">Filter Laporan</SheetTitle>
+                                        </SheetHeader>
+                                        <div className="space-y-5 pt-5 pb-8">
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-medium">Properti</Label>
+                                                <Select value={filterData.property_id} onValueChange={(v) => setFilterData('property_id', v)}>
+                                                    <SelectTrigger className="h-12">
+                                                        <SelectValue placeholder="Semua Properti" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="all">Semua Properti</SelectItem>
+                                                        {properties?.map((p) => (
+                                                            <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-medium">Periode Tanggal</Label>
+                                                <DateRange
+                                                    startDate={filterData.date_from}
+                                                    endDate={filterData.date_to}
+                                                    onDateChange={(s, e) => {
+                                                        setFilterData('date_from', s);
+                                                        setFilterData('date_to', e);
+                                                    }}
+                                                    adminMode={true}
+                                                    startLabel="Dari"
+                                                    endLabel="Sampai"
+                                                />
+                                            </div>
+                                            <Button
+                                                onClick={() => { getFilter('/admin/reports'); setShowFilters(false); }}
+                                                className="w-full h-12 text-base"
+                                            >
+                                                Terapkan Filter
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </SheetContent>
+                            </Sheet>
+
+                            {/* Export Dropdown */}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button size="sm" className="bg-white text-slate-900 hover:bg-white/90">
+                                        <Download className="h-4 w-4 mr-1.5" />
+                                        <span className="hidden sm:inline">Export</span>
+                                        <ChevronDown className="h-4 w-4 ml-1" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Export Laporan</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => handleExport('revenue')}>
+                                        <DollarSign className="h-4 w-4 mr-2" /> Pendapatan
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleExport('bookings')}>
+                                        <Calendar className="h-4 w-4 mr-2" /> Booking
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleExport('occupancy')}>
+                                        <Building2 className="h-4 w-4 mr-2" /> Okupansi
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleExport('daily_breakdown')}>
+                                        <FileSpreadsheet className="h-4 w-4 mr-2" /> Detail Harian
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    </div>
+
+                    {/* KPI Cards Grid */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6">
+                        <KPICard
+                            title="Total Pendapatan"
+                            value={data.overview.totalRevenue}
+                            growth={data.overview.revenueGrowth}
+                            icon={DollarSign}
+                            gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
+                            prefix="Rp"
+                        />
+                        <KPICard
+                            title="Booking"
+                            value={data.overview.totalBookings}
+                            growth={data.overview.bookingsGrowth}
+                            icon={Calendar}
+                            gradient="bg-gradient-to-br from-blue-500 to-indigo-600"
+                        />
+                        <KPICard
+                            title="Rata-rata"
+                            value={data.overview.averageBookingValue}
+                            icon={Zap}
+                            gradient="bg-gradient-to-br from-amber-500 to-orange-600"
+                            prefix="Rp"
+                        />
+                        <KPICard
+                            title="Okupansi"
+                            value={data.overview.occupancyRate}
+                            growth={data.overview.occupancyGrowth}
+                            icon={Target}
+                            gradient="bg-gradient-to-br from-purple-500 to-pink-600"
+                            suffix="%"
+                        />
+                    </div>
+                </div>
+
+                {/* Main Content */}
+                <div className="space-y-6 px-1">
+                    {/* Revenue Trend */}
+                    <Card className="border-0 shadow-lg">
+                        <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                        <TrendingUp className="h-5 w-5 text-emerald-500" />
+                                        Tren Pendapatan
+                                    </CardTitle>
+                                    <CardDescription>Performa bulanan</CardDescription>
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{data.overview.occupancyRate}%</div>
-                            <div className="flex items-center text-xs text-muted-foreground">
-                                {(() => {
-                                    const { icon: Icon, color } = getGrowthIndicator(data.overview.occupancyGrowth);
+                            <div className="space-y-3">
+                                {data.revenueByMonth?.slice(-6).map((month, i) => {
+                                    const width = (month.revenue / Math.max(...data.revenueByMonth.map(m => m.revenue), 1)) * 100;
                                     return (
-                                        <div className={`flex items-center gap-1 ${color}`}>
-                                            <Icon className="h-3 w-3" />
-                                            <span>{Math.abs(data.overview.occupancyGrowth)}% from last period</span>
+                                        <div key={month.month} className="group">
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <span className="text-sm font-medium">{month.month}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <Badge variant="secondary" className="text-xs">{month.bookings} booking</Badge>
+                                                    <span className="font-semibold text-emerald-600">{formatShort(month.revenue)}</span>
+                                                </div>
+                                            </div>
+                                            <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full transition-all duration-500 group-hover:from-emerald-500 group-hover:to-teal-600"
+                                                    style={{ width: `${width}%` }}
+                                                />
+                                            </div>
                                         </div>
                                     );
-                                })()}
+                                })}
                             </div>
                         </CardContent>
                     </Card>
-                </div>
 
-                {/* Main Analytics Tabs */}
-                <Tabs defaultValue="overview" className="space-y-4">
-                    <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="overview">Overview</TabsTrigger>
-                        <TabsTrigger value="financial">Financial</TabsTrigger>
-                        <TabsTrigger value="occupancy">Occupancy</TabsTrigger>
-                        <TabsTrigger value="properties">Properties</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="overview" className="space-y-4">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Booking Status Breakdown */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <PieChart className="h-5 w-5" />
-                                        Booking Status Breakdown
+                    {/* Two Column Layout */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                        {/* Property Performance */}
+                        <Card className="border-0 shadow-lg">
+                            <CardHeader className="pb-2">
+                                <div className="flex items-center justify-between">
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                        <Building2 className="h-5 w-5 text-blue-500" />
+                                        Top Properti
                                     </CardTitle>
-                                    <CardDescription>Distribution of booking statuses</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-3">
-                                        {data.bookingsByStatus.map(({ status, count, percentage }) => {
-                                            const Icon = getStatusIcon(status);
-                                            return (
-                                                <div key={status} className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <Icon className="h-4 w-4 text-muted-foreground" />
-                                                        {getStatusBadge(status)}
-                                                        <span className="text-sm font-medium">{count} bookings</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-20 bg-gray-200 rounded-full h-2">
-                                                            <div 
-                                                                className="bg-blue-600 h-2 rounded-full transition-all"
-                                                                style={{ width: `${percentage}%` }}
-                                                            ></div>
-                                                        </div>
-                                                        <span className="text-sm text-muted-foreground w-10">{percentage}%</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {/* Top Properties */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Building2 className="h-5 w-5" />
-                                        Top Performing Properties
-                                    </CardTitle>
-                                    <CardDescription>Properties with highest revenue</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-4">
-                                        {data.topProperties.slice(0, 5).map((property, index) => (
-                                            <div key={property.id} className="flex items-center gap-3">
-                                                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                                    <span className="text-sm font-medium text-blue-600">#{index + 1}</span>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium truncate">{property.name}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {property.bookings} bookings • {formatCurrency(property.revenue)}
-                                                    </p>
-                                                </div>
-                                                <div className="flex-shrink-0">
-                                                    <Badge variant="outline">{property.occupancyRate}%</Badge>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Payment Methods */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <CreditCard className="h-5 w-5" />
-                                        Payment Methods
-                                    </CardTitle>
-                                    <CardDescription>Distribution by payment methods</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-3">
-                                        {data.paymentMethods.map((method) => (
-                                            <div key={method.method} className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-sm font-medium">{method.method}</span>
-                                                    <span className="text-xs text-muted-foreground">({method.count} payments)</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-medium">{formatCurrency(method.amount)}</span>
-                                                    <span className="text-xs text-muted-foreground">({method.percentage}%)</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {/* Guest Countries */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <MapPin className="h-5 w-5" />
-                                        Guest Countries
-                                    </CardTitle>
-                                    <CardDescription>Breakdown by guest nationality</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-3">
-                                        {data.guestCountries.map((country) => (
-                                            <div key={country.country} className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-sm font-medium">{country.country}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-20 bg-gray-200 rounded-full h-2">
-                                                        <div 
-                                                            className="bg-green-600 h-2 rounded-full transition-all"
-                                                            style={{ width: `${country.percentage}%` }}
-                                                        ></div>
-                                                    </div>
-                                                    <span className="text-xs text-muted-foreground w-16">{country.count} ({country.percentage}%)</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="financial" className="space-y-4">
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Revenue Summary</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm">Total Revenue</span>
-                                            <span className="font-medium">{formatCurrency(data.overview.totalRevenue)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm">Average per Booking</span>
-                                            <span className="font-medium">{formatCurrency(data.overview.averageBookingValue)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm">Total Bookings</span>
-                                            <span className="font-medium">{data.overview.totalBookings}</span>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="lg:col-span-2">
-                                <CardHeader>
-                                    <CardTitle>Revenue Trends</CardTitle>
-                                    <CardDescription>Monthly revenue over time</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-4">
-                                        {data.revenueByMonth.slice(-6).map((month) => (
-                                            <div key={month.month} className="flex items-center justify-between">
-                                                <span className="text-sm font-medium">{month.month}</span>
-                                                <div className="flex items-center gap-4">
-                                                    <span className="text-sm">{month.bookings} bookings</span>
-                                                    <span className="font-medium">{formatCurrency(month.revenue)}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="occupancy" className="space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Occupancy Analytics</CardTitle>
-                                <CardDescription>Property utilization and performance metrics</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-center py-8">
-                                    <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                    <h3 className="text-lg font-medium mb-2">Occupancy Analytics</h3>
-                                    <p className="text-muted-foreground mb-4">
-                                        Detailed occupancy analysis with booking patterns and seasonal trends
-                                    </p>
-                                    <Button asChild>
-                                        <Link href="/admin/reports/occupancy">
-                                            View Detailed Occupancy Report
-                                        </Link>
+                                    <Button variant="ghost" size="sm" asChild>
+                                        <Link href="/admin/properties">Lihat Semua <ChevronRight className="h-4 w-4 ml-1" /></Link>
                                     </Button>
                                 </div>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {data.topProperties?.slice(0, 5).map((property, i) => (
+                                    <div key={property.id} className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${i === 0 ? 'bg-amber-100 text-amber-700' :
+                                            i === 1 ? 'bg-gray-100 text-gray-700' :
+                                                i === 2 ? 'bg-orange-100 text-orange-700' :
+                                                    'bg-blue-50 text-blue-600'
+                                            }`}>
+                                            {i + 1}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-sm truncate">{property.name}</p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <Progress value={(property.revenue / maxRevenue) * 100} className="h-1.5 flex-1" />
+                                                <span className="text-xs text-muted-foreground whitespace-nowrap">{property.occupancyRate}%</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-semibold text-sm text-emerald-600">{formatShort(property.revenue)}</p>
+                                            <p className="text-xs text-muted-foreground">{property.bookings} bookings</p>
+                                        </div>
+                                    </div>
+                                ))}
                             </CardContent>
                         </Card>
-                    </TabsContent>
 
-                    <TabsContent value="properties" className="space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Property Performance</CardTitle>
-                                <CardDescription>Individual property analytics and comparison</CardDescription>
+                        {/* Booking Status */}
+                        <Card className="border-0 shadow-lg">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <BarChart3 className="h-5 w-5 text-purple-500" />
+                                    Booking Status
+                                </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-4">
-                                    {data.topProperties.map((property, index) => (
-                                        <div key={property.id} className="p-4 border rounded-lg">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h4 className="font-medium">{property.name}</h4>
-                                                <Badge variant="outline">Rank #{index + 1}</Badge>
+                                <div className="flex h-4 rounded-full overflow-hidden mb-4">
+                                    {data.bookingsByStatus?.map((status) => (
+                                        <div
+                                            key={status.status}
+                                            className={`${getStatusColor(status.status)} transition-all`}
+                                            style={{ width: `${status.percentage}%` }}
+                                            title={`${status.status}: ${status.percentage}%`}
+                                        />
+                                    ))}
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {data.bookingsByStatus?.map((status) => (
+                                        <div key={status.status} className="flex items-center gap-2">
+                                            <div className={`w-3 h-3 rounded-full ${getStatusColor(status.status)}`} />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-medium truncate capitalize">
+                                                    {status.status.replace(/_/g, ' ')}
+                                                </p>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-4 text-sm">
-                                                <div>
-                                                    <p className="text-muted-foreground">Revenue</p>
-                                                    <p className="font-medium">{formatCurrency(property.revenue)}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-muted-foreground">Bookings</p>
-                                                    <p className="font-medium">{property.bookings}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-muted-foreground">Occupancy</p>
-                                                    <p className="font-medium">{property.occupancyRate}%</p>
-                                                </div>
-                                            </div>
+                                            <Badge variant="outline" className="text-xs">{status.count}</Badge>
                                         </div>
                                     ))}
                                 </div>
                             </CardContent>
                         </Card>
-                    </TabsContent>
-                </Tabs>
+                    </div>
+
+                    {/* Bottom Row */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                        {/* Payment Methods */}
+                        <Card className="border-0 shadow-lg">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <CreditCard className="h-5 w-5 text-indigo-500" />
+                                    Metode Pembayaran
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                {data.paymentMethods?.map((method) => (
+                                    <div key={method.method} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                                        <div>
+                                            <p className="font-medium text-sm">{method.method}</p>
+                                            <p className="text-xs text-muted-foreground">{method.count} transaksi</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-semibold">{formatShort(method.amount)}</p>
+                                            <p className="text-xs text-muted-foreground">{method.percentage}%</p>
+                                        </div>
+                                    </div>
+                                ))}
+                                {(!data.paymentMethods || data.paymentMethods.length === 0) && (
+                                    <p className="text-center text-muted-foreground py-4">Tidak ada data pembayaran</p>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Guest Origins */}
+                        <Card className="border-0 shadow-lg">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <Globe className="h-5 w-5 text-teal-500" />
+                                    Asal Negara Tamu
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                {data.guestCountries?.slice(0, 5).map((country, i) => (
+                                    <div key={country.country} className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center text-white text-xs font-bold">
+                                            {i + 1}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-medium text-sm">{country.country}</p>
+                                            <Progress value={country.percentage} className="h-1.5 mt-1" />
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-semibold text-sm">{country.count}</p>
+                                            <p className="text-xs text-muted-foreground">{country.percentage}%</p>
+                                        </div>
+                                    </div>
+                                ))}
+                                {(!data.guestCountries || data.guestCountries.length === 0) && (
+                                    <p className="text-center text-muted-foreground py-4">Tidak ada data tamu</p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
             </div>
         </AdminLayout>
     );
-} 
+}
