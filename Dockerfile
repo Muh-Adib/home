@@ -88,6 +88,9 @@ RUN pecl install redis && \
 # Cleanup build tools
 RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev || true
 
+# Workdir consistent with Nixpacks configs (nginx root and supervisor use /app)
+WORKDIR /app
+
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
@@ -102,9 +105,6 @@ RUN composer install \
     --no-interaction \
     --no-progress \
     --prefer-dist
-
-# Workdir consistent with Nixpacks configs (nginx root and supervisor use /app)
-WORKDIR /app
 
 # Copy application code
 COPY . .
