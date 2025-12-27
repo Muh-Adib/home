@@ -77,7 +77,7 @@ Dockerfile
 # Package manager files
 # package-lock.json (diperlukan untuk npm ci)
 yarn.lock
-composer.lock
+
 # Keep composer.json, package.json, dan package-lock.json for build
 
 # Temporary files and caches
