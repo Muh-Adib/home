@@ -88,6 +88,9 @@ RUN pecl install redis && \
 # Cleanup build tools
 RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev || true
 
+# Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
 # Copy composer files first to leverage cache
 COPY composer.json composer.lock ./
 
