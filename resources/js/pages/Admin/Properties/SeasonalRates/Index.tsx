@@ -139,7 +139,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (editingRate) {
             put(route('admin.properties.seasonal-rates.update', [property.slug, editingRate.id]), {
                 onSuccess: () => {
@@ -280,7 +280,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                                     </Badge>
                                                 )}
                                             </div>
-                                            
+
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                                                 <div className="flex items-center gap-2">
                                                     <CalendarDays className="h-4 w-4 text-muted-foreground" />
@@ -291,7 +291,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                                         </p>
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div className="flex items-center gap-2">
                                                     <Target className="h-4 w-4 text-muted-foreground" />
                                                     <div>
@@ -301,7 +301,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                                         </p>
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div className="flex items-center gap-2">
                                                     <Clock className="h-4 w-4 text-muted-foreground" />
                                                     <div>
@@ -312,14 +312,14 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                                     </div>
                                                 </div>
                                             </div>
-                                            
+
                                             {rate.description && (
                                                 <p className="text-sm text-muted-foreground mt-3">
                                                     {rate.description}
                                                 </p>
                                             )}
                                         </div>
-                                        
+
                                         <div className="flex items-center gap-2 ml-4">
                                             <Button
                                                 variant="ghost"
@@ -374,7 +374,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                 {editingRate ? 'Edit Seasonal Rate' : 'Create Seasonal Rate'}
                             </DialogTitle>
                         </DialogHeader>
-                        
+
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
@@ -388,25 +388,28 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                     />
                                     {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
                                 </div>
-                                
+
                                 <div className="md:col-span-2">
                                     <Label>Period (Start - End Date) *</Label>
                                     <DateRange
                                         startDate={data.start_date}
                                         endDate={data.end_date}
                                         onDateChange={(startDate, endDate) => {
-                                            setData(prev => ({ 
+                                            setData(prev => ({
                                                 ...prev,
-                                                start_date: startDate, 
-                                                end_date: endDate 
+                                                start_date: startDate,
+                                                end_date: endDate
                                             }));
                                         }}
-                                        minDate={new Date().toISOString().split('T')[0]}
+                                        minDate={new Date(
+                                            new Date().setMonth(new Date().getMonth() - 1)
+                                        ).toISOString().split('T')[0]}
                                         size="md"
                                         showNights={true}
                                         startLabel="Start Date"
                                         endLabel="End Date"
                                         className={errors.start_date || errors.end_date ? 'border-destructive' : ''}
+                                        adminMode={true}
                                     />
                                     {(errors.start_date || errors.end_date) && (
                                         <p className="text-sm text-destructive mt-1">
@@ -414,7 +417,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         </p>
                                     )}
                                 </div>
-                                
+
                                 <div>
                                     <Label htmlFor="rate_type">Rate Type *</Label>
                                     <Select value={data.rate_type} onValueChange={(value: any) => setData('rate_type', value)}>
@@ -428,7 +431,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                
+
                                 <div>
                                     <Label htmlFor="rate_value">Rate Value *</Label>
                                     <Input
@@ -441,7 +444,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                     />
                                     {errors.rate_value && <p className="text-sm text-destructive">{errors.rate_value}</p>}
                                 </div>
-                                
+
                                 <div>
                                     <Label htmlFor="extra_bed_rate">Extra Bed Rate (Optional)</Label>
                                     <Input
@@ -458,7 +461,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                     </p>
                                     {errors.extra_bed_rate && <p className="text-sm text-destructive">{errors.extra_bed_rate}</p>}
                                 </div>
-                                
+
                                 <div>
                                     <Label htmlFor="priority">Priority (0-100) *</Label>
                                     <Input
@@ -471,7 +474,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         className={errors.priority ? 'border-destructive' : ''}
                                     />
                                 </div>
-                                
+
                                 <div>
                                     <Label htmlFor="min_stay_nights">Min Stay (nights) *</Label>
                                     <Input
@@ -483,7 +486,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         className={errors.min_stay_nights ? 'border-destructive' : ''}
                                     />
                                 </div>
-                                
+
                                 <div className="md:col-span-2">
                                     <Label htmlFor="description">Description</Label>
                                     <Input
@@ -494,7 +497,7 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                     />
                                 </div>
                             </div>
-                            
+
                             {/* Rate Preview */}
                             {data.rate_value > 0 && (
                                 <Alert>
@@ -503,17 +506,17 @@ export default function SeasonalRatesIndex({ property, seasonalRates }: Seasonal
                                         <strong>Preview:</strong> Base rate {property.formatted_base_rate} →{' '}
                                         <span className="font-semibold">
                                             {formatCurrency(
-                                                data.rate_type === 'percentage' 
+                                                data.rate_type === 'percentage'
                                                     ? property.base_rate * (1 + data.rate_value / 100)
                                                     : data.rate_type === 'fixed'
-                                                    ? data.rate_value
-                                                    : property.base_rate * data.rate_value
+                                                        ? data.rate_value
+                                                        : property.base_rate * data.rate_value
                                             )}
                                         </span>
                                     </AlertDescription>
                                 </Alert>
                             )}
-                            
+
                             <div className="flex justify-end gap-2 pt-4">
                                 <Button
                                     type="button"
