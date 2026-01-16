@@ -111,10 +111,14 @@ class SyncBookingDailyRevenue extends Command
             $checkOut
         );
 
-        // Calculate extra beds
-        $extraBeds = max(0, $booking->guest_count - $property->capacity);
-        
-        // Process day by day
+        $nights = $booking->nights;
+        $property = $booking->property;
+
+        // Get guest count and calculate extra beds using single source of truth
+        $guestCount = $booking->guest_count;
+        $extraBeds = \App\Services\RateCalculationService::calculateExtraBedCount($guestCount, $property->capacity);
+
+        // Get seasonal ratess day by day
         $revenueData = [];
         $totalCalculated = 0;
 
@@ -147,11 +151,8 @@ class SyncBookingDailyRevenue extends Command
                 $rateType = 'weekend';
             }
             
-            // Calculate extra bed for this day
-            $effectiveExtraBedRate = $property->extra_bed_rate;
-            if ($seasonalRate && $seasonalRate->extra_bed_rate !== null) {
-                $effectiveExtraBedRate = $seasonalRate->extra_bed_rate;
-            }
+            // Calculate extra bed for this day using single source of truth
+            $effectiveExtraBedRate = \App\Services\RateCalculationService::calculateEffectiveExtraBedRate($property, $seasonalRate);
             $extraBedAmount = $extraBeds * $effectiveExtraBedRate;
             
             // Total amount for the day

@@ -181,6 +181,7 @@ export interface Booking {
     nights: number;
     base_amount: number;
     extra_bed_amount: number;
+    extra_bed_count: number;
     service_amount: number;
     tax_amount: number;
     dp_percentage: number;

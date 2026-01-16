@@ -1,74 +1,32 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { formatCurrency } from '@/lib/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
     BookingTimeline,
     BookingStats,
-    BookingFilters,
-    BookingCard,
-    ViewModeToggle
+    BookingSearchBar,
+    BookingActionsMenu
 } from '@/components/booking';
-import { type Booking, type BreadcrumbItem, type User, type PaginatedData, type PageProps, type Property } from '@/types';
+import { type Booking, type BreadcrumbItem, type PageProps, type Property } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     Calendar,
     Plus,
-    Search,
-    Filter,
-    MoreHorizontal,
-    Edit,
-    Eye,
-    UserCheck,
-    UserX,
-    Clock,
-    CheckCircle,
-    XCircle,
-    Users,
-    Building2,
-    DollarSign,
-    Phone,
-    Mail,
-    CalendarDays,
-    BarChart3,
-    Grid3X3,
-    List,
-    TrendingUp,
-    TrendingDown,
-    Activity,
-    ChevronLeft,
-    ChevronRight,
-    RefreshCw,
-    Download,
-    Upload,
-    Settings,
-    FileSpreadsheet
+    RefreshCw, FileSpreadsheet
 } from 'lucide-react';
-import { useState, useCallback, useRef } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState, useCallback, useRef, useMemo } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
 import { ExportFilterDialog, type ExportFilters } from '@/components/booking/ExportFilterDialog';
 import { ImportPreviewDialog } from '@/components/booking/ImportPreviewDialog';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import axios from 'axios';
 
 interface BookingsIndexProps {
-    bookings: Booking[];
-    filters: {
-        search?: string;
-        status?: string;
-        payment_status?: string;
-        property_id?: string;
-        sort?: string;
-        date_from?: string;
-        date_to?: string;
-    };
     properties: Property[];
     statistics?: {
         total_bookings: number;
@@ -82,11 +40,12 @@ interface BookingsIndexProps {
     };
 }
 
-export default function BookingsIndex({ bookings, filters, properties, statistics }: BookingsIndexProps) {
+export default function BookingsIndex({ properties, statistics }: BookingsIndexProps) {
     const page = usePage<PageProps>();
     const { auth } = page.props;
-    const [viewMode, setViewMode] = useState<'card' | 'table' | 'timeline'>('timeline');
-    const [loadingActions, setLoadingActions] = useState<Record<string, boolean>>({});
+    const isMobile = useIsMobile();
+
+    // State management
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isImportOpen, setIsImportOpen] = useState(false);
     const [isExportOpen, setIsExportOpen] = useState(false);
@@ -94,7 +53,6 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
     const [importPreview, setImportPreview] = useState<any>(null);
     const [importFile, setImportFile] = useState<File | null>(null);
     const [isImporting, setIsImporting] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { data: importData, setData: setImportData, post: postImport, processing: importProcessing, errors: importErrors, reset: resetImport } = useForm({
         file: null as File | null,
@@ -109,100 +67,12 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
     const canVerify = ['super_admin', 'property_manager', 'front_desk'].includes(auth.user.role);
     const canCancel = ['super_admin', 'property_manager', 'front_desk'].includes(auth.user.role);
     const canCheckIn = ['super_admin', 'property_manager', 'front_desk'].includes(auth.user.role);
-    const canEdit = ['super_admin', 'property_manager', 'front_desk'].includes(auth.user.role); // Only super admin can edit bookings
 
-    // Action handlers
-    const handleVerify = useCallback((booking: Booking) => {
-        setLoadingActions(prev => ({ ...prev, [`verify-${booking.id}`]: true }));
-        router.patch(`/admin/bookings/${booking.booking_number}/verify`, {
-            notes: 'Booking verified and confirmed by ' + auth.user.name,
-        }, {
-            preserveScroll: true,
-            onSuccess: () => {
-                router.reload({ only: ['bookings'] });
-            },
-            onError: (errors) => {
-                console.error('Verify failed:', errors);
-            },
-            onFinish: () => {
-                setLoadingActions(prev => ({ ...prev, [`verify-${booking.id}`]: false }));
-            }
-        });
-    }, [auth.user.name]);
-
-    const handleReject = useCallback((booking: Booking) => {
-        setLoadingActions(prev => ({ ...prev, [`reject-${booking.id}`]: true }));
-        router.patch(`/admin/bookings/${booking.booking_number}/reject`, {
-            notes: 'Booking rejected by ' + auth.user.name,
-        }, {
-            preserveScroll: true,
-            onSuccess: () => {
-                router.reload({ only: ['bookings'] });
-            },
-            onFinish: () => {
-                setLoadingActions(prev => ({ ...prev, [`reject-${booking.id}`]: false }));
-            }
-        });
-    }, [auth.user.name]);
-
-    const handleCancel = useCallback((booking: Booking) => {
-        if (confirm(`Are you sure you want to cancel booking "${booking.booking_number}"?`)) {
-            setLoadingActions(prev => ({ ...prev, [`cancel-${booking.id}`]: true }));
-            router.patch(`/admin/bookings/${booking.booking_number}/cancel`, {
-                cancellation_reason: 'Cancelled by admin: ' + auth.user.name,
-            }, {
-                preserveScroll: true,
-                onSuccess: () => {
-                    router.reload({ only: ['bookings'] });
-                },
-                onFinish: () => {
-                    setLoadingActions(prev => ({ ...prev, [`cancel-${booking.id}`]: false }));
-                }
-            });
-        }
-    }, [auth.user.name]);
-
-    const handleCheckIn = useCallback((booking: Booking) => {
-        setLoadingActions(prev => ({ ...prev, [`checkin-${booking.id}`]: true }));
-        router.patch(`/admin/bookings/${booking.booking_number}/checkin`, {
-            notes: 'Booking checked in by ' + auth.user.name,
-        }, {
-            preserveScroll: true,
-            onSuccess: () => {
-                router.reload({ only: ['bookings'] });
-            },
-            onFinish: () => {
-                setLoadingActions(prev => ({ ...prev, [`checkin-${booking.id}`]: false }));
-            }
-        });
-    }, [auth.user.name]);
-
-    const handleCheckOut = useCallback((booking: Booking) => {
-        setLoadingActions(prev => ({ ...prev, [`checkout-${booking.id}`]: true }));
-        router.patch(`/admin/bookings/${booking.booking_number}/checkout`, {
-            notes: 'Booking checked out by ' + auth.user.name,
-        }, {
-            preserveScroll: true,
-            onSuccess: () => {
-                router.reload({ only: ['bookings'] });
-            },
-            onFinish: () => {
-                setLoadingActions(prev => ({ ...prev, [`checkout-${booking.id}`]: false }));
-            }
-        });
-    }, [auth.user.name]);
-
-    const handleFiltersChange = useCallback((newFilters: any) => {
-        router.get('/admin/bookings', newFilters, {
-            preserveState: true,
-            preserveScroll: true,
-        });
-    }, []);
-
+    // No filters needed - calendar is primary navigation
     const handleRefresh = useCallback(() => {
         setIsRefreshing(true);
         router.reload({
-            only: ['bookings', 'statistics'],
+            only: ['properties', 'statistics'],
             onFinish: () => setIsRefreshing(false),
         });
     }, []);
@@ -216,20 +86,15 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
         if (exportFilters.property_id) queryParams.append('property_id', exportFilters.property_id);
         if (exportFilters.status) queryParams.append('status', exportFilters.status);
 
-        // Also include current page filters if not overridden
-        if (!exportFilters.property_id && filters.property_id) queryParams.append('property_id', filters.property_id);
-        if (!exportFilters.status && filters.status) queryParams.append('status', filters.status);
-        if (filters.search) queryParams.append('search', filters.search);
-
+        // Export filters only (no page filters needed)
         // Create a temporary link and click it to trigger download
-        // This is more reliable than window.location.href for handling Content-Disposition headers
         const link = document.createElement('a');
         link.href = `/admin/bookings/export/download?${queryParams.toString()}`;
         link.download = 'bookings.xlsx'; // Fallback filename
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    }, [filters]);
+    }, []);
 
     const handleImportSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -283,7 +148,7 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
             setImportFile(null);
             resetImport();
             toast.success('Bookings imported successfully');
-            router.reload({ only: ['bookings'] });
+            handleRefresh(); // Use refresh which reloads properties/stats
         } catch (error: any) {
             toast.error('Failed to import bookings: ' + (error.response?.data?.error || error.message));
             console.error(error);
@@ -292,91 +157,51 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
         }
     };
 
-    // Utility functions
-    const getBookingStatusBadge = (status: Booking['booking_status']) => {
-        const statusConfig = {
-            pending_verification: { variant: 'secondary' as const, label: 'Pending', icon: Clock },
-            confirmed: { variant: 'default' as const, label: 'Confirmed', icon: CheckCircle },
-            checked_in: { variant: 'default' as const, label: 'Checked In', icon: UserCheck },
-            checked_out: { variant: 'outline' as const, label: 'Checked Out', icon: UserX },
-            cancelled: { variant: 'destructive' as const, label: 'Cancelled', icon: XCircle },
-            no_show: { variant: 'destructive' as const, label: 'No Show', icon: XCircle },
-        };
-
-        const config = statusConfig[status];
-        const Icon = config.icon;
-        return (
-            <Badge variant={config.variant} className="inline-flex items-center gap-1">
-                <Icon className="h-3 w-3" />
-                {config.label}
-            </Badge>
-        );
-    };
-
-    const getPaymentStatusBadge = (status: Booking['payment_status']) => {
-        const statusConfig: Record<string, { variant: 'secondary' | 'default' | 'destructive' | 'outline', label: string }> = {
-            dp_pending: { variant: 'secondary', label: 'DP Pending' },
-            dp_paid: { variant: 'default', label: 'DP Paid' },
-            fully_paid: { variant: 'default', label: 'Fully Paid' },
-        };
-
-        const config = statusConfig[status] || { variant: 'outline' as const, label: status };
-        return (
-            <Badge variant={config.variant}>
-                {config.label}
-            </Badge>
-        );
-    };
-
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('id-ID', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric'
-        });
-    };
-
     return (
         <AdminLayout breadcrumbs={breadcrumbs} title="Booking Management" subtitle="Manage all property bookings">
-            <div className="space-y-6 p-4 md:p-6">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Booking Management</h1>
-                        <p className="text-gray-600 mt-1">
-                            Manage guest bookings, reservations, and calendar timeline
-                        </p>
+            <div className="space-y-3 p-4 md:p-6">
+                {/* Compact Modern Header */}
+                <div className="bg-white rounded-lg shadow-sm border p-4">
+                    {/* Title Row */}
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                                <Calendar className="h-6 w-6 text-blue-600" />
+                                Booking Management
+                            </h1>
+                            <p className="text-sm text-gray-500 mt-0.5">
+                                Manage guest bookings, reservations, and calendar timeline
+                            </p>
+                        </div>
+
+                        {/* Primary Actions */}
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleRefresh}
+                                disabled={isRefreshing}
+                                className="hidden sm:flex"
+                            >
+                                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                            </Button>
+
+                            <BookingActionsMenu
+                                onExport={() => setIsExportOpen(true)}
+                                onImport={() => setIsImportOpen(true)}
+                            />
+
+                            <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                                <Link href="/admin/bookings/create">
+                                    <Plus className="h-4 w-4 mr-1" />
+                                    New Booking
+                                </Link>
+                            </Button>
+                        </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-2">
-                        <ViewModeToggle
-                            viewMode={viewMode}
-                            onViewModeChange={setViewMode}
-                        />
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleRefresh}
-                            disabled={isRefreshing}
-                        >
-                            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-                        </Button>
-                        <Button variant="outline" asChild size="sm">
-                            <Link href="/admin/bookings/create">
-                                <Plus className="h-4 w-4 mr-2" />
-                                New Booking
-                            </Link>
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setIsImportOpen(true)}>
-                            <Upload className="h-4 w-4 mr-2" />
-                            Import
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setIsExportOpen(true)}>
-                            <Download className="h-4 w-4 mr-2" />
-                            Export
-                        </Button>
-                    </div>
+                    {/* Search Only - No Filters! */}
+                    <BookingSearchBar placeholder="Search booking code, guest name, phone..." />
                 </div>
 
                 {/* Export Filter Dialog */}
@@ -443,222 +268,28 @@ export default function BookingsIndex({ bookings, filters, properties, statistic
                     loading={isImporting}
                 />
 
-                {/* Statistics */}
+                {/* Statistics - Collapsible on Mobile */}
                 {statistics && (
-                    <BookingStats statistics={statistics} />
+                    <BookingStats
+                        statistics={statistics}
+                        defaultCollapsed={isMobile}
+                        compactMode={isMobile}
+                    />
                 )}
 
-                {/* Filters */}
-                <BookingFilters
-                    filters={filters}
-                    properties={properties}
-                    totalBookings={bookings.length}
-                    onFiltersChange={handleFiltersChange}
-                />
-
-                {/* Content based on view mode */}
-                {viewMode === 'timeline' ? (
-                    /* Timeline View */
-                    <div className="space-y-4">
-                        <BookingTimeline
-                            properties={properties}
-                            bookings={bookings} // Direct array access from controller (already filtered)
-                            startDate={new Date(filters.date_from || new Date())} // Use filter date or today
-                            days={(Math.ceil((new Date(filters.date_to || '').getTime() - new Date(filters.date_from || '').getTime()) / (1000 * 60 * 60 * 24)) + 1) || 90} // Calculate days range (inclusive)
-                            canVerify={canVerify}
-                            canCancel={canCancel}
-                            canCheckIn={canCheckIn}
-                            onRefresh={handleRefresh}
-                            autoFetch={false} // Disable auto-fetch to use controller data
-                        />
-                    </div>
-                ) : viewMode === 'card' ? (
-                    /* Card View */
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {bookings.map((booking) => (
-                            <BookingCard
-                                key={booking.id}
-                                booking={booking}
-                                onVerify={handleVerify}
-                                onReject={handleReject}
-                                onCancel={handleCancel}
-                                onCheckIn={handleCheckIn}
-                                onCheckOut={handleCheckOut}
-                                loadingActions={loadingActions}
-                                canVerify={canVerify}
-                                canCancel={canCancel}
-                                canCheckIn={canCheckIn}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    /* Table View */
-                    <Card>
-                        <CardContent className="p-0">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Guest</TableHead>
-                                        <TableHead>Property</TableHead>
-                                        <TableHead>Dates</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Payment</TableHead>
-                                        <TableHead>Amount</TableHead>
-                                        <TableHead>Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {bookings.map((booking) => (
-                                        <TableRow key={booking.id}>
-                                            <TableCell>
-                                                <div>
-                                                    <div className="font-medium">{booking.guest_name}</div>
-                                                    <div className="text-sm text-muted-foreground">{booking.booking_number}</div>
-                                                    <div className="text-xs text-muted-foreground">{booking.guest_email}</div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-2">
-                                                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                                                    <span className="font-medium">{booking.property?.name}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="text-sm">
-                                                    <div>{formatDate(booking.check_in)} - {formatDate(booking.check_out)}</div>
-                                                    <div className="text-muted-foreground">
-                                                        {booking.guest_count} guests • {booking.nights} nights
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                {getBookingStatusBadge(booking.booking_status)}
-                                            </TableCell>
-                                            <TableCell>
-                                                {getPaymentStatusBadge(booking.payment_status)}
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="text-right">
-                                                    <div className="font-semibold">{formatCurrency(booking.total_amount)}</div>
-                                                    <div className="text-xs text-muted-foreground">DP: {formatCurrency(booking.dp_amount)}</div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-2">
-                                                    <Button asChild size="sm" variant="outline">
-                                                        <Link href={`/admin/bookings/${booking.booking_number}`}>
-                                                            <Eye className="h-4 w-4" />
-                                                        </Link>
-                                                    </Button>
-
-                                                    {canVerify && booking.booking_status === 'pending_verification' && (
-                                                        <Button
-                                                            onClick={() => handleVerify(booking)}
-                                                            size="sm"
-                                                            variant="default"
-                                                            disabled={loadingActions[`verify-${booking.id}`]}
-                                                        >
-                                                            <CheckCircle className="h-4 w-4" />
-                                                        </Button>
-                                                    )}
-
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="outline" size="sm">
-                                                                <MoreHorizontal className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem asChild>
-                                                                <Link href={`/admin/bookings/${booking.booking_number}`}>
-                                                                    <Eye className="h-4 w-4 mr-2" />
-                                                                    View Details
-                                                                </Link>
-                                                            </DropdownMenuItem>
-
-                                                            {canEdit && (
-                                                                <DropdownMenuItem asChild>
-                                                                    <Link href={`/admin/bookings/${booking.booking_number}/edit`}>
-                                                                        <Edit className="h-4 w-4 mr-2" />
-                                                                        Edit Booking
-                                                                    </Link>
-                                                                </DropdownMenuItem>
-                                                            )}
-
-                                                            {canVerify && booking.booking_status === 'pending_verification' && (
-                                                                <>
-                                                                    <DropdownMenuItem onClick={() => handleVerify(booking)}>
-                                                                        <CheckCircle className="h-4 w-4 mr-2" />
-                                                                        Verify
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuItem onClick={() => handleReject(booking)}>
-                                                                        <XCircle className="h-4 w-4 mr-2" />
-                                                                        Reject
-                                                                    </DropdownMenuItem>
-                                                                </>
-                                                            )}
-
-                                                            {canCheckIn && booking.payment_status === 'fully_paid' && (
-                                                                <DropdownMenuItem onClick={() => handleCheckIn(booking)}>
-                                                                    <UserCheck className="h-4 w-4 mr-2" />
-                                                                    Check In
-                                                                </DropdownMenuItem>
-                                                            )}
-
-                                                            {canCheckIn && booking.booking_status === 'checked_in' && (
-                                                                <DropdownMenuItem onClick={() => handleCheckOut(booking)}>
-                                                                    <UserX className="h-4 w-4 mr-2" />
-                                                                    Check Out
-                                                                </DropdownMenuItem>
-                                                            )}
-
-                                                            <DropdownMenuSeparator />
-
-                                                            {canCancel && ['pending_verification', 'confirmed'].includes(booking.booking_status) && (
-                                                                <DropdownMenuItem
-                                                                    onClick={() => handleCancel(booking)}
-                                                                    className="text-destructive"
-                                                                >
-                                                                    <XCircle className="h-4 w-4 mr-2" />
-                                                                    Cancel
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Pagination Removed */}
-
-                {/* Empty State */}
-                {bookings.length === 0 && (
-                    <Card>
-                        <CardContent className="flex flex-col items-center justify-center py-12">
-                            <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                            <h3 className="text-lg font-semibold mb-2">No bookings found</h3>
-                            <p className="text-muted-foreground text-center mb-4">
-                                {filters.search || filters.status !== 'all'
-                                    ? 'Try adjusting your search criteria or filters'
-                                    : 'No bookings have been made yet'
-                                }
-                            </p>
-                            <Button asChild>
-                                <Link href="/admin/bookings/create">
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Create First Booking
-                                </Link>
-                            </Button>
-                        </CardContent>
-                    </Card>
-                )}
+                {/* Timeline Calendar - Client-Side Fetching */}
+                <div className="space-y-4 max-w-full overflow-hidden">
+                    <BookingTimeline
+                        properties={properties}
+                        cellWidth={isMobile ? 80 : 120}
+                        canVerify={canVerify}
+                        canCancel={canCancel}
+                        canCheckIn={canCheckIn}
+                        onRefresh={handleRefresh}
+                        autoFetch={true}
+                    />
+                </div>
             </div>
-        </AdminLayout >
+        </AdminLayout>
     );
 } 

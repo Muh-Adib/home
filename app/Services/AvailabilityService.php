@@ -31,13 +31,14 @@ class AvailabilityService
      * @param Property $property
      * @param string $checkIn
      * @param string $checkOut
+     * @param int|null $excludeBookingId Booking ID to exclude from check (for edit mode)
      * @return array
      */
-    public function checkAvailability(Property $property, string $checkIn, string $checkOut): array
+    public function checkAvailability(Property $property, string $checkIn, string $checkOut, ?int $excludeBookingId = null): array
     {
         //check if property is available for given date range
-        $bookedDates = $this->getBookedDatesInRange($property, $checkIn, $checkOut);
-        $bookedPeriods = $this->getBookedPeriodsInRange($property, $checkIn, $checkOut);
+        $bookedDates = $this->getBookedDatesInRange($property, $checkIn, $checkOut, $excludeBookingId);
+        $bookedPeriods = $this->getBookedPeriodsInRange($property, $checkIn, $checkOut, $excludeBookingId);
         
         return [
             'success' => true,
@@ -56,11 +57,12 @@ class AvailabilityService
      * @param Property $property
      * @param string $checkIn
      * @param string $checkOut
+     * @param int|null $excludeBookingId Booking ID to exclude from check (for edit mode)
      * @return array
      */
-    public function getBookedPeriodsInRange(Property $property, string $checkIn, string $checkOut): array
+    public function getBookedPeriodsInRange(Property $property, string $checkIn, string $checkOut, ?int $excludeBookingId = null): array
     {
-        $bookings = $this->getOverlappingBookings($property, $checkIn, $checkOut);
+        $bookings = $this->getOverlappingBookings($property, $checkIn, $checkOut, $excludeBookingId);
         
         $periods = [];
         foreach ($bookings as $booking) {
@@ -79,9 +81,10 @@ class AvailabilityService
      * @param Property $property
      * @param string $checkIn
      * @param string $checkOut
+     * @param int|null $excludeBookingId Booking ID to exclude from check (for edit mode)
      * @return Collection
      */
-    private function getOverlappingBookings(Property $property, string $checkIn, string $checkOut): Collection
+    private function getOverlappingBookings(Property $property, string $checkIn, string $checkOut, ?int $excludeBookingId = null): Collection
     {
         // Ensure dates are in proper Y-m-d format
         try {
@@ -96,15 +99,21 @@ class AvailabilityService
             return collect([]);
         }
 
-        return Booking::where('property_id', $property->id)
+        $query = Booking::where('property_id', $property->id)
             ->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
             ->where(function ($query) use ($checkInFormatted, $checkOutFormatted) {
                 // Fix: Proper overlap detection
                 // Dua periode overlap jika: start1 < end2 AND start2 < end1
                 $query->where('check_in', '<', $checkOutFormatted)
                       ->where('check_out', '>', $checkInFormatted);
-            })
-            ->get(['check_in', 'check_out', 'booking_status']);
+            });
+        
+        // Exclude specific booking if provided (for edit mode)
+        if ($excludeBookingId) {
+            $query->where('id', '!=', $excludeBookingId);
+        }
+        
+        return $query->get(['check_in', 'check_out', 'booking_status']);
     }
 
     /**
@@ -113,11 +122,12 @@ class AvailabilityService
      * @param Property $property
      * @param string $checkIn
      * @param string $checkOut
+     * @param int|null $excludeBookingId Booking ID to exclude from check (for edit mode)
      * @return array
      */
-    public function getBookedDatesInRange(Property $property, string $checkIn, string $checkOut): array
+    public function getBookedDatesInRange(Property $property, string $checkIn, string $checkOut, ?int $excludeBookingId = null): array
     {
-        $bookings = $this->getOverlappingBookings($property, $checkIn, $checkOut);
+        $bookings = $this->getOverlappingBookings($property, $checkIn, $checkOut, $excludeBookingId);
         return $this->extractDatesFromBookings($bookings, $checkIn, $checkOut);
     }
 

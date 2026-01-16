@@ -158,26 +158,17 @@ class CreateBookingRequest extends FormRequest
         }
 
         $checkInDate = $this->input('check_in');
-        if (!$checkInDate) {
-            return;
-        }
-
         $checkOutDate = $this->input('check_out');
-        if (!$checkOutDate) {
+        
+        if (!$checkInDate || !$checkOutDate) {
             return;
         }
 
         try {
-            $checkIn = Carbon::parse($checkInDate);
-            $checkOut = Carbon::parse($checkOutDate);
-            $nights = $checkIn->diffInDays($checkOut);
-
-            // Determine minimum stay based on check-in day
-            $isWeekend = $checkIn->isWeekend();
-            $minStay = $isWeekend ? $property->min_stay_weekend : $property->min_stay_weekday;
-
-            if ($nights < $minStay) {
-                $validator->errors()->add('dates', "Minimum stay untuk " . ($isWeekend ? 'weekend' : 'weekday') . " adalah {$minStay} malam.");
+            // ✅ Use PropertyBusinessRulesService for complete validation
+            if (!\App\Services\PropertyBusinessRulesService::validateMinimumStay($property, $checkInDate, $checkOutDate)) {
+                $minStayInfo = \App\Services\PropertyBusinessRulesService::getMinimumStayInfo($property, $checkInDate, $checkOutDate);
+                $validator->errors()->add('dates', "Minimum stay adalah {$minStayInfo['required_nights']} malam.");
             }
         } catch (\Exception $e) {
             // Log error but don't fail validation

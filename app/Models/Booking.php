@@ -14,6 +14,9 @@ use Illuminate\Support\Str;
 class Booking extends Model
 {
     use HasFactory, SoftDeletes;
+    use Traits\HasPaymentManagement;
+    use Traits\HasCheckinInstructions;
+    use Traits\HasBookingStatus;
 
     protected $fillable = [
         'booking_number',
@@ -36,6 +39,7 @@ class Booking extends Model
         // Note: rate_calculation removed - breakdown stored in booking_daily_revenue table
         'base_amount',
         'extra_bed_amount',
+        'extra_bed_count',
         'service_amount',
         'tax_amount',
         'total_amount',
@@ -72,6 +76,7 @@ class Booking extends Model
         'check_out' => 'date',
         'base_amount' => 'decimal:2',
         'extra_bed_amount' => 'decimal:2',
+        'extra_bed_count' => 'integer',
         'service_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'dp_amount' => 'decimal:2',
@@ -213,6 +218,67 @@ class Booking extends Model
     {
         return $query->where('payment_status', 'dp_pending')
                     ->where('dp_deadline', '<', now());
+    }
+
+    /**
+     * ✅ NEW SCOPES - Laravel Best Practices
+     */
+
+    /**
+     * Scope: Active bookings (not cancelled or no-show)
+     */
+    public function scopeActive($query)
+    {
+        return $query->whereNotIn('booking_status', ['cancelled', 'no_show']);
+    }
+
+    /**
+     * Scope: Overlapping bookings for a date range
+     */
+    public function scopeOverlapping($query, string $checkIn, string $checkOut)
+    {
+        return $query->where(function ($q) use ($checkIn,  $checkOut) {
+            $q->where('check_in', '<', $checkOut)
+              ->where('check_out', '>', $checkIn);
+        });
+    }
+
+    /**
+     * Scope: Bookings for a specific property
+     */
+    public function scopeForProperty($query, int $propertyId)
+    {
+        return $query->where('property_id', $propertyId);
+    }
+
+    /**
+     * Scope: Bookings visible to a user (respects property ownership)
+     */
+    public function scopeForUser($query, User $user)
+    {
+        if ($user->role === 'property_owner') {
+            return $query->whereHas('property', function ($q) use ($user) {
+                $q->where('owner_id', $user->id);
+            });
+        }
+
+        // Admin, super_admin, etc can see all bookings
+        return $query;
+    }
+
+    /**
+     * Scope: Bookings in a date range
+     */
+    public function scopeInDateRange($query, string $startDate, string $endDate)
+    {
+        return $query->where(function ($q) use ($startDate, $endDate) {
+            $q->whereBetween('check_in', [$startDate, $endDate])
+              ->orWhereBetween('check_out', [$startDate, $endDate])
+              ->orWhere(function ($q2) use ($startDate, $endDate) {
+                  $q2->where('check_in', '<=', $startDate)
+                     ->where('check_out', '>=', $endDate);
+              });
+        });
     }
 
     // Accessors & Mutators
@@ -357,206 +423,17 @@ class Booking extends Model
         });
     }
 
-    // Helper Methods
-    public function calculateAmounts(): void
-    {
-        // Calculate DP amount based on percentage
-        $this->dp_amount = $this->total_amount * ($this->dp_percentage / 100);
-        $this->remaining_amount = $this->total_amount - $this->dp_paid_amount;
-    }
+    // ✅ Methods moved to Traits:
+    // - Payment methods → HasPaymentManagement trait
+    // - Checkin instructions → HasCheckinInstructions trait  
+    // - Status checks → HasBookingStatus trait
 
-    public function canBeCancelled(): bool
-    {
-        return in_array($this->booking_status, [
-            'pending_verification', 
-            'confirmed'
-        ]) && $this->check_in > now();
-    }
-
-    public function canCheckIn(): bool
-    {
-        return $this->booking_status === 'confirmed' 
-               && $this->payment_status === 'fully_paid'
-               && $this->check_in <= now()
-               && $this->check_out > now();
-    }
-
-    public function canCheckOut(): bool
-    {
-        return $this->booking_status === 'checked_in'
-               && $this->check_out <= now()->addHours(2); // Grace period
-    }
-
+    /**
+     * @deprecated Use isGuest() is not a clear naming, consider renaming or removing
+     */
     public function isGuest($guestCount): bool
     {
         return $this->guest_count === $guestCount;
-    }
-
-    public function needsExtraBed(): bool
-    {
-        return $this->guest_count > $this->property->capacity;
-    }
-
-    public function getExtraBedCount(): int
-    {
-        return max(0, $this->guest_count - $this->property->capacity);
-    }
-
-    public function getTotalPaidAmount(): float
-    {
-        return $this->payments()
-                   ->where('payment_status', 'verified')
-                   ->sum('amount');
-    }
-
-    public function getPaymentProgress(): array
-    {
-        $totalPaid = $this->getTotalPaidAmount();
-        $dpPercentage = $this->dp_amount > 0 ? ($totalPaid / $this->dp_amount) * 100 : 0;
-        $totalPercentage = ($totalPaid / $this->total_amount) * 100;
-        
-        return [
-            'total_paid' => $totalPaid,
-            'dp_percentage' => min(100, $dpPercentage),
-            'total_percentage' => min(100, $totalPercentage),
-            'is_dp_complete' => $totalPaid >= $this->dp_amount,
-            'is_fully_paid' => $totalPaid >= $this->total_amount,
-        ];
-    }
-
-    public function updatePaymentStatus(): void
-    {
-        $progress = $this->getPaymentProgress();
-        
-        if ($progress['is_fully_paid']) {
-            $this->payment_status = 'fully_paid';
-        } elseif ($progress['is_dp_complete']) {
-            $this->payment_status = 'dp_received';
-        } elseif ($this->isDpOverdue) {
-            $this->payment_status = 'overdue';
-        } else {
-            $this->payment_status = 'dp_pending';
-        }
-    }
-
-    /**
-     * Get check-in instructions for this booking.
-     * Flow: custom booking instruction > property template > default template
-     * Keybox code is always taken from property.current_keybox_code
-     * setelah admin menekan checkin
-     */
-    public function getCheckinInstructions(): array
-    {
-        $property = $this->property;
-        
-        // Step 1: Check if booking has custom checkin_instruction
-        if (!empty($this->checkin_instruction)) {
-            $instructions = is_array($this->checkin_instruction) 
-                ? $this->checkin_instruction 
-                : ['custom' => $this->checkin_instruction];
-        } 
-        // Step 2: Use property template if exists
-        elseif (!empty($property->checkin_instructions) && is_array($property->checkin_instructions)) {
-            $instructions = $property->checkin_instructions;
-        } 
-        // Step 3: Fallback to default template
-        else {
-            $instructions = Property::getDefaultCheckinInstructionsTemplate();
-        }
-
-        // Replace placeholders with actual data
-        $keyboxCode = $property->current_keybox_code ?? 'N/A';
-        $propertyName = $property->name ?? 'Property';
-        $propertyAddress = $property->address ?? '';
-
-        return $this->replaceInstructionPlaceholders($instructions, [
-            'keybox_code' => $keyboxCode,
-            'property_name' => $propertyName,
-            'address' => $propertyAddress,
-        ]);
-    }
-
-    /**
-     * Replace placeholders in instructions array/string
-     */
-    private function replaceInstructionPlaceholders($instructions, array $replacements): array
-    {
-        if (is_string($instructions)) {
-            return str_replace(
-                array_map(fn($key) => '{{' . $key . '}}', array_keys($replacements)),
-                array_values($replacements),
-                $instructions
-            );
-        }
-
-        if (!is_array($instructions)) {
-            return [];
-        }
-
-        $result = [];
-        foreach ($instructions as $key => $value) {
-            if (is_string($value)) {
-                $result[$key] = str_replace(
-                    array_map(fn($k) => '{{' . $k . '}}', array_keys($replacements)),
-                    array_values($replacements),
-                    $value
-                );
-            } elseif (is_array($value)) {
-                $result[$key] = $this->replaceInstructionPlaceholders($value, $replacements);
-            } else {
-                $result[$key] = $value;
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Get formatted check-in instructions as string (for display)
-     */
-    public function getFormattedCheckinInstructions(): string
-    {
-        $instructions = $this->getCheckinInstructions();
-        
-        if (empty($instructions)) {
-            return '';
-        }
-
-        $formatted = [];
-        
-        // Handle array format
-        if (isset($instructions['welcome'])) {
-            if (!empty($instructions['welcome'])) {
-                $formatted[] = $instructions['welcome'];
-            }
-            if (!empty($instructions['keybox_location'])) {
-                $formatted[] = $instructions['keybox_location'];
-            }
-            if (!empty($instructions['keybox_code'])) {
-                $formatted[] = $instructions['keybox_code'];
-            }
-            if (!empty($instructions['checkin_time'])) {
-                $formatted[] = $instructions['checkin_time'];
-            }
-            if (!empty($instructions['emergency_contact'])) {
-                $formatted[] = $instructions['emergency_contact'];
-            }
-            if (!empty($instructions['additional_info']) && is_array($instructions['additional_info'])) {
-                $formatted[] = "\n" . implode("\n", array_map(fn($info) => "• " . $info, $instructions['additional_info']));
-            }
-        } 
-        // Handle simple array or custom format
-        else {
-            foreach ($instructions as $key => $value) {
-                if (is_string($value)) {
-                    $formatted[] = $value;
-                } elseif (is_array($value)) {
-                    $formatted[] = implode("\n", array_map(fn($v) => "• " . $v, $value));
-                }
-            }
-        }
-
-        return implode("\n\n", array_filter($formatted));
     }
 
     public function getRouteKeyName(): string
@@ -564,45 +441,7 @@ class Booking extends Model
         return 'booking_number';
     }
 
-    /**
-     * Generate secure payment token for verified booking
-     */
-    public function generatePaymentToken(): string
-    {
-        $token = bin2hex(random_bytes(16)); // 32 character token
-        
-        $this->update([
-            'payment_token' => $token,
-            'payment_token_expires_at' => now()->addDays(7), // Token valid for 7 days
-        ]);
-
-        return $token;
-    }
-
-    /**
-     * Check if payment token is valid
-     */
-    public function isPaymentTokenValid(string $token): bool
-    {
-        return $this->payment_token === $token && 
-               $this->payment_token_expires_at && 
-               $this->payment_token_expires_at->isFuture();
-    }
-
-    /**
-     * Get secure payment URL
-     */
-    public function getSecurePaymentUrl(): ?string
-    {
-        if (!$this->payment_token) {
-            return null;
-        }
-
-        return route('booking.secure-payment', [
-            'booking' => $this->booking_number,
-            'token' => $this->payment_token
-        ]);
-    }
+    // ✅ Payment token methods moved to HasPaymentManagement trait
 
     /**
      * Get payment link for frontend
@@ -621,16 +460,7 @@ class Booking extends Model
         );
     }
 
-    /**
-     * Clear payment token
-     */
-    public function clearPaymentToken(): void
-    {
-        $this->update([
-            'payment_token' => null,
-            'payment_token_expires_at' => null,
-        ]);
-    }
+    // ✅ clearPaymentToken() moved to HasPaymentManagement trait
 
     /**
      * Get rate calculation (virtual attribute)
@@ -685,7 +515,7 @@ class Booking extends Model
             'cleaning_fee' => 0,
             'tax_amount' => $this->tax_amount ?? 0,
             'total_amount' => (float) $this->total_amount,
-            'extra_beds' => 0,
+            'extra_beds' => $this->extra_bed_count ?? 0,
             'breakdown' => [
                 'daily_breakdown' => $dailyBreakdown,
                 'total_base_amount' => (float) $this->base_amount,

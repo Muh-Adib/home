@@ -21,10 +21,11 @@ import {
     Search,
 } from "lucide-react";
 import axios from "axios";
+import { requestCache } from "@/utils/requestCache";
 
 interface BookingTimelineProps {
     properties: Property[];
-    bookings: Booking[];
+    bookings?: Booking[]; // Optional when autoFetch=true
     startDate?: Date;
     days?: number;
     cellWidth?: number;
@@ -38,7 +39,7 @@ interface BookingTimelineProps {
 
 export default function BookingTimeline({
     properties,
-    bookings: initialBookings,
+    bookings: initialBookings = [], // Default to empty array
     startDate,
     days = 30,
     cellWidth: initialWidth = 120,
@@ -52,47 +53,91 @@ export default function BookingTimeline({
     const timelineRef = useRef<HTMLDivElement | null>(null);
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-    // State
-    // If autoFetch is true, we ignore initialBookings to avoid flashing incomplete data
-    const [localBookings, setLocalBookings] = useState<Booking[]>(autoFetch ? [] : initialBookings);
+    // State - ALL declarations BEFORE useEffect
+    const [localBookings, setLocalBookings] = useState<Booking[]>([]);
     const [currentStartDate, setCurrentStartDate] = useState(startDate || new Date());
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [cellWidth, setCellWidth] = useState(initialWidth);
     const [rowHeight, setRowHeight] = useState(initialRowHeight);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [controlsVisible, setControlsVisible] = useState(true);
+    const [extraDays, setExtraDays] = useState(0);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [isInitialLoading, setIsInitialLoading] = useState(false);
+    const [prependDays, setPrependDays] = useState(0);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
-    // Initial fetch for Index page or when autoFetch is true
+    // Ref to track mount and prevent double-fetch
+    const hasFetchedRef = useRef(false);
+
+    // Initial data setup - ONCE on mount only
     useEffect(() => {
-        if (autoFetch) {
+        // Handle non-autoFetch mode - use provided bookings
+        if (!autoFetch) {
+            console.log('[Timeline] Using provided bookings:', initialBookings.length);
+            setLocalBookings(initialBookings);
+            return;
+        }
+
+        // AutoFetch mode - fetch from API (once only)
+        if (!hasFetchedRef.current) {
+            hasFetchedRef.current = true; // Prevent double-fetch
+
             const fetchInitialData = async () => {
+                console.log('[Timeline] Starting initial fetch...');
+                setIsInitialLoading(true);
+                setFetchError(null);
+
                 try {
-                    const start = currentStartDate;
+                    const start = new Date(currentStartDate);
                     const end = new Date(currentStartDate);
                     end.setDate(end.getDate() + days);
 
-                    const response = await axios.get('/api/admin/booking-management/timeline', {
-                        params: {
-                            start_date: start.toISOString().split('T')[0],
-                            end_date: end.toISOString().split('T')[0],
+                    const params = {
+                        date_from: start.toISOString().split('T')[0],
+                        date_to: end.toISOString().split('T')[0],
+                    };
+
+                    console.log('[Timeline] Fetch params:', params);
+
+                    // Use request cache for deduplication + retry
+                    const response = await requestCache.fetch<{ success: boolean; bookings: Booking[] }>(
+                        '/api/admin/booking-management/timeline-data',
+                        {
+                            params,
+                            ttl: 2 * 60 * 1000, // 2 min cache
+                            maxRetries: 3,
                         }
+                    );
+
+                    console.log('[Timeline] Response:', {
+                        success: response.success,
+                        count: response.bookings?.length || 0
                     });
 
-                    if (response.data && response.data.bookings) {
-                        const fetchedBookings = response.data.bookings as Booking[];
-                        setLocalBookings(fetchedBookings);
+                    if (response.bookings) {
+                        setLocalBookings(response.bookings);
+                        console.log('[Timeline] ✅ Data loaded:', response.bookings.length, 'bookings');
+                    } else {
+                        console.warn('[Timeline] ⚠️ No bookings in response');
+                        setLocalBookings([]);
                     }
-                } catch (error) {
-                    console.error("Failed to fetch initial timeline data", error);
+                } catch (error: any) {
+                    console.error('[Timeline] ❌ Fetch failed:', error);
+                    setFetchError(error.message || 'Failed to load');
+                    setLocalBookings([]);
+                } finally {
+                    setIsInitialLoading(false);
                 }
             };
+
             fetchInitialData();
-        } else {
-            setLocalBookings(initialBookings);
         }
-    }, [autoFetch, initialBookings]);
-    const [extraDays, setExtraDays] = useState(0);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    }, []); // Empty deps - run ONCE on mount!
+
+    // Ref to prevent rapid re-triggering
+    const lastBackwardFetchRef = useRef<number>(0);
+    const lastForwardFetchRef = useRef<number>(0);
 
     // Drag State
     const [isDragging, setIsDragging] = useState(false);
@@ -111,30 +156,36 @@ export default function BookingTimeline({
         };
     }, [isFullscreen]);
 
-    // Dynamic Days Calculation
+    // Dynamic Days Calculation - FIXED: Removed extraDays dependency to prevent infinite loop
     useEffect(() => {
         const calculateMinDays = () => {
             if (scrollContainerRef.current) {
                 const containerWidth = scrollContainerRef.current.clientWidth;
-                // Subtract property column width (approx 260px)
-                const availableWidth = containerWidth - 260;
+                const availableWidth = containerWidth - 260; // Subtract property column
                 const neededDays = Math.ceil(availableWidth / cellWidth);
-                if (neededDays > days + extraDays) {
-                    setExtraDays(prev => Math.max(prev, neededDays - days + 5)); // Add buffer
-                }
+
+                // Only update if needed (with guard to prevent loop)
+                setExtraDays(prev => {
+                    const currentTotal = days + prev;
+                    if (neededDays > currentTotal) {
+                        const newExtra = neededDays - days + 5; // Buffer
+                        return newExtra > prev ? newExtra : prev;
+                    }
+                    return prev; // No change
+                });
             }
         };
 
-        // Run initially and on resize
         calculateMinDays();
         window.addEventListener('resize', calculateMinDays);
         return () => window.removeEventListener('resize', calculateMinDays);
-    }, [cellWidth, days]);
+    }, [cellWidth, days]); // Removed extraDays - it was causing infinite loop!
 
-    // Update local bookings when prop changes (e.g. manual refresh)
-    useEffect(() => {
-        setLocalBookings(initialBookings);
-    }, [initialBookings]);
+    // REMOVED: This useEffect was causing infinite loop with autoFetch mode
+    // When autoFetch=true, initialBookings is always [], so no point updating
+    // useEffect(() => {
+    //     setLocalBookings(initialBookings);
+    // }, [initialBookings]);
 
     const timelineDates = useMemo(
         () => generateTimelineDates(days + extraDays, currentStartDate),
@@ -177,10 +228,11 @@ export default function BookingTimeline({
             const nextEndDate = new Date(currentEndDate);
             nextEndDate.setDate(nextEndDate.getDate() + 14);
 
-            const response = await axios.get('/api/admin/booking-management/timeline', {
+            // Use optimized timeline-data endpoint
+            const response = await axios.get('/api/admin/booking-management/timeline-data', {
                 params: {
-                    start_date: currentEndDate.toISOString().split('T')[0],
-                    end_date: nextEndDate.toISOString().split('T')[0],
+                    date_from: currentEndDate.toISOString().split('T')[0],
+                    date_to: nextEndDate.toISOString().split('T')[0],
                 }
             });
 
@@ -197,6 +249,62 @@ export default function BookingTimeline({
             }
         } catch (error) {
             console.error("Failed to fetch more bookings", error);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
+
+    // Fetch Previous Bookings (backward scroll)
+    const fetchPreviousBookings = async () => {
+        if (isLoadingMore) return;
+
+        setIsLoadingMore(true);
+
+        // Save current scroll position
+        const currentScrollLeft = scrollContainerRef.current?.scrollLeft || 0;
+
+        try {
+            // Calculate previous date range
+            const previousStartDate = new Date(currentStartDate);
+            previousStartDate.setDate(previousStartDate.getDate() - prependDays - 14); // Go back 14 days
+
+            const previousEndDate = new Date(currentStartDate);
+            previousEndDate.setDate(previousEndDate.getDate() - prependDays);
+
+            // Use optimized timeline-data endpoint
+            const response = await axios.get('/api/admin/booking-management/timeline-data', {
+                params: {
+                    date_from: previousStartDate.toISOString().split('T')[0],
+                    date_to: previousEndDate.toISOString().split('T')[0],
+                }
+            });
+
+            if (response.data && response.data.bookings) {
+                const newBookings = response.data.bookings as Booking[];
+
+                setLocalBookings(prev => {
+                    // Merge and deduplicate
+                    const existingIds = new Set(prev.map(b => b.id));
+                    const uniqueNew = newBookings.filter(b => !existingIds.has(b.id));
+                    return [...uniqueNew, ...prev]; // Prepend to beginning
+                });
+
+                // Update prepend days and adjust start date
+                setPrependDays(prev => prev + 14);
+                const newStartDate = new Date(currentStartDate);
+                newStartDate.setDate(newStartDate.getDate() - 14);
+                setCurrentStartDate(newStartDate);
+
+                // Restore scroll position after data loads (add offset for new content)
+                setTimeout(() => {
+                    if (scrollContainerRef.current) {
+                        // Add width of 14 new days to maintain visual position
+                        scrollContainerRef.current.scrollLeft = currentScrollLeft + (14 * cellWidth);
+                    }
+                }, 50);
+            }
+        } catch (error) {
+            console.error("Failed to fetch previous bookings", error);
         } finally {
             setIsLoadingMore(false);
         }
@@ -250,13 +358,25 @@ export default function BookingTimeline({
        Let's just fix the API handling for now, as that's the explicit error "fetching seems wrong/not fitting".
     */
 
-    // Infinite Scroll & Drag Handler
+    // Infinite Scroll & Drag Handler (bidirectional)
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const target = e.currentTarget;
+
+        // Scroll to right (forward) - load more future dates
         if (target.scrollLeft + target.clientWidth >= target.scrollWidth - 300) {
             const newExtra = extraDays + 7;
             setExtraDays(newExtra);
             fetchMoreBookings(newExtra);
+        }
+
+        // Scroll to left (backward) - load more past dates
+        // Debounce: only trigger if 2 seconds passed since last fetch
+        const now = Date.now();
+        if (target.scrollLeft <= 300 && prependDays < 365 && !isLoadingMore) {
+            if (now - lastBackwardFetchRef.current > 2000) {
+                lastBackwardFetchRef.current = now;
+                fetchPreviousBookings();
+            }
         }
     };
 
@@ -416,27 +536,51 @@ export default function BookingTimeline({
                         onMouseMove={handleMouseMove}
                         className={`overflow-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-500 transition-colors cursor-grab ${isFullscreen ? 'h-full' : 'max-h-[75vh]'}`}
                     >
-                        <div className="min-w-fit transition-all duration-100" style={{ width: timelineWidth + 260 }}>
-
-                            {/* Sticky header */}
-                            <div className={`sticky ${isFullscreen ? (controlsVisible ? 'top-[80px]' : 'top-0') : 'top-0'} z-30 bg-white shadow-sm transition-all duration-300`}>
-                                <BookingTimelineHeader dates={timelineDates} cellWidth={cellWidth} />
-                            </div>
-
-                            <div className="relative divide-y select-none">
-                                {properties.map((property) => (
-                                    <BookingTimelineRow
-                                        key={property.id}
-                                        property={property}
-                                        bookings={bookingsByProperty[property.id] || []}
-                                        timelineDates={timelineDates}
-                                        cellWidth={cellWidth}
-                                        rowHeight={rowHeight}
-                                        onBookingClick={setSelectedBooking}
-                                    />
+                        {isInitialLoading ? (
+                            // Skeleton Loader
+                            <div className="space-y-4 p-4 animate-pulse">
+                                <div className="flex gap-2">
+                                    <div className="w-[260px] h-16 bg-gray-200 rounded"></div>
+                                    <div className="flex-1 flex gap-2">
+                                        {[...Array(10)].map((_, i) => (
+                                            <div key={i} className="w-24 h-16 bg-gray-200 rounded"></div>
+                                        ))}
+                                    </div>
+                                </div>
+                                {[...Array(5)].map((_, i) => (
+                                    <div key={i} className="flex gap-2">
+                                        <div className="w-[260px] h-20 bg-gray-100 rounded"></div>
+                                        <div className="flex-1 flex gap-2">
+                                            {[...Array(10)].map((_, j) => (
+                                                <div key={j} className="w-24 h-20 bg-gray-100 rounded"></div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
-                        </div>
+                        ) : (
+                            <div className="min-w-fit transition-all duration-100" style={{ width: timelineWidth + 260 }}>
+
+                                {/* Sticky header */}
+                                <div className={`sticky ${isFullscreen ? (controlsVisible ? 'top-[80px]' : 'top-0') : 'top-0'} z-30 bg-white shadow-sm transition-all duration-300`}>
+                                    <BookingTimelineHeader dates={timelineDates} cellWidth={cellWidth} />
+                                </div>
+
+                                <div className="relative divide-y select-none">
+                                    {properties.map((property) => (
+                                        <BookingTimelineRow
+                                            key={property.id}
+                                            property={property}
+                                            bookings={bookingsByProperty[property.id] || []}
+                                            timelineDates={timelineDates}
+                                            cellWidth={cellWidth}
+                                            rowHeight={rowHeight}
+                                            onBookingClick={setSelectedBooking}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                 </CardContent>

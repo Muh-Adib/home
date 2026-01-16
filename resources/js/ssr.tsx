@@ -20,7 +20,7 @@ createServer((page) =>
                 useDataInertiaHeadAttribute: true,
             },
         },
-        resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx')),
+        resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx', { eager: false })),
         setup: ({ App, props }) => {
             /* eslint-disable */
             // ... (Kode Ziggy Global Routes Anda di sini, sudah benar)

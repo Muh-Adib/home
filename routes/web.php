@@ -393,6 +393,8 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
 Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->prefix('api/admin/booking-management')->name('api.admin.booking-management.')->group(function () {
     $controller = App\Http\Controllers\Admin\BookingManagementController::class;
     Route::get('timeline', [$controller, 'timeline']);
+    Route::get('timeline-data', [$controller, 'timelineData']); // For infinite scroll lazy loading
+    Route::get('search', [$controller, 'search']); // For search bar
     Route::post('check-availability', [$controller, 'checkAvailability']);
     Route::post('calculate-rate', [$controller, 'calculateRate']);
     Route::post('availability-and-rates', [$controller, 'availabilityAndRates']);

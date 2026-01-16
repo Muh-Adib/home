@@ -210,80 +210,7 @@ class Property extends Model
         );
     }
 
-    // Helper Methods
-    public function isAvailableForDates($checkIn, $checkOut, $excludeBookingId = null): bool
-    {
-        if ($this->status !== 'active') {
-            return false;
-        }
 
-        // Convert input dates to ensure proper format
-        try {
-            $checkInDate = \Carbon\Carbon::parse($checkIn);
-            $checkOutDate = \Carbon\Carbon::parse($checkOut);
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Invalid date format in isAvailableForDates', [
-                'check_in' => $checkIn,
-                'check_out' => $checkOut,
-                'error' => $e->getMessage()
-            ]);
-            return false;
-        }
-
-        // Convert to standard Y-m-d format for consistency
-        $checkIn = $checkInDate->format('Y-m-d');
-        $checkOut = $checkOutDate->format('Y-m-d');
-        $nights = $checkInDate->diffInDays($checkOutDate);
-
-        // Check minimum stay requirements
-        //if (!$this->meetsMinimumStay($checkInDate, $checkOutDate, $nights)) {
-        //    return false;
-        //}
-
-        // Check for existing bookings using CORRECT overlap detection logic
-        // Two periods overlap if: start1 < end2 AND start2 < end1
-        // Only active bookings block availability: pending_verification, confirmed, checked_in, checked_out
-        // Cancelled, rejected, completed bookings do NOT block availability
-        $bookingQuery = $this->bookings()
-                    ->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
-                    ->where(function ($query) use ($checkIn, $checkOut) {
-                        $query->where('check_in', '<', $checkOut)
-                              ->where('check_out', '>', $checkIn);
-                    });
-        
-        // Exclude specific booking if provided (for edit booking scenario)
-        if ($excludeBookingId) {
-            $bookingQuery->where('id', '!=', $excludeBookingId);
-        }
-        
-        // Get overlapping bookings for logging
-        $overlappingBookings = $bookingQuery->get(['id', 'booking_number', 'booking_status', 'check_in', 'check_out']);
-        $hasOverlappingBooking = $overlappingBookings->isNotEmpty();
-
-        if ($hasOverlappingBooking) {
-            \Illuminate\Support\Facades\Log::info('Property not available - overlapping booking found', [
-                'property_id' => $this->id,
-                'check_in' => $checkIn,
-                'check_out' => $checkOut,
-                'exclude_booking_id' => $excludeBookingId,
-                'overlapping_bookings' => $overlappingBookings->map(function($b) {
-                    return [
-                        'id' => $b->id,
-                        'booking_number' => $b->booking_number,
-                        'status' => $b->booking_status,
-                        'check_in' => $b->check_in,
-                        'check_out' => $b->check_out,
-                    ];
-                })->toArray(),
-            ]);
-            return false;
-        }
-
-        // Check maintenance blocks (if implemented later)
-        // This could check against a maintenance_schedules table
-
-        return true;
-    }
 
     /**
      * Check if booking meets minimum stay requirements
@@ -427,120 +354,20 @@ class Property extends Model
 
     /**
      * Get effective minimum stay for a date range considering seasonal rates
+     * ✅ Delegates to PropertyBusinessRulesService for consistency
      */
     public function getEffectiveMinimumStay($checkIn, $checkOut): int
     {
-        $checkInDate = \Carbon\Carbon::parse($checkIn);
-        $checkOutDate = \Carbon\Carbon::parse($checkOut);
-        
-        // Get seasonal rates for this period
-        $seasonalRates = PropertySeasonalRate::getEffectiveRateForProperty(
-            $this->id, 
-            $checkInDate, 
-            $checkOutDate
-        );
-        
-        // If no seasonal rates, use property default
-        if (empty($seasonalRates)) {
-            return $this->getDefaultMinimumStay($checkInDate, $checkOutDate);
-        }
-        
-        // Get the highest minimum stay from seasonal rates
-        $maxSeasonalMinStay = 0;
-        foreach ($seasonalRates as $date => $seasonalRate) {
-            if ($seasonalRate && $seasonalRate->min_stay_nights > $maxSeasonalMinStay) {
-                $maxSeasonalMinStay = $seasonalRate->min_stay_nights;
-            }
-        }
-        
-        // If seasonal rate has higher minimum stay, use it
-        if ($maxSeasonalMinStay > 0) {
-            return $maxSeasonalMinStay;
-        }
-        
-        // Otherwise use property default
-        return $this->getDefaultMinimumStay($checkInDate, $checkOutDate);
+        return PropertyBusinessRulesService::getEffectiveMinimumStay($this, $checkIn, $checkOut);
     }
     
     /**
-     * Get default minimum stay based on property settings
-     */
-    private function getDefaultMinimumStay(\Carbon\Carbon $checkInDate, \Carbon\Carbon $checkOutDate): int
-    {
-        $nights = $checkInDate->diffInDays($checkOutDate);
-        
-        // Check if it includes weekend (Friday/Saturday checkout)
-        $includesWeekend = false;
-        for ($date = $checkInDate->copy(); $date->lt($checkOutDate); $date->addDay()) {
-            if ($date->isFriday() || $date->isSaturday()) {
-                $includesWeekend = true;
-                break;
-            }
-        }
-
-        // Check if it includes peak season
-        $includesPeakSeason = $this->hasPeakSeasonDates($checkInDate, $checkOutDate);
-
-        // Return appropriate minimum stay
-        if ($includesPeakSeason) {
-            return $this->min_stay_peak;
-        } elseif ($includesWeekend) {
-            return $this->min_stay_weekend;
-        } else {
-            return $this->min_stay_weekday;
-        }
-    }
-
-    /**
      * Get minimum stay information for frontend display
+     * ✅ Delegates to PropertyBusinessRulesService for consistency
      */
     public function getMinimumStayInfo($checkIn, $checkOut): array
     {
-        $checkInDate = \Carbon\Carbon::parse($checkIn);
-        $checkOutDate = \Carbon\Carbon::parse($checkOut);
-        $nights = $checkInDate->diffInDays($checkOutDate);
-        
-        // Get seasonal rates for this period
-        $seasonalRates = PropertySeasonalRate::getEffectiveRateForProperty(
-            $this->id, 
-            $checkInDate, 
-            $checkOutDate
-        );
-        
-        $effectiveMinStay = $this->getEffectiveMinimumStay($checkIn, $checkOut);
-        $meetsRequirement = $nights >= $effectiveMinStay;
-        
-        // Get seasonal rate info if applicable
-        $seasonalRateInfo = null;
-        if (!empty($seasonalRates)) {
-            $appliedSeasonalRates = [];
-            foreach ($seasonalRates as $date => $seasonalRate) {
-                if ($seasonalRate && $seasonalRate->min_stay_nights > 0) {
-                    $appliedSeasonalRates[] = [
-                        'name' => $seasonalRate->name,
-                        'min_stay' => $seasonalRate->min_stay_nights,
-                        'date' => $date
-                    ];
-                }
-            }
-            
-            if (!empty($appliedSeasonalRates)) {
-                $seasonalRateInfo = $appliedSeasonalRates;
-            }
-        }
-        
-        return [
-            'effective_min_stay' => $effectiveMinStay,
-            'current_nights' => $nights,
-            'meets_requirement' => $meetsRequirement,
-            'has_seasonal_rate' => !empty($seasonalRates),
-            'seasonal_rate_info' => $seasonalRateInfo,
-            'default_min_stay' => [
-                'weekday' => $this->min_stay_weekday,
-                'weekend' => $this->min_stay_weekend,
-                'peak' => $this->min_stay_peak,
-            ]
-        ];
+        return PropertyBusinessRulesService::getMinimumStayInfo($this, $checkIn, $checkOut);
     }
 
     /**

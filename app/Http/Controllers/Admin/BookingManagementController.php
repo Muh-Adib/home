@@ -11,6 +11,10 @@ use App\Services\AvailabilityService;
 use App\Services\RateCalculationService;
 use App\Services\PaymentIncomeSyncService;
 use App\Services\PaymentGatewayService;
+use App\Services\GuestCountService;
+use App\Services\BookingDailyRevenueService;
+use App\Services\BookingServiceSyncService;
+use App\Services\RateOverrideLogService;
 use App\Events\BookingStatusChanged;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -57,15 +61,30 @@ class BookingManagementController extends Controller
     private BookingService $bookingService;
     private RateCalculationService $rateCalculationService;
     private PaymentGatewayService $gatewayService;
+    private GuestCountService $guestCountService;
+    private BookingDailyRevenueService $dailyRevenueService;
+    private BookingServiceSyncService $serviceSyncService;
+    private RateOverrideLogService $rateOverrideLogService;
+    private \App\Services\AdminBookingService $adminBookingService;
 
     public function __construct(
         BookingService $bookingService,
         RateCalculationService $rateCalculationService,
-        PaymentGatewayService $gatewayService
+        PaymentGatewayService $gatewayService,
+        GuestCountService $guestCountService,
+        BookingDailyRevenueService $dailyRevenueService,
+        BookingServiceSyncService $serviceSyncService,
+        RateOverrideLogService $rateOverrideLogService,
+        \App\Services\AdminBookingService $adminBookingService
     ) {
         $this->bookingService = $bookingService;
         $this->rateCalculationService = $rateCalculationService;
         $this->gatewayService = $gatewayService;
+        $this->guestCountService = $guestCountService;
+        $this->dailyRevenueService = $dailyRevenueService;
+        $this->serviceSyncService = $serviceSyncService;
+        $this->rateOverrideLogService = $rateOverrideLogService;
+        $this->adminBookingService = $adminBookingService;
     }
 
     /**
@@ -133,8 +152,8 @@ class BookingManagementController extends Controller
                 'formatted_total_amount' => $booking->formatted_total_amount,
                 'booking_status' => $booking->booking_status,
                 'payment_status' => $booking->payment_status,
-                'status_color' => $this->getStatusColor($booking->booking_status),
-                'can_edit' => $this->canEditBooking($booking, $user),
+                'status_color' => $booking->getStatusColor(),
+                'can_edit' => $user->can('update', $booking),
             ];
         });
         
@@ -219,99 +238,21 @@ class BookingManagementController extends Controller
     }
     
     /**
-     * Store manual booking created by admin using BookingService
+     * Store manual booking created by admin using AdminBookingService
+     * ✅ REFACTORED: Business logic moved to AdminBookingService
      */
-    public function store(Request $request): RedirectResponse
+    public function store(\App\Http\Requests\Admin\CreateBookingRequest $request): RedirectResponse
     {
         // Increase execution time for processing heavy request (images, emails, etc)
         set_time_limit(300);
 
-        // Base validation rules
-        $rules = [
-            'property_id' => 'required|exists:properties,id',
-            'check_in_date' => 'required|date',
-            'check_out_date' => 'required|date|after:check_in_date',
-            'guest_male' => 'required|integer|min:0',
-            'guest_female' => 'required|integer|min:0',
-            'guest_children' => 'required|integer|min:0',
-            'guest_name' => 'required|string|max:255',
-            'guest_email' => 'required|email|max:255',
-            'guest_phone' => 'required|string|max:20',
-            'guest_country' => 'required|string|max:100',
-            'guest_id_number' => 'nullable|string|max:50',
-            'guest_gender' => 'required|in:male,female',
-            'relationship_type' => 'required|in:keluarga,teman,kolega,pasangan,campuran',
-            'special_requests' => 'nullable|string|max:1000',
-            'internal_notes' => 'nullable|string|max:1000',
-            'booking_status' => 'required|in:pending_verification,confirmed',
-            'payment_status' => 'nullable|in:dp_pending,dp_received,fully_paid',
-            'dp_percentage' => 'required|integer|in:30,50,70,100',
-            'auto_confirm' => 'boolean',
-            'guests' => 'nullable|array',
-            // Payment fields
-            'payment_method_id' => 'nullable|exists:payment_methods,id',
-            'payment_amount' => 'nullable|numeric|min:0',
-            'payment_date' => 'nullable|date',
-            'reference_number' => 'nullable|string|max:100',
-            'bank_name' => 'nullable|string|max:255',
-            'account_number' => 'nullable|string|max:100',
-            'account_name' => 'nullable|string|max:255',
-            'payment_status_payment' => 'nullable|in:pending,verified', // Renamed to avoid conflict with booking payment_status
-            'verification_notes' => 'nullable|string|max:1000',
-            // Payment proof attachment
-            'payment_proof' => [
-                'nullable',
-                'file',
-                'mimes:jpg,jpeg,png,pdf',
-                'max:5120', // 5MB
-                function ($attribute, $value, $fail) use ($request) {
-                    $paymentStatus = $request->input('payment_status');
-                    // Required if payment status is dp_received or fully_paid
-                    if (in_array($paymentStatus, ['dp_received', 'fully_paid']) && !$value) {
-                        $fail('Payment proof is required when payment status is DP or Fully Paid.');
-                    }
-                },
-            ],
-            // Rate override fields
-            'rate_override' => 'nullable|boolean',
-            'override_amount' => 'nullable|numeric|min:0',
-            'override_reason' => 'nullable|string|max:500',
-            // Extra services - validate only if services array exists and is not empty
-            'services' => 'nullable|array',
-        ];
-
-        // Add services validation only if services array is not empty
-        $services = $request->input('services');
-        if (!empty($services) && is_array($services) && count($services) > 0) {
-            $rules['services.*.service_master_id'] = 'nullable|exists:service_masters,id';
-            $rules['services.*.service_name'] = 'required|string|max:255';
-            $rules['services.*.service_type'] = 'required|string';
-            $rules['services.*.quantity'] = 'required|integer|min:1';
-            $rules['services.*.unit_price'] = 'required|numeric|min:0';
-            $rules['services.*.total_price'] = 'required|numeric|min:0';
-        }
-
-        $validated = $request->validate($rules);
-        
-        // Additional validation rules - handle ValidationException properly for Inertia
-        try {
-            $this->validateBookingRules($validated, $request);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            if ($request->header('X-Inertia')) {
-                return back()->withErrors($e->errors());
-            }
-            throw $e;
-        }
+        // ✅ All form validation is handled by CreateBookingRequest automatically
+        $validated = $request->validated();
         
         $property = Property::findOrFail($validated['property_id']);
-        
-        // Check if user can manage this property
         $user = $request->user();
-        if ($user->role === 'property_owner' && $property->owner_id !== $user->id) {
-            abort(403, 'You can only create bookings for your own properties.');
-        }
         
-        // Check availability using AvailabilityService for consistency
+        // ✅ Check availability using AvailabilityService for consistency
         $availabilityService = app(\App\Services\AvailabilityService::class);
         $availability = $availabilityService->checkAvailability(
             $property,
@@ -320,7 +261,7 @@ class BookingManagementController extends Controller
         );
         
         if (!$availability['available']) {
-            // Get detailed information about overlapping bookings
+            // Get detailed information about overlapping bookings for debugging
             $overlappingBookings = \App\Models\Booking::where('property_id', $property->id)
                 ->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
                 ->where(function ($query) use ($validated) {
@@ -355,260 +296,43 @@ class BookingManagementController extends Controller
             ]);
         }
 
-        try {
-            // ✅ Calculate guest_count with conditional logic based on property capacity
-            $guestMale = (int)$validated['guest_male'];
-            $guestFemale = (int)$validated['guest_female'];
-            $guestChildren = (int)$validated['guest_children'];
-            
-            // Apply conditional logic: if capacity < capacity_max, children count as floor(children/2)
-            if ($property->capacity < $property->capacity_max) {
-                $guestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
-            } else {
-                $guestCount = $guestMale + $guestFemale + $guestChildren;
-            }
-
-            // ✅ FIX: Transform data to match BookingRequest format
-            $bookingData = [
-                'property_id' => $validated['property_id'],
-                'check_in' => $validated['check_in_date'],
-                'check_out' => $validated['check_out_date'],
-                'check_in_time' => '15:00',
-                'guest_male' => $guestMale,
-                'guest_female' => $guestFemale,
-                'guest_children' => $guestChildren,
-                'guest_count' => $guestCount, // Use calculated guest count
-                'guest_name' => $validated['guest_name'],
-                'guest_email' => $validated['guest_email'],
-                'guest_phone' => $validated['guest_phone'],
-                'guest_country' => $validated['guest_country'],
-                'guest_id_number' => $validated['guest_id_number'],
-                'guest_gender' => $validated['guest_gender'],
-                'relationship_type' => $validated['relationship_type'],
-                'guests' => $validated['guests'] ?? [],
-                'special_requests' => $validated['special_requests'],
-                'internal_notes' => $validated['internal_notes'],
-                'booking_status' => $validated['booking_status'],
-                'payment_status' => $validated['payment_status'],
-                'dp_percentage' => $validated['dp_percentage'],
-                'auto_confirm' => $validated['auto_confirm'] ?? false,
-            ];
-
-            // Create or find user for booking
-            $guestUser = \App\Models\User::where('email', $validated['guest_email'])->first();
-            if (!$guestUser) {
-                $guestUser = \App\Models\User::create([
-                    'name' => $validated['guest_name'],
-                    'email' => $validated['guest_email'],
-                    'phone' => $validated['guest_phone'],
-                    'password' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(12)),
-                    'role' => 'guest',
-                    'status' => 'active',
-                    'email_verified_at' => now(), // Admin-created users are auto-verified
-                ]);
-            }
-            
-            // ✅ FIX: Use new BookingService with BookingRequest
-            $bookingRequest = \App\Domain\Booking\ValueObjects\BookingRequest::fromArray($bookingData);
-            //dd($bookingRequest,$validated);
-            $booking = $this->bookingService->createBooking($bookingRequest, $guestUser);
-            
-            // ✅ FIX: Admin-specific updates
-            $booking->update([
-                'created_by' => $user->id,
-                // Use allowed enum values only; mark admin source via created_by and logs
-                'source' => $request->get('source', 'direct'),
-            ]);
-
-            // Handle rate override if specified
-            if (!empty($validated['rate_override']) && !empty($validated['override_amount'])) {
-                $originalAmount = $booking->total_amount;
-                $booking->update([
-                    'total_amount' => $validated['override_amount'],
-                    'internal_notes' => $booking->internal_notes . "\n[" . now() . "] Rate override by " . $user->name . 
-                                       ": " . $validated['override_reason'] . 
-                                       " (Original: " . $originalAmount . ", New: " . $validated['override_amount'] . ")",
-                ]);
-            }
-
-            // Auto-verify if requested
-            if ($validated['auto_confirm']) {
-                $booking->update([
-                    'verification_status' => 'approved',
-                    'verified_by' => $user->id,
-                    'verified_at' => now(),
-                ]);
-
-                // Update workflow
-                $booking->workflow()->create([
-                    'step' => 'approved',
-                    'status' => 'completed',
-                    'processed_by' => $user->id,
-                    'processed_at' => now(),
-                    'notes' => 'Manual booking created by admin and auto-confirmed',
-                ]);
-            }
-
-            // Create payment if payment data provided
-            if (!empty($validated['payment_method_id']) && !empty($validated['payment_amount'])) {
-                $paymentMethod = \App\Models\PaymentMethod::findOrFail($validated['payment_method_id']);
-                $paymentStatusPayment = $validated['payment_status_payment'] ?? 'verified';
-                
-                $payment = $booking->payments()->create([
-                    'payment_method_id' => $validated['payment_method_id'],
-                    'payment_number' => \App\Models\Payment::generatePaymentNumber(),
-                    'amount' => $validated['payment_amount'],
-                    'payment_type' => 'dp',
-                    'payment_method' => $paymentMethod->type,
-                    'payment_status' => $paymentStatusPayment,
-                    'payment_date' => $validated['payment_date'] ?: now(),
-                    'reference_number' => $validated['reference_number'] ?? null,
-                    'bank_name' => $validated['bank_name'] ?: $paymentMethod->bank_name,
-                    'account_number' => $validated['account_number'] ?? null,
-                    'account_name' => $validated['account_name'] ?? null,
-                    'verification_notes' => $validated['verification_notes'] ?? null,
-                    'processed_by' => $user->id,
-                    'verified_by' => $paymentStatusPayment === 'verified' ? $user->id : null,
-                    'verified_at' => $paymentStatusPayment === 'verified' ? now() : null,
-                ]);
-
-                // Update booking payment status
-                $booking->updatePaymentStatus();
-
-                // Sinkronkan income jika payment verified
-                if ($paymentStatusPayment === 'verified') {
-                    app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
-                }
-
-                // Handle payment proof attachment
-                if ($request->hasFile('payment_proof')) {
-                    $file = $request->file('payment_proof');
-                    $extension = strtolower($file->getClientOriginalExtension());
-                    $baseFilename = $booking->booking_number . '_' . time();
-                    
-                    // Check if file is an image that needs WebP conversion
-                    $isImage = in_array($extension, ['jpg', 'jpeg', 'png']);
-                    
-                    if ($isImage) {
-                        // Convert to WebP and delete original
-                        $webpFilename = $baseFilename . '.webp';
-                        $tempPath = $file->storeAs('payments/proof/temp', $file->hashName(), 'public');
-                        $tempFullPath = Storage::disk('public')->path($tempPath);
-                        $webpPath = 'payments/proof/' . $webpFilename;
-                        $webpFullPath = Storage::disk('public')->path($webpPath);
-                        
-                        // Ensure directory exists
-                        $directory = dirname($webpFullPath);
-                        if (!file_exists($directory)) {
-                            mkdir($directory, 0755, true);
-                        }
-                        
-                        // Convert to WebP using Intervention Image v3
-                        $manager = new ImageManager(new Driver());
-                        $image = $manager->read($tempFullPath);
-                        
-                        // Resize if too large (max 1920x1920 for payment proofs)
-                        if ($image->width() > 1920 || $image->height() > 1920) {
-                            $image->scaleDown(1920, 1920);
-                        }
-                        
-                        // Save as WebP with quality 85
-                        $image->toWebp(85)->save($webpFullPath);
-                        
-                        // Delete temporary original file
-                        Storage::disk('public')->delete($tempPath);
-                        
-                        $finalPath = $webpPath;
-                    } else {
-                        // For PDF, store as-is
-                        $pdfFilename = $baseFilename . '.pdf';
-                        $finalPath = $file->storeAs('payments/proof', $pdfFilename, 'public');
-                    }
-                    
-                    $payment->update([
-                        'attachment_path' => $finalPath,
-                    ]);
-                }
-            }
-
-            // Create booking services if provided and not empty
-            if (!empty($validated['services']) && is_array($validated['services']) && count($validated['services']) > 0) {
-                $servicesTotal = 0;
-                foreach ($validated['services'] as $serviceData) {
-                    $bookingService = \App\Models\BookingService::create([
-                        'booking_id' => $booking->id,
-                        'service_master_id' => $serviceData['service_master_id'] ?? null,
-                        'service_name' => $serviceData['service_name'],
-                        'service_type' => $serviceData['service_type'],
-                        'quantity' => $serviceData['quantity'],
-                        'unit_price' => $serviceData['unit_price'],
-                        'total_price' => $serviceData['total_price'],
-                    ]);
-                    $servicesTotal += $bookingService->total_price;
-                }
-
-                // Update booking total amount to include services
-                if ($servicesTotal > 0) {
-                    $booking->update([
-                        'total_amount' => $booking->total_amount + $servicesTotal,
-                    ]);
-                    // Recalculate DP and remaining amount
-                    $booking->update([
-                        'dp_amount' => ($booking->total_amount * $booking->dp_percentage) / 100,
-                        'remaining_amount' => $booking->total_amount - (($booking->total_amount * $booking->dp_percentage) / 100),
-                    ]);
-                }
-            }
-            
-            return redirect()->route('admin.booking-management.show', $booking)
-                ->with('success', 'Booking created successfully.');
-                
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            \Log::error('Manual booking creation validation failed: ' . $e->getMessage());
-            return back()->withErrors($e->errors());
-        } catch (\Throwable $e) {
-            // Catch both Exception and Error (PHP 7+) to handle Fatal Warnings too
-            \Log::error('Manual booking creation failed (FATAL/Exception): ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'request_data' => $request->except(['payment_proof']),
-            ]);
-            return back()->withErrors(['error' => 'Failed to create booking (System Error): ' . $e->getMessage()]);
+        // ✅ Delegate all business logic to AdminBookingService
+        $result = $this->adminBookingService->createAdminBooking(
+            $validated,
+            $request->file('payment_proof'),
+            $user
+        );
+        
+        if ($result->isFailure()) {
+            return back()->withErrors($result->getErrors());
         }
+        
+        return redirect()
+            ->route('admin.booking-management.show', $result->getBooking())
+            ->with('success', 'Booking created successfully.');
     }
     
     /**
      * Get property availability for date range (API)
      */
-    public function checkAvailability(Request $request)
+    public function checkAvailability(\App\Http\Requests\Admin\CheckAvailabilityRequest $request)
     {
-        $request->validate([
-            'property_id' => 'required|exists:properties,id',
-            'check_in' => 'required|date',
-            'check_out' => 'required|date|after:check_in',
-            'exclude_booking_id' => 'nullable|exists:bookings,id',
-        ]);
+        // Validation handled in CheckAvailabilityRequest
         
         $property = Property::findOrFail($request->property_id);
         $excludeBookingId = $request->get('exclude_booking_id');
         
-        $isAvailable = $property->isAvailableForDates(
+        // Use AvailabilityService for all availability checking (now supports excludeBookingId)
+        $availabilityService = app(\App\Services\AvailabilityService::class);
+        $availabilityData = $availabilityService->checkAvailability(
+            $property,
             $request->check_in,
             $request->check_out,
             $excludeBookingId
         );
         
-        // Get booked dates/periods for the specific date range only
-        $availabilityService = app(\App\Services\AvailabilityService::class);
-        $availabilityData = $availabilityService->checkAvailability(
-            $property,
-            $request->check_in,
-            $request->check_out
-        );
-        
         return response()->json([
-            'available' => $isAvailable,
+            'available' => $availabilityData['available'],
             'property_id' => $property->id,
             'check_in' => $request->check_in,
             'check_out' => $request->check_out,
@@ -620,23 +344,10 @@ class BookingManagementController extends Controller
     /**
      * Calculate rate for property and dates (API)
      */
-    public function calculateRate(Request $request)
+    public function calculateRate(\App\Http\Requests\Admin\CalculateRateRequest $request)
     {
-        try {
-            $validated = $request->validate([
-                'property_id' => 'required|exists:properties,id',
-                'check_in' => 'required|date',
-                'check_out' => 'required|date|after:check_in',
-                'guest_count' => 'required|integer|min:1',
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Validation failed',
-                'errors' => $e->errors(),
-                'message' => 'Invalid request parameters: ' . implode(', ', array_keys($e->errors())),
-            ], 400);
-        }
+        // Validation handled in CalculateRateRequest
+        $validated = $request->validated();
         
         try {
             $property = Property::findOrFail($validated['property_id']);
@@ -681,23 +392,10 @@ class BookingManagementController extends Controller
     /**
      * Get availability and rates combined for admin (single endpoint)
      */
-    public function availabilityAndRates(Request $request)
+    public function availabilityAndRates(\App\Http\Requests\Admin\CalculateRateRequest $request)
     {
-        try {
-            $validated = $request->validate([
-                'property_id' => 'required|exists:properties,id',
-                'check_in' => 'required|date',
-                'check_out' => 'required|date|after:check_in',
-                'guest_count' => 'required|integer|min:1',
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Validation failed',
-                'errors' => $e->errors(),
-                'message' => 'Invalid request parameters: ' . implode(', ', array_keys($e->errors())),
-            ], 400);
-        }
+        // Validation handled in CalculateRateRequest
+        $validated = $request->validated();
         
         try {
             $property = Property::findOrFail($validated['property_id']);
@@ -811,7 +509,7 @@ class BookingManagementController extends Controller
         }
         
         $bookings = $bookingsQuery->orderBy('check_in')->get()->map(function ($booking) {
-            $booking->status_color = $this->getStatusColor($booking->booking_status);
+            $booking->status_color = $booking->getStatusColor();
             return $booking;
         });
 
@@ -872,7 +570,7 @@ class BookingManagementController extends Controller
         }
 
         $bookings = $bookingsQuery->get()->map(function ($booking) {
-            $booking->status_color = $this->getStatusColor($booking->booking_status);
+            $booking->status_color = $booking->getStatusColor();
             return $booking;
         });
 
@@ -902,13 +600,9 @@ class BookingManagementController extends Controller
     /**
      * Get property date range data for admin booking creation
      */
-    public function getPropertyDateRange(Request $request)
+    public function getPropertyDateRange(\App\Http\Requests\Admin\GetPropertyDateRangeRequest $request)
     {
-        $request->validate([
-            'property_id' => 'required|exists:properties,id',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after:start_date',
-        ]);
+        // Validation handled in GetPropertyDateRangeRequest
         
         $property = Property::findOrFail($request->property_id);
         $startDate = $request->get('start_date', now()->toDateString());
@@ -919,33 +613,9 @@ class BookingManagementController extends Controller
             $availabilityService = app(\App\Services\AvailabilityService::class);
             $availability = $availabilityService->checkAvailability($property, $startDate, $endDate);
             
-            // Get booked dates
-            $bookedDates = Booking::where('property_id', $property->id)
-                ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
-                ->where(function ($query) use ($startDate, $endDate) {
-                    $query->whereBetween('check_in', [$startDate, $endDate])
-                          ->orWhereBetween('check_out', [$startDate, $endDate])
-                          ->orWhere(function ($q) use ($startDate, $endDate) {
-                              $q->where('check_in', '<=', $startDate)
-                                ->where('check_out', '>=', $endDate);
-                          });
-                })
-                ->get()
-                ->flatMap(function ($booking) {
-                    $dates = [];
-                    $current = \Carbon\Carbon::parse($booking->check_in);
-                    $end = \Carbon\Carbon::parse($booking->check_out);
-                    
-                    while ($current < $end) {
-                        $dates[] = $current->toDateString();
-                        $current->addDay();
-                    }
-                    
-                    return $dates;
-                })
-                ->unique()
-                ->values()
-                ->toArray();
+            // Use AvailabilityService for consistency (single source of truth)
+            // This ensures we get ALL booked dates including pending_verification bookings
+            $bookedDates = $availabilityService->getBookedDatesInRange($property, $startDate, $endDate);
             
             // Get seasonal rates if available
             $seasonalRates = [];
@@ -988,121 +658,149 @@ class BookingManagementController extends Controller
     /**
      * Helper method to get status color
      */
-    private function getStatusColor(string $status): string
-    {
-        return match($status) {
-            'pending_verification' => 'yellow',
-            'confirmed' => 'green',
-            'checked_in' => 'blue',
-            'checked_out' => 'gray',
-            'cancelled' => 'red',
-            'no_show' => 'red',
-            default => 'gray'
-        };
-    }
-    
-    /**
-     * Helper method to check if booking can be edited
-     */
-    private function canEditBooking(Booking $booking, User $user): bool
-    {
-        // Super admin can edit all bookings including guest bookings
-        if ($user->role === 'super_admin') {
-            return true;
-        }
-        
-        // Property owner can edit their property bookings
-        if ($user->role === 'property_owner') {
-            return $booking->property->owner_id === $user->id;
-        }
-        
-        // Staff can edit based on role
-        return in_array($user->role, ['property_manager', 'front_desk']);
-    }
+    // ✅ REMOVED: getStatusColor() - Now using $booking->getStatusColor() from HasBookingStatus trait
+    // ✅ REMOVED: canEditBooking() - Now using Policy: $user->can('update', $booking)
     
     /**
      * Additional validation rules for booking creation/update
      */
-    private function validateBookingRules(array $validated, Request $request, bool $isEdit = false): void
+    // ✅ REMOVED: validateBookingRules() - This logic should be in Form Request (withValidator method)
+    // TODO: Move remaining validation logic to CreateBookingRequest::withValidator()
+
+    /**
+     * Search bookings (independent search API for search bar)
+     */
+    public function search(Request $request): JsonResponse
     {
-        // Payment requirement validation (only for new bookings, not edits)
-        if (!$isEdit && $validated['booking_status'] === 'confirmed' && $validated['payment_status'] !== 'dp_pending') {
-            $errors = [];
-            
-            if (empty($validated['payment_method_id'])) {
-                $errors['payment_method_id'] = ['Payment method is required for confirmed bookings'];
-            }
-            
-            if (empty($validated['payment_amount']) || $validated['payment_amount'] <= 0) {
-                $errors['payment_amount'] = ['Payment amount is required for confirmed bookings'];
-            }
-            
-            if (!empty($errors)) {
-                throw \Illuminate\Validation\ValidationException::withMessages($errors);
-            }
+        $query = $request->input('q', '');
+        
+        // Minimum 2 characters
+        if (strlen($query) < 2) {
+            return response()->json([
+                'success' => true,
+                'bookings' => [],
+                'count' => 0
+            ]);
         }
         
-        // Rate override validation
-        if (!empty($validated['rate_override'])) {
-            if (!isset($validated['override_amount']) || $validated['override_amount'] <= 0) {
-                throw new \Illuminate\Validation\ValidationException(
-                    validator([], []),
-                    ['override_amount' => ['Override amount is required when rate override is enabled']]
-                );
-            }
-            
-            if (!isset($validated['override_reason']) || empty($validated['override_reason'])) {
-                throw new \Illuminate\Validation\ValidationException(
-                    validator([], []),
-                    ['override_reason' => ['Override reason is required and must be at least 10 characters']]
-                );
-            }
-            
-            if (strlen(trim($validated['override_reason'])) < 10) {
-                throw new \Illuminate\Validation\ValidationException(
-                    validator([], []),
-                    ['override_reason' => ['Override reason must be at least 10 characters']]
-                );
-            }
+        $user = $request->user();
+        
+        // Build query with minimal columns for performance
+        $bookings = Booking::query()
+            ->select([
+                'id', 'booking_number', 'guest_name', 'guest_email', 
+                'guest_phone', 'check_in', 'check_out', 'total_amount',
+                'booking_status', 'payment_status', 'property_id', 'created_at'
+            ])
+            ->with('property:id,name');
+        
+        // Role-based filtering
+        if ($user->role === 'property_owner') {
+            $bookings->whereHas('property', function ($q) use ($user) {
+                $q->where('owner_id', $user->id);
+            });
         }
         
-        // Guest count validation with conditional logic
-        $property = Property::find($validated['property_id']);
+        // Search across multiple fields
+        $bookings->where(function ($q) use ($query) {
+            $q->where('booking_number', 'LIKE', "%{$query}%")
+              ->orWhere('guest_name', 'LIKE', "%{$query}%")
+              ->orWhere('guest_email', 'LIKE', "%{$query}%")
+              ->orWhere('guest_phone', 'LIKE', "%{$query}%");
+        });
         
-        if (!$property) {
-            throw new \Illuminate\Validation\ValidationException(
-                validator([], []),
-                ['property_id' => ['Property not found']]
-            );
+        // Exclude cancelled by default
+        $bookings->where('booking_status', '!=', 'cancelled');
+        
+        // Order by most recent and limit results
+        $results = $bookings->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get();
+        
+        return response()->json([
+            'success' => true,
+            'bookings' => $results,
+            'count' => $results->count()
+        ]);
+    }
+
+    /**
+     * Get timeline data for infinite scroll (API endpoint for lazy loading)
+     * Optimized for performance with minimal queries and data
+     */
+    public function timelineData(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            
+            // Validate date range
+            $request->validate([
+                'date_from' => 'required|date',
+                'date_to' => 'required|date|after_or_equal:date_from',
+                'property_id' => 'nullable|exists:properties,id',
+                'status' => 'nullable|string',
+            ]);
+        
+        $dateFrom = $request->get('date_from');
+        $dateTo = $request->get('date_to');
+        
+        $query = Booking::query()
+            ->select([
+                'id', 'booking_number', 'property_id', 'guest_name',
+                'guest_email', 'guest_phone', 'check_in', 'check_out',
+                'nights', 'total_amount', 'booking_status', 'payment_status',
+                'guest_count'
+            ])
+            ->with([
+                'property:id,name,capacity,base_rate',
+            ]);
+        
+        // Filter by property for property owners
+        if ($user->role === 'property_owner') {
+            $query->whereHas('property', function ($q) use ($user) {
+                $q->where('owner_id', $user->id);
+            });
         }
         
-        $guestMale = (int)($validated['guest_male'] ?? 0);
-        $guestFemale = (int)($validated['guest_female'] ?? 0);
-        $guestChildren = (int)($validated['guest_children'] ?? 0);
+        // Property filter
+        if ($request->filled('property_id')) {
+            $query->where('property_id', $request->get('property_id'));
+        }
         
-        // Calculate total guests (actual people)
-        $totalGuests = $guestMale + $guestFemale + $guestChildren;
-        
-        // Calculate effective guest count for capacity check (with conditional logic)
-        if ($property->capacity < $property->capacity_max) {
-            $effectiveGuestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
+        // Status filter
+        if ($request->filled('status') && $request->status !== 'all') {
+            $query->where('booking_status', $request->get('status'));
         } else {
-            $effectiveGuestCount = $guestMale + $guestFemale + $guestChildren;
+            // Exclude cancelled bookings by default
+            $query->where('booking_status', '!=', 'cancelled');
         }
         
-        if ($totalGuests <= 0) {
-            throw new \Illuminate\Validation\ValidationException(
-                validator([], []),
-                ['guest_male' => ['At least one guest is required']]
-            );
-        }
+        // Date range filter (overlap logic)
+        $query->where('check_out', '>=', $dateFrom)
+              ->where('check_in', '<=', $dateTo);
         
-        // Property capacity validation using effective guest count
-        if ($effectiveGuestCount > $property->capacity_max) {
-            throw new \Illuminate\Validation\ValidationException(
-                validator([], []),
-                ['guest_children' => ["Guest count ({$effectiveGuestCount}) exceeds property maximum capacity ({$property->capacity_max})"]]
-            );
+        $bookings = $query->orderBy('check_in')->get();
+        
+        return response()->json([
+            'success' => true,
+            'bookings' => $bookings,
+            'date_range' => [
+                'from' => $dateFrom,
+                'to' => $dateTo,
+            ],
+            'count' => $bookings->count(),
+        ]);
+        } catch (\Exception $e) {
+            \Log::error('[Timeline API] Error:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch timeline data',
+                'message' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
         }
     }
 
@@ -1119,9 +817,16 @@ class BookingManagementController extends Controller
         $user = $request->user();
         
         $query = Booking::query()
-            ->with(['property', 'payments', 'workflow' => function ($q) {
-                $q->latest();
-            }]);
+            ->select([
+                'id', 'booking_number', 'property_id', 'guest_name',
+                'guest_email', 'guest_phone', 'check_in', 'check_out',
+                'nights', 'total_amount', 'booking_status', 'payment_status',
+                'guest_count', 'created_at', 'updated_at'
+            ])
+            ->with([
+                'property:id,name,capacity,base_rate',
+                'payments:id,booking_id,amount,payment_status,payment_method_id'
+            ]);
 
         // Filter by property for property owners
         if ($user->role === 'property_owner') {
@@ -1163,10 +868,10 @@ class BookingManagementController extends Controller
         $dateFrom = $request->get('date_from');
         $dateTo = $request->get('date_to');
 
-        // Set default dates if not provided (T-30 to T+60)
+        // Set default dates if not provided (T-7 to T+23 = 30 days)
         if (empty($dateFrom) && empty($dateTo)) {
-            $dateFrom = now()->subDays(30)->toDateString();
-            $dateTo = now()->addDays(60)->toDateString();
+            $dateFrom = now()->subDays(7)->toDateString();
+            $dateTo = now()->addDays(23)->toDateString();
         }
 
         if ($dateFrom) {
@@ -1262,102 +967,27 @@ class BookingManagementController extends Controller
     /**
      * Update the specified booking.
      * 
-     * @param Request $request
+     * @param \App\Http\Requests\Admin\UpdateBookingRequest $request
      * @param Booking $booking
      * @return RedirectResponse
      */
-    public function update(Request $request, Booking $booking): RedirectResponse
+    public function update(\App\Http\Requests\Admin\UpdateBookingRequest $request, Booking $booking): RedirectResponse
     {
-        $this->authorize('update', $booking);
-
-        $validated = $request->validate([
-            'property_id' => 'required|exists:properties,id',
-            'check_in_date' => 'required|date',
-            'check_out_date' => 'required|date|after:check_in_date',
-            'guest_male' => 'required|integer|min:0',
-            'guest_female' => 'required|integer|min:0',
-            'guest_children' => 'required|integer|min:0',
-            'guest_name' => 'required|string|max:255',
-            'guest_email' => 'required|email|max:255',
-            'guest_phone' => 'required|string|max:20',
-            'guest_country' => 'required|string|max:100',
-            'guest_id_number' => 'nullable|string|max:50',
-            'guest_gender' => 'required|in:male,female',
-            'relationship_type' => 'required|in:keluarga,teman,kolega,pasangan,campuran',
-            'special_requests' => 'nullable|string|max:1000',
-            'internal_notes' => 'nullable|string|max:1000',
-            'booking_status' => 'required|in:pending_verification,confirmed,cancelled,checked_in,checked_out,no_show',
-            'payment_status' => 'nullable|in:dp_pending,dp_received,fully_paid',
-            'dp_percentage' => 'required|integer|in:30,50,70,100',
-            'check_in_time' => 'required|string',
-            'source' => 'required|in:direct,phone,walk_in,ota',
-        // Rate override fields
-            'rate_override' => 'nullable|boolean',
-            'override_amount' => 'nullable|numeric|min:0',
-            'override_reason' => 'nullable|string|max:500',
-            // Extra services - validate only if services array exists and is not empty
-            'services' => 'nullable|array',
-        ]);
-
-        // Add services validation only if services array is not empty
-        $services = $request->input('services');
-        if (!empty($services) && is_array($services) && count($services) > 0) {
-            $request->validate([
-                'services.*.service_master_id' => 'nullable|exists:service_masters,id',
-                'services.*.service_name' => 'required|string|max:255',
-                'services.*.service_type' => 'required|string',
-                'services.*.quantity' => 'required|integer|min:1',
-                'services.*.unit_price' => 'required|numeric|min:0',
-                'services.*.total_price' => 'required|numeric|min:0',
-            ]);
-        }
-
-        // Additional validation rules - handle ValidationException properly for Inertia
-        try {
-            $this->validateBookingRules($validated, $request, true);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            if ($request->header('X-Inertia')) {
-                return back()->withErrors($e->errors());
-            }
-            throw $e;
-        }
-
+        // Authorization is handled in UpdateBookingRequest
+        // Validation is handled in UpdateBookingRequest
+        // Property ownership check is handled in UpdateBookingRequest
+        // Availability check is handled in UpdateBookingRequest
+        
+        $validated = $request->validated();
         $property = Property::findOrFail($validated['property_id']);
         $user = $request->user();
-        
-        // Check if user can manage this property
-        if ($user->role === 'property_owner' && $property->owner_id !== $user->id) {
-            abort(403, 'You can only edit bookings for your own properties.');
-        }
-        
-        // Check if dates changed - validate availability
-        if ($booking->check_in->format('Y-m-d') != $validated['check_in_date'] || 
-            $booking->check_out->format('Y-m-d') != $validated['check_out_date']) {
-            
-            $isAvailable = $property->isAvailableForDates(
-                $validated['check_in_date'],
-                $validated['check_out_date'],
-                $booking->id // exclude current booking
-            );
-            
-            if (!$isAvailable) {
-                return back()->withErrors(['error' => 'Property tidak tersedia untuk tanggal baru']);
-            }
-        }
+        $services = $request->input('services');
         
         try {
             DB::beginTransaction();
             
-            // Calculate guest_count with conditional logic
-            $guestMale = (int)$validated['guest_male'];
-            $guestFemale = (int)$validated['guest_female'];
-            $guestChildren = (int)$validated['guest_children'];
-            
-            if ($property->capacity < $property->capacity_max) {
-                $guestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
-            } else {
-                $guestCount = $guestMale + $guestFemale + $guestChildren;
-            }
+            // Calculate guest_count using GuestCountService
+            $guestCount = $this->guestCountService->calculateFromRequest($property, $validated);
             
             // Recalculate rate if dates/guests/property changed
             $needsRecalculation = (
@@ -1405,83 +1035,39 @@ class BookingManagementController extends Controller
                 $updateData['extra_bed_amount'] = $rateCalculation->extraBedAmount;
                 $updateData['nights'] = $rateCalculation->nights;
 
-                // Sync BookingDailyRevenue
-                // Delete existing daily revenue records
-                $booking->dailyRevenues()->delete();
-
-                // Create new daily revenue records from breakdown
-                if (isset($rateCalculation->breakdown['daily_breakdown'])) {
-                    foreach ($rateCalculation->breakdown['daily_breakdown'] as $date => $dailyData) {
-                        \App\Models\BookingDailyRevenue::create([
-                            'booking_id' => $booking->id,
-                            'property_id' => $property->id,
-                            'tanggal' => $dailyData['date'],
-                            'amount' => $dailyData['final_rate'],
-                        ]);
-                    }
-                }
+                // Sync BookingDailyRevenue using BookingDailyRevenueService
+                $this->dailyRevenueService->syncFromRateBreakdown($booking, $property, $rateCalculation);
             } elseif ($validated['rate_override']) {
                 $updateData['total_amount'] = $validated['override_amount'];
                 
-                // Log rate override
-                $updateData['internal_notes'] = ($updateData['internal_notes'] ? $updateData['internal_notes'] . "\n" : '') . 
-                    "[" . now() . "] Rate override by " . $user->name . 
-                    ": " . $validated['override_reason'] . 
-                    " (Original: " . $booking->total_amount . ", New: " . $validated['override_amount'] . ")";
-                
-                // Note: For manual override, we might not have a daily breakdown.
-                // We could either delete daily revenues or try to distribute the amount.
-                // For now, let's keep it simple and maybe just not update daily revenue or clear it?
-                // If we clear it, reports might be wrong.
-                // Ideally we should distribute it, but that's complex.
-                // Let's leave it as is for override, or maybe warn user.
-                // But if dates changed AND override is used, the old daily revenue is definitely wrong (dates mismatch).
+                // Log rate override using RateOverrideLogService
+                $logMessage = $this->rateOverrideLogService->generateLog(
+                    $user,
+                    $booking->total_amount,
+                    $validated['override_amount'],
+                    $validated['override_reason'] ?? null
+                );
+                $updateData['internal_notes'] = $this->rateOverrideLogService->appendToNotes(
+                    $updateData['internal_notes'] ?? '',
+                    $logMessage
+                );
                 
                 if ($needsRecalculation) {
-                    // If dates changed, we MUST update daily revenue to match new dates.
-                    // Since it's an override, we can distribute the override amount evenly or just set zero?
-                    // Let's distribute evenly for now to keep reports somewhat sane.
-                    $booking->dailyRevenues()->delete();
-                    
-                    $nights = \Carbon\Carbon::parse($validated['check_in_date'])
-                        ->diffInDays(\Carbon\Carbon::parse($validated['check_out_date']));
-                    
-                    if ($nights > 0) {
-                        $dailyAmount = $validated['override_amount'] / $nights;
-                        $startDate = \Carbon\Carbon::parse($validated['check_in_date']);
-                        
-                        for ($i = 0; $i < $nights; $i++) {
-                            \App\Models\BookingDailyRevenue::create([
-                                'booking_id' => $booking->id,
-                                'property_id' => $property->id,
-                                'tanggal' => $startDate->copy()->addDays($i)->format('Y-m-d'),
-                                'amount' => $dailyAmount,
-                            ]);
-                        }
-                    }
+                    // If dates changed, sync daily revenue evenly using BookingDailyRevenueService
+                    $this->dailyRevenueService->syncEvenlyDistributed(
+                        $booking,
+                        $property,
+                        $validated['check_in_date'],
+                        $validated['check_out_date'],
+                        $validated['override_amount']
+                    );
                 }
             }
 
-            // Sync Services
+            // Sync Services using BookingServiceSyncService
             $servicesTotal = 0;
-            if (isset($services)) { // Check if services field was present in request
-                // Remove existing services
-                $booking->services()->delete();
-                
-                if (!empty($services) && is_array($services)) {
-                    foreach ($services as $serviceData) {
-                        $bookingService = \App\Models\BookingService::create([
-                            'booking_id' => $booking->id,
-                            'service_master_id' => $serviceData['service_master_id'] ?? null,
-                            'service_name' => $serviceData['service_name'],
-                            'service_type' => $serviceData['service_type'],
-                            'quantity' => $serviceData['quantity'],
-                            'unit_price' => $serviceData['unit_price'],
-                            'total_price' => $serviceData['total_price'],
-                        ]);
-                        $servicesTotal += $bookingService->total_price;
-                    }
-                }
+            if (isset($services)) {
+                $servicesTotal = $this->serviceSyncService->sync($booking, $services, true);
             } else {
                 // If services not in request, keep existing services and calculate their total
                 $servicesTotal = $booking->services()->sum('total_price');
@@ -1584,23 +1170,14 @@ class BookingManagementController extends Controller
     /**
      * Update booking status with refund handling
      * 
-     * @param Request $request
+     * @param \App\Http\Requests\Admin\UpdateBookingStatusRequest $request
      * @param Booking $booking
      * @return RedirectResponse
      */
-    public function updateStatus(Request $request, Booking $booking): RedirectResponse
+    public function updateStatus(\App\Http\Requests\Admin\UpdateBookingStatusRequest $request, Booking $booking): RedirectResponse
     {
-        $this->authorize('update', $booking);
-        
-        $validated = $request->validate([
-            'new_status' => 'required|in:pending_verification,confirmed,cancelled,completed',
-            'refund_data' => 'nullable|array',
-            'refund_data.refund_amount' => 'nullable|numeric|min:0',
-            'refund_data.refund_reason' => 'nullable|string|max:500',
-            'refund_data.refund_method' => 'nullable|string|max:100',
-            'refund_data.refund_account' => 'nullable|string|max:255',
-            'refund_data.refund_notes' => 'nullable|string|max:1000',
-        ]);
+        // Authorization and validation handled in UpdateBookingStatusRequest
+        $validated = $request->validated();
         
         try {
             DB::beginTransaction();
@@ -1691,17 +1268,13 @@ class BookingManagementController extends Controller
     /**
      * Verify booking and change status to confirmed
      * 
-     * @param Request $request
+     * @param \App\Http\Requests\Admin\VerifyBookingRequest $request
      * @param Booking $booking
      * @return RedirectResponse
      */
-    public function verify(Request $request, Booking $booking): RedirectResponse
+    public function verify(\App\Http\Requests\Admin\VerifyBookingRequest $request, Booking $booking): RedirectResponse
     {
-        $this->authorize('update', $booking);
-
-        $request->validate([
-            'notes' => 'nullable|string|max:1000',
-        ]);
+        // Authorization and validation handled in VerifyBookingRequest
 
         DB::beginTransaction();
         try {
@@ -1742,17 +1315,13 @@ class BookingManagementController extends Controller
     /**
      * Reject booking with reason
      * 
-     * @param Request $request
+     * @param \App\Http\Requests\Admin\RejectBookingRequest $request
      * @param Booking $booking
      * @return RedirectResponse
      */
-    public function reject(Request $request, Booking $booking): RedirectResponse
+    public function reject(\App\Http\Requests\Admin\RejectBookingRequest $request, Booking $booking): RedirectResponse
     {
-        $this->authorize('reject', $booking);
-
-        $request->validate([
-            'notes' => 'nullable|string|max:1000',
-        ]);
+        // Authorization and validation handled in RejectBookingRequest
 
         DB::beginTransaction();
         try {
@@ -1794,17 +1363,13 @@ class BookingManagementController extends Controller
     /**
      * Cancel booking with reason
      * 
-     * @param Request $request
+     * @param \App\Http\Requests\Admin\CancelBookingRequest $request
      * @param Booking $booking
      * @return RedirectResponse
      */
-    public function cancel(Request $request, Booking $booking): RedirectResponse
+    public function cancel(\App\Http\Requests\Admin\CancelBookingRequest $request, Booking $booking): RedirectResponse
     {
-        $this->authorize('cancel', $booking);
-
-        $request->validate([
-            'cancellation_reason' => 'required|string|max:1000',
-        ]);
+        // Authorization and validation handled in CancelBookingRequest
 
         DB::beginTransaction();
         try {
@@ -2036,16 +1601,10 @@ class BookingManagementController extends Controller
     /**
      * Generate payment link untuk booking
      */
-    public function generatePaymentLink(Request $request, Booking $booking): JsonResponse|RedirectResponse
+    public function generatePaymentLink(\App\Http\Requests\Admin\GeneratePaymentLinkRequest $request, Booking $booking): JsonResponse|RedirectResponse
     {
-        $this->authorize('view', $booking);
-
-        $validated = $request->validate([
-            'amount' => 'required|numeric|min:1',
-            'type' => 'nullable|in:dp,remaining,full',
-            'payment_method_id' => 'nullable|exists:payment_methods,id',
-            'expiry_hours' => 'nullable|integer|min:1|max:168', // Max 7 days
-        ]);
+        // Authorization and validation handled in GeneratePaymentLinkRequest
+        $validated = $request->validated();
 
         try {
             // Calculate payment type jika tidak di-set
@@ -2111,17 +1670,10 @@ class BookingManagementController extends Controller
     /**
      * Send payment link via WhatsApp atau Email
      */
-    public function sendPaymentLink(Request $request, Booking $booking): RedirectResponse
+    public function sendPaymentLink(\App\Http\Requests\Admin\SendPaymentLinkRequest $request, Booking $booking): RedirectResponse
     {
-        $this->authorize('view', $booking);
-
-        $validated = $request->validate([
-            'amount' => 'required|numeric|min:1',
-            'type' => 'nullable|in:dp,remaining,full',
-            'payment_method_id' => 'nullable|exists:payment_methods,id',
-            'expiry_hours' => 'nullable|integer|min:1|max:168',
-            'channel' => 'required|in:whatsapp,email,both',
-        ]);
+        // Authorization and validation handled in SendPaymentLinkRequest
+        $validated = $request->validated();
 
         try {
             // Generate payment link dengan options

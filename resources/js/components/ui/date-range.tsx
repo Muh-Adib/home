@@ -393,6 +393,13 @@ export function DateRange({
 
     const calendarModifiers: Record<string, any> = {
         booked: isDateBooked,
+        today: (date: Date) => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const checkDate = new Date(date);
+            checkDate.setHours(0, 0, 0, 0);
+            return checkDate.getTime() === today.getTime();
+        },
     };
     if (dateRange?.from) calendarModifiers.rangeStart = (d: Date) => d.getTime() === dateRange.from!.getTime();
     if (dateRange?.to) calendarModifiers.rangeEnd = (d: Date) => d.getTime() === dateRange.to!.getTime();
@@ -523,6 +530,13 @@ export function DateRange({
                                         backgroundColor: 'hsl(var(--brand-accent))',
                                         color: 'hsl(var(--brand-accent-foreground))',
                                         fontWeight: 600,
+                                    },
+                                    today: {
+                                        backgroundColor: 'rgb(219, 234, 254)', // blue-100
+                                        color: 'rgb(30, 64, 175)', // blue-800
+                                        fontWeight: 600,
+                                        border: '2px solid rgb(147, 197, 253)', // blue-300
+                                        borderRadius: '0.375rem',
                                     },
                                     booked: {
                                         backgroundColor: 'hsl(var(--destructive))',

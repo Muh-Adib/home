@@ -47,31 +47,59 @@ export default function BookingItem({
         }
     };
 
-    const paymentColorClass = getPaymentColor(booking.payment_status);
+    // Check if booking is overdue (checkout passed but not checked_out)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkoutDate = new Date(booking.check_out);
+    checkoutDate.setHours(0, 0, 0, 0);
+    const isOverdue = checkoutDate < today && booking.booking_status !== 'checked_out';
+    
+    // Debug log
+    if (isOverdue) {
+        console.log(`[OVERDUE] ${booking.booking_number}:`, {
+            checkout: booking.check_out,
+            status: booking.booking_status,
+            checkoutDate,
+            today
+        });
+    }
+
+    // Determine card color - red if overdue, otherwise payment status
+    const paymentColorClass = isOverdue
+        ? 'bg-red-50 border-red-300 hover:bg-red-100 text-red-900 ring-2 ring-red-200'
+        : getPaymentColor(booking.payment_status);
     const bookingDotColor = getBookingStatusDotColor(booking.booking_status);
 
     return (
         <>
             <div
                 className={`
-                    absolute top-1 bottom-1 rounded-md border shadow-sm cursor-pointer 
-                    transition-all duration-200 group z-10 
+                    absolute top-1 bottom-1 rounded-md border shadow-sm cursor-pointer
+                    transition-all duration-200 group z-10
                     flex flex-col justify-center
                     ${paymentColorClass}
                 `}
                 style={{
                     left: `${left}px`,
-                    width: width ? `${width - 8}px` : undefined, // Add spacing gap
+                    width: width ? `${width - 8}px` : undefined,
                 }}
                 onClick={() => onClick?.(booking)}
                 onMouseEnter={() => setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
+                title={isOverdue ? `⚠️ OVERDUE: ${booking.guest_name}` : undefined}
             >
                 {/* Visual Indicator for Booking Status (Top Right) */}
                 <div
                     className={`absolute top-1 right-1 w-2 h-2 rounded-full ${bookingDotColor}`}
                     title={`Booking Status: ${booking.booking_status.replace('_', ' ').toUpperCase()}`}
                 />
+
+                {/* Overdue Warning Badge */}
+                {isOverdue && (
+                    <div className="absolute top-0 left-0 bg-red-600 text-white text-[8px] px-1 rounded-br font-bold">
+                        OVERDUE
+                    </div>
+                )}
 
                 {/* Content */}
                 <div className="flex-1 flex items-center justify-center text-center px-1 select-none overflow-hidden">
@@ -88,63 +116,65 @@ export default function BookingItem({
                             <span>{formatCurrency(booking.total_amount)}</span>
                             <span className="opacity-50">•</span>
                             <span>{calculatedNights} night{calculatedNights > 1 ? "s" : ""}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                        </div >
+                    </div >
+                </div >
+            </div >
 
             {/* Tooltip on Hover - Detailed Info */}
-            {showTooltip && (
-                <div className="
+            {
+                showTooltip && (
+                    <div className="
                     fixed z-[9999] pointer-events-none fade-in-50
                     bg-gray-900 text-white text-xs rounded-xl p-3
                     shadow-xl whitespace-nowrap border border-gray-700
                 "
-                    style={{
-                        // Use fixed positioning relative to viewport to avoid clipping
-                        // This is a simplification; for production a library like floating-ui is better
-                        // We rely on the fact that this is likely rendered near the cursor or element
-                        // But we can't easily get element position here without ref.
-                        // Let's use a simpler absolute positioning if possible, but user asked for modal-like
-                        // defaulting to simple absolute relative to parent Group for now.
-                        position: 'absolute',
-                        bottom: '100%',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        marginBottom: '8px'
-                    }}>
-                    <div className="font-semibold mb-2 text-sm">{booking.guest_name}</div>
+                        style={{
+                            // Use fixed positioning relative to viewport to avoid clipping
+                            // This is a simplification; for production a library like floating-ui is better
+                            // We rely on the fact that this is likely rendered near the cursor or element
+                            // But we can't easily get element position here without ref.
+                            // Let's use a simpler absolute positioning if possible, but user asked for modal-like
+                            // defaulting to simple absolute relative to parent Group for now.
+                            position: 'absolute',
+                            bottom: '100%',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            marginBottom: '8px'
+                        }}>
+                        <div className="font-semibold mb-2 text-sm">{booking.guest_name}</div>
 
-                    <div className="space-y-1 mb-2">
-                        <TooltipRow icon={Building2} text={booking.property?.name || 'Unknown Property'} />
-                        <TooltipRow icon={Calendar} text={`${formatDate(booking.check_in)} → ${formatDate(booking.check_out)}`} />
-                        <TooltipRow icon={Users} text={`${booking.guest_count} guests`} />
-                        {booking.guest_phone && <TooltipRow icon={Phone} text={booking.guest_phone} />}
-                    </div>
-
-                    <div className="border-t border-gray-700 pt-2 mt-2">
-                        <div className="flex justify-between gap-4">
-                            <span className="text-gray-400">Total</span>
-                            <span className="font-medium text-green-400">{formatCurrency(booking.total_amount)}</span>
+                        <div className="space-y-1 mb-2">
+                            <TooltipRow icon={Building2} text={booking.property?.name || 'Unknown Property'} />
+                            <TooltipRow icon={Calendar} text={`${formatDate(booking.check_in)} → ${formatDate(booking.check_out)}`} />
+                            <TooltipRow icon={Users} text={`${booking.guest_count} guests`} />
+                            {booking.guest_phone && <TooltipRow icon={Phone} text={booking.guest_phone} />}
                         </div>
-                        <div className="flex justify-between gap-4 text-[10px] mt-1 uppercase tracking-wider">
-                            <span className={`px-1 rounded ${booking.booking_status === 'confirmed' ? 'bg-green-900 text-green-300' : 'bg-gray-700'}`}>
-                                {booking.booking_status.replace('_', ' ')}
-                            </span>
-                            <span className={`px-1 rounded ${booking.payment_status === 'fully_paid' ? 'bg-green-900 text-green-300' : 'bg-orange-900 text-orange-300'}`}>
-                                {booking.payment_status?.replace('_', ' ')}
-                            </span>
-                        </div>
-                    </div>
 
-                    {/* Arrow */}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 
+                        <div className="border-t border-gray-700 pt-2 mt-2">
+                            <div className="flex justify-between gap-4">
+                                <span className="text-gray-400">Total</span>
+                                <span className="font-medium text-green-400">{formatCurrency(booking.total_amount)}</span>
+                            </div>
+                            <div className="flex justify-between gap-4 text-[10px] mt-1 uppercase tracking-wider">
+                                <span className={`px-1 rounded ${booking.booking_status === 'confirmed' ? 'bg-green-900 text-green-300' : 'bg-gray-700'}`}>
+                                    {booking.booking_status.replace('_', ' ')}
+                                </span>
+                                <span className={`px-1 rounded ${booking.payment_status === 'fully_paid' ? 'bg-green-900 text-green-300' : 'bg-orange-900 text-orange-300'}`}>
+                                    {booking.payment_status?.replace('_', ' ')}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Arrow */}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 
                         border-l-[6px] border-l-transparent
                         border-r-[6px] border-r-transparent
                         border-t-[6px] border-t-gray-900"
-                    />
-                </div>
-            )}
+                        />
+                    </div>
+                )
+            }
         </>
     );
 }

@@ -197,7 +197,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                 initial={{ opacity: 0, y: 30 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.8, delay: 1.0 }}
-                                className="max-w-4xl mx-auto"
+                                className="max-w-4xl mx-auto mb-8"
                             >
                                 <HeroSearchBar
                                     onSearch={handleQuickSearch}
@@ -207,6 +207,71 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                         </motion.div>
                     </div>
                 </section>
+
+                {/* Featured Properties - Enhanced with new cards */}
+                {featuredProperties.length > 0 && (
+                    <motion.section
+                        className="py-20 bg-muted"
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        transition={{ duration: 0.6 }}
+                        viewport={{ once: true }}
+                    >
+                        <div className="container mx-auto px-6">
+                            <motion.div
+                                className="text-center mb-16"
+                                initial={{ opacity: 0, y: 30 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.6 }}
+                                viewport={{ once: true }}
+                            >
+                                <Badge className="mb-6 bg-background text-primary border border-border px-4 py-2">
+                                    <Star className="h-4 w-4 mr-2" />
+                                    Pilihan Terbaik
+                                </Badge>
+                                <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
+                                    Homestay Terfavorit
+                                </h2>
+                                <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-light">
+                                    Koleksi terbaik homestay dengan citarasa Jogja yang autentik
+                                </p>
+                            </motion.div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
+                                {featuredProperties.slice(0, 6).map((property, index) => (
+                                    <motion.div
+                                        key={property.id}
+                                        initial={{ opacity: 0, y: 30 }}
+                                        whileInView={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.6, delay: index * 0.1 }}
+                                        viewport={{ once: true }}
+                                    >
+                                        <PropertyCardEnhanced
+                                            property={property}
+                                            showLocationBadge={true}
+                                            showRating={true}
+                                        />
+                                    </motion.div>
+                                ))}
+                            </div>
+
+                            <motion.div
+                                className="text-center mt-16"
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.6 }}
+                                viewport={{ once: true }}
+                            >
+                                <Link href="/properties">
+                                    <Button size="lg" variant="outline" className="border-2 border-primary hover:bg-primary/10 text-primary px-8 py-3">
+                                        Jelajahi Semua Homestay
+                                        <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                                    </Button>
+                                </Link>
+                            </motion.div>
+                        </div>
+                    </motion.section>
+                )}
 
                 {/* Stats Section - Enhanced with animations */}
                 <motion.section
@@ -310,71 +375,6 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                         </div>
                     </div>
                 </motion.section>
-
-                {/* Featured Properties - Enhanced with new cards */}
-                {featuredProperties.length > 0 && (
-                    <motion.section
-                        className="py-20 bg-muted"
-                        initial={{ opacity: 0 }}
-                        whileInView={{ opacity: 1 }}
-                        transition={{ duration: 0.6 }}
-                        viewport={{ once: true }}
-                    >
-                        <div className="container mx-auto px-6">
-                            <motion.div
-                                className="text-center mb-16"
-                                initial={{ opacity: 0, y: 30 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.6 }}
-                                viewport={{ once: true }}
-                            >
-                                <Badge className="mb-6 bg-background text-primary border border-border px-4 py-2">
-                                    <Star className="h-4 w-4 mr-2" />
-                                    Pilihan Terbaik
-                                </Badge>
-                                <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
-                                    Homestay Terfavorit
-                                </h2>
-                                <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-light">
-                                    Koleksi terbaik homestay dengan citarasa Jogja yang autentik
-                                </p>
-                            </motion.div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
-                                {featuredProperties.slice(0, 6).map((property, index) => (
-                                    <motion.div
-                                        key={property.id}
-                                        initial={{ opacity: 0, y: 30 }}
-                                        whileInView={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.6, delay: index * 0.1 }}
-                                        viewport={{ once: true }}
-                                    >
-                                        <PropertyCardEnhanced
-                                            property={property}
-                                            showLocationBadge={true}
-                                            showRating={true}
-                                        />
-                                    </motion.div>
-                                ))}
-                            </div>
-
-                            <motion.div
-                                className="text-center mt-16"
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.6 }}
-                                viewport={{ once: true }}
-                            >
-                                <Link href="/properties">
-                                    <Button size="lg" variant="outline" className="border-2 border-primary hover:bg-primary/10 text-primary px-8 py-3">
-                                        Jelajahi Semua Homestay
-                                        <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                                    </Button>
-                                </Link>
-                            </motion.div>
-                        </div>
-                    </motion.section>
-                )}
 
                 {/* Testimonials Section - New */}
                 <motion.section

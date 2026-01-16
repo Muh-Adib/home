@@ -198,7 +198,7 @@ class BookingService
             
             // Get extra bed amount for this day
             $extraBedAmount = $detail['extra_bed_rate'] ?? 0;
-            $extraBeds = max(0, $booking->guest_count - $property->capacity);
+            $extraBeds = \App\Services\RateCalculationService::calculateExtraBedCount($booking->guest_count, $property->capacity);
             $extraBedTotal = $extraBeds * $extraBedAmount;
             
             // Determine if weekend
@@ -402,14 +402,11 @@ class BookingService
 
     /**
      * Validate minimum stay requirements
+     * ✅ Delegates to PropertyBusinessRulesService for complete validation
      */
     public function validateMinimumStay(Property $property, string $checkIn, string $checkOut): bool
     {
-        // This logic should also be moved to a dedicated service
-        $nights = \Carbon\Carbon::parse($checkIn)->diffInDays(\Carbon\Carbon::parse($checkOut));
-        
-        // Simple validation - can be enhanced
-        return $nights >= $property->min_stay_weekday;
+        return \App\Services\PropertyBusinessRulesService::validateMinimumStay($property, $checkIn, $checkOut);
     }
 
     /**

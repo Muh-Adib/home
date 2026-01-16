@@ -38,7 +38,7 @@ const appName = import.meta.env.VITE_APP_NAME || 'Homsjogja';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
-    resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx')),
+    resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx', { eager: false })),
     setup({ el, App, props }) {
         hydrateRoot(el,
             <QueryClientProvider client={queryClient}>

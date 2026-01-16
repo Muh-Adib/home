@@ -42,6 +42,7 @@ class BookingRepository
             // ✅ FIX: Extract individual fields from rate calculation (rate_calculation NOT stored as column)
             'base_amount' => $rateCalculation['baseAmount'] ?? $rateCalculation['base_amount'] ?? 0,
             'extra_bed_amount' => $rateCalculation['extraBedAmount'] ?? $rateCalculation['extra_bed_amount'] ?? 0,
+            'extra_bed_count' => $rateCalculation['extraBeds'] ?? $rateCalculation['extra_beds'] ?? 0,
             'tax_amount' => $rateCalculation['taxAmount'] ?? $rateCalculation['tax_amount'] ?? 0,
             'total_amount' => $request->totalAmount,
             
@@ -107,6 +108,7 @@ class BookingRepository
             // Note: weekend_premium_amount, seasonal_premium_amount, cleaning_fee not in bookings table
             'base_amount' => $request->rateCalculation['baseAmount'] ?? 0,
             'extra_bed_amount' => $request->rateCalculation['extraBedAmount'] ?? $request->rateCalculation['extra_bed_amount'] ?? 0,
+            'extra_bed_count' => $request->rateCalculation['extraBeds'] ?? $request->rateCalculation['extra_beds'] ?? 0,
             'tax_amount' => $request->rateCalculation['taxAmount'] ?? $request->rateCalculation['tax_amount'] ?? 0,
             'total_amount' => $request->totalAmount,
             'booking_status' => $request->bookingStatus,

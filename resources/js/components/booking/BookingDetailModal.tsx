@@ -54,9 +54,8 @@ export default function BookingDetailModal({
     const nights = differenceInDays(new Date(booking.check_out), new Date(booking.check_in)) || 1;
 
     // Calculate internals if missing (fallback)
-    const paidAmount = booking.payments?.reduce((sum, p) => p.payment_status === 'verified' ? sum + p.amount : sum, 0) || booking.dp_amount || 0;
-    const remainingAmount = booking.total_amount - paidAmount;
-    const isPaidOff = remainingAmount <= 0;
+    const paidAmount = booking.total_amount-booking.remaining_amount;
+    const isPaidOff = booking.remaining_amount <= 0;
 
     const handleAction = (action: string) => {
         const routes: Record<string, string> = {
@@ -220,10 +219,6 @@ export default function BookingDetailModal({
                                             <span>{formatCurrency(booking.extra_bed_amount)}</span>
                                         </div>
                                     )}
-                                    <div className="flex justify-between text-slate-600">
-                                        <span>Taxes & Fees</span>
-                                        <span>{formatCurrency(booking.tax_amount || (booking.total_amount * 0.1))}</span>
-                                    </div>
                                     {booking.services && booking.services.length > 0 && (
                                         <div className="flex justify-between text-purple-600 font-medium">
                                             <span>Extra Services</span>
@@ -264,7 +259,7 @@ export default function BookingDetailModal({
                                         <div className="text-right">
                                             <div className="text-[10px] sm:text-xs text-slate-500">Remaining</div>
                                             <div className={`font-bold text-sm sm:text-base ${isPaidOff ? 'text-slate-400' : 'text-red-600'}`}>
-                                                {formatCurrency(remainingAmount)}
+                                                {formatCurrency(booking.remaining_amount)}
                                             </div>
                                         </div>
                                     </div>
@@ -277,9 +272,9 @@ export default function BookingDetailModal({
                                 {booking.payments && booking.payments.length > 0 ? (
                                     <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                                         {booking.payments.map((payment: any) => (
-                                            <div key={payment.id} className="bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-sm text-sm">
-                                                <div className="flex justify-between items-start mb-1">
-                                                    <span className="font-semibold text-slate-700">{payment.payment_method}</span>
+                                            <div key={payment.id} className="bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-sm text-sm" onClick={() => router.visit(`/admin/payments/${payment.payment_number}`)}>
+                                                <div className="flex flex-col items-start mb-1">
+                                                    <span className="font-semibold text-slate-700">{payment.payment_method.name}</span>
                                                     <span className="font-bold">{formatCurrency(payment.amount)}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center text-xs text-slate-500">

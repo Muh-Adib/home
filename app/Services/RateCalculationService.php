@@ -11,6 +11,51 @@ use Illuminate\Support\Facades\Log;
 class RateCalculationService
 {
     /**
+     * ✅ SINGLE SOURCE OF TRUTH: Calculate extra bed count
+     * 
+     * @param int $guestCount Number of guests
+     * @param int $propertyCapacity Property base capacity
+     * @return int Number of extra beds needed
+     */
+    public static function calculateExtraBedCount(int $guestCount, int $propertyCapacity): int
+    {
+        return max(0, $guestCount - $propertyCapacity);
+    }
+
+    /**
+     * ✅ SINGLE SOURCE OF TRUTH: Calculate total extra bed amount
+     * 
+     * @param int $guestCount Number of guests
+     * @param int $propertyCapacity Property base capacity
+     * @param float $extraBedRate Rate per extra bed
+     * @return float Total extra bed cost
+     */
+    public static function calculateExtraBedAmount(int $guestCount, int $propertyCapacity, float $extraBedRate): float
+    {
+        $extraBedCount = self::calculateExtraBedCount($guestCount, $propertyCapacity);
+        return $extraBedCount * $extraBedRate;
+    }
+
+    /**
+     * ✅ SINGLE SOURCE OF TRUTH: Calculate effective extra bed rate
+     * Considers seasonal rate if available, otherwise uses property base rate
+     * 
+     * @param Property $property Property model
+     * @param PropertySeasonalRate|null $seasonalRate Seasonal rate (if applicable)
+     * @return float Effective extra bed rate to use
+     */
+    public static function calculateEffectiveExtraBedRate(Property $property, ?PropertySeasonalRate $seasonalRate = null): float
+    {
+        // If seasonal rate exists and has custom extra_bed_rate, use it
+        if ($seasonalRate && $seasonalRate->extra_bed_rate !== null) {
+            return $seasonalRate->extra_bed_rate;
+        }
+        
+        // Otherwise use property's base extra_bed_rate
+        return $property->extra_bed_rate;
+    }
+
+    /**
      * Calculate rate for property and dates - now the single source of truth
      */
     public function calculateRate(Property $property, string $checkIn, string $checkOut, int $guestCount): RateCalculation
@@ -40,7 +85,7 @@ class RateCalculationService
         $dailyBreakdown = [];
         $appliedSeasonalRates = [];
         $extraBedAmount = 0;
-        $extraBeds = $guestCount ? max(0, $guestCount - $property->capacity) : 0;
+        $extraBeds = self::calculateExtraBedCount($guestCount, $property->capacity);
         
         // Calculate night-by-night for dynamic pricing
         for ($date = $checkInDate->copy(); $date->lt($checkOutDate); $date->addDay()) {
@@ -49,7 +94,6 @@ class RateCalculationService
             $seasonalRate = $seasonalRates[$dateString] ?? null;
             $appliedPremiums = [];
             
-            // Apply seasonal rate FIRST if exists (seasonal rate takes priority over weekend premium)
             // Jika ada seasonal rate, hanya gunakan seasonal rate tanpa weekend premium
             $seasonalPremiumAmount = 0;
             $isWeekend = $date->isFriday() || $date->isSaturday() || $date->isSunday();
@@ -126,7 +170,7 @@ class RateCalculationService
             // Long weekend premium (national holidays) - only if no seasonal rate
             // Holiday premium tidak diterapkan jika sudah ada seasonal rate
             $holidayPremiumAmount = 0;
-            if (!$seasonalRate && $this->isLongWeekend($date)) {
+            if (!$seasonalRate && PropertyBusinessRulesService::isLongWeekend($date)) {
                 $holidayPremiumAmount = $property->base_rate * 0.15; // 15% holiday premium
                 $dayRate += $holidayPremiumAmount;
                 
@@ -140,13 +184,8 @@ class RateCalculationService
             
             $totalBaseAmount += $dayRate;
             
-            // Calculate extra bed rate for this day
-            // Jika ada seasonal rate dengan extra_bed_rate, gunakan itu
-            // Jika tidak, gunakan property->extra_bed_rate
-            $effectiveExtraBedRate = $property->extra_bed_rate;
-            if ($seasonalRate && $seasonalRate->extra_bed_rate !== null) {
-                $effectiveExtraBedRate = $seasonalRate->extra_bed_rate;
-            }
+            // Calculate extra bed rate for this day using single source of truth
+            $effectiveExtraBedRate = self::calculateEffectiveExtraBedRate($property, $seasonalRate);
             
             // Add extra bed amount for this day
             $extraBedAmount += $extraBeds * $effectiveExtraBedRate;
@@ -168,22 +207,11 @@ class RateCalculationService
             ];
         }
         
-        // Apply minimum stay discount
-        $minimumStayDiscount = 0;
-        if ($nights >= 7) {
-            $minimumStayDiscount = $totalBaseAmount * 0; // 10% discount for weekly stays
-        } elseif ($nights >= 3) {
-            $minimumStayDiscount = $totalBaseAmount * 0; // 5% discount for 3+ nights
-        }
-        
-        $subtotal = $totalBaseAmount + $extraBedAmount + $property->cleaning_fee - $minimumStayDiscount;
+        $subtotal = $totalBaseAmount + $extraBedAmount + $property->cleaning_fee;
         
         // Tax calculation (0% - tax removed)
         $taxAmount = 0;
         $totalAmount = $subtotal + $taxAmount;
-        
-        // Get minimum stay information
-        $minimumStayInfo = $this->getMinimumStayInfo($property, $checkIn, $checkOut);
         
         return new RateCalculation(
             nights: $nights,
@@ -200,13 +228,12 @@ class RateCalculationService
                 'weekend_nights' => $weekendNights,
                 'seasonal_nights' => $seasonalNights,
                 'total_base_amount' => $totalBaseAmount,
-                'minimum_stay_discount' => $minimumStayDiscount,
                 'subtotal' => $subtotal,
                 'rate_breakdown' => [
                     'base_rate_per_night' => $property->base_rate,
                     'weekend_premium_percent' => $property->weekend_premium_percent,
-                    'peak_season_applied' => $this->hasPeakSeasonDates($checkInDate, $checkOutDate),
-                    'long_weekend_applied' => $this->hasLongWeekend($checkInDate, $checkOutDate),
+                    'peak_season_applied' => PropertyBusinessRulesService::hasPeakSeasonDates($checkInDate, $checkOutDate),
+                    'long_weekend_applied' => PropertyBusinessRulesService::hasLongWeekend($checkInDate, $checkOutDate),
                     'seasonal_rates_applied' => $appliedSeasonalRates,
                 ],
                 'daily_breakdown' => $dailyBreakdown,
@@ -215,7 +242,6 @@ class RateCalculationService
                     'total_nights' => $nights,
                     'base_nights_rate' => $property->base_rate * $nights,
                     'total_premiums' => $totalWeekendPremium + $totalSeasonalPremium,
-                    'effective_discount' => $minimumStayDiscount,
                     'taxes_and_fees' => $taxAmount + $property->cleaning_fee + $extraBedAmount,
                 ]
             ],
@@ -251,7 +277,6 @@ class RateCalculationService
                     'seasonal_premium' => $calculation->seasonalPremium,
                     'extra_bed_amount' => $calculation->extraBedAmount,
                     'cleaning_fee' => $calculation->cleaningFee,
-                    'minimum_stay_discount' => $calculationArray['breakdown']['minimum_stay_discount'] ?? 0,
                     'subtotal' => $calculationArray['breakdown']['subtotal'] ?? 0,
                     'tax_amount' => $calculation->taxAmount,
                     'total_amount' => $calculation->totalAmount,
@@ -269,7 +294,6 @@ class RateCalculationService
                         'total_nights' => $calculation->nights,
                         'base_nights_rate' => $calculation->baseAmount,
                         'total_premiums' => $calculation->weekendPremium + $calculation->seasonalPremium,
-                        'effective_discount' => $calculationArray['breakdown']['minimum_stay_discount'] ?? 0,
                         'taxes_and_fees' => $calculation->taxAmount + $calculation->cleaningFee,
                     ],
                 ],
@@ -305,87 +329,10 @@ class RateCalculationService
         }
     }
 
-    /**
-     * Check if date is a long weekend (Indonesian national holidays)
-     */
-    private function isLongWeekend(Carbon $date): bool
-    {
-        // Common Indonesian long weekends (simplified)
-        $longWeekends = [
-            // New Year
-            ['month' => 1, 'day' => 1],
-            // Independence Day
-            ['month' => 8, 'day' => 17],
-            // Christmas
-            ['month' => 12, 'day' => 25],
-        ];
-        
-        foreach ($longWeekends as $holiday) {
-            if ($date->month === $holiday['month'] && $date->day === $holiday['day']) {
-                return true;
-            }
-        }
-        
-        return false;
-    }
-
-    /**
-     * Check if date range has peak season dates
-     */
-    private function hasPeakSeasonDates(Carbon $checkIn, Carbon $checkOut): bool
-    {
-        for ($date = $checkIn->copy(); $date->lt($checkOut); $date->addDay()) {
-            if (in_array($date->month, [12, 7, 8])) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Check if date range has long weekend
-     */
-    private function hasLongWeekend(Carbon $checkIn, Carbon $checkOut): bool
-    {
-        for ($date = $checkIn->copy(); $date->lt($checkOut); $date->addDay()) {
-            if ($this->isLongWeekend($date)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Get minimum stay information for the property and dates
-     */
-    private function getMinimumStayInfo(Property $property, string $checkIn, string $checkOut): array
-    {
-        $checkInDate = Carbon::parse($checkIn);
-        $checkOutDate = Carbon::parse($checkOut);
-        $nights = $checkInDate->diffInDays($checkOutDate);
-
-        // Determine effective minimum stay based on period
-        $effectiveMinStay = $property->min_stay_weekday; // Default to weekday
-        
-        // Check if any weekend days fall in the period (Jumat, Sabtu, Minggu)
-        for ($date = $checkInDate->copy(); $date->lt($checkOutDate); $date->addDay()) {
-            if ($date->isFriday() || $date->isSaturday() || $date->isSunday()) {
-                $effectiveMinStay = max($effectiveMinStay, $property->min_stay_weekend);
-            }
-            
-            // Check for peak season (simplified - you might want to expand this)
-            if (in_array($date->month, [12, 7, 8])) {
-                $effectiveMinStay = max($effectiveMinStay, $property->min_stay_peak);
-            }
-        }
-
-        return [
-            'required_nights' => $effectiveMinStay,
-            'current_nights' => $nights,
-            'meets_requirement' => $nights >= $effectiveMinStay,
-            'weekday_min_stay' => $property->min_stay_weekday,
-            'weekend_min_stay' => $property->min_stay_weekend,
-            'peak_min_stay' => $property->min_stay_peak,
-        ];
-    }
+    // Removed duplicate methods - now using PropertyBusinessRulesService
+    // - isLongWeekend() -> PropertyBusinessRulesService::isLongWeekend()
+    // - hasPeakSeasonDates() -> PropertyBusinessRulesService::hasPeakSeasonDates()
+    // - hasLongWeekend() -> PropertyBusinessRulesService::hasLongWeekend()
+    // - getMinimumStayInfo() -> PropertyBusinessRulesService::getMinimumStayInfo() deprecated
+    // - getMinimumStayDiscount() -> PropertyBusinessRulesService::getMinimumStayDiscount() deprecated
 } 
