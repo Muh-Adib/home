@@ -7,6 +7,7 @@ use App\Models\Amenity;
 use App\Models\User;
 use App\Services\AvailabilityService;
 use App\Services\RateCalculationService;
+use App\Services\SeoService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -24,7 +25,8 @@ class PropertyController extends Controller
      */
     public function __construct(
         private AvailabilityService $availabilityService,
-        private RateCalculationService $rateCalculationService
+        private RateCalculationService $rateCalculationService,
+        private SeoService $seoService
     ) {
     }
 
@@ -154,11 +156,7 @@ class PropertyController extends Controller
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
             ],
-            'seo' => [
-                'title' => 'Sewa Homestay Terbaik di Yogyakarta - Homsjogja',
-                'description' => 'Temukan homestay terbaik di Yogyakarta untuk liburan Anda. Fasilitas lengkap, lokasi strategis, dan harga terjangkau.',
-                'image' => asset('logo.svg'),
-            ],
+            'seo' => $this->seoService->forPropertiesIndex(),
         ]);
     }
 
@@ -384,6 +382,16 @@ class PropertyController extends Controller
             });
         }
 
+        // GEO: Generate FAQs for this property
+        $faqs = $this->seoService->getPropertyFaqs($property);
+        
+        // GEO: Breadcrumb schema for navigation context
+        $breadcrumbs = [
+            ['name' => 'Home', 'url' => route('home')],
+            ['name' => 'Properties', 'url' => route('properties.index')],
+            ['name' => $property->name, 'url' => route('properties.show', $property->slug)]
+        ];
+
         return Inertia::render('Properties/Show', [
             'property' => $property,
             'similarProperties' => $similarProperties,
@@ -393,11 +401,13 @@ class PropertyController extends Controller
                 'guests' => $guestCount,
             ],
             'availabilityData' => $availabilityAndRates,
-            'seo' => [
-                'title' => $property->name . ' - Homsjogja',
-                'description' => Str::limit($property->description, 155, '...') ?: "Book {$property->name} at Homsjogja.",
-                'image' => $property->media->first()?->url ?? asset('og-image.jpg'),
-            ],
+            'seo' => $this->seoService->forProperty($property),
+            'schema' => $this->seoService->propertySchema($property),
+            // GEO: Additional schemas for AI optimization
+            'faqSchema' => $this->seoService->faqSchema($faqs),
+            'breadcrumbSchema' => $this->seoService->breadcrumbSchema($breadcrumbs),
+            'localBusinessSchema' => $this->seoService->localBusinessSchema($property),
+            'faqs' => $faqs, // For FAQ component
         ]);
     }
 

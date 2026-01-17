@@ -1,5 +1,6 @@
 import { LucideIcon } from 'lucide-react';
 import type { Config } from 'ziggy-js';
+import type { SeoData, GlobalSeo } from './seo';
 
 export interface Auth {
     user: User;
@@ -454,6 +455,14 @@ export type PageProps<T extends Record<string, unknown> = Record<string, unknown
     auth: {
         user: User;
     };
+    seo?: SeoData;
+    globalSeo: GlobalSeo;
+    schema?: string;
+    // GEO: AI-optimized schemas
+    faqSchema?: string;
+    breadcrumbSchema?: string;
+    localBusinessSchema?: string;
+    faqs?: Array<{ question: string; answer: string }>;
 };
 
 // Cleaning Management Types

@@ -1,3 +1,32 @@
+# Homsjogja Robots.txt - AI & Search Engine Crawler Configuration
+
+# === TRADITIONAL SEARCH ENGINES ===
 User-agent: *
 Allow: /
+
+# === AI CRAWLERS (GEO Optimization) ===
+# OpenAI GPTBot (ChatGPT)
+User-agent: GPTBot
+Allow: /
+
+# Anthropic ClaudeBot (Claude)
+User-agent: ClaudeBot  
+Allow: /
+
+# Google Extended (Google AI Overviews, Bard)
+User-agent: Google-Extended
+Allow: /
+
+# Perplexity AI
+User-agent: PerplexityBot
+Allow: /
+
+# Common/CCBot (used by various AI systems)
+User-agent: CCBot
+Allow: /
+
+# === SITEMAPS ===
 Sitemap: {{APP_URL}}/sitemap.xml
+
+# === CRAWL RATE (Optional) ===
+# Crawl-delay: 1

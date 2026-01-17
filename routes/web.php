@@ -51,8 +51,13 @@ Route::get('/health', function () {
         ->header('Content-Type', 'text/plain');
 });
 
+// Dynamic Sitemap (Next.js style) - Auto-updates on property changes
+Route::get('/sitemap.xml', [\App\Http\Controllers\SitemapController::class, 'index'])->name('sitemap');
+
 // Homepage
 Route::get('/', function () {
+    $seoService = app(\App\Services\SeoService::class);
+    
     $featuredProperties = \App\Models\Property::active()
         ->featured()
         ->with(['media', 'amenities'])
@@ -61,6 +66,7 @@ Route::get('/', function () {
 
     return Inertia::render('welcome', [
         'featuredProperties' => $featuredProperties,
+        'seo' => $seoService->forHomepage(),
     ]);
 })->name('home');
 

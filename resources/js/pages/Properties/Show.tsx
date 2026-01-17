@@ -7,6 +7,9 @@ import { BookingSidebar } from '@/components/property/BookingSidebar';
 import { PropertyHeader } from '@/components/property/PropertyHeader';
 import { PropertyTabs } from '@/components/property/PropertyTabs';
 import { SimilarProperties } from '@/components/property/SimilarProperties';
+import { SeoHead } from '@/components/seo/SeoHead';
+import { SchemaOrg } from '@/components/seo/SchemaOrg';
+import { FAQSection } from '@/components/seo/FAQSection';
 import { usePropertyState } from '@/hooks/use-property-state';
 import { useRateCalculation } from '@/hooks/use-rate-calculation';
 import { usePropertyMinimumStay } from '@/hooks/use-property-minimum-stay';
@@ -103,81 +106,11 @@ export default function PropertyShow({
     }
   }, [state.checkInDate, state.checkOutDate, state.guestCount]);
 
-  const appUrl = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
-  const propertyUrl = `${appUrl}/properties/${property.slug}`;
-  const metaImage = images[0]?.url || `${appUrl}/og-image.jpg`;
-  const metaDescription = property.description?.substring(0, 160) || `Book ${property.name} at Homsjogja.`;
-
-  // JSON-LD Structured Data
-  // JSON-LD Structured Data
-  const jsonLd: any = {
-    "@context": "https://schema.org",
-    "@type": "LodgingBusiness",
-    "name": property.name,
-    "description": property.description,
-    "image": images.map(img => img.url),
-    "url": propertyUrl,
-    "address": {
-      "@type": "PostalAddress",
-      "streetAddress": property.address,
-      "addressLocality": "Yogyakarta",
-      "addressCountry": "ID"
-    },
-    "priceRange": `IDR ${property.base_rate}`,
-    "amenityFeature": property.amenities?.map(amenity => ({
-      "@type": "LocationFeatureSpecification",
-      "name": amenity.name,
-      "value": "true"
-    })),
-    "hasOfferCatalog": {
-      "@type": "OfferCatalog",
-      "name": "Room Offers",
-      "itemListElement": [
-        {
-          "@type": "Offer",
-          "price": property.base_rate.toString(),
-          "priceCurrency": "IDR",
-          "availability": "https://schema.org/InStock",
-          "url": `${propertyUrl}#booking`
-        }
-      ]
-    }
-  };
-
-  if (property.rating_avg && property.approved_reviews_count) {
-    jsonLd.aggregateRating = {
-      "@type": "AggregateRating",
-      "ratingValue": parseFloat(property.rating_avg.toString()).toFixed(1),
-      "reviewCount": property.approved_reviews_count.toString()
-    };
-  }
-
   return (
     <GuestLayout variant='minimal'>
-      <Head>
-        <title>{`${property.name} - Homsjogja`}</title>
-        <meta name="description" content={metaDescription} />
-        <link rel="canonical" href={propertyUrl} />
-
-        {/* Open Graph / Facebook */}
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content={propertyUrl} />
-        <meta property="og:title" content={`${property.name} - Homsjogja`} />
-        <meta property="og:description" content={metaDescription} />
-        <meta property="og:image" content={metaImage} />
-
-        {/* Twitter */}
-        <meta property="twitter:card" content="summary_large_image" />
-        <meta property="twitter:url" content={propertyUrl} />
-        <meta property="twitter:title" content={`${property.name} - Homsjogja`} />
-        <meta property="twitter:description" content={metaDescription} />
-        <meta property="twitter:image" content={metaImage} />
-
-        {/* Structured Data */}
-        <script type="application/ld+json">
-          {JSON.stringify(jsonLd)}
-        </script>
-      </Head>
+      {/* SEO: Just 2 lines instead of 30! */}
+      <SeoHead />
+      <SchemaOrg />
 
       <div className="min-h-screen bg-brand-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
@@ -231,6 +164,11 @@ export default function PropertyShow({
               // Pass auth data
               auth={auth}
             />
+          </div>
+
+          {/* GEO: FAQ Section for AI Optimization */}
+          <div className="mt-16">
+            <FAQSection className="bg-card p-8 rounded-lg shadow-sm" />
           </div>
 
           {/* Similar Properties - Full Width After Booking */}

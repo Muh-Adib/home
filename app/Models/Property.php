@@ -86,6 +86,19 @@ class Property extends Model
                 $property->slug = Str::slug($property->name);
             }
         });
+
+        // Auto-invalidate sitemap cache (Next.js style)
+        static::created(function () {
+            \App\Http\Controllers\SitemapController::clearCache();
+        });
+
+        static::updated(function () {
+            \App\Http\Controllers\SitemapController::clearCache();
+        });
+
+        static::deleted(function () {
+            \App\Http\Controllers\SitemapController::clearCache();
+        });
     }
 
     // Relationships

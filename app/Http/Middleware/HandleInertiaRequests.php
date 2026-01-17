@@ -42,6 +42,8 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
+        
+        $seoService = app(\App\Services\SeoService::class);
 
         return [
             ...parent::share($request),
@@ -71,6 +73,14 @@ class HandleInertiaRequests extends Middleware
                 'warning' => $request->session()->get('warning'),
                 'info' => $request->session()->get('info'),
             ],
+            // ✨ Global SEO data (always available)
+            'globalSeo' => [
+                'organizationSchema' => $seoService->organizationSchema(),
+                'siteName' => 'Homsjogja',
+                'defaultImage' => asset('og-image.jpg'),
+            ],
+            // Default SEO (bisa di-override per page)
+            'seo' => fn () => $seoService->forHomepage(),
         ];
     }
 }

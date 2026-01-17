@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import GuestLayout from '@/layouts/guest-layout';
+import { SeoHead } from '@/components/seo/SeoHead';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -152,19 +153,20 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
 
     return (
         <GuestLayout variant='minimal'>
-            <Head title={`${t('properties.browse_title')} - Homsjogja`} />
+            <SeoHead />
 
             <div className="min-h-screen bg-brand-background">
                 <div className="max-w-7xl mx-auto space-y-4 md:space-y-6 px-4 py-4 md:px-6 md:py-6">
-                    {/* Header */}
+                    {/* Header - SEO Optimized */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div className="space-y-2">
+                            {/* SEO H1: Target "daftar homestay di Yogyakarta" / "sewa homestay" */}
                             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-                                {t('properties.browse_title')}
+                                Daftar Lengkap Homestay di Yogyakarta
                             </h1>
 
                             <p className="text-muted-foreground">
-                                {t('properties.browse_subtitle', { count: properties.total })}
+                                {properties.total} pilihan penginapan untuk semua budget. Bandingkan & sewa sekarang!
                             </p>
 
                             {(filters.check_in && filters.check_out) && (
