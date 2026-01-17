@@ -326,6 +326,30 @@ class SeoService
     }
 
     /**
+     * Generate Video Schema (for TikTok property tours)
+     * 
+     * @param $property
+     * @return string|null JSON-LD VideoObject schema or null
+     */
+    public function videoSchema($property): ?string
+    {
+        // Only generate if property has TikTok video
+        if (empty($property->tiktok_video_url)) {
+            return null;
+        }
+
+        $video = Schema::videoObject()
+            ->name("Tour Virtual {$property->name} - Homestay di Yogyakarta")
+            ->description("Video tour lengkap {$property->name}. Lihat fasilitas, kamar, dan suasana homestay kami di Yogyakarta.")
+            ->thumbnailUrl($property->media->first()?->url ?? asset('og-image.jpg'))
+            ->contentUrl($property->tiktok_video_url)
+            ->uploadDate($property->created_at->toIso8601String())
+            ->duration('PT1M'); // Default 1 minute
+
+        return (string) $video->toScript();
+    }
+
+    /**
      * Get common property FAQs (GEO: Pre-defined Q&A)
      * 
      * @param object $property

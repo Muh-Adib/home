@@ -6,6 +6,9 @@ interface LazyImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
     alt: string;
     placeholder?: string;
     priority?: boolean; // Don't lazy load if true (for LCP image)
+    fetchPriority?: 'high' | 'low' | 'auto'; // NEW: For LCP optimization
+    width?: number | string; // NEW: Explicit width (prevents CLS)
+    height?: number | string; // NEW: Explicit height (prevents CLS)
 }
 
 export function LazyImage({
@@ -13,6 +16,9 @@ export function LazyImage({
     alt,
     placeholder = '/placeholder.svg',
     priority = false,
+    fetchPriority,
+    width,
+    height,
     className,
     ...props
 }: LazyImageProps) {
@@ -44,7 +50,7 @@ export function LazyImage({
         <img
             ref={imgRef}
             src={imageSrc}
-            alt={alt||'homsjogja homestay villa jogja'}
+            alt={alt || 'homsjogja homestay villa jogja'}
             className={cn(
                 'transition-opacity duration-300',
                 isLoading ? 'opacity-50' : 'opacity-100',
@@ -52,6 +58,9 @@ export function LazyImage({
             )}
             loading={priority ? 'eager' : 'lazy'}
             decoding="async"
+            fetchPriority={fetchPriority} // NEW: Support fetchPriority
+            width={width} // NEW: Explicit width
+            height={height} // NEW: Explicit height
             onLoad={() => setIsLoading(false)}
             onError={() => {
                 setImageSrc(placeholder);

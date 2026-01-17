@@ -13,7 +13,8 @@ export function SchemaOrg({ schema }: SchemaOrgProps) {
         // GEO: Additional schemas
         faqSchema,
         breadcrumbSchema,
-        localBusinessSchema
+        localBusinessSchema,
+        videoSchema
     } = usePage<PageProps>().props;
 
     return (
@@ -64,6 +65,16 @@ export function SchemaOrg({ schema }: SchemaOrgProps) {
                     type="application/ld+json"
                     dangerouslySetInnerHTML={{
                         __html: localBusinessSchema,
+                    }}
+                />
+            )}
+
+            {/* SEO: Video Schema for TikTok Tours */}
+            {videoSchema && (
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{
+                        __html: videoSchema,
                     }}
                 />
             )}

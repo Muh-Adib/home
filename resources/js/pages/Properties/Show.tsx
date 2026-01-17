@@ -108,7 +108,7 @@ export default function PropertyShow({
 
   return (
     <GuestLayout variant='minimal'>
-      {/* SEO: Just 2 lines instead of 30! */}
+      {/* SEO: Head tags */}
       <SeoHead />
       <SchemaOrg />
 

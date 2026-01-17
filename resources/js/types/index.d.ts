@@ -462,6 +462,7 @@ export type PageProps<T extends Record<string, unknown> = Record<string, unknown
     faqSchema?: string;
     breadcrumbSchema?: string;
     localBusinessSchema?: string;
+    videoSchema?: string | null;
     faqs?: Array<{ question: string; answer: string }>;
 };
 

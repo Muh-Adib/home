@@ -35,24 +35,37 @@ export const PropertyHeader: React.FC<PropertyHeaderProps> = ({ property }) => {
   return (
     <div className="mb-10">
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-        <Link href="/properties" className="hover:text-brand-primary transition-colors font-medium">
-          {t('properties.properties')}
-        </Link>
-        <span className="text-muted-foreground">›</span>
-        <span className="text-brand-primary font-semibold">
-          {property.name}
+      {/* SEO: Breadcrumb with Schema.org BreadcrumbList */}
+      <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-3" itemScope itemType="https://schema.org/BreadcrumbList">
+        <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+          <Link href="/" itemProp="item" className="hover:text-brand-primary transition-colors font-medium">
+            <span itemProp="name">{t('nav.home')}</span>
+          </Link>
+          <meta itemProp="position" content="1" />
         </span>
-      </div>
+        <span className="text-muted-foreground">›</span>
+        <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+          <Link href="/properties" itemProp="item" className="hover:text-brand-primary transition-colors font-medium">
+            <span itemProp="name">{t('properties.properties')}</span>
+          </Link>
+          <meta itemProp="position" content="2" />
+        </span>
+        <span className="text-muted-foreground">›</span>
+        <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+          <span className="text-brand-primary font-semibold" itemProp="name">
+            {property.name}
+          </span>
+          <meta itemProp="position" content="3" />
+        </span>
+      </nav>
 
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* SEO: Product Schema with Microdata */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4" itemScope itemType="https://schema.org/Product">
 
         {/* Nama & Featured */}
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground">
+            <h1 className="text-4xl md:text-5xl font-bold text-foreground" itemProp="name">
               {property.name}
             </h1>
 
@@ -63,6 +76,17 @@ export const PropertyHeader: React.FC<PropertyHeaderProps> = ({ property }) => {
               </Badge>
             )}
           </div>
+
+          {/* SEO: Offer Schema (Price, Currency, Availability) */}
+          <div itemProp="offers" itemScope itemType="https://schema.org/Offer">
+            <meta itemProp="price" content={property.base_rate.toString()} />
+            <meta itemProp="priceCurrency" content="IDR" />
+            <meta itemProp="availability" content="https://schema.org/InStock" />
+            <link itemProp="url" href={typeof window !== 'undefined' ? window.location.href : ''} />
+          </div>
+
+          {/* SEO: Description for Product */}
+          <meta itemProp="description" content={property.description?.substring(0, 200) || property.name} />
         </div>
 
         {/* Tombol Aksi */}

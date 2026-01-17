@@ -684,3 +684,14 @@ Route::post('/test-notification', function (Request $request) {
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
+/*
+|--------------------------------------------------------------------------
+| PROGRAMMATIC SEO LANDING PAGES - CATCH-ALL ROUTE
+|--------------------------------------------------------------------------
+| IMPORTANT: This MUST be the LAST route in the file!
+| Acts as fallback for SEO landing pages (villa-jogja, homestay-murah, etc.)
+*/
+
+Route::get('/{seoSlug}', [\App\Http\Controllers\SeoLandingController::class, 'show'])
+    ->where('seoSlug', '[a-z0-9-]+')
+    ->name('seo.landing');

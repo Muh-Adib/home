@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useImageGallery } from '@/hooks/use-image-gallery';
+import { LazyImage } from '@/components/ui/LazyImage';
 
 interface PropertyGalleryProps {
     images: Array<{
@@ -17,11 +18,11 @@ interface PropertyGalleryProps {
     propertyName: string;
 }
 
-export function PropertyGallery({ 
-    images, 
-    currentIndex, 
-    onImageChange, 
-    propertyName 
+export function PropertyGallery({
+    images,
+    currentIndex,
+    onImageChange,
+    propertyName
 }: PropertyGalleryProps) {
     const {
         currentImage,
@@ -57,10 +58,14 @@ export function PropertyGallery({
                 <div className="relative">
                     <div className="aspect-[4/3] sm:aspect-[16/10] bg-gradient-to-br from-muted/50 to-background">
                         {currentImage ? (
-                            <img 
+                            <LazyImage
                                 src={currentImage.url}
                                 alt={currentImage.alt_text || propertyName}
                                 className="w-full h-full object-cover"
+                                priority={true}
+                                fetchPriority="high"
+                                width={1200}
+                                height={750}
                             />
                         ) : (
                             <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/10 to-background flex items-center justify-center">
@@ -68,7 +73,7 @@ export function PropertyGallery({
                             </div>
                         )}
                     </div>
-                    
+
                     {/* Navigation Arrows - Mobile Optimized */}
                     {hasMultipleImages && (
                         <>
@@ -90,7 +95,7 @@ export function PropertyGallery({
                             </Button>
                         </>
                     )}
-                    
+
                     {/* Image Counter - Mobile Optimized */}
                     {hasMultipleImages && (
                         <div className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 bg-background/90 text-foreground px-2 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold shadow-lg border border-border/50 backdrop-blur-sm">
@@ -98,7 +103,7 @@ export function PropertyGallery({
                         </div>
                     )}
                 </div>
-                
+
                 {/* Thumbnail Strip */}
                 {showThumbnailStrip && (
                     <div className="p-4">
@@ -107,13 +112,12 @@ export function PropertyGallery({
                                 <button
                                     key={image.id}
                                     onClick={() => goToImage(index)}
-                                    className={`relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                                        index === currentIndex 
-                                            ? 'border-blue-500 ring-2 ring-blue-200' 
-                                            : 'border-gray-200 hover:border-gray-300'
-                                    }`}
+                                    className={`relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${index === currentIndex
+                                        ? 'border-blue-500 ring-2 ring-blue-200'
+                                        : 'border-gray-200 hover:border-gray-300'
+                                        }`}
                                 >
-                                    <img 
+                                    <LazyImage
                                         src={image.thumbnail_url || image.url}
                                         alt={image.alt_text || propertyName}
                                         className="w-full h-full object-cover"

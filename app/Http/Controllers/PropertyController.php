@@ -407,6 +407,7 @@ class PropertyController extends Controller
             'faqSchema' => $this->seoService->faqSchema($faqs),
             'breadcrumbSchema' => $this->seoService->breadcrumbSchema($breadcrumbs),
             'localBusinessSchema' => $this->seoService->localBusinessSchema($property),
+            'videoSchema' => $this->seoService->videoSchema($property), // NEW: Video schema for TikTok
             'faqs' => $faqs, // For FAQ component
         ]);
     }

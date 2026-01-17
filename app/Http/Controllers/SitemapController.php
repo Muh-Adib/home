@@ -3,19 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Models\Property;
+use App\Models\SeoLandingPage;
 use Illuminate\Support\Facades\Cache;
 
 class SitemapController extends Controller
 {
     /**
-     * Generate dynamic sitemap (Next.js style)
-     * Cached for 1 hour, auto-clears when properties updated
+     * Generate dynamic sitemap (Next.js style + Programmatic SEO)
+     * Cached for 1 hour, auto-clears when properties/SEO pages updated
      */
     public function index()
     {
         return Cache::remember('sitemap.xml', 3600, function () {
             $properties = Property::active()
                 ->select('slug', 'updated_at')
+                ->get();
+
+            // NEW: Get active SEO landing pages
+            $seoPages = SeoLandingPage::forSitemap()
+                ->select('slug', 'sitemap_priority', 'sitemap_changefreq', 'updated_at')
                 ->get();
 
             $xml = new \DOMDocument('1.0', 'UTF-8');
@@ -29,6 +35,18 @@ class SitemapController extends Controller
 
             // Homepage
             $this->addUrl($xml, $urlset, $baseUrl . '/', now(), 'daily', '1.0');
+
+            // SEO Landing Pages (HIGH PRIORITY! Add before properties)
+            foreach ($seoPages as $page) {
+                $this->addUrl(
+                    $xml,
+                    $urlset,
+                    $baseUrl . '/' . $page->slug,
+                    $page->updated_at,
+                    $page->sitemap_changefreq,
+                    (string) $page->sitemap_priority
+                );
+            }
 
             // Properties listing
             $this->addUrl($xml, $urlset, $baseUrl . '/properties', now(), 'daily', '0.9');

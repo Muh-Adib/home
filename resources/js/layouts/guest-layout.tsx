@@ -291,6 +291,12 @@ export default function GuestLayout({
                                                 +62 811 2500 082
                                             </a>
                                         </li>
+                                        <li className="flex items-start">
+                                            <Home className="h-4 w-4 mr-2 mt-0.5 text-brand-primary flex-shrink-0" />
+                                            <span className="text-sm">
+                                                Yogyakarta, Indonesia
+                                            </span>
+                                        </li>
                                     </ul>
                                 </div>
                             </div>
