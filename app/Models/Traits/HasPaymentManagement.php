@@ -27,7 +27,7 @@ trait HasPaymentManagement
      */
     public function getTotalPaidAmount(): float
     {
-        return $this->payments()
+        return (float) $this->payments()
                    ->where('payment_status', 'verified')
                    ->sum('amount');
     }

@@ -196,7 +196,8 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
         if (confirm('Are you sure you want to delete this payment? This action cannot be undone.')) {
             deletePayment(`/admin/payments/${payment.payment_number}`, {
                 onSuccess: () => {
-                    router.visit('/admin/payments');
+                    // Redirect to the booking page, not the payments list
+                    router.visit(`/admin/booking-management/${payment.booking.booking_number}`);
                 },
                 onError: (e) => console.log('ERROR', e),
                 onFinish: () => console.log('FINISHED'),

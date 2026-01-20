@@ -989,6 +989,11 @@ class BookingManagementController extends Controller
             // Calculate guest_count using GuestCountService
             $guestCount = $this->guestCountService->calculateFromRequest($property, $validated);
             
+            // Extract guest counts from validated data
+            $guestMale = (int) ($validated['guest_male'] ?? 0);
+            $guestFemale = (int) ($validated['guest_female'] ?? 0);
+            $guestChildren = (int) ($validated['guest_children'] ?? 0);
+            
             // Recalculate rate if dates/guests/property changed
             $needsRecalculation = (
                 $booking->check_in->format('Y-m-d') != $validated['check_in_date'] ||
