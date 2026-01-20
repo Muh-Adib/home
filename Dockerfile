@@ -65,7 +65,7 @@ RUN apk add --no-cache \
     pkgconfig \
     coreutils
 
-# PHP extensions
+# PHP extensions + Redis in single step to avoid BuildKit cache issues
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
     docker-php-ext-install -j$(nproc) \
     pdo_mysql \
@@ -78,10 +78,8 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
     gd \
     zip \
     intl \
-    opcache
-
-# Install and enable Redis extension (safe)
-RUN pecl install redis && \
+    opcache && \
+    pecl install redis && \
     docker-php-ext-enable redis && \
     php -m | grep -q redis
 
