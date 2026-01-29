@@ -61,6 +61,25 @@ class TestICalSync
             // 5. Test Availability (Approved Override)
             $checkOverride = $availabilityService->checkAvailability($property, $first->check_in->format('Y-m-d'), $first->check_out->format('Y-m-d'), null, null, true);
             $log .= "Availability Check (WITH override): " . ($checkOverride['available'] ? 'AVAILABLE (PASS)' : 'BLOCKED (FAIL)') . "\n";
+
+            if (!$checkOverride['available']) {
+                $log .= "Blocked by: " . json_encode($checkOverride['booked_dates'] ?? []) . "\n";
+                // Debug: manually check overlapping without triggering accessors
+                $overlapping = Booking::where('property_id', $property->id)
+                    ->where('check_in', '<', $first->check_out)
+                    ->where('check_out', '>', $first->check_in)
+                    ->get(['id', 'source', 'booking_status']);
+
+                $debugData = $overlapping->map(function ($b) {
+                    return [
+                        'id' => $b->id,
+                        'source' => $b->source,
+                        'booking_status' => $b->booking_status
+                    ];
+                });
+
+                $log .= "Actual Overlapping in DB: " . json_encode($debugData) . "\n";
+            }
         }
 
         // Clean up

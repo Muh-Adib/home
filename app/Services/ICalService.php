@@ -107,6 +107,7 @@ class ICalService
                             'relationship_type' => 'keluarga',
                             'guest_gender' => 'male',
                             'guest_country' => 'Indonesia',
+                            'check_in_time' => '14:00',
                         ]
                     );
                     $totalSynced++;
