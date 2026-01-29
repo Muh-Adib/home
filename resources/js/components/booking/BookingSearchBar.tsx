@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Search, X, Loader2 } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 import { type Booking } from '@/types';
-import { BookingStatusBadge } from '@/components/Booking/BookingStatusBadge';
+import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import axios from 'axios';
 
 interface BookingSearchBarProps {
