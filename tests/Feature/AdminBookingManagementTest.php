@@ -23,7 +23,7 @@ class AdminBookingManagementTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->admin = User::factory()->create([
             'role' => 'super_admin',
             'name' => 'Admin User',
@@ -77,14 +77,13 @@ class AdminBookingManagementTest extends TestCase
             'bank_name' => 'BCA',
             'account_number' => '1234567890',
             'account_name' => 'John Doe',
-            'payment_status' => 'verified',
         ];
 
         $response = $this->actingAs($this->admin)
             ->post(route('admin.booking-management.store'), $bookingData);
 
         $response->assertRedirect();
-        
+
         $this->assertDatabaseHas('bookings', [
             'guest_name' => 'John Doe',
             'guest_email' => 'john@example.com',
@@ -94,7 +93,7 @@ class AdminBookingManagementTest extends TestCase
 
         $booking = Booking::where('guest_email', 'john@example.com')->first();
         $this->assertNotNull($booking);
-        
+
         $this->assertDatabaseHas('payments', [
             'booking_id' => $booking->id,
             'amount' => 2500000,
@@ -121,6 +120,8 @@ class AdminBookingManagementTest extends TestCase
             'booking_status' => 'confirmed',
             'payment_status' => 'dp_pending',
             'dp_percentage' => 50,
+            'payment_method_id' => $this->paymentMethod->id,
+            'payment_amount' => 1000000,
             'rate_override' => true,
             'override_amount' => 2000000,
             'override_reason' => 'Early bird discount for repeat customer',
@@ -129,8 +130,9 @@ class AdminBookingManagementTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->post(route('admin.booking-management.store'), $bookingData);
 
+        $response->assertSessionHasNoErrors();
         $response->assertRedirect();
-        
+
         $this->assertDatabaseHas('bookings', [
             'guest_name' => 'Jane Doe',
             'guest_email' => 'jane@example.com',
@@ -138,8 +140,8 @@ class AdminBookingManagementTest extends TestCase
         ]);
 
         $booking = Booking::where('guest_email', 'jane@example.com')->first();
-        $this->assertStringContains('Rate override by Admin User', $booking->internal_notes);
-        $this->assertStringContains('Early bird discount for repeat customer', $booking->internal_notes);
+        $this->assertStringContainsString('Rate override by Admin User', $booking->internal_notes);
+        $this->assertStringContainsString('Early bird discount for repeat customer', $booking->internal_notes);
     }
 
     /** @test */
@@ -148,8 +150,8 @@ class AdminBookingManagementTest extends TestCase
         // Create initial booking
         $booking = Booking::factory()->create([
             'property_id' => $this->property->id,
-            'check_in_date' => now()->addDays(1)->toDateString(),
-            'check_out_date' => now()->addDays(3)->toDateString(),
+            'check_in' => now()->addDays(1)->toDateString(),
+            'check_out' => now()->addDays(3)->toDateString(),
             'guest_count' => 2,
             'total_amount' => 2500000,
             'booking_status' => 'confirmed',
@@ -161,7 +163,7 @@ class AdminBookingManagementTest extends TestCase
             'check_out_date' => now()->addDays(5)->toDateString(),
             'guest_male' => 2,
             'guest_female' => 2,
-            'guest_children' => 1,
+            'guest_children' => 2,
             'guest_name' => $booking->guest_name,
             'guest_email' => $booking->guest_email,
             'guest_phone' => $booking->guest_phone,
@@ -179,10 +181,10 @@ class AdminBookingManagementTest extends TestCase
             ->put(route('admin.bookings.update', $booking->booking_number), $updateData);
 
         $response->assertRedirect();
-        
+
         $booking->refresh();
-        $this->assertEquals(now()->addDays(2)->toDateString(), $booking->check_in_date);
-        $this->assertEquals(now()->addDays(5)->toDateString(), $booking->check_out_date);
+        $this->assertEquals(now()->addDays(2)->toDateString(), $booking->check_in->toDateString());
+        $this->assertEquals(now()->addDays(5)->toDateString(), $booking->check_out->toDateString());
         $this->assertEquals(5, $booking->guest_count); // 2+2+1
     }
 
@@ -192,14 +194,16 @@ class AdminBookingManagementTest extends TestCase
         // Create initial booking
         $booking = Booking::factory()->create([
             'property_id' => $this->property->id,
+            'check_in' => now()->addDays(1)->toDateString(),
+            'check_out' => now()->addDays(3)->toDateString(),
             'total_amount' => 2500000,
             'booking_status' => 'confirmed',
         ]);
 
         $updateData = [
             'property_id' => $this->property->id,
-            'check_in_date' => $booking->check_in_date,
-            'check_out_date' => $booking->check_out_date,
+            'check_in_date' => $booking->check_in->toDateString(),
+            'check_out_date' => $booking->check_out->toDateString(),
             'guest_male' => $booking->guest_male,
             'guest_female' => $booking->guest_female,
             'guest_children' => $booking->guest_children,
@@ -214,6 +218,8 @@ class AdminBookingManagementTest extends TestCase
             'dp_percentage' => 50,
             'check_in_time' => '15:00',
             'source' => 'direct',
+            'payment_method_id' => $this->paymentMethod->id,
+            'payment_amount' => 1000000,
             'rate_override' => true,
             'override_amount' => 2000000,
             'override_reason' => 'Special discount for VIP customer',
@@ -223,11 +229,11 @@ class AdminBookingManagementTest extends TestCase
             ->put(route('admin.bookings.update', $booking->booking_number), $updateData);
 
         $response->assertRedirect();
-        
+
         $booking->refresh();
         $this->assertEquals(2000000, $booking->total_amount);
-        $this->assertStringContains('Rate override by Admin User', $booking->internal_notes);
-        $this->assertStringContains('Special discount for VIP customer', $booking->internal_notes);
+        $this->assertStringContainsString('Rate override by Admin User', $booking->internal_notes);
+        $this->assertStringContainsString('Special discount for VIP customer', $booking->internal_notes);
     }
 
     /** @test */
@@ -306,6 +312,8 @@ class AdminBookingManagementTest extends TestCase
             'booking_status' => 'confirmed',
             'payment_status' => 'dp_pending',
             'dp_percentage' => 50,
+            'payment_method_id' => $this->paymentMethod->id,
+            'payment_amount' => 1000000,
         ];
 
         $response = $this->actingAs($this->admin)
@@ -319,13 +327,16 @@ class AdminBookingManagementTest extends TestCase
     {
         $booking = Booking::factory()->create([
             'property_id' => $this->property->id,
+            'check_in' => now()->addDays(1)->toDateString(),
+            'check_out' => now()->addDays(3)->toDateString(),
         ]);
 
         $response = $this->actingAs($this->admin)
             ->get(route('admin.bookings.edit', $booking->booking_number));
 
         $response->assertStatus(200);
-        $response->assertInertia(fn ($page) => 
+        $response->assertInertia(
+            fn($page) =>
             $page->component('Admin/Bookings/Edit')
                 ->has('booking')
                 ->has('properties')
@@ -340,7 +351,8 @@ class AdminBookingManagementTest extends TestCase
             ->get(route('admin.booking-management.create'));
 
         $response->assertStatus(200);
-        $response->assertInertia(fn ($page) => 
+        $response->assertInertia(
+            fn($page) =>
             $page->component('Admin/Bookings/Create')
                 ->has('properties')
                 ->has('paymentMethods')
@@ -353,6 +365,8 @@ class AdminBookingManagementTest extends TestCase
         // Create booking with payment
         $booking = Booking::factory()->create([
             'property_id' => $this->property->id,
+            'check_in' => now()->addDays(1)->toDateString(),
+            'check_out' => now()->addDays(3)->toDateString(),
             'total_amount' => 2500000,
         ]);
 
@@ -386,7 +400,7 @@ class AdminBookingManagementTest extends TestCase
             ->put(route('admin.bookings.update', $booking->booking_number), $updateData);
 
         $response->assertRedirect();
-        
+
         // Payment should still exist
         $this->assertDatabaseHas('payments', [
             'id' => $payment->id,

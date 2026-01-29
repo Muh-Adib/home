@@ -22,17 +22,17 @@ class BookingFactory extends Factory
         $checkIn = $this->faker->dateTimeBetween('+1 week', '+1 month');
         $checkOut = (clone $checkIn)->modify('+' . $this->faker->numberBetween(2, 7) . ' days');
         $nights = $checkIn->diff($checkOut)->days;
-        
+
         $guestMale = $this->faker->numberBetween(0, 3);
         $guestFemale = $this->faker->numberBetween(0, 3);
         $guestChildren = $this->faker->numberBetween(0, 2);
         $guestCount = $guestMale + $guestFemale + $guestChildren;
-        
+
         $baseAmount = $this->faker->numberBetween(500000, 2000000);
         $extraBedAmount = $guestCount > 2 ? ($guestCount - 2) * 100000 : 0;
         $serviceAmount = $this->faker->numberBetween(50000, 200000);
         $totalAmount = $baseAmount + $extraBedAmount + $serviceAmount;
-        
+
         return [
             'booking_number' => 'BKG' . str_pad($this->faker->unique()->numberBetween(1, 999999), 6, '0', STR_PAD_LEFT),
             'property_id' => Property::factory(),
@@ -47,6 +47,7 @@ class BookingFactory extends Factory
             'guest_children' => $guestChildren,
             'relationship_type' => $this->faker->randomElement(['keluarga', 'teman', 'kolega', 'pasangan', 'campuran']),
             'check_in' => $checkIn,
+            'check_in_time' => '15:00:00',
             'check_out' => $checkOut,
             'nights' => $nights,
             'base_amount' => $baseAmount,
@@ -71,7 +72,7 @@ class BookingFactory extends Factory
      */
     public function pending(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn(array $attributes) => [
             'booking_status' => 'submitted',
             'verification_status' => 'pending',
             'payment_status' => 'dp_pending',
@@ -83,7 +84,7 @@ class BookingFactory extends Factory
      */
     public function confirmed(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn(array $attributes) => [
             'booking_status' => 'confirmed',
             'verification_status' => 'approved',
             'payment_status' => 'fully_paid',
@@ -95,7 +96,7 @@ class BookingFactory extends Factory
      */
     public function cancelled(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn(array $attributes) => [
             'booking_status' => 'rejected',
             'verification_status' => 'rejected',
             'payment_status' => 'refunded',

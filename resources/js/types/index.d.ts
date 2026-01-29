@@ -107,6 +107,8 @@ export interface Property {
     bookings?: Booking[];
     current_keybox_code: string;
     checkin_instructions: CheckinInstructions;
+    ical_import_urls?: string[];
+    ical_export_token?: string;
 }
 
 export interface CheckinInstructions {

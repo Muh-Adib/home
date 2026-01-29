@@ -69,19 +69,20 @@ class Booking extends Model
         'payment_token_expires_at',
         'created_by',
         'source',
+        'external_id',
     ];
 
     protected $casts = [
         'check_in' => 'date',
         'check_out' => 'date',
-        'base_amount' => 'decimal:2',
-        'extra_bed_amount' => 'decimal:2',
+        'base_amount' => 'integer',
+        'extra_bed_amount' => 'integer',
         'extra_bed_count' => 'integer',
-        'service_amount' => 'decimal:2',
-        'total_amount' => 'decimal:2',
-        'dp_amount' => 'decimal:2',
-        'dp_paid_amount' => 'decimal:2',
-        'remaining_amount' => 'decimal:2',
+        'service_amount' => 'integer',
+        'total_amount' => 'integer',
+        'dp_amount' => 'integer',
+        'dp_paid_amount' => 'integer',
+        'remaining_amount' => 'integer',
         'dp_deadline' => 'datetime',
         'cancelled_at' => 'datetime',
         'verified_at' => 'datetime',
@@ -100,20 +101,20 @@ class Booking extends Model
     protected static function boot()
     {
         parent::boot();
-        
+
         static::creating(function ($booking) {
             // Only generate if booking_number is explicitly null or empty
             if (empty($booking->booking_number) || $booking->booking_number === '') {
                 // Generate booking number - now with built-in locking and duplicate prevention
                 $booking->booking_number = self::generateBookingNumber();
             }
-            
+
             // Auto calculate nights
             if ($booking->check_in && $booking->check_out) {
                 $booking->nights = \Carbon\Carbon::parse($booking->check_in)
-                                                ->diffInDays(\Carbon\Carbon::parse($booking->check_out));
+                    ->diffInDays(\Carbon\Carbon::parse($booking->check_out));
             }
-            
+
             // Auto calculate DP deadline (2 days from creation)
             if (!$booking->dp_deadline) {
                 $booking->dp_deadline = now()->addDays(2);
@@ -124,7 +125,7 @@ class Booking extends Model
             // Recalculate nights if dates change
             if ($booking->isDirty(['check_in', 'check_out'])) {
                 $booking->nights = \Carbon\Carbon::parse($booking->check_in)
-                ->diffInDays(\Carbon\Carbon::parse($booking->check_out));
+                    ->diffInDays(\Carbon\Carbon::parse($booking->check_out));
             }
         });
     }
@@ -204,20 +205,20 @@ class Booking extends Model
     public function scopeUpcoming($query)
     {
         return $query->where('check_in', '>', now())
-                    ->whereIn('booking_status', ['confirmed', 'pending_verification']);
+            ->whereIn('booking_status', ['confirmed', 'pending_verification']);
     }
 
     public function scopeCurrentGuests($query)
     {
         return $query->where('booking_status', 'checked_in')
-                    ->where('check_in', '<=', now())
-                    ->where('check_out', '>', now());
+            ->where('check_in', '<=', now())
+            ->where('check_out', '>', now());
     }
 
     public function scopeOverdueDP($query)
     {
         return $query->where('payment_status', 'dp_pending')
-                    ->where('dp_deadline', '<', now());
+            ->where('dp_deadline', '<', now());
     }
 
     /**
@@ -237,9 +238,9 @@ class Booking extends Model
      */
     public function scopeOverlapping($query, string $checkIn, string $checkOut)
     {
-        return $query->where(function ($q) use ($checkIn,  $checkOut) {
+        return $query->where(function ($q) use ($checkIn, $checkOut) {
             $q->where('check_in', '<', $checkOut)
-              ->where('check_out', '>', $checkIn);
+                ->where('check_out', '>', $checkIn);
         });
     }
 
@@ -273,11 +274,11 @@ class Booking extends Model
     {
         return $query->where(function ($q) use ($startDate, $endDate) {
             $q->whereBetween('check_in', [$startDate, $endDate])
-              ->orWhereBetween('check_out', [$startDate, $endDate])
-              ->orWhere(function ($q2) use ($startDate, $endDate) {
-                  $q2->where('check_in', '<=', $startDate)
-                     ->where('check_out', '>=', $endDate);
-              });
+                ->orWhereBetween('check_out', [$startDate, $endDate])
+                ->orWhere(function ($q2) use ($startDate, $endDate) {
+                    $q2->where('check_in', '<=', $startDate)
+                        ->where('check_out', '>=', $endDate);
+                });
         });
     }
 
@@ -285,44 +286,44 @@ class Booking extends Model
     protected function formattedTotalAmount(): Attribute
     {
         return Attribute::make(
-            get: fn () => 'Rp ' . number_format($this->total_amount, 0, ',', '.')
+            get: fn() => 'Rp ' . number_format((int) $this->total_amount, 0, ',', '.')
         );
     }
 
     protected function formattedDpAmount(): Attribute
     {
         return Attribute::make(
-            get: fn () => 'Rp ' . number_format($this->dp_amount, 0, ',', '.')
+            get: fn() => 'Rp ' . number_format((int) $this->dp_amount, 0, ',', '.')
         );
     }
 
     protected function formattedRemainingAmount(): Attribute
     {
         return Attribute::make(
-            get: fn () => 'Rp ' . number_format($this->remaining_amount, 0, ',', '.')
+            get: fn() => 'Rp ' . number_format((int) $this->remaining_amount, 0, ',', '.')
         );
     }
 
     protected function isDpOverdue(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->payment_status === 'dp_pending' && $this->dp_deadline < now()
+            get: fn() => $this->payment_status === 'dp_pending' && $this->dp_deadline < now()
         );
     }
 
     protected function daysUntilCheckIn(): Attribute
     {
         return Attribute::make(
-            get: fn () => now()->diffInDays($this->check_in, false)
+            get: fn() => now()->diffInDays($this->check_in, false)
         );
     }
 
     protected function statusBadgeColor(): Attribute
     {
         return Attribute::make(
-            get: fn () => match($this->booking_status) {
+            get: fn() => match ($this->booking_status) {
                 'pending_verification' => 'yellow',
-                'confirmed' => 'green', 
+                'confirmed' => 'green',
                 'checked_in' => 'blue',
                 'checked_out' => 'gray',
                 'cancelled' => 'red',
@@ -337,8 +338,9 @@ class Booking extends Model
     {
         return Attribute::make(
             get: function ($value) {
-                if (!$value) return null;
-                
+                if (!$value)
+                    return null;
+
                 // Handle different time formats
                 try {
                     if (strlen($value) === 5) { // Already in H:i format
@@ -354,8 +356,9 @@ class Booking extends Model
                 }
             },
             set: function ($value) {
-                if (!$value) return null;
-                
+                if (!$value)
+                    return null;
+
                 try {
                     // Ensure we store in H:i:s format for database
                     if (strlen($value) === 5) { // H:i format
@@ -379,7 +382,7 @@ class Booking extends Model
     {
         $prefix = 'BK';
         $date = now()->format('ymd');
-        
+
         // Use database transaction with locking to prevent race conditions
         return \DB::transaction(function () use ($prefix, $date) {
             // Find the highest sequence number for today, including soft-deleted records
@@ -389,36 +392,36 @@ class Booking extends Model
                 ->lockForUpdate() // Lock to prevent concurrent access
                 ->orderByRaw('CAST(SUBSTR(booking_number, -4) AS UNSIGNED) DESC')
                 ->first();
-            
+
             // Extract sequence from last booking number
             if ($lastBooking && preg_match('/\d{4}$/', $lastBooking->booking_number, $matches)) {
                 $sequence = intval($matches[0]) + 1;
             } else {
                 $sequence = 1;
             }
-            
+
             // Cap sequence at 9999 (4 digits)
             if ($sequence > 9999) {
                 // If we exceed 9999 bookings in a day, add microsecond suffix
-                $microseconds = substr(str_replace('.', '', (string)microtime(true)), -6);
+                $microseconds = substr(str_replace('.', '', (string) microtime(true)), -6);
                 return $prefix . $date . '9999-' . $microseconds;
             }
-            
+
             $bookingNumber = $prefix . $date . sprintf('%04d', $sequence);
-            
+
             // Final safety check - if somehow still exists, add microsecond suffix
             $attempts = 0;
             while (self::withTrashed()->where('booking_number', $bookingNumber)->exists() && $attempts < 10) {
                 $sequence++;
                 if ($sequence > 9999) {
-                    $microseconds = substr(str_replace('.', '', (string)microtime(true)), -6);
+                    $microseconds = substr(str_replace('.', '', (string) microtime(true)), -6);
                     $bookingNumber = $prefix . $date . '9999-' . $microseconds;
                     break;
                 }
                 $bookingNumber = $prefix . $date . sprintf('%04d', $sequence);
                 $attempts++;
             }
-            
+
             return $bookingNumber;
         });
     }
@@ -454,7 +457,7 @@ class Booking extends Model
                 if (!$this->payment_token) {
                     $this->generatePaymentToken();
                 }
-                
+
                 return $this->getSecurePaymentUrl();
             }
         );
@@ -472,11 +475,11 @@ class Booking extends Model
             get: function () {
                 // Try to generate from booking_daily_revenue first
                 $dailyRevenues = $this->dailyRevenues;
-                
+
                 if ($dailyRevenues->isNotEmpty()) {
                     return $this->generateRateCalculationFromDailyRevenue($dailyRevenues);
                 }
-                
+
                 // If no daily revenue, recalculate from booking data
                 return $this->recalculateRateCalculation();
             }
@@ -490,11 +493,11 @@ class Booking extends Model
     {
         $totalAmount = $dailyRevenues->sum('amount');
         $dailyBreakdown = [];
-        
+
         foreach ($dailyRevenues as $revenue) {
             $date = $revenue->tanggal->format('Y-m-d');
             $carbonDate = \Carbon\Carbon::parse($date);
-            
+
             $dailyBreakdown[$date] = [
                 'date' => $date,
                 'day_name' => $carbonDate->format('l'),
@@ -505,7 +508,7 @@ class Booking extends Model
                 'extra_bed_rate' => '0.00',
             ];
         }
-        
+
         return [
             'nights' => $this->nights,
             'base_amount' => $this->base_amount,
@@ -533,13 +536,16 @@ class Booking extends Model
         // Recalculate using RateCalculationService
         try {
             $rateCalculationService = app(\App\Services\RateCalculationService::class);
+            $checkIn = $this->check_in instanceof \DateTimeInterface ? $this->check_in->format('Y-m-d') : $this->check_in;
+            $checkOut = $this->check_out instanceof \DateTimeInterface ? $this->check_out->format('Y-m-d') : $this->check_out;
+
             $calculation = $rateCalculationService->calculateRate(
                 $this->property,
-                $this->check_in->format('Y-m-d'),
-                $this->check_out->format('Y-m-d'),
+                $checkIn,
+                $checkOut,
                 $this->guest_count
             );
-            
+
             return $calculation->toArray();
         } catch (\Exception $e) {
             // Fallback to basic structure

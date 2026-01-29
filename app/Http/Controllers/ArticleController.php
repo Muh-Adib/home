@@ -1,0 +1,328 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Article;
+use App\Models\Property;
+use App\Models\ContentPlan;
+use App\Services\ArticleImageService;
+use App\Services\ArticleService;
+use App\Services\ArticleAnalysisService;
+use App\Http\Requests\Admin\StoreArticleRequest;
+use App\Http\Requests\Admin\UpdateArticleRequest;
+use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class ArticleController extends Controller
+{
+    public function __construct(
+        private ArticleImageService $imageService,
+        private ArticleService $articleService,
+        private ArticleAnalysisService $analysisService
+    ) {
+    }
+
+    /**
+     * Display article listing for admin
+     */
+    public function index(Request $request): Response
+    {
+        $this->authorize('viewAny', Article::class);
+
+        $query = Article::with(['author', 'properties'])
+            ->withCount('properties');
+
+        // Search
+        if ($request->filled('search')) {
+            $query->search($request->get('search'));
+        }
+
+        // Status filter
+        if ($request->filled('status')) {
+            $query->where('status', $request->get('status'));
+        }
+
+        // Language filter
+        if ($request->filled('language')) {
+            $query->byLanguage($request->get('language'));
+        }
+
+        // Author filter
+        if ($request->filled('author_id')) {
+            $query->where('author_id', $request->get('author_id'));
+        }
+
+        // Sorting
+        $sortField = $request->get('sort_field', 'created_at');
+        $sortDirection = $request->get('sort_direction', 'desc');
+
+        $allowedSorts = ['title', 'status', 'published_at', 'view_count', 'created_at'];
+        if (in_array($sortField, $allowedSorts)) {
+            $query->orderBy($sortField, $sortDirection);
+        }
+
+        $articles = $query->paginate(20);
+
+        return Inertia::render('Admin/Articles/Index', [
+            'articles' => $articles,
+            'filters' => [
+                'search' => $request->get('search'),
+                'status' => $request->get('status'),
+                'language' => $request->get('language'),
+                'author_id' => $request->get('author_id'),
+                'sort_field' => $sortField,
+                'sort_direction' => $sortDirection,
+            ],
+            'languages' => config('article.languages.supported'),
+        ]);
+    }
+
+    /**
+     * Show article creation form
+     */
+    public function create(): Response
+    {
+        $this->authorize('create', Article::class);
+
+        $properties = Property::active()->get(['id', 'name', 'slug']);
+        $contentPlans = ContentPlan::pending()
+            ->where('assigned_to', auth()->id())
+            ->orWhere('created_by', auth()->id())
+            ->get();
+
+        return Inertia::render('Admin/Articles/Create', [
+            'properties' => $properties,
+            'contentPlans' => $contentPlans,
+            'languages' => config('article.languages.supported'),
+            'config' => [
+                'ai_providers' => array_keys(config('article.ai.providers')),
+                'default_provider' => config('article.ai.default_provider'),
+            ],
+        ]);
+    }
+
+    /**
+     * Store new article
+     */
+    public function store(StoreArticleRequest $request): RedirectResponse
+    {
+        $this->authorize('create', Article::class);
+
+        $article = $this->articleService->createArticle($request->validated());
+
+        return redirect()->route('articles.edit', $article->slug)
+            ->with('success', 'Article created successfully.');
+    }
+
+    /**
+     * Display specific article (public)
+     */
+    public function show(string $slug): Response
+    {
+        $article = Article::where('slug', $slug)
+            ->with(['author', 'properties.media'])
+            ->firstOrFail();
+
+        $this->authorize('view', $article);
+
+        // Increment view count
+        $article->increment('view_count');
+
+        // Get related articles
+        $relatedArticles = Article::published()
+            ->where('id', '!=', $article->id)
+            ->where('language', $article->language)
+            ->limit(3)
+            ->get();
+
+        return Inertia::render('Articles/Show', [
+            'article' => $article,
+            'relatedArticles' => $relatedArticles,
+        ]);
+    }
+
+    /**
+     * Show edit form
+     */
+    public function edit(Article $article): Response
+    {
+        $this->authorize('update', $article);
+
+        $article->load(['properties', 'contentPlan']);
+
+        $allProperties = Property::active()->get(['id', 'name', 'slug']);
+
+        return Inertia::render('Admin/Articles/Edit', [
+            'article' => $article,
+            'seoScore' => $this->analysisService->calculateSeoScore($article),
+            'properties' => $allProperties,
+            'linkedPropertyIds' => $article->properties->pluck('id'),
+            'languages' => config('article.languages.supported'),
+            'config' => [
+                'ai_providers' => array_keys(config('article.ai.providers')),
+                'default_provider' => config('article.ai.default_provider'),
+            ],
+        ]);
+    }
+
+    /**
+     * Update article
+     */
+    public function update(UpdateArticleRequest $request, Article $article): RedirectResponse
+    {
+        $this->authorize('update', $article);
+
+        $this->articleService->updateArticle($article, $request->validated());
+
+        return redirect()->back()
+            ->with('success', 'Article updated successfully.');
+    }
+
+    /**
+     * Delete article
+     */
+    public function destroy(Article $article): RedirectResponse
+    {
+        $this->authorize('delete', $article);
+
+        $article->delete();
+
+        return redirect()->route('articles.index')
+            ->with('success', 'Article deleted successfully.');
+    }
+
+    /**
+     * Publish article
+     */
+    public function publish(Article $article): RedirectResponse
+    {
+        $this->authorize('publish', $article);
+
+        $this->articleService->publishArticle($article);
+
+        return redirect()->back()
+            ->with('success', 'Article published successfully.');
+    }
+
+    /**
+     * Schedule article
+     */
+    public function schedule(Request $request, Article $article): RedirectResponse
+    {
+        $this->authorize('schedule', $article);
+
+        $validated = $request->validate([
+            'scheduled_at' => 'required|date|after:now',
+        ]);
+
+        $article->schedule(new \DateTime($validated['scheduled_at']));
+
+        return redirect()->back()
+            ->with('success', 'Article scheduled successfully.');
+    }
+
+    /**
+     * Duplicate article
+     */
+    public function duplicate(Article $article): RedirectResponse
+    {
+        $this->authorize('create', Article::class);
+
+        $newArticle = $this->articleService->duplicateArticle($article);
+
+        return redirect()->route('articles.edit', $newArticle->slug)
+            ->with('success', 'Article duplicated successfully.');
+    }
+
+    /**
+     * Upload article image (WebP conversion)
+     */
+    public function uploadImage(Request $request): JsonResponse
+    {
+        $this->authorize('create', Article::class);
+
+        $request->validate([
+            'image' => 'required|image|max:10240', // 10MB
+            'article_slug' => 'nullable|string',
+        ]);
+
+        try {
+            $article = $request->filled('article_slug')
+                ? Article::where('slug', $request->get('article_slug'))->first()
+                : null;
+
+            $result = $this->imageService->uploadImage(
+                $request->file('image'),
+                $article
+            );
+
+            return response()->json($result);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete article image
+     */
+    public function deleteImage(Request $request): JsonResponse
+    {
+        $this->authorize('create', Article::class);
+
+        $request->validate([
+            'path' => 'required|string',
+        ]);
+
+        try {
+            $deleted = $this->imageService->deleteImage($request->get('path'));
+
+            return response()->json([
+                'success' => $deleted,
+                'message' => $deleted ? 'Image deleted successfully' : 'Image not found',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Public article index
+     */
+    public function publicIndex(Request $request): Response
+    {
+        $query = Article::published()
+            ->with(['author', 'properties'])
+            ->latest('published_at');
+
+        // Language filter
+        if ($request->filled('language')) {
+            $query->byLanguage($request->get('language'));
+        }
+
+        // Search
+        if ($request->filled('search')) {
+            $query->search($request->get('search'));
+        }
+
+        $articles = $query->paginate(12);
+
+        return Inertia::render('Articles/Index', [
+            'articles' => $articles,
+            'filters' => [
+                'search' => $request->get('search'),
+                'language' => $request->get('language'),
+            ],
+        ]);
+    }
+}

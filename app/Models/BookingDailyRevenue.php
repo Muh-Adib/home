@@ -30,11 +30,11 @@ class BookingDailyRevenue extends Model
 
     protected $casts = [
         'tanggal' => 'date',
-        'amount' => 'decimal:2',
-        'base_amount' => 'decimal:2',
-        'weekend_premium' => 'decimal:2',
-        'seasonal_premium' => 'decimal:2',
-        'extra_bed_amount' => 'decimal:2',
+        'amount' => 'integer',
+        'base_amount' => 'integer',
+        'weekend_premium' => 'integer',
+        'seasonal_premium' => 'integer',
+        'extra_bed_amount' => 'integer',
         'is_weekend' => 'boolean',
     ];
 
@@ -117,13 +117,13 @@ class BookingDailyRevenue extends Model
     public static function getMonthlyBreakdown(int $year, ?int $propertyId = null, ?int $ownerId = null): array
     {
         $months = [];
-        
+
         for ($month = 1; $month <= 12; $month++) {
             $startDate = Carbon::create($year, $month, 1)->startOfMonth();
             $endDate = $startDate->copy()->endOfMonth();
-            
+
             $breakdown = static::getRevenueBreakdown($startDate, $endDate, $propertyId, $ownerId);
-            
+
             $months[] = [
                 'month' => $month,
                 'month_name' => $startDate->format('M'),
@@ -131,8 +131,7 @@ class BookingDailyRevenue extends Model
                 ...$breakdown
             ];
         }
-        
+
         return $months;
     }
 }
- 

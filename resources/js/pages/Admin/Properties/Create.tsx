@@ -28,7 +28,9 @@ import {
     AlertCircle,
     Info,
     Eye,
-    EyeOff
+    EyeOff,
+    Plus,
+    Trash2
 } from 'lucide-react';
 import { Amenity } from '@/types';
 
@@ -84,6 +86,7 @@ interface PropertyFormData {
     owner_id?: string;
     current_keybox_code: string;
     checkin_instructions: CheckinInstructions;
+    ical_import_urls: string[];
 }
 
 // Utility functions
@@ -168,6 +171,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
             emergency_contact: 'Hubungi kami jika ada kendala: 0811-2500-082',
             additional_info: ['WiFi password tersedia di dalam rumah', 'Harap menjaga kebersihan selama menginap']
         },
+        ical_import_urls: [''],
     });
 
     // Auto-generate SEO title when property name changes
@@ -812,6 +816,72 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                             {data.house_rules && (
                                                 <TextFormatMarkdown text={data.house_rules} />
                                             )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                {/* iCal Synchronization */}
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Calendar className="h-5 w-5" />
+                                            iCal Synchronization (OTA)
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-6">
+                                        <div className="space-y-4">
+                                            <Label>External iCal Import URLs (Airbnb/Booking.com/Agoda)</Label>
+                                            <p className="text-sm text-muted-foreground -mt-2">
+                                                Paste the iCal export links from your OTA platforms to block dates automatically.
+                                            </p>
+
+                                            <div className="space-y-3">
+                                                {data.ical_import_urls.map((url, index) => (
+                                                    <div key={index} className="flex gap-2">
+                                                        <Input
+                                                            value={url}
+                                                            onChange={(e) => {
+                                                                const newUrls = [...data.ical_import_urls];
+                                                                newUrls[index] = e.target.value;
+                                                                setData('ical_import_urls', newUrls);
+                                                            }}
+                                                            placeholder="https://www.airbnb.com/calendar/ical/..."
+                                                            className={errors[`ical_import_urls.${index}`] ? 'border-red-500' : ''}
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => {
+                                                                const newUrls = [...data.ical_import_urls];
+                                                                newUrls.splice(index, 1);
+                                                                setData('ical_import_urls', newUrls.length > 0 ? newUrls : ['']);
+                                                            }}
+                                                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setData('ical_import_urls', [...data.ical_import_urls, ''])}
+                                                    className="flex items-center gap-2"
+                                                >
+                                                    <Plus className="h-4 w-4" />
+                                                    Add Another OTA Feed
+                                                </Button>
+
+                                                {Object.entries(errors).map(([key, value]) => {
+                                                    if (key.startsWith('ical_import_urls')) {
+                                                        return <p key={key} className="text-sm text-red-500">{value}</p>;
+                                                    }
+                                                    return null;
+                                                })}
+                                            </div>
                                         </div>
                                     </CardContent>
                                 </Card>

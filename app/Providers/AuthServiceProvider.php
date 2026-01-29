@@ -97,7 +97,12 @@ class AuthServiceProvider extends ServiceProvider
             return $user->role === 'super_admin' ? Response::allow() : Response::deny('You are not authorized to manage settings.');
         });
 
-        
-        
+        // AI Keys management - super_admin only
+        Gate::define('manage-ai-keys', function (User $user) {
+            return $user->role === 'super_admin';
+        });
+
+
+
     }
 }

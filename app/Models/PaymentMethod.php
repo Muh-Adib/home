@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PaymentMethod extends Model
 {
+    use HasFactory;
     protected $fillable = [
         'name',
         'code',
@@ -64,7 +66,7 @@ class PaymentMethod extends Model
         if (is_array($this->instructions)) {
             return $this->instructions;
         }
-        
+
         return [];
     }
 
@@ -76,7 +78,7 @@ class PaymentMethod extends Model
         if ($this->fee_type === 'fixed') {
             return $this->fee_fixed ?? 0;
         }
-        
+
         // Percentage fee
         $percentage = $this->fee_percentage ?? 0;
         return ($amount * $percentage) / 100;

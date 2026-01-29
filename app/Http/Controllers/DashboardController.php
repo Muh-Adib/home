@@ -21,39 +21,39 @@ class DashboardController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        
+
         // Redirect guest users to their own dashboard
         if ($user->role === 'guest') {
             return $this->guestDashboard($user);
         }
-        
+
         // Get date ranges for comparison
         $today = Carbon::today();
         $thisMonth = Carbon::now()->startOfMonth();
         $lastMonth = Carbon::now()->subMonth()->startOfMonth();
         $thisYear = Carbon::now()->startOfYear();
-        
+
         // Core KPIs
         $kpis = $this->getKPIs($user);
-        
+
         // Recent activity
         $recentActivity = $this->getRecentActivity($user);
-        
+
         // Today's agenda
         $todaysAgenda = $this->getTodaysAgenda($user);
-        
+
         // Quick stats
         $quickStats = $this->getQuickStats($user);
-        
+
         // Revenue chart data with breakdown
         $revenueChart = $this->getRevenueChartData($user);
-        
+
         // Revenue breakdown by source
         $revenueBreakdown = $this->getRevenueBreakdown($user);
-        
+
         // Booking trends
         $bookingTrends = $this->getBookingTrends($user);
-        
+
         // Property performance
         $propertyPerformance = $this->getPropertyPerformance($user);
 
@@ -76,10 +76,8 @@ class DashboardController extends Controller
     {
         // Get upcoming bookings with checkin instructions (only if payment paid + within checkin window)
         $upcomingBookings = Booking::where('guest_email', $user->email)
-            ->where('booking_status', 'confirmed')
-            ->where('payment_status', 'fully_paid')
+            ->whereIn('booking_status', ['confirmed', 'pending_verification'])
             ->where('check_in', '>=', today())
-            ->where('check_in', '<=', today()->addDays(7))
             ->with(['property'])
             ->orderBy('check_in')
             ->get()
@@ -87,12 +85,12 @@ class DashboardController extends Controller
                 $property = $booking->property;
                 $checkInDate = \Carbon\Carbon::parse($booking->check_in);
                 $canShowInstructions = false;
-                
+
                 // Show instructions only on check-in day or within check-in window (12:00 PM onwards)
                 if ($checkInDate->isToday() && now()->gte($checkInDate->setTimeFromTimeString('12:00'))) {
                     $canShowInstructions = true;
                 }
-                
+
                 return [
                     'id' => $booking->id,
                     'booking_number' => $booking->booking_number,
@@ -104,67 +102,13 @@ class DashboardController extends Controller
                     'can_show_instructions' => $canShowInstructions,
                     'checkin_instructions' => $canShowInstructions ? $booking->getCheckinInstructions() : null,
                     'checkin_instructions_formatted' => $canShowInstructions ? $booking->getFormattedCheckinInstructions() : null,
-                    'status' => $booking->booking_status,
+                    'booking_status' => $booking->booking_status,
                     'payment_status' => $booking->payment_status,
                 ];
             });
 
-        // Get past bookings
-        $pastBookings = Booking::where('guest_email', $user->email)
-            ->where('check_out', '<', now())
-            ->with(['property'])
-            ->orderBy('check_out', 'desc')
-            ->limit(10)
-            ->get();
-
-        // Get recent payments
-        $recentPayments = Payment::whereHas('booking', function ($query) use ($user) {
-                $query->where('guest_email', $user->email);
-            })
-            ->with(['booking.property'])
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get()
-            ->map(function ($payment) {
-                return [
-                    'id' => $payment->id,
-                    'payment_number' => $payment->payment_number,
-                    'amount' => $payment->amount,
-                    'payment_status' => $payment->payment_status,
-                    'payment_date' => $payment->created_at->toDateString(),
-                    'booking' => [
-                        'booking_number' => $payment->booking->booking_number,
-                        'property' => [
-                            'name' => $payment->booking->property->name,
-                        ],
-                    ],
-                ];
-            });
-
-        // Calculate stats
-        $totalBookings = Booking::where('guest_email', $user->email)->count();
-        $upcomingBookingsCount = $upcomingBookings->count();
-        $completedBookings = Booking::where('guest_email', $user->email)
-            ->where('booking_status', 'completed')
-            ->count();
-        $totalSpent = Payment::whereHas('booking', function ($query) use ($user) {
-                $query->where('guest_email', $user->email);
-            })
-            ->where('payment_status', 'verified')
-            ->sum('amount');
-
-        $stats = [
-            'total_bookings' => $totalBookings,
-            'upcoming_bookings' => $upcomingBookingsCount,
-            'completed_bookings' => $completedBookings,
-            'total_spent' => $totalSpent,
-        ];
-
         return Inertia::render('Guest/Dashboard', [
             'upcoming_bookings' => $upcomingBookings,
-            'past_bookings' => $pastBookings,
-            'recent_payments' => $recentPayments,
-            'stats' => $stats,
         ]);
     }
 
@@ -182,7 +126,7 @@ class DashboardController extends Controller
 
         $bookingQuery = Booking::query();
         $paymentQuery = Payment::query();
-        
+
         if ($user->role === 'property_owner') {
             $dailyRevenueQuery->whereHas('property', function ($q) use ($user) {
                 $q->where('owner_id', $user->id);
@@ -219,16 +163,16 @@ class DashboardController extends Controller
         $lastMonthOccupancy = $this->calculateOccupancyRate($user, $lastMonth, $lastMonthEnd);
 
         // Calculate percentage changes
-        $revenueChange = $lastMonthRevenue > 0 
-            ? (($thisMonthRevenue - $lastMonthRevenue) / $lastMonthRevenue) * 100 
+        $revenueChange = $lastMonthRevenue > 0
+            ? (($thisMonthRevenue - $lastMonthRevenue) / $lastMonthRevenue) * 100
             : 0;
 
-        $bookingsChange = $lastMonthBookings > 0 
-            ? (($thisMonthBookings - $lastMonthBookings) / $lastMonthBookings) * 100 
+        $bookingsChange = $lastMonthBookings > 0
+            ? (($thisMonthBookings - $lastMonthBookings) / $lastMonthBookings) * 100
             : 0;
 
-        $occupancyChange = $lastMonthOccupancy > 0 
-            ? (($thisMonthOccupancy - $lastMonthOccupancy) / $lastMonthOccupancy) * 100 
+        $occupancyChange = $lastMonthOccupancy > 0
+            ? (($thisMonthOccupancy - $lastMonthOccupancy) / $lastMonthOccupancy) * 100
             : 0;
 
         // Pending items count
@@ -509,7 +453,7 @@ class DashboardController extends Controller
     private function getPropertyPerformance($user): array
     {
         $thisMonth = Carbon::now()->startOfMonth();
-        
+
         $propertyQuery = Property::query();
         if ($user->role === 'property_owner') {
             $propertyQuery->where('owner_id', $user->id);
@@ -517,7 +461,7 @@ class DashboardController extends Controller
 
         // Get properties with their performance metrics using BookingDailyRevenue
         $properties = $propertyQuery->active()->limit(5)->get();
-        
+
         return $properties->map(function ($property) use ($thisMonth) {
             // Get this month's revenue from daily breakdown
             $monthlyRevenue = BookingDailyRevenue::where('property_id', $property->id)
@@ -526,17 +470,17 @@ class DashboardController extends Controller
                     $q->whereIn('booking_status', ['confirmed', 'checked_in', 'completed']);
                 })
                 ->sum('amount');
-            
+
             // Get booking count for this month
             $bookingCount = Booking::where('property_id', $property->id)
                 ->whereIn('booking_status', ['confirmed', 'checked_in', 'completed'])
                 ->whereBetween('created_at', [$thisMonth, now()])
                 ->count();
-            
+
             // Calculate occupancy rate
             $occupancyRate = $this->calculateOccupancyRate(
-                auth()->user(), 
-                $thisMonth, 
+                auth()->user(),
+                $thisMonth,
                 now(),
                 $property->id
             );
@@ -549,25 +493,25 @@ class DashboardController extends Controller
                 'occupancy_rate' => round($occupancyRate, 1),
             ];
         })
-        ->sortByDesc('total_revenue')
-        ->values()
-        ->toArray();
+            ->sortByDesc('total_revenue')
+            ->values()
+            ->toArray();
     }
 
     private function calculateOccupancyRate($user, $startDate, $endDate, $propertyId = null): float
     {
         $propertyQuery = Property::query();
-        
+
         if ($user->role === 'property_owner') {
             $propertyQuery->where('owner_id', $user->id);
         }
-        
+
         if ($propertyId) {
             $propertyQuery->where('id', $propertyId);
         }
 
         $properties = $propertyQuery->get();
-        
+
         if ($properties->isEmpty()) {
             return 0;
         }
@@ -580,20 +524,20 @@ class DashboardController extends Controller
                 ->where('booking_status', '!=', 'cancelled')
                 ->where(function ($q) use ($startDate, $endDate) {
                     $q->whereBetween('check_in', [$startDate, $endDate])
-                      ->orWhereBetween('check_out', [$startDate, $endDate])
-                      ->orWhere(function ($q2) use ($startDate, $endDate) {
-                          $q2->where('check_in', '<=', $startDate)
-                             ->where('check_out', '>=', $endDate);
-                      });
+                        ->orWhereBetween('check_out', [$startDate, $endDate])
+                        ->orWhere(function ($q2) use ($startDate, $endDate) {
+                            $q2->where('check_in', '<=', $startDate)
+                                ->where('check_out', '>=', $endDate);
+                        });
                 })
                 ->get()
                 ->sum(function ($booking) use ($startDate, $endDate) {
                     $checkIn = Carbon::parse($booking->check_in);
                     $checkOut = Carbon::parse($booking->check_out);
-                    
+
                     $actualStart = $checkIn->max($startDate);
                     $actualEnd = $checkOut->min($endDate);
-                    
+
                     return $actualStart->diffInDays($actualEnd);
                 });
 
@@ -611,18 +555,18 @@ class DashboardController extends Controller
         $thisMonth = Carbon::now()->startOfMonth();
         $lastMonth = Carbon::now()->subMonth()->startOfMonth();
         $lastMonthEnd = Carbon::now()->subMonth()->endOfMonth();
-        
+
         $ownerId = $user->role === 'property_owner' ? $user->id : null;
-        
+
         // Get this month's breakdown
         $thisMonthBreakdown = BookingDailyRevenue::getRevenueBreakdown($thisMonth, now(), null, $ownerId);
-        
+
         // Get last month's breakdown for comparison
         $lastMonthBreakdown = BookingDailyRevenue::getRevenueBreakdown($lastMonth, $lastMonthEnd, null, $ownerId);
-        
+
         // Calculate percentages for pie chart
         $total = $thisMonthBreakdown['total'] ?: 1; // Avoid division by zero
-        
+
         return [
             'current_month' => [
                 'total' => $thisMonthBreakdown['total'],
@@ -646,10 +590,9 @@ class DashboardController extends Controller
                 'seasonal' => round(($thisMonthBreakdown['seasonal_premium'] / $total) * 100, 1),
                 'extra_bed' => round(($thisMonthBreakdown['extra_bed_amount'] / $total) * 100, 1),
             ],
-            'change' => $lastMonthBreakdown['total'] > 0 
+            'change' => $lastMonthBreakdown['total'] > 0
                 ? round((($thisMonthBreakdown['total'] - $lastMonthBreakdown['total']) / $lastMonthBreakdown['total']) * 100, 1)
                 : 0,
         ];
     }
 }
- 

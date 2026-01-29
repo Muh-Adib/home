@@ -101,6 +101,9 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
     const [showPaymentLinkDialog, setShowPaymentLinkDialog] = useState(false);
     const [paymentLinkUrl, setPaymentLinkUrl] = useState<string | null>(null);
 
+    const [showVerifyDialog, setShowVerifyDialog] = useState(false);
+    const [showCancelDialog, setShowCancelDialog] = useState(false);
+
     const { data: verifyData, setData: setVerifyData, patch: patchVerify, processing: verifyProcessing } = useForm({
         notes: '',
     });
@@ -130,12 +133,16 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
 
     const handleVerify = (e: React.FormEvent) => {
         e.preventDefault();
-        patchVerify(`/admin/bookings/${booking.booking_number}/verify`);
+        patchVerify(`/admin/bookings/${booking.booking_number}/verify`, {
+            onSuccess: () => setShowVerifyDialog(false),
+        });
     };
 
     const handleCancel = (e: React.FormEvent) => {
         e.preventDefault();
-        patchCancel(`/admin/bookings/${booking.booking_number}/cancel`);
+        patchCancel(`/admin/bookings/${booking.booking_number}/cancel`, {
+            onSuccess: () => setShowCancelDialog(false),
+        });
     };
 
     const handleCheckIn = () => {
@@ -203,10 +210,6 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
             return;
         }
         deleteBooking(`/admin/booking-management/${booking.booking_number}`, {
-            data: {
-                deletion_reason: deleteData.deletion_reason,
-                confirm_delete: requiresExtraConfirmation ? confirmDelete : true,
-            },
             onSuccess: () => {
                 router.visit('/admin/booking-management');
             },
@@ -229,34 +232,9 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
             )}
             <DropdownMenuSeparator />
             {canVerify && (
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                            <CheckCircle className="h-4 w-4 mr-2 text-green-600" /> Verify
-                        </DropdownMenuItem>
-                    </DialogTrigger>
-                    <DialogContent className="bg-white p-6 sm:rounded-xl">
-                        <DialogHeader>
-                            <DialogTitle>Verify Booking</DialogTitle>
-                            <DialogDescription>Add optional notes for this verification.</DialogDescription>
-                        </DialogHeader>
-                        <form onSubmit={handleVerify} className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="notes">Verification Notes</Label>
-                                <Textarea
-                                    id="notes"
-                                    value={verifyData.notes}
-                                    onChange={(e) => setVerifyData('notes', e.target.value)}
-                                    placeholder="Notes..."
-                                    className="w-full"
-                                />
-                            </div>
-                            <Button type="submit" disabled={verifyProcessing} className="w-full">
-                                {verifyProcessing ? 'Verifying...' : 'Verify Booking'}
-                            </Button>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+                <DropdownMenuItem onClick={() => setShowVerifyDialog(true)}>
+                    <CheckCircle className="h-4 w-4 mr-2 text-green-600" /> Verify
+                </DropdownMenuItem>
             )}
 
             {canCheckIn && (
@@ -270,34 +248,9 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                 </DropdownMenuItem>
             )}
             {canCancel && (
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600 focus:text-red-600">
-                            <XCircle className="h-4 w-4 mr-2" /> Cancel Booking
-                        </DropdownMenuItem>
-                    </DialogTrigger>
-                    <DialogContent className="bg-white p-6 sm:rounded-xl">
-                        <DialogHeader>
-                            <DialogTitle>Cancel Booking</DialogTitle>
-                            <DialogDescription>Please provide a reason for cancellation.</DialogDescription>
-                        </DialogHeader>
-                        <form onSubmit={handleCancel} className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="cancellation_reason">Reason *</Label>
-                                <Textarea
-                                    id="cancellation_reason"
-                                    value={cancelData.cancellation_reason}
-                                    onChange={(e) => setCancelData('cancellation_reason', e.target.value)}
-                                    required
-                                    className="w-full"
-                                />
-                            </div>
-                            <Button type="submit" variant="destructive" disabled={cancelProcessing} className="w-full">
-                                {cancelProcessing ? 'Cancelling...' : 'Confirm Cancel'}
-                            </Button>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+                 <DropdownMenuItem onClick={() => setShowCancelDialog(true)} className="text-red-600 focus:text-red-600">
+                    <XCircle className="h-4 w-4 mr-2" /> Cancel Booking
+                </DropdownMenuItem>
             )}
         </>
     );
@@ -402,38 +355,62 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                 </Button>
                             )}
                             {canVerify && (
-                                <Dialog>
-                                    <DialogTrigger asChild>
-                                        <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                                            <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Verify
-                                        </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="bg-white p-6 sm:rounded-xl">
-                                        <DialogHeader>
-                                            <DialogTitle>Verify Booking</DialogTitle>
-                                            <DialogDescription>Add optional notes for this verification.</DialogDescription>
-                                        </DialogHeader>
-                                        <form onSubmit={handleVerify} className="space-y-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="notes">Verification Notes</Label>
-                                                <Textarea
-                                                    id="notes"
-                                                    value={verifyData.notes}
-                                                    onChange={(e) => setVerifyData('notes', e.target.value)}
-                                                    placeholder="Notes..."
-                                                    className="w-full"
-                                                />
-                                            </div>
-                                            <Button type="submit" disabled={verifyProcessing} className="w-full">
-                                                {verifyProcessing ? 'Verifying...' : 'Verify Booking'}
-                                            </Button>
-                                        </form>
-                                    </DialogContent>
-                                </Dialog>
+                                <Button size="sm" onClick={() => setShowVerifyDialog(true)} className="bg-green-600 hover:bg-green-700">
+                                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Verify
+                                </Button>
                             )}
                         </div>
                     </div>
                 </div>
+
+                {/* Dialogs */}
+                <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}>
+                    <DialogContent className="bg-white p-6 sm:rounded-xl">
+                        <DialogHeader>
+                            <DialogTitle>Verify Booking</DialogTitle>
+                            <DialogDescription>Add optional notes for this verification.</DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleVerify} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="notes">Verification Notes</Label>
+                                <Textarea
+                                    id="notes"
+                                    value={verifyData.notes}
+                                    onChange={(e) => setVerifyData('notes', e.target.value)}
+                                    placeholder="Notes..."
+                                    className="w-full"
+                                />
+                            </div>
+                            <Button type="submit" disabled={verifyProcessing} className="w-full">
+                                {verifyProcessing ? 'Verifying...' : 'Verify Booking'}
+                            </Button>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+                    <DialogContent className="bg-white p-6 sm:rounded-xl">
+                        <DialogHeader>
+                            <DialogTitle>Cancel Booking</DialogTitle>
+                            <DialogDescription>Please provide a reason for cancellation.</DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleCancel} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="cancellation_reason">Reason *</Label>
+                                <Textarea
+                                    id="cancellation_reason"
+                                    value={cancelData.cancellation_reason}
+                                    onChange={(e) => setCancelData('cancellation_reason', e.target.value)}
+                                    required
+                                    className="w-full"
+                                />
+                            </div>
+                            <Button type="submit" variant="destructive" disabled={cancelProcessing} className="w-full">
+                                {cancelProcessing ? 'Cancelling...' : 'Confirm Cancel'}
+                            </Button>
+                        </form>
+                    </DialogContent>
+                </Dialog>
 
                 {/* 2. Main Content Grid */}
                 <div className="max-w-7xl mx-auto px-4 md:px-8">
@@ -682,8 +659,9 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
 
                                                         postPaymentLink(`/admin/bookings/${booking.booking_number}/payment-gateway/send-link`, {
                                                             onSuccess: (page) => {
-                                                                if (page.props.flash?.payment_url) {
-                                                                    setPaymentLinkUrl(page.props.flash.payment_url as string);
+                                                                const flash = page.props.flash as any;
+                                                                if (flash?.payment_url) {
+                                                                    setPaymentLinkUrl(flash.payment_url);
                                                                 }
                                                             },
                                                             onError: (errors) => {
@@ -913,7 +891,6 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                         </form>
                     </DialogContent>
                 </Dialog>
-
             </div>
         </AdminLayout>
     );

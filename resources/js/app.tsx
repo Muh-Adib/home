@@ -11,6 +11,7 @@ import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { initializeTheme } from './hooks/use-appearance';
 import GlobalPageLoader from '@/components/GlobalPageLoader';
+import { Toaster } from 'sonner';
 
 // Initialize theme
 initializeTheme();
@@ -44,6 +45,7 @@ createInertiaApp({
             <QueryClientProvider client={queryClient}>
                 <I18nextProvider i18n={i18n}>
                     <GlobalPageLoader>
+                        {typeof window !== 'undefined' && <Toaster position="top-right" richColors closeButton expand={false} />}
                         <App {...props} />
                     </GlobalPageLoader>
                 </I18nextProvider>

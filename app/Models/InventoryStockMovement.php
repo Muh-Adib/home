@@ -11,13 +11,24 @@ class InventoryStockMovement extends Model
     use HasFactory;
 
     protected $fillable = [
-        'inventory_item_id','property_id','type','quantity','unit_cost','total_cost','movement_date','reference_type','reference_id','vendor_name','notes','created_by'
+        'inventory_item_id',
+        'property_id',
+        'type',
+        'quantity',
+        'unit_cost',
+        'total_cost',
+        'movement_date',
+        'reference_type',
+        'reference_id',
+        'vendor_name',
+        'notes',
+        'created_by'
     ];
 
     protected $casts = [
         'quantity' => 'decimal:4',
-        'unit_cost' => 'decimal:4',
-        'total_cost' => 'decimal:2',
+        'unit_cost' => 'integer',
+        'total_cost' => 'integer',
         'movement_date' => 'date',
     ];
 

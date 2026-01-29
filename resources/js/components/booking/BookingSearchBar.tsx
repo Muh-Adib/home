@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Search, X, Loader2 } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 import { type Booking } from '@/types';
+import { BookingStatusBadge } from '@/Components/Booking/BookingStatusBadge';
 import axios from 'axios';
 
 interface BookingSearchBarProps {
@@ -139,14 +140,7 @@ export default function BookingSearchBar({
                                             <span className="text-sm font-semibold text-gray-900">
                                                 {formatCurrency(booking.total_amount)}
                                             </span>
-                                            <span className={`text-xs px-2 py-1 rounded-full ${booking.booking_status === 'confirmed'
-                                                    ? 'bg-green-100 text-green-700'
-                                                    : booking.booking_status === 'pending_verification'
-                                                        ? 'bg-yellow-100 text-yellow-700'
-                                                        : 'bg-gray-100 text-gray-700'
-                                                }`}>
-                                                {booking.booking_status}
-                                            </span>
+                                            <BookingStatusBadge status={booking.booking_status} className="text-[10px]" />
                                         </div>
                                     </div>
                                 </Link>

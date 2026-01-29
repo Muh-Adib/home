@@ -8,6 +8,10 @@ use App\Services\RateCalculationService;
 use App\Services\AvailabilityService;
 use App\Services\RateService;
 use App\Repositories\BookingRepository;
+use App\Models\Article;
+use App\Models\ContentPlan;
+use App\Observers\ArticleObserver;
+use App\Observers\ContentPlanObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -53,5 +57,8 @@ class AppServiceProvider extends ServiceProvider
         if (app()->environment('production')) {
             \URL::forceScheme('https');
         }
+
+        Article::observe(ArticleObserver::class);
+        ContentPlan::observe(ContentPlanObserver::class);
     }
 }

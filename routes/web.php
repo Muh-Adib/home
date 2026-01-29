@@ -54,10 +54,13 @@ Route::get('/health', function () {
 // Dynamic Sitemap (Next.js style) - Auto-updates on property changes
 Route::get('/sitemap.xml', [\App\Http\Controllers\SitemapController::class, 'index'])->name('sitemap');
 
+// iCal Export (Public but protected by token)
+Route::get('/property/{slug}/ical/{token}', [\App\Http\Controllers\ICalController::class, 'export'])->name('ical.export');
+
 // Homepage
 Route::get('/', function () {
     $seoService = app(\App\Services\SeoService::class);
-    
+
     $featuredProperties = \App\Models\Property::active()
         ->featured()
         ->with(['media', 'amenities'])
@@ -79,15 +82,15 @@ Route::get('/faq', function () {
     return Inertia::render('FAQ');
 })->name('faq');
 
-Route::get('/support', function(){
+Route::get('/support', function () {
     return Inertia::render('Support');
 })->name('support');
 
 
 Route::get('/{slug}', [LegalViewController::class, 'show'])
     ->whereIn('slug', [
-        'tos', 
-        'privacy', 
+        'tos',
+        'privacy',
         'cookies',
         'refundpolicy',
         'paymentpolicy',
@@ -99,6 +102,12 @@ Route::get('/{slug}', [LegalViewController::class, 'show'])
 Route::controller(PropertyController::class)->group(function () {
     Route::get('/properties', 'index')->name('properties.index');
     Route::get('/properties/{property:slug}', 'show')->name('properties.show');
+});
+
+// Public Article Routes
+Route::controller(App\Http\Controllers\ArticleController::class)->group(function () {
+    Route::get('/articles', 'publicIndex')->name('articles.index');
+    Route::get('/articles/{article:slug}', 'show')->name('articles.show');
 });
 
 // Public Booking Routes
@@ -131,23 +140,31 @@ Route::post('/payment-gateway/webhook', [App\Http\Controllers\PaymentGatewayCont
 
 // Payment Gateway Routes (Guest & Authenticated Users)
 Route::middleware(['auth'])->group(function () {
-    Route::post('/bookings/{booking:booking_number}/payment-gateway/initiate', 
-        [App\Http\Controllers\PaymentGatewayController::class, 'initiate'])
+    Route::post(
+        '/bookings/{booking:booking_number}/payment-gateway/initiate',
+        [App\Http\Controllers\PaymentGatewayController::class, 'initiate']
+    )
         ->name('payment-gateway.initiate');
 });
 
 // Payment Gateway Callback (Public - redirect dari iPaymu)
-Route::get('/payment-gateway/callback', 
-    [App\Http\Controllers\PaymentGatewayController::class, 'callback'])
+Route::get(
+    '/payment-gateway/callback',
+    [App\Http\Controllers\PaymentGatewayController::class, 'callback']
+)
     ->name('payment-gateway.callback');
 
 // Payment Gateway Routes (Admin)
 Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
-    Route::post('/bookings/{booking:booking_number}/payment-gateway/generate-link', 
-        [App\Http\Controllers\PaymentGatewayController::class, 'generateLink'])
+    Route::post(
+        '/bookings/{booking:booking_number}/payment-gateway/generate-link',
+        [App\Http\Controllers\PaymentGatewayController::class, 'generateLink']
+    )
         ->name('payment-gateway.generate-link');
-    Route::post('/bookings/{booking:booking_number}/payment-gateway/send-link', 
-        [App\Http\Controllers\Admin\BookingManagementController::class, 'sendPaymentLink'])
+    Route::post(
+        '/bookings/{booking:booking_number}/payment-gateway/send-link',
+        [App\Http\Controllers\Admin\BookingManagementController::class, 'sendPaymentLink']
+    )
         ->name('bookings.send-payment-link');
 });
 
@@ -163,13 +180,13 @@ Route::prefix('api')->name('api.')->group(function () {
         ->name('properties.map-coordinates');
     Route::post('check-email', [BookingController::class, 'checkEmailExists'])
         ->name('check-email');
-    Route::get('properties',function () {
+    Route::get('properties', function () {
         $properties = \App\Models\Property::active()
-        ->with(['media', 'amenities'])
-        ->get();
+            ->with(['media', 'amenities'])
+            ->get();
         return response()->json([
-            'status'=>'success',
-            'data'=> $properties,
+            'status' => 'success',
+            'data' => $properties,
         ]);
     });
 });
@@ -185,15 +202,16 @@ Route::prefix('api')->name('api.')->group(function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    
+
     // User Bookings
-    Route::get('my-bookings', [BookingController::class, 'myBookings'])->name('my-bookings');
-    
+    Route::get('/booking/{booking:booking_number}', [BookingController::class, 'show'])->name('booking.show');
+
     // User Payments
     Route::controller(PaymentController::class)->group(function () {
-        Route::get('/my-payments', 'myPayments')->name('my-payments');
+        // Route::get('/my-payments', 'myPayments')->name('my-payments'); // Deprecated
+
         Route::get('/my-payments/{payment}', 'myPaymentShow')->name('my-payments.show');
-        
+
         // Secure payment routes
         Route::get('booking/{booking:booking_number}/payment/{token}', 'securePayment')
             ->name('booking.secure-payment')
@@ -202,7 +220,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('booking.secure-payment.store')
             ->where('token', '[a-zA-Z0-9]{32}');
     });
-    
+
     // Authenticated API Routes
     Route::prefix('api')->name('api.')->group(function () {
         Route::controller(PropertyController::class)->group(function () {
@@ -211,7 +229,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
         Route::get('amenities', [AmenityController::class, 'api_index'])->name('amenities.index');
     });
-    
+
     // Notification Routes
     Route::prefix('notifications')->name('notifications.')->controller(NotificationController::class)->group(function () {
         Route::get('/', 'index')->name('index');
@@ -240,7 +258,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
         Route::get('properties/{property:slug}', 'show')->name('properties.show');
         Route::get('properties/{property}/media', 'media')->name('properties.media');
     });
-    
+
     // Rate Management - accessible to front_desk
     Route::controller(App\Http\Controllers\Admin\RateManagementController::class)
         ->prefix('rate-management')
@@ -255,7 +273,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
             Route::post('/properties/{property}/bulk-update', 'bulkUpdateRates')->name('bulk-update');
             Route::get('/properties/{property}/calendar', 'getRateCalendar')->name('calendar');
         });
-    
+
     // Seasonal Rates Management (Legacy - keeping for backward compatibility)
     Route::controller(App\Http\Controllers\Admin\PropertySeasonalRateController::class)
         ->prefix('properties/{property}/seasonal-rates')
@@ -277,14 +295,15 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
         Route::get('properties/{property:slug}/edit', 'edit')->name('properties.edit');
         Route::put('properties/{property:slug}', 'update')->name('properties.update');
         Route::delete('properties/{property:slug}', 'destroy')->name('properties.destroy');
-        
+
         // Additional property management features
         Route::post('properties/bulk-status', 'bulkStatus')->name('properties.bulk-status');
         Route::patch('properties/{property:slug}/toggle-featured', 'toggleFeatured')->name('properties.toggle-featured');
         Route::post('properties/{property:slug}/duplicate', 'duplicate')->name('properties.duplicate');
         Route::get('properties/{property:slug}/analytics', 'analytics')->name('properties.analytics');
+        Route::post('properties/{property}/sync-ical', [\App\Http\Controllers\ICalController::class, 'sync'])->name('properties.sync-ical');
     });
-    
+
     // Media Management
     Route::controller(MediaController::class)->prefix('properties/{property}/media')->name('media.')->group(function () {
         Route::post('upload', 'upload')->name('upload');
@@ -293,13 +312,13 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
         Route::post('thumbnails', 'generateThumbnails')->name('thumbnails');
         Route::post('optimize', 'optimizeImages')->name('optimize');
     });
-    
+
     Route::controller(MediaController::class)->prefix('media')->name('media.')->group(function () {
         Route::patch('{media}', 'update')->name('update');
         Route::delete('{media}', 'destroy')->name('destroy');
         Route::patch('{media}/featured', 'setFeatured')->name('featured');
     });
-    
+
     // Amenities Management
     Route::resource('amenities', AmenityController::class)->names([
         'index' => 'amenities.index',
@@ -310,13 +329,13 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
         'update' => 'amenities.update',
         'destroy' => 'amenities.destroy',
     ]);
-    
+
     Route::controller(AmenityController::class)->prefix('amenities')->name('amenities.')->group(function () {
         Route::patch('{amenity}/status', 'toggleStatus')->name('toggle-status');
         Route::post('bulk-status', 'bulkStatus')->name('bulk-status');
         Route::post('reorder', 'reorder')->name('reorder');
     });
-    
+
     // Extra Services Management (only for super_admin and property_owner)
     Route::middleware(['role:super_admin,property_owner'])->group(function () {
         Route::resource('extra-services', App\Http\Controllers\Admin\ExtraServiceController::class)->names([
@@ -328,12 +347,91 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
             'update' => 'extra-services.update',
             'destroy' => 'extra-services.destroy',
         ]);
-        
+
         Route::controller(App\Http\Controllers\Admin\ExtraServiceController::class)->prefix('extra-services')->name('extra-services.')->group(function () {
             Route::patch('{service}/toggle', 'toggleStatus')->name('toggle');
             Route::post('{service}/thumbnail', 'uploadThumbnail')->name('thumbnail.upload');
         });
     });
+
+    // Article Management (All authenticated users except guests)
+    Route::controller(App\Http\Controllers\ArticleController::class)
+        ->prefix('articles')
+        ->name('articles.')
+        ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance'])
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/create', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+            Route::get('/{article:slug}/edit', 'edit')->name('edit');
+            Route::put('/{article:slug}', 'update')->name('update');
+            Route::delete('/{article:slug}', 'destroy')->name('destroy');
+
+            // Publishing actions
+            Route::post('/{article:slug}/publish', 'publish')->name('publish');
+            Route::post('/{article:slug}/schedule', 'schedule')->name('schedule');
+            Route::post('/{article:slug}/duplicate', 'duplicate')->name('duplicate');
+
+            // Image management
+            Route::post('/upload-image', 'uploadImage')->name('upload-image');
+            Route::delete('/delete-image', 'deleteImage')->name('delete-image');
+        });
+
+    // AI Article Assistance API
+    Route::controller(App\Http\Controllers\ArticleAIController::class)
+        ->prefix('api/articles/ai')
+        ->name('api.articles.ai.')
+        ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance'])
+        ->group(function () {
+            Route::post('/generate-title', 'generateTitle')->name('generate-title');
+            Route::post('/generate-outline', 'generateOutline')->name('generate-outline');
+            Route::post('/generate-content', 'generateContent')->name('generate-content');
+            Route::post('/improve-content', 'improveContent')->name('improve-content');
+            Route::post('/web-search', 'webSearch')->name('web-search');
+            Route::post('/seo-analysis', 'seoAnalysis')->name('seo-analysis');
+            Route::post('/suggest-links', 'suggestInternalLinks')->name('suggest-links');
+        });
+
+    // Content Planner Management
+    Route::controller(App\Http\Controllers\ContentPlanController::class)
+        ->prefix('content-plans')
+        ->name('content-plans.')
+        ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance'])
+        ->group(function () {
+            // Standard CRUD
+            Route::get('/', 'index')->name('index');
+            Route::get('/create', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+            Route::get('/{contentPlan}', 'show')->name('show');
+            Route::get('/{contentPlan}/edit', 'edit')->name('edit');
+            Route::put('/{contentPlan}', 'update')->name('update');
+            Route::delete('/{contentPlan}', 'destroy')->name('destroy');
+
+            // AI Features
+            Route::post('/generate-calendar', 'generateCalendar')->name('generate-calendar');
+            Route::post('/{contentPlan}/ai-research', 'aiResearch')->name('ai-research');
+            Route::post('/{contentPlan}/generate-outline', 'generateOutline')->name('generate-outline');
+            Route::post('/{contentPlan}/convert-to-article', 'convertToArticle')->name('convert-to-article');
+
+            // Bulk Operations
+            Route::post('/bulk-status', 'bulkUpdateStatus')->name('bulk-status');
+        });
+
+    // AI Provider Keys Management (super_admin only)
+    Route::controller(App\Http\Controllers\AIProviderKeyController::class)
+        ->prefix('settings/ai-keys')
+        ->name('ai-keys.')
+        ->middleware(['can:manage-ai-keys'])
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/create', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+            Route::get('/{aiKey}/edit', 'edit')->name('edit');
+            Route::put('/{aiKey}', 'update')->name('update');
+            Route::delete('/{aiKey}', 'destroy')->name('destroy');
+            Route::post('/{aiKey}/reset-stats', 'resetStats')->name('reset-stats');
+            Route::post('/{aiKey}/toggle-active', 'toggleActive')->name('toggle-active');
+        });
 });
 
 /*
@@ -346,7 +444,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
 
 Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('dashboard', [DashboardController::class, 'admin'])->name('dashboard');
-    
+
     // Check-In/Out Dashboard
     Route::controller(App\Http\Controllers\Admin\CheckInOutController::class)->group(function () {
         Route::get('bookings/check-in-out', 'index')->name('bookings.check-in-out');
@@ -361,20 +459,20 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
 
         Route::get('bookings/create', 'create')->name('bookings.create');
         Route::post('bookings', 'store')->name('bookings.store');
-        
+
         Route::get('bookings/{booking:booking_number}', 'show')->name('bookings.show');
         Route::get('bookings/{booking:booking_number}/edit', 'edit')->name('bookings.edit');
         Route::put('bookings/{booking:booking_number}', 'update')->name('bookings.update');
         Route::get('bookings/timeline', 'timelineView')->name('bookings.timeline');
         Route::get('bookings/timeline/{booking:booking_number}', 'timeline')->name('bookings.timeline.show');
-        
+
         Route::patch('bookings/{booking:booking_number}/verify', 'verify')->name('bookings.verify');
         Route::patch('bookings/{booking:booking_number}/reject', 'reject')->name('bookings.reject');
         Route::patch('bookings/{booking:booking_number}/cancel', 'cancel')->name('bookings.cancel');
         Route::patch('bookings/{booking:booking_number}/checkin', 'checkin')->name('bookings.checkin');
         Route::patch('bookings/{booking:booking_number}/checkout', 'checkout')->name('bookings.checkout');
         Route::get('bookings/{booking:booking_number}/whatsapp', 'sendWhatsApp')->name('bookings.whatsapp');
-        
+
         // Booking management routes
         Route::get('booking-management', 'index')->name('booking-management.index');
         Route::get('booking-management/calendar', 'calendar')->name('booking-management.calendar');
@@ -385,7 +483,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::patch('booking-management/{booking:booking_number}', 'update')->name('booking-management.update');
         Route::delete('booking-management/{booking:booking_number}', 'destroy')->name('booking-management.destroy');
         Route::patch('booking-management/{booking:booking_number}/status', 'updateStatus')->name('booking-management.update-status');
-        
+
         // Import/Export
         Route::get('bookings/export/download', 'export')->name('bookings.export');
         Route::post('bookings/import/preview', 'importPreview')->name('bookings.import.preview');
@@ -436,7 +534,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix
         Route::delete('/{payment:payment_number}', 'destroy')->name('destroy');
         Route::patch('/{payment:payment_number}/verify', 'verify')->name('verify');
         Route::patch('/{payment:payment_number}/reject', 'reject')->name('reject');
-        
+
         // Booking-specific payment routes
         Route::get('/booking/{booking:booking_number}/create', 'createForBooking')->name('create-for-booking');
         Route::post('/booking/{booking:booking_number}/create', 'storeForBooking')->name('store-for-booking');
@@ -523,10 +621,10 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
             'update' => 'users.update',
             'destroy' => 'users.destroy',
         ]);
-    
+
     Route::patch('users/{user}/status', [App\Http\Controllers\Admin\UserController::class, 'toggleStatus'])
         ->name('users.status');
-    
+
     // Payment Methods Management
     Route::controller(App\Http\Controllers\Admin\PaymentMethodController::class)
         ->prefix('payment-methods')
@@ -542,34 +640,34 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
             Route::put('{paymentMethod}/toggle', 'toggle')->name('toggle');
             Route::put('order', 'updateOrder')->name('update-order');
         });
-    
+
     // Settings Management
     Route::controller(SettingsController::class)->prefix('settings')->name('settings.')->group(function () {
         Route::get('/', 'index')->name('index');
-        
+
         // General Settings
         Route::get('general', 'general')->name('general');
         Route::post('general', 'updateGeneral')->name('general.update');
-        
+
         // Payment Settings
         Route::get('payment', 'payment')->name('payment');
         Route::post('payment', 'updatePayment')->name('payment.update');
-        
+
         // Email Settings
         Route::get('email', 'email')->name('email');
         Route::post('email', 'updateEmail')->name('email.update');
         Route::post('email/test', 'testEmail')->name('email.test');
-        
+
         // System Settings
         Route::get('system', 'system')->name('system');
         Route::post('system', 'updateSystem')->name('system.update');
         Route::post('system/clear-cache', 'clearCache')->name('system.clear-cache');
         Route::post('system/backup', 'backupDatabase')->name('system.backup');
-        
+
         // Booking Settings
         Route::get('booking', 'booking')->name('booking');
         Route::post('booking', 'updateBooking')->name('booking.update');
-        
+
         // Property Settings
         Route::get('property', 'property')->name('property');
         Route::post('property', 'updateProperty')->name('property.update');
@@ -590,7 +688,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         });
     });
 
-    
+
     // Legal Management
     Route::controller(App\Http\Controllers\Admin\LegalPageController::class)->prefix('legal')->name('legal.')->group(function () {
         // Main CRUD
@@ -598,17 +696,17 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         Route::get('/create', 'create')->name('create');
         Route::post('/', 'store')->name('store');
         Route::get('/{slug}/edit', 'edit')->name('edit');
-        Route::put('/{slug}',  'update')->name('update');
-        
+        Route::put('/{slug}', 'update')->name('update');
+
         // History & Archive
         Route::get('/{slug}/history', 'history')->name('history');
         Route::get('/archived/{id}', 'showArchived')->name('archived.show');
         Route::post('/restore/{id}', 'restore')->name('restore');
-        
+
         // Archive actions
         Route::post('/{slug}/archive', 'archive')->name('archive');
         Route::get('/trash', 'trash')->name('trash');
-        
+
         // Delete actions
         Route::delete('/archived/{id}/force', 'forceDelete')->name('archived.force-delete');
         Route::delete('/{slug}/destroy-all', 'destroyAll')->name('destroy-all');
@@ -623,7 +721,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:super_admin,cleaning_staff,front_desk'])->group(function () {
+Route::middleware(['auth', 'role:super_admin,housekeeping,front_desk'])->group(function () {
     Route::get('/staff/cleaning', [App\Http\Controllers\Staff\CleaningDashboardController::class, 'index'])
         ->name('staff.cleaning.index');
     Route::patch('/staff/cleaning/{booking}/mark-cleaned', [App\Http\Controllers\Staff\CleaningDashboardController::class, 'markAsCleaned'])
@@ -658,32 +756,14 @@ Route::post('/broadcasting/auth', function (Request $request) {
     return response()->json(['authenticated' => true]);
 })->middleware(['auth']);
 
-// Test notification route for debugging
-Route::post('/test-notification', function (Request $request) {
-    if (!auth()->check()) {
-        return response()->json(['error' => 'Unauthorized'], 401);
-    }
-    
-    $user = auth()->user();
-    
-    $user->notify(new \App\Notifications\BookingCreatedNotification([
-        'title' => $request->input('title', 'Test Notification'),
-        'message' => $request->input('message', 'This is a test notification'),
-        'action_url' => '/dashboard',
-        'booking_number' => 'TEST-' . time(),
-    ]));
-    
-    return response()->json(['success' => true, 'message' => 'Test notification sent']);
-})->middleware(['auth']);
-
 /*
 |--------------------------------------------------------------------------
 | INCLUDE ADDITIONAL ROUTE FILES
 |--------------------------------------------------------------------------
 */
 
-require __DIR__.'/settings.php';
-require __DIR__.'/auth.php';
+require __DIR__ . '/settings.php';
+require __DIR__ . '/auth.php';
 /*
 |--------------------------------------------------------------------------
 | PROGRAMMATIC SEO LANDING PAGES - CATCH-ALL ROUTE

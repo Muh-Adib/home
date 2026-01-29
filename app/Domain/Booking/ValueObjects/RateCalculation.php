@@ -8,17 +8,18 @@ class RateCalculation
 {
     public function __construct(
         public readonly int $nights,
-        public readonly float $baseAmount,
-        public readonly float $weekendPremium,
-        public readonly float $seasonalPremium,
-        public readonly float $extraBedAmount,
-        public readonly float $cleaningFee,
-        public readonly float $taxAmount,
-        public readonly float $totalAmount,
+        public readonly int $baseAmount,
+        public readonly int $weekendPremium,
+        public readonly int $seasonalPremium,
+        public readonly int $extraBedAmount,
+        public readonly int $cleaningFee,
+        public readonly int $taxAmount,
+        public readonly int $totalAmount,
         public readonly int $extraBeds,
         public readonly array $breakdown = [],
         public readonly array $seasonalRatesApplied = []
-    ) {}
+    ) {
+    }
 
     public function toArray(): array
     {
@@ -41,7 +42,7 @@ class RateCalculation
         ];
     }
 
-    public function getSubtotal(): float
+    public function getSubtotal(): int
     {
         return $this->baseAmount + $this->weekendPremium + $this->seasonalPremium + $this->extraBedAmount + $this->cleaningFee;
     }
@@ -65,4 +66,4 @@ class RateCalculation
     {
         return $this->extraBeds > 0;
     }
-} 
+}

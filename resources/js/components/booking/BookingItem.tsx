@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { formatCurrency } from '@/lib/utils';
 import { getBookingStatusColor, getBookingStatusText, diffInDays, formatDate } from '@/utils/date';
 import { type Booking, type BookingStatus } from '@/types';
+import { BookingStatusBadge } from '@/Components/Booking/BookingStatusBadge';
+import { PaymentStatusBadge } from '@/Components/Booking/PaymentStatusBadge';
 import { Users, Building2, Calendar, Phone, Mail } from 'lucide-react';
 
 interface BookingItemProps {
@@ -53,7 +55,7 @@ export default function BookingItem({
     const checkoutDate = new Date(booking.check_out);
     checkoutDate.setHours(0, 0, 0, 0);
     const isOverdue = checkoutDate < today && booking.booking_status !== 'checked_out';
-    
+
     // Debug log
     if (isOverdue) {
         console.log(`[OVERDUE] ${booking.booking_number}:`, {
@@ -157,12 +159,8 @@ export default function BookingItem({
                                 <span className="font-medium text-green-400">{formatCurrency(booking.total_amount)}</span>
                             </div>
                             <div className="flex justify-between gap-4 text-[10px] mt-1 uppercase tracking-wider">
-                                <span className={`px-1 rounded ${booking.booking_status === 'confirmed' ? 'bg-green-900 text-green-300' : 'bg-gray-700'}`}>
-                                    {booking.booking_status.replace('_', ' ')}
-                                </span>
-                                <span className={`px-1 rounded ${booking.payment_status === 'fully_paid' ? 'bg-green-900 text-green-300' : 'bg-orange-900 text-orange-300'}`}>
-                                    {booking.payment_status?.replace('_', ' ')}
-                                </span>
+                                <BookingStatusBadge status={booking.booking_status} className="text-[10px] py-0 px-1" />
+                                <PaymentStatusBadge status={booking.payment_status} className="text-[10px] py-0 px-1" />
                             </div>
                         </div>
 

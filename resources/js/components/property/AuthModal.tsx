@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LogIn, UserPlus, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import AppLogo from '@/components/app-logo';
 
 interface AuthModalProps {
     open: boolean;
@@ -32,49 +33,56 @@ export function AuthModal({ open, onOpenChange, returnUrl }: AuthModalProps) {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md rounded-xl p-6 shadow-lg">
-                <DialogHeader className="space-y-3">
-                    <DialogTitle className="flex flex-col items-center gap-3 text-2xl font-semibold">
-                        <div className="p-2 rounded-full bg-brand-primary/10">
-                            <AlertCircle className="h-15 w-15 text-brand-primary" />
-                        </div>
-                        {t('auth.login_required')}
-                    </DialogTitle>
+            <DialogContent className="sm:max-w-[400px] flex flex-col gap-0 p-0 overflow-hidden border-none shadow-2xl">
+                <div className="relative h-32 w-full flex items-center justify-center overflow-hidden bg-brand-primary/5">
+                    <div className="absolute inset-0 bg-gradient-to-b from-brand-primary/5 to-transparent" />
+                    {/* Decorative elements */}
+                    <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-brand-primary/5 blur-3xl text-brand-primary" />
+                    <div className="absolute -bottom-12 -left-12 h-32 w-32 rounded-full bg-brand-primary/5 blur-3xl text-brand-primary" />
 
-                    <DialogDescription className="text-base text-muted-foreground leading-relaxed">
-                        {t('auth.login_required_description')}
-                    </DialogDescription>
-                </DialogHeader>
-
-                <div className="mt-4">
-                    <Alert className="bg-brand-primary/5 border border-brand-primary/20 rounded-lg p-4">
-                        <div className="flex items-start gap-3">
-                            <AlertCircle className="h-4 w-4 mt-1 text-brand-primary" />
-                            <AlertDescription className="text-brand-primary text-sm">
-                                {t('auth.booking_saved_message')}
-                            </AlertDescription>
-                        </div>
-                    </Alert>
+                    <div className="z-10 transform scale-[2.0]">
+                        <AppLogo />
+                    </div>
                 </div>
 
-                <DialogFooter className="mt-6 flex flex-col gap-3">
-                    <Button
-                        onClick={handleLogin}
-                        className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white rounded-lg py-3 text-base"
-                    >
-                        <LogIn className="h-4 w-4 mr-2" />
-                        {t('auth.sign_in')}
-                    </Button>
+                <div className="px-6 pt-2 pb-6">
+                    <DialogHeader className="mb-5 space-y-2">
+                        <DialogTitle className="text-center text-xl font-bold tracking-tight">
+                            {t('auth.login_required')}
+                        </DialogTitle>
+                        <DialogDescription className="text-center text-sm text-muted-foreground">
+                            {t('auth.login_required_description')}
+                        </DialogDescription>
+                    </DialogHeader>
 
-                    <Button
-                        onClick={handleRegister}
-                        variant="outline"
-                        className="w-full rounded-lg py-3 text-base border-brand-primary/30 hover:bg-brand-primary/10 hover:border-brand-primary/50"
-                    >
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        {t('auth.sign_up')}
-                    </Button>
-                </DialogFooter>
+                    <div className="mb-6">
+                        <Alert className="border-brand-primary/10 bg-brand-primary/5 text-brand-primary py-3">
+                            <AlertCircle className="h-4 w-4 stroke-brand-primary" />
+                            <AlertDescription className="ml-2 text-xs font-medium">
+                                {t('auth.booking_saved_message')}
+                            </AlertDescription>
+                        </Alert>
+                    </div>
+
+                    <DialogFooter className="flex flex-col gap-3 sm:flex-col sm:space-x-0">
+                        <Button
+                            onClick={handleLogin}
+                            className="h-10 w-full bg-brand-primary font-medium text-white shadow-md shadow-brand-primary/10 transition-all hover:bg-brand-primary/90 hover:shadow-brand-primary/20"
+                        >
+                            <LogIn className="mr-2 h-4 w-4" />
+                            {t('auth.sign_in')}
+                        </Button>
+
+                        <Button
+                            onClick={handleRegister}
+                            variant="ghost"
+                            className="h-10 w-full border border-input bg-transparent font-medium hover:bg-accent hover:text-accent-foreground"
+                        >
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            {t('auth.sign_up')}
+                        </Button>
+                    </DialogFooter>
+                </div>
             </DialogContent>
         </Dialog>
     );

@@ -111,6 +111,10 @@ COPY . .
 COPY --from=node-builder /app/public/build ./public/build
 COPY --from=node-builder /app/bootstrap/ssr ./bootstrap/ssr
 
+# ✅ FIX: Copy node_modules for SSR runtime (React and dependencies)
+# SSR needs access to node_modules at runtime to resolve imports
+COPY --from=node-builder /app/node_modules ./node_modules
+
 # Generate optimized autoloader (skip artisan scripts that require DB during build)
 RUN composer dump-autoload --optimize --no-scripts
 

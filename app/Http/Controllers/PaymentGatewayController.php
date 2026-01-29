@@ -28,7 +28,7 @@ class PaymentGatewayController extends Controller
      *
      * @param Request $request
      * @param Booking $booking
-     * @return RedirectResponse|JsonResponse
+     * @return RedirectResponse|JsonResponse|\Symfony\Component\HttpFoundation\Response
      */
     public function initiate(Request $request, Booking $booking)
     {
@@ -36,6 +36,12 @@ class PaymentGatewayController extends Controller
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
         }
+
+        Log::info('Initiating payment gateway', [
+            'booking' => $booking->booking_number,
+            'amount' => $request->amount,
+            'user_id' => Auth::id(),
+        ]);
 
         $validated = $request->validate([
             'amount' => 'required|numeric|min:1',
@@ -51,7 +57,14 @@ class PaymentGatewayController extends Controller
                 ->sum('amount');
             $pendingAmount = $booking->total_amount - $paidAmount;
 
+            Log::info('Payment amounts calculated', [
+                'paid' => $paidAmount,
+                'pending' => $pendingAmount,
+                'requested' => $validated['amount']
+            ]);
+
             if ($validated['amount'] > $pendingAmount) {
+                Log::warning('Payment amount exceeds pending', ['pending' => $pendingAmount, 'requested' => $validated['amount']]);
                 return back()->withErrors([
                     'amount' => 'Payment amount exceeds pending amount.'
                 ]);
@@ -75,11 +88,17 @@ class PaymentGatewayController extends Controller
                 ]
             );
 
+            Log::info('Payment gateway response', [
+                'payment_url' => $payment->ipaymu_payment_url,
+                'success' => (bool) $payment->ipaymu_payment_url
+            ]);
+
             // Redirect ke payment URL
             if ($payment->ipaymu_payment_url) {
-                return redirect($payment->ipaymu_payment_url);
+                return Inertia::location($payment->ipaymu_payment_url);
             }
 
+            Log::error('No payment URL in response');
             return back()->withErrors([
                 'error' => 'Failed to generate payment URL.'
             ]);
@@ -88,6 +107,7 @@ class PaymentGatewayController extends Controller
             Log::error('Failed to initiate gateway payment', [
                 'booking_id' => $booking->id,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return back()->withErrors([
@@ -106,7 +126,7 @@ class PaymentGatewayController extends Controller
     {
         try {
             $callbackData = $request->all();
-            
+
             Log::info('Payment gateway callback received', [
                 'data' => $callbackData,
             ]);
@@ -130,7 +150,7 @@ class PaymentGatewayController extends Controller
                 $redirectRoute = route('bookings.show', $booking->booking_number);
             }
 
-            return match($status) {
+            return match ($status) {
                 'verified' => redirect($redirectRoute)
                     ->with('success', 'Payment successful! Your payment has been verified.'),
                 'pending' => redirect($redirectRoute)

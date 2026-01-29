@@ -11,14 +11,22 @@ class InventoryUsage extends Model
     use HasFactory;
 
     protected $fillable = [
-        'inventory_item_id','property_id','usage_date','quantity_used','unit_cost_snapshot','total_cost','notes','created_by','expense_id'
+        'inventory_item_id',
+        'property_id',
+        'usage_date',
+        'quantity_used',
+        'unit_cost_snapshot',
+        'total_cost',
+        'notes',
+        'created_by',
+        'expense_id'
     ];
 
     protected $casts = [
         'usage_date' => 'date',
         'quantity_used' => 'decimal:4',
-        'unit_cost_snapshot' => 'decimal:4',
-        'total_cost' => 'decimal:2',
+        'unit_cost_snapshot' => 'integer',
+        'total_cost' => 'integer',
     ];
 
     public function item(): BelongsTo

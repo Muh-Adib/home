@@ -166,6 +166,8 @@ class PropertyManagementController extends Controller
             'checkin_instructions.emergency_contact' => 'nullable|string|max:200',
             'checkin_instructions.additional_info' => 'nullable|array',
             'checkin_instructions.additional_info.*' => 'string|max:300',
+            'ical_import_urls' => 'nullable|array',
+            'ical_import_urls.*' => 'nullable|url|max:500',
         ];
 
         // Only super_admin can assign owner_id, property_owner creates for themselves
@@ -429,6 +431,8 @@ class PropertyManagementController extends Controller
             'checkin_instructions.emergency_contact' => 'nullable|string|max:200',
             'checkin_instructions.additional_info' => 'nullable|array',
             'checkin_instructions.additional_info.*' => 'string|max:300',
+            'ical_import_urls' => 'nullable|array',
+            'ical_import_urls.*' => 'nullable|url|max:500',
         ]);
 
         // Update slug if name changed

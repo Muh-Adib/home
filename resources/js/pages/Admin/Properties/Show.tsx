@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
-import { formatTime} from '@/utils/dateUtils';
+import { formatTime } from '@/utils/dateUtils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,7 @@ import {
     Filter,
     Download
 } from 'lucide-react';
+import { BookingStatusBadge } from '@/Components/Booking/BookingStatusBadge';
 import TextFormatMarkdown from '@/components/text-mark-down';
 
 interface SeasonalRate {
@@ -784,15 +785,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                                         </p>
                                                     </div>
                                                     <div className="text-right flex-shrink-0 ml-4">
-                                                        <Badge className={`${booking.booking_status === 'confirmed' ? 'bg-green-500' :
-                                                            booking.booking_status === 'pending_verification' ? 'bg-amber-500' :
-                                                                booking.booking_status === 'checked_in' ? 'bg-blue-500' :
-                                                                    booking.booking_status === 'checked_out' ? 'bg-gray-500' :
-                                                                        booking.booking_status === 'cancelled' ? 'bg-red-500' :
-                                                                            'bg-gray-400'
-                                                            } text-white`}>
-                                                            {(booking.booking_status || 'unknown').replace(/_/g, ' ')}
-                                                        </Badge>
+                                                        <BookingStatusBadge status={booking.booking_status} />
                                                         <p className="text-lg font-bold mt-2 text-emerald-600">
                                                             {formatCurrency(booking.total_amount || 0)}
                                                         </p>

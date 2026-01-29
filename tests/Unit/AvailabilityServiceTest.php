@@ -20,10 +20,10 @@ class AvailabilityServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $rateCalculationService = new RateCalculationService();
         $this->availabilityService = new AvailabilityService($rateCalculationService);
-        
+
         // Create test property
         $this->property = Property::factory()->create([
             'base_rate' => 500000,
@@ -35,8 +35,8 @@ class AvailabilityServiceTest extends TestCase
     /** @test */
     public function it_returns_available_when_no_bookings_exist()
     {
-        $checkIn = '2024-01-15';
-        $checkOut = '2024-01-17';
+        $checkIn = Carbon::tomorrow()->format('Y-m-d');
+        $checkOut = Carbon::tomorrow()->addDays(2)->format('Y-m-d');
 
         $result = $this->availabilityService->checkAvailability(
             $this->property,
@@ -59,13 +59,13 @@ class AvailabilityServiceTest extends TestCase
         // Create overlapping booking
         Booking::factory()->create([
             'property_id' => $this->property->id,
-            'check_in' => '2024-01-14',
-            'check_out' => '2024-01-18',
+            'check_in' => Carbon::tomorrow()->format('Y-m-d'),
+            'check_out' => Carbon::tomorrow()->addDays(4)->format('Y-m-d'),
             'booking_status' => 'confirmed',
         ]);
 
-        $checkIn = '2024-01-15';
-        $checkOut = '2024-01-17';
+        $checkIn = Carbon::tomorrow()->addDays(1)->format('Y-m-d');
+        $checkOut = Carbon::tomorrow()->addDays(3)->format('Y-m-d');
 
         $result = $this->availabilityService->checkAvailability(
             $this->property,
@@ -85,13 +85,13 @@ class AvailabilityServiceTest extends TestCase
         // Create booking that overlaps with our search range
         Booking::factory()->create([
             'property_id' => $this->property->id,
-            'check_in' => '2024-01-14',
-            'check_out' => '2024-01-18',
+            'check_in' => Carbon::tomorrow()->format('Y-m-d'),
+            'check_out' => Carbon::tomorrow()->addDays(4)->format('Y-m-d'),
             'booking_status' => 'confirmed',
         ]);
 
-        $checkIn = '2024-01-15';
-        $checkOut = '2024-01-20';
+        $checkIn = Carbon::tomorrow()->addDays(1)->format('Y-m-d');
+        $checkOut = Carbon::tomorrow()->addDays(6)->format('Y-m-d');
 
         $bookedDates = $this->availabilityService->getBookedDatesInRange(
             $this->property,
@@ -99,9 +99,12 @@ class AvailabilityServiceTest extends TestCase
             $checkOut
         );
 
-        // Should include dates from 2024-01-15 to 2024-01-17 (within our range)
-        $expectedDates = ['2024-01-15', '2024-01-16', '2024-01-17'];
-        
+        // Should include dates from tomorrow+1 to tomorrow+3 (within our range)
+        $t1 = Carbon::tomorrow()->addDays(1)->format('Y-m-d');
+        $t2 = Carbon::tomorrow()->addDays(2)->format('Y-m-d');
+        $t3 = Carbon::tomorrow()->addDays(3)->format('Y-m-d');
+        $expectedDates = [$t1, $t2, $t3];
+
         foreach ($expectedDates as $date) {
             $this->assertContains($date, $bookedDates);
         }
@@ -113,20 +116,20 @@ class AvailabilityServiceTest extends TestCase
         // Create two separate bookings
         Booking::factory()->create([
             'property_id' => $this->property->id,
-            'check_in' => '2024-01-15',
-            'check_out' => '2024-01-17',
+            'check_in' => Carbon::tomorrow()->addDays(5)->format('Y-m-d'),
+            'check_out' => Carbon::tomorrow()->addDays(7)->format('Y-m-d'),
             'booking_status' => 'confirmed',
         ]);
 
         Booking::factory()->create([
             'property_id' => $this->property->id,
-            'check_in' => '2024-01-20',
-            'check_out' => '2024-01-22',
+            'check_in' => Carbon::tomorrow()->addDays(10)->format('Y-m-d'),
+            'check_out' => Carbon::tomorrow()->addDays(12)->format('Y-m-d'),
             'booking_status' => 'confirmed',
         ]);
 
-        $checkIn = '2024-01-10';
-        $checkOut = '2024-01-25';
+        $checkIn = Carbon::tomorrow()->format('Y-m-d');
+        $checkOut = Carbon::tomorrow()->addDays(15)->format('Y-m-d');
 
         $bookedPeriods = $this->availabilityService->getBookedPeriodsInRange(
             $this->property,
@@ -135,7 +138,7 @@ class AvailabilityServiceTest extends TestCase
         );
 
         $this->assertCount(2, $bookedPeriods);
-        
+
         // Verify format: [[check_in, check_out], ...]
         foreach ($bookedPeriods as $period) {
             $this->assertIsArray($period);
@@ -149,13 +152,13 @@ class AvailabilityServiceTest extends TestCase
         // Create cancelled booking
         Booking::factory()->create([
             'property_id' => $this->property->id,
-            'check_in' => '2024-01-15',
-            'check_out' => '2024-01-17',
+            'check_in' => Carbon::tomorrow()->addDays(5)->format('Y-m-d'),
+            'check_out' => Carbon::tomorrow()->addDays(7)->format('Y-m-d'),
             'booking_status' => 'cancelled',
         ]);
 
-        $checkIn = '2024-01-15';
-        $checkOut = '2024-01-17';
+        $checkIn = Carbon::tomorrow()->addDays(5)->format('Y-m-d');
+        $checkOut = Carbon::tomorrow()->addDays(7)->format('Y-m-d');
 
         $result = $this->availabilityService->checkAvailability(
             $this->property,
@@ -171,22 +174,22 @@ class AvailabilityServiceTest extends TestCase
     public function it_considers_various_confirmed_booking_statuses()
     {
         $confirmedStatuses = ['pending_verification', 'confirmed', 'checked_in', 'checked_out'];
-        
+
         foreach ($confirmedStatuses as $status) {
             // Clean up previous bookings
             Booking::query()->delete();
-            
+
             Booking::factory()->create([
                 'property_id' => $this->property->id,
-                'check_in' => '2024-01-15',
-                'check_out' => '2024-01-17',
+                'check_in' => Carbon::tomorrow()->addDays(5)->format('Y-m-d'),
+                'check_out' => Carbon::tomorrow()->addDays(7)->format('Y-m-d'),
                 'booking_status' => $status,
             ]);
 
             $result = $this->availabilityService->checkAvailability(
                 $this->property,
-                '2024-01-15',
-                '2024-01-17'
+                Carbon::tomorrow()->addDays(5)->format('Y-m-d'),
+                Carbon::tomorrow()->addDays(7)->format('Y-m-d')
             );
 
             $this->assertFalse($result['available'], "Status {$status} should make property unavailable");
@@ -199,7 +202,7 @@ class AvailabilityServiceTest extends TestCase
         // Test past check-in date
         $pastDate = Carbon::yesterday()->format('Y-m-d');
         $futureDate = Carbon::tomorrow()->format('Y-m-d');
-        
+
         $errors = $this->availabilityService->validateDates($pastDate, $futureDate);
         $this->assertNotNull($errors);
         $this->assertContains('Check-in date cannot be in the past', $errors);
@@ -207,7 +210,7 @@ class AvailabilityServiceTest extends TestCase
         // Test check-out before check-in
         $checkIn = '2024-01-17';
         $checkOut = '2024-01-15';
-        
+
         $errors = $this->availabilityService->validateDates($checkIn, $checkOut);
         $this->assertNotNull($errors);
         $this->assertContains('Check-out date must be after check-in date', $errors);
@@ -215,7 +218,7 @@ class AvailabilityServiceTest extends TestCase
         // Test valid dates
         $validCheckIn = Carbon::tomorrow()->format('Y-m-d');
         $validCheckOut = Carbon::tomorrow()->addDays(2)->format('Y-m-d');
-        
+
         $errors = $this->availabilityService->validateDates($validCheckIn, $validCheckOut);
         $this->assertNull($errors);
     }
@@ -223,8 +226,8 @@ class AvailabilityServiceTest extends TestCase
     /** @test */
     public function it_delegates_rate_calculation_to_rate_service()
     {
-        $checkIn = '2024-01-15';
-        $checkOut = '2024-01-17';
+        $checkIn = Carbon::tomorrow()->addDays(5)->format('Y-m-d');
+        $checkOut = Carbon::tomorrow()->addDays(7)->format('Y-m-d');
         $guestCount = 2;
 
         $result = $this->availabilityService->calculateRateFormatted(
@@ -236,14 +239,14 @@ class AvailabilityServiceTest extends TestCase
 
         // Should delegate to RateCalculationService and return formatted result
         $this->assertTrue($result['success']);
-        $this->assertArrayHasKey('rates', $result);
+        $this->assertArrayHasKey('calculation', $result);
     }
 
     /** @test */
     public function it_validates_guest_count_against_property_capacity()
     {
-        $checkIn = '2024-01-15';
-        $checkOut = '2024-01-17';
+        $checkIn = Carbon::tomorrow()->addDays(5)->format('Y-m-d');
+        $checkOut = Carbon::tomorrow()->addDays(7)->format('Y-m-d');
         $guestCount = 10; // Exceeds property capacity_max of 6
 
         $result = $this->availabilityService->calculateRateFormatted(
@@ -255,7 +258,7 @@ class AvailabilityServiceTest extends TestCase
 
         $this->assertFalse($result['success']);
         $this->assertEquals('capacity', $result['error_type']);
-        $this->assertStringContains('capacity', $result['message']);
+        $this->assertStringContainsString('capacity', $result['message']);
     }
 
     /** @test */
@@ -264,13 +267,13 @@ class AvailabilityServiceTest extends TestCase
         // Create overlapping booking
         Booking::factory()->create([
             'property_id' => $this->property->id,
-            'check_in' => '2024-01-15',
-            'check_out' => '2024-01-17',
+            'check_in' => Carbon::tomorrow()->addDays(5)->format('Y-m-d'),
+            'check_out' => Carbon::tomorrow()->addDays(7)->format('Y-m-d'),
             'booking_status' => 'confirmed',
         ]);
 
-        $checkIn = '2024-01-15';
-        $checkOut = '2024-01-17';
+        $checkIn = Carbon::tomorrow()->addDays(5)->format('Y-m-d');
+        $checkOut = Carbon::tomorrow()->addDays(7)->format('Y-m-d');
         $guestCount = 2;
 
         $result = $this->availabilityService->calculateRateFormatted(
@@ -295,17 +298,17 @@ class AvailabilityServiceTest extends TestCase
         // Book property2 for the dates we're searching
         Booking::factory()->create([
             'property_id' => $property2->id,
-            'check_in' => '2024-01-15',
-            'check_out' => '2024-01-17',
+            'check_in' => Carbon::tomorrow()->addDays(5)->format('Y-m-d'),
+            'check_out' => Carbon::tomorrow()->addDays(7)->format('Y-m-d'),
             'booking_status' => 'confirmed',
         ]);
 
-        $checkIn = '2024-01-15';
-        $checkOut = '2024-01-17';
+        $checkIn = Carbon::tomorrow()->addDays(5)->format('Y-m-d');
+        $checkOut = Carbon::tomorrow()->addDays(7)->format('Y-m-d');
 
         // Start with query for all properties
         $query = Property::query();
-        
+
         // Apply availability filter
         $filteredQuery = $this->availabilityService->filterPropertiesByAvailability(
             $query,
@@ -338,17 +341,17 @@ class AvailabilityServiceTest extends TestCase
         $this->assertEquals($nights, $result['nights']);
         $this->assertArrayHasKey('check_in', $result);
         $this->assertArrayHasKey('check_out', $result);
-        
+
         // Verify the suggested dates are actually available
         $suggestedCheckIn = $result['check_in'];
         $suggestedCheckOut = $result['check_out'];
-        
+
         $availability = $this->availabilityService->checkAvailability(
             $this->property,
             $suggestedCheckIn,
             $suggestedCheckOut
         );
-        
+
         $this->assertTrue($availability['available']);
     }
 
@@ -358,13 +361,13 @@ class AvailabilityServiceTest extends TestCase
         // Create test booking
         Booking::factory()->create([
             'property_id' => $this->property->id,
-            'check_in' => '2024-01-15',
-            'check_out' => '2024-01-17',
+            'check_in' => Carbon::tomorrow()->addDays(5)->format('Y-m-d'),
+            'check_out' => Carbon::tomorrow()->addDays(7)->format('Y-m-d'),
             'booking_status' => 'confirmed',
         ]);
 
-        $checkIn = '2024-01-16';
-        $checkOut = '2024-01-18';
+        $checkIn = Carbon::tomorrow()->addDays(6)->format('Y-m-d');
+        $checkOut = Carbon::tomorrow()->addDays(8)->format('Y-m-d');
 
         $debugInfo = $this->availabilityService->debugAvailability(
             $this->property,
@@ -376,7 +379,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertArrayHasKey('overlapping_bookings', $debugInfo);
         $this->assertArrayHasKey('booked_dates', $debugInfo);
         $this->assertArrayHasKey('is_available', $debugInfo);
-        
+
         $this->assertFalse($debugInfo['is_available']);
         $this->assertNotEmpty($debugInfo['overlapping_bookings']);
         $this->assertNotEmpty($debugInfo['booked_dates']);
@@ -388,12 +391,12 @@ class AvailabilityServiceTest extends TestCase
         // Create some bookings in the calendar period
         Booking::factory()->create([
             'property_id' => $this->property->id,
-            'check_in' => '2024-01-15',
-            'check_out' => '2024-01-17',
+            'check_in' => Carbon::tomorrow()->format('Y-m-d'),
+            'check_out' => Carbon::tomorrow()->addDays(2)->format('Y-m-d'),
             'booking_status' => 'confirmed',
         ]);
 
-        $startMonth = '2024-01';
+        $startMonth = Carbon::tomorrow()->format('Y-m');
         $monthsCount = 2;
 
         $calendar = $this->availabilityService->getAvailabilityCalendar(
@@ -406,16 +409,16 @@ class AvailabilityServiceTest extends TestCase
         $this->assertArrayHasKey('period', $calendar);
         $this->assertArrayHasKey('calendar', $calendar);
         $this->assertArrayHasKey('total_booked_days', $calendar);
-        
+
         $this->assertCount($monthsCount, $calendar['calendar']);
-        
+
         // Check first month structure
         $firstMonth = $calendar['calendar'][0];
         $this->assertArrayHasKey('year', $firstMonth);
         $this->assertArrayHasKey('month', $firstMonth);
         $this->assertArrayHasKey('month_name', $firstMonth);
         $this->assertArrayHasKey('days', $firstMonth);
-        
+
         // Check some days have is_booked = true
         $bookedDays = collect($firstMonth['days'])->filter(fn($day) => $day['is_booked']);
         $this->assertGreaterThan(0, $bookedDays->count());

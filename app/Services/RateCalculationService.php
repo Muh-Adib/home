@@ -27,10 +27,10 @@ class RateCalculationService
      * 
      * @param int $guestCount Number of guests
      * @param int $propertyCapacity Property base capacity
-     * @param float $extraBedRate Rate per extra bed
-     * @return float Total extra bed cost
+     * @param int $extraBedRate Rate per extra bed
+     * @return int Total extra bed cost
      */
-    public static function calculateExtraBedAmount(int $guestCount, int $propertyCapacity, float $extraBedRate): float
+    public static function calculateExtraBedAmount(int $guestCount, int $propertyCapacity, int $extraBedRate): int
     {
         $extraBedCount = self::calculateExtraBedCount($guestCount, $propertyCapacity);
         return $extraBedCount * $extraBedRate;
@@ -42,17 +42,17 @@ class RateCalculationService
      * 
      * @param Property $property Property model
      * @param PropertySeasonalRate|null $seasonalRate Seasonal rate (if applicable)
-     * @return float Effective extra bed rate to use
+     * @return int Effective extra bed rate to use
      */
-    public static function calculateEffectiveExtraBedRate(Property $property, ?PropertySeasonalRate $seasonalRate = null): float
+    public static function calculateEffectiveExtraBedRate(Property $property, ?PropertySeasonalRate $seasonalRate = null): int
     {
         // If seasonal rate exists and has custom extra_bed_rate, use it
         if ($seasonalRate && $seasonalRate->extra_bed_rate !== null) {
-            return $seasonalRate->extra_bed_rate;
+            return (int) $seasonalRate->extra_bed_rate;
         }
-        
+
         // Otherwise use property's base extra_bed_rate
-        return $property->extra_bed_rate;
+        return (int) ($property->extra_bed_rate ?? 0);
     }
 
     /**
@@ -63,19 +63,19 @@ class RateCalculationService
         $checkInDate = Carbon::parse($checkIn);
         $checkOutDate = Carbon::parse($checkOut);
         $nights = $checkInDate->diffInDays($checkOutDate);
-        
+
         if ($nights <= 0) {
             throw new \InvalidArgumentException('Check-out must be after check-in date');
         }
-        
+
         // Get seasonal rates for this period
         $seasonalRates = PropertySeasonalRate::getEffectiveRateForProperty(
-            $property->id, 
-            $checkInDate, 
+            $property->id,
+            $checkInDate,
             $checkOutDate
         );
-        
-        // Initialize calculation variables
+
+        // Initialize calculation variables (Integers)
         $totalBaseAmount = 0;
         $totalWeekendPremium = 0;
         $totalSeasonalPremium = 0;
@@ -85,51 +85,52 @@ class RateCalculationService
         $dailyBreakdown = [];
         $appliedSeasonalRates = [];
         $extraBedAmount = 0;
-        $extraBeds = self::calculateExtraBedCount($guestCount, $property->capacity);
-        
+        $extraBeds = self::calculateExtraBedCount($guestCount, (int) $property->capacity);
+
         // Calculate night-by-night for dynamic pricing
         for ($date = $checkInDate->copy(); $date->lt($checkOutDate); $date->addDay()) {
-            $dayRate = $property->base_rate;
+            $baseRate = (int) $property->base_rate;
+            $dayRate = $baseRate;
             $dateString = $date->format('Y-m-d');
             $seasonalRate = $seasonalRates[$dateString] ?? null;
             $appliedPremiums = [];
-            
+
             // Jika ada seasonal rate, hanya gunakan seasonal rate tanpa weekend premium
             $seasonalPremiumAmount = 0;
             $isWeekend = $date->isFriday() || $date->isSaturday() || $date->isSunday();
             $weekendPremiumAmount = 0;
-            
+
             // Priority: Seasonal > Weekend > Base Rate
             if ($seasonalRate) {
                 // Seasonal rate diterapkan langsung ke base_rate (tanpa weekend premium)
-                $originalRate = $property->base_rate;
-                $dayRate = $seasonalRate->calculateRate($originalRate);
-                $seasonalPremiumAmount = $dayRate - $originalRate;
+                // Assuming calculateRate returns float, cast to int
+                $dayRate = (int) $seasonalRate->calculateRate($baseRate);
+                $seasonalPremiumAmount = $dayRate - $baseRate;
                 $totalSeasonalPremium += $seasonalPremiumAmount;
                 $seasonalNights++;
-                
+
                 $appliedPremiums[] = [
                     'type' => 'seasonal',
                     'name' => $seasonalRate->name,
                     'description' => $seasonalRate->getFormattedRateDescription(),
                     'amount' => $seasonalPremiumAmount,
-                    'min_stay_nights' => $seasonalRate->min_stay_nights 
+                    'min_stay_nights' => $seasonalRate->min_stay_nights
                 ];
-                
+
                 // Track unique seasonal rates applied
                 if (!in_array($seasonalRate->name, array_column($appliedSeasonalRates, 'name'))) {
                     $appliedSeasonalRates[] = [
                         'name' => $seasonalRate->name,
                         'description' => $seasonalRate->getFormattedRateDescription(),
                         'dates' => [$dateString],
-                        'min_stay_nights' => $seasonalRate->min_stay_nights 
+                        'min_stay_nights' => $seasonalRate->min_stay_nights
                     ];
                 } else {
                     // Add date to existing seasonal rate
                     $key = array_search($seasonalRate->name, array_column($appliedSeasonalRates, 'name'));
                     $appliedSeasonalRates[$key]['dates'][] = $dateString;
                 }
-                
+
                 // Count night type (seasonal rate days are counted separately)
                 if ($isWeekend) {
                     $weekendNights++;
@@ -141,21 +142,21 @@ class RateCalculationService
                 // Weekend: Jumat, Sabtu, Minggu
                 if ($isWeekend) {
                     $weekendNights++;
-                    
+
                     // Calculate weekend premium based on type (percentage or fixed)
                     if ($property->weekend_premium_type === 'fixed' && $property->weekend_premium_fixed) {
                         // Fixed price weekend premium
-                        $weekendPremiumAmount = $property->weekend_premium_fixed;
+                        $weekendPremiumAmount = (int) $property->weekend_premium_fixed;
                         $description = 'Rp ' . number_format($weekendPremiumAmount, 0, ',', '.');
                     } else {
                         // Percentage based weekend premium (default)
-                        $weekendPremiumAmount = $property->base_rate * ($property->weekend_premium_percent / 100);
+                        $weekendPremiumAmount = (int) round($baseRate * ($property->weekend_premium_percent / 100));
                         $description = "+{$property->weekend_premium_percent}%";
                     }
-                    
+
                     $totalWeekendPremium += $weekendPremiumAmount;
                     $dayRate += $weekendPremiumAmount;
-                    
+
                     $appliedPremiums[] = [
                         'type' => 'weekend',
                         'name' => 'Weekend Premium',
@@ -166,14 +167,14 @@ class RateCalculationService
                     $weekdayNights++;
                 }
             }
-            
+
             // Long weekend premium (national holidays) - only if no seasonal rate
             // Holiday premium tidak diterapkan jika sudah ada seasonal rate
             $holidayPremiumAmount = 0;
             if (!$seasonalRate && PropertyBusinessRulesService::isLongWeekend($date)) {
-                $holidayPremiumAmount = $property->base_rate * 0.15; // 15% holiday premium
+                $holidayPremiumAmount = (int) round($baseRate * 0.15); // 15% holiday premium
                 $dayRate += $holidayPremiumAmount;
-                
+
                 $appliedPremiums[] = [
                     'type' => 'holiday',
                     'name' => 'Holiday Premium',
@@ -181,19 +182,19 @@ class RateCalculationService
                     'amount' => $holidayPremiumAmount
                 ];
             }
-            
+
             $totalBaseAmount += $dayRate;
-            
+
             // Calculate extra bed rate for this day using single source of truth
             $effectiveExtraBedRate = self::calculateEffectiveExtraBedRate($property, $seasonalRate);
-            
+
             // Add extra bed amount for this day
             $extraBedAmount += $extraBeds * $effectiveExtraBedRate;
-            
+
             $dailyBreakdown[$dateString] = [
                 'date' => $date->format('Y-m-d'),
                 'day_name' => $date->format('l'),
-                'base_rate' => $property->base_rate,
+                'base_rate' => $baseRate,
                 'final_rate' => $dayRate,
                 'premiums' => $appliedPremiums,
                 'seasonal_rate' => $seasonalRate ? [
@@ -206,20 +207,21 @@ class RateCalculationService
                 'extra_bed_rate' => $effectiveExtraBedRate,
             ];
         }
-        
-        $subtotal = $totalBaseAmount + $extraBedAmount + $property->cleaning_fee;
-        
+
+        $cleaningFee = (int) ($property->cleaning_fee ?? 0);
+        $subtotal = $totalBaseAmount + $extraBedAmount + $cleaningFee;
+
         // Tax calculation (0% - tax removed)
         $taxAmount = 0;
         $totalAmount = $subtotal + $taxAmount;
-        
+
         return new RateCalculation(
             nights: $nights,
-            baseAmount: $property->base_rate * $nights,
+            baseAmount: (int) ($property->base_rate * $nights), // Base without premiums
             weekendPremium: $totalWeekendPremium,
             seasonalPremium: $totalSeasonalPremium,
             extraBedAmount: $extraBedAmount,
-            cleaningFee: $property->cleaning_fee,
+            cleaningFee: $cleaningFee,
             taxAmount: $taxAmount,
             totalAmount: $totalAmount,
             extraBeds: $extraBeds,
@@ -227,10 +229,10 @@ class RateCalculationService
                 'weekday_nights' => $weekdayNights,
                 'weekend_nights' => $weekendNights,
                 'seasonal_nights' => $seasonalNights,
-                'total_base_amount' => $totalBaseAmount,
+                'total_base_amount' => $totalBaseAmount, // Sum of daily rates
                 'subtotal' => $subtotal,
                 'rate_breakdown' => [
-                    'base_rate_per_night' => $property->base_rate,
+                    'base_rate_per_night' => (int) $property->base_rate,
                     'weekend_premium_percent' => $property->weekend_premium_percent,
                     'peak_season_applied' => PropertyBusinessRulesService::hasPeakSeasonDates($checkInDate, $checkOutDate),
                     'long_weekend_applied' => PropertyBusinessRulesService::hasLongWeekend($checkInDate, $checkOutDate),
@@ -238,11 +240,11 @@ class RateCalculationService
                 ],
                 'daily_breakdown' => $dailyBreakdown,
                 'summary' => [
-                    'average_nightly_rate' => $nights > 0 ? $totalBaseAmount / $nights : 0,
+                    'average_nightly_rate' => $nights > 0 ? (int) ($totalBaseAmount / $nights) : 0,
                     'total_nights' => $nights,
-                    'base_nights_rate' => $property->base_rate * $nights,
+                    'base_nights_rate' => (int) ($property->base_rate * $nights),
                     'total_premiums' => $totalWeekendPremium + $totalSeasonalPremium,
-                    'taxes_and_fees' => $taxAmount + $property->cleaning_fee + $extraBedAmount,
+                    'taxes_and_fees' => $taxAmount + $cleaningFee + $extraBedAmount,
                 ]
             ],
             seasonalRatesApplied: $appliedSeasonalRates
@@ -257,7 +259,7 @@ class RateCalculationService
         try {
             $calculation = $this->calculateRate($property, $checkIn, $checkOut, $guestCount);
             $calculationArray = $calculation->toArray();
-            
+
             return [
                 'success' => true,
                 'property_id' => $property->id,
@@ -307,7 +309,7 @@ class RateCalculationService
                     'per_night' => 'Rp ' . number_format($calculation->totalAmount / $calculation->nights, 0, ',', '.'),
                 ],
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Rate calculation failed', [
                 'property_id' => $property->id,
                 'check_in' => $checkIn,
@@ -319,6 +321,8 @@ class RateCalculationService
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
+                'message' => $e->getMessage(),
+                'error_type' => 'calculation',
                 'property_id' => $property->id,
                 'dates' => [
                     'check_in' => $checkIn,
@@ -335,4 +339,4 @@ class RateCalculationService
     // - hasLongWeekend() -> PropertyBusinessRulesService::hasLongWeekend()
     // - getMinimumStayInfo() -> PropertyBusinessRulesService::getMinimumStayInfo() deprecated
     // - getMinimumStayDiscount() -> PropertyBusinessRulesService::getMinimumStayDiscount() deprecated
-} 
+}

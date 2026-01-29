@@ -42,7 +42,7 @@ class Payment extends Model
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
+        'amount' => 'integer',
         'payment_date' => 'datetime',
         'due_date' => 'datetime',
         'verified_at' => 'datetime',
@@ -52,7 +52,7 @@ class Payment extends Model
 
     protected $appends = [
         'attachment_filename',
-        'attachment_full_path', 
+        'attachment_full_path',
         'attachment_size',
         'attachment_type',
         'attachment_exists'
@@ -62,7 +62,7 @@ class Payment extends Model
     protected static function boot()
     {
         parent::boot();
-        
+
         static::creating(function ($payment) {
             if (empty($payment->payment_number)) {
                 $payment->payment_number = self::generatePaymentNumber();
@@ -102,7 +102,7 @@ class Payment extends Model
         if (!$this->attachment_path) {
             return null;
         }
-        
+
         return basename($this->attachment_path);
     }
 
@@ -111,7 +111,7 @@ class Payment extends Model
         if (!$this->attachment_path) {
             return null;
         }
-        
+
         return asset('storage/' . $this->attachment_path);
     }
 
@@ -120,13 +120,13 @@ class Payment extends Model
         if (!$this->attachment_path) {
             return null;
         }
-        
+
         $fullPath = storage_path('app/public/' . $this->attachment_path);
-        
+
         if (file_exists($fullPath)) {
             return filesize($fullPath);
         }
-        
+
         return null;
     }
 
@@ -135,10 +135,10 @@ class Payment extends Model
         if (!$this->attachment_path) {
             return null;
         }
-        
+
         $extension = pathinfo($this->attachment_path, PATHINFO_EXTENSION);
-        
-        return match(strtolower($extension)) {
+
+        return match (strtolower($extension)) {
             'jpg', 'jpeg', 'png', 'gif', 'webp' => 'image',
             'pdf' => 'pdf',
             'doc', 'docx' => 'document',
@@ -152,7 +152,7 @@ class Payment extends Model
         if (!$this->attachment_path) {
             return false;
         }
-        
+
         return \Storage::disk('public')->exists($this->attachment_path);
     }
 
@@ -176,14 +176,14 @@ class Payment extends Model
     protected function formattedAmount(): Attribute
     {
         return Attribute::make(
-            get: fn () => 'Rp ' . number_format($this->amount, 0, ',', '.')
+            get: fn() => 'Rp ' . number_format((int) $this->amount, 0, ',', '.')
         );
     }
 
     protected function statusColor(): Attribute
     {
         return Attribute::make(
-            get: fn () => match($this->payment_status) {
+            get: fn() => match ($this->payment_status) {
                 'pending' => 'yellow',
                 'verified' => 'green',
                 'failed' => 'red',
@@ -199,12 +199,12 @@ class Payment extends Model
         $prefix = 'PAY';
         $date = now()->format('ymd');
         $lastPayment = self::whereDate('created_at', today())
-                          ->latest('id')
-                          ->first();
-        
-        $sequence = $lastPayment ? 
-                   intval(substr($lastPayment->payment_number, -3)) + 1 : 1;
-        
+            ->latest('id')
+            ->first();
+
+        $sequence = $lastPayment ?
+            intval(substr($lastPayment->payment_number, -3)) + 1 : 1;
+
         return $prefix . $date . sprintf('%03d', $sequence);
     }
 
@@ -214,26 +214,13 @@ class Payment extends Model
         return $this->payment_status === 'pending';
     }
 
-    public function verify(User $verifier, string $notes = null): bool
+    public function verify(User $verifier, ?string $notes = null): bool
     {
         if (!$this->canBeVerified()) {
             return false;
         }
 
-        $this->update([
-            'payment_status' => 'verified',
-            'verified_by' => $verifier->id,
-            'verified_at' => now(),
-            'verification_notes' => $notes,
-        ]);
-
-        // Update booking payment status
-        $this->booking->updatePaymentStatus();
-
-        // Sinkronkan income saat verified
-        app(\App\Services\PaymentIncomeSyncService::class)->syncOnVerified($this);
-
-        return true;
+        return app(\App\Actions\Payment\VerifyPaymentAction::class)->execute($this, $verifier, $notes);
     }
 
     public function getRouteKeyName(): string
@@ -254,8 +241,8 @@ class Payment extends Model
      */
     public function isIpaymuPayment(): bool
     {
-        return !empty($this->ipaymu_session_id) || 
-               ($this->paymentMethod && $this->paymentMethod->code === 'ipaymu');
+        return !empty($this->ipaymu_session_id) ||
+            ($this->paymentMethod && $this->paymentMethod->code === 'ipaymu');
     }
 
     /**
@@ -302,7 +289,7 @@ class Payment extends Model
     public function scopeGatewayPayments($query)
     {
         return $query->whereNotNull('gateway_transaction_id')
-                     ->orWhereNotNull('ipaymu_session_id');
+            ->orWhereNotNull('ipaymu_session_id');
     }
 
     /**
@@ -311,8 +298,8 @@ class Payment extends Model
     public function scopeIpaymuPayments($query)
     {
         return $query->whereNotNull('ipaymu_session_id')
-                     ->orWhereHas('paymentMethod', function ($q) {
-                         $q->where('code', 'ipaymu');
-                     });
+            ->orWhereHas('paymentMethod', function ($q) {
+                $q->where('code', 'ipaymu');
+            });
     }
 }

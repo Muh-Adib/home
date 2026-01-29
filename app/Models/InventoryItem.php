@@ -16,8 +16,8 @@ class InventoryItem extends Model
     ];
 
     protected $casts = [
-        'average_unit_cost' => 'decimal:4',
-        'last_unit_cost' => 'decimal:4',
+        'average_unit_cost' => 'integer',
+        'last_unit_cost' => 'integer',
         'min_stock' => 'decimal:4',
     ];
 

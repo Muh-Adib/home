@@ -7,17 +7,17 @@ use Carbon\Carbon;
 class BookingRequest
 {
     public array $rateCalculation = [];
-    public float $totalAmount = 0;
+    public int $totalAmount = 0;
 
     public function __construct(
         // Property Information
         public readonly int $propertyId,
-        
+
         // Dates and Times
         public readonly string $checkInDate,
         public readonly string $checkOutDate,
         public readonly string $checkInTime,
-                
+
         // Guest Information
         public readonly int $guestCount,
         public readonly int $guestMale,
@@ -39,7 +39,8 @@ class BookingRequest
         public readonly string $paymentStatus,
         public readonly int $dpPercentage,
         public readonly bool $autoConfirm
-    ) {}
+    ) {
+    }
 
     public function getNights(): int
     {
@@ -67,12 +68,12 @@ class BookingRequest
         return [
             // Property Information
             'property_id' => $this->propertyId,
-            
+
             // Dates and Times
             'check_in' => $this->checkInDate,
             'check_out' => $this->checkOutDate,
             'check_in_time' => $this->checkInTime,
-            
+
             // Guest Information
             'guest_count' => $this->guestCount,
             'guest_male' => $this->guestMale,
@@ -111,7 +112,7 @@ class BookingRequest
         $checkIn = $data['check_in'] ?? $data['check_in_date'] ?? null;
         $checkOut = $data['check_out'] ?? $data['check_out_date'] ?? null;
         $checkInTime = $data['check_in_time'] ?? '15:00';
-        
+
         if (!$checkIn || !$checkOut) {
             throw new \InvalidArgumentException("Check-in and check-out dates are required");
         }
@@ -126,20 +127,20 @@ class BookingRequest
         }
 
         // ✅ FIX: Better guest count handling
-        $guestMale = (int)($data['guest_male'] ?? 0);
-        $guestFemale = (int)($data['guest_female'] ?? 0);
-        $guestChildren = (int)($data['guest_children'] ?? 0);
+        $guestMale = (int) ($data['guest_male'] ?? 0);
+        $guestFemale = (int) ($data['guest_female'] ?? 0);
+        $guestChildren = (int) ($data['guest_children'] ?? 0);
         $totalGuests = $guestMale + $guestFemale + $guestChildren;
-        
+
         if ($totalGuests <= 0) {
             throw new \InvalidArgumentException("Total guest count must be greater than 0");
         }
 
         // ✅ FIX: Use total guests if guest_count not provided
-        $guestCount = (int)($data['guest_count'] ?? $totalGuests);
+        $guestCount = (int) ($data['guest_count'] ?? $totalGuests);
 
         return new self(
-            propertyId: (int)$data['property_id'],
+            propertyId: (int) $data['property_id'],
             checkInDate: $checkIn,
             checkOutDate: $checkOut,
             checkInTime: $checkInTime,
@@ -159,8 +160,8 @@ class BookingRequest
             internalNotes: $data['internal_notes'] ?? null,
             bookingStatus: $data['booking_status'] ?? 'pending_verification',
             paymentStatus: $data['payment_status'] ?? 'dp_pending',
-            dpPercentage: (int)($data['dp_percentage'] ?? 50),
-            autoConfirm: (bool)($data['auto_confirm'] ?? false)
+            dpPercentage: (int) ($data['dp_percentage'] ?? 50),
+            autoConfirm: (bool) ($data['auto_confirm'] ?? false)
         );
     }
 
@@ -169,8 +170,8 @@ class BookingRequest
         $this->rateCalculation = $rateCalculation;
     }
 
-    public function setTotalAmount(float $totalAmount): void
+    public function setTotalAmount(int $totalAmount): void
     {
         $this->totalAmount = $totalAmount;
     }
-} 
+}

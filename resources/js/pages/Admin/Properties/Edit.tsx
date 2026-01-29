@@ -27,7 +27,12 @@ import {
     AlertTriangle,
     ImageIcon,
     Eye,
-    MapPin
+    MapPin,
+    RefreshCcw,
+    ExternalLink,
+    Calendar,
+    Plus,
+    Trash2
 } from 'lucide-react';
 
 interface EditPropertyProps extends PageProps {
@@ -84,6 +89,8 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
             emergency_contact: 'Hubungi kami jika ada kendala: 0811-2500-082',
             additional_info: ['WiFi password tersedia di dalam rumah', 'Harap menjaga kebersihan selama menginap']
         },
+        ical_import_urls: property.ical_import_urls || [''],
+        ical_export_token: property.ical_export_token || '',
     });
 
     // Sync selectedAmenities with form data
@@ -151,6 +158,29 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
 
         setData('amenities', updated);
         console.log('Amenities updated:', updated);
+    };
+
+    const [syncing, setSyncing] = useState(false);
+    const handleSyncICal = () => {
+        if (!property.ical_import_urls || property.ical_import_urls.length === 0 || property.ical_import_urls.every(url => !url)) {
+            return;
+        }
+        setSyncing(true);
+        // Using inertia post because we want to trigger the controller action
+        // which returns back() with flash messages
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/admin/properties/${property.id}/sync-ical`;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        if (csrfToken) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = '_token';
+            input.value = csrfToken;
+            form.appendChild(input);
+        }
+        document.body.appendChild(form);
+        form.submit();
     };
 
     const formatCurrency = (value: number) =>
@@ -956,8 +986,132 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                         </CardContent>
                     </Card>
 
-                    {/* Submit */}
-                    <div className="flex flex-col sm:flex-row gap-4">
+                    {/* iCal Synchronization */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Calendar className="h-6 w-6 text-primary" />
+                                iCal Synchronization (OTA)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="space-y-4">
+                                <Label className="text-base">External iCal Import URLs (Airbnb/Booking.com/Agoda)</Label>
+                                <p className="text-sm text-muted-foreground -mt-2">
+                                    Paste the iCal export links from your OTA platforms to block dates automatically.
+                                </p>
+
+                                <div className="space-y-3">
+                                    {data.ical_import_urls.map((url, index) => (
+                                        <div key={index} className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <Input
+                                                    value={url}
+                                                    onChange={(e) => {
+                                                        const newUrls = [...data.ical_import_urls];
+                                                        newUrls[index] = e.target.value;
+                                                        setData('ical_import_urls', newUrls);
+                                                    }}
+                                                    placeholder="https://www.airbnb.com/calendar/ical/..."
+                                                    className={errors[`ical_import_urls.${index}`] ? 'border-red-500 pr-10' : 'pr-10'}
+                                                />
+                                                {url.includes('airbnb') && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-[#FF5A5F]">Airbnb</span>}
+                                                {url.includes('booking.com') && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-[#003580]">Booking</span>}
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => {
+                                                    const newUrls = [...data.ical_import_urls];
+                                                    newUrls.splice(index, 1);
+                                                    setData('ical_import_urls', newUrls.length > 0 ? newUrls : ['']);
+                                                }}
+                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+
+                                    <div className="flex justify-between items-center pt-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setData('ical_import_urls', [...data.ical_import_urls, ''])}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Add Another OTA Feed
+                                        </Button>
+
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={handleSyncICal}
+                                            disabled={syncing || data.ical_import_urls.every(u => !u)}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <RefreshCcw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                                            {syncing ? 'Syncing...' : 'Sync All Now'}
+                                        </Button>
+                                    </div>
+
+                                    {Object.entries(errors).map(([key, value]) => {
+                                        if (key.startsWith('ical_import_urls')) {
+                                            return <p key={key} className="text-sm text-red-500">{value}</p>;
+                                        }
+                                        return null;
+                                    })}
+                                </div>
+
+                                <Separator className="my-6" />
+
+                                <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-dashed">
+                                    <Label className="text-base">Your iCal Export Feed</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Copy this URL to Airbnb or Booking.com to sync your local availability with them.
+                                    </p>
+                                    <div className="flex items-center gap-2 p-3 bg-white border rounded-md shadow-sm">
+                                        <code className="text-xs font-mono text-primary truncate flex-1">
+                                            {window.location.origin}/property/{property.slug}/ical/{data.ical_export_token}
+                                        </code>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                const url = `${window.location.origin}/property/${property.slug}/ical/${data.ical_export_token}`;
+                                                window.open(url, '_blank');
+                                            }}
+                                            className="h-8 w-8 p-0"
+                                            title="Verify feed"
+                                        >
+                                            <ExternalLink className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                const url = `${window.location.origin}/property/${property.slug}/ical/${data.ical_export_token}`;
+                                                navigator.clipboard.writeText(url);
+                                            }}
+                                            className="h-8 w-8 p-0"
+                                            title="Copy URL"
+                                        >
+                                            <Save className="h-4 w-4" /> {/* Standardizing with available icons */}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Form Actions */}
+                    <div className="flex justify-end gap-3 sticky bottom-4 z-10 bg-background/80 backdrop-blur-sm p-4 border rounded-lg shadow-lg">
                         <Button type="submit" disabled={processing} className="flex-1">
                             {processing ? (
                                 'Updating Property...'

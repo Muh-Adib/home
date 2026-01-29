@@ -9,11 +9,11 @@ export function getDateRange(startDate: string | Date, endDate: string | Date): 
     const start = new Date(startDate);
     const end = new Date(endDate);
     const dates: Date[] = [];
-    
+
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         dates.push(new Date(d));
     }
-    
+
     return dates;
 }
 
@@ -91,13 +91,13 @@ export function getDateKey(date: string | Date): string {
 export function generateTimelineDates(days: number = 14, startFrom?: Date): Date[] {
     const start = startFrom || new Date();
     const dates: Date[] = [];
-    
+
     for (let i = 0; i < days; i++) {
         const date = new Date(start);
         date.setDate(date.getDate() + i);
         dates.push(date);
     }
-    
+
     return dates;
 }
 
@@ -111,29 +111,29 @@ export function calculateBookingPosition(
 ): { left: number; width: number; visible: boolean; nights: number } {
     const checkIn = new Date(booking.check_in);
     const checkOut = new Date(booking.check_out);
-    
+
     // Calculate nights (exclusive of check-out date)
     const nights = diffInDays(checkIn, checkOut);
-    
+
     // Find start position in timeline
-    const startIndex = timelineDates.findIndex(date => 
+    const startIndex = timelineDates.findIndex(date =>
         date.toDateString() === checkIn.toDateString()
     );
-    
+
     if (startIndex === -1) {
         return { left: 0, width: 0, visible: false, nights: 0 };
     }
-    
+
     // Calculate width based on number of nights
     // Each night takes up one cell width
-    const left = (startIndex * cellWidth)+(cellWidth/2);
+    const left = (startIndex * cellWidth) + (cellWidth / 2);
     const width = nights * cellWidth;
-    
+
     // Check if booking is visible in timeline
     const timelineStart = timelineDates[0];
     const timelineEnd = timelineDates[timelineDates.length - 1];
     const visible = checkIn <= timelineEnd && checkOut >= timelineStart;
-    
+
     return { left, width, visible, nights };
 }
 
@@ -147,7 +147,7 @@ export function isBookingInRange(
 ): boolean {
     const bookingStart = new Date(booking.check_in);
     const bookingEnd = new Date(booking.check_out);
-    
+
     return bookingStart <= endDate && bookingEnd >= startDate;
 }
 
@@ -193,4 +193,37 @@ export function getBookingStatusText(status: string): string {
         default:
             return 'Unknown';
     }
-} 
+}
+
+/**
+ * Get default date range (Today to Today + N nights)
+ */
+export function getDefaultDateRange(nights: number = 1) {
+    const today = new Date();
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + nights);
+
+    return {
+        startDate: today.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0]
+    };
+}
+
+/**
+ * Format date range for display
+ */
+export function formatDateRange(startDate: string, endDate: string, locale: string = 'id-ID') {
+    if (!startDate || !endDate) return '';
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const options: Intl.DateTimeFormatOptions = {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+    };
+
+    return `${start.toLocaleDateString(locale, options)} - ${end.toLocaleDateString(locale, options)}`;
+}

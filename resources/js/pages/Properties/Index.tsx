@@ -17,7 +17,7 @@ import {
     X,
     ArrowUpDown
 } from 'lucide-react';
-import { getDefaultDateRange, formatDateRange } from '@/components/ui/date-range';
+import { getDefaultDateRange, formatDateRange } from '@/utils/date';
 import { type BreadcrumbItem, type PageProps } from '@/types';
 import { useTranslation } from 'react-i18next';
 import PropertyCardEnhanced from '@/components/ui/property-card-enhanced';

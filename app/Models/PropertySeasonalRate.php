@@ -15,7 +15,7 @@ class PropertySeasonalRate extends Model
         'property_id',
         'name',
         'start_date',
-        'end_date', 
+        'end_date',
         'rate_type',
         'rate_value',
         'extra_bed_rate',
@@ -30,8 +30,8 @@ class PropertySeasonalRate extends Model
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
-        'rate_value' => 'decimal:2',
-        'extra_bed_rate' => 'decimal:2',
+        'rate_value' => 'integer',
+        'extra_bed_rate' => 'integer',
         'applies_to_weekends_only' => 'boolean',
         'is_active' => 'boolean',
         'applicable_days' => 'array',
@@ -131,7 +131,7 @@ class PropertySeasonalRate extends Model
             // Check date overlap
             return $this->start_date <= $other->end_date && $this->end_date >= $other->start_date;
         }
-        
+
         return false;
     }
 
@@ -153,13 +153,13 @@ class PropertySeasonalRate extends Model
             ->get();
 
         $dailyRates = [];
-        
+
         // Group rates by date
         for ($date = $startDate->copy(); $date->lt($endDate); $date->addDay()) {
             $applicableRates = $rates->filter(function ($rate) use ($date) {
                 return $rate->appliesTo($date);
             });
-            
+
             // Get highest priority rate for this date (sudah diurutkan byPriority)
             $effectiveRate = $applicableRates->first();
             $dailyRates[$date->format('Y-m-d')] = $effectiveRate;
@@ -167,4 +167,4 @@ class PropertySeasonalRate extends Model
 
         return $dailyRates;
     }
-} 
+}

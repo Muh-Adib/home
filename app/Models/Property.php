@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Str;
+use App\Services\PropertyBusinessRulesService;
 
 class Property extends Model
 {
@@ -53,20 +54,23 @@ class Property extends Model
         'keybox_updated_at',
         'keybox_updated_by',
         'checkin_instructions',
+        'ical_import_urls',
+        'ical_export_token',
     ];
 
     protected $casts = [
         'lat' => 'decimal:8',
         'lng' => 'decimal:8',
-        'base_rate' => 'decimal:2',
-        'cleaning_fee' => 'decimal:2',
-        'extra_bed_rate' => 'decimal:2',
-        'weekend_premium_fixed' => 'decimal:2',
+        'base_rate' => 'integer',
+        'cleaning_fee' => 'integer',
+        'extra_bed_rate' => 'integer',
+        'weekend_premium_fixed' => 'integer',
         'amenities' => 'array',
         'is_featured' => 'boolean',
         'check_in_time' => 'datetime:H:i',
         'check_out_time' => 'datetime:H:i',
         'checkin_instructions' => 'array',
+        'ical_import_urls' => 'array',
         'keybox_updated_at' => 'datetime',
     ];
 
@@ -74,10 +78,14 @@ class Property extends Model
     protected static function boot()
     {
         parent::boot();
-        
+
         static::creating(function ($property) {
             if (empty($property->slug)) {
                 $property->slug = Str::slug($property->name);
+            }
+
+            if (empty($property->ical_export_token)) {
+                $property->ical_export_token = Str::random(32);
             }
         });
 
@@ -122,16 +130,11 @@ class Property extends Model
         return $this->hasMany(PropertyMedia::class)->where('is_featured', true)->orderBy('display_order');
     }
 
-    public function amenityRelations(): HasMany
-    {
-        return $this->hasMany(PropertyAmenity::class);
-    }
-
     public function amenities(): BelongsToMany
     {
         return $this->belongsToMany(Amenity::class, 'property_amenities')
-                    ->withPivot('is_available', 'notes')
-                    ->withTimestamps();
+            ->withPivot('is_available', 'notes')
+            ->withTimestamps();
     }
 
     public function bookings(): HasMany
@@ -189,15 +192,15 @@ class Property extends Model
     {
         return $query->whereDoesntHave('bookings', function ($bookingQuery) use ($checkIn, $checkOut) {
             // ✅ FIX: Include all statuses that make property unavailable
-        $bookingQuery->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
-                        ->where(function ($dateQuery) use ($checkIn, $checkOut) {
-                            $dateQuery->whereBetween('check_in', [$checkIn, $checkOut])
-                                     ->orWhereBetween('check_out', [$checkIn, $checkOut])
-                                     ->orWhere(function ($overlapQuery) use ($checkIn, $checkOut) {
-                                         $overlapQuery->where('check_in', '<=', $checkIn)
-                                                     ->where('check_out', '>=', $checkOut);
-                                     });
+            $bookingQuery->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
+                ->where(function ($dateQuery) use ($checkIn, $checkOut) {
+                    $dateQuery->whereBetween('check_in', [$checkIn, $checkOut])
+                        ->orWhereBetween('check_out', [$checkIn, $checkOut])
+                        ->orWhere(function ($overlapQuery) use ($checkIn, $checkOut) {
+                            $overlapQuery->where('check_in', '<=', $checkIn)
+                                ->where('check_out', '>=', $checkOut);
                         });
+                });
         });
     }
 
@@ -205,21 +208,21 @@ class Property extends Model
     protected function formattedBaseRate(): Attribute
     {
         return Attribute::make(
-            get: fn () => 'Rp ' . number_format($this->base_rate, 0, ',', '.')
+            get: fn() => 'Rp ' . number_format((int) $this->base_rate, 0, ',', '.')
         );
     }
 
     protected function isAvailable(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->status === 'active'
+            get: fn() => $this->status === 'active'
         );
     }
 
     protected function totalCapacity(): Attribute
     {
         return Attribute::make(
-            get: fn () => "{$this->capacity}-{$this->capacity_max} guests"
+            get: fn() => "{$this->capacity}-{$this->capacity_max} guests"
         );
     }
 
@@ -232,10 +235,10 @@ class Property extends Model
     {
         // Get effective minimum stay considering seasonal rates
         $effectiveMinStay = $this->getEffectiveMinimumStay(
-            $checkInDate->format('Y-m-d'), 
+            $checkInDate->format('Y-m-d'),
             $checkOutDate->format('Y-m-d')
         );
-        
+
         return $nights >= $effectiveMinStay;
     }
 
@@ -246,8 +249,8 @@ class Property extends Model
     {
         return $query->whereDoesntHave('bookings', function ($q) use ($checkIn, $checkOut) {
             $q->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
-              ->where('check_in', '<', $checkOut)
-              ->where('check_out', '>', $checkIn);
+                ->where('check_in', '<', $checkOut)
+                ->where('check_out', '>', $checkIn);
         });
     }
 
@@ -265,7 +268,7 @@ class Property extends Model
         if (!preg_match('/^\d{3}$/', $newCode)) {
             throw new \InvalidArgumentException('Keybox code must be 3 digits');
         }
-        
+
         return $this->update([
             'current_keybox_code' => $newCode,
             'keybox_updated_at' => now(),
@@ -279,9 +282,9 @@ class Property extends Model
     public function getCheckinInstructionsForDashboard(): array
     {
         $instructions = $this->checkin_instructions ?? [];
-        
+
         // Replace placeholders with actual data
-        return array_map(function($instruction) {
+        return array_map(function ($instruction) {
             if (is_string($instruction)) {
                 return str_replace(
                     ['{{keybox_code}}', '{{property_name}}', '{{address}}'],
@@ -321,51 +324,6 @@ class Property extends Model
     }
 
     /**
-     * Get list of booked dates within a given range
-     */
-    public function getBookedDatesInRange($checkIn, $checkOut): array
-    {
-        $checkInDate = \Carbon\Carbon::parse($checkIn);
-        $checkOutDate = \Carbon\Carbon::parse($checkOut);
-        
-        // Get all confirmed bookings that overlap with the range
-        $bookings = $this->bookings()
-            ->whereIn('booking_status', ['confirmed', 'checked_in'])
-            ->where(function ($query) use ($checkInDate, $checkOutDate) {
-                $query->where(function ($q) use ($checkInDate, $checkOutDate) {
-                    // Booking starts within our range
-                    $q->whereBetween('check_in', [$checkInDate->format('Y-m-d'), $checkOutDate->format('Y-m-d')])
-                      // Booking ends within our range
-                      ->orWhereBetween('check_out', [$checkInDate->format('Y-m-d'), $checkOutDate->format('Y-m-d')])
-                      // Booking completely encompasses our range
-                      ->orWhere(function ($encompass) use ($checkInDate, $checkOutDate) {
-                          $encompass->where('check_in', '<=', $checkInDate->format('Y-m-d'))
-                                   ->where('check_out', '>=', $checkOutDate->format('Y-m-d'));
-                      });
-                });
-            })
-            ->get(['check_in', 'check_out']);
-
-        $bookedDates = [];
-        
-        foreach ($bookings as $booking) {
-            $bookingStart = \Carbon\Carbon::parse($booking->check_in);
-            $bookingEnd = \Carbon\Carbon::parse($booking->check_out);
-            
-            // Generate all dates within the booking period
-            $currentDate = $bookingStart->copy();
-            while ($currentDate->lte($bookingEnd->subDay())) { // Exclude checkout date
-                if ($currentDate->gte($checkInDate) && $currentDate->lte($checkOutDate)) {
-                    $bookedDates[] = $currentDate->format('Y-m-d');
-                }
-                $currentDate->addDay();
-            }
-        }
-        
-        return array_unique($bookedDates);
-    }
-
-    /**
      * Get effective minimum stay for a date range considering seasonal rates
      * ✅ Delegates to PropertyBusinessRulesService for consistency
      */
@@ -373,7 +331,7 @@ class Property extends Model
     {
         return PropertyBusinessRulesService::getEffectiveMinimumStay($this, $checkIn, $checkOut);
     }
-    
+
     /**
      * Get minimum stay information for frontend display
      * ✅ Delegates to PropertyBusinessRulesService for consistency
@@ -406,82 +364,14 @@ class Property extends Model
     }
 
     /**
-     * Get comprehensive availability data for admin booking creation
-     * 
-     * @param string $startDate
-     * @param string $endDate
-     * @return array
+     * Get seasonal rates for a date range
      */
-    public function getAvailabilityData(string $startDate, string $endDate): array
+    public function getSeasonalRates($startDate, $endDate): array
     {
-        $startDateObj = \Carbon\Carbon::parse($startDate);
-        $endDateObj = \Carbon\Carbon::parse($endDate);
-        
-        // Get booked dates
-        $bookedDates = $this->getBookedDatesInRange($startDate, $endDate);
-        
-        // Generate daily rates for the entire period
-        $rates = [];
-        $currentDate = $startDateObj->copy();
-        
-        while ($currentDate->lt($endDateObj)) {
-            $dateString = $currentDate->format('Y-m-d');
-            $isWeekend = $currentDate->isWeekend();
-            
-            // Get seasonal rate if exists
-            $seasonalRate = $this->seasonalRates()
-                ->where('is_active', true)
-                ->where('start_date', '<=', $dateString)
-                ->where('end_date', '>=', $dateString)
-                ->orderBy('priority', 'desc')
-                ->first();
-            
-            $baseRate = $this->base_rate;
-            $seasonalPremium = 0;
-            
-            if ($seasonalRate) {
-                $seasonalPremium = $seasonalRate->calculatePremium($baseRate);
-            }
-            
-            $rates[$dateString] = [
-                'base_rate' => $baseRate,
-                'weekend_premium' => $isWeekend,
-                'seasonal_premium' => $seasonalPremium,
-                'is_weekend' => $isWeekend,
-                'seasonal_rate_applied' => $seasonalRate ? [
-                    'name' => $seasonalRate->name,
-                    'rate_type' => $seasonalRate->rate_type,
-                    'rate_value' => $seasonalRate->rate_value,
-                    'description' => $seasonalRate->description,
-                    'min_stay_nights' => $seasonalRate->min_stay_nights,
-                ] : null,
-            ];
-            
-            $currentDate->addDay();
-        }
-        
-        return [
-            'success' => true,
-            'property' => [
-                'id' => $this->id,
-                'name' => $this->name,
-                'base_rate' => $this->base_rate,
-                'capacity' => $this->capacity,
-                'capacity_max' => $this->capacity_max,
-                'cleaning_fee' => $this->cleaning_fee,
-                'extra_bed_rate' => $this->extra_bed_rate,
-                'weekend_premium_percent' => $this->weekend_premium_percent,
-                'weekend_premium_type' => $this->weekend_premium_type ?? 'percentage',
-                'weekend_premium_fixed' => $this->weekend_premium_fixed ?? 0,
-            ],
-            'date_range' => [
-                'start' => $startDate,
-                'end' => $endDate,
-            ],
-            'booked_dates' => $bookedDates,
-            'availability_data' => [
-                'rates' => $rates,
-            ],
-        ];
+        return \App\Models\PropertySeasonalRate::getEffectiveRateForProperty(
+            $this->id,
+            \Carbon\Carbon::parse($startDate),
+            \Carbon\Carbon::parse($endDate)
+        );
     }
 }

@@ -37,8 +37,8 @@ class PropertyController extends Controller
     {
         $query = Property::query()
             ->with([
-                'owner', 
-                'amenities', 
+                'owner',
+                'amenities',
                 'media' => function ($query) {
                     $query->orderBy('display_order', 'asc')->orderBy('created_at', 'desc');
                 },
@@ -47,7 +47,7 @@ class PropertyController extends Controller
                 },
                 'seasonalRates' => function ($query) {
                     $query->where('is_active', true)
-                          ->orderBy('priority', 'desc');
+                        ->orderBy('priority', 'desc');
                 }
             ])
             ->active();
@@ -57,8 +57,8 @@ class PropertyController extends Controller
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('address', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('address', 'like', "%{$search}%");
             });
         }
 
@@ -80,7 +80,7 @@ class PropertyController extends Controller
         if ($request->filled('check_in') && $request->filled('check_out')) {
             $checkIn = $request->get('check_in');
             $checkOut = $request->get('check_out');
-            
+
             // Use AvailabilityService untuk filter availability
             $query = $this->availabilityService->filterPropertiesByAvailability($query, $checkIn, $checkOut);
         }
@@ -100,11 +100,11 @@ class PropertyController extends Controller
             case 'featured':
             default:
                 $query->orderBy('is_featured', 'desc')
-                      ->orderBy('sort_order', 'asc');
+                    ->orderBy('sort_order', 'asc');
                 break;
         }
 
-       $properties = $query->paginate(200);
+        $properties = $query->paginate(200);
 
         // Calculate current rates for each property
         $checkIn = $request->get('check_in', now()->toDateString());
@@ -144,7 +144,7 @@ class PropertyController extends Controller
 
         // Get filter options
         $amenities = Amenity::active()->ordered()->get();
-        
+
         return Inertia::render('Properties/Index', [
             'properties' => $properties,
             'amenities' => $amenities,
@@ -178,10 +178,10 @@ class PropertyController extends Controller
             },
             'seasonalRates' => function ($query) {
                 $query->where('is_active', true)
-                      ->orderBy('priority', 'desc');
+                    ->orderBy('priority', 'desc');
             }
         ])->loadCount('approvedReviews')
-          ->loadAvg('approvedReviews as rating_avg', 'rating');
+            ->loadAvg('approvedReviews as rating_avg', 'rating');
 
         // Get search parameters
         $checkIn = $request->get('check_in') ?: today()->toDateString();
@@ -191,126 +191,16 @@ class PropertyController extends Controller
         // Pre-load 3-month availability and rates data
         $startDate = today()->toDateString();
         $endDate = today()->addMonths(3)->toDateString();
-        
-        // Get comprehensive availability data for 3 months
-        $bookedDates = $this->availabilityService->getBookedDatesInRange($property, $startDate, $endDate);
-        $bookedPeriods = $this->availabilityService->getBookedPeriodsInRange($property, $startDate, $endDate);
-        
-        // Pre-calculate rates for the entire 3-month period
-        $availabilityAndRates = [
-            'success' => true,
-            'property_id' => $property->id,
-            'date_range' => [
-                'start' => $startDate,
-                'end' => $endDate,
-            ],
-            'guest_count' => $guestCount,
-            'booked_dates' => $bookedDates,
-            'booked_periods' => $bookedPeriods,
-            'rates' => [],
-            'property_info' => [
-                'base_rate' => $property->base_rate,
-                'capacity' => $property->capacity,
-                'capacity_max' => $property->capacity_max,
-                'cleaning_fee' => $property->cleaning_fee,
-                'extra_bed_rate' => $property->extra_bed_rate,
-                'weekend_premium_percent' => $property->weekend_premium_percent,
-                'weekend_premium_type' => $property->weekend_premium_type ?? 'percentage',
-                'weekend_premium_fixed' => $property->weekend_premium_fixed ?? 0,
-            ]
-        ];
 
-        // Calculate rates for each day in the 3-month period
-        try {
-            $currentDate = \Carbon\Carbon::parse($startDate);
-            $endDateCarbon = \Carbon\Carbon::parse($endDate);
-            
-            while ($currentDate->lte($endDateCarbon)) {
-                $dateStr = $currentDate->format('Y-m-d');
-                
-                // Skip if date is booked
-                if (!in_array($dateStr, $bookedDates)) {
-                    try {
-                        $nextDate = $currentDate->copy()->addDay();
-                        $rateResult = $this->rateCalculationService->calculateRate($property, $dateStr, $nextDate->format('Y-m-d'), $guestCount)->toArray();
-                        
-                        // Get daily breakdown for this specific date
-                        $dailyBreakdown = $rateResult['breakdown']['daily_breakdown'] ?? [];
-                        $dateDailyData = $dailyBreakdown[$dateStr] ?? null;
-                        
-                        // Extract seasonal rate info and amounts from daily breakdown
-                        $seasonalRateApplied = null;
-                        $weekendPremiumAmount = 0;
-                        $seasonalPremiumAmount = 0;
-                        $extraBedRate = $property->extra_bed_rate;
-                        
-                        if ($dateDailyData && isset($dateDailyData['seasonal_rate']) && $dateDailyData['seasonal_rate']) {
-                            // Get seasonal rate info from daily breakdown (includes min_stay_nights)
-                            $seasonalRateData = $dateDailyData['seasonal_rate'];
-                            
-                            // Also get description from premiums if available
-                            $premiums = $dateDailyData['premiums'] ?? [];
-                            $seasonalPremium = array_filter($premiums, fn($p) => ($p['type'] ?? '') === 'seasonal');
-                            $seasonalPremium = !empty($seasonalPremium) ? array_values($seasonalPremium)[0] : null;
-                            
-                            // Get seasonal premium amount
-                            if ($seasonalPremium) {
-                                $seasonalPremiumAmount = $seasonalPremium['amount'] ?? 0;
-                            }
-                            
-                            $seasonalRateApplied = [
-                                [
-                                    'name' => $seasonalRateData['name'] ?? '',
-                                    'type' => $seasonalRateData['type'] ?? '',
-                                    'value' => $seasonalRateData['value'] ?? 0,
-                                    'min_stay_nights' => $seasonalRateData['min_stay_nights'] ?? null,
-                                    'description' => $seasonalPremium['description'] ?? $seasonalRateData['name'] ?? '',
-                                ]
-                            ];
-                            
-                            // Get extra bed rate from seasonal rate if available
-                            if (isset($seasonalRateData['extra_bed_rate']) && $seasonalRateData['extra_bed_rate'] !== null) {
-                                $extraBedRate = $seasonalRateData['extra_bed_rate'];
-                            }
-                        } elseif (!empty($rateResult['rate_breakdown']['seasonal_rates_applied'])) {
-                            // Fallback to aggregated seasonal rates if daily breakdown not available
-                            $seasonalRateApplied = $rateResult['rate_breakdown']['seasonal_rates_applied'];
-                            $seasonalPremiumAmount = $rateResult['seasonal_premium'] / $rateResult['nights'];
-                        }
-                        
-                        // Get weekend premium amount from premiums
-                        if ($dateDailyData && isset($dateDailyData['premiums'])) {
-                            $premiums = $dateDailyData['premiums'];
-                            $weekendPremium = array_filter($premiums, fn($p) => ($p['type'] ?? '') === 'weekend');
-                            if (!empty($weekendPremium)) {
-                                $weekendPremium = array_values($weekendPremium)[0];
-                                $weekendPremiumAmount = $weekendPremium['amount'] ?? 0;
-                            }
-                        }
-                        
-                        $availabilityAndRates['rates'][$dateStr] = [
-                            'base_rate' => $property->base_rate,
-                            'final_rate' => $dateDailyData['final_rate'] ?? $property->base_rate,
-                            'weekend_premium_amount' => $weekendPremiumAmount,
-                            'seasonal_premium_amount' => $seasonalPremiumAmount,
-                            'seasonal_rate_applied' => $seasonalRateApplied,
-                            'is_weekend' => $currentDate->isWeekend(),
-                            'has_seasonal_rate' => $seasonalRateApplied !== null,
-                            'extra_bed_rate' => $extraBedRate,
-                        ];
-                    } catch (\Exception $e) {
-                        // Skip if rate calculation fails for this date
-                    }
-                }
-                
-                $currentDate->addDay();
-            }
-        } catch (\Exception $e) {
-            \Log::warning('Failed to pre-calculate rates for property show', [
-                'property_slug' => $property->slug,
-                'error' => $e->getMessage()
-            ]);
-        }
+        // Use single source of truth for availability and rates
+        $availabilityData = $this->availabilityService->getAvailabilityData($property, $startDate, $endDate);
+
+        // Mapping for backward compatibility with frontend if necessary
+        $availabilityAndRates = array_merge($availabilityData, [
+            'guest_count' => $guestCount,
+            'property_info' => $availabilityData['property'],
+            'rates' => $availabilityData['availability_data']['rates']
+        ]);
 
         // Calculate current rate if dates are provided menggunakan RateCalculationService
         if ($checkIn && $checkOut) {
@@ -360,11 +250,13 @@ class PropertyController extends Controller
                     $property->base_rate * 0.7,
                     $property->base_rate * 1.3
                 ])
-                ->orWhere('capacity', $property->capacity);
+                    ->orWhere('capacity', $property->capacity);
             })
-            ->with(['media' => function ($query) {
-                $query->orderBy('display_order');
-            }])
+            ->with([
+                'media' => function ($query) {
+                    $query->orderBy('display_order');
+                }
+            ])
             ->limit(4)
             ->get();
 
@@ -384,7 +276,7 @@ class PropertyController extends Controller
 
         // GEO: Generate FAQs for this property
         $faqs = $this->seoService->getPropertyFaqs($property);
-        
+
         // GEO: Breadcrumb schema for navigation context
         $breadcrumbs = [
             ['name' => 'Home', 'url' => route('home')],
@@ -489,7 +381,7 @@ class PropertyController extends Controller
             $search = $request->get('q');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('address', 'like', "%{$search}%");
+                    ->orWhere('address', 'like', "%{$search}%");
             });
         }
 
@@ -518,10 +410,10 @@ class PropertyController extends Controller
         try {
             // Cache key
             $cacheKey = 'properties_map_coordinates';
-            
+
             // Cache TTL: 1 hour (3600 seconds)
             $cacheTTL = config('cache.performance.property_cache_ttl', 3600);
-            
+
             // Get from cache or query database
             $coordinates = Cache::remember($cacheKey, $cacheTTL, function () {
                 return Property::active()
@@ -532,17 +424,19 @@ class PropertyController extends Controller
                     ->where('lng', '>=', -180)
                     ->where('lng', '<=', 180)
                     ->select('id', 'name', 'slug', 'address', 'lat', 'lng', 'base_rate', 'capacity', 'capacity_max')
-                    ->with(['media' => function ($query) {
-                        $query->orderByRaw('CASE WHEN is_featured = 1 THEN 0 ELSE 1 END')
-                              ->orderBy('display_order', 'asc')
-                              ->orderBy('id', 'asc')
-                              ->limit(1);
-                    }])
+                    ->with([
+                        'media' => function ($query) {
+                            $query->orderByRaw('CASE WHEN is_featured = 1 THEN 0 ELSE 1 END')
+                                ->orderBy('display_order', 'asc')
+                                ->orderBy('id', 'asc')
+                                ->limit(1);
+                        }
+                    ])
                     ->get()
                     ->map(function ($property) {
                         $firstMedia = $property->media->first();
                         $imageUrl = null;
-                        
+
                         if ($firstMedia) {
                             try {
                                 $imageUrl = $firstMedia->url ?? null;
@@ -554,7 +448,7 @@ class PropertyController extends Controller
                                 ]);
                             }
                         }
-                        
+
                         return [
                             'id' => $property->id,
                             'name' => $property->name,
@@ -563,7 +457,7 @@ class PropertyController extends Controller
                             'lat' => (float) $property->lat,
                             'lng' => (float) $property->lng,
                             'base_rate' => (float) $property->base_rate,
-                            'formatted_base_rate' => 'Rp ' . number_format($property->base_rate, 0, ',', '.'),
+                            'formatted_base_rate' => 'Rp ' . number_format((float) $property->base_rate, 0, ',', '.'),
                             'capacity' => (int) $property->capacity,
                             'capacity_max' => (int) $property->capacity_max,
                             'image_url' => $imageUrl,

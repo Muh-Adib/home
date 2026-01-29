@@ -3,11 +3,12 @@ import { cn } from '@/lib/utils';
 
 interface AppLogoProps {
     transparent?: boolean;
+    className?: string;
 }
 
-export default function AppLogo({ transparent = false }: AppLogoProps) {
+export default function AppLogo({ transparent = false, className }: AppLogoProps) {
     return (
-        <>
+        <div className={cn("flex items-center", className)}>
             <div className={cn(
                 "bg-yellow-200 text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-md",
                 transparent && "bg-blue-600/20 backdrop-blur-sm"
@@ -19,10 +20,10 @@ export default function AppLogo({ transparent = false }: AppLogoProps) {
             </div>
             <div className="ml-1 grid flex-1 text-left text-sm">
                 <span className={cn(
-                    "mb-0.5 truncate leading-none font-semibold text-black dark:text-white",
+                    "mb-0.5 leading-none font-semibold text-black dark:text-white",
                     transparent && "text-white dark:text-black"
                 )}>Homsjogja</span>
             </div>
-        </>
+        </div>
     );
 }

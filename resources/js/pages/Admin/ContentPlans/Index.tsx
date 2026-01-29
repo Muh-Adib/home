@@ -1,0 +1,460 @@
+import React from 'react';
+import { Head, router } from '@inertiajs/react';
+import AdminLayout from '@/layouts/admin-layout';
+import { Button } from '@/components/ui/button';
+import { Calendar, KanbanSquare, List, Plus, Search, Sparkles } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
+import axios from 'axios';
+import { AICalendarModal, CalendarView, KanbanView, CreatePlanModal } from '@/components/ContentPlanner';
+import { CalendarEvent } from '@/components/ContentPlanner/CalendarView';
+
+interface ContentPlan {
+    id: number;
+    uuid: string;
+    title: string;
+    description: string | null;
+    target_keywords: string[];
+    target_audience: string | null;
+    content_type: string | null;
+    status: 'idea' | 'researching' | 'outlining' | 'writing' | 'reviewing' | 'scheduled' | 'published';
+    priority: number;
+    planned_publish_date: string | null;
+    created_at: string;
+    creator?: { name: string };
+    assignee?: { name: string };
+    article?: { id: number; slug: string };
+}
+
+interface Stats {
+    total: number;
+    by_status: Record<string, number>;
+    this_month: number;
+    next_month: number;
+    in_progress: number;
+}
+
+
+
+interface Props {
+    view: 'calendar' | 'kanban' | 'list';
+    month: string;
+    stats: Stats;
+    filters: {
+        search?: string;
+        status?: string;
+        assigned_to?: string;
+        content_type?: string;
+    };
+    users: { id: number; name: string }[];
+    events?: CalendarEvent[];
+    columns?: Record<string, ContentPlan[]>;
+    plans?: { data: ContentPlan[]; links: any; meta: any };
+}
+
+export default function Index({ view, month, stats, filters, users, events = [], columns = {}, plans }: Props) {
+    const [showCalendarModal, setShowCalendarModal] = React.useState(false);
+    const [showCreateModal, setShowCreateModal] = React.useState(false);
+    const [selectedView, setSelectedView] = React.useState<'calendar' | 'kanban' | 'list'>(view);
+
+    // Handle show_create from query params
+    React.useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('show_create')) {
+            setShowCreateModal(true);
+        }
+    }, []);
+    const [loading, setLoading] = React.useState(false);
+
+    // Filters state
+    const [search, setSearch] = React.useState(filters?.search || '');
+    const [statusFilter, setStatusFilter] = React.useState(filters?.status || 'all');
+    const [assigneeFilter, setAssigneeFilter] = React.useState(filters?.assigned_to || 'all');
+
+    const handleFilter = () => {
+        router.get(route('admin.content-plans.index'), {
+            view: selectedView,
+            month: month,
+            search: search || undefined,
+            status: statusFilter === 'all' ? undefined : statusFilter,
+            assigned_to: assigneeFilter === 'all' ? undefined : assigneeFilter,
+        }, { preserveState: true, preserveScroll: true });
+    };
+
+    // Debounce search
+    React.useEffect(() => {
+        const timer = setTimeout(() => {
+            if (search !== (filters?.search || '')) {
+                handleFilter();
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [search]);
+
+    const switchView = (newView: 'calendar' | 'kanban' | 'list') => {
+        setSelectedView(newView);
+        router.get(route('admin.content-plans.index'), {
+            view: newView,
+            month: month,
+            search: search || undefined,
+            status: statusFilter === 'all' ? undefined : statusFilter,
+            assigned_to: assigneeFilter === 'all' ? undefined : assigneeFilter,
+        });
+    };
+
+    const handleEventClick = (event: any) => {
+        const uuid = event.event.id;
+        router.get(route('admin.content-plans.show', uuid));
+    };
+
+    const handleDateClick = (date: Date) => {
+        setShowCreateModal(true);
+        // We could also pass the date as a prop if we wanted to pre-fill it
+    };
+
+    const handleEventDrop = async (event: any) => {
+        const uuid = event.event.id;
+        const newDate = event.event.startStr;
+        try {
+            await axios.put(route('admin.content-plans.update', uuid), {
+                planned_publish_date: newDate,
+            });
+            toast.success('Plan rescheduled successfully');
+            router.reload({ only: ['events'] });
+        } catch (error: any) {
+            toast.error('Failed to reschedule plan');
+            console.error(error);
+        }
+    };
+
+    const handleStatusChange = async (planUuid: string, newStatus: string) => {
+        try {
+            await axios.put(route('admin.content-plans.update', planUuid), {
+                status: newStatus,
+            });
+            toast.success('Status updated successfully');
+            router.reload({ only: ['columns'] });
+        } catch (error: any) {
+            toast.error('Failed to update status');
+            console.error(error);
+        }
+    };
+
+    const handleConvertToArticle = async (planUuid: string) => {
+        if (!confirm('Convert this plan to an article?')) return;
+
+        setLoading(true);
+        try {
+            const response = await axios.post(route('admin.content-plans.convert-to-article', planUuid));
+            toast.success('Article created successfully!');
+
+            // Redirect to article editor
+            if (response.data.redirect) {
+                window.location.href = response.data.redirect;
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Failed to convert to article');
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGenerateCalendar = async (formData: any) => {
+        setLoading(true);
+        try {
+            const response = await axios.post(route('admin.content-plans.generate-calendar'), formData);
+            toast.success(`Successfully generated ${response.data.count} content plans!`);
+            setShowCalendarModal(false);
+            router.reload();
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Failed to generate calendar');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <AdminLayout>
+            <Head title="Content Planner" />
+
+            <div className="container mx-auto px-4 py-8">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900">Content Planner</h1>
+                        <p className="text-gray-600 mt-1">
+                            Rencanakan, kelola, dan lacak konten Anda dengan AI
+                        </p>
+                    </div>
+                    <div className="flex gap-3">
+                        <Button
+                            onClick={() => setShowCalendarModal(true)}
+                            variant="outline"
+                            className="gap-2"
+                        >
+                            <Sparkles className="w-4 h-4" />
+                            Generate Calendar
+                        </Button>
+                        <Button
+                            onClick={() => setShowCreateModal(true)}
+                            className="gap-2"
+                        >
+                            <Plus className="w-4 h-4" />
+                            New Plan
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <p className="text-sm text-gray-600">Total Plans</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <p className="text-sm text-gray-600">This Month</p>
+                        <p className="text-2xl font-bold text-blue-600 mt-1">{stats.this_month}</p>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <p className="text-sm text-gray-600">Next Month</p>
+                        <p className="text-2xl font-bold text-green-600 mt-1">{stats.next_month}</p>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <p className="text-sm text-gray-600">In Progress</p>
+                        <p className="text-2xl font-bold text-orange-600 mt-1">
+                            {stats.in_progress || 0}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Filters */}
+                <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+                    <div className="flex flex-col md:flex-row gap-4 items-end">
+                        <div className="flex-1 w-full">
+                            <Label className="text-xs text-gray-500 mb-1 block">Search Plans</Label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    placeholder="Search by title, description, or keywords..."
+                                    className="pl-10 h-9"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="w-full md:w-48">
+                            <Label className="text-xs text-gray-500 mb-1 block">Status</Label>
+                            <Select
+                                value={statusFilter}
+                                onValueChange={(val) => {
+                                    setStatusFilter(val);
+                                    router.get(route('admin.content-plans.index'), {
+                                        view: selectedView,
+                                        month,
+                                        search,
+                                        status: val === 'all' ? undefined : val,
+                                        assigned_to: assigneeFilter === 'all' ? undefined : assigneeFilter,
+                                    }, { preserveState: true });
+                                }}
+                            >
+                                <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="All Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Status</SelectItem>
+                                    <SelectItem value="idea">Idea</SelectItem>
+                                    <SelectItem value="researching">Researching</SelectItem>
+                                    <SelectItem value="outlining">Outlining</SelectItem>
+                                    <SelectItem value="writing">Writing</SelectItem>
+                                    <SelectItem value="reviewing">Reviewing</SelectItem>
+                                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                                    <SelectItem value="published">Published</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="w-full md:w-48">
+                            <Label className="text-xs text-gray-500 mb-1 block">Assignee</Label>
+                            <Select
+                                value={assigneeFilter}
+                                onValueChange={(val) => {
+                                    setAssigneeFilter(val);
+                                    router.get(route('admin.content-plans.index'), {
+                                        view: selectedView,
+                                        month,
+                                        search,
+                                        status: statusFilter === 'all' ? undefined : statusFilter,
+                                        assigned_to: val === 'all' ? undefined : val,
+                                    }, { preserveState: true });
+                                }}
+                            >
+                                <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="All Users" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Users</SelectItem>
+                                    {users.map(u => (
+                                        <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9"
+                            onClick={() => {
+                                setSearch('');
+                                setStatusFilter('all');
+                                setAssigneeFilter('all');
+                                router.get(route('admin.content-plans.index'), { view: selectedView, month });
+                            }}
+                        >
+                            Reset
+                        </Button>
+                    </div>
+                </div>
+
+                {/* View Switcher */}
+                <div className="bg-white rounded-lg shadow mb-6">
+                    <div className="border-b px-6 py-4 flex items-center gap-2">
+                        <Button
+                            variant={selectedView === 'calendar' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => switchView('calendar')}
+                            className="gap-2"
+                        >
+                            <Calendar className="w-4 h-4" />
+                            Calendar
+                        </Button>
+                        <Button
+                            variant={selectedView === 'kanban' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => switchView('kanban')}
+                            className="gap-2"
+                        >
+                            <KanbanSquare className="w-4 h-4" />
+                            Kanban
+                        </Button>
+                        <Button
+                            variant={selectedView === 'list' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => switchView('list')}
+                            className="gap-2"
+                        >
+                            <List className="w-4 h-4" />
+                            List
+                        </Button>
+                    </div>
+
+                    <div className="p-6">
+                        {/* Calendar View */}
+                        {selectedView === 'calendar' && (
+                            <CalendarView
+                                events={events}
+                                onEventClick={handleEventClick}
+                                onDateClick={handleDateClick}
+                                onEventDrop={handleEventDrop}
+                            />
+                        )}
+
+                        {/* Kanban View */}
+                        {selectedView === 'kanban' && (
+                            <KanbanView
+                                columns={columns}
+                                onStatusChange={handleStatusChange}
+                                onConvertToArticle={handleConvertToArticle}
+                            />
+                        )}
+
+                        {/* List View */}
+                        {selectedView === 'list' && (
+                            <div className="space-y-4">
+                                {plans?.data && plans.data.length > 0 ? (
+                                    plans.data.map((plan) => (
+                                        <div
+                                            key={plan.uuid}
+                                            className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                                            onClick={() => router.get(route('admin.content-plans.show', plan.uuid))}
+                                        >
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <h3 className="font-semibold text-lg text-gray-900">
+                                                        {plan.title || 'Untitled'}
+                                                    </h3>
+                                                    {plan.description && (
+                                                        <p className="text-gray-600 text-sm mt-1 line-clamp-2">
+                                                            {plan.description}
+                                                        </p>
+                                                    )}
+                                                    <div className="flex gap-2 mt-3">
+                                                        <span className={cn(
+                                                            'px-2 py-1 rounded text-xs font-medium',
+                                                            plan.status === 'idea' && 'bg-gray-100 text-gray-700',
+                                                            plan.status === 'researching' && 'bg-blue-100 text-blue-700',
+                                                            plan.status === 'outlining' && 'bg-yellow-100 text-yellow-700',
+                                                            plan.status === 'writing' && 'bg-orange-100 text-orange-700',
+                                                            plan.status === 'reviewing' && 'bg-purple-100 text-purple-700',
+                                                            plan.status === 'scheduled' && 'bg-green-100 text-green-700',
+                                                            plan.status === 'published' && 'bg-teal-100 text-teal-700',
+                                                        )}>
+                                                            {plan.status}
+                                                        </span>
+                                                        {plan.planned_publish_date && (
+                                                            <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-600">
+                                                                📅 {new Date(plan.planned_publish_date).toLocaleDateString()}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center py-12">
+                                        <p className="text-gray-500">Tidak ada content plan</p>
+                                        <Button
+                                            onClick={() => setShowCreateModal(true)}
+                                            className="mt-4"
+                                        >
+                                            Buat Rencana Konten Pertama
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* AI Calendar Generator Modal */}
+            <AICalendarModal
+                isOpen={showCalendarModal}
+                onClose={() => setShowCalendarModal(false)}
+                onGenerate={handleGenerateCalendar}
+                loading={loading}
+            />
+
+            {/* Create Plan Modal */}
+            <CreatePlanModal
+                isOpen={showCreateModal}
+                onClose={() => {
+                    setShowCreateModal(false);
+                    // Clear the query param if it exists
+                    if (window.location.search.includes('show_create')) {
+                        router.visit(route('admin.content-plans.index'), { preserveScroll: true, preserveState: true });
+                    }
+                }}
+                users={users}
+                statuses={['idea', 'researching', 'outlining', 'writing', 'reviewing', 'scheduled']}
+                contentTypes={['article', 'guide', 'tips', 'comparison', 'news', 'review']}
+            />
+        </AdminLayout>
+    );
+}

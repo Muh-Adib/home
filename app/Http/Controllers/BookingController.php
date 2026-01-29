@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Booking\CreateBookingRequest;
 use App\Services\BookingService;
 use App\Services\RateCalculationService;
-
+use App\Actions\Booking\CreateBookingAction;
+use App\Actions\User\EnsureGuestUserAction;
 use App\Domain\Booking\ValueObjects\BookingRequest;
-
 use App\Models\Property;
 use App\Models\Booking;
 use Illuminate\Http\Request;
@@ -32,8 +32,11 @@ class BookingController extends Controller
 {
     public function __construct(
         private BookingService $bookingService,
-        private RateCalculationService $rateCalculationService
-    ) {}
+        private RateCalculationService $rateCalculationService,
+        private CreateBookingAction $createBookingAction,
+        private EnsureGuestUserAction $ensureUserAction
+    ) {
+    }
 
     /**
      * Show booking creation form
@@ -46,12 +49,12 @@ class BookingController extends Controller
         $user = auth()->user();
         // Ambil data dari request (GET)
         $checkIn = $request->query('check_in');
-        $checkOut = $request->query('check_out'); 
+        $checkOut = $request->query('check_out');
         $guests = (int) $request->query('guests', 2); // Default 2 jika tidak ada
 
-        $guestMale = (int)($guests/2);
-        $guestFemale = (int)($guests/2);
-        $guestChildren = (int)($guests%2);
+        $guestMale = (int) ($guests / 2);
+        $guestFemale = (int) ($guests / 2);
+        $guestChildren = (int) ($guests % 2);
 
         // Fallback default jika tidak ada input
         $today = now()->toDateString();
@@ -59,17 +62,17 @@ class BookingController extends Controller
 
         // Get availability data using the same service as show property
         $availabilityService = app(\App\Services\AvailabilityService::class);
-            
+
         // Get availability data
         $availability = $availabilityService->checkAvailability(
             $property,
             $checkIn,
             $checkOut
         );
-        
-        if(!$availability['available']){
+
+        if (!$availability['available']) {
             return redirect()->back()->withErrors("Tanggal yang dipilih tidak tersedia");
-        }        
+        }
 
         $initialFormData = [
             'check_in' => $checkIn ?? $today,
@@ -89,7 +92,7 @@ class BookingController extends Controller
             'dp_percentage' => 50,
             'guests' => [],
         ];
-       
+
         // Get active service masters for extra services
         $serviceMasters = \App\Models\ServiceMaster::active()->ordered()->get()->map(function ($service) {
             return [
@@ -116,347 +119,60 @@ class BookingController extends Controller
         ]);
     }
 
-    /**
-     * Store new booking
-     * 
-     * Route: POST /properties/{property:slug}/book
-     * Property is automatically resolved by Laravel's route model binding
-     */
-    public function store(CreateBookingRequest $request, Property $property): RedirectResponse
+    public function store(CreateBookingRequest $request, Property $property)
     {
         try {
-            $validated = $request->validated();
-        
-            // Check if user exists with email or phone
-            $existingUser = \App\Models\User::where('email', $validated['guest_email'])
-                ->orWhere('phone', $validated['guest_phone'])
-                ->first();
+            $data = $request->validated();
+            $data['property_id'] = $property->id;
 
-            if ($existingUser && !auth()->check()) {
-                // Save booking data to session
-                session([
-                    'pending_booking_data' => [
-                        'property_id' => $property->id,
-                        'form_data' => $validated,
-                        'booking_session' => session('booking_data'),
-                        'created_at' => now(),
-                    ]
-                ]);
+            // Use CreateBookingAction (consolidated logic)
+            $booking = $this->createBookingAction->execute($data, auth()->user());
 
-                return redirect()->route('login')
-                    ->with('info', 'We found an existing account with your email/phone. Please login to continue booking.')
-                    ->with('intended_url', route('bookings.resume'));
-            }
-
-            // Proceed with normal booking creation
-            $booking = $this->createBookingNormally($property, $validated);
-            
-            return redirect()->route('bookings.confirmation', $booking->booking_number)
+            return to_route('bookings.confirmation', $booking->booking_number)
                 ->with('success', 'Booking berhasil dibuat!');
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            // Re-throw validation exceptions to let Laravel handle them properly
-            // Inertia will automatically handle validation errors
-            throw $e;
-        } catch (\Illuminate\Database\QueryException $e) {
-            // Handle database errors (like unique constraint violations)
-            if ($e->getCode() == 23000 || str_contains($e->getMessage(), 'UNIQUE constraint')) {
-                Log::warning('Booking number conflict detected, retrying...', [
-                    'error' => $e->getMessage(),
-                    'property_id' => $property->id ?? null,
-                ]);
-                
-                // Retry booking creation - minimal delay since boot method handles uniqueness
-                try {
-                    // Minimal delay (10ms) - boot method will handle uniqueness with microsecond suffix
-                    usleep(10000); // 10ms delay only
-                    
-                    // Force clear any cached booking number generation
-                    // The boot method will handle generating a new unique booking number
-                    $booking = $this->createBookingNormally($property, $validated);
-                    
-                    if ($booking && $booking->booking_number) {
-                        Log::info('Booking retry successful', [
-                            'booking_number' => $booking->booking_number,
-                            'property_id' => $property->id,
-                        ]);
-                        return redirect()->route('bookings.confirmation', $booking->booking_number)
-                            ->with('success', 'Booking berhasil dibuat!');
-                    } else {
-                        throw new \Exception('Booking created but booking_number is missing');
-                    }
-                } catch (\Illuminate\Database\QueryException $retryQueryException) {
-                    // If retry also fails with duplicate, boot method should have handled it
-                    // This should rarely happen now
-                    Log::error('Booking retry failed - unexpected duplicate', [
-                        'error' => $retryQueryException->getMessage(),
-                    ]);
-                    return back()
-                        ->withInput()
-                        ->withErrors(['error' => 'Gagal membuat booking karena konflik nomor booking. Silakan refresh halaman dan coba lagi.']);
-                } catch (\Exception $retryException) {
-                    Log::error('Booking retry failed', [
-                        'error' => $retryException->getMessage(),
-                        'trace' => $retryException->getTraceAsString(),
-                    ]);
-                    return back()
-                        ->withInput()
-                        ->withErrors(['error' => 'Gagal membuat booking. Silakan coba lagi.']);
-                }
-            }
-            
-            Log::error('Database error during booking creation', [
-                'error' => $e->getMessage(),
-                'property_id' => $property->id ?? null,
-            ]);
-            
-            return back()
-                ->withInput()
-                ->withErrors(['error' => 'Terjadi kesalahan database. Silakan coba lagi.']);
+
         } catch (\Exception $e) {
-            Log::error('Booking creation failed in store method', [
+            Log::error('Public booking store failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'property_id' => $property->id ?? null,
-                'property_slug' => $property->slug ?? null,
-                'request_data' => $request->except(['password', '_token']),
+                'property_id' => $property->id,
+                'data' => $request->except(['password']),
             ]);
-            
-            return back()
-                ->withInput()
-                ->withErrors(['error' => 'Gagal membuat booking: ' . $e->getMessage()]);
+
+            return back()->withErrors(['error' => 'Gagal membuat booking: ' . $e->getMessage()])
+                ->withInput();
         }
     }
 
     /**
      * Resume booking after login
      */
-    public function resumeBooking(): RedirectResponse
+    public function resumeBooking()
     {
-        if (!auth()->check()) {
-            return redirect()->route('login');
-        }
-
         $pendingData = session('pending_booking_data');
-        
-        if (!$pendingData || $pendingData['created_at']->lt(now()->subHours(2))) {
-            session()->forget('pending_booking_data');
-            return redirect()->route('properties.index')
-                ->with('error', 'Booking session expired. Please start again.');
+        if (!$pendingData) {
+            return to_route('home');
         }
-
-        $property = Property::find($pendingData['property_id']);
-        
-        if (!$property) {
-            return redirect()->route('properties.index')
-                ->with('error', 'Property not found.');
-        }
-
-        // Restore session data
-        session(['booking_data' => $pendingData['booking_session']]);
 
         try {
-            // Create booking with saved data
-            $booking = $this->createBookingNormally($property, $pendingData['form_data']);
-            
+            $property = Property::findOrFail($pendingData['property_id']);
+
+            // Use CreateBookingAction
+            $booking = $this->createBookingAction->execute($pendingData['form_data'], auth()->user());
+
             // Clear pending data
             session()->forget('pending_booking_data');
-            
-            return redirect()->route('bookings.confirmation', $booking->booking_number)
-                ->with('success', 'Welcome back! Your booking has been created successfully.');
+
+            return to_route('bookings.confirmation', $booking->booking_number)
+                ->with('success', 'Booking berhasil dilanjutkan!');
 
         } catch (\Exception $e) {
-            return redirect()->route('properties.show', $property->slug)
-                ->with('error', 'Failed to create booking. Please try again.');
-        }
-    }
-
-    /**
-     * Create booking normally (extracted for reuse)
-     */
-    private function createBookingNormally(Property $property, array $data)
-    {
-        try {
-            // ✅ FIX: Filter out invalid fields (like rate_breakdown) that might be sent from frontend
-            // Only include fields that are valid for BookingRequest
-            
-            $allowedFields = [
-                'property_id', 'check_in', 'check_in_date', 'check_out', 'check_out_date', 
-                'check_in_time', 'guest_male', 'guest_female', 'guest_children', 'guest_count',
-                'guest_name', 'guest_email', 'guest_phone', 'guest_country', 'guest_id_number',
-                'guest_gender', 'relationship_type', 'guests', 'special_requests', 'internal_notes',
-                'booking_status', 'payment_status', 'dp_percentage', 'auto_confirm', 'services'
-            ];
-            
-            // Filter data to only include allowed fields
-            $filteredData = array_intersect_key($data, array_flip($allowedFields));
-            
-            // ✅ FIX: Better field mapping and data preparation
-            $bookingData = [
-                'property_id' => $property->id,
-                
-                // ✅ FIX: Handle different date field names
-                'check_in' => $filteredData['check_in'] ?? $filteredData['check_in_date'] ?? session('booking_data.check_in'),
-                'check_out' => $filteredData['check_out'] ?? $filteredData['check_out_date'] ?? session('booking_data.check_out'),
-                'check_in_time' => $filteredData['check_in_time'] ?? '15:00',
-
-                // ✅ FIX: Better guest count calculation
-                'guest_male' => (int)($filteredData['guest_male'] ?? 1),
-                'guest_female' => (int)($filteredData['guest_female'] ?? 1),
-                'guest_children' => (int)($filteredData['guest_children'] ?? 0),
-                'guest_count' => (int)($filteredData['guest_count'] ?? 
-                    ((int)($filteredData['guest_male'] ?? 1) + (int)($filteredData['guest_female'] ?? 1) + (int)($filteredData['guest_children'] ?? 0))),
-                
-                // Guest information
-                'guest_name' => $filteredData['guest_name'] ?? '',
-                'guest_email' => $filteredData['guest_email'] ?? '',
-                'guest_phone' => $filteredData['guest_phone'] ?? '',
-                'guest_country' => $filteredData['guest_country'] ?? 'Indonesia',
-                'guest_id_number' => $filteredData['guest_id_number'] ?? '',
-                'guest_gender' => $filteredData['guest_gender'] ?? 'male',
-                'relationship_type' => $filteredData['relationship_type'] ?? 'keluarga',
-                'guests' => $filteredData['guests'] ?? [],
-
-                // Booking details
-                'special_requests' => $filteredData['special_requests'] ?? '',
-                'internal_notes' => $filteredData['internal_notes'] ?? '',
-                'booking_status' => $filteredData['booking_status'] ?? 'pending_verification',
-                'payment_status' => $filteredData['payment_status'] ?? 'dp_pending',
-                'dp_percentage' => (int)($filteredData['dp_percentage'] ?? 50),
-                'auto_confirm' => (bool)($filteredData['auto_confirm'] ?? false),
-            ];
-
-            // ✅ FIX: Validate required fields before proceeding
-            $requiredFields = ['guest_name', 'guest_email', 'guest_phone'];
-            foreach ($requiredFields as $field) {
-                if (empty($bookingData[$field])) {
-                    throw new \InvalidArgumentException("Field '{$field}' is required");
-                }
-            }
-
-            // Create or find user if not authenticated
-            $user = auth()->user();
-            if (!$user) {
-                $user = $this->createOrFindUser($bookingData);
-                
-                // ✅ AUTO LOGIN ENABLED: Auto-login new users immediately
-                auth()->login($user);
-                
-                \Illuminate\Support\Facades\Log::info('New user auto-logged in after booking', [
-                    'user_id' => $user->id,
-                    'email' => $user->email,
-                    'was_recently_created' => $user->wasRecentlyCreated,
-                ]);
-            }
-            
-            // ✅ FIX: Create booking using service with proper error handling
-            try {
-                // Ensure booking_number is not set so it will be auto-generated
-                unset($bookingData['booking_number']);
-                
-                $bookingRequest = BookingRequest::fromArray($bookingData);
-                $booking = $this->bookingService->createBooking($bookingRequest, $user);
-                
-                // Create booking services if provided
-                if (!empty($filteredData['services']) && is_array($filteredData['services'])) {
-                    $servicesTotal = 0;
-                    foreach ($filteredData['services'] as $serviceData) {
-                        $bookingService = \App\Models\BookingService::create([
-                            'booking_id' => $booking->id,
-                            'service_master_id' => $serviceData['service_master_id'] ?? null,
-                            'service_name' => $serviceData['service_name'],
-                            'service_type' => $serviceData['service_type'],
-                            'quantity' => $serviceData['quantity'],
-                            'unit_price' => $serviceData['unit_price'],
-                            'total_price' => $serviceData['total_price'],
-                        ]);
-                        $servicesTotal += $bookingService->total_price;
-                    }
-
-                    // Update booking total amount to include services
-                    if ($servicesTotal > 0) {
-                        $booking->update([
-                            'service_amount' => $servicesTotal,
-                            'total_amount' => $booking->total_amount + $servicesTotal,
-                        ]);
-                        // Recalculate DP and remaining amount
-                        $booking->update([
-                            'dp_amount' => ($booking->total_amount * $booking->dp_percentage) / 100,
-                            'remaining_amount' => $booking->total_amount - (($booking->total_amount * $booking->dp_percentage) / 100),
-                        ]);
-                    }
-                }
-            } catch (\InvalidArgumentException $e) {
-                Log::error('BookingRequest validation failed', [
-                    'error' => $e->getMessage(),
-                    'data' => $bookingData,
-                    'user_id' => $user->id ?? null,
-                ]);
-                throw new \Exception('Invalid booking data: ' . $e->getMessage());
-            }
-            
-            // Clear session data
-            session()->forget(['booking_data', 'pending_booking_data']);
-            
-            return $booking;
-
-        } catch (\Exception $e) {
-            Log::error('Booking creation failed', [
+            Log::error('Resume booking failed', [
                 'error' => $e->getMessage(),
-                'user_id' => auth()->id(),
-                'property_id' => $property->id,
-                'property_slug' => $property->slug,
-                'data' => $data,
+                'pending_data' => $pendingData,
             ]);
 
-            throw $e;
+            return to_route('home')->withErrors(['error' => 'Gagal melanjutkan booking: ' . $e->getMessage()]);
         }
-    }
-
-    /**
-     * Create or find user for booking (with proper password handling)
-     */
-    private function createOrFindUser(array $data): \App\Models\User
-    {
-        // Try to find existing user
-        $user = \App\Models\User::where('email', $data['guest_email'])->first();
-        
-        if ($user) {
-            // Update phone if needed
-            if (empty($user->phone) && !empty($data['guest_phone'])) {
-                $user->update(['phone' => $data['guest_phone']]);
-            }
-            return $user;
-        }
-
-        // ✅ AUTO LOGIN ENABLED: Create new user with auto login
-        $password = \Illuminate\Support\Str::random(12); // Generate secure random password
-        
-        $user = \App\Models\User::create([
-            'name' => $data['guest_name'],
-            'email' => $data['guest_email'],
-            'phone' => $data['guest_phone'],
-            'password' => \Illuminate\Support\Facades\Hash::make($password),
-            'role' => 'guest',
-            'status' => 'active',
-            'email_verified_at' => now(), // Auto verify for immediate login
-        ]);
-
-        // ✅ AUTO LOGIN: Send welcome email with password (async to avoid timeout)
-        // Kirim email welcome dengan secure signed URL untuk set password
-try {
-    // Dispatch ke queue (lebih baik untuk email)
-    $user->notify(new \App\Notifications\GuestWelcomeNotification());
-
-} catch (\Exception $e) {
-    \Illuminate\Support\Facades\Log::error('Failed to send welcome email', [
-        'user_id' => $user->id,
-        'email' => $user->email,
-        'error' => $e->getMessage(),
-        'trace' => $e->getTraceAsString(),
-    ]);
-}
-
-        return $user;
     }
 
     /**
@@ -468,7 +184,7 @@ try {
     public function confirmation(Booking $booking): RedirectResponse|Response
     {
         $user = auth()->user();
-        
+
         // Allow access if:
         // 1. User is authenticated and email matches booking guest_email
         // 2. User is admin/staff
@@ -505,7 +221,7 @@ try {
             // We check if password was changed by checking if user has logged in more than once
             // or if there's a flag indicating password was changed
             $isNewUser = $user->created_at->diffInHours(now()) < 24;
-            
+
             // If it's a new user, redirect to change password page
             //if ($isNewUser && !session('password_changed')) {
             //    session(['redirect_after_password_change' => route('bookings.confirmation', $booking->booking_number)]);
@@ -526,44 +242,35 @@ try {
     }
 
     /**
-     * Show user's bookings
+     * Show booking detail for guest
      * 
-     * Route: GET /my-bookings
-     * User is automatically resolved by Laravel's route model binding
+     * Route: GET /booking/{booking:booking_number}
      */
-    public function myBookings(Request $request): Response
+    public function show(Booking $booking): Response
     {
         $user = auth()->user();
-        
-        // ✅ FIX: Add pagination and filtering support
-        $query = Booking::where('guest_email', $user->email)
-            ->with(['property', 'payments']);
-        
-        // Search filter
-        if ($request->filled('search')) {
-            $search = $request->get('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('booking_number', 'like', "%{$search}%")
-                  ->orWhere('guest_name', 'like', "%{$search}%");
-            });
+
+        // Authorization: strict check for guest email or super_admin
+        if ($booking->guest_email !== $user->email && !$user->hasAnyRole(['super_admin', 'front_desk'])) {
+            abort(403);
         }
 
-        // Status filter
-        if ($request->filled('status')) {
-            $query->where('booking_status', $request->get('status'));
-        }
+        $booking->load(['property.media', 'payments', 'guests']);
 
-        // Payment status filter
-        if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->get('payment_status'));
-        }
+        // Check-in instructions logic
+        $checkInDate = \Carbon\Carbon::parse($booking->check_in);
+        $canShowInstructions = $checkInDate->isToday() && now()->gte($checkInDate->setTimeFromTimeString('12:00')) || $booking->booking_status === 'checked_in';
 
-        // ✅ FIX: Return paginated results like frontend expects
-        $bookings = $query->orderBy('created_at', 'desc')->paginate(10);
-        
-        return Inertia::render('Guest/MyBookings', [
-            'bookings' => $bookings,
-            'filters' => $request->only(['search', 'status', 'payment_status']),
+        // WiFi logic: only show if checked in
+        $showWifi = $booking->booking_status === 'checked_in';
+
+        return Inertia::render('Guest/Booking/Show', [
+            'booking' => array_merge($booking->toArray(), [
+                'checkin_instructions' => $canShowInstructions ? $booking->getCheckinInstructions() : null,
+                'checkin_instructions_formatted' => $canShowInstructions ? $booking->getFormattedCheckinInstructions() : null,
+            ]),
+            'show_wifi' => $showWifi,
+            'wifi_password' => $showWifi ? $booking->property->wifi_password : null,
         ]);
     }
 
@@ -590,7 +297,7 @@ try {
                 $request->get('check_out'),
                 $request->get('guest_count')
             );
-        
+
             return response()->json($result);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -676,7 +383,7 @@ try {
 
             // Get availability data using the same service as show property
             $availabilityService = app(\App\Services\AvailabilityService::class);
-            
+
             // Get availability data
             $availability = $availabilityService->checkAvailability(
                 $property,
@@ -763,10 +470,10 @@ try {
 
         // Use validated data to prevent any potential injection
         $email = $request->validated()['email'];
-        
+
         // Additional sanitization for extra security
         $email = filter_var($email, FILTER_SANITIZE_EMAIL);
-        
+
         if (!$email) {
             return response()->json([
                 'exists' => false,
@@ -821,4 +528,4 @@ try {
         }
     }
 
-} 
+}

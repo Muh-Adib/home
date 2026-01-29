@@ -32,7 +32,7 @@ class UpdateBookingRequest extends FormRequest
             'check_in_date' => 'required|date',
             'check_out_date' => 'required|date|after:check_in_date',
             'check_in_time' => 'required|string',
-            
+
             // Guest Information
             'guest_male' => 'required|integer|min:0',
             'guest_female' => 'required|integer|min:0',
@@ -46,18 +46,18 @@ class UpdateBookingRequest extends FormRequest
             'relationship_type' => 'required|in:keluarga,teman,kolega,pasangan,campuran',
             'special_requests' => 'nullable|string|max:1000',
             'internal_notes' => 'nullable|string|max:1000',
-            
+
             // Booking Status
             'booking_status' => 'required|in:pending_verification,confirmed,cancelled,checked_in,checked_out,no_show',
             'payment_status' => 'nullable|in:dp_pending,dp_received,fully_paid',
             'dp_percentage' => 'required|integer|in:30,50,70,100',
             'source' => 'required|in:direct,phone,walk_in,ota',
-            
+
             // Rate Override
             'rate_override' => 'nullable|boolean',
             'override_amount' => 'nullable|numeric|min:0',
-            'override_reason' => 'nullable|string|max:500',
-            
+            'override_reason' => 'required_if:rate_override,true|nullable|string|min:10|max:500',
+
             // Extra Services
             'services' => 'nullable|array',
         ];
@@ -82,9 +82,9 @@ class UpdateBookingRequest extends FormRequest
     {
         $validator->after(function (Validator $validator) {
             // Validate total guest count
-            $guestMale = (int)$this->input('guest_male', 0);
-            $guestFemale = (int)$this->input('guest_female', 0);
-            $guestChildren = (int)$this->input('guest_children', 0);
+            $guestMale = (int) $this->input('guest_male', 0);
+            $guestFemale = (int) $this->input('guest_female', 0);
+            $guestChildren = (int) $this->input('guest_children', 0);
             $totalGuests = $guestMale + $guestFemale + $guestChildren;
 
             if ($totalGuests === 0) {
@@ -103,19 +103,22 @@ class UpdateBookingRequest extends FormRequest
             $booking = $this->route('booking');
             if ($booking && $this->input('property_id')) {
                 $property = Property::find($this->input('property_id'));
-                
+
                 if ($property) {
-                    $checkInChanged = $booking->check_in->format('Y-m-d') != $this->input('check_in_date');
-                    $checkOutChanged = $booking->check_out->format('Y-m-d') != $this->input('check_out_date');
-                    
-                    if ($checkInChanged || $checkOutChanged) {
-                        $isAvailable = $property->isAvailableForDates(
-                            $this->input('check_in_date'),
-                            $this->input('check_out_date'),
-                            $booking->id // exclude current booking
+                    $checkIn = $this->input('check_in_date');
+                    $checkOut = $this->input('check_out_date');
+
+                    if ($checkIn && $checkOut && ($booking->check_in->format('Y-m-d') != $checkIn || $booking->check_out->format('Y-m-d') != $checkOut)) {
+                        $availabilityService = app(\App\Services\AvailabilityService::class);
+                        $availability = $availabilityService->checkAvailability(
+                            $property,
+                            $checkIn,
+                            $checkOut,
+                            $totalGuests,
+                            $booking->id
                         );
-                        
-                        if (!$isAvailable) {
+
+                        if (!$availability['available']) {
                             $validator->errors()->add('check_in_date', 'Property tidak tersedia untuk tanggal baru.');
                         }
                     }

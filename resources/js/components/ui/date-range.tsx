@@ -1,21 +1,15 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar as CalendarIcon, ChevronDown, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Calendar } from '@/components/ui/calendar';
 import { DateRange as DateRangeType } from 'react-day-picker';
 import { format, addDays, differenceInDays } from 'date-fns';
 import { id } from 'date-fns/locale';
-
-// Custom CSS for range selection styling
-// Hapus customCalendarStyles dan <style>
 
 interface DateRangeProps {
     startDate?: string;
@@ -41,12 +35,9 @@ interface DateRangeProps {
     minStayWeekend?: number;
     minStayPeak?: number;
     showMinStayWarning?: boolean;
-    // Data availability yang diterima dari parent component
     bookedDates?: string[];
     loading?: boolean;
     error?: string | null;
-    // compact prop removed - always compact mode
-    // Admin mode props
     adminMode?: boolean;
     showManualInput?: boolean;
 }
@@ -78,11 +69,17 @@ export function DateRange({
     bookedDates = [],
     loading = false,
     error = null,
-    // compact always true
     adminMode = false,
     showManualInput = false,
 }: DateRangeProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const [mounted, setMounted] = useState(false);
+    
+    // Hydration fix: only render formatted dates on client
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     const [dateRange, setDateRange] = useState<DateRangeType | undefined>(() => {
         if (startDate && endDate) {
             return {
@@ -94,10 +91,15 @@ export function DateRange({
     });
     const [warning, setWarning] = useState<string | null>(null);
 
-
-    // Hapus hoveredDate state dan logika terkait
-
-
+    // Sync internal state with props
+    useEffect(() => {
+        if (startDate && endDate) {
+            setDateRange({
+                from: new Date(startDate),
+                to: new Date(endDate)
+            });
+        }
+    }, [startDate, endDate]);
 
     // Calculate nights between dates
     const calculateNights = (from?: Date, to?: Date): number => {
@@ -115,8 +117,10 @@ export function DateRange({
     }, [dateRange]);
 
     // Check if date is booked dengan logika bergeser untuk step 2
-    const isDateBooked = useMemo(() => {
-        return (date: Date): boolean => {
+    const isDateBooked = useCallback((date: Date): boolean => {
+        if (!Array.isArray(bookedDates)) return false;
+
+        try {
             const dateStr = format(date, 'yyyy-MM-dd');
 
             // Jika sedang di step 2 (selecting checkout), geser booking 1 hari
@@ -130,75 +134,46 @@ export function DateRange({
 
             // Step 1 atau lainnya, gunakan booking normal
             return bookedDates.includes(dateStr);
-        };
+        } catch (e) {
+            console.error('Error checking booked date:', e);
+            return false;
+        }
     }, [bookedDates, dateRange, error, warning]);
 
-    // Get minimum stay for date dengan logika tambahan untuk tanggal yang terjepit
-    // Gunakan minStayNights sebagai base (sudah dihitung dengan seasonal rate dari parent)
-    // Hanya adjust jika ada booked dates yang membatasi
-    const getMinimumStayForDate = useMemo(() => {
-        return (date: Date): number => {
-            // Admin mode: no minimum stay restrictions
-            if (adminMode) {
-                return 1; // Admin can book even 1 night
-            }
+    // Get minimum stay for date
+    const getMinimumStayForDate = useCallback((date: Date): number => {
+        if (adminMode) return 1;
 
-            // Gunakan minStayNights yang sudah dihitung dari parent (dengan seasonal rate)
-            // Hook use-property-minimum-stay sudah menghitung minimum stay dengan mempertimbangkan seasonal rate
-            // Jadi kita hanya perlu adjust jika ada booked dates yang membatasi
-            const baseMinStay = minStayNights;
+        const baseMinStay = minStayNights;
+        const nextDay = addDays(date, 1);
+        const dayAfterNext = addDays(date, 2);
 
-            // Cek apakah ada booking setelah tanggal check-in yang membatasi
-            const nextDay = addDays(date, 1);
-            const dayAfterNext = addDays(date, 2);
+        if (isDateBooked(nextDay)) return 1;
+        if (isDateBooked(dayAfterNext) && !isDateBooked(nextDay)) return 1;
 
-            // Jika hari berikutnya sudah booked, allow 1 night only
-            if (isDateBooked(nextDay)) {
-                return 1;
-            }
+        for (let i = 1; i <= baseMinStay; i++) {
+            const checkDate = addDays(date, i);
+            if (isDateBooked(checkDate)) return 1;
+        }
 
-            // Jika 2 hari setelahnya booked tapi besok masih free, allow 1 night
-            if (isDateBooked(dayAfterNext) && !isDateBooked(nextDay)) {
-                return 1;
-            }
-
-            // Jika ada booking dalam rentang base minimum stay, allow 1 night
-            for (let i = 1; i <= baseMinStay; i++) {
-                const checkDate = addDays(date, i);
-                if (isDateBooked(checkDate)) {
-                    return 1;
-                }
-            }
-
-            // Return base minimum stay (sudah include seasonal rate calculation dari hook)
-            return baseMinStay;
-        };
+        return baseMinStay;
     }, [minStayNights, adminMode, isDateBooked]);
 
-    // Memo currentMinStay - gunakan minStayNights sebagai base (sudah include seasonal rate dari hook)
-    // Hanya adjust jika ada booked dates yang membatasi
+    // Memo currentMinStay
     const currentMinStay = useMemo(() => {
-        if (!dateRange?.from) {
-            return minStayNights;
-        }
-        // Gunakan getMinimumStayForDate yang akan menggunakan minStayNights sebagai base
-        // dan hanya adjust jika ada booked dates yang membatasi
+        if (!dateRange?.from) return minStayNights;
         return getMinimumStayForDate(dateRange.from);
     }, [dateRange?.from, minStayNights, getMinimumStayForDate]);
 
     const isMinStayViolation = nights > 0 && nights < currentMinStay;
 
-
-
-    // Check if range contains booked dates (exclusive of start and end dates)
+    // Check if range contains booked dates
     const rangeContainsBookedDates = (from: Date, to: Date): boolean => {
-        let currentDate = addDays(from, 1); // Start from day after check-in
+        let currentDate = addDays(from, 1);
         const endDate = new Date(to);
 
         while (currentDate < endDate) {
-            if (isDateBooked(currentDate)) {
-                return true;
-            }
+            if (isDateBooked(currentDate)) return true;
             currentDate = addDays(currentDate, 1);
         }
         return false;
@@ -208,146 +183,75 @@ export function DateRange({
     const handleDateSelect = (range: DateRangeType | undefined) => {
         const hasCompleteRange = dateRange?.from && dateRange?.to;
 
-        // CASE 1: Reset jika kosong
+        // CASE 1: Reset
         if (!range || (!range.from && !range.to)) {
             setDateRange(undefined);
-
             setWarning(null);
             onDateChange?.("", "");
             return;
         }
 
-        // CASE 2: User SUDAH memilih range lengkap → klik tanggal baru
+        // CASE 2: New start date
         if (hasCompleteRange) {
-            console.log("🔄 Resetting and setting new start date");
             if (range.from?.getTime() !== dateRange.from?.getTime()) {
-                // Set CLICK sebagai start baru
-                setDateRange({
-                    from: range.from,
-                    to: undefined
-                });
+                setDateRange({ from: range.from, to: undefined });
+            } else if (range.to?.getTime() !== dateRange.to?.getTime()) {
+                setDateRange({ from: range.to, to: undefined });
             }
-            if (range.to?.getTime() !== dateRange.to?.getTime()) {
-                // Set CLICK sebagai start baru
-                setDateRange({
-                    from: range.to,
-                    to: undefined
-                });
-            }
-
             setWarning(null);
             return;
         }
 
-        // CASE 3: User memilih tanggal pertama (start)
+        // CASE 3: Start date only
         if (range.from && !range.to) {
-            console.log("🔄 Start date chosen");
             setDateRange({ from: range.from, to: undefined });
             setWarning(null);
             return;
         }
 
-        // CASE 4: User memilih end-date → complete range
+        // CASE 4: Complete range
         if (range.from && range.to) {
-            console.log("🔄 Complete range chosen");
-            return validateAndSetCompleteRange(range.from, range.to);
+            validateAndSetCompleteRange(range.from, range.to);
+        }
+    };
+
+    const validateAndSetCompleteRange = (fromDate: Date, toDate: Date) => {
+        const correctedRange = { from: fromDate, to: toDate };
+
+        if (rangeContainsBookedDates(fromDate, toDate)) {
+            setWarning('Rentang tanggal mengandung tanggal yang sudah dipesan.');
+            setDateRange(undefined);
+            onDateChange?.('', '');
+            return;
         }
 
-        // Fungsi helper untuk validasi dan set range lengkap
-        function validateAndSetCompleteRange(fromDate: Date, toDate: Date) {
-            console.log('🔄 Validating complete range:', fromDate, 'to', toDate);
-
-            const correctedRange = { from: fromDate, to: toDate };
-            // Tetapkan jumlah malam
-
-            // Validasi: cek apakah range mengandung tanggal yang sudah dipesan
-            if (typeof rangeContainsBookedDates === 'function' && rangeContainsBookedDates(fromDate, toDate)) {
-                setWarning('Rentang tanggal yang dipilih mengandung tanggal yang sudah dipesan. Silakan pilih rentang tanggal lain.');
-                setDateRange(undefined);
-                if (onDateChange) {
-                    onDateChange('', '');
-                }
-                return;
-            }
-
-            // Validasi minimum stay (skip untuk admin mode)
-            if (!adminMode && typeof differenceInDays === 'function' && typeof getMinimumStayForDate === 'function') {
-                const nights = differenceInDays(toDate, fromDate);
-                const requiredMinStay = getMinimumStayForDate(fromDate);
-
-                if (nights < requiredMinStay) {
-                    setWarning(`Untuk tanggal yang dipilih, minimal menginap ${requiredMinStay} malam. Silakan sesuaikan tanggal check-out.`);
-                    setDateRange(correctedRange);
-                    return;
-                }
-            }
-
-            // Validasi berhasil - simpan range lengkap dan tutup kalender
-            console.log('🔄 Range validation passed, setting final range');
+        const nightsVal = differenceInDays(toDate, fromDate);
+        const requiredMinStay = getMinimumStayForDate(fromDate);
+        if (!adminMode && nightsVal < requiredMinStay) {
+            setWarning(`Minimal menginap ${requiredMinStay} malam.`);
             setDateRange(correctedRange);
+            return;
+        }
 
-            // Tutup kalender hanya setelah range lengkap dan valid
-            if (typeof setIsOpen === 'function') {
-                setIsOpen(false);
-            }
+        setDateRange(correctedRange);
+        setIsOpen(false);
+        setWarning(null);
 
-            setWarning(null);
-
-            // Panggil onDateChange dengan range lengkap
-            if (onDateChange) {
-                const startStr = fromDate.toLocaleDateString('en-CA');
-                const endStr = toDate.toLocaleDateString('en-CA');
-
-                console.log('🔄 Calling onDateChange with:', startStr, endStr);
-
-                if (autoTrigger && typeof triggerDelay !== 'undefined') {
-                    setTimeout(() => {
-                        console.log('🔄 Delayed onDateChange execution');
-                        onDateChange(startStr, endStr);
-                    }, triggerDelay);
-                } else {
-                    onDateChange(startStr, endStr);
-                }
+        if (onDateChange) {
+            const startStr = format(fromDate, 'yyyy-MM-dd');
+            const endStr = format(toDate, 'yyyy-MM-dd');
+            
+            if (autoTrigger && triggerDelay) {
+                setTimeout(() => onDateChange(startStr, endStr), triggerDelay);
+            } else {
+                onDateChange(startStr, endStr);
             }
         }
     };
 
-
-    // Admin mode: override min date restrictions
-    const getEffectiveMinDate = (): Date | undefined => {
-        if (adminMode) {
-            // Admin can select any date, including past dates
-            return undefined;
-        }
-        return minDate ? new Date(minDate) : new Date();
-    };
-
-    const getEffectiveMaxDate = (): Date | undefined => {
-        if (adminMode) {
-            // Admin can select dates far in the future
-            return addDays(new Date(), 365 * 2); // 2 years ahead
-        }
-        return maxDate ? new Date(maxDate) : addDays(new Date(), 365); // 1 year ahead
-    };
-
-    // Format display text
-    const formatDisplayText = () => {
-        if (!dateRange?.from) {
-            return startLabel;
-        }
-
-        if (dateRange.from && dateRange.to) {
-            // Compact format: d MMM - d MMM
-            const startFormat = format(dateRange.from, 'd MMM', { locale: id });
-            const endFormat = format(dateRange.to, 'd MMM yyyy', { locale: id });
-            return `${startFormat} - ${endFormat}`;
-        }
-
-        // Hanya start date yang dipilih, tampilkan dengan indikator bahwa user masih memilih
-        const fromFormat = format(dateRange.from, 'd MMM', { locale: id });
-        return `${fromFormat} → ?`;
-    };
-
+    // Effective limits
+    const getEffectiveMinDate = (): Date | undefined => adminMode ? undefined : (minDate ? new Date(minDate) : new Date());
+    const getEffectiveMaxDate = (): Date | undefined => adminMode ? addDays(new Date(), 365 * 2) : (maxDate ? new Date(maxDate) : addDays(new Date(), 365));
 
     // Button sizing
     const getButtonHeight = () => {
@@ -358,38 +262,29 @@ export function DateRange({
         }
     };
 
-    // Memo disabledDates
-    const minimumDate = adminMode ? undefined : (minDate ? new Date(minDate) : new Date());
-    const maximumDate = adminMode ? addDays(new Date(), 365 * 2) : (maxDate ? new Date(maxDate) : addDays(new Date(), 60));
+    // Disabled dates
     const disabledDates = useMemo(() => {
         const matchers: any[] = [];
+        const min = getEffectiveMinDate();
+        const max = getEffectiveMaxDate();
 
-        // Add date range restrictions
-        if (!adminMode && minimumDate) {
-            matchers.push({ before: minimumDate });
-        }
+        if (min) matchers.push({ before: min });
+        if (max) matchers.push({ after: max });
 
-        if (!adminMode && maximumDate) {
-            matchers.push({ after: maximumDate });
-        }
-
-        // Add custom disabled logic
         matchers.push((date: Date) => {
             if (isDateBooked(date)) return true;
-
-            // No range restrictions in admin mode
             if (adminMode) {
-                if (!dateRange?.from || dateRange.to) return false;
-                return date <= dateRange.from;
+                 if (dateRange?.from && !dateRange.to) return date <= dateRange.from;
+                 return false;
             }
-
-            // Normal mode: apply range restrictions
-            if (!dateRange?.from || dateRange.to) return false;
-            return date <= dateRange.from || differenceInDays(date, dateRange.from) > 30;
+            if (dateRange?.from && !dateRange.to) {
+                return date <= dateRange.from || differenceInDays(date, dateRange.from) > 30;
+            }
+            return false;
         });
 
         return matchers;
-    }, [minimumDate, maximumDate, isDateBooked, dateRange, adminMode]);
+    }, [isDateBooked, dateRange, adminMode, minDate, maxDate]);
 
     const calendarModifiers: Record<string, any> = {
         booked: isDateBooked,
@@ -407,22 +302,9 @@ export function DateRange({
         d.getTime() > dateRange.from!.getTime() &&
         d.getTime() < dateRange.to!.getTime();
 
-
     return (
         <div className={cn('w-full', className)}>
-            {/* Hapus <style> bawaan */}
-            <Popover
-                open={isOpen}
-                onOpenChange={(open) => {
-                    // Jangan paksa tutup jika user sedang dalam proses memilih
-                    if (!open && dateRange?.from && !dateRange?.to) {
-                        // Biarkan popover tertutup tapi pertahankan partial selection
-                        setIsOpen(false);
-                        return;
-                    }
-                    setIsOpen(open);
-                }}
-            >
+            <Popover open={isOpen} onOpenChange={setIsOpen}>
                 <PopoverTrigger asChild>
                     <Button
                         variant="outline"
@@ -436,19 +318,15 @@ export function DateRange({
                         )}
                         disabled={disabled}
                     >
-                        {!dateRange?.from ? (
-                            // Empty state - no dates selected
+                        {(!dateRange?.from || !mounted) ? (
                             <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <CalendarIcon className="shrink-0 h-3.5 w-3.5" />
-                                <span className="truncate text-left">{startLabel}</span>
+                                <span className="truncate text-left">{mounted ? startLabel : 'Loading...'}</span>
                             </div>
                         ) : (
-                            // Dates selected - show separated layout
                             <div className="flex items-center justify-between gap-2 min-w-0 flex-1">
                                 <div className="flex items-center gap-2 min-w-0">
                                     <CalendarIcon className="shrink-0 h-3.5 w-3.5 text-primary" />
-
-                                    {/* Check-in */}
                                     <div className="flex flex-col leading-tight min-w-0 px-2">
                                         <span className="text-[11px] text-muted-foreground leading-none">{startLabel}</span>
                                         <span className="text-sm font-semibold leading-none mt-1 truncate">
@@ -458,10 +336,7 @@ export function DateRange({
 
                                     {dateRange.to && (
                                         <>
-                                            {/* Divider */}
                                             <div className="h-8 w-px bg-border shrink-0 mx-1" />
-
-                                            {/* Check-out */}
                                             <div className="flex flex-col leading-tight min-w-0 px-2">
                                                 <span className="text-[11px] text-muted-foreground leading-none">{endLabel}</span>
                                                 <span className="text-sm font-semibold leading-none mt-1 truncate">
@@ -470,13 +345,11 @@ export function DateRange({
                                             </div>
                                         </>
                                     )}
-
                                     {!dateRange.to && (
                                         <span className="text-xs text-muted-foreground ml-1">→ Pilih check-out</span>
                                     )}
                                 </div>
 
-                                {/* Nights badge - positioned on the right */}
                                 {dateRange.to && showNights && nights > 0 && (
                                     <div className="flex items-center gap-2 shrink-0">
                                         <div className="h-6 w-px bg-border" />
@@ -490,24 +363,12 @@ export function DateRange({
                                 )}
                             </div>
                         )}
-
-                        <ChevronDown className={cn(
-                            "shrink-0 opacity-50 transition-transform duration-200 ml-2",
-                            "h-3.5 w-3.5",
-                            isOpen && "rotate-180"
-                        )} />
+                        <ChevronDown className={cn("shrink-0 ml-2 h-4 w-4 opacity-50", isOpen && "rotate-180")} />
                     </Button>
                 </PopoverTrigger>
 
-                <PopoverContent
-                    className="p-0 w-auto max-w-[calc(100vw-2rem)] sm:!max-w-none rounded-xl shadow-lg border bg-card"
-                    align="start"
-                    side="bottom"
-                    sideOffset={8}
-                >
+                <PopoverContent className="p-0 w-auto" align="start">
                     <div className="p-4 space-y-4">
-
-                        {/* Loading */}
                         {loading && (
                             <div className="flex items-center gap-3 justify-center p-6">
                                 <div className="animate-spin h-5 w-5 rounded-full border-2 border-primary border-t-transparent" />
@@ -515,7 +376,6 @@ export function DateRange({
                             </div>
                         )}
 
-                        {/* Calendar */}
                         {!loading && (
                             <Calendar
                                 initialFocus
@@ -525,42 +385,13 @@ export function DateRange({
                                 onSelect={handleDateSelect}
                                 disabled={disabledDates}
                                 modifiers={calendarModifiers}
-                                modifiersStyles={{
-                                    selected: {
-                                        backgroundColor: 'hsl(var(--brand-accent))',
-                                        color: 'hsl(var(--brand-accent-foreground))',
-                                        fontWeight: 600,
-                                    },
-                                    today: {
-                                        backgroundColor: 'rgb(219, 234, 254)', // blue-100
-                                        color: 'rgb(30, 64, 175)', // blue-800
-                                        fontWeight: 600,
-                                        border: '2px solid rgb(147, 197, 253)', // blue-300
-                                        borderRadius: '0.375rem',
-                                    },
-                                    booked: {
-                                        backgroundColor: 'hsl(var(--destructive))',
-                                        color: 'hsl(var(--destructive-foreground))',
-                                        textDecoration: 'line-through',
-                                    },
-                                    rangeStart: {
-                                        backgroundColor: 'hsl(var(--primary))',
-                                        color: 'hsl(var(--primary-foreground))',
-                                        fontWeight: 600,
-                                        borderRadius: '0.375rem 0 0 0.375rem',
-                                    },
-                                    rangeEnd: {
-                                        backgroundColor: 'hsl(var(--primary))',
-                                        color: 'hsl(var(--primary-foreground))',
-                                        fontWeight: 600,
-                                        borderRadius: '0 0.375rem 0.375rem 0',
-                                    },
-                                    rangeMiddle: {
-                                        backgroundColor: 'hsl(var(--primary))',
-                                        color: 'hsl(var(--primary-foreground))',
-                                        fontWeight: 400,
-                                        borderRadius: '0',
-                                    },
+                                modifiersClassNames={{
+                                    booked: "bg-red-100 text-red-900 line-through opacity-50 hover:bg-red-100 cursor-not-allowed font-medium decoration-red-500/50",
+                                    today: "bg-accent/50 text-accent-foreground font-semibold border-2 border-primary/20",
+                                    selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground font-semibold rounded-md",
+                                    rangeStart: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground font-semibold rounded-l-md rounded-r-none",
+                                    rangeEnd: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground font-semibold rounded-r-md rounded-l-none",
+                                    rangeMiddle: "bg-primary/10 text-primary rounded-none",
                                 }}
                                 className="rounded-lg border-0"
                                 locale={id}
@@ -569,76 +400,27 @@ export function DateRange({
                             />
                         )}
 
-                        {/* Footer info */}
-                        {showFooter && (
-                            <div>
-                                <div className="pt-3 border-t space-y-3 text-xs text-muted-foreground">
-                                    <div>
-                                        {!dateRange?.from && <span>Pilih tanggal check-in untuk memulai</span>}
-
-                                        {dateRange?.from && !dateRange?.to && (
-                                            <div className="space-y-1">
-                                                <span className="text-primary font-medium">
-                                                    Check-in: {format(dateRange.from, 'd MMM yyyy', { locale: id })}
-                                                </span>
-                                                <p className="text-xs">`Minimal {currentMinStay} malam dari {format(dateRange.from, 'd MMM', { locale: id })}`</p>
-                                            </div>
-                                        )}
-
-                                        {dateRange?.from && dateRange?.to && !error && !warning && (
-                                            <span className="text-green-600 dark:text-green-400 font-medium">
-                                                ✓ {nights} malam terpilih, pilih tanggal awal atau reset
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="pt-2 border-t text-xs flex items-center gap-4">
-                                    <div className="flex items-center gap-1">
-                                        <div className="w-3 h-3 rounded bg-destructive"></div>
-                                        <span>Dipesan</span>
-                                    </div>
-
-                                    <div className="flex items-center gap-1">
-                                        <div className="w-3 h-3 rounded bg-brand-accent border"></div>
-                                        <span>Dipilih</span>
-                                    </div>
+                        {showFooter && mounted && (
+                            <div className="pt-3 border-t space-y-3 text-xs text-muted-foreground">
+                                <div>
+                                    {!dateRange?.from && <span>Pilih tanggal check-in untuk memulai</span>}
+                                    {dateRange?.from && !dateRange?.to && (
+                                        <div className="space-y-1">
+                                            <span className="text-primary font-medium">Check-in: {format(dateRange.from, 'd MMM yyyy', { locale: id })}</span>
+                                            <p className="text-xs">Minimal {currentMinStay} malam dari {format(dateRange.from, 'd MMM', { locale: id })}</p>
+                                        </div>
+                                    )}
+                                    {dateRange?.from && dateRange?.to && !error && !warning && (
+                                        <span className="text-green-600 font-medium">✓ {nights} malam terpilih</span>
+                                    )}
                                 </div>
                             </div>
                         )}
                     </div>
-
                 </PopoverContent>
-
             </Popover>
         </div>
     );
 }
-
-export const getDefaultDateRange = (nights: number = 1) => {
-    const today = new Date();
-    const endDate = addDays(today, nights);
-
-    return {
-        startDate: today.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
-    };
-};
-
-export const formatDateRange = (startDate: string, endDate: string, locale: string = 'id-ID') => {
-    if (!startDate || !endDate) return '';
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    const options: Intl.DateTimeFormatOptions = {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-    };
-
-    return `${start.toLocaleDateString(locale, options)} - ${end.toLocaleDateString(locale, options)}`;
-};
 
 export default DateRange;

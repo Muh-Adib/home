@@ -39,8 +39,11 @@ class AdminBookingService
         private GuestCountService $guestCountService,
         private BookingServiceSyncService $serviceSyncService,
         private RateOverrideLogService $rateOverrideLogService,
-        private PaymentIncomeSyncService $paymentIncomeSyncService
-    ) {}
+        private PaymentIncomeSyncService $paymentIncomeSyncService,
+        private \App\Actions\Booking\CreateBookingAction $createBookingAction,
+        private \App\Actions\User\EnsureGuestUserAction $ensureUserAction
+    ) {
+    }
 
     /**
      * Create an admin booking with all related entities
@@ -58,53 +61,25 @@ class AdminBookingService
         try {
             DB::beginTransaction();
 
-            // 1. Find or create guest user
-            $guestUser = $this->findOrCreateGuestUser($validated);
-
-            // 2. Calculate guest count
+            // 1. Calculate guest count (needed for BookingRequest)
             $property = Property::findOrFail($validated['property_id']);
             $guestCount = $this->guestCountService->calculateFromRequest($property, $validated);
 
-            // 3. Prepare booking data
+            // 2. Prepare booking data
             $bookingData = $this->prepareBookingData($validated, $guestCount);
-            $bookingRequest = BookingRequest::fromArray($bookingData);
 
-            // 4. Create booking via BookingService
-            $booking = $this->bookingService->createBooking($bookingRequest, $guestUser);
+            // 3. Create booking via CreateBookingAction (Shared logic)
+            $booking = $this->createBookingAction->execute($bookingData, $admin);
 
-            // 5. Apply admin-specific updates
-            $this->applyAdminMetadata($booking, $admin, $validated);
-
-            // 6. Handle rate override if specified
-            if (!empty($validated['rate_override']) && !empty($validated['override_amount'])) {
-                $this->applyRateOverride($booking, $validated, $admin);
-            }
-
-            // 7. Auto-verify if requested
-            if ($validated['auto_confirm'] ?? false) {
-                $this->autoConfirmBooking($booking, $admin);
-            }
-
-            // 8. Create payment if provided
+            // 4. Create payment if provided
             $payment = null;
             if (!empty($validated['payment_method_id']) && !empty($validated['payment_amount'])) {
                 $payment = $this->createPayment($booking, $validated, $paymentProof, $admin);
             }
 
-            // 9. Sync extra services
-            $this->syncServices($booking, $validated['services'] ?? []);
-
             DB::commit();
 
             return AdminBookingResult::success($booking, $payment);
-
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            DB::rollBack();
-            Log::error('Admin booking creation validation failed', [
-                'errors' => $e->errors(),
-                'admin_id' => $admin->id,
-            ]);
-            return AdminBookingResult::failure($e->errors());
 
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -115,28 +90,6 @@ class AdminBookingService
             ]);
             return AdminBookingResult::failure(['error' => 'Failed to create booking: ' . $e->getMessage()]);
         }
-    }
-
-    /**
-     * Find existing guest user or create new one
-     */
-    private function findOrCreateGuestUser(array $validated): User
-    {
-        $guestUser = User::where('email', $validated['guest_email'])->first();
-
-        if (!$guestUser) {
-            $guestUser = User::create([
-                'name' => $validated['guest_name'],
-                'email' => $validated['guest_email'],
-                'phone' => $validated['guest_phone'],
-                'password' => Hash::make(Str::random(12)),
-                'role' => 'guest',
-                'status' => 'active',
-                'email_verified_at' => now(), // Admin-created users are auto-verified
-            ]);
-        }
-
-        return $guestUser;
     }
 
     /**
@@ -156,17 +109,20 @@ class AdminBookingService
             'guest_name' => $validated['guest_name'],
             'guest_email' => $validated['guest_email'],
             'guest_phone' => $validated['guest_phone'],
-            'guest_country' => $validated['guest_country'],
-            'guest_id_number' => $validated['guest_id_number'],
-            'guest_gender' => $validated['guest_gender'],
-            'relationship_type' => $validated['relationship_type'],
+            'guest_country' => $validated['guest_country'] ?? 'Indonesia',
+            'guest_id_number' => $validated['guest_id_number'] ?? null,
+            'guest_gender' => $validated['guest_gender'] ?? 'male',
+            'relationship_type' => $validated['relationship_type'] ?? 'keluarga',
             'guests' => $validated['guests'] ?? [],
-            'special_requests' => $validated['special_requests'],
-            'internal_notes' => $validated['internal_notes'],
+            'special_requests' => $validated['special_requests'] ?? null,
+            'internal_notes' => $validated['internal_notes'] ?? null,
             'booking_status' => $validated['booking_status'],
             'payment_status' => $validated['payment_status'],
             'dp_percentage' => $validated['dp_percentage'],
             'auto_confirm' => $validated['auto_confirm'] ?? false,
+            'rate_override' => $validated['rate_override'] ?? false,
+            'override_amount' => $validated['override_amount'] ?? null,
+            'override_reason' => $validated['override_reason'] ?? null,
         ];
     }
 
@@ -192,8 +148,8 @@ class AdminBookingService
 
         $logMessage = $this->rateOverrideLogService->generateLog(
             $admin,
-            $originalAmount,
-            $overrideAmount,
+            (float) $originalAmount,
+            (float) $overrideAmount,
             $overrideReason
         );
 
@@ -273,7 +229,7 @@ class AdminBookingService
     }
 
     /**
-     * Upload and process payment proof (convert to WebP if image)
+     * Upload and process payment proof (convert to WebP if image and supported)
      */
     private function uploadPaymentProof(Payment $payment, UploadedFile $file, string $bookingNumber): void
     {
@@ -282,35 +238,47 @@ class AdminBookingService
         $isImage = in_array($extension, ['jpg', 'jpeg', 'png']);
 
         if ($isImage) {
-            // Convert to WebP
-            $webpFilename = $baseFilename . '.webp';
-            $tempPath = $file->storeAs('payments/proof/temp', $file->hashName(), 'public');
-            $tempFullPath = Storage::disk('public')->path($tempPath);
-            $webpPath = 'payments/proof/' . $webpFilename;
-            $webpFullPath = Storage::disk('public')->path($webpPath);
+            try {
+                // Try to convert to WebP
+                $webpFilename = $baseFilename . '.webp';
+                $tempPath = $file->storeAs('payments/proof/temp', $file->hashName(), 'public');
+                $tempFullPath = Storage::disk('public')->path($tempPath);
+                $webpPath = 'payments/proof/' . $webpFilename;
+                $webpFullPath = Storage::disk('public')->path($webpPath);
 
-            // Ensure directory exists
-            $directory = dirname($webpFullPath);
-            if (!file_exists($directory)) {
-                mkdir($directory, 0755, true);
+                // Ensure directory exists
+                $directory = dirname($webpFullPath);
+                if (!file_exists($directory)) {
+                    mkdir($directory, 0755, true);
+                }
+
+                // Convert using Intervention Image v3
+                $manager = new ImageManager(new Driver());
+                $image = $manager->read($tempFullPath);
+
+                // Resize if too large (max 1920x1920)
+                if ($image->width() > 1920 || $image->height() > 1920) {
+                    $image->scaleDown(1920, 1920);
+                }
+
+                // Save as WebP with quality 85
+                $image->toWebp(85)->save($webpFullPath);
+
+                // Delete temp file
+                Storage::disk('public')->delete($tempPath);
+
+                $finalPath = $webpPath;
+            } catch (\Exception $e) {
+                // ✅ FIX: Fallback to original format if WebP encoding fails
+                Log::warning('WebP encoding failed, using original format', [
+                    'error' => $e->getMessage(),
+                    'booking_number' => $bookingNumber,
+                ]);
+
+                // Store original image format
+                $originalFilename = $baseFilename . '.' . $extension;
+                $finalPath = $file->storeAs('payments/proof', $originalFilename, 'public');
             }
-
-            // Convert using Intervention Image v3
-            $manager = new ImageManager(new Driver());
-            $image = $manager->read($tempFullPath);
-
-            // Resize if too large (max 1920x1920)
-            if ($image->width() > 1920 || $image->height() > 1920) {
-                $image->scaleDown(1920, 1920);
-            }
-
-            // Save as WebP with quality 85
-            $image->toWebp(85)->save($webpFullPath);
-
-            // Delete temp file
-            Storage::disk('public')->delete($tempPath);
-
-            $finalPath = $webpPath;
         } else {
             // Store PDF as-is
             $pdfFilename = $baseFilename . '.pdf';
@@ -320,18 +288,6 @@ class AdminBookingService
         $payment->update(['attachment_path' => $finalPath]);
     }
 
-    /**
-     * Sync booking services
-     */
-    private function syncServices(Booking $booking, array $services): void
-    {
-        if (empty($services)) {
-            return;
-        }
-
-        $servicesTotal = $this->serviceSyncService->sync($booking, $services, false);
-        $this->serviceSyncService->updateBookingTotalWithServices($booking, $servicesTotal);
-    }
 }
 
 /**
@@ -344,7 +300,8 @@ class AdminBookingResult
         private ?Booking $booking = null,
         private ?Payment $payment = null,
         private array $errors = []
-    ) {}
+    ) {
+    }
 
     public static function success(Booking $booking, ?Payment $payment = null): self
     {

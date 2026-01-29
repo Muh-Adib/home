@@ -3,10 +3,12 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { formatCurrency } from '@/lib/utils';
+import { BookingStatusBadge } from '@/Components/Booking/BookingStatusBadge';
+import { PaymentStatusBadge } from '@/Components/Booking/PaymentStatusBadge';
+import { formatCurrency } from '@/utils/formatCurrency';
 import { type Booking } from '@/types';
 import { Link } from '@inertiajs/react';
-import { 
+import {
     MoreHorizontal,
     Eye,
     CheckCircle,
@@ -45,42 +47,6 @@ export default function BookingCard({
     canCancel,
     canCheckIn
 }: BookingCardProps) {
-    const getBookingStatusBadge = (status: Booking['booking_status']) => {
-        const statusConfig = {
-            pending_verification: { variant: 'secondary' as const, label: 'Pending', icon: '⏳' },
-            confirmed: { variant: 'default' as const, label: 'Confirmed', icon: '✅' },
-            checked_in: { variant: 'default' as const, label: 'Checked In', icon: '🏠' },
-            checked_out: { variant: 'outline' as const, label: 'Checked Out', icon: '🚪' },
-            cancelled: { variant: 'destructive' as const, label: 'Cancelled', icon: '❌' },
-            no_show: { variant: 'destructive' as const, label: 'No Show', icon: '⏰' },
-        };
-        
-        const config = statusConfig[status];
-        return (
-            <Badge variant={config.variant} className="inline-flex items-center gap-1">
-                <span>{config.icon}</span>
-                {config.label}
-            </Badge>
-        );
-    };
-
-    const getPaymentStatusBadge = (status: Booking['payment_status']) => {
-        const statusConfig = {
-            dp_pending: { variant: 'secondary' as const, label: 'DP Pending' },
-            dp_received: { variant: 'default' as const, label: 'DP Received' },
-            fully_paid: { variant: 'default' as const, label: 'Fully Paid' },
-            refunded: { variant: 'outline' as const, label: 'Refunded' },
-            overdue: { variant: 'destructive' as const, label: 'Overdue' },
-        };
-        
-        const config = statusConfig[status];
-        return (
-            <Badge variant={config.variant}>
-                {config.label}
-            </Badge>
-        );
-    };
-
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('id-ID', {
             day: 'numeric',
@@ -101,20 +67,20 @@ export default function BookingCard({
                             {booking.booking_number}
                         </p>
                         <div className="flex flex-wrap gap-2">
-                            {getBookingStatusBadge(booking.booking_status)}
-                            {getPaymentStatusBadge(booking.payment_status)}
+                            <BookingStatusBadge status={booking.booking_status} />
+                            <PaymentStatusBadge status={booking.payment_status} />
                         </div>
                     </div>
                 </div>
             </CardHeader>
-            
+
             <CardContent className="space-y-4">
                 {/* Property Info */}
                 <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
                     <Building2 className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm">{booking.property?.name}</span>
                 </div>
-                
+
                 {/* Dates */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
@@ -124,7 +90,7 @@ export default function BookingCard({
                         </div>
                         <p className="font-medium text-sm">{formatDate(booking.check_in)}</p>
                     </div>
-                    
+
                     <div className="space-y-1">
                         <div className="flex items-center gap-2 text-muted-foreground">
                             <CalendarDays className="h-3 w-3" />
@@ -133,7 +99,7 @@ export default function BookingCard({
                         <p className="font-medium text-sm">{formatDate(booking.check_out)}</p>
                     </div>
                 </div>
-                
+
                 {/* Guest & Amount Info */}
                 <div className="flex items-center justify-between pt-3 border-t">
                     <div className="flex items-center gap-2">
@@ -169,14 +135,14 @@ export default function BookingCard({
                             <Eye className="h-4 w-4 mr-2" /> View Details
                         </Link>
                     </Button>
-                    
+
                     <div className="flex gap-2">
                         {canVerify && booking.booking_status === 'pending_verification' && (
                             <>
-                                <Button 
-                                    onClick={() => onVerify(booking)} 
-                                    size="sm" 
-                                    className="flex-1" 
+                                <Button
+                                    onClick={() => onVerify(booking)}
+                                    size="sm"
+                                    className="flex-1"
                                     variant="default"
                                     disabled={loadingActions[`verify-${booking.id}`]}
                                 >
@@ -187,10 +153,10 @@ export default function BookingCard({
                                     )}
                                     {loadingActions[`verify-${booking.id}`] ? 'Verifying...' : 'Verify'}
                                 </Button>
-                                <Button 
-                                    onClick={() => onReject(booking)} 
-                                    size="sm" 
-                                    className="flex-1" 
+                                <Button
+                                    onClick={() => onReject(booking)}
+                                    size="sm"
+                                    className="flex-1"
                                     variant="destructive"
                                     disabled={loadingActions[`reject-${booking.id}`]}
                                 >
@@ -203,11 +169,11 @@ export default function BookingCard({
                                 </Button>
                             </>
                         )}
-                        
+
                         {canCheckIn && booking.payment_status === 'fully_paid' && (
-                            <Button 
-                                onClick={() => onCheckIn(booking)} 
-                                size="sm" 
+                            <Button
+                                onClick={() => onCheckIn(booking)}
+                                size="sm"
                                 className="flex-1"
                                 variant="default"
                                 disabled={loadingActions[`checkin-${booking.id}`]}
@@ -220,11 +186,11 @@ export default function BookingCard({
                                 {loadingActions[`checkin-${booking.id}`] ? 'Checking In...' : 'Check In'}
                             </Button>
                         )}
-                        
+
                         {canCheckIn && booking.booking_status === 'checked_in' && (
-                            <Button 
-                                onClick={() => onCheckOut(booking)} 
-                                size="sm" 
+                            <Button
+                                onClick={() => onCheckOut(booking)}
+                                size="sm"
                                 className="flex-1"
                                 variant="outline"
                                 disabled={loadingActions[`checkout-${booking.id}`]}
@@ -254,7 +220,7 @@ export default function BookingCard({
                                     View Details
                                 </Link>
                             </DropdownMenuItem>
-                            
+
                             {canVerify && booking.booking_status === 'pending_verification' && (
                                 <>
                                     <DropdownMenuItem onClick={() => onVerify(booking)}>
@@ -267,25 +233,25 @@ export default function BookingCard({
                                     </DropdownMenuItem>
                                 </>
                             )}
-                            
+
                             {canCheckIn && booking.booking_status === 'confirmed' && (
                                 <DropdownMenuItem onClick={() => onCheckIn(booking)}>
                                     <UserCheck className="h-4 w-4 mr-2" />
                                     Check In Guest
                                 </DropdownMenuItem>
                             )}
-                            
+
                             {canCheckIn && booking.booking_status === 'checked_in' && (
                                 <DropdownMenuItem onClick={() => onCheckOut(booking)}>
                                     <UserX className="h-4 w-4 mr-2" />
                                     Check Out Guest
                                 </DropdownMenuItem>
                             )}
-                            
+
                             <DropdownMenuSeparator />
-                            
+
                             {canCancel && ['pending_verification', 'confirmed'].includes(booking.booking_status) && (
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                     onClick={() => onCancel(booking)}
                                     className="text-destructive"
                                 >

@@ -11,15 +11,28 @@ use Illuminate\Support\Facades\DB;
 
 class CleaningDashboardController extends Controller
 {
+    public function __construct(
+        protected \App\Services\CleaningService $cleaningService
+    ) {
+    }
+
     public function index()
     {
-        // Properties that checked out today and need cleaning
+        // 1. Get Active Inventory Items for the form
+        $inventoryItems = \App\Models\InventoryItem::select('id', 'name', 'unit')
+            ->orderBy('name')
+            ->get();
+
+        // 2. Properties that checked out today and need cleaning
         $needsCleaning = Booking::whereDate('check_out', today())
             ->where('booking_status', 'checked_out')
             ->where('is_cleaned', false)
             ->with(['property:id,name,address,current_keybox_code', 'guests'])
             ->get()
             ->map(function ($booking) {
+                // Get usage template for this specific property
+                $stockTemplate = $this->cleaningService->getLastUsageTemplate($booking->property);
+
                 return [
                     'id' => $booking->id,
                     'booking_number' => $booking->booking_number,
@@ -31,10 +44,11 @@ class CleaningDashboardController extends Controller
                     'current_keybox_code' => $booking->property->current_keybox_code,
                     'next_checkin' => $booking->property->getNextCheckIn(),
                     'priority' => $this->calculateCleaningPriority($booking),
+                    'stock_template' => $stockTemplate, // Pass template to frontend
                 ];
             });
 
-        // Recently cleaned properties
+        // 3. Recently cleaned properties
         $recentlyCleaned = Booking::whereDate('cleaned_at', today())
             ->where('is_cleaned', true)
             ->with(['property:id,name,current_keybox_code,keybox_updated_at', 'cleanedBy:id,name'])
@@ -44,6 +58,7 @@ class CleaningDashboardController extends Controller
         return Inertia::render('Staff/CleaningDashboard', [
             'needsCleaning' => $needsCleaning,
             'recentlyCleaned' => $recentlyCleaned,
+            'inventoryItems' => $inventoryItems, // Pass full item list for adding extra
             'stats' => [
                 'total_checkout_today' => Booking::whereDate('check_out', today())->count(),
                 'cleaned_today' => Booking::whereDate('cleaned_at', today())->count(),
@@ -63,35 +78,28 @@ class CleaningDashboardController extends Controller
         $request->validate([
             'new_keybox_code' => 'required|string|regex:/^\d{3}$/',
             'notes' => 'nullable|string|max:500',
+            'stock_usage' => 'nullable|array',
+            'stock_usage.*.item_id' => 'required|exists:inventory_items,id',
+            'stock_usage.*.quantity' => 'required|numeric|min:0',
         ]);
 
-        DB::beginTransaction();
         try {
-            // Mark booking as cleaned
-            $booking->update([
-                'is_cleaned' => true,
-                'cleaned_at' => now(),
-                'cleaned_by' => auth()->id(),
-                'cleaning_notes' => $request->get('notes'),
-            ]);
-
-            // Update keybox code for property (staff input)
-            $booking->property->updateKeyboxCode(
-                $request->get('new_keybox_code'), 
+            $this->cleaningService->markAsCleaned(
+                $booking,
+                $request->input('new_keybox_code'),
+                $request->input('stock_usage', []),
+                $request->input('notes'),
                 auth()->id()
             );
 
-            DB::commit();
-
-            return redirect()->back()->with('success', 
-                "Property cleaned successfully! Keybox code updated to: {$request->get('new_keybox_code')}"
+            return redirect()->back()->with(
+                'success',
+                "Property marked as Ready! Keybox updated to: {$request->get('new_keybox_code')}"
             );
 
         } catch (\Exception $e) {
-            DB::rollback();
             \Log::error('Mark as cleaned failed: ' . $e->getMessage());
-            
-            return redirect()->back()->with('error', 'Failed to mark as cleaned.');
+            return redirect()->back()->with('error', 'Failed to mark as cleaned. Please try again.');
         }
     }
 
@@ -101,19 +109,19 @@ class CleaningDashboardController extends Controller
     private function calculateCleaningPriority(Booking $booking): string
     {
         $nextBooking = $booking->property->getNextCheckIn();
-        
+
         if (!$nextBooking) {
             return 'low';
         }
 
-        $hoursUntilNextCheckin = now()->diffInHours($nextBooking->check_in);
-        
+        $hoursUntilNextCheckin = now()->diffInHours($nextBooking['check_in']);
+
         if ($hoursUntilNextCheckin <= 6) {
             return 'high';
         } elseif ($hoursUntilNextCheckin <= 24) {
             return 'medium';
         }
-        
+
         return 'low';
     }
 

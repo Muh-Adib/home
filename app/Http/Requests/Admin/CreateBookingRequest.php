@@ -40,7 +40,7 @@ class CreateBookingRequest extends FormRequest
             'check_in_date' => 'required|date',
             'check_out_date' => 'required|date|after:check_in_date',
             'check_in_time' => 'nullable|date_format:H:i',
-            
+
             // Guest Information
             'guest_male' => 'required|integer|min:0',
             'guest_female' => 'required|integer|min:0',
@@ -54,14 +54,15 @@ class CreateBookingRequest extends FormRequest
             'relationship_type' => 'required|in:keluarga,teman,kolega,pasangan,campuran',
             'special_requests' => 'nullable|string|max:1000',
             'internal_notes' => 'nullable|string|max:1000',
-            
+
             // Booking Status
             'booking_status' => 'required|in:pending_verification,confirmed',
             'payment_status' => 'nullable|in:dp_pending,dp_received,fully_paid',
             'dp_percentage' => 'required|integer|in:30,50,70,100',
             'source' => 'nullable|in:direct,phone,walk_in,ota',
             'auto_confirm' => 'boolean',
-            
+            'force_ota_override' => 'boolean',
+
             // Additional Guests depreciated
             'guests' => 'nullable|array',
             'guests.*.guest_type' => 'nullable|string',
@@ -70,10 +71,10 @@ class CreateBookingRequest extends FormRequest
             'guests.*.email' => 'nullable|email|max:255',
             'guests.*.gender' => 'nullable|in:male,female',
             'guests.*.age_category' => 'nullable|in:adult,child,infant',
-            
+
             // Payment Information
-            'payment_method_id' => 'nullable|exists:payment_methods,id',
-            'payment_amount' => 'nullable|numeric|min:0',
+            'payment_method_id' => 'required_if:booking_status,confirmed|nullable|exists:payment_methods,id',
+            'payment_amount' => 'required_if:booking_status,confirmed|nullable|numeric|min:0',
             'payment_date' => 'nullable|date',
             'reference_number' => 'nullable|string|max:100',
             'bank_name' => 'nullable|string|max:255',
@@ -82,12 +83,12 @@ class CreateBookingRequest extends FormRequest
             'payment_status_payment' => 'nullable|in:pending,verified',
             'verification_notes' => 'nullable|string|max:1000',
             'payment_proof' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
-            
+
             // Rate Override
             'rate_override' => 'nullable|boolean',
             'override_amount' => 'nullable|numeric|min:0',
-            'override_reason' => 'required_if:rate_override,true|nullable|string|max:500',
-            
+            'override_reason' => 'required_if:rate_override,true|nullable|string|min:10|max:500',
+
             // Extra Services
             'services' => 'nullable|array',
         ];

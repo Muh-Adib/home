@@ -26,6 +26,8 @@ import {
     Timer,
     Wallet
 } from 'lucide-react';
+import { BookingStatusBadge } from '@/Components/Booking/BookingStatusBadge';
+import { PaymentStatusBadge } from '@/Components/Booking/PaymentStatusBadge';
 import { useTranslation } from 'react-i18next';
 
 interface Property {
@@ -109,8 +111,8 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
     const [countdown, setCountdown] = useState('');
 
     // Get property cover image
-    const coverImage = booking.property.media?.find(m => m.media_type === 'image' && m.is_cover)?.url || 
-                      booking.property.media?.find(m => m.media_type === 'image')?.url;
+    const coverImage = booking.property.media?.find(m => m.media_type === 'image' && m.is_cover)?.url ||
+        booking.property.media?.find(m => m.media_type === 'image')?.url;
 
     // Countdown timer for check-in
     useEffect(() => {
@@ -121,12 +123,12 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                 const checkInDate = new Date(booking.checkin_time_formatted);
                 console.log(booking.checkin_time_formatted);
                 const diff = checkInDate.getTime() - now.getTime();
-                
+
                 if (diff > 0) {
                     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
                     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                    
+
                     if (days > 0) {
                         setCountdown(`${days} hari ${hours} jam ${minutes} menit`);
                     } else if (hours > 0) {
@@ -156,56 +158,11 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
         });
     };
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'confirmed': return 'bg-green-100 text-green-800';
-            case 'pending_verification': return 'bg-yellow-100 text-yellow-800';
-            case 'cancelled': return 'bg-red-100 text-red-800';
-            case 'checked_in': return 'bg-blue-100 text-blue-800';
-            case 'checked_out': return 'bg-purple-100 text-purple-800';
-            case 'completed': return 'bg-green-100 text-green-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
-    };
-
-    const getPaymentStatusColor = (status: string) => {
-        switch (status) {
-            case 'fully_paid': return 'bg-green-100 text-green-800';
-            case 'dp_received': return 'bg-blue-100 text-blue-800';
-            case 'dp_pending': return 'bg-yellow-100 text-yellow-800';
-            case 'overdue': return 'bg-red-100 text-red-800';
-            case 'refunded': return 'bg-gray-100 text-gray-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
-    };
-
-    const getStatusText = (status: string) => {
-        switch (status) {
-            case 'pending_verification': return 'Menunggu Verifikasi';
-            case 'confirmed': return 'Dikonfirmasi';
-            case 'cancelled': return 'Dibatalkan';
-            case 'checked_in': return 'Check-in';
-            case 'checked_out': return 'Check-out';
-            case 'completed': return 'Selesai';
-            default: return status;
-        }
-    };
-
-    const getPaymentStatusText = (status: string) => {
-        switch (status) {
-            case 'dp_pending': return 'Menunggu DP';
-            case 'dp_received': return 'DP Diterima';
-            case 'fully_paid': return 'Lunas';
-            case 'overdue': return 'Terlambat';
-            case 'refunded': return 'Dikembalikan';
-            default: return status;
-        }
-    };
 
     const canMakePayment = (booking: Booking) => {
-        return booking.booking_status === 'confirmed' && 
-               ['dp_pending', 'dp_received'].includes(booking.payment_status) &&
-               booking.payment_link;
+        return booking.booking_status === 'confirmed' &&
+            ['dp_pending', 'dp_received'].includes(booking.payment_status) &&
+            booking.payment_link;
     };
 
     const getPaidAmount = (booking: Booking) => {
@@ -250,8 +207,8 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                     {/* Property Image */}
                     {coverImage && (
                         <div className="relative h-48 bg-gray-200">
-                            <img 
-                                src={coverImage} 
+                            <img
+                                src={coverImage}
                                 alt={booking.property.name}
                                 className="w-full h-full object-cover"
                             />
@@ -268,12 +225,8 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                         <div className="flex items-start justify-between mb-4">
                             <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-2">
-                                    <Badge className={getStatusColor(booking.booking_status)}>
-                                        {getStatusText(booking.booking_status)}
-                                    </Badge>
-                                    <Badge className={getPaymentStatusColor(booking.payment_status)}>
-                                        {getPaymentStatusText(booking.payment_status)}
-                                    </Badge>
+                                    <BookingStatusBadge status={booking.booking_status} />
+                                    <PaymentStatusBadge status={booking.payment_status} />
                                     {booking.can_show_checkin && (
                                         <Badge className="bg-blue-100 text-blue-800 border-blue-300">
                                             <Sparkles className="h-3 w-3 mr-1" />
@@ -356,7 +309,7 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                                 <div>
                                     <p className="text-sm font-medium">Tamu</p>
                                     <p className="text-sm text-gray-600">
-                                        {booking.guest_count} orang 
+                                        {booking.guest_count} orang
                                         <span className="text-xs text-gray-500 ml-1">
                                             ({booking.guest_male}M, {booking.guest_female}F, {booking.guest_children}C)
                                         </span>
@@ -405,8 +358,8 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                                     </Button>
                                 </Link>
                                 {booking.can_review && !booking.review && (
-                                    <Button 
-                                        variant="outline" 
+                                    <Button
+                                        variant="outline"
                                         size="sm"
                                         onClick={() => setShowReviewDialog(true)}
                                     >
@@ -421,7 +374,7 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                                     </Badge>
                                 )}
                             </div>
-                            
+
                             <div className="flex gap-2">
                                 {canMakePayment(booking) && (
                                     <Link href={booking.payment_link!}>
@@ -472,15 +425,15 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                             />
                         </div>
                         <div className="flex gap-2">
-                            <Button 
+                            <Button
                                 onClick={handleSubmitReview}
                                 disabled={isSubmittingReview}
                                 className="flex-1"
                             >
                                 {isSubmittingReview ? 'Mengirim...' : 'Kirim Ulasan'}
                             </Button>
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 onClick={() => setShowReviewDialog(false)}
                             >
                                 Batal

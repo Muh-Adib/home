@@ -44,7 +44,7 @@ class PaymentGatewayService
             // Get payment method (bisa iPaymu atau sub-method seperti bank_transfer, qris, etc)
             $paymentMethodId = $options['payment_method_id'] ?? null;
             $ipaymuMethod = PaymentMethod::where('code', 'ipaymu')->first();
-            
+
             if (!$ipaymuMethod) {
                 throw new \Exception('iPaymu payment method not found');
             }
@@ -78,9 +78,9 @@ class PaymentGatewayService
 
             // Prepare payment data untuk iPaymu
             $paymentData = $this->preparePaymentData(
-                $booking, 
+                $booking,
                 $totalAmount, // Send total amount dengan fee ke iPaymu
-                $type, 
+                $type,
                 array_merge($options, [
                     'expiry_hours' => $expiryHours,
                     'payment_method_id' => $selectedMethod->id,
@@ -95,9 +95,9 @@ class PaymentGatewayService
             }
 
             // Calculate expiry time
-            $expiredAt = $ipaymuResponse['expired'] 
+            $expiredAt = $ipaymuResponse['expired']
                 ? Carbon::parse($ipaymuResponse['expired'])
-                : Carbon::now()->addHours($expiryHours);
+                : Carbon::now()->addHours((int) $expiryHours);
 
             // Create payment record
             $payment = $booking->payments()->create([
@@ -160,7 +160,7 @@ class PaymentGatewayService
     public function processCallback(array $callbackData): ?Payment
     {
         $sessionId = $callbackData['session_id'] ?? $callbackData['sid'] ?? null;
-        
+
         if (!$sessionId) {
             Log::warning('Payment gateway callback missing session_id', [
                 'data' => $callbackData,
@@ -181,7 +181,7 @@ class PaymentGatewayService
         // Check payment status dari iPaymu
         try {
             $statusResponse = $this->ipaymuService->checkPaymentStatus($sessionId);
-            
+
             if ($statusResponse['success']) {
                 $this->updatePaymentFromGateway($payment, $statusResponse);
             }
@@ -215,8 +215,8 @@ class PaymentGatewayService
             // Find payment by reference_id atau transaction_id
             $payment = Payment::where(function ($query) use ($webhookResponse) {
                 $query->where('ipaymu_session_id', $webhookResponse['transaction_id'])
-                      ->orWhere('gateway_transaction_id', $webhookResponse['transaction_id'])
-                      ->orWhere('payment_number', $webhookResponse['reference_id']);
+                    ->orWhere('gateway_transaction_id', $webhookResponse['transaction_id'])
+                    ->orWhere('payment_number', $webhookResponse['reference_id']);
             })->first();
 
             if (!$payment) {
@@ -297,7 +297,7 @@ class PaymentGatewayService
             $method = PaymentMethod::find($paymentMethodId);
             if ($method) {
                 // Map payment method type ke iPaymu channel
-                $paymentChannel = match($method->type) {
+                $paymentChannel = match ($method->type) {
                     'bank_transfer' => 'bank_transfer',
                     'e_wallet' => 'qris', // iPaymu e-wallet biasanya via QRIS
                     default => 'all',
@@ -319,7 +319,7 @@ class PaymentGatewayService
         // - Integer (hours): 24 berarti 24 jam dari sekarang
         // - String datetime: "2024-12-31 23:59:59" format Y-m-d H:i:s
         $expiryHours = $options['expiry_hours'] ?? config('ipaymu.expiry_hours', 24);
-        
+
         // Gunakan format hours (integer) sesuai dokumentasi iPaymu
         // Jika ingin menggunakan datetime, bisa diubah ke format string
         $expired = $options['expired'] ?? $expiryHours; // Default: hours (integer)

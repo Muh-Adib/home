@@ -21,11 +21,11 @@ class IpaymuService
         // API Key adalah kunci API dari iPaymu (bisa sama dengan VA atau berbeda)
         $this->apiKey = config('ipaymu.api_key') ?? config('ipaymu.va');
         $this->mode = config('ipaymu.mode', 'sandbox');
-        
-        $config = $this->mode === 'production' 
-            ? config('ipaymu.production') 
+
+        $config = $this->mode === 'production'
+            ? config('ipaymu.production')
             : config('ipaymu.sandbox');
-            
+
         $this->baseUrl = $config['api_url'];
         $this->paymentUrl = $config['payment_url'];
     }
@@ -59,7 +59,7 @@ class IpaymuService
                 'notifyUrl' => $data['notify_url'] ?? config('ipaymu.notify_url'),
                 'referenceId' => $data['reference_id'],
             ];
-            
+
             // Field opsional - hanya tambahkan jika ada value
             if (!empty($data['name'])) {
                 $body['name'] = $data['name'];
@@ -76,12 +76,23 @@ class IpaymuService
             if (!empty($data['payment_channel'])) {
                 $body['paymentChannel'] = $data['payment_channel']; // all, bank_transfer, qris, va
             }
+            // Field opsional - hanya tambahkan jika ada value
             if (!empty($data['expired'])) {
                 $body['expired'] = $data['expired']; // Expiry time format: YYYY-MM-DD HH:mm:ss atau hours (integer)
             }
 
+            // FILTER & SORT BODY untuk memastikan urutan field sama antara signature dan request
+            // 1. Remove param yang null/empty
+            $body = array_filter($body, function($value) {
+                return $value !== null && $value !== '';
+            });
+            
+            // 2. Sort param by properti (key) secara ascending
+            ksort($body);
+
             // Generate signature sesuai dokumentasi iPaymu
             // Format: HMAC-256 dengan StringToSign = HTTPMethod:VaNumber:Lowercase(SHA-256(RequestBody)):ApiKey
+            // Note: generateSignature akan melakukan json_encode pada body yang sudah di-sort
             $signature = $this->generateSignature('POST', $this->paymentUrl, $body);
 
             // Make API request dengan header sesuai dokumentasi iPaymu
@@ -93,7 +104,10 @@ class IpaymuService
                 'Content-Type' => 'application/json',
                 'va' => $this->va,
                 'signature' => $signature,
-            ])->timeout(30)->post($this->paymentUrl, $body);
+            ])
+                ->withoutVerifying() // Disable SSL verification for development/sandbox env
+                ->timeout(30)
+                ->post($this->paymentUrl, $body);
 
             $responseData = $response->json();
 
@@ -108,20 +122,20 @@ class IpaymuService
             // Response format: { "Status": 200, "Message": "...", "Data": { ... } }
             $statusCode = $responseData['Status'] ?? $response->status();
             $message = $responseData['Message'] ?? 'Failed to create payment';
-            
+
             if (!$response->successful() || $statusCode !== 200) {
                 Log::error('iPaymu Create Payment Failed', [
                     'status_code' => $statusCode,
                     'message' => $message,
                     'response' => $responseData,
                 ]);
-                
+
                 throw new \Exception($message, $statusCode);
             }
 
             // Extract data dari response
             $data = $responseData['Data'] ?? [];
-            
+
             return [
                 'success' => true,
                 'session_id' => $data['SessionID'] ?? $data['sessionId'] ?? null,
@@ -163,10 +177,10 @@ class IpaymuService
 
             // Endpoint untuk check payment status: /api/v2/transaction
             $endpoint = $this->baseUrl . '/transaction';
-            
+
             // Generate signature sesuai dokumentasi iPaymu
             $signature = $this->generateSignature('POST', $endpoint, $body);
-            
+
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
                 'va' => $this->va,
@@ -185,7 +199,7 @@ class IpaymuService
             // Handle response sesuai format iPaymu API v2
             $statusCode = $responseData['Status'] ?? $response->status();
             $message = $responseData['Message'] ?? 'Failed to check payment status';
-            
+
             if (!$response->successful() || $statusCode !== 200) {
                 Log::error('iPaymu Check Payment Status Failed', [
                     'session_id' => $sessionId,
@@ -193,13 +207,13 @@ class IpaymuService
                     'message' => $message,
                     'response' => $responseData,
                 ]);
-                
+
                 throw new \Exception($message, $statusCode);
             }
 
             // Extract data dari response
             $data = $responseData['Data'] ?? [];
-            
+
             return [
                 'success' => true,
                 'status' => $data['Status'] ?? $data['status'] ?? null,
@@ -279,30 +293,30 @@ class IpaymuService
     protected function generateSignature(string $httpMethod, string $endpoint, array $body): string
     {
         // Remove null values untuk signature generation
-        $body = array_filter($body, function($value) {
+        $body = array_filter($body, function ($value) {
             return $value !== null && $value !== '';
         });
-        
+
         // Sort array by key (ascending)
         ksort($body);
-        
+
         // Convert to JSON string tanpa escape slash dan tanpa whitespace
         $requestBody = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        
+
         // Step 1: Calculate SHA-256 hash dari RequestBody
         $sha256Hash = hash('sha256', $requestBody);
-        
+
         // Step 2: Convert ke lowercase
         $lowercaseHash = strtolower($sha256Hash);
-        
+
         // Step 3: Build StringToSign
         // Format: HTTPMethod:VaNumber:Lowercase(SHA-256(RequestBody)):ApiKey
         $stringToSign = $httpMethod . ':' . $this->va . ':' . $lowercaseHash . ':' . $this->apiKey;
-        
+
         // Step 4: Generate HMAC-256 signature
         // Signature = HMAC-256(StringToSign, ApiKey)
         $signature = hash_hmac('sha256', $stringToSign, $this->apiKey);
-        
+
         if (config('ipaymu.log_requests')) {
             Log::channel(config('ipaymu.log_channel', 'daily'))->debug('iPaymu Signature Generation', [
                 'http_method' => $httpMethod,
@@ -315,7 +329,7 @@ class IpaymuService
                 'signature' => $signature,
             ]);
         }
-        
+
         return $signature;
     }
 
@@ -336,42 +350,42 @@ class IpaymuService
         }
 
         $receivedSignature = $data['signature'];
-        
+
         // Copy data tanpa signature untuk verification
         $dataForVerification = $data;
         unset($dataForVerification['signature']);
-        
+
         // Remove null values
-        $dataForVerification = array_filter($dataForVerification, function($value) {
+        $dataForVerification = array_filter($dataForVerification, function ($value) {
             return $value !== null && $value !== '';
         });
 
         // Sort array by key (ascending)
         ksort($dataForVerification);
-        
+
         // Convert to JSON string tanpa escape slash
         $requestBody = json_encode($dataForVerification, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        
+
         // Webhook biasanya menggunakan POST method
         $httpMethod = 'POST';
-        
+
         // Step 1: Calculate SHA-256 hash dari RequestBody
         $sha256Hash = hash('sha256', $requestBody);
-        
+
         // Step 2: Convert ke lowercase
         $lowercaseHash = strtolower($sha256Hash);
-        
+
         // Step 3: Build StringToSign
         // Format: HTTPMethod:VaNumber:Lowercase(SHA-256(RequestBody)):ApiKey
         $stringToSign = $httpMethod . ':' . $this->va . ':' . $lowercaseHash . ':' . $this->apiKey;
-        
+
         // Step 4: Generate expected signature
         // Signature = HMAC-256(StringToSign, ApiKey)
         $expectedSignature = hash_hmac('sha256', $stringToSign, $this->apiKey);
 
         // Use hash_equals untuk prevent timing attacks
         $isValid = hash_equals($expectedSignature, $receivedSignature);
-        
+
         if (!$isValid) {
             Log::warning('iPaymu Webhook signature mismatch', [
                 'expected' => $expectedSignature,
@@ -392,15 +406,15 @@ class IpaymuService
     public function getPaymentMethods(): array
     {
         $methods = [];
-        
+
         if (config('ipaymu.payment_methods.bank_transfer', true)) {
             $methods[] = 'bank_transfer';
         }
-        
+
         if (config('ipaymu.payment_methods.e_wallet', true)) {
             $methods[] = 'e_wallet';
         }
-        
+
         if (config('ipaymu.payment_methods.qris', true)) {
             $methods[] = 'qris';
         }
@@ -416,7 +430,7 @@ class IpaymuService
      */
     public function mapStatus(string $ipaymuStatus): string
     {
-        return match(strtolower($ipaymuStatus)) {
+        return match (strtolower($ipaymuStatus)) {
             'berhasil', 'paid', 'success' => 'verified',
             'pending', 'waiting' => 'pending',
             'failed', 'gagal', 'expired' => 'failed',

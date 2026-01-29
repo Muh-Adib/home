@@ -143,6 +143,9 @@ export default function BookingForm({
         override_amount: null as number | null,
         override_reason: null as string | null,
 
+        // OTA Override
+        force_ota_override: false,
+
         // Services
         services: [] as any[],
     };
@@ -544,6 +547,15 @@ export default function BookingForm({
                 // Handle errors...
                 const errorMsg = errors.error || Object.values(errors)[0] || 'Submission failed';
                 setSyncFeedback(Array.isArray(errorMsg) ? errorMsg[0] : String(errorMsg));
+
+                // Handle OTA Override option
+                if (errors.can_override) {
+                    setSyncFeedback(null); // Clear generic error
+                    // We could auto-show a dialog here, or just let the alert below handle it
+                    setAvailabilityError("Tanggal dipilih diblokir oleh OTA (Airbnb/Booking.com).");
+                    setAvailabilityStatus('unavailable');
+                }
+
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         };
@@ -663,7 +675,26 @@ export default function BookingForm({
                                         <Alert className="bg-green-50 border-green-200 text-green-800"><CheckCircle className="h-4 w-4" /><AlertDescription>Available</AlertDescription></Alert>
                                     )}
                                     {availabilityStatus === 'unavailable' && (
-                                        <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{availabilityError || 'Unavailable'}</AlertDescription></Alert>
+                                        <div className="space-y-2">
+                                            <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{availabilityError || 'Unavailable'}</AlertDescription></Alert>
+
+                                            {/* OTA Override Option */}
+                                            {(errors.can_override || (availabilityError && availabilityError.includes('OTA')) || (availabilityStatus === 'unavailable' && errors.error && errors.error.includes('OTA'))) && (
+                                                <div className="flex items-center space-x-2 p-3 border border-amber-200 bg-amber-50 rounded-md">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="force_ota_override"
+                                                        className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
+                                                        checked={data.force_ota_override}
+                                                        onChange={(e) => setData('force_ota_override', e.target.checked)}
+                                                    />
+                                                    <label htmlFor="force_ota_override" className="text-sm font-medium text-amber-800 cursor-pointer">
+                                                        Paksa Booking (Timpa Booking OTA)
+                                                        <span className="block text-xs font-normal text-amber-700">booking OTA akan diabaikan (double booking). Pastikan Anda sudah membatalkan booking di OTA terkait.</span>
+                                                    </label>
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             )}

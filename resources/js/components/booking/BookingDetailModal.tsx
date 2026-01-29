@@ -2,14 +2,15 @@ import React from "react";
 import {
     Dialog,
     DialogContent,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
-import { getBookingStatusText, formatDate } from "@/utils/date";
+import { BookingStatusBadge } from '@/Components/Booking/BookingStatusBadge';
+import { PaymentStatusBadge } from '@/Components/Booking/PaymentStatusBadge';
+import { formatCurrency } from '@/utils/formatCurrency';
+import { formatDate } from "@/utils/date";
 import { type Booking } from "@/types";
 import {
     Users,
@@ -17,19 +18,17 @@ import {
     Calendar,
     Phone,
     Mail,
-    DollarSign,
-    Eye,
-    CheckCircle,
-    XCircle,
-    UserCheck,
-    UserX,
     CreditCard,
     Clock,
-    BedDouble,
     Sparkles,
     MessageSquare,
     Link as LinkIcon,
-    X // Add X icon for close button
+    X,
+    XCircle,
+    CheckCircle,
+    UserCheck,
+    UserX,
+    Eye
 } from "lucide-react";
 import { Link, router } from "@inertiajs/react";
 import { differenceInDays } from "date-fns";
@@ -54,8 +53,8 @@ export default function BookingDetailModal({
     const nights = differenceInDays(new Date(booking.check_out), new Date(booking.check_in)) || 1;
 
     // Calculate internals if missing (fallback)
-    const paidAmount = booking.total_amount-booking.remaining_amount;
-    const isPaidOff = booking.remaining_amount <= 0;
+    const paidAmount = booking.total_amount - (booking.remaining_amount || 0);
+    const isPaidOff = (booking.remaining_amount || 0) <= 0;
 
     const handleAction = (action: string) => {
         const routes: Record<string, string> = {
@@ -71,29 +70,6 @@ export default function BookingDetailModal({
         }
     };
 
-    const StatusBadge = ({ status, type }: { status: string, type: 'booking' | 'payment' }) => {
-        const styles: Record<string, string> = {
-            // Booking
-            pending_verification: "bg-yellow-100 text-yellow-800 border-yellow-200",
-            confirmed: "bg-green-100 text-green-800 border-green-200",
-            checked_in: "bg-blue-100 text-blue-800 border-blue-200",
-            checked_out: "bg-gray-100 text-gray-800 border-gray-200",
-            cancelled: "bg-red-100 text-red-800 border-red-200",
-            // Payment
-            fully_paid: "bg-green-100 text-green-800 border-green-200",
-            dp_received: "bg-blue-100 text-blue-800 border-blue-200",
-            dp_pending: "bg-orange-100 text-orange-800 border-orange-200",
-            overdue: "bg-red-100 text-red-800 border-red-200",
-            refunded: "bg-purple-100 text-purple-800 border-purple-200",
-        };
-        const style = styles[status] || "bg-gray-100 text-gray-800";
-        return (
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${style}`}>
-                {status.replace(/_/g, " ").toUpperCase()}
-            </span>
-        );
-    };
-
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             {/* z-[150] to ensure it's above fullscreen elements if possible */}
@@ -104,7 +80,7 @@ export default function BookingDetailModal({
                     {/* Background Pattern/Image - Only show on desktop to save space on mobile */}
                     <div className="absolute inset-0 opacity-20 pointer-events-none hidden md:block">
                         {booking.property?.media?.[0]?.url && (
-                            <img src={booking.property.media[0].url} className="w-full h-full object-cover blur-sm" />
+                            <img src={booking.property.media[0].url} className="w-full h-full object-cover blur-sm" alt="" />
                         )}
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/90 to-transparent z-10" />
@@ -141,8 +117,8 @@ export default function BookingDetailModal({
 
                         {/* Status Badges - Row on all screens */}
                         <div className="flex flex-wrap gap-2 w-full">
-                            <StatusBadge status={booking.booking_status} type="booking" />
-                            <StatusBadge status={booking.payment_status} type="payment" />
+                            <BookingStatusBadge status={booking.booking_status} />
+                            <PaymentStatusBadge status={booking.payment_status} />
                         </div>
                     </div>
                 </div>
@@ -272,15 +248,14 @@ export default function BookingDetailModal({
                                 {booking.payments && booking.payments.length > 0 ? (
                                     <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                                         {booking.payments.map((payment: any) => (
-                                            <div key={payment.id} className="bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-sm text-sm" onClick={() => router.visit(`/admin/payments/${payment.payment_number}`)}>
+                                            <div key={payment.id} className="bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-sm text-sm">
                                                 <div className="flex flex-col items-start mb-1">
-                                                    <span className="font-semibold text-slate-700">{payment.payment_method.name}</span>
+                                                    <span className="font-semibold text-slate-700">{payment.payment_method?.name}</span>
                                                     <span className="font-bold">{formatCurrency(payment.amount)}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center text-xs text-slate-500">
                                                     <span>{formatDate(payment.created_at)}</span>
-                                                    <span className={`px-1.5 py-0.5 rounded ${payment.payment_status === 'verified' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                                                        }`}>
+                                                    <span className={`px-1.5 py-0.5 rounded ${payment.payment_status === 'verified' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                                         {payment.payment_status}
                                                     </span>
                                                 </div>
@@ -294,7 +269,6 @@ export default function BookingDetailModal({
                                                             className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline"
                                                         >
                                                             <LinkIcon className="w-3 h-3" /> View Proof
-                                                            {payment.attachment_path.endsWith('.webp') ? '(WebP)' : ''}
                                                         </a>
                                                     </div>
                                                 )}
@@ -387,7 +361,7 @@ export default function BookingDetailModal({
                             </div>
                         </div>
 
-                        {/* Extra Services (Stays at the bottom) */}
+                        {/* Extra Services */}
                         {booking.services && booking.services.length > 0 && (
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                                 <div className="bg-slate-50 px-5 py-3 border-b flex items-center gap-2">

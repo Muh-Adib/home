@@ -1,353 +1,218 @@
 import React from 'react';
 import GuestLayout from '@/layouts/guest-layout';
 import { formatCurrency } from '@/lib/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { type Booking, type BreadcrumbItem, type PageProps } from '@/types';
+import { type Booking, type PageProps } from '@/types';
 import { Link, usePage, Head } from '@inertiajs/react';
-import { 
-    Calendar,
+import {
     MapPin,
-    Clock,
-    Users,
-    CheckCircle,
-    AlertCircle,
-    Info,
-    Building2,
-    CreditCard,
-    BookOpen,
-    DollarSign,
-    Eye,
-    Star,
+    Calendar,
     ArrowRight,
-    Activity,
-    Zap
+    Clock,
+    Search,
+    MessageCircle,
+    ChevronRight,
+    CreditCard
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface GuestDashboardProps {
     upcoming_bookings: Booking[];
-    past_bookings: Booking[];
-    recent_payments: Array<{
-        id: number;
-        payment_number: string;
-        amount: number;
-        payment_status: string;
-        payment_date: string;
-        booking: {
-            booking_number: string;
-        property: {
-                name: string;
-            };
-        };
-    }>;
-    stats: {
-        total_bookings: number;
-        total_spent: number;
-        upcoming_bookings: number;
-        completed_bookings: number;
-    };
 }
 
-export default function GuestDashboard({ upcoming_bookings = [], past_bookings = [], recent_payments = [], stats }: GuestDashboardProps) {
+export default function GuestDashboard({ upcoming_bookings = [] }: GuestDashboardProps) {
     const page = usePage<PageProps>();
-    const { auth } = page.props;
     const { t } = useTranslation();
-
-    const breadcrumbs: BreadcrumbItem[] = [
-        { title: t('nav.home'), href: route('home') || '/' },
-        { title: t('nav.dashboard'), href: route('dashboard') }
-    ];
 
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('id-ID', {
-            year: 'numeric',
-            month: 'long',
             day: 'numeric',
+            month: 'short',
+            year: 'numeric' // Added year for clarity
         });
     };
 
-
-
-    const getBookingStatusBadge = (status: Booking['booking_status']) => {
-        const statusConfig = {
-            pending_verification: { variant: 'secondary' as const, label: t('booking_status.pending_verification'), icon: Clock },
-            confirmed: { variant: 'default' as const, label: t('booking_status.confirmed'), icon: CheckCircle },
-            checked_in: { variant: 'default' as const, label: t('booking_status.checked_in'), icon: Users },
-            checked_out: { variant: 'outline' as const, label: t('booking_status.checked_out'), icon: CheckCircle },
-            cancelled: { variant: 'destructive' as const, label: t('booking_status.cancelled'), icon: AlertCircle },
-            completed: { variant: 'default' as const, label: t('booking_status.completed'), icon: CheckCircle },
-        };
-        
-        const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending_verification;
-        const Icon = config.icon;
-        return (
-            <Badge variant={config.variant} className="inline-flex items-center gap-1">
-                <Icon className="h-3 w-3" />
-                {config.label}
-            </Badge>
-        );
+    const getStatusBadge = (status: string) => {
+        const baseClasses = "rounded-full px-3 py-0.5 text-xs font-medium border";
+        switch (status) {
+            case 'confirmed':
+                return <span className={`${baseClasses} bg-green-50 text-green-700 border-green-200`}>Confirmed</span>;
+            case 'pending_verification':
+                return <span className={`${baseClasses} bg-amber-50 text-amber-700 border-amber-200`}>Menunggu Konfirmasi</span>;
+            case 'completed':
+                return <span className={`${baseClasses} bg-blue-50 text-blue-700 border-blue-200`}>Selesai</span>;
+            case 'cancelled':
+                return <span className={`${baseClasses} bg-red-50 text-red-700 border-red-200`}>Dibatalkan</span>;
+            default:
+                return <span className={`${baseClasses} bg-gray-100 text-gray-700 border-gray-200`}>{status}</span>;
+        }
     };
 
-    const getPaymentStatusBadge = (status: string) => {
-        const statusConfig = {
-            pending: { variant: 'secondary' as const, label: t('payment.status.pending'), icon: Clock },
-            verified: { variant: 'default' as const, label: t('payment.status.verified'), icon: CheckCircle },
-            failed: { variant: 'destructive' as const, label: t('payment.status.failed'), icon: AlertCircle },
-            cancelled: { variant: 'outline' as const, label: t('payment.status.cancelled'), icon: AlertCircle },
-        };
-        
-        const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
-        const Icon = config.icon;
-        return (
-            <Badge variant={config.variant} className="inline-flex items-center gap-1">
-                <Icon className="h-3 w-3" />
-                {config.label}
-            </Badge>
+    const getWhatsAppLink = (booking: Booking) => {
+        const phone = "6281234567890"; // Admin phone number
+        const message = encodeURIComponent(
+            `Halo Admin Homsjogja, saya ingin konfirmasi booking saya:\n\n` +
+            `Kode Booking: *${booking.booking_number}*\n` +
+            `Properti: ${booking.property?.name}\n` +
+            `Tanggal: ${formatDate(booking.check_in)} - ${formatDate(booking.check_out)}\n\n` +
+            `Mohon bantuannya untuk verifikasi. Terima kasih.`
         );
+        return `https://wa.me/${phone}?text=${message}`;
     };
 
-    const getDaysUntilCheckIn = (checkInDate: string) => {
-        const checkIn = new Date(checkInDate);
-        const today = new Date();
-        const diffTime = checkIn.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
+    const canMakePayment = (booking: Booking) => {
+        return booking.booking_status === 'confirmed' &&
+            ['dp_pending', 'dp_received'].includes(booking.payment_status);
     };
 
     return (
-        <GuestLayout title="Guest Dashboard" subtitle="Welcome to your personal booking portal">
-            <Head title={`${t('nav.dashboard')} - Homsjogja`} />
-            
-            <div className="space-y-6 p-4 md:p-6">
-                {/* Welcome Header */}
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">
-                        Selamat datang, {auth.user.name}! 👋
-                    </h1>
-                    <p className="text-muted-foreground text-lg">
-                        Kelola booking dan aktivitas Anda dengan mudah
-                    </p>
+        <GuestLayout>
+            <Head title="My Trips" />
+
+            <div className="max-w-5xl mx-auto px-4 py-8 md:py-12 space-y-8">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-100 pb-6">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight text-gray-900">Perjalanan Saya</h1>
+                        <p className="text-muted-foreground mt-2 text-lg">
+                            Kelola semua rencana perjalanan dan riwayat booking Anda.
+                        </p>
+                    </div>
                 </div>
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Card className="hover:shadow-lg transition-all duration-300 border-2 border-blue-100 hover:border-blue-200">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-blue-700">Booking Aktif</CardTitle>
-                            <Calendar className="h-5 w-5 text-blue-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold text-blue-700">{stats?.upcoming_bookings || 0}</div>
-                            <p className="text-sm text-blue-600">Booking yang akan datang</p>
-                        </CardContent>
-                    </Card>
+                {/* Booking List */}
+                <div className="space-y-6">
+                    {upcoming_bookings.length > 0 ? (
+                        <div className="grid gap-6">
+                            {upcoming_bookings.map((booking) => (
+                                <Card key={booking.id} className="group overflow-hidden border-none shadow-sm hover:shadow-md transition-all duration-300 bg-white rounded-2xl ring-1 ring-gray-100">
+                                    <div className="flex flex-col md:flex-row">
+                                        {/* Image Section */}
+                                        <div className="w-full md:w-64 h-48 md:h-auto bg-gray-100 shrink-0 relative overflow-hidden">
+                                            {/* In a real app, use next/image or a real img tag here */}
+                                            <div className="absolute inset-0 flex items-center justify-center text-gray-300 bg-gray-50">
+                                                <MapPin className="h-10 w-10 opacity-20" />
+                                            </div>
 
-                    <Card className="hover:shadow-lg transition-all duration-300 border-2 border-green-100 hover:border-green-200">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-green-700">Total Booking</CardTitle>
-                            <BookOpen className="h-5 w-5 text-green-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold text-green-700">{stats?.total_bookings || 0}</div>
-                            <p className="text-sm text-green-600">Semua booking Anda</p>
-                        </CardContent>
-                    </Card>
+                                            {/* Mobile Status Badge Overlay */}
+                                            <div className="absolute top-4 left-4 md:hidden">
+                                                {getStatusBadge(booking.booking_status)}
+                                            </div>
+                                        </div>
 
-                    <Card className="hover:shadow-lg transition-all duration-300 border-2 border-purple-100 hover:border-purple-200">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-purple-700">Total Pengeluaran</CardTitle>
-                            <DollarSign className="h-5 w-5 text-purple-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold text-purple-700">{formatCurrency(stats?.total_spent || 0)}</div>
-                            <p className="text-sm text-purple-600">Total pengeluaran Anda</p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Quick Actions */}
-                <Card className="border-2 border-dashed border-blue-200 bg-blue-50/50">
-                    <CardHeader className="text-center">
-                        <CardTitle className="flex items-center justify-center gap-2 text-blue-700">
-                            <Zap className="h-6 w-6" />
-                            Aksi Cepat
-                        </CardTitle>
-                        <CardDescription className="text-blue-600">Kelola booking dan pembayaran Anda</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <Button asChild className="h-auto p-6 flex flex-col items-center gap-4 bg-white hover:bg-blue-50 border-2 border-blue-200 hover:border-blue-300 transition-all duration-300 shadow-md hover:shadow-lg">
-                                <Link href={route('my-bookings') || '/my-bookings'}>
-                                    <BookOpen className="h-10 w-10 text-blue-600" />
-                                    <div className="text-center">
-                                        <div className="font-bold text-lg text-blue-700">My Bookings</div>
-                                        <div className="text-sm text-blue-600 mt-1">Lihat semua reservasi</div>
-                                    </div>
-                                </Link>
-                            </Button>
-                            
-                            <Button asChild className="h-auto p-6 flex flex-col items-center gap-4 bg-white hover:bg-green-50 border-2 border-green-200 hover:border-green-300 transition-all duration-300 shadow-md hover:shadow-lg">
-                                <Link href={route('my-payments') || '/my-payments'}>
-                                    <CreditCard className="h-10 w-10 text-green-600" />
-                                    <div className="text-center">
-                                        <div className="font-bold text-lg text-green-700">Riwayat Pembayaran</div>
-                                        <div className="text-sm text-green-600 mt-1">Lacak pembayaran Anda</div>
-                                    </div>
-                                </Link>
-                            </Button>
-                            
-                            <Button asChild className="h-auto p-6 flex flex-col items-center gap-4 bg-white hover:bg-purple-50 border-2 border-purple-200 hover:border-purple-300 transition-all duration-300 shadow-md hover:shadow-lg">
-                                <Link href={route('properties.index') || '/properties'}>
-                                    <Building2 className="h-10 w-10 text-purple-600" />
-                                    <div className="text-center">
-                                        <div className="font-bold text-lg text-purple-700">Cari Properti</div>
-                                        <div className="text-sm text-purple-600 mt-1">Temukan penginapan berikutnya</div>
-                                    </div>
-                                </Link>
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Main Content */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Upcoming Bookings */}
-                    <Card className="h-fit border-2 border-blue-100">
-                        <CardHeader className="flex flex-row items-center justify-between bg-blue-50">
-                            <div>
-                                <CardTitle className="flex items-center gap-2 text-blue-700">
-                                    <Calendar className="h-5 w-5" />
-                                    Booking Mendatang
-                                </CardTitle>
-                                <CardDescription className="text-blue-600">Reservasi yang sudah dikonfirmasi</CardDescription>
-                            </div>
-                            <Link href={route('my-bookings') || '/my-bookings'}>
-                                <Button variant="outline" size="sm" className="flex items-center gap-1 border-blue-200 text-blue-700 hover:bg-blue-100">
-                                    <Eye className="h-4 w-4" />
-                                    Lihat Semua
-                                    <ArrowRight className="h-3 w-3" />
-                                </Button>
-                            </Link>
-                        </CardHeader>
-                        <CardContent className="space-y-4 p-6">
-                            {upcoming_bookings.length > 0 ? (
-                                upcoming_bookings.slice(0, 3).map((booking) => {
-                                    const daysUntil = getDaysUntilCheckIn(booking.check_in);
-                                    return (
-                                        <div key={booking.id} className="border-2 border-blue-100 rounded-xl p-4 space-y-3 hover:bg-blue-50/50 transition-all duration-300">
-                                            <div className="flex justify-between items-start">
-                                                <div className="space-y-2 flex-1">
-                                                    <h4 className="font-bold text-lg text-blue-900">{booking.property?.name}</h4>
-                                                    <div className="flex items-center gap-1 text-sm text-blue-700">
-                                                        <MapPin className="h-4 w-4" />
-                                                        {booking.property?.address}
+                                        {/* Content Section */}
+                                        <div className="flex-1 p-6 md:p-8 flex flex-col">
+                                            <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-6">
+                                                <div className="space-y-2">
+                                                    <div className="hidden md:block mb-3">
+                                                        {getStatusBadge(booking.booking_status)}
                                                     </div>
-                                                    <div className="flex items-center gap-1 text-sm text-blue-600">
-                                                        <Calendar className="h-4 w-4" />
-                                                        {formatDate(booking.check_in)} - {formatDate(booking.check_out)}
+
+                                                    <div className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        {booking.booking_number}
+                                                    </div>
+
+                                                    <Link href={`/booking/${booking.booking_number}`} className="block group-hover:text-primary transition-colors">
+                                                        <h3 className="text-2xl font-bold text-gray-900">
+                                                            {booking.property?.name}
+                                                        </h3>
+                                                    </Link>
+
+                                                    <div className="flex items-center gap-2 text-gray-600 pt-1">
+                                                        <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
+                                                        <span className="text-sm truncate max-w-md">{booking.property?.address}</span>
                                                     </div>
                                                 </div>
-                                                {getBookingStatusBadge(booking.booking_status)}
-                                            </div>
-                                            
-                                            {daysUntil > 0 && daysUntil <= 7 && (
-                                                <Alert className="bg-blue-100 border-blue-300">
-                                                    <Info className="h-4 w-4 text-blue-700" />
-                                                    <AlertDescription className="text-blue-800 font-medium">
-                                                        Check-in {daysUntil === 1 ? 'besok' : `dalam ${daysUntil} hari`}
-                                                    </AlertDescription>
-                                                </Alert>
-                                            )}
-                                            
-                                            <div className="flex justify-between items-center text-sm pt-3 border-t border-blue-200">
-                                                <span className="text-blue-700 font-medium">
-                                                    {booking.guest_count} tamu • {booking.nights} malam
-                                                </span>
-                                                <div className="text-right">
-                                                    <div className="font-bold text-xl text-blue-900">
+
+                                                <div className="text-left md:text-right mt-2 md:mt-0 p-4 md:p-0 bg-gray-50 md:bg-transparent rounded-xl w-full md:w-auto">
+                                                    <div className="text-sm text-gray-500 mb-1">Total Biaya</div>
+                                                    <div className="text-xl font-bold text-gray-900">
                                                         {formatCurrency(booking.total_amount)}
                                                     </div>
-                                                    <div className="text-xs text-blue-600">
-                                                        Total pembayaran
+                                                    <div className={`text-xs font-medium mt-1 ${booking.payment_status === 'fully_paid' ? 'text-green-600' : 'text-amber-600'}`}>
+                                                        {booking.payment_status === 'fully_paid' ? 'Sudah Lunas' : 'Belum Lunas'}
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="text-center py-12 text-blue-600">
-                                    <Calendar className="h-20 w-20 mx-auto mb-4 opacity-40" />
-                                    <p className="text-xl font-bold mb-2">Belum ada booking mendatang</p>
-                                    <p className="text-sm mb-6">Siap untuk petualangan berikutnya?</p>
-                                    <Link href={route('properties.index') || '/properties'}>
-                                        <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3">
-                                            <Building2 className="h-5 w-5 mr-2" />
-                                            Jelajahi Properti
-                                        </Button>
-                                    </Link>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
 
-                    {/* Recent Payments */}
-                    <Card className="h-fit border-2 border-green-100">
-                        <CardHeader className="flex flex-row items-center justify-between bg-green-50">
-                            <div>
-                                <CardTitle className="flex items-center gap-2 text-green-700">
-                                    <CreditCard className="h-5 w-5" />
-                                    Pembayaran Terbaru
-                                </CardTitle>
-                                <CardDescription className="text-green-600">Riwayat pembayaran Anda</CardDescription>
-                            </div>
-                            <Link href={route('my-payments') || '/my-payments'}>
-                                <Button variant="outline" size="sm" className="flex items-center gap-1 border-green-200 text-green-700 hover:bg-green-100">
-                                    <Eye className="h-4 w-4" />
-                                    Lihat Semua
-                                    <ArrowRight className="h-3 w-3" />
-                                </Button>
-                            </Link>
-                        </CardHeader>
-                        <CardContent className="space-y-4 p-6">
-                            {recent_payments.length > 0 ? (
-                                recent_payments.slice(0, 3).map((payment) => (
-                                    <div key={payment.id} className="border-2 border-green-100 rounded-xl p-4 hover:bg-green-50/50 transition-all duration-300">
-                                        <div className="flex justify-between items-start">
-                                            <div className="space-y-2 flex-1">
-                                                <h4 className="font-bold text-lg text-green-900">{payment.payment_number}</h4>
-                                                <p className="text-sm text-green-700 font-medium">
-                                                    {payment.booking.property.name}
-                                                </p>
-                                                <p className="text-xs text-green-600">
-                                                    {formatDate(payment.payment_date)}
-                                                </p>
+                                            <div className="flex items-center gap-6 text-sm text-gray-600 mb-8 border-t border-dashed border-gray-100 pt-6">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                                        <Calendar className="h-4 w-4" />
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs text-gray-500">Check-in</span>
+                                                        <span className="font-semibold text-gray-900">{formatDate(booking.check_in)}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="w-px h-8 bg-gray-200"></div>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+                                                        <Calendar className="h-4 w-4" />
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs text-gray-500">Check-out</span>
+                                                        <span className="font-semibold text-gray-900">{formatDate(booking.check_out)}</span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="text-right space-y-2">
-                                                {getPaymentStatusBadge(payment.payment_status)}
-                                                <p className="font-bold text-xl text-green-900">
-                                                    {formatCurrency(payment.amount)}
-                                                </p>
+
+                                            {/* Actions */}
+                                            <div className="mt-auto flex flex-wrap items-center gap-3 pt-2">
+                                                <Button variant="ghost" className="text-gray-600 hover:text-gray-900 hover:bg-gray-100" asChild>
+                                                    <Link href={`/booking/${booking.booking_number}`}>
+                                                        Lihat Detail
+                                                    </Link>
+                                                </Button>
+
+                                                <div className="flex-1"></div>
+
+                                                {booking.booking_status === 'pending_verification' && (
+                                                    <Button variant="outline" className="border-green-600 text-green-700 hover:bg-green-50" asChild>
+                                                        <a href={getWhatsAppLink(booking)} target="_blank" rel="noopener noreferrer">
+                                                            <MessageCircle className="h-4 w-4 mr-2" />
+                                                            Konfirmasi ke Admin
+                                                        </a>
+                                                    </Button>
+                                                )}
+
+                                                {canMakePayment(booking) && (
+                                                    <Button className="bg-primary hover:bg-primary/90 text-white shadow-sm" onClick={() => {
+                                                        // Redirect to payment tab of the new booking show page
+                                                        // Since tabs are client-side state, we can't deep link to tab easily without URL param support in Show.tsx
+                                                        // For now, just go to the page. Show.tsx handles the pulse on payment tab if unpaid.
+                                                        window.location.href = `/booking/${booking.booking_number}`;
+                                                    }}>
+                                                        <CreditCard className="h-4 w-4 mr-2" />
+                                                        Bayar Sekarang
+                                                    </Button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
-                                ))
-                            ) : (
-                                <div className="text-center py-12 text-green-600">
-                                    <CreditCard className="h-20 w-20 mx-auto mb-4 opacity-40" />
-                                    <p className="text-xl font-bold mb-2">Belum ada riwayat pembayaran</p>
-                                    <p className="text-sm">Pembayaran Anda akan muncul di sini</p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                                </Card>
+                            ))}
                         </div>
-
-
-                    </div>
+                    ) : (
+                        <div className="text-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                            <div className="bg-blue-50 h-24 w-24 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Search className="h-10 w-10 text-blue-500" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-900 mb-3">Belum ada rencana perjalanan</h2>
+                            <p className="text-gray-500 max-w-md mx-auto mb-8 text-lg">
+                                Temukan penginapan impian Anda dengan penawaran terbaik hanya di Homsjogja.
+                            </p>
+                            <Button size="lg" className="rounded-full px-8 h-12 text-base shadow-lg hover:shadow-xl transition-all" asChild>
+                                <Link href={route('properties.index')}>
+                                    Mulai Jelajahi
+                                </Link>
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            </div>
         </GuestLayout>
     );
-} 
+}

@@ -62,7 +62,13 @@ interface AdminLayoutProps extends PropsWithChildren<{}> {
 const getAdminNavItems = (userRole: User['role']) => {
   const baseItems = [
     { title: 'Dashboard', href: '/dashboard', icon: LayoutGrid, badge: null },
+    { title: 'Articles', href: '/admin/articles', icon: LayoutGrid, badge: null },
   ];
+
+  // Super admin gets AI Keys in settings
+  if (userRole === 'super_admin') {
+    baseItems.push({ title: 'AI Provider Keys', href: '/admin/settings/ai-keys', icon: LayoutGrid, badge: null });
+  }
 
   const roleBasedItems: Record<User['role'], Array<{
     title: string;
@@ -464,7 +470,7 @@ export default function AdminLayout({
                   <AdminSidebarNav navItems={navItems} collapsed={sidebarCollapsed} />
                 </TooltipProvider>
               </div>
-              
+
               {/* Footer - always at bottom */}
               <div className="flex-shrink-0">
                 <TooltipProvider>
