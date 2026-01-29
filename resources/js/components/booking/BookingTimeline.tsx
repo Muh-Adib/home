@@ -18,7 +18,7 @@ import {
     ZoomOut,
     Search,
 } from "lucide-react";
-import { useBookingTimeline } from "@/Hooks/useBookingTimeline";
+import { useBookingTimeline } from "@/hooks/useBookingTimeline";
 
 interface BookingTimelineProps {
     properties: Property[];
