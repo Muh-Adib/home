@@ -41,7 +41,7 @@ import {
     Filter,
     Download
 } from 'lucide-react';
-import { BookingStatusBadge } from '@/Components/Booking/BookingStatusBadge';
+import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import TextFormatMarkdown from '@/components/text-mark-down';
 
 interface SeasonalRate {

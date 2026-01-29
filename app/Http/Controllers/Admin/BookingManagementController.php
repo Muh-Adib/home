@@ -148,8 +148,8 @@ class BookingManagementController extends Controller
                 'property_name' => $booking->property->name,
                 'guest_name' => $booking->guest_name,
                 'guest_count' => $booking->guest_count,
-                'check_in' => $booking->check_in->toDateString(),
-                'check_out' => $booking->check_out->toDateString(),
+                'check_in' => $booking->check_in instanceof \Carbon\Carbon ? $booking->check_in->toDateString() : $booking->check_in,
+                'check_out' => $booking->check_out instanceof \Carbon\Carbon ? $booking->check_out->toDateString() : $booking->check_out,
                 'nights' => $booking->nights,
                 'total_amount' => $booking->total_amount,
                 'formatted_total_amount' => $booking->formatted_total_amount,
@@ -263,7 +263,7 @@ class BookingManagementController extends Controller
         }
 
         // ✅ Check availability using AvailabilityService for consistency
-        $availabilityService = app(\App\Services\AvailabilityService::class);
+        $availabilityService = app(AvailabilityService::class);
         $forceOverride = $request->boolean('force_ota_override');
 
         $availability = $availabilityService->checkAvailability(
@@ -277,7 +277,7 @@ class BookingManagementController extends Controller
 
         if (!$availability['available']) {
             // Get detailed information about overlapping bookings for debugging
-            $overlappingBookings = \App\Models\Booking::where('property_id', $property->id)
+            $overlappingBookings = Booking::where('property_id', $property->id)
                 ->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
                 ->where(function ($query) use ($validated) {
                     $query->where('check_in', '<', $validated['check_out_date'])
@@ -345,7 +345,7 @@ class BookingManagementController extends Controller
         $excludeBookingId = $request->get('exclude_booking_id');
 
         // Use AvailabilityService for all availability checking (now supports excludeBookingId)
-        $availabilityService = app(\App\Services\AvailabilityService::class);
+        $availabilityService = app(AvailabilityService::class);
         $availabilityData = $availabilityService->checkAvailability(
             $property,
             $request->check_in,
@@ -423,7 +423,7 @@ class BookingManagementController extends Controller
             $property = Property::findOrFail($validated['property_id']);
 
             // Availability
-            $availabilityService = app(\App\Services\AvailabilityService::class);
+            $availabilityService = app(AvailabilityService::class);
             $availability = $availabilityService->checkAvailability(
                 $property,
                 $validated['check_in'],
@@ -632,7 +632,7 @@ class BookingManagementController extends Controller
 
         try {
             // Get availability data using AvailabilityService
-            $availabilityService = app(\App\Services\AvailabilityService::class);
+            $availabilityService = app(AvailabilityService::class);
             $availability = $availabilityService->checkAvailability($property, $startDate, $endDate);
 
             // Use AvailabilityService for consistency (single source of truth)
@@ -642,8 +642,8 @@ class BookingManagementController extends Controller
             // Get seasonal rates if available
             $seasonalRates = \App\Models\PropertySeasonalRate::getEffectiveRateForProperty(
                 $property->id,
-                \Carbon\Carbon::parse($startDate),
-                \Carbon\Carbon::parse($endDate)
+                Carbon::parse($startDate),
+                Carbon::parse($endDate)
             );
 
             return response()->json([
@@ -1584,8 +1584,8 @@ class BookingManagementController extends Controller
         $message .= "Halo {$booking->guest_name},\n\n";
         $message .= "Booking Anda telah dikonfirmasi:\n";
         $message .= "📍 *Property*: {$property->name}\n";
-        $message .= "📅 *Check-in*: " . \Carbon\Carbon::parse($booking->check_in)->format('d M Y') . "\n";
-        $message .= "📅 *Check-out*: " . \Carbon\Carbon::parse($booking->check_out)->format('d M Y') . "\n";
+        $message .= "📅 *Check-in*: " . Carbon::parse($booking->check_in)->format('d M Y') . "\n";
+        $message .= "📅 *Check-out*: " . Carbon::parse($booking->check_out)->format('d M Y') . "\n";
         $message .= "👥 *Jumlah Tamu*: {$booking->guest_count} orang\n";
         $message .= "💰 *Total*: Rp " . number_format($booking->total_amount, 0, ',', '.') . "\n\n";
 
@@ -1843,7 +1843,7 @@ class BookingManagementController extends Controller
             DB::beginTransaction();
 
             // Soft delete related payments (if any)
-            $booking->payments()->each(function ($payment) {
+            $booking->payments()->each(function (\App\Models\Payment $payment) {
                 $payment->delete();
             });
 
@@ -1919,8 +1919,8 @@ class BookingManagementController extends Controller
      */
     public function importPreview(Request $request)
     {
-        $availabilityService = app(\App\Services\AvailabilityService::class);
-        $rateCalculationService = app(\App\Services\RateCalculationService::class);
+        $availabilityService = app(AvailabilityService::class);
+        $rateCalculationService = app(RateCalculationService::class);
 
         $controller = new \App\Http\Controllers\Admin\BookingImportPreviewController($availabilityService, $rateCalculationService);
         return $controller->preview($request);
