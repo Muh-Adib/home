@@ -1,5 +1,5 @@
 import React from 'react';
-import { Badge } from '@/Components/UI/badge';
+import { Badge } from '@/components//UI/badge';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 

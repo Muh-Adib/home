@@ -7,8 +7,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BookingStatusBadge } from '@/Components/Booking/BookingStatusBadge';
-import { PaymentStatusBadge } from '@/Components/Booking/PaymentStatusBadge';
+import { BookingStatusBadge } from '@/components//Booking/BookingStatusBadge';
+import { PaymentStatusBadge } from '@/components//Booking/PaymentStatusBadge';
 import { formatCurrency } from '@/utils/formatCurrency';
 import { formatDate } from "@/utils/date";
 import { type Booking } from "@/types";

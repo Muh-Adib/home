@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { formatCurrency } from '@/lib/utils';
 import { getBookingStatusColor, getBookingStatusText, diffInDays, formatDate } from '@/utils/date';
 import { type Booking, type BookingStatus } from '@/types';
-import { BookingStatusBadge } from '@/Components/Booking/BookingStatusBadge';
-import { PaymentStatusBadge } from '@/Components/Booking/PaymentStatusBadge';
+import { BookingStatusBadge } from '@/components//Booking/BookingStatusBadge';
+import { PaymentStatusBadge } from '@/components//Booking/PaymentStatusBadge';
 import { Users, Building2, Calendar, Phone, Mail } from 'lucide-react';
 
 interface BookingItemProps {

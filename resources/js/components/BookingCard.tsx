@@ -26,8 +26,8 @@ import {
     Timer,
     Wallet
 } from 'lucide-react';
-import { BookingStatusBadge } from '@/Components/Booking/BookingStatusBadge';
-import { PaymentStatusBadge } from '@/Components/Booking/PaymentStatusBadge';
+import { BookingStatusBadge } from '@/components//Booking/BookingStatusBadge';
+import { PaymentStatusBadge } from '@/components//Booking/PaymentStatusBadge';
 import { useTranslation } from 'react-i18next';
 
 interface Property {
