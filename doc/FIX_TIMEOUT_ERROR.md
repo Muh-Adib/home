@@ -22,8 +22,6 @@ php artisan cache:clear
 php artisan route:clear
 php artisan view:clear
 php artisan optimize:clear
-
-# Hapus bootstrap cache files secara manual
 rm -f bootstrap/cache/config.php
 rm -f bootstrap/cache/routes.php
 rm -f bootstrap/cache/services.php

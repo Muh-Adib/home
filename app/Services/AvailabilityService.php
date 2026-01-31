@@ -99,7 +99,7 @@ class AvailabilityService
      * @param bool $ignoreOta Ignore OTA bookings (for overriding)
      * @return Collection
      */
-    private function getOverlappingBookings(Property $property, string $checkIn, string $checkOut, ?int $excludeBookingId = null, bool $ignoreOta = false): Collection
+    private function getOverlappingBookings(Property $property, string $checkIn, string $checkOut, ?int $excludeBookingId = null, bool $ignoreOta = true): Collection
     {
         // Ensure dates are in proper Y-m-d format
         try {

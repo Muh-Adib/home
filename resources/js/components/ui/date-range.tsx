@@ -74,7 +74,7 @@ export function DateRange({
 }: DateRangeProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
-    
+
     // Hydration fix: only render formatted dates on client
     useEffect(() => {
         setMounted(true);
@@ -116,24 +116,35 @@ export function DateRange({
         return dateRange;
     }, [dateRange]);
 
-    // Check if date is booked dengan logika bergeser untuk step 2
+    // Check if date is booked - dengan logika shifting untuk same-day turnover
     const isDateBooked = useCallback((date: Date): boolean => {
-        if (!Array.isArray(bookedDates)) return false;
+        // Convert bookedDates to array if it's an object (API sometimes returns object with numeric keys)
+        const datesArray = Array.isArray(bookedDates)
+            ? bookedDates
+            : (bookedDates && typeof bookedDates === 'object' ? Object.values(bookedDates) : []);
+
+        if (datesArray.length === 0) return false;
 
         try {
             const dateStr = format(date, 'yyyy-MM-dd');
 
+            // Debug: log booked dates (hanya sekali)
+            if (dateStr === format(new Date(), 'yyyy-MM-dd')) {
+                console.log('📅 Booked Dates:', datesArray);
+            }
+
             // Jika sedang di step 2 (selecting checkout), geser booking 1 hari
+            // Ini untuk handle same-day turnover
             if (dateRange?.from && !dateRange?.to || dateRange?.to && dateRange?.from && (error || warning)) {
                 // Tanggal yang aslinya booked, sekarang dianggap available
                 // Tanggal sebelumnya (yang aslinya available) sekarang dianggap booked
                 const prevDay = addDays(date, -1);
                 const prevDayStr = format(prevDay, 'yyyy-MM-dd');
-                return bookedDates.includes(prevDayStr);
+                return datesArray.includes(prevDayStr);
             }
 
             // Step 1 atau lainnya, gunakan booking normal
-            return bookedDates.includes(dateStr);
+            return datesArray.includes(dateStr);
         } catch (e) {
             console.error('Error checking booked date:', e);
             return false;
@@ -240,7 +251,7 @@ export function DateRange({
         if (onDateChange) {
             const startStr = format(fromDate, 'yyyy-MM-dd');
             const endStr = format(toDate, 'yyyy-MM-dd');
-            
+
             if (autoTrigger && triggerDelay) {
                 setTimeout(() => onDateChange(startStr, endStr), triggerDelay);
             } else {
@@ -274,8 +285,8 @@ export function DateRange({
         matchers.push((date: Date) => {
             if (isDateBooked(date)) return true;
             if (adminMode) {
-                 if (dateRange?.from && !dateRange.to) return date <= dateRange.from;
-                 return false;
+                if (dateRange?.from && !dateRange.to) return date <= dateRange.from;
+                return false;
             }
             if (dateRange?.from && !dateRange.to) {
                 return date <= dateRange.from || differenceInDays(date, dateRange.from) > 30;
@@ -296,9 +307,9 @@ export function DateRange({
             return checkDate.getTime() === today.getTime();
         },
     };
-    if (dateRange?.from) calendarModifiers.rangeStart = (d: Date) => d.getTime() === dateRange.from!.getTime();
-    if (dateRange?.to) calendarModifiers.rangeEnd = (d: Date) => d.getTime() === dateRange.to!.getTime();
-    if (dateRange?.from && dateRange?.to) calendarModifiers.rangeMiddle = (d: Date) =>
+    if (dateRange?.from) calendarModifiers.range_start = (d: Date) => d.getTime() === dateRange.from!.getTime();
+    if (dateRange?.to) calendarModifiers.range_end = (d: Date) => d.getTime() === dateRange.to!.getTime();
+    if (dateRange?.from && dateRange?.to) calendarModifiers.range_middle = (d: Date) =>
         d.getTime() > dateRange.from!.getTime() &&
         d.getTime() < dateRange.to!.getTime();
 
@@ -367,8 +378,8 @@ export function DateRange({
                     </Button>
                 </PopoverTrigger>
 
-                <PopoverContent className="p-0 w-auto" align="start">
-                    <div className="p-4 space-y-4">
+                <PopoverContent className="p-0 w-auto" align="center">
+                    <div className="p-2">
                         {loading && (
                             <div className="flex items-center gap-3 justify-center p-6">
                                 <div className="animate-spin h-5 w-5 rounded-full border-2 border-primary border-t-transparent" />
@@ -386,12 +397,7 @@ export function DateRange({
                                 disabled={disabledDates}
                                 modifiers={calendarModifiers}
                                 modifiersClassNames={{
-                                    booked: "bg-red-100 text-red-900 line-through opacity-50 hover:bg-red-100 cursor-not-allowed font-medium decoration-red-500/50",
-                                    today: "bg-accent/50 text-accent-foreground font-semibold border-2 border-primary/20",
-                                    selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground font-semibold rounded-md",
-                                    rangeStart: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground font-semibold rounded-l-md rounded-r-none",
-                                    rangeEnd: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground font-semibold rounded-r-md rounded-l-none",
-                                    rangeMiddle: "bg-primary/10 text-primary rounded-none",
+                                    booked: "rdp-day_booked",
                                 }}
                                 className="rounded-lg border-0"
                                 locale={id}

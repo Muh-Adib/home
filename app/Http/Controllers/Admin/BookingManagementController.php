@@ -790,7 +790,9 @@ class BookingManagementController extends Controller
                     'total_amount',
                     'booking_status',
                     'payment_status',
-                    'guest_count'
+                    'guest_count',
+                    'source',
+                    'external_id',
                 ])
                 ->with([
                     'property:id,name,capacity,base_rate',

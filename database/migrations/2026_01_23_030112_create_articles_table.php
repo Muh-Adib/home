@@ -60,7 +60,7 @@ return new class extends Migration {
             $table->index('created_at');
 
             // Full-text search index (for MySQL)
-            // $table->fullText(['title', 'content']); // Uncomment for MySQL 5.7+
+            $table->fullText(['title', 'content']); // Uncomment for MySQL 5.7+
         });
     }
 
