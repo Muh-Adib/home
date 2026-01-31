@@ -827,6 +827,110 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                             </CardContent>
                         </Card>
 
+                        {/* Featured Image */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                    <ImageIcon className="h-4 w-4" />
+                                    Featured Image
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {data.featured_image ? (
+                                    <div className="space-y-2">
+                                        <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100">
+                                            <img
+                                                src={data.featured_image.startsWith('http') ? data.featured_image : `/storage/${data.featured_image}`}
+                                                alt="Featured"
+                                                className="w-full h-full object-cover"
+                                            />
+                                            <Button
+                                                size="sm"
+                                                variant="destructive"
+                                                className="absolute top-2 right-2"
+                                                onClick={() => setData('featured_image', '')}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                        <p className="text-xs text-gray-500">Click X to remove</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                                            <ImageIcon className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                                            <p className="text-sm text-gray-600 mb-2">No featured image</p>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => document.getElementById('featured-image-upload')?.click()}
+                                                disabled={uploadingImage}
+                                            >
+                                                {uploadingImage ? (
+                                                    <>
+                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                        Uploading...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Upload className="h-4 w-4 mr-2" />
+                                                        Upload Image
+                                                    </>
+                                                )}
+                                            </Button>
+                                            <input
+                                                id="featured-image-upload"
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+
+                                                    setUploadingImage(true);
+                                                    const loadingToast = toast.loading('Uploading featured image...', {
+                                                        description: 'Converting to WebP format',
+                                                    });
+
+                                                    const formData = new FormData();
+                                                    formData.append('image', file);
+                                                    if (article) {
+                                                        formData.append('article_slug', article.slug);
+                                                    }
+
+                                                    try {
+                                                        const response = await axios.post('/admin/articles/upload-image', formData, {
+                                                            headers: { 'Content-Type': 'multipart/form-data' },
+                                                        });
+
+                                                        if (response.data.success) {
+                                                            setData('featured_image', response.data.path);
+                                                            toast.success('Featured image uploaded!', {
+                                                                description: `Compressed to WebP (${response.data.compression_ratio}% smaller)`,
+                                                                id: loadingToast,
+                                                            });
+                                                        }
+                                                    } catch (error) {
+                                                        console.error('Upload failed:', error);
+                                                        toast.error('Upload failed', {
+                                                            description: 'Could not upload image. Please try again.',
+                                                            id: loadingToast,
+                                                        });
+                                                    } finally {
+                                                        setUploadingImage(false);
+                                                        // Reset input
+                                                        e.target.value = '';
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <p className="text-xs text-gray-500">Recommended: 1200x630px (16:9 ratio)</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
                         {/* Property Links */}
                         <Card>
                             <CardHeader>

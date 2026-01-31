@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Property;
 use App\Models\SeoLandingPage;
+use App\Models\Article;
 use Illuminate\Support\Facades\Cache;
 
 class SitemapController extends Controller
@@ -54,8 +55,8 @@ class SitemapController extends Controller
             // Individual properties
             foreach ($properties as $property) {
                 $this->addUrl(
-                    $xml, 
-                    $urlset, 
+                    $xml,
+                    $urlset,
                     $baseUrl . '/properties/' . $property->slug,
                     $property->updated_at,
                     'daily',
@@ -94,10 +95,46 @@ class SitemapController extends Controller
     }
 
     /**
+     * Generate XML sitemap for published articles
+     */
+    public function articles()
+    {
+        return Cache::remember('sitemap.articles', 3600, function () {
+            $articles = Article::published()
+                ->orderBy('updated_at', 'desc')
+                ->get(['slug', 'updated_at', 'published_at']);
+
+            $xml = new \DOMDocument('1.0', 'UTF-8');
+            $xml->formatOutput = true;
+
+            $urlset = $xml->createElement('urlset');
+            $urlset->setAttribute('xmlns', 'http://www.sitemaps.org/schemas/sitemap/0.9');
+            $xml->appendChild($urlset);
+
+            $baseUrl = rtrim(config('app.url'), '/');
+
+            foreach ($articles as $article) {
+                $this->addUrl(
+                    $xml,
+                    $urlset,
+                    $baseUrl . '/articles/' . $article->slug,
+                    $article->updated_at,
+                    'weekly',
+                    '0.8'
+                );
+            }
+
+            return response($xml->saveXML(), 200)
+                ->header('Content-Type', 'text/xml');
+        });
+    }
+
+    /**
      * Clear sitemap cache (called after property updates)
      */
     public static function clearCache()
     {
         Cache::forget('sitemap.xml');
+        Cache::forget('sitemap.articles');
     }
 }

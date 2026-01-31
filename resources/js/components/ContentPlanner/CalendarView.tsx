@@ -4,6 +4,10 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
 import { EventInput, EventClickArg, EventDropArg } from '@fullcalendar/core';
 
+// Import FullCalendar CSS
+import '@fullcalendar/core/main.css';
+import '@fullcalendar/daygrid/main.css';
+
 export interface CalendarEvent {
     id: string; // This is the UUID
     title: string;

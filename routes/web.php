@@ -53,6 +53,7 @@ Route::get('/health', function () {
 
 // Dynamic Sitemap (Next.js style) - Auto-updates on property changes
 Route::get('/sitemap.xml', [\App\Http\Controllers\SitemapController::class, 'index'])->name('sitemap');
+Route::get('/sitemap-articles.xml', [\App\Http\Controllers\SitemapController::class, 'articles'])->name('sitemap.articles');
 
 // iCal Export (Public but protected by token)
 Route::get('/property/{slug}/ical/{token}', [\App\Http\Controllers\ICalController::class, 'export'])->name('ical.export');

@@ -252,25 +252,42 @@ class AdminBookingService
                     mkdir($directory, 0755, true);
                 }
 
-                // Convert using Intervention Image v3
-                $manager = new ImageManager(new Driver());
-                $image = $manager->read($tempFullPath);
+                // Convert using Intervention Image v3 (with GD check)
+                try {
+                    $manager = new ImageManager(new Driver());
+                    $image = $manager->read($tempFullPath);
 
-                // Resize if too large (max 1920x1920)
-                if ($image->width() > 1920 || $image->height() > 1920) {
-                    $image->scaleDown(1920, 1920);
+                    // Resize if too large (max 1920x1920)
+                    if ($image->width() > 1920 || $image->height() > 1920) {
+                        $image->scaleDown(1920, 1920);
+                    }
+
+                    // Save as WebP with quality 85
+                    $image->toWebp(85)->save($webpFullPath);
+
+                    // Delete temp file
+                    Storage::disk('public')->delete($tempPath);
+
+                    $finalPath = $webpPath;
+                } catch (\Throwable $gdError) {
+                    // GD extension not available or other ImageManager error
+                    Log::warning('ImageManager/GD not available, storing original format', [
+                        'error' => $gdError->getMessage(),
+                        'booking_number' => $bookingNumber,
+                    ]);
+
+                    // Delete temp file if exists
+                    if (Storage::disk('public')->exists($tempPath)) {
+                        Storage::disk('public')->delete($tempPath);
+                    }
+
+                    // Store original image format
+                    $originalFilename = $baseFilename . '.' . $extension;
+                    $finalPath = $file->storeAs('payments/proof', $originalFilename, 'public');
                 }
-
-                // Save as WebP with quality 85
-                $image->toWebp(85)->save($webpFullPath);
-
-                // Delete temp file
-                Storage::disk('public')->delete($tempPath);
-
-                $finalPath = $webpPath;
             } catch (\Exception $e) {
-                // ✅ FIX: Fallback to original format if WebP encoding fails
-                Log::warning('WebP encoding failed, using original format', [
+                // ✅ FIX: Fallback to original format if any error occurs
+                Log::warning('Image processing failed, using original format', [
                     'error' => $e->getMessage(),
                     'booking_number' => $bookingNumber,
                 ]);
