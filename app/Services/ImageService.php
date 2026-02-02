@@ -74,9 +74,33 @@ class ImageService
                 $image->sharpen(10);
             }
 
-            // Convert and save
+            // Convert and save with fallback mechanism
+            $conversionSuccess = false;
             if ($config['convert_to_webp']) {
-                $image->toWebp($config['quality'])->save($fullPath);
+                try {
+                    // Try to convert to WebP
+                    $image->toWebp($config['quality'])->save($fullPath);
+                    $conversionSuccess = true;
+                } catch (\Exception $conversionError) {
+                    // Log conversion failure
+                    \Log::warning('WebP conversion failed, falling back to original format', [
+                        'error' => $conversionError->getMessage(),
+                        'file' => $file->getClientOriginalName(),
+                        'driver' => $this->driver,
+                    ]);
+
+                    // Fallback: Save in original format
+                    $extension = strtolower($file->getClientOriginalExtension());
+                    $fallbackFilename = str_replace('.webp', '.' . $extension, $filename);
+                    $fallbackPath = "{$directory}/{$fallbackFilename}";
+                    $fullPath = Storage::disk('public')->path($fallbackPath);
+
+                    $image->save($fullPath, quality: $config['quality']);
+
+                    // Update path and filename to reflect actual saved format
+                    $path = $fallbackPath;
+                    $filename = $fallbackFilename;
+                }
             } else {
                 $image->save($fullPath, quality: $config['quality']);
             }
@@ -87,12 +111,20 @@ class ImageService
             $thumbnailPath = null;
             $thumbnailUrl = null;
             if ($config['generate_thumbnail']) {
-                $thumbnailPath = $this->generateThumbnail(
-                    $path,
-                    $config['thumbnail_width'],
-                    $config['thumbnail_height']
-                );
-                $thumbnailUrl = Storage::disk('public')->url($thumbnailPath);
+                try {
+                    $thumbnailPath = $this->generateThumbnail(
+                        $path,
+                        $config['thumbnail_width'],
+                        $config['thumbnail_height']
+                    );
+                    $thumbnailUrl = Storage::disk('public')->url($thumbnailPath);
+                } catch (\Exception $thumbError) {
+                    // Log but don't fail the upload
+                    \Log::warning('Thumbnail generation failed', [
+                        'error' => $thumbError->getMessage(),
+                        'path' => $path,
+                    ]);
+                }
             }
 
             return new ImageUploadResult(
@@ -156,10 +188,28 @@ class ImageService
         $image = $this->manager->read($fullPath);
         $image->cover($width, $height);
 
-        // Save with appropriate format
-        if (str_ends_with($path, '.webp')) {
-            $image->toWebp(config('image.thumbnail.quality', 80))->save($thumbnailFullPath);
-        } else {
+        // Save with appropriate format and fallback
+        try {
+            if (str_ends_with($path, '.webp')) {
+                $image->toWebp(config('image.thumbnail.quality', 80))->save($thumbnailFullPath);
+            } else {
+                $image->save($thumbnailFullPath, quality: config('image.thumbnail.quality', 80));
+            }
+        } catch (\Exception $e) {
+            // Fallback: Save in original format if WebP fails
+            \Log::warning('Thumbnail WebP conversion failed, using original format', [
+                'error' => $e->getMessage(),
+                'path' => $path,
+            ]);
+
+            // Change extension to original format
+            $originalExt = pathinfo($path, PATHINFO_EXTENSION);
+            if ($originalExt === 'webp') {
+                // If source is webp but conversion failed, try jpeg
+                $thumbnailPath = str_replace('.webp', '.jpg', $thumbnailPath);
+                $thumbnailFullPath = Storage::disk('public')->path($thumbnailPath);
+            }
+
             $image->save($thumbnailFullPath, quality: config('image.thumbnail.quality', 80));
         }
 
@@ -194,10 +244,20 @@ class ImageService
             $image->scaleDown($config['max_width'], $config['max_height']);
         }
 
-        // Save optimized
-        if (str_ends_with($path, '.webp')) {
-            $image->toWebp($config['quality'])->save($fullPath);
-        } else {
+        // Save optimized with fallback
+        try {
+            if (str_ends_with($path, '.webp')) {
+                $image->toWebp($config['quality'])->save($fullPath);
+            } else {
+                $image->save($fullPath, quality: $config['quality']);
+            }
+        } catch (\Exception $e) {
+            // Fallback: Save without WebP conversion
+            \Log::warning('Image optimization WebP conversion failed', [
+                'error' => $e->getMessage(),
+                'path' => $path,
+            ]);
+
             $image->save($fullPath, quality: $config['quality']);
         }
     }
