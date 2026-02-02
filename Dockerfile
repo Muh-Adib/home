@@ -34,7 +34,7 @@ RUN npm run build && \
 # Production PHP stage dengan Nixpacks compatibility
 FROM php:8.4-fpm-alpine AS php-stage
 
-# Install system dependencies (including ImageMagick for image processing)
+# Install system dependencies (including ImageMagick + WebP support for image processing)
 RUN apk add --no-cache \
     nginx \
     supervisor \
@@ -64,6 +64,8 @@ RUN apk add --no-cache \
     sqlite-dev \
     pkgconfig \
     coreutils \
+    libwebp \
+    libwebp-dev \
     imagemagick \
     imagemagick-dev
 
