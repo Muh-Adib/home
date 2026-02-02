@@ -17,7 +17,8 @@ import {
     Phone,
     Mail,
     User,
-    Info
+    Info,
+    FileText
 } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import LanguageSwitcher from '@/components/language-switcher';
@@ -34,6 +35,7 @@ interface GuestLayoutProps {
 
 const publicNavItems = [
     { key: 'properties', href: '/properties', icon: Building2, label: 'nav.properties' },
+    { key: 'articles', href: '/articles', icon: FileText, label: 'nav.articles' },
     { key: 'about', href: '/about', icon: Info, label: 'nav.about' },
     { key: 'contact', href: '/contact', icon: Phone, label: 'nav.contact' },
 ];
@@ -175,6 +177,13 @@ export default function GuestLayout({
                                 <span className="font-medium text-[10px] leading-tight">{t('nav.properties')}</span>
                             </Link>
                             <Link
+                                href="/articles"
+                                className="flex flex-col items-center py-1 px-2 text-xs text-muted-foreground hover:text-brand-primary transition-colors"
+                            >
+                                <FileText className="h-4 w-4 mb-0.5" />
+                                <span className="font-medium text-[10px] leading-tight">{t('nav.articles')}</span>
+                            </Link>
+                            <Link
                                 href="/contact"
                                 className="flex flex-col items-center py-1 px-2 text-xs text-muted-foreground hover:text-brand-primary transition-colors"
                             >
@@ -224,6 +233,11 @@ export default function GuestLayout({
                                         <li>
                                             <Link href="/properties" className="text-sm text-muted-foreground hover:text-brand-primary transition-colors">
                                                 {t('nav.browse_properties')}
+                                            </Link>
+                                        </li>
+                                        <li>
+                                            <Link href="/articles" className="text-sm text-muted-foreground hover:text-brand-primary transition-colors">
+                                                {t('nav.articles')}
                                             </Link>
                                         </li>
                                         <li>
