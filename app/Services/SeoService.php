@@ -70,11 +70,11 @@ class SeoService
     {
         // GEO: Conversational, question-based title
         $title = "Cari Homestay {$property->name} di Yogyakarta? Booking Sekarang";
-        
+
         // GEO: Natural language, conversational description
         $baseDescription = Str::limit(strip_tags($property->description), 100, '');
-        $description = "Ingin menyewa homestay {$property->name}? Kami menawarkan {$baseDescription} " 
-            . "dengan harga mulai Rp " . number_format($property->base_rate, 0, ',', '.') 
+        $description = "Ingin menyewa homestay {$property->name}? Kami menawarkan {$baseDescription} "
+            . "dengan harga mulai Rp " . number_format($property->base_rate, 0, ',', '.')
             . "/malam. Fasilitas lengkap, lokasi strategis. Booking mudah & aman!";
 
         $image = $property->media->first()?->url ?? asset('og-image.jpg');
@@ -200,7 +200,7 @@ class SeoService
         }
 
         $faqPage = Schema::fAQPage();
-        
+
         foreach ($faqs as $faq) {
             $faqPage->mainEntity(
                 Schema::question()
@@ -379,5 +379,65 @@ class SeoService
                 'answer' => "Ya, {$property->name} sangat cocok untuk keluarga dengan kapasitas hingga {$property->capacity_max} orang. Tersedia {$property->bedroom_count} kamar tidur dan {$property->bathroom_count} kamar mandi."
             ]
         ];
+    }
+
+    /**
+     * Generate article-specific SEO
+     */
+    public function forArticle($article, array $extra = []): array
+    {
+        $title = $article->meta_title ?? $article->title;
+        $description = $article->meta_description ?? $article->excerpt ?? Str::limit(strip_tags($article->content), 155);
+        $image = $article->featured_image
+            ? asset('storage/' . $article->featured_image)
+            : asset('og-image.jpg');
+        $url = route('articles.show', $article->slug);
+
+        return $this->generate([
+            'title' => $title,
+            'description' => $description,
+            'image' => $image,
+            'url' => $url,
+            'type' => 'article',
+            ...$extra
+        ]);
+    }
+
+    /**
+     * Generate Schema.org for article
+     */
+    public function articleSchema($article): string
+    {
+        $schema = Schema::article()
+            ->headline($article->meta_title ?? $article->title)
+            ->description($article->meta_description ?? $article->excerpt ?? Str::limit(strip_tags($article->content), 155))
+            ->image($article->featured_image
+                ? asset('storage/' . $article->featured_image)
+                : asset('images/default-article.jpg'))
+            ->datePublished($article->published_at?->toIso8601String())
+            ->dateModified($article->updated_at->toIso8601String())
+            ->author(
+                Schema::person()
+                    ->name($article->author->name)
+            )
+            ->publisher(
+                Schema::organization()
+                    ->name(config('app.name'))
+                    ->logo(
+                        Schema::imageObject()
+                            ->url(asset('images/logo.png'))
+                    )
+            )
+            ->mainEntityOfPage(
+                Schema::webPage()
+                    ->identifier(route('articles.show', $article->slug))
+            );
+
+        // Add keywords if available
+        if ($article->seo_keywords) {
+            $schema->keywords(implode(', ', $article->seo_keywords));
+        }
+
+        return (string) $schema->toScript();
     }
 }

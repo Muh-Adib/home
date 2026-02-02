@@ -8,6 +8,8 @@ import { Calendar, User, Eye, ArrowLeft, Share2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useEffect } from 'react';
+import { SeoHead } from '@/components/seo/SeoHead';
+import { SchemaOrg } from '@/components/seo/SchemaOrg';
 
 interface Property {
     id: number;
@@ -61,6 +63,10 @@ export default function ArticleShow({ article, relatedArticles }: ArticleShowPro
 
     return (
         <GuestLayout variant='minimal'>
+            {/* SEO: Head tags and JSON-LD Schema */}
+            <SeoHead />
+            <SchemaOrg />
+
             <div className="min-h-screen bg-gray-50">
                 {/* Header */}
                 <div className="bg-white border-b">

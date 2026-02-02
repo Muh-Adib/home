@@ -8,6 +8,7 @@ use App\Models\ContentPlan;
 use App\Services\ArticleImageService;
 use App\Services\ArticleService;
 use App\Services\ArticleAnalysisService;
+use App\Services\SeoService;
 use App\Http\Requests\Admin\StoreArticleRequest;
 use App\Http\Requests\Admin\UpdateArticleRequest;
 use Illuminate\Http\Request;
@@ -21,7 +22,8 @@ class ArticleController extends Controller
     public function __construct(
         private ArticleImageService $imageService,
         private ArticleService $articleService,
-        private ArticleAnalysisService $analysisService
+        private ArticleAnalysisService $analysisService,
+        private SeoService $seoService
     ) {
     }
 
@@ -138,44 +140,11 @@ class ArticleController extends Controller
             ->limit(3)
             ->get();
 
-        // Generate JSON-LD structured data for SEO
-        $jsonLd = [
-            '@context' => 'https://schema.org',
-            '@type' => 'Article',
-            'headline' => $article->meta_title ?? $article->title,
-            'description' => $article->meta_description ?? $article->excerpt,
-            'image' => $article->featured_image
-                ? asset('storage/' . $article->featured_image)
-                : asset('images/default-article.jpg'),
-            'datePublished' => $article->published_at?->toIso8601String(),
-            'dateModified' => $article->updated_at->toIso8601String(),
-            'author' => [
-                '@type' => 'Person',
-                'name' => $article->author->name,
-            ],
-            'publisher' => [
-                '@type' => 'Organization',
-                'name' => config('app.name'),
-                'logo' => [
-                    '@type' => 'ImageObject',
-                    'url' => asset('images/logo.png'),
-                ],
-            ],
-            'mainEntityOfPage' => [
-                '@type' => 'WebPage',
-                '@id' => route('articles.show', $article->slug),
-            ],
-        ];
-
-        // Add keywords if available
-        if ($article->seo_keywords) {
-            $jsonLd['keywords'] = implode(', ', $article->seo_keywords);
-        }
-
         return Inertia::render('Articles/Show', [
             'article' => $article,
             'relatedArticles' => $relatedArticles,
-            'jsonLd' => $jsonLd,
+            'seo' => $this->seoService->forArticle($article),
+            'schema' => $this->seoService->articleSchema($article),
         ]);
     }
 
