@@ -30,6 +30,7 @@ interface Article {
     slug: string;
     content: string;
     excerpt?: string;
+    featured_image?: string;
     language: string;
     published_at: string;
     view_count: number;
@@ -112,6 +113,23 @@ export default function ArticleShow({ article, relatedArticles }: ArticleShowPro
                             </div>
                         </div>
                     </div>
+
+                    {/* Featured Image Hero */}
+                    {article.featured_image && (
+                        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+                            <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-gradient-to-br from-gray-100 to-gray-200">
+                                <img
+                                    src={article.featured_image.startsWith('http') ? article.featured_image : `/storage/${article.featured_image}`}
+                                    alt={article.title}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        // Hide image if it fails to load
+                                        e.currentTarget.style.display = 'none';
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Content */}
@@ -238,7 +256,7 @@ export default function ArticleShow({ article, relatedArticles }: ArticleShowPro
                                                                 {property.address}
                                                             </p>
                                                             <p className="text-sm font-semibold text-blue-600 mt-2">
-                                                                From Rp {property.base_rate.toLocaleString()}/night
+                                                                Mulai Rp {property.base_rate.toLocaleString()}/malam
                                                             </p>
                                                         </div>
                                                     </div>
@@ -253,14 +271,14 @@ export default function ArticleShow({ article, relatedArticles }: ArticleShowPro
                             <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
                                 <CardContent className="p-6">
                                     <h3 className="text-lg font-semibold mb-2">
-                                        Looking for a place to stay?
+                                        Cari Penginapan Murah di Jogja
                                     </h3>
                                     <p className="text-blue-100 mb-4 text-sm">
-                                        Browse our collection of beautiful properties
+                                        Temukan villa, homestay, gapuesthouse, dan hotel murah di Jogja
                                     </p>
                                     <Link href="/properties">
                                         <Button variant="secondary" className="w-full">
-                                            View All Properties
+                                            Lihat Semua Penginapan
                                         </Button>
                                     </Link>
                                 </CardContent>
