@@ -16,8 +16,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
-use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver;
 
 /**
  * AdminBookingService - Centralized service for admin booking operations
@@ -41,7 +39,8 @@ class AdminBookingService
         private RateOverrideLogService $rateOverrideLogService,
         private PaymentIncomeSyncService $paymentIncomeSyncService,
         private \App\Actions\Booking\CreateBookingAction $createBookingAction,
-        private \App\Actions\User\EnsureGuestUserAction $ensureUserAction
+        private \App\Actions\User\EnsureGuestUserAction $ensureUserAction,
+        private ImageService $imageService
     ) {
     }
 
@@ -233,72 +232,36 @@ class AdminBookingService
      */
     private function uploadPaymentProof(Payment $payment, UploadedFile $file, string $bookingNumber): void
     {
-        $extension = strtolower($file->getClientOriginalExtension());
-        $baseFilename = $bookingNumber . '_' . time();
-        $isImage = in_array($extension, ['jpg', 'jpeg', 'png']);
+        $isImage = str_starts_with($file->getMimeType(), 'image/');
 
         if ($isImage) {
-            try {
-                // Try to convert to WebP
-                $webpFilename = $baseFilename . '.webp';
-                $tempPath = $file->storeAs('payments/proof/temp', $file->hashName(), 'public');
-                $tempFullPath = Storage::disk('public')->path($tempPath);
-                $webpPath = 'payments/proof/' . $webpFilename;
-                $webpFullPath = Storage::disk('public')->path($webpPath);
+            // Use centralized ImageService for image processing
+            $result = $this->imageService->upload($file, [
+                'directory' => 'payments/proof',
+                'filename' => $bookingNumber . '_' . time(),
+                'max_width' => 1920,
+                'max_height' => 1920,
+                'quality' => 85,
+                'convert_to_webp' => true,
+            ]);
 
-                // Ensure directory exists
-                $directory = dirname($webpFullPath);
-                if (!file_exists($directory)) {
-                    mkdir($directory, 0755, true);
-                }
-
-                // Convert using Intervention Image v3 (with GD check)
-                try {
-                    $manager = new ImageManager(new Driver());
-                    $image = $manager->read($tempFullPath);
-
-                    // Resize if too large (max 1920x1920)
-                    if ($image->width() > 1920 || $image->height() > 1920) {
-                        $image->scaleDown(1920, 1920);
-                    }
-
-                    // Save as WebP with quality 85
-                    $image->toWebp(85)->save($webpFullPath);
-
-                    // Delete temp file
-                    Storage::disk('public')->delete($tempPath);
-
-                    $finalPath = $webpPath;
-                } catch (\Throwable $gdError) {
-                    // GD extension not available or other ImageManager error
-                    Log::warning('ImageManager/GD not available, storing original format', [
-                        'error' => $gdError->getMessage(),
-                        'booking_number' => $bookingNumber,
-                    ]);
-
-                    // Delete temp file if exists
-                    if (Storage::disk('public')->exists($tempPath)) {
-                        Storage::disk('public')->delete($tempPath);
-                    }
-
-                    // Store original image format
-                    $originalFilename = $baseFilename . '.' . $extension;
-                    $finalPath = $file->storeAs('payments/proof', $originalFilename, 'public');
-                }
-            } catch (\Exception $e) {
-                // ✅ FIX: Fallback to original format if any error occurs
+            if (!$result->success) {
+                // Fallback to original format if conversion fails
                 Log::warning('Image processing failed, using original format', [
-                    'error' => $e->getMessage(),
+                    'error' => $result->error,
                     'booking_number' => $bookingNumber,
                 ]);
 
-                // Store original image format
-                $originalFilename = $baseFilename . '.' . $extension;
+                $extension = strtolower($file->getClientOriginalExtension());
+                $originalFilename = $bookingNumber . '_' . time() . '.' . $extension;
                 $finalPath = $file->storeAs('payments/proof', $originalFilename, 'public');
+            } else {
+                $finalPath = $result->path;
             }
         } else {
             // Store PDF as-is
-            $pdfFilename = $baseFilename . '.pdf';
+            $extension = strtolower($file->getClientOriginalExtension());
+            $pdfFilename = $bookingNumber . '_' . time() . '.' . $extension;
             $finalPath = $file->storeAs('payments/proof', $pdfFilename, 'public');
         }
 

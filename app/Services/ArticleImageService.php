@@ -4,9 +4,6 @@ namespace App\Services;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver;
 use App\Models\Article;
 
 /**
@@ -20,6 +17,11 @@ use App\Models\Article;
  */
 class ArticleImageService
 {
+    public function __construct(
+        private ImageService $imageService
+    ) {
+    }
+
     /**
      * Upload and process article image
      * 
@@ -30,61 +32,36 @@ class ArticleImageService
      */
     public function uploadImage(UploadedFile $file, ?Article $article = null): array
     {
-        // Validate image
-        $this->validateImage($file);
-
-        // Generate unique filename
-        $baseFilename = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
-        $timestamp = now()->format('YmdHis');
-        $random = Str::random(8);
-        $webpFilename = "{$baseFilename}_{$timestamp}_{$random}.webp";
-
-        // Prepare directory path
+        // Determine directory path
         $directory = 'articles/images';
         if ($article) {
             $directory .= '/' . $article->slug;
         }
 
-        $webpPath = "{$directory}/{$webpFilename}";
-        $webpFullPath = Storage::disk('public')->path($webpPath);
+        // Upload using centralized ImageService
+        $result = $this->imageService->upload($file, [
+            'directory' => $directory,
+            'max_width' => 1920,
+            'max_height' => 1080,
+            'quality' => 88,
+            'convert_to_webp' => true,
+            'sharpen' => true,
+        ]);
 
-        // Ensure directory exists
-        if (!file_exists(dirname($webpFullPath))) {
-            mkdir(dirname($webpFullPath), 0755, true);
+        if (!$result->success) {
+            throw new \Exception($result->error ?? 'Failed to upload image');
         }
-
-        // Process image with Intervention Image
-        $manager = new ImageManager(new Driver());
-        $image = $manager->read($file->getRealPath());
-
-        // Get original dimensions
-        $originalWidth = $image->width();
-        $originalHeight = $image->height();
-
-        // Resize if too large (maintain aspect ratio)
-        if ($originalWidth > 1920 || $originalHeight > 1080) {
-            $image->scaleDown(1920, 1080);
-        }
-
-        // Add sharpening for better quality after resize
-        $image->sharpen(10);
-
-        // Convert to WebP with quality 88 (optimal balance)
-        $image->toWebp(88)->save($webpFullPath);
-
-        // Get file size after compression
-        $fileSize = filesize($webpFullPath);
 
         return [
             'success' => true,
-            'path' => $webpPath,
-            'url' => Storage::disk('public')->url($webpPath),
-            'filename' => $webpFilename,
-            'size' => $fileSize,
-            'width' => $image->width(),
-            'height' => $image->height(),
-            'original_size' => $file->getSize(),
-            'compression_ratio' => round((1 - ($fileSize / $file->getSize())) * 100, 2),
+            'path' => $result->path,
+            'url' => $result->url,
+            'filename' => $result->filename,
+            'size' => $result->size,
+            'width' => $result->width,
+            'height' => $result->height,
+            'original_size' => $result->originalSize,
+            'compression_ratio' => $result->compressionRatio,
         ];
     }
 
@@ -146,17 +123,12 @@ class ArticleImageService
 
         $originalSize = filesize($fullPath);
 
-        // Re-process image
-        $manager = new ImageManager(new Driver());
-        $image = $manager->read($fullPath);
-
-        // Resize if needed
-        if ($image->width() > 1920 || $image->height() > 1080) {
-            $image->scaleDown(1920, 1080);
-        }
-
-        $image->sharpen(10);
-        $image->toWebp(88)->save($fullPath);
+        // Optimize using centralized ImageService
+        $this->imageService->optimize($path, [
+            'max_width' => 1920,
+            'max_height' => 1080,
+            'quality' => 88,
+        ]);
 
         $newSize = filesize($fullPath);
 
@@ -186,17 +158,8 @@ class ArticleImageService
             throw new \Exception("Image not found: {$path}");
         }
 
-        // Generate thumbnail filename
-        $pathInfo = pathinfo($path);
-        $thumbnailFilename = $pathInfo['filename'] . '_thumb.' . $pathInfo['extension'];
-        $thumbnailPath = $pathInfo['dirname'] . '/' . $thumbnailFilename;
-        $thumbnailFullPath = Storage::disk('public')->path($thumbnailPath);
-
-        // Create thumbnail
-        $manager = new ImageManager(new Driver());
-        $image = $manager->read($fullPath);
-        $image->cover($width, $height);
-        $image->toWebp(80)->save($thumbnailFullPath);
+        // Generate thumbnail using centralized ImageService
+        $thumbnailPath = $this->imageService->generateThumbnail($path, $width, $height);
 
         return [
             'success' => true,
@@ -204,7 +167,7 @@ class ArticleImageService
             'url' => Storage::disk('public')->url($thumbnailPath),
             'width' => $width,
             'height' => $height,
-            'size' => filesize($thumbnailFullPath),
+            'size' => filesize(Storage::disk('public')->path($thumbnailPath)),
         ];
     }
 

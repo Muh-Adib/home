@@ -34,7 +34,7 @@ RUN npm run build && \
 # Production PHP stage dengan Nixpacks compatibility
 FROM php:8.4-fpm-alpine AS php-stage
 
-# Install system dependencies
+# Install system dependencies (including ImageMagick for image processing)
 RUN apk add --no-cache \
     nginx \
     supervisor \
@@ -63,9 +63,11 @@ RUN apk add --no-cache \
     sqlite \
     sqlite-dev \
     pkgconfig \
-    coreutils
+    coreutils \
+    imagemagick \
+    imagemagick-dev
 
-# PHP extensions + Redis in single step to avoid BuildKit cache issues
+# PHP extensions + Redis + Imagick in single step to avoid BuildKit cache issues
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
     docker-php-ext-install -j$(nproc) \
     pdo_mysql \
@@ -79,9 +81,10 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
     zip \
     intl \
     opcache && \
-    pecl install redis && \
-    docker-php-ext-enable redis && \
-    php -m | grep -q redis
+    pecl install redis imagick && \
+    docker-php-ext-enable redis imagick && \
+    php -m | grep -q redis && \
+    php -m | grep -q imagick
 
 # Cleanup build tools
 RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev || true

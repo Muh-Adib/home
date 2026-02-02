@@ -9,21 +9,24 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver;
+use App\Services\ImageService;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class MediaController extends Controller
 {
+    public function __construct(
+        private ImageService $imageService
+    ) {
+    }
     /**
      * Upload property media
      */
     public function upload(Request $request, Property $property)
     {
         $this->authorize('update', $property);
-        
+
         $request->validate([
             'files' => 'required|array|max:50',
             'files.*' => [
@@ -68,26 +71,26 @@ class MediaController extends Controller
 
         try {
             DB::beginTransaction();
-            
+
             $uploadedFiles = [];
             $storage = Storage::disk('public');
-            
+
             foreach ($request->file('files') as $file) {
                 // Generate secure filename
                 $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
                 $extension = $file->getClientOriginalExtension();
                 $safeName = Str::slug($originalName) . '_' . time() . '_' . Str::random(8) . '.' . $extension;
-                
+
                 // Store file with security checks
                 $path = $this->storeFileSecurely($file, $safeName, $property);
-                
+
                 if (!$path) {
                     throw new \Exception('Failed to store file securely: ' . $file->getClientOriginalName());
                 }
-                
+
                 // Determine media type
                 $mediaType = str_starts_with($file->getMimeType(), 'image/') ? 'image' : 'video';
-                
+
                 // Create media record
                 $media = PropertyMedia::create([
                     'property_id' => $property->id,
@@ -104,7 +107,7 @@ class MediaController extends Controller
                     'is_featured' => false,
                     'is_cover' => false,
                 ]);
-                
+
                 // Generate thumbnails immediately for images
                 if ($mediaType === 'image') {
                     try {
@@ -117,39 +120,39 @@ class MediaController extends Controller
                         ]);
                     }
                 }
-                
+
                 $uploadedFiles[] = [
                     'id' => $media->id,
                     'file_name' => $media->file_name,
                     'url' => $media->url,
                     'size' => $media->file_size,
                 ];
-                
+
                 \Log::info('File uploaded successfully', [
                     'media_id' => $media->id,
                     'property_id' => $property->id,
                     'file_name' => $safeName,
                 ]);
             }
-            
+
             DB::commit();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Files uploaded successfully',
                 'files' => $uploadedFiles,
             ]);
-            
+
         } catch (\Exception $e) {
             DB::rollback();
-            
+
             \Log::error('Media upload failed', [
                 'property_id' => $property->id,
                 'user_id' => auth()->id(),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Upload failed: ' . $e->getMessage(),
@@ -170,7 +173,7 @@ class MediaController extends Controller
             $handle = fopen($file->getRealPath(), 'rb');
             $header = fread($handle, 16);
             fclose($handle);
-            
+
             // Define valid image signatures
             $signatures = [
                 'jpg' => [0xFF, 0xD8, 0xFF],
@@ -178,7 +181,7 @@ class MediaController extends Controller
                 'gif' => [0x47, 0x49, 0x46],
                 'webp' => [0x52, 0x49, 0x46, 0x46],
             ];
-            
+
             $isValid = false;
             foreach ($signatures as $format => $signature) {
                 if (substr($header, 0, count($signature)) === implode('', array_map('chr', $signature))) {
@@ -186,31 +189,34 @@ class MediaController extends Controller
                     break;
                 }
             }
-            
+
             if (!$isValid) {
                 return false;
             }
-            
+
             // Additional validation using GD/Imagick if available
             if (extension_loaded('gd')) {
                 $imageInfo = @getimagesize($file->getRealPath());
                 if ($imageInfo === false) {
                     return false;
                 }
-                
+
                 // Check if mime type matches file extension
                 $allowedMimeTypes = [
-                    'image/jpeg', 'image/jpg', 'image/png', 
-                    'image/gif', 'image/webp'
+                    'image/jpeg',
+                    'image/jpg',
+                    'image/png',
+                    'image/gif',
+                    'image/webp'
                 ];
-                
+
                 if (!in_array($imageInfo['mime'], $allowedMimeTypes)) {
                     return false;
                 }
             }
-            
+
             return true;
-            
+
         } catch (\Exception $e) {
             \Log::warning('Image validation failed', [
                 'file' => $file->getClientOriginalName(),
@@ -233,19 +239,19 @@ class MediaController extends Controller
         try {
             $directory = "properties/{$property->slug}/media";
             $path = $file->storeAs($directory, $safeName, 'public');
-            
+
             if (!$path) {
                 return false;
             }
-            
+
             // Set proper file permissions
             $fullPath = storage_path('app/public/' . $path);
             if (file_exists($fullPath)) {
                 chmod($fullPath, 0644); // Read/write for owner, read for others
             }
-            
+
             return $path;
-            
+
         } catch (\Exception $e) {
             \Log::error('Secure file storage failed', [
                 'file' => $safeName,
@@ -490,7 +496,7 @@ class MediaController extends Controller
         $extension = $file->getClientOriginalExtension();
         $timestamp = now()->format('YmdHis');
         $random = \Str::random(8);
-        
+
         return "{$timestamp}_{$random}.{$extension}";
     }
 
@@ -500,16 +506,12 @@ class MediaController extends Controller
             return;
         }
 
-        $originalPath = Storage::disk('public')->path($media->file_path);
-        $thumbnailFilename = 'thumb_' . basename($media->file_path);
-        $thumbnailPath = dirname($media->file_path) . '/' . $thumbnailFilename;
-        $thumbnailFullPath = Storage::disk('public')->path($thumbnailPath);
-
-        // Create thumbnail using Intervention Image v3
-        $manager = new ImageManager(new Driver());
-        $image = $manager->read($originalPath);
-        $image->cover(300, 200);
-        $image->save($thumbnailFullPath, quality: 80);
+        // Generate thumbnail using centralized ImageService
+        $thumbnailPath = $this->imageService->generateThumbnail(
+            $media->file_path,
+            300,
+            200
+        );
 
         $media->update(['thumbnail_path' => $thumbnailPath]);
     }
@@ -520,22 +522,14 @@ class MediaController extends Controller
             return;
         }
 
-        $originalPath = Storage::disk('public')->path($media->file_path);
-        
-        // Optimize image
-        $manager = new ImageManager(new Driver());
-        $image = $manager->read($originalPath);
-        
-        // Resize if too large
-        if ($image->width() > 1920 || $image->height() > 1080) {
-            $image->scaleDown(1920, 1080);
-        }
+        // Optimize using centralized ImageService
+        $this->imageService->optimize($media->file_path, [
+            'max_width' => 1920,
+            'max_height' => 1080,
+            'quality' => 85,
+        ]);
 
-        // Save with compression
-        $image->save($originalPath, quality: 85);
-
-        // Update file size
-        $newSize = filesize($originalPath);
+        $newSize = filesize(Storage::disk('public')->path($media->file_path));
         $media->update(['file_size' => $newSize]);
     }
 }

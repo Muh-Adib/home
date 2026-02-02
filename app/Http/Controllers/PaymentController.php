@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\PaymentMethod;
 use App\Events\PaymentCreated;
 use App\Services\PaymentGatewayService;
+use App\Services\ImageService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -30,10 +31,14 @@ use Illuminate\Support\Facades\Log;
 class PaymentController extends Controller
 {
     protected PaymentGatewayService $gatewayService;
+    protected ImageService $imageService;
 
-    public function __construct(PaymentGatewayService $gatewayService)
-    {
+    public function __construct(
+        PaymentGatewayService $gatewayService,
+        ImageService $imageService
+    ) {
         $this->gatewayService = $gatewayService;
+        $this->imageService = $imageService;
     }
 
     /**
@@ -55,7 +60,7 @@ class PaymentController extends Controller
         'Bank Mega',
         'Bank Bukopin',
         'Bank Syariah Indonesia (BSI)',
-        
+
         // Digital Banks
         'Jenius (BTPN)',
         'Digibank by DBS',
@@ -63,7 +68,7 @@ class PaymentController extends Controller
         'Neo Commerce (Bank Neo)',
         'SeaBank',
         'Allo Bank',
-        
+
         // E-Wallets
         'GoPay',
         'OVO',
@@ -71,7 +76,7 @@ class PaymentController extends Controller
         'LinkAja',
         'ShopeePay',
         'PayPal',
-        
+
         // Other
         'Lainnya',
     ];
@@ -107,24 +112,24 @@ class PaymentController extends Controller
         // Untuk sekarang, kita ambil semua payment methods yang aktif
         // Frontend bisa filter untuk hanya show iPaymu atau methods tertentu
         $paymentMethods = PaymentMethod::active()
-          ->orderBy('sort_order')
-          ->get()
-          ->map(function($method) use ($pendingAmount) {
-              return [
-                  'id' => $method->id,
-                  'name' => $method->name,
-                  'code' => $method->code,
-                  'type' => $method->type,
-                  'icon' => $method->icon,
-                  'description' => $method->description,
-                  'fee_percentage' => $method->fee_percentage ?? 0,
-                  'fee_fixed' => $method->fee_fixed ?? 0,
-                  'fee_type' => $method->fee_type ?? 'percentage',
-                  'fee_amount' => $method->calculateFee($pendingAmount),
-                  'total_with_fee' => $method->getTotalWithFee($pendingAmount),
-                  'is_ipaymu' => $method->isIpaymu(),
-              ];
-          });
+            ->orderBy('sort_order')
+            ->get()
+            ->map(function ($method) use ($pendingAmount) {
+                return [
+                    'id' => $method->id,
+                    'name' => $method->name,
+                    'code' => $method->code,
+                    'type' => $method->type,
+                    'icon' => $method->icon,
+                    'description' => $method->description,
+                    'fee_percentage' => $method->fee_percentage ?? 0,
+                    'fee_fixed' => $method->fee_fixed ?? 0,
+                    'fee_type' => $method->fee_type ?? 'percentage',
+                    'fee_amount' => $method->calculateFee($pendingAmount),
+                    'total_with_fee' => $method->getTotalWithFee($pendingAmount),
+                    'is_ipaymu' => $method->isIpaymu(),
+                ];
+            });
 
         return Inertia::render('Payment/Create', [
             'booking' => $booking->load('property'),
@@ -206,7 +211,7 @@ class PaymentController extends Controller
                 'error' => $e->getMessage(),
                 'booking_id' => $booking->id,
             ]);
-            
+
             return back()->withErrors([
                 'error' => 'Failed to initiate payment: ' . $e->getMessage()
             ]);
@@ -219,7 +224,7 @@ class PaymentController extends Controller
     public function myPayments(Request $request): Response
     {
         $user = $request->user();
-        
+
         $query = Payment::query()
             ->with(['booking.property', 'paymentMethod'])
             ->whereHas('booking', function ($q) use ($user) {
@@ -241,9 +246,9 @@ class PaymentController extends Controller
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
                 $q->where('payment_number', 'like', "%{$search}%")
-                  ->orWhereHas('booking', function ($bq) use ($search) {
-                      $bq->where('booking_number', 'like', "%{$search}%");
-                  });
+                    ->orWhereHas('booking', function ($bq) use ($search) {
+                        $bq->where('booking_number', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -300,11 +305,11 @@ class PaymentController extends Controller
         $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
         $dpAmount = $booking->dp_amount ?? ($booking->total_amount * 0.3); // Default 30% DP
         $remainingAmount = $booking->total_amount - $paidAmount;
-        
+
         // Determine payment type and amount
         $paymentType = 'dp';
         $requiredAmount = $dpAmount;
-        
+
         if ($paidAmount >= $dpAmount) {
             $paymentType = 'remaining';
             $requiredAmount = $remainingAmount;
@@ -431,38 +436,29 @@ class PaymentController extends Controller
      */
     private function uploadAndOptimizePaymentProof($file): string
     {
-        // Generate unique filename
-        $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-        $path = 'payment-proofs/' . $filename;
-        
-        // Store original file
-        $file->storeAs('payment-proofs', $filename, 'public');
-        
-        // Create thumbnail for preview (optional)
-        $this->createThumbnail($file, $filename);
-        
-        return $path;
-    }
+        // Use centralized ImageService for image processing
+        $result = $this->imageService->upload($file, [
+            'directory' => 'payment-proofs',
+            'max_width' => 1920,
+            'max_height' => 1920,
+            'quality' => 85,
+            'convert_to_webp' => true,
+            'generate_thumbnail' => true,
+            'thumbnail_width' => 300,
+            'thumbnail_height' => 200,
+        ]);
 
-    /**
-     * Create thumbnail for payment proof
-     */
-    private function createThumbnail($file, $filename): void
-    {
-        try {
-            // Simple thumbnail creation without intervention image
-            $thumbnailDir = storage_path('app/public/payment-proofs/thumbnails');
-            if (!file_exists($thumbnailDir)) {
-                mkdir($thumbnailDir, 0755, true);
-            }
-            
-            // Copy original file as thumbnail for now
-            // In production, you might want to use proper image resizing
-            copy($file->getRealPath(), $thumbnailDir . '/' . $filename);
-            
-        } catch (\Exception $e) {
-            // Log error but don't fail the upload
-            Log::warning('Failed to create thumbnail: ' . $e->getMessage());
+        if (!$result->success) {
+            // Fallback to simple storage if image processing fails
+            Log::warning('Image processing failed, using simple storage', [
+                'error' => $result->error,
+            ]);
+
+            $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->storeAs('payment-proofs', $filename, 'public');
+            return 'payment-proofs/' . $filename;
         }
+
+        return $result->path;
     }
 }
