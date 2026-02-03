@@ -67,15 +67,16 @@ interface SystemLogsProps {
         date_from?: string;
         date_to?: string;
     };
+    currentFile: string;
 }
 
-export default function SystemLogs({ logs, statistics, availableFiles, filters }: SystemLogsProps) {
+export default function SystemLogs({ logs, statistics, availableFiles, filters, currentFile }: SystemLogsProps) {
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
     const [selectedLevel, setSelectedLevel] = useState(filters.level || '');
     const [dateFrom, setDateFrom] = useState(filters.date_from || '');
     const [dateTo, setDateTo] = useState(filters.date_to || '');
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-    const [selectedFile, setSelectedFile] = useState('laravel.log');
+    const [selectedFile, setSelectedFile] = useState(currentFile);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -128,6 +129,22 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters }
 
     const handleFilter = () => {
         router.get('/admin/settings/system/logs', {
+            file: selectedFile,
+            level: selectedLevel,
+            search: searchQuery,
+            date_from: dateFrom,
+            date_to: dateTo,
+            page: 1,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    };
+
+    const handleFileChange = (fileName: string) => {
+        setSelectedFile(fileName);
+        router.get('/admin/settings/system/logs', {
+            file: fileName,
             level: selectedLevel,
             search: searchQuery,
             date_from: dateFrom,
@@ -280,6 +297,29 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters }
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                        {/* File Selector */}
+                        <div>
+                            <Label htmlFor="file">Log File</Label>
+                            <Select value={selectedFile} onValueChange={handleFileChange}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select log file" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableFiles.map(file => (
+                                        <SelectItem key={file.name} value={file.name}>
+                                            <div className="flex items-center justify-between gap-4">
+                                                <span>{file.name}</span>
+                                                <span className="text-xs text-gray-500">{file.size}</span>
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Current: {selectedFile} ({statistics.file_size})
+                            </p>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
                                 <Label htmlFor="search">Search</Label>

@@ -146,7 +146,7 @@ const getAdminNavItems = (userRole: User['role']) => {
         children: [
           { title: 'General Settings', href: '/admin/settings/general', icon: Settings },
           { title: 'WhatsApp GOWA', href: '/admin/gowa', icon: MessageSquare },
-          { title: 'System Logs', href: '/admin/settings/logs', icon: FileText },
+          { title: 'System Logs', href: '/admin/settings/system/logs', icon: FileText },
           { title: 'Legal', href: '/admin/legal/', icon: FileText },
           { title: 'AI Provider Keys', href: '/admin/settings/ai-keys', icon: KeySquare }
         ]

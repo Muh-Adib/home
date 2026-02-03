@@ -8,6 +8,7 @@ class LogParser
 {
     /**
      * Parse Laravel log file with pagination and filtering
+     * OPTIMIZED: Uses tail for large files to prevent timeout
      * 
      * @param string $logFile Path to log file
      * @param array $filters Filters: level, search, date_from, date_to
@@ -27,8 +28,14 @@ class LogParser
             ];
         }
 
-        // Read file in reverse for better performance (newest first)
-        $entries = self::parseLogEntries($logFile);
+        // Check file size - if too large, use tail command
+        $fileSize = filesize($logFile);
+        $useTail = $fileSize > 10 * 1024 * 1024; // 10MB threshold
+
+        // Read file efficiently
+        $entries = $useTail
+            ? self::parseLogEntriesWithTail($logFile, 500) // Only read last 500 entries
+            : self::parseLogEntriesFast($logFile, 1000);
 
         // Apply filters
         if (!empty($filters['level'])) {
@@ -77,39 +84,73 @@ class LogParser
     }
 
     /**
-     * Parse log file into structured entries
+     * Parse log entries using tail command (FAST for large files)
      * 
      * @param string $logFile
-     * @param int $maxEntries Maximum entries to parse (for performance)
+     * @param int $maxEntries
      * @return array
      */
-    private static function parseLogEntries(string $logFile, int $maxEntries = 1000): array
+    private static function parseLogEntriesWithTail(string $logFile, int $maxEntries = 500): array
     {
-        $entries = [];
-        $currentEntry = null;
+        // Use tail to get last N lines (much faster than reading entire file)
+        $linesToRead = $maxEntries * 20; // Estimate 20 lines per entry
 
-        // Read file line by line (memory efficient)
+        // Check OS
+        $isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
+
+        if ($isWindows) {
+            // Windows: Use PowerShell Get-Content -Tail
+            $command = "powershell -Command \"Get-Content -Path '" . addslashes($logFile) . "' -Tail {$linesToRead}\"";
+        } else {
+            // Linux/Mac: Use tail
+            $command = "tail -n {$linesToRead} " . escapeshellarg($logFile);
+        }
+
+        $output = [];
+        exec($command, $output);
+
+        return self::parseLines($output, $maxEntries);
+    }
+
+    /**
+     * Parse log entries fast (for smaller files < 10MB)
+     * 
+     * @param string $logFile
+     * @param int $maxEntries
+     * @return array
+     */
+    private static function parseLogEntriesFast(string $logFile, int $maxEntries = 1000): array
+    {
+        // Read last N KB of file (much faster than entire file)
         $handle = fopen($logFile, 'r');
         if (!$handle) {
             return [];
         }
 
-        // Use SplFileObject for reverse reading (newest first)
-        $file = new \SplFileObject($logFile);
-        $file->seek(PHP_INT_MAX);
-        $totalLines = $file->key();
+        // Seek to last 2MB of file
+        $fileSize = filesize($logFile);
+        $seekPosition = max(0, $fileSize - (2 * 1024 * 1024)); // Last 2MB
 
-        // Read from bottom to top for newest entries first
-        $lines = [];
-        $maxLinesToRead = min($totalLines, $maxEntries * 10); // Estimate 10 lines per entry
+        fseek($handle, $seekPosition);
+        $content = fread($handle, $fileSize - $seekPosition);
+        fclose($handle);
 
-        for ($i = $totalLines; $i >= max(0, $totalLines - $maxLinesToRead); $i--) {
-            $file->seek($i);
-            $line = $file->current();
-            if ($line !== false) {
-                array_unshift($lines, $line);
-            }
-        }
+        $lines = explode("\n", $content);
+
+        return self::parseLines($lines, $maxEntries);
+    }
+
+    /**
+     * Parse lines into structured log entries
+     * 
+     * @param array $lines
+     * @param int $maxEntries
+     * @return array
+     */
+    private static function parseLines(array $lines, int $maxEntries = 500): array
+    {
+        $entries = [];
+        $currentEntry = null;
 
         foreach ($lines as $line) {
             // Match Laravel log pattern: [YYYY-MM-DD HH:MM:SS] environment.LEVEL: message
@@ -134,17 +175,20 @@ class LogParser
                 // Continuation of previous entry (stack trace or context)
                 $trimmedLine = trim($line);
                 if (!empty($trimmedLine)) {
-                    if (str_starts_with($trimmedLine, '#') || str_starts_with($trimmedLine, 'Stack trace:')) {
-                        $currentEntry['stack_trace'] .= $trimmedLine . "\n";
-                    } else {
-                        $currentEntry['context'] .= $trimmedLine . "\n";
+                    // Limit context/stack trace length to prevent memory issues
+                    if (strlen($currentEntry['context']) + strlen($currentEntry['stack_trace']) < 5000) {
+                        if (str_starts_with($trimmedLine, '#') || str_starts_with($trimmedLine, 'Stack trace:')) {
+                            $currentEntry['stack_trace'] .= $trimmedLine . "\n";
+                        } else {
+                            $currentEntry['context'] .= $trimmedLine . "\n";
+                        }
                     }
                 }
             }
         }
 
         // Add last entry
-        if ($currentEntry !== null) {
+        if ($currentEntry !== null && count($entries) < $maxEntries) {
             $entries[] = $currentEntry;
         }
 
@@ -175,7 +219,7 @@ class LogParser
     }
 
     /**
-     * Get log statistics
+     * Get log statistics (FAST: only reads last 500 entries)
      * 
      * @param string $logFile
      * @return array
@@ -191,7 +235,11 @@ class LogParser
             ];
         }
 
-        $entries = self::parseLogEntries($logFile, 5000); // Parse more for accurate stats
+        // Only parse last 500 entries for statistics (fast)
+        $fileSize = filesize($logFile);
+        $entries = $fileSize > 10 * 1024 * 1024
+            ? self::parseLogEntriesWithTail($logFile, 500)
+            : self::parseLogEntriesFast($logFile, 500);
 
         $byLevel = [];
         foreach ($entries as $entry) {

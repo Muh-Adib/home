@@ -612,7 +612,26 @@ class SettingsController extends Controller
     {
         $this->authorize('manageSettings');
 
-        $logFile = storage_path('logs/laravel.log');
+        // Get selected file from request or use today's daily log by default
+        $selectedFile = $request->input('file');
+
+        if ($selectedFile) {
+            // User selected a specific file
+            $logFile = storage_path('logs/' . basename($selectedFile));
+        } else {
+            // Use today's daily log file by default (much smaller than laravel.log)
+            $todayLog = storage_path('logs/laravel-' . date('Y-m-d') . '.log');
+            $fallbackLog = storage_path('logs/laravel.log');
+
+            // Check which log file to use
+            $logFile = file_exists($todayLog) ? $todayLog : $fallbackLog;
+        }
+
+        // Verify file exists and is within logs directory (security)
+        if (!file_exists($logFile) || !str_starts_with(realpath($logFile), realpath(storage_path('logs')))) {
+            // Fallback to today's log
+            $logFile = storage_path('logs/laravel-' . date('Y-m-d') . '.log');
+        }
 
         $filters = [
             'level' => $request->input('level'),
@@ -633,6 +652,7 @@ class SettingsController extends Controller
             'statistics' => $statistics,
             'availableFiles' => $availableFiles,
             'filters' => $filters,
+            'currentFile' => basename($logFile),
         ]);
     }
 
