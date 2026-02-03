@@ -84,7 +84,7 @@ class LogParser
     }
 
     /**
-     * Parse log entries using tail command (FAST for large files)
+     * Parse log entries (pure PHP - no external commands)
      * 
      * @param string $logFile
      * @param int $maxEntries
@@ -92,24 +92,9 @@ class LogParser
      */
     private static function parseLogEntriesWithTail(string $logFile, int $maxEntries = 500): array
     {
-        // Use tail to get last N lines (much faster than reading entire file)
-        $linesToRead = $maxEntries * 20; // Estimate 20 lines per entry
-
-        // Check OS
-        $isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
-
-        if ($isWindows) {
-            // Windows: Use PowerShell Get-Content -Tail
-            $command = "powershell -Command \"Get-Content -Path '" . addslashes($logFile) . "' -Tail {$linesToRead}\"";
-        } else {
-            // Linux/Mac: Use tail
-            $command = "tail -n {$linesToRead} " . escapeshellarg($logFile);
-        }
-
-        $output = [];
-        exec($command, $output);
-
-        return self::parseLines($output, $maxEntries);
+        // Use pure PHP file reading - works in all environments
+        // No exec() needed - compatible with restricted hosting
+        return self::parseLogEntriesFast($logFile, $maxEntries);
     }
 
     /**

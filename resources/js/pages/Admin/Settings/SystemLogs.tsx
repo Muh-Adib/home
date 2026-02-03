@@ -71,12 +71,17 @@ interface SystemLogsProps {
 }
 
 export default function SystemLogs({ logs, statistics, availableFiles, filters, currentFile }: SystemLogsProps) {
-    const [searchQuery, setSearchQuery] = useState(filters.search || '');
-    const [selectedLevel, setSelectedLevel] = useState(filters.level || '');
-    const [dateFrom, setDateFrom] = useState(filters.date_from || '');
-    const [dateTo, setDateTo] = useState(filters.date_to || '');
+    const [searchQuery, setSearchQuery] = useState(filters?.search || '');
+    const [selectedLevel, setSelectedLevel] = useState(filters?.level || '');
+    const [dateFrom, setDateFrom] = useState(filters?.date_from || '');
+    const [dateTo, setDateTo] = useState(filters?.date_to || '');
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-    const [selectedFile, setSelectedFile] = useState(currentFile);
+    const [selectedFile, setSelectedFile] = useState(currentFile || 'laravel.log');
+
+    // Safety check for data
+    const safeLog = logs || { data: [], total: 0, current_page: 1, per_page: 50, last_page: 1 };
+    const safeStatistics = statistics || { total_entries: 0, by_level: {}, file_size: '0 B', last_modified: '' };
+    const safeAvailableFiles = availableFiles || [];
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -246,7 +251,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-2xl font-bold">{statistics.total_entries.toLocaleString()}</p>
+                            <p className="text-2xl font-bold">{safeStatistics.total_entries.toLocaleString()}</p>
                         </CardContent>
                     </Card>
 
@@ -257,7 +262,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-2xl font-bold">{statistics.file_size}</p>
+                            <p className="text-2xl font-bold">{safeStatistics.file_size}</p>
                         </CardContent>
                     </Card>
 
@@ -269,7 +274,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-bold text-red-600">
-                                {(statistics.by_level.error || 0) + (statistics.by_level.critical || 0)}
+                                {(safeStatistics.by_level.error || 0) + (safeStatistics.by_level.critical || 0)}
                             </p>
                         </CardContent>
                     </Card>
@@ -282,7 +287,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-bold text-yellow-600">
-                                {statistics.by_level.warning || 0}
+                                {safeStatistics.by_level.warning || 0}
                             </p>
                         </CardContent>
                     </Card>
@@ -305,7 +310,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                                     <SelectValue placeholder="Select log file" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {availableFiles.map(file => (
+                                    {safeAvailableFiles.map(file => (
                                         <SelectItem key={file.name} value={file.name}>
                                             {file.name} ({file.size})
                                         </SelectItem>
@@ -313,7 +318,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                                 </SelectContent>
                             </Select>
                             <p className="text-xs text-gray-500 mt-1">
-                                Current: {selectedFile} ({statistics.file_size})
+                                Current: {selectedFile} ({safeStatistics.file_size})
                             </p>
                         </div>
 
@@ -386,10 +391,10 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                 {/* Log Entries */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Log Entries ({logs.total} total)</CardTitle>
+                        <CardTitle>Log Entries ({safeLog.total} total)</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {logs.data.length === 0 ? (
+                        {safeLog.data.length === 0 ? (
                             <Alert>
                                 <Info className="h-4 w-4" />
                                 <AlertDescription>
@@ -398,7 +403,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                             </Alert>
                         ) : (
                             <div className="space-y-2">
-                                {logs.data.map((entry, index) => (
+                                {safeLog.data.map((entry, index) => (
                                     <div
                                         key={index}
                                         className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
@@ -445,17 +450,17 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                         )}
 
                         {/* Pagination */}
-                        {logs.last_page > 1 && (
+                        {safeLog.last_page > 1 && (
                             <div className="flex items-center justify-between mt-6 pt-6 border-t">
                                 <p className="text-sm text-gray-600">
-                                    Showing {((logs.current_page - 1) * logs.per_page) + 1} to {Math.min(logs.current_page * logs.per_page, logs.total)} of {logs.total} entries
+                                    Showing {((safeLog.current_page - 1) * safeLog.per_page) + 1} to {Math.min(safeLog.current_page * safeLog.per_page, safeLog.total)} of {safeLog.total} entries
                                 </p>
                                 <div className="flex gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => handlePageChange(logs.current_page - 1)}
-                                        disabled={logs.current_page === 1}
+                                        onClick={() => handlePageChange(safeLog.current_page - 1)}
+                                        disabled={safeLog.current_page === 1}
                                     >
                                         <ChevronLeft className="h-4 w-4" />
                                         Previous
@@ -463,8 +468,8 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => handlePageChange(logs.current_page + 1)}
-                                        disabled={logs.current_page === logs.last_page}
+                                        onClick={() => handlePageChange(safeLog.current_page + 1)}
+                                        disabled={safeLog.current_page === safeLog.last_page}
                                     >
                                         Next
                                         <ChevronRight className="h-4 w-4" />
