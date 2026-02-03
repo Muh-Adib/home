@@ -306,7 +306,7 @@ class SettingsController extends Controller
         try {
             \Mail::raw('This is a test email from Homsjogja.', function ($message) use ($validated) {
                 $message->to($validated['test_email'])
-                        ->subject('Test Email - Homsjogja');
+                    ->subject('Test Email - Homsjogja');
             });
 
             return back()->with('success', 'Test email berhasil dikirim ke ' . $validated['test_email']);
@@ -497,14 +497,14 @@ class SettingsController extends Controller
     private function getRecentLogs(): array
     {
         $logFile = storage_path('logs/laravel.log');
-        
+
         if (!file_exists($logFile)) {
             return [];
         }
 
         $lines = file($logFile);
         $recentLines = array_slice($lines, -20);
-        
+
         return array_map('trim', $recentLines);
     }
 
@@ -542,13 +542,13 @@ class SettingsController extends Controller
         try {
             $bytes = 0;
             $path = storage_path();
-            
+
             if (is_dir($path)) {
                 foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path)) as $file) {
                     $bytes += $file->getSize();
                 }
             }
-            
+
             return $this->formatBytes($bytes);
         } catch (\Exception $e) {
             return 'Unknown';
@@ -578,12 +578,12 @@ class SettingsController extends Controller
             if (!is_dir($backupPath)) {
                 return 'Never';
             }
-            
+
             $files = glob($backupPath . '/*.sql');
             if (empty($files)) {
                 return 'Never';
             }
-            
+
             $latest = max(array_map('filemtime', $files));
             return date('Y-m-d H:i:s', $latest);
         } catch (\Exception $e) {
@@ -597,11 +597,196 @@ class SettingsController extends Controller
     private function formatBytes(int $bytes, int $precision = 2): string
     {
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        
+
         for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
             $bytes /= 1024;
         }
-        
+
         return round($bytes, $precision) . ' ' . $units[$i];
     }
-} 
+
+    /**
+     * Display system logs
+     */
+    public function systemLogs(Request $request): Response
+    {
+        $this->authorize('manageSettings');
+
+        $logFile = storage_path('logs/laravel.log');
+
+        $filters = [
+            'level' => $request->input('level'),
+            'search' => $request->input('search'),
+            'date_from' => $request->input('date_from'),
+            'date_to' => $request->input('date_to'),
+        ];
+
+        $page = (int) $request->input('page', 1);
+        $perPage = (int) $request->input('per_page', 50);
+
+        $logs = \App\Helpers\LogParser::parse($logFile, $filters, $page, $perPage);
+        $statistics = \App\Helpers\LogParser::getStatistics($logFile);
+        $availableFiles = \App\Helpers\LogParser::getAvailableLogFiles();
+
+        return Inertia::render('Admin/Settings/SystemLogs', [
+            'logs' => $logs,
+            'statistics' => $statistics,
+            'availableFiles' => $availableFiles,
+            'filters' => $filters,
+        ]);
+    }
+
+    /**
+     * Download log file
+     */
+    public function downloadLog(Request $request)
+    {
+        $this->authorize('manageSettings');
+
+        $fileName = $request->input('file', 'laravel.log');
+
+        // Sanitize filename to prevent directory traversal
+        $fileName = basename($fileName);
+        $logFile = storage_path('logs/' . $fileName);
+
+        if (!file_exists($logFile)) {
+            return back()->with('error', 'Log file tidak ditemukan.');
+        }
+
+        return response()->download($logFile, $fileName);
+    }
+
+    /**
+     * Clear log files (SAFE: Archives instead of deleting)
+     */
+    public function clearLogs(Request $request): RedirectResponse
+    {
+        $this->authorize('manageSettings');
+
+        $validated = $request->validate([
+            'file' => 'nullable|string',
+            'older_than_days' => 'nullable|integer|min:1',
+            'action' => 'nullable|string|in:archive,delete', // archive (default) or delete
+        ]);
+
+        try {
+            $action = $validated['action'] ?? 'archive';
+            $logPath = storage_path('logs');
+            $archivePath = storage_path('logs/archive');
+
+            // Create archive directory if it doesn't exist
+            if (!is_dir($archivePath)) {
+                mkdir($archivePath, 0755, true);
+            }
+
+            if (!empty($validated['file'])) {
+                // Clear/Archive specific file
+                $fileName = basename($validated['file']);
+                $logFile = $logPath . '/' . $fileName;
+
+                if (file_exists($logFile)) {
+                    if ($action === 'archive') {
+                        // SAFE: Rename file instead of truncating (prevents race conditions)
+                        $archiveFileName = pathinfo($fileName, PATHINFO_FILENAME) .
+                            '_archived_' . date('Y-m-d_His') .
+                            '.' . pathinfo($fileName, PATHINFO_EXTENSION);
+                        $archiveFile = $archivePath . '/' . $archiveFileName;
+
+                        rename($logFile, $archiveFile);
+
+                        // Create empty new file with correct permissions
+                        touch($logFile);
+                        chmod($logFile, 0664);
+
+                        return back()->with('success', "Log file {$fileName} berhasil diarsipkan ke {$archiveFileName}.");
+                    } else {
+                        // DELETE: Only use this if you're absolutely sure
+                        unlink($logFile);
+                        return back()->with('success', "Log file {$fileName} berhasil dihapus.");
+                    }
+                }
+            } elseif (!empty($validated['older_than_days'])) {
+                // Archive/Delete old log files
+                $days = $validated['older_than_days'];
+                $cutoffDate = now()->subDays($days);
+                $files = glob($logPath . '/*.log');
+                $processed = 0;
+
+                foreach ($files as $file) {
+                    // Skip if file is currently being written to (today's log)
+                    $fileDate = date('Y-m-d', filemtime($file));
+                    $today = date('Y-m-d');
+
+                    if ($fileDate === $today) {
+                        continue; // Skip today's log to prevent issues
+                    }
+
+                    if (filemtime($file) < $cutoffDate->timestamp) {
+                        if ($action === 'archive') {
+                            $fileName = basename($file);
+                            $archiveFileName = pathinfo($fileName, PATHINFO_FILENAME) .
+                                '_archived_' . date('Y-m-d_His', filemtime($file)) .
+                                '.' . pathinfo($fileName, PATHINFO_EXTENSION);
+                            $archiveFile = $archivePath . '/' . $archiveFileName;
+
+                            rename($file, $archiveFile);
+                        } else {
+                            unlink($file);
+                        }
+                        $processed++;
+                    }
+                }
+
+                $actionText = $action === 'archive' ? 'diarsipkan' : 'dihapus';
+                return back()->with('success', "{$processed} log file(s) yang lebih lama dari {$days} hari berhasil {$actionText}.");
+            } else {
+                // Archive current day's log (SAFE: won't affect running app)
+                $todayLog = $logPath . '/laravel-' . date('Y-m-d') . '.log';
+
+                if (file_exists($todayLog)) {
+                    if ($action === 'archive') {
+                        $archiveFileName = 'laravel-' . date('Y-m-d_His') . '_archived.log';
+                        $archiveFile = $archivePath . '/' . $archiveFileName;
+
+                        // Copy instead of rename for today's log (safer)
+                        copy($todayLog, $archiveFile);
+
+                        // Truncate the original file (Laravel will continue writing to it)
+                        file_put_contents($todayLog, '');
+
+                        return back()->with('success', "Log hari ini berhasil diarsipkan. File baru akan dibuat otomatis.");
+                    } else {
+                        file_put_contents($todayLog, '');
+                        return back()->with('success', 'Log hari ini berhasil dibersihkan.');
+                    }
+                }
+
+                // Fallback to laravel.log if daily logs not found
+                $fallbackLog = $logPath . '/laravel.log';
+                if (file_exists($fallbackLog)) {
+                    if ($action === 'archive') {
+                        $archiveFileName = 'laravel_archived_' . date('Y-m-d_His') . '.log';
+                        $archiveFile = $archivePath . '/' . $archiveFileName;
+
+                        copy($fallbackLog, $archiveFile);
+                        file_put_contents($fallbackLog, '');
+
+                        return back()->with('success', "Log file berhasil diarsipkan ke {$archiveFileName}.");
+                    } else {
+                        file_put_contents($fallbackLog, '');
+                        return back()->with('success', 'Log file berhasil dibersihkan.');
+                    }
+                }
+            }
+
+            return back()->with('error', 'Tidak ada log file yang ditemukan.');
+        } catch (\Exception $e) {
+            \Log::error('Failed to clear logs', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->with('error', 'Gagal memproses log: ' . $e->getMessage());
+        }
+    }
+}

@@ -665,6 +665,11 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         Route::post('system/clear-cache', 'clearCache')->name('system.clear-cache');
         Route::post('system/backup', 'backupDatabase')->name('system.backup');
 
+        // System Logs
+        Route::get('system/logs', 'systemLogs')->name('system.logs');
+        Route::get('system/logs/download', 'downloadLog')->name('system.logs.download');
+        Route::post('system/logs/clear', 'clearLogs')->name('system.logs.clear');
+
         // Booking Settings
         Route::get('booking', 'booking')->name('booking');
         Route::post('booking', 'updateBooking')->name('booking.update');
