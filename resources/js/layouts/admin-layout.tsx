@@ -34,7 +34,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Package,
-  MessageSquare
+  MessageSquare,
+  KeySquare,
+  FilePen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -62,13 +64,8 @@ interface AdminLayoutProps extends PropsWithChildren<{}> {
 const getAdminNavItems = (userRole: User['role']) => {
   const baseItems = [
     { title: 'Dashboard', href: '/dashboard', icon: LayoutGrid, badge: null },
-    { title: 'Articles', href: '/admin/articles', icon: LayoutGrid, badge: null },
+    { title: 'Articles', href: '/admin/articles', icon: FilePen, badge: null },
   ];
-
-  // Super admin gets AI Keys in settings
-  if (userRole === 'super_admin') {
-    baseItems.push({ title: 'AI Provider Keys', href: '/admin/settings/ai-keys', icon: LayoutGrid, badge: null });
-  }
 
   const roleBasedItems: Record<User['role'], Array<{
     title: string;
@@ -151,6 +148,7 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'WhatsApp GOWA', href: '/admin/gowa', icon: MessageSquare },
           { title: 'System Logs', href: '/admin/settings/logs', icon: FileText },
           { title: 'Legal', href: '/admin/legal/', icon: FileText },
+          { title: 'AI Provider Keys', href: '/admin/settings/ai-keys', icon: KeySquare }
         ]
       }
     ],

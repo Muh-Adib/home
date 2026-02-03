@@ -15,7 +15,7 @@ Route::middleware('guest')->group(function () {
         ->name('register');
 
     Route::post('register', [RegisteredUserController::class, 'store']);
-    
+
     // Auto-registration for booking guests
     Route::post('register/auto', [RegisteredUserController::class, 'autoRegister'])
         ->name('register.auto');
@@ -47,25 +47,32 @@ Route::middleware('guest')->group(function () {
     // WhatsApp Authentication Routes
     Route::post('auth/whatsapp/check-number', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'checkNumber'])
         ->name('auth.whatsapp.check-number');
-    
+
     Route::post('auth/whatsapp/request-otp', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'requestOtp'])
         ->name('auth.whatsapp.request-otp');
-    
+
     Route::post('auth/whatsapp/verify-otp', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'verifyOtp'])
         ->name('auth.whatsapp.verify-otp');
-    
+
     Route::post('auth/whatsapp/resend-otp', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'resendOtp'])
         ->name('auth.whatsapp.resend-otp');
 
 });
 
+/**
+ * Email Verification Route
+ * 
+ * This route is OUTSIDE the 'auth' middleware group to allow guest users
+ * to verify their email. The 'verify.signature.auth' middleware will
+ * auto-login users with valid signed URLs.
+ */
+Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
+    ->middleware(['verify.signature.auth', 'signed', 'throttle:6,1'])
+    ->name('verification.verify');
+
 Route::middleware('auth')->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
-
-    Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
-        ->middleware(['signed', 'throttle:6,1'])
-        ->name('verification.verify');
 
     Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
         ->middleware('throttle:6,1')

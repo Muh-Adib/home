@@ -14,32 +14,30 @@ class VerifyEmailController extends Controller
      */
     public function __invoke(EmailVerificationRequest $request): RedirectResponse
     {
-       
-        if ($request->user()->hasVerifiedEmail()) {
-            // Check for intended URL
+        $user = $request->user();
+
+        if ($user->hasVerifiedEmail()) {
+            // Already verified - redirect with message
             $manualIntended = session()->pull('intended_url');
-            
-            if ($manualIntended) {
-                return redirect($manualIntended);
-            }
-            
-            return redirect()->intended(route('dashboard', absolute: false).'?verified=1');
+
+            $redirect = $manualIntended
+                ? redirect($manualIntended)
+                : redirect()->intended(route('dashboard', absolute: false));
+
+            return $redirect->with('message', 'Email already verified!');
         }
 
-        if ($request->user()->markEmailAsVerified()) {
-            /** @var \Illuminate\Contracts\Auth\MustVerifyEmail $user */
-            $user = $request->user();
-
+        if ($user->markEmailAsVerified()) {
             event(new Verified($user));
         }
 
         // Check for intended URL after verification
         $manualIntended = session()->pull('intended_url');
-        
-        if ($manualIntended) {
-            return redirect($manualIntended);
-        }
 
-        return redirect()->intended(route('dashboard', absolute: false).'?verified=1');
+        $redirect = $manualIntended
+            ? redirect($manualIntended)
+            : redirect()->intended(route('dashboard', absolute: false) . '?verified=1');
+
+        return $redirect->with('message', 'Email verified successfully!');
     }
 }
