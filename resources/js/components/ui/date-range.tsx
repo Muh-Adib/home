@@ -202,7 +202,7 @@ export function DateRange({
             return;
         }
 
-        // CASE 2: New start date
+        // CASE 2: New start date (when user already has complete range)
         if (hasCompleteRange) {
             if (range.from?.getTime() !== dateRange.from?.getTime()) {
                 setDateRange({ from: range.from, to: undefined });
@@ -213,15 +213,15 @@ export function DateRange({
             return;
         }
 
-        // CASE 3: Start date only
-        if (range.from && !range.to) {
+        // CASE 3: Start date only (including when from === to, which means single click)
+        if (range.from && (!range.to || range.from.getTime() === range.to.getTime())) {
             setDateRange({ from: range.from, to: undefined });
             setWarning(null);
             return;
         }
 
-        // CASE 4: Complete range
-        if (range.from && range.to) {
+        // CASE 4: Complete range (from and to are different dates)
+        if (range.from && range.to && range.from.getTime() !== range.to.getTime()) {
             validateAndSetCompleteRange(range.from, range.to);
         }
     };
