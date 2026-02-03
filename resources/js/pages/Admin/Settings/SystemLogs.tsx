@@ -307,10 +307,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                                 <SelectContent>
                                     {availableFiles.map(file => (
                                         <SelectItem key={file.name} value={file.name}>
-                                            <div className="flex items-center justify-between gap-4">
-                                                <span>{file.name}</span>
-                                                <span className="text-xs text-gray-500">{file.size}</span>
-                                            </div>
+                                            {file.name} ({file.size})
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
