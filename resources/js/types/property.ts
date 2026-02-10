@@ -2,6 +2,7 @@ import { type Amenity } from '@/types';
 export interface Property {
   id: number;
   name: string;
+  type: 'homestay' | 'villa' | 'apartment' | 'hotel';
   slug: string;
   description: string;
   address: string;

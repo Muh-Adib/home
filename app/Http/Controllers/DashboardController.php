@@ -10,23 +10,44 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Http\RedirectResponse;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+
+    public function __construct(
+        private \App\Services\DashboardRouteService $dashboardRouteService
+    ) {
+    }
+
     /**
      * Display the dashboard
      */
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
         $user = $request->user();
 
-        // Redirect guest users to their own dashboard
+        // Single Source of Truth for Redirection
+        $targetRoute = $this->dashboardRouteService->getDashboardRoute($user);
+
+        // If the current route is NOT the target route, redirect
+        // We check route name to avoid infinite loops
+        if ($request->route()->getName() !== $targetRoute) {
+            return redirect()->route($targetRoute);
+        }
+
+        // Use the existing logic for getting data (reused for both guest and standard dashboard if needed)
+        // If we represent 'dashboard' as the Guest dashboard:
         if ($user->role === 'guest') {
             return $this->guestDashboard($user);
         }
 
+        // If we are here, it means we are likely on the wrong controller method for the role if logic dictates specific methods
+        // But for now, we'll keep the existing "standard" dashboard logic here as fallback or for specific roles
+
+        // ... (Existing data gathering logic) ...
         // Get date ranges for comparison
         $today = Carbon::today();
         $thisMonth = Carbon::now()->startOfMonth();
@@ -67,6 +88,16 @@ class DashboardController extends Controller
             'bookingTrends' => $bookingTrends,
             'propertyPerformance' => $propertyPerformance,
         ]);
+    }
+
+    /**
+     * Admin Dashboard
+     */
+    public function admin(Request $request): Response
+    {
+        // Reuse the index logic or duplicate it if it needs specific admin variations
+        // For now, we reuse index logic as it handles data gathering based on role
+        return $this->index($request);
     }
 
     /**

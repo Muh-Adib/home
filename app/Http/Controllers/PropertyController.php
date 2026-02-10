@@ -298,7 +298,7 @@ class PropertyController extends Controller
             // GEO: Additional schemas for AI optimization
             'faqSchema' => $this->seoService->faqSchema($faqs),
             'breadcrumbSchema' => $this->seoService->breadcrumbSchema($breadcrumbs),
-            'localBusinessSchema' => $this->seoService->localBusinessSchema($property),
+            // 'localBusinessSchema' => $this->seoService->localBusinessSchema($property), // REMOVED: Duplicates propertySchema
             'videoSchema' => $this->seoService->videoSchema($property), // NEW: Video schema for TikTok
             'faqs' => $faqs, // For FAQ component
         ]);

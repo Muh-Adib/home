@@ -52,6 +52,7 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
     // Initialize form data with property values
     const { data, setData, put, processing, errors } = useForm({
         name: property.name || '',
+        type: property.type || 'homestay' as 'homestay' | 'villa' | 'apartment' | 'hotel',
         description: property.description || '',
         address: property.address || '',
         location: property.location || 'selatan' as 'selatan' | 'utara',
@@ -267,6 +268,22 @@ export default function EditProperty({ property, amenities }: EditPropertyProps)
                                         className={errors.name ? 'border-red-500' : ''}
                                     />
                                     {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="type">Property Type *</Label>
+                                    <Select value={data.type} onValueChange={(value) => setData('type', value as any)}>
+                                        <SelectTrigger className={errors.type ? 'border-red-500' : ''}>
+                                            <SelectValue placeholder="Select type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="homestay">Homestay</SelectItem>
+                                            <SelectItem value="villa">Villa</SelectItem>
+                                            <SelectItem value="apartment">Apartment</SelectItem>
+                                            <SelectItem value="hotel">Hotel</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.type && <p className="text-sm text-red-500">{errors.type || (errors as any).type}</p>}
                                 </div>
 
                                 <div className="space-y-2">

@@ -29,13 +29,17 @@ class PropertyManagementController extends Controller
     public function index(Request $request): Response
     {
         $this->authorize('viewAny', Property::class);
-        
+
         $user = $request->user();
-        
+
         $query = Property::query()
-            ->with(['owner', 'media', 'bookings' => function ($q) {
-                $q->whereIn('booking_status', ['confirmed', 'checked_in']);
-            }]);
+            ->with([
+                'owner',
+                'media',
+                'bookings' => function ($q) {
+                    $q->whereIn('booking_status', ['confirmed', 'checked_in']);
+                }
+            ]);
 
         // Filter by owner for property owners
         if ($user->role === 'property_owner') {
@@ -47,7 +51,7 @@ class PropertyManagementController extends Controller
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('address', 'like', "%{$search}%");
+                    ->orWhere('address', 'like', "%{$search}%");
             });
         }
 
@@ -63,10 +67,10 @@ class PropertyManagementController extends Controller
             if (count($sortParts) === 2) {
                 $field = $sortParts[0];
                 $direction = $sortParts[1];
-                
+
                 $allowedFields = ['name', 'address', 'base_rate', 'created_at'];
                 $allowedDirections = ['asc', 'desc'];
-                
+
                 if (in_array($field, $allowedFields) && in_array($direction, $allowedDirections)) {
                     $query->orderBy($field, $direction);
                 }
@@ -77,7 +81,7 @@ class PropertyManagementController extends Controller
         }
 
         $properties = $query->paginate(20);
-        
+
         return Inertia::render('Admin/Properties/Index', [
             'properties' => $properties,
             'filters' => [
@@ -94,15 +98,15 @@ class PropertyManagementController extends Controller
     public function create(Request $request): Response
     {
         $this->authorize('create', Property::class);
-        
-        if($request->user()->hasRole('super_admin')){
+
+        if ($request->user()->hasRole('super_admin')) {
             $owners = User::where('role', 'property_owner')->get();
-        }else{
+        } else {
             $owners = null;
         }
-        
+
         $amenities = Amenity::active()->ordered()->get();
-        
+
         return Inertia::render('Admin/Properties/Create', [
             'amenities' => $amenities,
             'owners' => $owners,
@@ -115,11 +119,12 @@ class PropertyManagementController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $this->authorize('create', Property::class);
-        
+
         $user = $request->user();
-        
+
         $validationRules = [
             'name' => 'required|string|max:255',
+            'type' => 'required|in:homestay,villa,apartment,hotel',
             'description' => 'required|string',
             'address' => 'required|string',
             'location' => 'required|in:selatan,utara',
@@ -176,7 +181,7 @@ class PropertyManagementController extends Controller
         }
 
         $validated = $request->validate($validationRules);
-        
+
         // Set owner_id based on user role
         if ($user->hasRole('property_owner')) {
             $validated['owner_id'] = $user->id;
@@ -191,7 +196,7 @@ class PropertyManagementController extends Controller
         } else {
             $validated['owner_id'] = $user->id;
         }
-        
+
         // Generate slug
         $validated['slug'] = Str::slug($validated['name']);
 
@@ -228,8 +233,8 @@ class PropertyManagementController extends Controller
                 },
                 'seasonalRates' => function ($query) {
                     $query->where('is_active', true)
-                          ->orderBy('priority', 'desc')
-                          ->orderBy('start_date', 'asc');
+                        ->orderBy('priority', 'desc')
+                        ->orderBy('start_date', 'asc');
                 }
             ]);
 
@@ -288,7 +293,7 @@ class PropertyManagementController extends Controller
         } catch (\Exception $e) {
             // Log error and return with safe defaults
             \Log::error('Error loading property data: ' . $e->getMessage());
-            
+
             return Inertia::render('Admin/Properties/Show', [
                 'property' => [
                     'id' => $property->id,
@@ -340,7 +345,7 @@ class PropertyManagementController extends Controller
     {
         $startDate = now()->subMonths(12)->startOfMonth();
         $endDate = now()->endOfMonth();
-        
+
         $totalDays = $startDate->diffInDays($endDate);
         $bookedDays = $property->bookings()
             ->where('booking_status', '!=', 'cancelled')
@@ -349,7 +354,7 @@ class PropertyManagementController extends Controller
             ->sum(function ($booking) {
                 return $booking->check_in->diffInDays($booking->check_out);
             });
-            
+
         return $totalDays > 0 ? round(($bookedDays / $totalDays) * 100, 2) : 0;
     }
 
@@ -362,7 +367,7 @@ class PropertyManagementController extends Controller
 
         $property->load(['amenities', 'media']);
         $amenities = Amenity::active()->ordered()->get();
-        
+
         return Inertia::render('Admin/Properties/Edit', [
             'property' => $property,
             'amenities' => $amenities,
@@ -384,6 +389,7 @@ class PropertyManagementController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'type' => 'required|in:homestay,villa,apartment,hotel',
             'description' => 'required|string',
             'address' => 'required|string',
             'location' => 'required|in:selatan,utara',
@@ -477,10 +483,12 @@ class PropertyManagementController extends Controller
     {
         $this->authorize('manageMedia', $property);
 
-        $property->load(['media' => function ($query) {
-            $query->orderBy('display_order', 'asc')
-                  ->orderBy('created_at', 'desc');
-        }]);
+        $property->load([
+            'media' => function ($query) {
+                $query->orderBy('display_order', 'asc')
+                    ->orderBy('created_at', 'desc');
+            }
+        ]);
 
         return Inertia::render('Admin/Properties/Media', [
             'property' => $property,
@@ -598,13 +606,13 @@ class PropertyManagementController extends Controller
 
             // Get bookings that overlap with date range
             $bookings = $property->bookings()
-                ->where(function($query) use ($from, $to) {
+                ->where(function ($query) use ($from, $to) {
                     $query->whereBetween('check_in', [$from, $to])
-                          ->orWhereBetween('check_out', [$from, $to])
-                          ->orWhere(function($q) use ($from, $to) {
-                              $q->where('check_in', '<=', $from)
+                        ->orWhereBetween('check_out', [$from, $to])
+                        ->orWhere(function ($q) use ($from, $to) {
+                            $q->where('check_in', '<=', $from)
                                 ->where('check_out', '>=', $to);
-                          });
+                        });
                 })
                 ->get();
 
@@ -616,7 +624,7 @@ class PropertyManagementController extends Controller
 
             // Calculate occupancy rate
             $totalDays = \Carbon\Carbon::parse($from)->diffInDays(\Carbon\Carbon::parse($to)) + 1;
-            $bookedDays = $confirmedBookings->sum(function($booking) use ($from, $to) {
+            $bookedDays = $confirmedBookings->sum(function ($booking) use ($from, $to) {
                 $start = max($booking->check_in, \Carbon\Carbon::parse($from));
                 $end = min($booking->check_out, \Carbon\Carbon::parse($to));
                 return $start->diffInDays($end);
@@ -637,7 +645,7 @@ class PropertyManagementController extends Controller
             ];
 
             // Recent bookings
-            $recentBookings = $bookings->take(10)->map(function($booking) {
+            $recentBookings = $bookings->take(10)->map(function ($booking) {
                 return [
                     'id' => $booking->id,
                     'booking_number' => $booking->booking_number,
@@ -685,7 +693,7 @@ class PropertyManagementController extends Controller
         $current = $start->copy();
 
         while ($current <= $end) {
-            $periodEnd = match($period) {
+            $periodEnd = match ($period) {
                 'week' => $current->copy()->endOfWeek(),
                 'month' => $current->copy()->endOfMonth(),
                 default => $current->copy()->endOfDay(),
@@ -696,15 +704,15 @@ class PropertyManagementController extends Controller
             }
 
             // Get bookings in this period
-            $periodBookings = $bookings->filter(function($booking) use ($current, $periodEnd) {
+            $periodBookings = $bookings->filter(function ($booking) use ($current, $periodEnd) {
                 return $booking->check_in <= $periodEnd && $booking->check_out >= $current;
             });
 
             $revenue = $periodBookings->where('booking_status', '!=', 'cancelled')->sum('total_amount');
-            
+
             // Calculate occupancy for this period
             $periodDays = $current->diffInDays($periodEnd) + 1;
-            $bookedDays = $periodBookings->where('booking_status', '!=', 'cancelled')->sum(function($booking) use ($current, $periodEnd) {
+            $bookedDays = $periodBookings->where('booking_status', '!=', 'cancelled')->sum(function ($booking) use ($current, $periodEnd) {
                 $start = max($booking->check_in, $current);
                 $end = min($booking->check_out, $periodEnd);
                 return $start->diffInDays($end);
@@ -718,7 +726,7 @@ class PropertyManagementController extends Controller
             ];
 
             // Move to next period
-            $current = match($period) {
+            $current = match ($period) {
                 'week' => $current->copy()->addWeek()->startOfWeek(),
                 'month' => $current->copy()->addMonth()->startOfMonth(),
                 default => $current->copy()->addDay(),
@@ -734,7 +742,7 @@ class PropertyManagementController extends Controller
     private function getBookingAnalytics(Property $property): array
     {
         $startDate = now()->subMonths(12)->startOfMonth();
-        
+
         return $property->bookings()
             ->where('created_at', '>=', $startDate)
             ->selectRaw('
@@ -755,7 +763,7 @@ class PropertyManagementController extends Controller
     private function getRevenueAnalytics(Property $property): array
     {
         $startDate = now()->subMonths(12)->startOfMonth();
-        
+
         return $property->bookings()
             ->where('created_at', '>=', $startDate)
             ->where('booking_status', '!=', 'cancelled')
@@ -778,44 +786,44 @@ class PropertyManagementController extends Controller
     {
         $startDate = now()->subMonths(12)->startOfMonth();
         $endDate = now()->endOfMonth();
-        
+
         $monthlyData = [];
         $current = $startDate->copy();
-        
+
         while ($current <= $endDate) {
             $monthStart = $current->copy()->startOfMonth();
             $monthEnd = $current->copy()->endOfMonth();
             $daysInMonth = $monthStart->daysInMonth;
-            
+
             $bookedDays = $property->bookings()
                 ->where('booking_status', '!=', 'cancelled')
-                ->where(function($query) use ($monthStart, $monthEnd) {
+                ->where(function ($query) use ($monthStart, $monthEnd) {
                     $query->whereBetween('check_in', [$monthStart, $monthEnd])
-                          ->orWhereBetween('check_out', [$monthStart, $monthEnd])
-                          ->orWhere(function($q) use ($monthStart, $monthEnd) {
-                              $q->where('check_in', '<=', $monthStart)
+                        ->orWhereBetween('check_out', [$monthStart, $monthEnd])
+                        ->orWhere(function ($q) use ($monthStart, $monthEnd) {
+                            $q->where('check_in', '<=', $monthStart)
                                 ->where('check_out', '>=', $monthEnd);
-                          });
+                        });
                 })
                 ->get()
-                ->sum(function($booking) use ($monthStart, $monthEnd) {
+                ->sum(function ($booking) use ($monthStart, $monthEnd) {
                     $start = max($booking->check_in, $monthStart);
                     $end = min($booking->check_out, $monthEnd);
                     return $start->diffInDays($end);
                 });
-            
+
             $occupancyRate = $daysInMonth > 0 ? round(($bookedDays / $daysInMonth) * 100, 2) : 0;
-            
+
             $monthlyData[] = [
                 'month' => $current->format('Y-m'),
                 'total_days' => $daysInMonth,
                 'booked_days' => $bookedDays,
                 'occupancy_rate' => $occupancyRate,
             ];
-            
+
             $current->addMonth();
         }
-        
+
         return $monthlyData;
     }
-} 
+}

@@ -10,51 +10,53 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('content_plans', function (Blueprint $table) {
-            $table->id();
+        if (!Schema::hasTable('content_plans')) {
+            Schema::create('content_plans', function (Blueprint $table) {
+                $table->id();
 
-            // Planning Details
-            $table->string('title');
-            $table->text('description')->nullable();
-            $table->json('target_keywords')->nullable(); // Keywords to target
-            $table->string('target_audience')->nullable();
-            $table->enum('content_type', ['article', 'guide', 'tips', 'comparison', 'news', 'review'])->default('article');
+                // Planning Details
+                $table->string('title');
+                $table->text('description')->nullable();
+                $table->json('target_keywords')->nullable(); // Keywords to target
+                $table->string('target_audience')->nullable();
+                $table->enum('content_type', ['article', 'guide', 'tips', 'comparison', 'news', 'review'])->default('article');
 
-            // Workflow Status
-            $table->enum('status', [
-                'idea',
-                'researching',
-                'outlining',
-                'writing',
-                'reviewing',
-                'scheduled',
-                'published'
-            ])->default('idea');
+                // Workflow Status
+                $table->enum('status', [
+                    'idea',
+                    'researching',
+                    'outlining',
+                    'writing',
+                    'reviewing',
+                    'scheduled',
+                    'published'
+                ])->default('idea');
 
-            // AI Assistance Data
-            $table->json('ai_research_data')->nullable(); // Web search results, facts
-            $table->json('ai_outline')->nullable(); // Generated outline
-            $table->json('ai_suggestions')->nullable(); // AI recommendations
+                // AI Assistance Data
+                $table->json('ai_research_data')->nullable(); // Web search results, facts
+                $table->json('ai_outline')->nullable(); // Generated outline
+                $table->json('ai_suggestions')->nullable(); // AI recommendations
 
-            // Scheduling
-            $table->date('planned_publish_date')->nullable();
-            $table->date('actual_publish_date')->nullable();
+                // Scheduling
+                $table->date('planned_publish_date')->nullable();
+                $table->date('actual_publish_date')->nullable();
 
-            // Priority & Assignment
-            $table->unsignedTinyInteger('priority')->default(3); // 1-5 scale
-            $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
-            $table->foreignId('assigned_to')->nullable()->constrained('users')->onDelete('set null');
+                // Priority & Assignment
+                $table->unsignedTinyInteger('priority')->default(3); // 1-5 scale
+                $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
+                $table->foreignId('assigned_to')->nullable()->constrained('users')->onDelete('set null');
 
-            $table->timestamps();
-            $table->softDeletes();
+                $table->timestamps();
+                $table->softDeletes();
 
-            // Indexes
-            $table->index('status');
-            $table->index('planned_publish_date');
-            $table->index('created_by');
-            $table->index('assigned_to');
-            $table->index('priority');
-        });
+                // Indexes
+                $table->index('status');
+                $table->index('planned_publish_date');
+                $table->index('created_by');
+                $table->index('assigned_to');
+                $table->index('priority');
+            });
+        }
     }
 
     /**

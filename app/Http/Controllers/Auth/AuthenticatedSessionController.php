@@ -16,6 +16,14 @@ class AuthenticatedSessionController extends Controller
     /**
      * Show the login page.
      */
+    public function __construct(
+        private \App\Services\DashboardRouteService $dashboardRouteService
+    ) {
+    }
+
+    /**
+     * Show the login page.
+     */
     public function create(Request $request): Response
     {
         // Store redirect URL in session if provided
@@ -33,28 +41,31 @@ class AuthenticatedSessionController extends Controller
      * Handle an incoming authentication request.
      */
     public function store(LoginRequest $request): RedirectResponse
-{
-    // Proses autentikasi
-    $request->authenticate();
+    {
+        // Proses autentikasi
+        $request->authenticate();
 
-    // Regenerasi session
-    $request->session()->regenerate();
+        // Regenerasi session
+        $request->session()->regenerate();
 
-    // Update last_login
-    $request->user()->update([
-        'last_login' => now(),
-    ]);
+        // Update last_login
+        $request->user()->update([
+            'last_login' => now(),
+        ]);
 
-    // Ambil intended_url jika ada (hasil dari redirect sebelumnya)
-    $manualIntended = session()->pull('intended_url');
+        // Ambil intended_url jika ada (hasil dari redirect sebelumnya)
+        $manualIntended = session()->pull('intended_url');
 
-    if ($manualIntended) {
-        return redirect($manualIntended);
+        if ($manualIntended) {
+            return redirect($manualIntended);
+        }
+
+        // Single Source of Truth for Default Redirect
+        $targetRoute = $this->dashboardRouteService->getDashboardRoute($request->user());
+
+        // Jika tidak ada manual intended url → pakai Laravel punya tapi override defaultnya dengan logic role kita
+        return redirect()->intended(route($targetRoute));
     }
-
-    // Jika tidak ada manual intended url → pakai Laravel punya
-    return redirect()->intended(route('dashboard'));
-}
 
 
     /**

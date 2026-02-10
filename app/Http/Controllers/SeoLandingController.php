@@ -12,7 +12,8 @@ class SeoLandingController extends Controller
 {
     public function __construct(
         private SeoService $seoService
-    ) {}
+    ) {
+    }
 
     /**
      * Display SEO landing page
@@ -32,68 +33,92 @@ class SeoLandingController extends Controller
         // Increment view counter (async, non-blocking)
         $page->incrementViews();
 
-        // Get filtered properties (using active() scope)
-        $query = Property::active()
-            ->with(['media', 'amenities']);
+        try {
+            // Get filtered properties (using active() scope)
+            $query = Property::active()
+                ->with(['media', 'amenities']);
 
-        // Apply landing page filters
-        $filteredQuery = clone $query;
-        $filteredQuery = $page->applyFiltersToQuery($filteredQuery);
+            // Apply landing page filters safely
+            $filteredQuery = clone $query;
+            $filteredQuery = $page->applyFiltersToQuery($filteredQuery);
 
-        // Check if filtered query has results
-        $filteredCount = $filteredQuery->count();
-        
-        // If no results from filter, fall back to showing all properties
-        if ($filteredCount === 0) {
-            // Use the original query (no filters)
-            $properties = $query->orderBy('is_featured', 'desc')
-                ->orderBy('created_at', 'desc')
-                ->paginate(12);
-        } else {
-            // Use filtered query
-            $properties = $filteredQuery->orderBy('is_featured', 'desc')
-                ->orderBy('created_at', 'desc')
-                ->paginate(12);
-        }
+            // Check if filtered query has results
+            $filteredCount = $filteredQuery->count();
 
-        // Generate natural content
-        $content = $this->generateNaturalContent($page, $properties->total());
+            // If no results from filter, fall back to showing all properties
+            if ($filteredCount === 0) {
+                // Use the original query (no filters)
+                $properties = $query->orderBy('is_featured', 'desc')
+                    ->orderBy('created_at', 'desc')
+                    ->paginate(12);
+            } else {
+                // Use filtered query
+                $properties = $filteredQuery->orderBy('is_featured', 'desc')
+                    ->orderBy('created_at', 'desc')
+                    ->paginate(12);
+            }
 
-        // Generate custom FAQs
-        $faqs = $this->generateFAQs($page, $properties->total());
+            // Generate natural content with fallback
+            try {
+                $content = $this->generateNaturalContent($page, $properties->total());
+            } catch (\Throwable $e) {
+                \Log::warning("SEO Landing Content Generation Failed: " . $e->getMessage());
+                // Fallback content to prevent 500 error
+                $content = [
+                    'intro' => $page->intro_text ?? "Temukan penginapan terbaik di Yogyakarta bersama Homsjogja.",
+                    'whyChooseUs' => [],
+                    'about' => $page->meta_description ?? "Homsjogja menyediakan homestay berkualitas.",
+                    'tips' => [],
+                    'locationDescription' => null,
+                ];
+            }
 
-        // Prepare SEO data (match SeoService format)
-        $seo = [
-            'title' => $page->title,
-            'description' => $page->meta_description,
-            'image' => asset('og-image.jpg'), // Default OG image
-            'url' => $page->url,
-            'type' => 'website',
-            // OpenGraph
-            'og' => [
+            // Generate custom FAQs with fallback
+            try {
+                $faqs = $this->generateFAQs($page, $properties->total());
+            } catch (\Throwable $e) {
+                \Log::warning("SEO Landing FAQ Generation Failed: " . $e->getMessage());
+                $faqs = [];
+            }
+
+            // Prepare SEO data (match SeoService format + robots)
+            $seo = [
                 'title' => $page->title,
                 'description' => $page->meta_description,
-                'image' => asset('og-image.jpg'),
+                'image' => asset('og-image.jpg'), // Default OG image
                 'url' => $page->url,
                 'type' => 'website',
-            ],
-            // Twitter
-            'twitter' => [
-                'card' => 'summary_large_image',
-                'title' => $page->title,
-                'description' => $page->meta_description,
-                'image' => asset('og-image.jpg'),
-            ],
-        ];
+                'robots' => 'index, follow', // Explicitly allow indexing
+                // OpenGraph
+                'og' => [
+                    'title' => $page->title,
+                    'description' => $page->meta_description,
+                    'image' => asset('og-image.jpg'),
+                    'url' => $page->url,
+                    'type' => 'website',
+                ],
+                // Twitter
+                'twitter' => [
+                    'card' => 'summary_large_image',
+                    'title' => $page->title,
+                    'description' => $page->meta_description,
+                    'image' => asset('og-image.jpg'),
+                ],
+            ];
 
-        return Inertia::render('SeoLanding', [
-            'page' => $page,
-            'properties' => $properties,
-            'content' => $content,
-            'faqs' => $faqs,
-            'seo' => $seo,
-            'totalCount' => $properties->total(),
-        ]);
+            return Inertia::render('SeoLanding', [
+                'page' => $page,
+                'properties' => $properties,
+                'content' => $content,
+                'faqs' => $faqs,
+                'seo' => $seo,
+                'totalCount' => $properties->total(),
+            ]);
+
+        } catch (\Throwable $e) {
+            \Log::error("SEO Landing Page Error: " . $e->getMessage());
+            abort(500, "Terjadi kesalahan saat memuat halaman.");
+        }
     }
 
     /**
@@ -102,13 +127,13 @@ class SeoLandingController extends Controller
      */
     private function generateNaturalContent(SeoLandingPage $page, int $totalProperties): array
     {
-        $keyword = $page->target_keyword;
+        $keyword = $page->target_keyword ?? 'Homestay Jogja';
         $filters = $page->filters ?? [];
-        
-        // Extract filter details
+
+        // Extract filter details safely
         $propertyType = $this->getPropertyTypeText($filters['property_type'] ?? 'homestay');
         $location = $this->getLocationText($filters['location'] ?? 'Yogyakarta');
-        $maxPrice = $filters['max_price'] ?? null;
+        $maxPrice = isset($filters['max_price']) ? (int) $filters['max_price'] : null;
         $amenity = $filters['amenity'] ?? null;
 
         // Generate intro paragraph (natural & conversational)
@@ -124,7 +149,7 @@ class SeoLandingController extends Controller
         $tips = $this->generateBookingTips($propertyType, $keyword);
 
         // Location description (if location-specific)
-        $locationDescription = isset($filters['location']) 
+        $locationDescription = isset($filters['location'])
             ? $this->generateLocationDescription($filters['location'])
             : null;
 
@@ -143,12 +168,12 @@ class SeoLandingController extends Controller
     private function generateIntro(string $keyword, string $propertyType, string $location, int $total, ?int $maxPrice): string
     {
         $priceText = $maxPrice ? "dengan budget hingga Rp " . number_format($maxPrice, 0, ',', '.') : "dengan berbagai pilihan harga";
-        
+
         $intros = [
             "Sedang mencari {$keyword} untuk liburan atau perjalanan bisnis Anda? Homsjogja menyediakan {$total}+ pilihan {$propertyType} terbaik di {$location} {$priceText}. Semua properti sudah terverifikasi dengan foto asli dan review terpercaya.",
-            
+
             "Temukan {$keyword} yang sempurna untuk kebutuhan Anda! Kami memiliki {$total}+ {$propertyType} berkualitas di {$location} {$priceText}. Nikmati kemudahan booking online dengan sistem yang aman dan terpercaya.",
-            
+
             "Butuh {$keyword} untuk hari ini atau besok? Cek {$total}+ {$propertyType} tersedia di {$location} {$priceText}. Proses booking cepat, konfirmasi instan, dan customer service siap membantu 24/7.",
         ];
 
@@ -235,7 +260,7 @@ class SeoLandingController extends Controller
             'title' => "Tentang {$location}",
             'text' => "{$location} adalah lokasi strategis di Yogyakarta dengan akses mudah ke berbagai destinasi wisata populer.",
             'attractions' => [],
-       ];
+        ];
     }
 
     /**
@@ -243,21 +268,21 @@ class SeoLandingController extends Controller
      */
     private function generateFAQs(SeoLandingPage $page, int $totalProperties): array
     {
-        $keyword = $page->target_keyword;
+        $keyword = $page->target_keyword ?? 'Homestay';
         $filters = $page->filters ?? [];
-        $maxPrice = $filters['max_price'] ?? null;
+        $maxPrice = isset($filters['max_price']) ? (int) $filters['max_price'] : null;
         $location = $filters['location'] ?? 'Yogyakarta';
 
         return [
             [
                 'question' => "Berapa harga {$keyword} per malam?",
-                'answer' => $maxPrice 
+                'answer' => $maxPrice
                     ? "Harga {$keyword} di platform kami mulai dari Rp 100rb hingga Rp " . number_format($maxPrice, 0, ',', '.') . " per malam, tergantung fasilitas dan lokasi. Tersedia {$totalProperties}+ pilihan sesuai budget Anda."
                     : "Harga {$keyword} bervariasi mulai dari Rp 100rb hingga Rp 1 juta per malam, tergantung tipe properti, fasilitas, dan lokasinya. Kami punya {$totalProperties}+ pilihan untuk semua budget.",
             ],
             [
                 'question' => "Bagaimana cara booking {$keyword}?",
-                'answer' => "Booking sangat mudah! Pilih properti yang Anda suka, tentukan tanggal check-in dan check-out, masukkan jumlah tamu, lalu klik 'Booking Sekarang'. Anda akan mendapat konfirmasi booking via email dan WhatsApp dalam beberapa menit.",
+                'answer' => "Booking sangat mudah! Pilih properti yang Anda suka, tentukan tanggal check-in dan check-out, masukkan jumlah tamu, lalu ikuti proses pembayaran. Konfirmasi booking akan dikirim via email dan WhatsApp dalam beberapa menit.",
             ],
             [
                 'question' => "Apakah ada minimum booking {$keyword}?",
@@ -283,7 +308,7 @@ class SeoLandingController extends Controller
      */
     private function getPropertyTypeText(string $type): string
     {
-        return match($type) {
+        return match ($type) {
             'villa' => 'villa',
             'guest_house' => 'guest house',
             'homestay' => 'homestay',
@@ -296,6 +321,6 @@ class SeoLandingController extends Controller
      */
     private function getLocationText(string $location): string
     {
-        return $location;
+        return htmlspecialchars($location); // Basic sanitization
     }
 }

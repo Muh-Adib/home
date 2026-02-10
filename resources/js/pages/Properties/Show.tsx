@@ -29,7 +29,8 @@ export default function PropertyShow({
   similarProperties,
   searchParams,
   availabilityData,
-  auth
+  auth,
+  schema
 }: PropertyShowProps) {
   const { t } = useTranslation();
 
@@ -110,7 +111,7 @@ export default function PropertyShow({
     <GuestLayout variant='minimal'>
       {/* SEO: Head tags */}
       <SeoHead />
-      <SchemaOrg />
+      <SchemaOrg schema={schema} />
 
       <div className="min-h-screen bg-brand-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">

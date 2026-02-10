@@ -18,10 +18,14 @@ class SeoService
     ];
 
     /**
+     * Property Type conversion
+     */
+
+    /**
      * Generate SEO data for a page
      *
-     * @param array $config Configuration array with keys: title, description, image, url, type
-     * @return array SEO data array with title, description, image, url, type, og, twitter
+     * @param array $config Configuration array with keys: title, description, image, url, type, robots
+     * @return array SEO data array with title, description, image, url, type, og, twitter, robots
      */
     public function generate(array $config = []): array
     {
@@ -30,14 +34,15 @@ class SeoService
         $image = $config['image'] ?? asset(self::DEFAULTS['og_image']);
         $url = $config['url'] ?? url()->current();
         $type = $config['type'] ?? 'website';
+        $robots = $config['robots'] ?? 'index, follow';
 
         // Auto-append suffix jika belum ada
         if (!Str::contains($title, 'Homsjogja')) {
             $title .= self::DEFAULTS['title_suffix'];
         }
 
-        // Ensure description length
-        $description = Str::limit($description, self::DEFAULTS['description_max_length'], '...');
+        // Ensure description length and clean format
+        $description = $this->stripMarkdown(Str::limit($description, self::DEFAULTS['description_max_length'], '...'));
 
         return [
             'title' => $title,
@@ -45,6 +50,7 @@ class SeoService
             'image' => $image,
             'url' => $url,
             'type' => $type,
+            'robots' => $robots,
             // OpenGraph
             'og' => [
                 'title' => $title,
@@ -72,8 +78,8 @@ class SeoService
         $title = "Cari Homestay {$property->name} di Yogyakarta? Booking Sekarang";
 
         // GEO: Natural language, conversational description
-        $baseDescription = Str::limit(strip_tags($property->description), 100, '');
-        $description = "Ingin menyewa homestay {$property->name}? Kami menawarkan {$baseDescription} "
+        $baseDescription = $this->stripMarkdown(Str::limit($property->description, 100, ''));
+        $description = "Ingin menyewa {$property->type} {$property->name}? Kami menawarkan {$baseDescription} "
             . "dengan harga mulai Rp " . number_format($property->base_rate, 0, ',', '.')
             . "/malam. Fasilitas lengkap, lokasi strategis. Booking mudah & aman!";
 
@@ -85,27 +91,137 @@ class SeoService
             'description' => $description,
             'image' => $image,
             'url' => $url,
-            'type' => 'product',
+            'type' => 'product', // or 'website' if schema handles the product part
             ...$extra
         ]);
     }
 
     /**
      * Generate Schema.org for property
+     * Uses LodgingBusiness/VacationRental as primary type to match Schema.org best practices for accommodations.
      */
     public function propertySchema($property): string
     {
-        $schema = Schema::product()
+        $imageUrl = $property->media->first()?->url ?? asset('og-image.jpg');
+        $description = $this->stripMarkdown($property->description);
+        $url = route('properties.show', $property->slug);
+
+        // Map internal property type to Schema.org type method
+        // Schema types: https://schema.org/LodgingBusiness
+        $schemaMethod = match ($property->type) {
+            'villa' => 'vacationRental',
+            'homestay' => 'bedAndBreakfast', // Homestay is essentially a B&B or GuestHouse
+            'guest_house' => 'hostel', // Or lodgingBusiness
+            'hotel' => 'hotel',
+            'apartment' => 'apartment',
+            'resort' => 'resort',
+            default => 'lodgingBusiness',
+        };
+
+        // Create the schema object dynamically using Spatie factory
+        /** @var \Spatie\SchemaOrg\LodgingBusiness $schema */
+        $schema = Schema::{$schemaMethod}()
             ->name($property->name)
-            ->description(strip_tags($property->description))
+            ->description($description)
+            ->image($imageUrl)
+            ->url($url)
+            ->identifier((string) $property->id)
+            ->priceRange('IDR ' . number_format($property->base_rate, 0, ',', '.'))
+            ->address(
+                Schema::postalAddress()
+                    ->streetAddress($property->address ?? 'Yogyakarta')
+                    ->addressLocality('Yogyakarta')
+                    ->addressRegion('DI Yogyakarta')
+                    ->addressCountry('ID')
+            )
+            ->checkinTime($property->check_in_time?->format('H:i') ?? '14:00')
+            ->checkoutTime($property->check_out_time?->format('H:i') ?? '12:00')
+            ->numberOfRooms($property->bedroom_count)
+            ->numberOfBathroomsTotal($property->bathroom_count)
+            ->occupancy(
+                Schema::quantitativeValue()
+                    ->value($property->capacity_max)
+                    ->unitText('Person')
+            );
+
+        // Safely resolve amenities (Handle conflict between 'amenities' attribute and relationship)
+        $amenitiesList = collect();
+        if ($property->relationLoaded('amenities')) {
+            $amenitiesList = $property->getRelation('amenities');
+        } elseif (!empty($property->amenities)) {
+            $amenitiesList = collect($property->amenities);
+        }
+
+        // Add amenities to schema
+        if ($amenitiesList->isNotEmpty()) {
+            $schema->amenityFeature(
+                $amenitiesList->map(function ($amenity) {
+                    // Handle case where amenity is just a string (if from JSON attribute) or Model
+                    $name = is_string($amenity) ? $amenity : ($amenity->name ?? null);
+                    if ($name) {
+                        return Schema::locationFeatureSpecification()
+                            ->name($name)
+                            ->value(true);
+                    }
+                    return null;
+                })->filter()->values()->toArray()
+            );
+        }
+
+        // Check for pets allowed in amenities
+        $petsAllowed = $amenitiesList->contains(function ($a) {
+            $name = is_string($a) ? $a : ($a->name ?? '');
+            return str_contains(strtolower($name), 'pet') || str_contains(strtolower($name), 'hewan');
+        });
+        $schema->petsAllowed($petsAllowed);
+
+        // Add GeoCoordinates if available
+        if ($property->lat && $property->lng) {
+            $schema->geo(
+                Schema::geoCoordinates()
+                    ->latitude($property->lat)
+                    ->longitude($property->lng)
+            );
+        }
+
+        // Add Rating
+        if ($property->rating_avg) {
+            $schema->aggregateRating(
+                Schema::aggregateRating()
+                    ->ratingValue($property->rating_avg)
+                    ->reviewCount($property->approved_reviews_count ?? 1)
+            );
+        }
+
+        // Add offers (Booking link)
+        $schema->offers(
+            Schema::offer()
+                ->url(route('bookings.create', $property->slug))
+                ->price($property->base_rate)
+                ->priceCurrency('IDR')
+                ->availability('https://schema.org/InStock')
+        );
+
+        return (string) $schema->toScript();
+    }
+
+    /**
+     * Generate LodgingBusiness Schema (Better for Accommodation)
+     */
+    public function lodgingSchema($property): string
+    {
+        $schema = Schema::lodgingBusiness()
+            ->name($property->name)
+            ->description($this->stripMarkdown($property->description))
             ->image($property->media->first()?->url ?? asset('og-image.jpg'))
             ->url(route('properties.show', $property->slug))
-            ->offers(
-                Schema::offer()
-                    ->price($property->base_rate)
-                    ->priceCurrency('IDR')
-                    ->availability('https://schema.org/InStock')
-                    ->url(route('bookings.create', $property->slug))
+            ->priceRange('IDR ' . number_format($property->base_rate, 0, ',', '.'))
+            ->address(
+                Schema::postalAddress()
+                    ->streetAddress($property->address)
+                    ->addressLocality('Yogyakarta')
+                    ->addressRegion('DI Yogyakarta')
+                    ->addressCountry('ID')
             );
 
         if ($property->rating_avg) {
@@ -113,16 +229,6 @@ class SeoService
                 Schema::aggregateRating()
                     ->ratingValue($property->rating_avg)
                     ->reviewCount($property->approved_reviews_count ?? 0)
-            );
-        }
-
-        if ($property->address) {
-            $schema->address(
-                Schema::postalAddress()
-                    ->streetAddress($property->address)
-                    ->addressLocality('Yogyakarta')
-                    ->addressRegion('DI Yogyakarta')
-                    ->addressCountry('ID')
             );
         }
 
@@ -136,16 +242,35 @@ class SeoService
     {
         $schema = Schema::organization()
             ->name('Homsjogja')
-            ->url('https://homsjogja.com')
-            ->logo('https://homsjogja.com/logo.svg')
+            ->url(config('app.url'))
+            ->logo(asset('logo.svg'))
             ->sameAs([
                 'https://www.facebook.com/homsjogja',
                 'https://www.instagram.com/homsjogja',
             ])
             ->contactPoint(
                 Schema::contactPoint()
-                    ->telephone('+62-274-123456') // Ganti dengan nomor real
+                    ->telephone('+62-812-3456-7890') // Update with real number
                     ->contactType('Customer Service')
+                    ->areaServed('ID')
+                    ->availableLanguage(['Indonesian', 'English'])
+            );
+
+        return (string) $schema->toScript();
+    }
+
+    /**
+     * Generate WebSite Schema (For Sitelinks Search Box)
+     */
+    public function webSiteSchema(): string
+    {
+        $schema = Schema::webSite()
+            ->name('Homsjogja')
+            ->url(config('app.url'))
+            ->potentialAction(
+                Schema::searchAction()
+                    ->target(config('app.url') . '/properties?search={search_term_string}')
+                    ->queryInput('required name=search_term_string')
             );
 
         return (string) $schema->toScript();
@@ -201,39 +326,35 @@ class SeoService
 
         $faqPage = Schema::fAQPage();
 
+        $questions = [];
         foreach ($faqs as $faq) {
-            $faqPage->mainEntity(
-                Schema::question()
-                    ->name($faq['question'])
-                    ->acceptedAnswer(
-                        Schema::answer()
-                            ->text($faq['answer'])
-                    )
-            );
+            $questions[] = Schema::question()
+                ->name($faq['question'])
+                ->acceptedAnswer(
+                    Schema::answer()
+                        ->text($this->stripMarkdown($faq['answer']))
+                );
         }
+
+        $faqPage->mainEntity($questions);
 
         return (string) $faqPage->toScript();
     }
 
     /**
      * Generate How-To Schema (GEO: Step-by-step content)
-     * 
-     * @param string $name How-to title
-     * @param string $description How-to description
-     * @param array $steps Array of ['name' => string, 'text' => string]
-     * @return string JSON-LD HowTo schema
      */
     public function howToSchema(string $name, string $description, array $steps): string
     {
         $howTo = Schema::howTo()
             ->name($name)
-            ->description($description);
+            ->description($this->stripMarkdown($description));
 
         foreach ($steps as $index => $step) {
             $howTo->step(
                 Schema::howToStep()
                     ->name($step['name'])
-                    ->text($step['text'])
+                    ->text($this->stripMarkdown($step['text']))
                     ->position($index + 1)
             );
         }
@@ -243,9 +364,6 @@ class SeoService
 
     /**
      * Generate Breadcrumb Schema (GEO: Navigation context)
-     * 
-     * @param array $items Array of ['name' => string, 'url' => string]
-     * @return string JSON-LD BreadcrumbList schema
      */
     public function breadcrumbSchema(array $items): string
     {
@@ -265,9 +383,6 @@ class SeoService
 
     /**
      * Generate Review Schema (GEO: Trust signals)
-     * 
-     * @param object $property Property with reviews
-     * @return string JSON-LD Review schema
      */
     public function reviewSchema($property): string
     {
@@ -286,15 +401,12 @@ class SeoService
 
     /**
      * Generate Local Business Schema (GEO: Location-based)
-     * 
-     * @param object $property Property data
-     * @return string JSON-LD LocalBusiness schema
      */
     public function localBusinessSchema($property): string
     {
         $schema = Schema::lodgingBusiness()
             ->name($property->name)
-            ->description(strip_tags($property->description))
+            ->description($this->stripMarkdown($property->description))
             ->image($property->media->first()?->url ?? asset('og-image.jpg'))
             ->url(route('properties.show', $property->slug))
             ->priceRange('IDR ' . number_format($property->base_rate, 0, ',', '.'))
@@ -327,20 +439,16 @@ class SeoService
 
     /**
      * Generate Video Schema (for TikTok property tours)
-     * 
-     * @param $property
-     * @return string|null JSON-LD VideoObject schema or null
      */
     public function videoSchema($property): ?string
     {
-        // Only generate if property has TikTok video
         if (empty($property->tiktok_video_url)) {
             return null;
         }
 
         $video = Schema::videoObject()
             ->name("Tour Virtual {$property->name} - Homestay di Yogyakarta")
-            ->description("Video tour lengkap {$property->name}. Lihat fasilitas, kamar, dan suasana homestay kami di Yogyakarta.")
+            ->description($this->stripMarkdown("Video tour lengkap {$property->name}. Lihat fasilitas, kamar, dan suasana homestay kami di Yogyakarta."))
             ->thumbnailUrl($property->media->first()?->url ?? asset('og-image.jpg'))
             ->contentUrl($property->tiktok_video_url)
             ->uploadDate($property->created_at->toIso8601String())
@@ -351,9 +459,6 @@ class SeoService
 
     /**
      * Get common property FAQs (GEO: Pre-defined Q&A)
-     * 
-     * @param object $property
-     * @return array FAQs for property
      */
     public function getPropertyFaqs($property): array
     {
@@ -387,7 +492,7 @@ class SeoService
     public function forArticle($article, array $extra = []): array
     {
         $title = $article->meta_title ?? $article->title;
-        $description = $article->meta_description ?? $article->excerpt ?? Str::limit(strip_tags($article->content), 155);
+        $description = $this->stripMarkdown($article->meta_description ?? $article->excerpt ?? Str::limit(strip_tags($article->content), 155));
         $image = $article->featured_image
             ? asset('storage/' . $article->featured_image)
             : asset('og-image.jpg');
@@ -410,7 +515,7 @@ class SeoService
     {
         $schema = Schema::article()
             ->headline($article->meta_title ?? $article->title)
-            ->description($article->meta_description ?? $article->excerpt ?? Str::limit(strip_tags($article->content), 155))
+            ->description($this->stripMarkdown($article->meta_description ?? $article->excerpt ?? Str::limit(strip_tags($article->content), 155)))
             ->image($article->featured_image
                 ? asset('storage/' . $article->featured_image)
                 : asset('images/default-article.jpg'))
@@ -433,11 +538,35 @@ class SeoService
                     ->identifier(route('articles.show', $article->slug))
             );
 
-        // Add keywords if available
         if ($article->seo_keywords) {
             $schema->keywords(implode(', ', $article->seo_keywords));
         }
 
         return (string) $schema->toScript();
+    }
+
+    /**
+     * Strip Markdown and unnecessary characters from text
+     */
+    private function stripMarkdown(?string $text): string
+    {
+        if (!$text)
+            return '';
+
+        // Remove markdown bold/italic
+        $text = preg_replace('/(\*\*|__)(.*?)\1/', '$2', $text);
+        $text = preg_replace('/(\*|_)(.*?)\1/', '$2', $text);
+
+        // Remove links
+        $text = preg_replace('/\[([^\]]+)\]\([^\)]+\)/', '$1', $text);
+
+        // Remove headings
+        $text = preg_replace('/^#+\s+(.*)/m', '$1', $text);
+
+        // Remove list bullets
+        $text = preg_replace('/^[\*\-\+]\s+(.*)/m', '$1', $text);
+
+        // Basic strip tags if any HTML remains
+        return trim(strip_tags($text));
     }
 }

@@ -446,6 +446,9 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
 Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('dashboard', [DashboardController::class, 'admin'])->name('dashboard');
 
+    // SEO Pages
+    Route::resource('seo-pages', \App\Http\Controllers\Admin\AdminSeoLandingController::class);
+
     // Check-In/Out Dashboard
     Route::controller(App\Http\Controllers\Admin\CheckInOutController::class)->group(function () {
         Route::get('bookings/check-in-out', 'index')->name('bookings.check-in-out');

@@ -11,6 +11,7 @@ export function SchemaOrg({ schema }: SchemaOrgProps) {
         globalSeo,
         schema: pageSchema,
         // GEO: Additional schemas
+        webSiteSchema,
         faqSchema,
         breadcrumbSchema,
         localBusinessSchema,
@@ -25,6 +26,16 @@ export function SchemaOrg({ schema }: SchemaOrgProps) {
                     type="application/ld+json"
                     dangerouslySetInnerHTML={{
                         __html: globalSeo.organizationSchema,
+                    }}
+                />
+            )}
+
+            {/* Global Website Schema (Search Box) */}
+            {webSiteSchema && (
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{
+                        __html: webSiteSchema,
                     }}
                 />
             )}

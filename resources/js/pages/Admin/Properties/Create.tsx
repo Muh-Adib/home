@@ -56,6 +56,7 @@ interface CheckinInstructions {
 
 interface PropertyFormData {
     name: string;
+    type: 'homestay' | 'villa' | 'apartment' | 'hotel';
     description: string;
     address: string;
     location: 'selatan' | 'utara';
@@ -134,6 +135,7 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
 
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
+        type: 'homestay' as 'homestay' | 'villa' | 'apartment' | 'hotel',
         description: '',
         address: '',
         location: 'selatan' as 'selatan' | 'utara',
@@ -360,6 +362,22 @@ function CreateProperty({ amenities, owners }: CreatePropertyProps) {
                                                     className={errors.name ? 'border-red-500' : ''}
                                                 />
                                                 {errors.name && <p className="text-sm text-red-600 mt-1">{errors.name}</p>}
+                                            </div>
+
+                                            <div>
+                                                <Label htmlFor="type">Property Type *</Label>
+                                                <Select value={data.type} onValueChange={(value) => setData('type', value as any)}>
+                                                    <SelectTrigger className={errors.type ? 'border-red-500' : ''}>
+                                                        <SelectValue placeholder="Select type" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="homestay">Homestay</SelectItem>
+                                                        <SelectItem value="villa">Villa</SelectItem>
+                                                        <SelectItem value="apartment">Apartment</SelectItem>
+                                                        <SelectItem value="hotel">Hotel</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                {errors.type && <p className="text-sm text-red-600 mt-1">{errors.type || (errors as any).type}</p>}
                                             </div>
 
                                             {/* Owner Selection (only for super admin) */}

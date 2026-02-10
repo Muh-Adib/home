@@ -4,6 +4,7 @@ export interface SeoData {
     image: string;
     url: string;
     type: 'website' | 'product' | 'article';
+    robots: 'index, follow' | 'noindex, follow';
     og: {
         title: string;
         description: string;
