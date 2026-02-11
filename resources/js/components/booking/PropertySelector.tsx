@@ -1,14 +1,26 @@
-/**
- * Property Selector Component
- * Reusable property selection with preview
- * Context-agnostic: works for both admin and public (if needed)
- * Optimized with React.memo to prevent unnecessary re-renders
- */
-
-import React, { memo } from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import React, { memo, useState, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
-import { Building2, Users, DollarSign } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+    Drawer,
+    DrawerContent,
+    DrawerTrigger,
+} from '@/components/ui/drawer';
+import { Building2, Users, DollarSign, Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { Property } from '@/types';
 
 export interface PropertySelectorProps {
@@ -22,6 +34,24 @@ export interface PropertySelectorProps {
     label?: string;
 }
 
+function useMediaQuery(query: string) {
+    const [value, setValue] = useState(false);
+
+    useEffect(() => {
+        function onChange(event: MediaQueryListEvent) {
+            setValue(event.matches);
+        }
+
+        const result = matchMedia(query);
+        result.addEventListener("change", onChange);
+        setValue(result.matches);
+
+        return () => result.removeEventListener("change", onChange);
+    }, [query]);
+
+    return value;
+}
+
 const PropertySelector = memo(function PropertySelector({
     properties,
     selectedPropertyId,
@@ -32,29 +62,92 @@ const PropertySelector = memo(function PropertySelector({
     showDetails = true,
     label = 'Pilih Properti *',
 }: PropertySelectorProps) {
+    const [open, setOpen] = useState(false);
+    const isDesktop = useMediaQuery("(min-width: 768px)");
+
+    const PropertyListContent = (
+        <Command>
+            <CommandInput placeholder="Cari properti..." />
+            <CommandList>
+                <CommandEmpty>Properti tidak ditemukan.</CommandEmpty>
+                <CommandGroup>
+                    {properties.map((property) => (
+                        <CommandItem
+                            key={property.id}
+                            value={property.id.toString()}
+                            keywords={[property.name, property.address]}
+                            onSelect={() => {
+                                onPropertyChange(property.id.toString());
+                                setOpen(false);
+                            }}
+                            className="cursor-pointer"
+                        >
+                            <Check
+                                className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedPropertyId === property.id.toString()
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                )}
+                            />
+                            <div className="flex flex-col">
+                                <span>{property.name}</span>
+                                <span className="text-xs text-muted-foreground truncate max-w-[200px]">{property.address}</span>
+                            </div>
+                        </CommandItem>
+                    ))}
+                </CommandGroup>
+            </CommandList>
+        </Command>
+    );
+
+    const TriggerButton = (
+        <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            aria-label="Pilih properti"
+            className={cn(
+                "w-full justify-between font-normal",
+                !selectedPropertyId && "text-muted-foreground",
+                error && "border-red-500"
+            )}
+            disabled={disabled}
+        >
+            {selectedPropertyId
+                ? properties.find((property) => property.id.toString() === selectedPropertyId)?.name
+                : "Pilih properti..."}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+    );
+
     return (
         <div className="space-y-3">
             <div>
-                <Label htmlFor="property_id">{label}</Label>
-                <Select
-                    value={selectedPropertyId}
-                    onValueChange={onPropertyChange}
-                    disabled={disabled}
-                >
-                    <SelectTrigger className={error ? 'border-red-500' : ''}>
-                        <SelectValue placeholder="Pilih properti" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {properties.map((property) => (
-                            <SelectItem key={property.id} value={property.id.toString()}>
-                                <div className="flex items-center gap-2">
-                                    <Building2 className="h-4 w-4" />
-                                    {property.name}
-                                </div>
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <Label htmlFor="property_id" className={error ? 'text-red-500' : ''}>{label}</Label>
+
+                {isDesktop ? (
+                    <Popover open={open} onOpenChange={setOpen}>
+                        <PopoverTrigger asChild>
+                            {TriggerButton}
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                            {PropertyListContent}
+                        </PopoverContent>
+                    </Popover>
+                ) : (
+                    <Drawer open={open} onOpenChange={setOpen}>
+                        <DrawerTrigger asChild>
+                            {TriggerButton}
+                        </DrawerTrigger>
+                        <DrawerContent>
+                            <div className="mt-4 border-t">
+                                {PropertyListContent}
+                            </div>
+                        </DrawerContent>
+                    </Drawer>
+                )}
+
                 {error && <p className="text-sm text-red-600 mt-1">{error}</p>}
             </div>
 

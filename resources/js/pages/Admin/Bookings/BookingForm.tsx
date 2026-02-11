@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { PaymentStatus, type Booking, type BookingStatus, type Property } from '@/types';
 import GuestCountForm from '@/components/booking/GuestCountForm';
+import PropertySelector from '@/components/booking/PropertySelector';
 import ExtraServiceSelector, { type ServiceMaster, type SelectedService } from '@/components/ExtraServiceSelector';
 import RateBreakdownCard from '@/components/booking/RateBreakdownCard';
 import { bookingsService } from '@/lib/api';
@@ -150,7 +151,7 @@ export default function BookingForm({
         services: [] as any[],
     };
 
-    const { data, setData, post, patch, processing, errors } = useForm(defaultValues);
+    const { data, setData, post, patch, processing, errors } = useForm<typeof defaultValues & { can_override?: string; error?: string }>(defaultValues);
 
     // State management
     const [currentProperty, setCurrentProperty] = useState<Property | null>(
@@ -600,57 +601,13 @@ export default function BookingForm({
 
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {/* Property Selection */}
-                        <div>
-                            <Label htmlFor="property_id">Pilih Properti *</Label>
-                            <Select
-                                value={data.property_id}
-                                onValueChange={handlePropertyChange}
-                            >
-                                <SelectTrigger className={errors.property_id ? 'border-red-500' : ''}>
-                                    <SelectValue placeholder="Pilih properti" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {properties.map((property) => (
-                                        <SelectItem key={property.id} value={property.id.toString()}>
-                                            <div className="flex items-center gap-2">
-                                                <Building2 className="h-4 w-4" />
-                                                {property.name}
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {errors.property_id && <p className="text-sm text-red-600 mt-1">{errors.property_id}</p>}
-                        </div>
-
-                        {/* Property Details Preview */}
-                        {currentProperty && (
-                            <div className="bg-slate-50 p-4 rounded-lg">
-                                <div className="flex items-start gap-3">
-                                    {currentProperty.cover_image && (
-                                        <img
-                                            src={currentProperty.cover_image}
-                                            alt={currentProperty.name}
-                                            className="w-16 h-16 rounded-lg object-cover"
-                                        />
-                                    )}
-                                    <div className="flex-1">
-                                        <h3 className="font-semibold text-gray-900">{currentProperty.name}</h3>
-                                        <p className="text-sm text-gray-600">{currentProperty.address}</p>
-                                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                                            <div className="flex items-center gap-1">
-                                                <Users className="h-3 w-3" />
-                                                <span>Cap: {currentProperty.capacity} - {currentProperty.capacity_max}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <DollarSign className="h-3 w-3" />
-                                                <span>Base: {currentProperty.formatted_base_rate}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                        <PropertySelector
+                            properties={properties}
+                            selectedPropertyId={data.property_id}
+                            onPropertyChange={handlePropertyChange}
+                            currentProperty={currentProperty}
+                            error={errors.property_id}
+                        />
 
                         {/* Date Selection */}
                         <div>
