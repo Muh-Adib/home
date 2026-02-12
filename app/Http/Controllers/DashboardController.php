@@ -143,6 +143,14 @@ class DashboardController extends Controller
         ]);
     }
 
+    /**
+     * My Bookings (Wrapper for guest dashboard)
+     */
+    public function myBookings(Request $request): Response
+    {
+        return $this->guestDashboard($request->user());
+    }
+
     private function getKPIs($user): array
     {
         $thisMonth = Carbon::now()->startOfMonth();
