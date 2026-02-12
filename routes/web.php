@@ -252,41 +252,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk'])->prefix('admin')->name('admin.')->group(function () {
-    // Property Management - Now using dedicated PropertyManagementController
-    Route::controller(App\Http\Controllers\Admin\PropertyManagementController::class)->group(function () {
-        Route::get('properties', 'index')->name('properties.index');
-        Route::get('properties/{property:slug}', 'show')->name('properties.show');
-        Route::get('properties/{property}/media', 'media')->name('properties.media');
-    });
 
-    // Rate Management - accessible to front_desk
-    Route::controller(App\Http\Controllers\Admin\RateManagementController::class)
-        ->prefix('rate-management')
-        ->name('rate-management.')
-        ->group(function () {
-            Route::get('/', 'index')->name('index');
-            Route::get('/properties/{property}', 'show')->name('show');
-            Route::post('/properties/{property}/seasonal-rates', 'createSeasonalRate')->name('seasonal-rates.create');
-            Route::put('/seasonal-rates/{seasonalRate}', 'updateSeasonalRate')->name('seasonal-rates.update');
-            Route::delete('/seasonal-rates/{seasonalRate}', 'deleteSeasonalRate')->name('seasonal-rates.delete');
-            Route::put('/properties/{property}/base-rates', 'updateBaseRates')->name('base-rates.update');
-            Route::post('/properties/{property}/bulk-update', 'bulkUpdateRates')->name('bulk-update');
-            Route::get('/properties/{property}/calendar', 'getRateCalendar')->name('calendar');
-        });
-
-    // Seasonal Rates Management (Legacy - keeping for backward compatibility)
-    Route::controller(App\Http\Controllers\Admin\PropertySeasonalRateController::class)
-        ->prefix('properties/{property}/seasonal-rates')
-        ->name('properties.seasonal-rates.')
-        ->group(function () {
-            Route::get('/', 'index')->name('index');
-            Route::post('/', 'store')->name('store');
-            Route::put('{seasonalRate}', 'update')->name('update');
-            Route::delete('{seasonalRate}', 'destroy')->name('destroy');
-            Route::post('preview', 'preview')->name('preview');
-        });
-});
 
 // Property Management - Create/Edit/Delete restricted to managers/owners
 Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])->prefix('admin')->name('admin.')->group(function () {
@@ -432,6 +398,42 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
             Route::delete('/{aiKey}', 'destroy')->name('destroy');
             Route::post('/{aiKey}/reset-stats', 'resetStats')->name('reset-stats');
             Route::post('/{aiKey}/toggle-active', 'toggleActive')->name('toggle-active');
+        });
+});
+
+Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk'])->prefix('admin')->name('admin.')->group(function () {
+    // Property Management - Now using dedicated PropertyManagementController
+    Route::controller(App\Http\Controllers\Admin\PropertyManagementController::class)->group(function () {
+        Route::get('properties', 'index')->name('properties.index');
+        Route::get('properties/{property:slug}', 'show')->name('properties.show');
+        Route::get('properties/{property}/media', 'media')->name('properties.media');
+    });
+
+    // Rate Management - accessible to front_desk
+    Route::controller(App\Http\Controllers\Admin\RateManagementController::class)
+        ->prefix('rate-management')
+        ->name('rate-management.')
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/properties/{property}', 'show')->name('show');
+            Route::post('/properties/{property}/seasonal-rates', 'createSeasonalRate')->name('seasonal-rates.create');
+            Route::put('/seasonal-rates/{seasonalRate}', 'updateSeasonalRate')->name('seasonal-rates.update');
+            Route::delete('/seasonal-rates/{seasonalRate}', 'deleteSeasonalRate')->name('seasonal-rates.delete');
+            Route::put('/properties/{property}/base-rates', 'updateBaseRates')->name('base-rates.update');
+            Route::post('/properties/{property}/bulk-update', 'bulkUpdateRates')->name('bulk-update');
+            Route::get('/properties/{property}/calendar', 'getRateCalendar')->name('calendar');
+        });
+
+    // Seasonal Rates Management (Legacy - keeping for backward compatibility)
+    Route::controller(App\Http\Controllers\Admin\PropertySeasonalRateController::class)
+        ->prefix('properties/{property}/seasonal-rates')
+        ->name('properties.seasonal-rates.')
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'store')->name('store');
+            Route::put('{seasonalRate}', 'update')->name('update');
+            Route::delete('{seasonalRate}', 'destroy')->name('destroy');
+            Route::post('preview', 'preview')->name('preview');
         });
 });
 
