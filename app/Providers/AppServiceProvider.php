@@ -53,9 +53,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Force HTTPS in production
-        if (app()->environment('production')) {
+        // Force HTTPS in production, staging, or if configured
+        if (app()->environment('production', 'staging') || (filter_var(config('app.url'), FILTER_VALIDATE_URL) && str_starts_with(config('app.url'), 'https://'))) {
             \URL::forceScheme('https');
+            request()->server->set('HTTPS', 'on');
         }
 
         Article::observe(ArticleObserver::class);

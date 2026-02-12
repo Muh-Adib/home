@@ -59,9 +59,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // Profile Routes
-    Route::controller(\App\Http\Controllers\ProfileController::class)->group(function () {
+    Route::controller(\App\Http\Controllers\Settings\ProfileController::class)->group(function () {
         Route::get('/profile', 'edit')->name('profile.edit');
         Route::patch('/profile', 'update')->name('profile.update');
         Route::delete('/profile', 'destroy')->name('profile.destroy');
     });
+
+    // Payment Gateway Initiate (Authenticated Users)
+    Route::post(
+        '/bookings/{booking:booking_number}/payment-gateway/initiate',
+        [\App\Http\Controllers\PaymentGatewayController::class, 'initiate']
+    )->name('payment-gateway.initiate');
+
+    // Booking Resume
+    Route::get('/booking/resume', [BookingController::class, 'resumeBooking'])
+        ->name('bookings.resume');
 });

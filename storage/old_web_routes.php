@@ -1,42 +1,296 @@
-<?php
+﻿<?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\Admin\PropertyManagementController;
-use App\Http\Controllers\Admin\BookingManagementController;
-use App\Http\Controllers\Admin\PaymentController;
-use App\Http\Controllers\Admin\FinanceController;
-use App\Http\Controllers\Admin\InventoryController;
-use App\Http\Controllers\Admin\ReportController;
-use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\PaymentMethodController;
-use App\Http\Controllers\Admin\SettingsController;
-use App\Http\Controllers\Admin\GowaAdminController;
-use App\Http\Controllers\Admin\LegalPageController;
-use App\Http\Controllers\Admin\ExtraServiceController;
-use App\Http\Controllers\ArticleController;
-use App\Http\Controllers\ArticleAIController;
-use App\Http\Controllers\ContentPlanController;
-use App\Http\Controllers\AIProviderKeyController;
-use App\Http\Controllers\MediaController;
+use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\BookingController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\AmenityController;
-use App\Http\Controllers\Admin\RateManagementController;
-use App\Http\Controllers\Admin\PropertySeasonalRateController;
-use App\Http\Controllers\Admin\AdminSeoLandingController;
-use App\Http\Controllers\Admin\CheckInOutController;
-
+use App\Http\Controllers\PaymentMethodController;
+use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\MediaController;
+use App\Http\Controllers\LegalViewController;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 /*
 |--------------------------------------------------------------------------
-| ADMIN ROUTES
+| PUBLIC ROUTES
+|--------------------------------------------------------------------------
+| Routes accessible without authentication
+|--------------------------------------------------------------------------
+*/
+
+// CSRF Token endpoint for refreshing token (prevents 419 errors)
+Route::get('/csrf-token', function (Request $request) {
+    return response()->json(['token' => csrf_token()]);
+})->middleware('web')->name('csrf.token');
+
+// Locale switcher
+Route::get('/locale/{locale}', function (string $locale) {
+    if (in_array($locale, ['en', 'id'])) {
+        session(['locale' => $locale]);
+    }
+    return back();
+})->name('locale.switch');
+
+// Health check endpoint for Docker
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'healthy',
+        'timestamp' => now()->toISOString(),
+        'version' => config('app.version', '1.0.0'),
+        'environment' => config('app.env'),
+    ]);
+})->name('health');
+
+// Health check route untuk supervisor monitoring
+Route::get('/health', function () {
+    return response('healthy', 200)
+        ->header('Content-Type', 'text/plain');
+});
+
+// Dynamic Sitemap (Next.js style) - Auto-updates on property changes
+Route::get('/sitemap.xml', [\App\Http\Controllers\SitemapController::class, 'index'])->name('sitemap');
+Route::get('/sitemap-articles.xml', [\App\Http\Controllers\SitemapController::class, 'articles'])->name('sitemap.articles');
+
+// iCal Export (Public but protected by token)
+Route::get('/property/{slug}/ical/{token}', [\App\Http\Controllers\ICalController::class, 'export'])->name('ical.export');
+
+// Homepage
+Route::get('/', function () {
+    $seoService = app(\App\Services\SeoService::class);
+
+    $featuredProperties = \App\Models\Property::active()
+        ->featured()
+        ->with(['media', 'amenities'])
+        ->limit(6)
+        ->get();
+
+    return Inertia::render('welcome', [
+        'featuredProperties' => $featuredProperties,
+        'seo' => $seoService->forHomepage(),
+    ]);
+})->name('home');
+
+//route dokumen penting
+Route::get('/about', function () {
+    return Inertia::render('About');
+})->name('about');
+
+Route::get('/faq', function () {
+    return Inertia::render('FAQ');
+})->name('faq');
+
+Route::get('/support', function () {
+    return Inertia::render('Support');
+})->name('support');
+
+
+Route::get('/{slug}', [LegalViewController::class, 'show'])
+    ->whereIn('slug', [
+        'tos',
+        'privacy',
+        'cookies',
+        'refundpolicy',
+        'paymentpolicy',
+        'copyrightpolicy',
+        'disclaimer'
+    ]);
+
+// Public Property Routes
+Route::controller(PropertyController::class)->group(function () {
+    Route::get('/properties', 'index')->name('properties.index');
+    Route::get('/properties/{property:slug}', 'show')->name('properties.show');
+});
+
+// Public Article Routes
+Route::controller(App\Http\Controllers\ArticleController::class)->group(function () {
+    Route::get('/articles', 'publicIndex')->name('articles.index');
+    Route::get('/articles/{article:slug}', 'show')->name('articles.show');
+});
+
+// Public Booking Routes
+Route::controller(BookingController::class)->group(function () {
+    // Ubah booking create menjadi POST (atau GET+POST jika ingin support keduanya)
+    // Route::get('/properties/{property:slug}/book', 'create')->name('bookings.create'); // HAPUS
+    Route::get('/properties/{property:slug}/book', 'create')->name('bookings.create'); // Gunakan GET+POST jika ingin support keduanya
+    Route::post('/properties/{property:slug}/book', 'store')->name('bookings.store');
+    Route::get('/booking/{booking:booking_number}/confirmation', 'confirmation')->name('bookings.confirmation');
+});
+
+// Public Payment Routes
+Route::controller(PaymentController::class)->group(function () {
+    Route::get('/booking/{booking:booking_number}/payment', 'create')->name('payments.create');
+    Route::post('/booking/{booking:booking_number}/payment', 'store')->name('payments.store');
+});
+
+/*
+|--------------------------------------------------------------------------
+| PAYMENT GATEWAY ROUTES
+|--------------------------------------------------------------------------
+| Routes for payment gateway integration (iPaymu)
+|--------------------------------------------------------------------------
+*/
+
+// Webhook route (public, no auth required)
+Route::post('/payment-gateway/webhook', [App\Http\Controllers\PaymentGatewayController::class, 'webhook'])
+    ->name('payment-gateway.webhook')
+    ->withoutMiddleware(['csrf', 'auth']);
+
+// Payment Gateway Routes (Guest & Authenticated Users)
+Route::middleware(['auth'])->group(function () {
+    Route::post(
+        '/bookings/{booking:booking_number}/payment-gateway/initiate',
+        [App\Http\Controllers\PaymentGatewayController::class, 'initiate']
+    )
+        ->name('payment-gateway.initiate');
+});
+
+// Payment Gateway Callback (Public - redirect dari iPaymu)
+Route::get(
+    '/payment-gateway/callback',
+    [App\Http\Controllers\PaymentGatewayController::class, 'callback']
+)
+    ->name('payment-gateway.callback');
+
+// Payment Gateway Routes (Admin)
+Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
+    Route::post(
+        '/bookings/{booking:booking_number}/payment-gateway/generate-link',
+        [App\Http\Controllers\PaymentGatewayController::class, 'generateLink']
+    )
+        ->name('payment-gateway.generate-link');
+    Route::post(
+        '/bookings/{booking:booking_number}/payment-gateway/send-link',
+        [App\Http\Controllers\Admin\BookingManagementController::class, 'sendPaymentLink']
+    )
+        ->name('bookings.send-payment-link');
+});
+
+// Public API Routes
+Route::prefix('api')->name('api.')->group(function () {
+    Route::get('properties/{property:slug}/calculate-rate', [BookingController::class, 'calculateRate'])
+        ->name('properties.calculate-rate');
+    Route::get('properties/{property:slug}/availability', [BookingController::class, 'getAvailability'])
+        ->name('properties.availability');
+    Route::get('properties/{property:slug}/availability-and-rates', [BookingController::class, 'getAvailabilityAndRates'])
+        ->name('properties.availability-and-rates');
+    Route::get('properties/map-coordinates', [PropertyController::class, 'mapCoordinates'])
+        ->name('properties.map-coordinates');
+    Route::post('check-email', [BookingController::class, 'checkEmailExists'])
+        ->name('check-email');
+    Route::get('properties', function () {
+        $properties = \App\Models\Property::active()
+            ->with(['media', 'amenities'])
+            ->get();
+        return response()->json([
+            'status' => 'success',
+            'data' => $properties,
+        ]);
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| AUTHENTICATED USER ROUTES
+|--------------------------------------------------------------------------
+| Routes for logged-in users
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    // Dashboard
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // User Bookings
+    Route::get('/booking/{booking:booking_number}', [BookingController::class, 'show'])->name('booking.show');
+
+    // User Payments
+    Route::controller(PaymentController::class)->group(function () {
+        // Route::get('/my-payments', 'myPayments')->name('my-payments'); // Deprecated
+
+        Route::get('/my-payments/{payment}', 'myPaymentShow')->name('my-payments.show');
+
+        // Secure payment routes
+        Route::get('booking/{booking:booking_number}/payment/{token}', 'securePayment')
+            ->name('booking.secure-payment')
+            ->where('token', '[a-zA-Z0-9]{32}');
+        Route::post('booking/{booking:booking_number}/payment/{token}', 'securePaymentStore')
+            ->name('booking.secure-payment.store')
+            ->where('token', '[a-zA-Z0-9]{32}');
+    });
+
+    // Authenticated API Routes
+    Route::prefix('api')->name('api.')->group(function () {
+        Route::controller(PropertyController::class)->group(function () {
+            Route::get('properties/search', 'search')->name('properties.search');
+            // Availability endpoint removed to avoid conflict with public route
+        });
+        Route::get('amenities', [AmenityController::class, 'api_index'])->name('amenities.index');
+    });
+
+    // Notification Routes
+    Route::prefix('notifications')->name('notifications.')->controller(NotificationController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/unread', 'unread')->name('unread');
+        Route::get('/recent', 'recent')->name('recent');
+        Route::get('/count', 'count')->name('count');
+        Route::patch('/{id}/read', 'markAsRead')->name('mark-read');
+        Route::patch('/mark-all-read', 'markAllAsRead')->name('mark-all-read');
+        Route::delete('/{id}', 'destroy')->name('destroy');
+        Route::delete('/clear/read', 'clearRead')->name('clear-read');
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| ADMIN ROUTES - PROPERTY MANAGEMENT
 |--------------------------------------------------------------------------
 | Routes for property managers, owners, and super admins
 |--------------------------------------------------------------------------
 */
 
+Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk'])->prefix('admin')->name('admin.')->group(function () {
+    // Property Management - Now using dedicated PropertyManagementController
+    Route::controller(App\Http\Controllers\Admin\PropertyManagementController::class)->group(function () {
+        Route::get('properties', 'index')->name('properties.index');
+        Route::get('properties/{property:slug}', 'show')->name('properties.show');
+        Route::get('properties/{property}/media', 'media')->name('properties.media');
+    });
+
+    // Rate Management - accessible to front_desk
+    Route::controller(App\Http\Controllers\Admin\RateManagementController::class)
+        ->prefix('rate-management')
+        ->name('rate-management.')
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/properties/{property}', 'show')->name('show');
+            Route::post('/properties/{property}/seasonal-rates', 'createSeasonalRate')->name('seasonal-rates.create');
+            Route::put('/seasonal-rates/{seasonalRate}', 'updateSeasonalRate')->name('seasonal-rates.update');
+            Route::delete('/seasonal-rates/{seasonalRate}', 'deleteSeasonalRate')->name('seasonal-rates.delete');
+            Route::put('/properties/{property}/base-rates', 'updateBaseRates')->name('base-rates.update');
+            Route::post('/properties/{property}/bulk-update', 'bulkUpdateRates')->name('bulk-update');
+            Route::get('/properties/{property}/calendar', 'getRateCalendar')->name('calendar');
+        });
+
+    // Seasonal Rates Management (Legacy - keeping for backward compatibility)
+    Route::controller(App\Http\Controllers\Admin\PropertySeasonalRateController::class)
+        ->prefix('properties/{property}/seasonal-rates')
+        ->name('properties.seasonal-rates.')
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'store')->name('store');
+            Route::put('{seasonalRate}', 'update')->name('update');
+            Route::delete('{seasonalRate}', 'destroy')->name('destroy');
+            Route::post('preview', 'preview')->name('preview');
+        });
+});
+
 // Property Management - Create/Edit/Delete restricted to managers/owners
 Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])->prefix('admin')->name('admin.')->group(function () {
-    Route::controller(PropertyManagementController::class)->group(function () {
+    Route::controller(App\Http\Controllers\Admin\PropertyManagementController::class)->group(function () {
         Route::get('properties/create', 'create')->name('properties.create');
         Route::post('properties', 'store')->name('properties.store');
         Route::get('properties/{property:slug}/edit', 'edit')->name('properties.edit');
@@ -85,7 +339,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
 
     // Extra Services Management (only for super_admin and property_owner)
     Route::middleware(['role:super_admin,property_owner'])->group(function () {
-        Route::resource('extra-services', ExtraServiceController::class)->names([
+        Route::resource('extra-services', App\Http\Controllers\Admin\ExtraServiceController::class)->names([
             'index' => 'extra-services.index',
             'create' => 'extra-services.create',
             'store' => 'extra-services.store',
@@ -95,14 +349,14 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
             'destroy' => 'extra-services.destroy',
         ]);
 
-        Route::controller(ExtraServiceController::class)->prefix('extra-services')->name('extra-services.')->group(function () {
+        Route::controller(App\Http\Controllers\Admin\ExtraServiceController::class)->prefix('extra-services')->name('extra-services.')->group(function () {
             Route::patch('{service}/toggle', 'toggleStatus')->name('toggle');
             Route::post('{service}/thumbnail', 'uploadThumbnail')->name('thumbnail.upload');
         });
     });
 
     // Article Management (All authenticated users except guests)
-    Route::controller(ArticleController::class)
+    Route::controller(App\Http\Controllers\ArticleController::class)
         ->prefix('articles')
         ->name('articles.')
         ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance'])
@@ -125,7 +379,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
         });
 
     // AI Article Assistance API
-    Route::controller(ArticleAIController::class)
+    Route::controller(App\Http\Controllers\ArticleAIController::class)
         ->prefix('api/articles/ai')
         ->name('api.articles.ai.')
         ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance'])
@@ -140,7 +394,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
         });
 
     // Content Planner Management
-    Route::controller(ContentPlanController::class)
+    Route::controller(App\Http\Controllers\ContentPlanController::class)
         ->prefix('content-plans')
         ->name('content-plans.')
         ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance'])
@@ -165,7 +419,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
         });
 
     // AI Provider Keys Management (super_admin only)
-    Route::controller(AIProviderKeyController::class)
+    Route::controller(App\Http\Controllers\AIProviderKeyController::class)
         ->prefix('settings/ai-keys')
         ->name('ai-keys.')
         ->middleware(['can:manage-ai-keys'])
@@ -181,45 +435,11 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
         });
 });
 
-Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk'])->prefix('admin')->name('admin.')->group(function () {
-    // Property Management - Now using dedicated PropertyManagementController
-    Route::controller(PropertyManagementController::class)->group(function () {
-        Route::get('properties', 'index')->name('properties.index');
-        Route::get('properties/{property:slug}', 'show')->name('properties.show');
-        Route::get('properties/{property}/media', 'media')->name('properties.media');
-    });
-
-    // Rate Management - accessible to front_desk
-    Route::controller(RateManagementController::class)
-        ->prefix('rate-management')
-        ->name('rate-management.')
-        ->group(function () {
-            Route::get('/', 'index')->name('index');
-            Route::get('/properties/{property}', 'show')->name('show');
-            Route::post('/properties/{property}/seasonal-rates', 'createSeasonalRate')->name('seasonal-rates.create');
-            Route::put('/seasonal-rates/{seasonalRate}', 'updateSeasonalRate')->name('seasonal-rates.update');
-            Route::delete('/seasonal-rates/{seasonalRate}', 'deleteSeasonalRate')->name('seasonal-rates.delete');
-            Route::put('/properties/{property}/base-rates', 'updateBaseRates')->name('base-rates.update');
-            Route::post('/properties/{property}/bulk-update', 'bulkUpdateRates')->name('bulk-update');
-            Route::get('/properties/{property}/calendar', 'getRateCalendar')->name('calendar');
-        });
-
-    // Seasonal Rates Management (Legacy - keeping for backward compatibility)
-    Route::controller(PropertySeasonalRateController::class)
-        ->prefix('properties/{property}/seasonal-rates')
-        ->name('properties.seasonal-rates.')
-        ->group(function () {
-            Route::get('/', 'index')->name('index');
-            Route::post('/', 'store')->name('store');
-            Route::put('{seasonalRate}', 'update')->name('update');
-            Route::delete('{seasonalRate}', 'destroy')->name('destroy');
-            Route::post('preview', 'preview')->name('preview');
-        });
-});
-
 /*
 |--------------------------------------------------------------------------
 | ADMIN ROUTES - BOOKING MANAGEMENT
+|--------------------------------------------------------------------------
+| Routes for booking management staff
 |--------------------------------------------------------------------------
 */
 
@@ -227,16 +447,16 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
     Route::get('dashboard', [DashboardController::class, 'admin'])->name('dashboard');
 
     // SEO Pages
-    Route::resource('seo-pages', AdminSeoLandingController::class);
+    Route::resource('seo-pages', \App\Http\Controllers\Admin\AdminSeoLandingController::class);
 
     // Check-In/Out Dashboard
-    Route::controller(CheckInOutController::class)->group(function () {
+    Route::controller(App\Http\Controllers\Admin\CheckInOutController::class)->group(function () {
         Route::get('bookings/check-in-out', 'index')->name('bookings.check-in-out');
         Route::get('bookings/check-in-out/generate-text', 'generateText')->name('bookings.check-in-out.generate-text');
     });
 
     // Booking Management - Consolidated under BookingManagementController
-    Route::controller(BookingManagementController::class)->group(function () {
+    Route::controller(App\Http\Controllers\Admin\BookingManagementController::class)->group(function () {
         // Main booking routes
         Route::get('bookings', 'index')->name('bookings.index');
         Route::get('bookings/calendar', 'calendar')->name('bookings.calendar');
@@ -273,11 +493,13 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
         Route::post('bookings/import/preview', 'importPreview')->name('bookings.import.preview');
         Route::post('bookings/import/confirmed', 'importConfirmed')->name('bookings.import.confirmed');
     });
+
+
 });
 
 // Booking Management API (Authenticated but custom prefix)
 Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->prefix('api/admin/booking-management')->name('api.admin.booking-management.')->group(function () {
-    $controller = BookingManagementController::class;
+    $controller = App\Http\Controllers\Admin\BookingManagementController::class;
     Route::get('timeline', [$controller, 'timeline']);
     Route::get('timeline-data', [$controller, 'timelineData']); // For infinite scroll lazy loading
     Route::get('search', [$controller, 'search']); // For search bar
@@ -290,30 +512,20 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
 
 // Property Management API (outside admin prefix to match /api/admin/properties path)
 Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk'])->prefix('api/admin/properties')->name('api.admin.properties.')->group(function () {
-    $controller = PropertyManagementController::class;
+    $controller = App\Http\Controllers\Admin\PropertyManagementController::class;
     Route::get('{property:id}/stats', [$controller, 'stats'])->name('stats');
-});
-
-// Payment Gateway Routes (Admin)
-Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
-    Route::post(
-        '/bookings/{booking:booking_number}/payment-gateway/generate-link',
-        [\App\Http\Controllers\PaymentGatewayController::class, 'generateLink']
-    )->name('payment-gateway.generate-link');
-    Route::post(
-        '/bookings/{booking:booking_number}/payment-gateway/send-link',
-        [BookingManagementController::class, 'sendPaymentLink']
-    )->name('bookings.send-payment-link');
 });
 
 /*
 |--------------------------------------------------------------------------
 | ADMIN ROUTES - PAYMENT & FINANCE
 |--------------------------------------------------------------------------
+| Routes for payment and finance management
+|--------------------------------------------------------------------------
 */
 
 Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix('admin/payments')->name('admin.payments.')->group(function () {
-    Route::controller(PaymentController::class)->group(function () {
+    Route::controller(App\Http\Controllers\Admin\PaymentController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/create', 'create')->name('create');
         Route::post('/', 'store')->name('store');
@@ -337,7 +549,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix
 
 // Finance Management
 Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
-    Route::controller(FinanceController::class)->group(function () {
+    Route::controller(App\Http\Controllers\Admin\FinanceController::class)->group(function () {
         Route::get('finance', 'index')->name('finance.index');
         Route::get('finance/incomes', 'incomes')->name('finance.incomes');
         Route::get('finance/expenses', 'expenses')->name('finance.expenses');
@@ -355,7 +567,7 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,fin
 
 // Inventory/Operational Management
 Route::middleware(['auth', 'role:super_admin,property_manager,housekeeping,front_desk,finance'])->prefix('admin/inventory')->name('admin.inventory.')->group(function () {
-    $controller = InventoryController::class;
+    $controller = App\Http\Controllers\Admin\InventoryController::class;
     Route::get('items', [$controller, 'itemsIndex'])->name('items.index');
     Route::post('items', [$controller, 'itemsStore'])->name('items.store');
     Route::get('items/{item}/edit', [$controller, 'itemsEdit'])->name('items.edit');
@@ -377,10 +589,12 @@ Route::middleware(['auth', 'role:super_admin,property_manager,housekeeping,front
 |--------------------------------------------------------------------------
 | ADMIN ROUTES - REPORTS & ANALYTICS
 |--------------------------------------------------------------------------
+| Routes for reports and analytics
+|--------------------------------------------------------------------------
 */
 
 Route::middleware(['auth', 'role:super_admin,property_manager,finance,property_owner'])->prefix('admin/reports')->name('admin.reports.')->group(function () {
-    Route::controller(ReportController::class)->group(function () {
+    Route::controller(App\Http\Controllers\Admin\ReportController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/financial', 'financial')->name('financial');
         Route::get('/occupancy', 'occupancy')->name('occupancy');
@@ -389,15 +603,19 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance,property_o
     });
 });
 
+
+
 /*
 |--------------------------------------------------------------------------
 | SUPER ADMIN ROUTES
+|--------------------------------------------------------------------------
+| Routes restricted to super admin only
 |--------------------------------------------------------------------------
 */
 
 Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')->group(function () {
     // User Management
-    Route::resource('users', UserController::class)
+    Route::resource('users', App\Http\Controllers\Admin\UserController::class)
         ->names([
             'index' => 'users.index',
             'create' => 'users.create',
@@ -408,11 +626,11 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
             'destroy' => 'users.destroy',
         ]);
 
-    Route::patch('users/{user}/status', [UserController::class, 'toggleStatus'])
+    Route::patch('users/{user}/status', [App\Http\Controllers\Admin\UserController::class, 'toggleStatus'])
         ->name('users.status');
 
     // Payment Methods Management
-    Route::controller(PaymentMethodController::class)
+    Route::controller(App\Http\Controllers\Admin\PaymentMethodController::class)
         ->prefix('payment-methods')
         ->name('payment-methods.')
         ->group(function () {
@@ -466,7 +684,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
 
     // GOWA WhatsApp Management
     Route::prefix('gowa')->name('gowa.')->group(function () {
-        Route::controller(GowaAdminController::class)->group(function () {
+        Route::controller(App\Http\Controllers\Admin\GowaAdminController::class)->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/qr-code', 'getQRCode')->name('qr-code');
             Route::post('/send-message', 'sendMessage')->name('send-message');
@@ -479,8 +697,9 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         });
     });
 
+
     // Legal Management
-    Route::controller(LegalPageController::class)->prefix('legal')->name('legal.')->group(function () {
+    Route::controller(App\Http\Controllers\Admin\LegalPageController::class)->prefix('legal')->name('legal.')->group(function () {
         // Main CRUD
         Route::get('/', 'index')->name('index');
         Route::get('/create', 'create')->name('create');
@@ -502,3 +721,66 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         Route::delete('/{slug}/destroy-all', 'destroyAll')->name('destroy-all');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| STAFF ROUTES - CLEANING MANAGEMENT
+|--------------------------------------------------------------------------
+| Routes for staff cleaning operations
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth', 'role:super_admin,housekeeping,front_desk'])->group(function () {
+    Route::get('/staff/cleaning', [App\Http\Controllers\Staff\CleaningDashboardController::class, 'index'])
+        ->name('staff.cleaning.index');
+    Route::patch('/staff/cleaning/{booking}/mark-cleaned', [App\Http\Controllers\Staff\CleaningDashboardController::class, 'markAsCleaned'])
+        ->name('staff.cleaning.mark-cleaned');
+    Route::get('/staff/cleaning/property/{property}/keybox', [App\Http\Controllers\Staff\CleaningDashboardController::class, 'getKeyboxCode'])
+        ->name('staff.cleaning.keybox');
+});
+
+/*
+|--------------------------------------------------------------------------
+| BOOKING RESUME ROUTES
+|--------------------------------------------------------------------------
+| Routes for booking resume after login
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/booking/resume', [App\Http\Controllers\BookingController::class, 'resumeBooking'])
+        ->name('bookings.resume');
+});
+
+/*
+|--------------------------------------------------------------------------
+| UTILITY ROUTES
+|--------------------------------------------------------------------------
+| Utility routes for broadcasting, testing, etc.
+|--------------------------------------------------------------------------
+*/
+
+// Broadcasting authentication
+Route::post('/broadcasting/auth', function (Request $request) {
+    return response()->json(['authenticated' => true]);
+})->middleware(['auth']);
+
+/*
+|--------------------------------------------------------------------------
+| INCLUDE ADDITIONAL ROUTE FILES
+|--------------------------------------------------------------------------
+*/
+
+require __DIR__ . '/settings.php';
+require __DIR__ . '/auth.php';
+/*
+|--------------------------------------------------------------------------
+| PROGRAMMATIC SEO LANDING PAGES - CATCH-ALL ROUTE
+|--------------------------------------------------------------------------
+| IMPORTANT: This MUST be the LAST route in the file!
+| Acts as fallback for SEO landing pages (villa-jogja, homestay-murah, etc.)
+*/
+
+Route::get('/{seoSlug}', [\App\Http\Controllers\SeoLandingController::class, 'show'])
+    ->where('seoSlug', '[a-z0-9-]+')
+    ->name('seo.landing');

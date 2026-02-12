@@ -1,38 +1,99 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\AmenityController;
 use App\Http\Controllers\SeoLandingController;
 use App\Http\Controllers\SitemapController;
-use App\Http\Controllers\SupportController;
 use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\LegalViewController;
 use App\Http\Controllers\PaymentGatewayController;
 use App\Http\Controllers\ReviewController;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 /*
 |--------------------------------------------------------------------------
 | PUBLIC ROUTES
 |--------------------------------------------------------------------------
-| Routes accessible by anyone
+| Routes accessible without authentication
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', function () {
-    // Check if user is authenticated
-    if (auth()->check()) {
-        return redirect()->route('dashboard');
+// CSRF Token endpoint for refreshing token (prevents 419 errors)
+Route::get('/csrf-token', function (Request $request) {
+    return response()->json(['token' => csrf_token()]);
+})->middleware('web')->name('csrf.token');
+
+// Locale switcher
+Route::get('/locale/{locale}', function (string $locale) {
+    if (in_array($locale, ['en', 'id'])) {
+        session(['locale' => $locale]);
     }
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
+    return back();
+})->name('locale.switch');
+
+// Health check endpoint for Docker
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'healthy',
+        'timestamp' => now()->toISOString(),
+        'version' => config('app.version', '1.0.0'),
+        'environment' => config('app.env'),
+    ]);
+})->name('health');
+
+// Dynamic Sitemap
+Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
+Route::get('/sitemap-articles.xml', [SitemapController::class, 'articles'])->name('sitemap.articles');
+
+// iCal Export (Public but protected by token)
+Route::get('/property/{slug}/ical/{token}', [\App\Http\Controllers\ICalController::class, 'export'])->name('ical.export');
+
+// Homepage
+Route::get('/', function () {
+    $seoService = app(\App\Services\SeoService::class);
+
+    $featuredProperties = \App\Models\Property::active()
+        ->featured()
+        ->with(['media', 'amenities'])
+        ->limit(6)
+        ->get();
+
+    return Inertia::render('welcome', [
+        'featuredProperties' => $featuredProperties,
+        'seo' => $seoService->forHomepage(),
     ]);
 })->name('home');
 
-// Properties
+// Static Pages
+Route::get('/about', function () {
+    return Inertia::render('About');
+})->name('about');
+
+Route::get('/faq', function () {
+    return Inertia::render('FAQ');
+})->name('faq');
+
+Route::get('/support', function () {
+    return Inertia::render('Support');
+})->name('support');
+
+// Legal Pages (specific slugs)
+Route::get('/{slug}', [LegalViewController::class, 'show'])
+    ->whereIn('slug', [
+        'tos',
+        'privacy',
+        'cookies',
+        'refundpolicy',
+        'paymentpolicy',
+        'copyrightpolicy',
+        'disclaimer'
+    ]);
+
+// Public Property Routes
 Route::controller(PropertyController::class)->group(function () {
     Route::get('/properties', 'index')->name('properties.index');
     Route::get('/properties/{property:slug}', 'show')->name('properties.show');
@@ -43,59 +104,67 @@ Route::controller(ReviewController::class)->group(function () {
     Route::get('/properties/{property:slug}/reviews', 'index')->name('properties.reviews.index');
 });
 
-// Articles (Public)
-Route::controller(ArticleController::class)->prefix('articles')->name('articles.')->group(function () {
-    Route::get('/', 'indexPublic')->name('public.index');
-    Route::get('/{article:slug}', 'showPublic')->name('public.show');
+// Public Article Routes
+Route::controller(ArticleController::class)->group(function () {
+    Route::get('/articles', 'publicIndex')->name('articles.index');
+    Route::get('/articles/{article:slug}', 'show')->name('articles.show');
 });
 
-// Support Pages
-Route::controller(SupportController::class)->group(function () {
-    Route::get('/help', 'index')->name('help.index');
-    Route::get('/help/article/{slug}', 'article')->name('help.article');
-    Route::get('/support', 'contact')->name('support.contact');
-    Route::post('/support', 'send')->name('support.send');
-    Route::get('/faq', 'faq')->name('support.faq');
-});
-
-// Legal Pages
-Route::controller(LegalViewController::class)->group(function () {
-    Route::get('/legal/{slug}', 'show')->name('legal.show');
-    Route::get('/privacy-policy', 'privacy')->name('legal.privacy');
-    Route::get('/terms-of-service', 'terms')->name('legal.terms');
-});
-
-// Sitemap
-Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
-
-/*
-|--------------------------------------------------------------------------
-| BOOKING FLOW (Public/Guest)
-|--------------------------------------------------------------------------
-*/
-
-// Booking Resume/Lookup
+// Public Booking Routes
 Route::controller(BookingController::class)->group(function () {
-    Route::get('/booking/lookup', 'lookup')->name('booking.lookup');
-    Route::post('/booking/lookup', 'find')->name('booking.find');
-    Route::get('/booking/resume/{booking:booking_number}', 'resume')->name('booking.resume')
-        ->middleware('signed'); // URL must be signed for security
+    Route::get('/properties/{property:slug}/book', 'create')->name('bookings.create');
+    Route::post('/properties/{property:slug}/book', 'store')->name('bookings.store');
+    Route::get('/booking/{booking:booking_number}/confirmation', 'confirmation')->name('bookings.confirmation');
+});
+
+// Public Payment Routes
+Route::controller(PaymentController::class)->group(function () {
+    Route::get('/booking/{booking:booking_number}/payment', 'create')->name('payments.create');
+    Route::post('/booking/{booking:booking_number}/payment', 'store')->name('payments.store');
 });
 
 /*
 |--------------------------------------------------------------------------
-| PAYMENT GATEWAY HANDLERS (Public/Callback)
+| PAYMENT GATEWAY ROUTES
+|--------------------------------------------------------------------------
+| Routes for payment gateway integration (iPaymu)
 |--------------------------------------------------------------------------
 */
-Route::controller(PaymentGatewayController::class)
-    ->prefix('payment/gateway')
-    ->name('payment.gateway.')
-    ->group(function () {
-        Route::any('/callback', 'callback')->name('callback');
-        Route::post('/webhook', 'webhook')->name('webhook');
-        // Return URL is usually handling auth session if possible, but kept public just in case
-        Route::get('/return', 'callback')->name('return'); // Map return to callback handling or specific method
+
+// Webhook route (public, no auth required)
+Route::post('/payment-gateway/webhook', [PaymentGatewayController::class, 'webhook'])
+    ->name('payment-gateway.webhook')
+    ->withoutMiddleware(['csrf', 'auth']);
+
+// Payment Gateway Callback (Public - redirect dari iPaymu)
+Route::get(
+    '/payment-gateway/callback',
+    [PaymentGatewayController::class, 'callback']
+)
+    ->name('payment-gateway.callback');
+
+// Public API Routes
+Route::prefix('api')->name('api.')->group(function () {
+    Route::get('properties/{property:slug}/calculate-rate', [BookingController::class, 'calculateRate'])
+        ->name('properties.calculate-rate');
+    Route::get('properties/{property:slug}/availability', [BookingController::class, 'getAvailability'])
+        ->name('properties.availability');
+    Route::get('properties/{property:slug}/availability-and-rates', [BookingController::class, 'getAvailabilityAndRates'])
+        ->name('properties.availability-and-rates');
+    Route::get('properties/map-coordinates', [PropertyController::class, 'mapCoordinates'])
+        ->name('properties.map-coordinates');
+    Route::post('check-email', [BookingController::class, 'checkEmailExists'])
+        ->name('check-email');
+    Route::get('properties', function () {
+        $properties = \App\Models\Property::active()
+            ->with(['media', 'amenities'])
+            ->get();
+        return response()->json([
+            'status' => 'success',
+            'data' => $properties,
+        ]);
     });
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -103,13 +172,12 @@ Route::controller(PaymentGatewayController::class)
 |--------------------------------------------------------------------------
 */
 
-// Image Optimization Route (Public or Protected?)
-// Ideally should be protected or signed, but for now specific controller
+// Image Optimization Route
 Route::get('/img/{path}', [\App\Services\ImageService::class, 'serve'])
     ->where('path', '.*')
     ->name('image.serve');
 
-// Optimize Clear (Dev only - restricted in prod usually)
+// Optimize Clear (Dev only)
 Route::get('/optimize-clear', function () {
     if (app()->environment('local')) {
         \Illuminate\Support\Facades\Artisan::call('optimize:clear');
@@ -118,20 +186,28 @@ Route::get('/optimize-clear', function () {
     abort(404);
 });
 
+// Broadcasting authentication
+Route::post('/broadcasting/auth', function (Request $request) {
+    return response()->json(['authenticated' => true]);
+})->middleware(['auth']);
+
 /*
 |--------------------------------------------------------------------------
-| AUTH ROUTES (Laravel Breeze)
+| INCLUDE ADDITIONAL ROUTE FILES
 |--------------------------------------------------------------------------
 */
+
+require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
 
 /*
 |--------------------------------------------------------------------------
-| CATCH-ALL SEO ROUTE
+| PROGRAMMATIC SEO LANDING PAGES - CATCH-ALL ROUTE
 |--------------------------------------------------------------------------
-| Must be the very last route to avoid capturing other valid routes.
+| IMPORTANT: This MUST be the LAST route in the file!
+| Acts as fallback for SEO landing pages (villa-jogja, homestay-murah, etc.)
 */
-Route::get('/{slug}', [SeoLandingController::class, 'show'])
-    ->where('slug', '([a-zA-Z0-9\-\/]+)')
-    ->fallback()
+
+Route::get('/{seoSlug}', [SeoLandingController::class, 'show'])
+    ->where('seoSlug', '[a-z0-9-]+')
     ->name('seo.landing');

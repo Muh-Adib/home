@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Staff\CleaningTaskController;
+use App\Http\Controllers\Staff\CleaningDashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -9,13 +9,11 @@ use App\Http\Controllers\Staff\CleaningTaskController;
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:housekeeping,property_manager,super_admin,front_desk'])->prefix('staff')->name('staff.')->group(function () {
-    // Cleaning Tasks
-    Route::controller(CleaningTaskController::class)->prefix('cleaning-tasks')->name('cleaning-tasks.')->group(function () {
-        Route::get('/', 'index')->name('index');
-        Route::get('/{task}', 'show')->name('show');
-        Route::post('/{task}/start', 'start')->name('start');
-        Route::post('/{task}/complete', 'complete')->name('complete');
-        Route::post('/{task}/upload-photo', 'uploadPhoto')->name('upload-photo');
-    });
+Route::middleware(['auth', 'role:super_admin,housekeeping,front_desk'])->group(function () {
+    Route::get('/staff/cleaning', [CleaningDashboardController::class, 'index'])
+        ->name('staff.cleaning.index');
+    Route::patch('/staff/cleaning/{booking}/mark-cleaned', [CleaningDashboardController::class, 'markAsCleaned'])
+        ->name('staff.cleaning.mark-cleaned');
+    Route::get('/staff/cleaning/property/{property}/keybox', [CleaningDashboardController::class, 'getKeyboxCode'])
+        ->name('staff.cleaning.keybox');
 });
