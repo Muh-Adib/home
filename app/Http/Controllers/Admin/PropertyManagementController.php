@@ -361,16 +361,22 @@ class PropertyManagementController extends Controller
     /**
      * Show the form for editing the specified property
      */
-    public function edit(Property $property): Response
+    public function edit(Request $request, Property $property): Response
     {
         $this->authorize('update', $property);
 
         $property->load(['amenities', 'media']);
         $amenities = Amenity::active()->ordered()->get();
 
+        // Pass owners for super_admin (same as create)
+        $owners = $request->user()->hasRole('super_admin')
+            ? User::where('role', 'property_owner')->get()
+            : null;
+
         return Inertia::render('Admin/Properties/Edit', [
             'property' => $property,
             'amenities' => $amenities,
+            'owners' => $owners,
             'defaultCheckinTemplate' => Property::getDefaultCheckinInstructionsTemplate(),
             'currentKeyboxInfo' => [
                 'code' => $property->current_keybox_code,

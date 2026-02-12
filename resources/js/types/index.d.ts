@@ -67,6 +67,7 @@ export interface Property {
     owner_id: number;
     name: string;
     slug: string;
+    type: 'homestay' | 'villa' | 'apartment' | 'hotel';
     description: string;
     address: string;
     location: 'selatan' | 'utara';
@@ -129,6 +130,7 @@ export interface PropertyMedia {
     file_size: number;
     mime_type: string;
     alt_text?: string;
+    description?: string;
     sort_order: number;
     is_featured: boolean;
     url: string;
