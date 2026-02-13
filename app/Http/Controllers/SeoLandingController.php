@@ -61,9 +61,13 @@ class SeoLandingController extends Controller
             // Generate natural content with fallback
             try {
                 $content = $this->generateNaturalContent($page, $properties->total());
+
+                // Use intro_text from DB if set (admin override)
+                if (!empty($page->intro_text)) {
+                    $content['intro'] = $page->intro_text;
+                }
             } catch (\Throwable $e) {
                 \Log::warning("SEO Landing Content Generation Failed: " . $e->getMessage());
-                // Fallback content to prevent 500 error
                 $content = [
                     'intro' => $page->intro_text ?? "Temukan penginapan terbaik di Yogyakarta bersama Homsjogja.",
                     'whyChooseUs' => [],
@@ -106,12 +110,48 @@ class SeoLandingController extends Controller
                 ],
             ];
 
+            // Generate FAQ Schema (JSON-LD) for Google Rich Results
+            $faqSchema = json_encode([
+                '@context' => 'https://schema.org',
+                '@type' => 'FAQPage',
+                'mainEntity' => array_map(fn($faq) => [
+                    '@type' => 'Question',
+                    'name' => $faq['question'],
+                    'acceptedAnswer' => [
+                        '@type' => 'Answer',
+                        'text' => $faq['answer'],
+                    ],
+                ], $faqs),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            // Generate BreadcrumbList Schema
+            $breadcrumbSchema = json_encode([
+                '@context' => 'https://schema.org',
+                '@type' => 'BreadcrumbList',
+                'itemListElement' => [
+                    [
+                        '@type' => 'ListItem',
+                        'position' => 1,
+                        'name' => 'Home',
+                        'item' => url('/'),
+                    ],
+                    [
+                        '@type' => 'ListItem',
+                        'position' => 2,
+                        'name' => $page->target_keyword,
+                        'item' => $page->url,
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
             return Inertia::render('SeoLanding', [
                 'page' => $page,
                 'properties' => $properties,
                 'content' => $content,
                 'faqs' => $faqs,
                 'seo' => $seo,
+                'faqSchema' => $faqSchema,
+                'breadcrumbSchema' => $breadcrumbSchema,
                 'totalCount' => $properties->total(),
             ]);
 

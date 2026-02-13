@@ -185,7 +185,16 @@
     "inventory_purchase_report": "Laporan Pembelian Inventaris",
     "inventory_usage_report": "Laporan Penggunaan Inventaris",
     "inventory_purchase_report_title": "Laporan Pembelian Inventaris",
-    "inventory_usage_report_title": "Laporan Penggunaan Inventaris"
+    "inventory_usage_report_title": "Laporan Penggunaan Inventaris",
+    "whatsapp_gowa": "WhatsApp GOWA",
+    "ai_provider_keys": "Kunci AI Provider",
+    "seo_pages": "Halaman SEO",
+    "financial_management": "Manajemen Keuangan",
+    "guest_services": "Layanan Tamu",
+    "guest_list": "Daftar Tamu",
+    "guest_support": "Dukungan Tamu",
+    "booking_overview": "Ringkasan Booking",
+    "room_status": "Status Kamar"
   },
   "auth": {
     "login_title": "Selamat Datang Kembali",

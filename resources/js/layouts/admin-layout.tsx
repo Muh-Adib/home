@@ -36,7 +36,8 @@ import {
   Package,
   MessageSquare,
   KeySquare,
-  FilePen
+  FilePen,
+  Globe
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -148,7 +149,8 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'WhatsApp GOWA', href: '/admin/gowa', icon: MessageSquare },
           { title: 'System Logs', href: '/admin/settings/system/logs', icon: FileText },
           { title: 'Legal', href: '/admin/legal/', icon: FileText },
-          { title: 'AI Provider Keys', href: '/admin/settings/ai-keys', icon: KeySquare }
+          { title: 'AI Provider Keys', href: '/admin/settings/ai-keys', icon: KeySquare },
+          { title: 'SEO Pages', href: '/admin/seo-pages', icon: Globe }
         ]
       }
     ],

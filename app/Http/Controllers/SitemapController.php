@@ -42,7 +42,7 @@ class SitemapController extends Controller
                 $this->addUrl(
                     $xml,
                     $urlset,
-                    $baseUrl . '/' . $page->slug,
+                    $baseUrl . '/s/' . $page->slug,
                     $page->updated_at,
                     $page->sitemap_changefreq,
                     (string) $page->sitemap_priority

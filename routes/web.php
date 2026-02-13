@@ -202,12 +202,22 @@ require __DIR__ . '/auth.php';
 
 /*
 |--------------------------------------------------------------------------
-| PROGRAMMATIC SEO LANDING PAGES - CATCH-ALL ROUTE
+| PROGRAMMATIC SEO LANDING PAGES
 |--------------------------------------------------------------------------
-| IMPORTANT: This MUST be the LAST route in the file!
-| Acts as fallback for SEO landing pages (villa-jogja, homestay-murah, etc.)
+| Prefixed under /s/ for clean URL hierarchy and to avoid route conflicts.
+| 301 redirect from old /{slug} URLs to preserve SEO rankings.
 */
 
-Route::get('/{seoSlug}', [SeoLandingController::class, 'show'])
-    ->where('seoSlug', '[a-z0-9-]+')
+Route::get('/s/{slug}', [SeoLandingController::class, 'show'])
+    ->where('slug', '[a-z0-9-]+')
     ->name('seo.landing');
+
+// 301 Redirect: old /{slug} → /s/{slug} for backward compatibility
+// IMPORTANT: Exclude known application routes to avoid conflicts
+Route::get('/{oldSlug}', function (string $oldSlug) {
+    $exists = \App\Models\SeoLandingPage::where('slug', $oldSlug)->exists();
+    if ($exists) {
+        return redirect("/s/{$oldSlug}", 301);
+    }
+    abort(404);
+})->where('oldSlug', '(?!dashboard|admin|properties|booking|bookings|api|my-bookings|my-payments|profile|notifications|about|faq|support|health|sitemap|locale|csrf-token|login|register|password|email|verify-email|logout|settings|up)[a-z0-9-]+');

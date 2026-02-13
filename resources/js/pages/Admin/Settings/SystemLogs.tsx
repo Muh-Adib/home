@@ -72,7 +72,7 @@ interface SystemLogsProps {
 
 export default function SystemLogs({ logs, statistics, availableFiles, filters, currentFile }: SystemLogsProps) {
     const [searchQuery, setSearchQuery] = useState(filters?.search || '');
-    const [selectedLevel, setSelectedLevel] = useState(filters?.level || '');
+    const [selectedLevel, setSelectedLevel] = useState(filters?.level || 'all');
     const [dateFrom, setDateFrom] = useState(filters?.date_from || '');
     const [dateTo, setDateTo] = useState(filters?.date_to || '');
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -91,7 +91,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
     ];
 
     const logLevels = [
-        { value: '', label: 'All Levels' },
+        { value: 'all', label: 'All Levels' },
         { value: 'emergency', label: 'Emergency', color: 'bg-red-900 text-white' },
         { value: 'alert', label: 'Alert', color: 'bg-red-700 text-white' },
         { value: 'critical', label: 'Critical', color: 'bg-red-600 text-white' },
@@ -135,7 +135,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
     const handleFilter = () => {
         router.get('/admin/settings/system/logs', {
             file: selectedFile,
-            level: selectedLevel,
+            level: selectedLevel === 'all' ? '' : selectedLevel,
             search: searchQuery,
             date_from: dateFrom,
             date_to: dateTo,
@@ -150,7 +150,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
         setSelectedFile(fileName);
         router.get('/admin/settings/system/logs', {
             file: fileName,
-            level: selectedLevel,
+            level: selectedLevel === 'all' ? '' : selectedLevel,
             search: searchQuery,
             date_from: dateFrom,
             date_to: dateTo,
@@ -163,7 +163,7 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
 
     const handleClearFilters = () => {
         setSearchQuery('');
-        setSelectedLevel('');
+        setSelectedLevel('all');
         setDateFrom('');
         setDateTo('');
         router.get('/admin/settings/system/logs', {}, {
@@ -427,17 +427,13 @@ export default function SystemLogs({ logs, statistics, availableFiles, filters, 
                                                         {entry.context && (
                                                             <div>
                                                                 <Label className="text-xs font-semibold text-gray-700">Context:</Label>
-                                                                <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-x-auto">
-                                                                    {entry.context}
-                                                                </pre>
+                                                                <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-x-auto">{entry.context}</pre>
                                                             </div>
                                                         )}
                                                         {entry.stack_trace && (
                                                             <div>
                                                                 <Label className="text-xs font-semibold text-gray-700">Stack Trace:</Label>
-                                                                <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-x-auto max-h-64 overflow-y-auto">
-                                                                    {entry.stack_trace}
-                                                                </pre>
+                                                                <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-x-auto max-h-64 overflow-y-auto">{entry.stack_trace}</pre>
                                                             </div>
                                                         )}
                                                     </div>

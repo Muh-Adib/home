@@ -171,7 +171,16 @@
     "inventory_purchase_report": "Inventory Purchase Report",
     "inventory_usage_report": "Inventory Usage Report",
     "inventory_purchase_report_title": "Inventory Purchase Report",
-    "inventory_usage_report_title": "Inventory Usage Report"
+    "inventory_usage_report_title": "Inventory Usage Report",
+    "whatsapp_gowa": "WhatsApp GOWA",
+    "ai_provider_keys": "AI Provider Keys",
+    "seo_pages": "SEO Pages",
+    "financial_management": "Financial Management",
+    "guest_services": "Guest Services",
+    "guest_list": "Guest List",
+    "guest_support": "Guest Support",
+    "booking_overview": "Booking Overview",
+    "room_status": "Room Status"
   },
   "auth": {
     "login_title": "Welcome Back",

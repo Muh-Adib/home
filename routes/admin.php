@@ -223,11 +223,12 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('dashboard', [DashboardController::class, 'admin'])->name('dashboard');
 
     // SEO Pages
     Route::resource('seo-pages', AdminSeoLandingController::class);
+    Route::get('seo-pages/{seo_page}/check-health', [AdminSeoLandingController::class, 'checkHealth'])->name('seo-pages.check-health');
 
     // Check-In/Out Dashboard
     Route::controller(CheckInOutController::class)->group(function () {
