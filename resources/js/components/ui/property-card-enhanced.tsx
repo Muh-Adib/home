@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Link, usePage } from '@inertiajs/react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Building2,
@@ -11,7 +10,7 @@ import {
   Bath,
   Star,
   Heart,
-  Crown
+  Crown,
 } from 'lucide-react';
 import { Property } from '@/types/property';
 import { formatCurrency } from '@/utils/formatCurrency';
@@ -25,217 +24,277 @@ interface PropertyCardEnhancedProps {
   showRating?: boolean;
 }
 
+/**
+ * Strip markdown formatting and emoji from description text.
+ * Handles: **bold**, *italic*, __bold__, _italic_, ~~strike~~,
+ * [links](url), `code`, # headings, > blockquotes, - lists, emoji
+ */
+function stripMarkdownAndEmoji(text: string): string {
+  if (!text) return '';
+  return text
+    // Remove headings
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove bold/italic markers
+    .replace(/(\*{1,3}|_{1,3})(.*?)\1/g, '$2')
+    // Remove strikethrough
+    .replace(/~~(.*?)~~/g, '$1')
+    // Remove inline code
+    .replace(/`([^`]+)`/g, '$1')
+    // Convert links to text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove images
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
+    // Remove blockquotes
+    .replace(/^\s*>\s+/gm, '')
+    // Remove list markers
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    // Remove emoji (Unicode emoji ranges)
+    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, '')
+    // Collapse excess whitespace
+    .replace(/\n{2,}/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+const LOCATION_MAP: Record<string, { text: string; color: string }> = {
+  malioboro: { text: 'Dekat Malioboro', color: 'bg-blue-500' },
+  keraton: { text: 'Area Keraton', color: 'bg-purple-500' },
+  kraton: { text: 'Area Keraton', color: 'bg-purple-500' },
+  'taman sari': { text: 'Taman Sari', color: 'bg-emerald-500' },
+  kotagede: { text: 'Kotagede', color: 'bg-orange-500' },
+  prawirotaman: { text: 'Prawirotaman', color: 'bg-rose-500' },
+  kaliurang: { text: 'Kaliurang', color: 'bg-teal-500' },
+};
+
+function getLocationBadge(address: string) {
+  const lower = address.toLowerCase();
+  for (const [key, val] of Object.entries(LOCATION_MAP)) {
+    if (lower.includes(key)) return val;
+  }
+  return { text: 'Jogja', color: 'bg-slate-500' };
+}
+
 export default function PropertyCardEnhanced({
   property,
   className = '',
   showLocationBadge = true,
-  showRating = true
+  showRating = true,
 }: PropertyCardEnhancedProps) {
   const [isLiked, setIsLiked] = useState(false);
+  const [showFullDesc, setShowFullDesc] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const { t } = useTranslation();
-
   const { url } = usePage();
-  const searchParams = new URLSearchParams(url.split('?')[1]);
 
-  // Ambil nilai query param
+  // Preserve search query params for deep-link
+  const searchParams = new URLSearchParams(url.split('?')[1]);
   const check_in = searchParams.get('check_in') ?? '';
   const check_out = searchParams.get('check_out') ?? '';
   const guests = searchParams.get('guests') ?? '';
-
   const hasQuery = check_in && check_out && guests;
 
-  const getLocationBadge = (address: string) => {
-    const addressLower = address.toLowerCase();
-    if (addressLower.includes('malioboro')) return { text: 'Dekat Malioboro', color: 'bg-blue-500' };
-    if (addressLower.includes('keraton') || addressLower.includes('kraton')) return { text: 'Area Keraton', color: 'bg-purple-500' };
-    if (addressLower.includes('taman sari')) return { text: 'Taman Sari', color: 'bg-green-500' };
-    if (addressLower.includes('kotagede')) return { text: 'Kotagede', color: 'bg-orange-500' };
-    return { text: 'Jogja', color: 'bg-gray-500' };
-  };
+  const locationBadge = useMemo(() => getLocationBadge(property.address), [property.address]);
+  const cleanDescription = useMemo(() => stripMarkdownAndEmoji(property.description), [property.description]);
 
-  const locationBadge = getLocationBadge(property.address);
-
-  // Use calculated rate per night (includes all premiums for the selected dates)
+  // Pricing
   const currentRate = property.current_rate_per_night || property.base_rate;
   const inflatedRate = Math.round(currentRate * 1.17);
-  const discountAmount = inflatedRate - currentRate;
-  const discountPercentage = Math.round((discountAmount / inflatedRate) * 100);
+  const discountPercentage = Math.round(((inflatedRate - currentRate) / inflatedRate) * 100);
+
+  const href = hasQuery
+    ? `/properties/${property.slug}?check_in=${check_in}&check_out=${check_out}&guests=${guests}`
+    : `/properties/${property.slug}`;
+
+  // Short description (max ~80 chars for card view)
+  const SHORT_DESC_LEN = 60;
+  const isDescLong = cleanDescription.length > SHORT_DESC_LEN;
+  const shortDescription = isDescLong ? cleanDescription.slice(0, SHORT_DESC_LEN).trimEnd() + '…' : cleanDescription;
 
   return (
     <motion.div
       className={`group ${className}`}
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -6 }}
-      transition={{ duration: 0.3 }}
+      whileHover={{ y: -4 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
     >
-      {/* Link seluruh card */}
-      <Link href={
-        hasQuery
-          ? `/properties/${property.slug}?check_in=${check_in}&check_out=${check_out}&guests=${guests}`
-          : `/properties/${property.slug}`
-      } className="block">
-        <Card className="overflow-hidden hover:shadow-2xl transition-all duration-500 border-0 shadow-lg bg-card group-hover:shadow-xl cursor-pointer gap-0 md:gap-3">
+      <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-2xl">
+        <article className="rounded-2xl overflow-hidden bg-white border border-slate-100 shadow-sm hover:shadow-xl transition-shadow duration-400 cursor-pointer">
 
-          {/* Gambar Properti */}
-          <div className="aspect-[5/4] md:aspect-[4/3] bg-muted relative overflow-hidden rounded-lg">
+          {/* ═══ Image ═══════════════════════════════════════ */}
+          <div className="aspect-[4/3] rounded-2xl relative overflow-hidden bg-slate-100">
             {property.media?.length > 0 && property.media[0]?.url && !imageError ? (
               <img
                 src={property.media[0].url}
                 alt={property.name}
-                className={`w-full h-full object-cover transition-transform duration-700 ${imageLoaded ? 'scale-100' : 'scale-110'
-                  } group-hover:scale-110`}
+                loading="lazy"
+                className={`w-full h-full object-cover transition-all duration-700 ease-out ${imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
+                  } group-hover:scale-105`}
                 onLoad={() => setImageLoaded(true)}
                 onError={() => setImageError(true)}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-10 to-primary-5">
-                <Building2 className="h-10 w-10 md:h-16 md:w-16 text-primary-60" />
-                <span className="sr-only">Gambar tidak tersedia</span>
+              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+                <Building2 className="h-10 w-10 md:h-12 md:w-12 text-slate-300" />
+                <span className="text-xs text-slate-400 mt-2">No Image</span>
               </div>
             )}
 
-            {/* Overlay gradient */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent group-hover:from-black/40 transition-all duration-300"></div>
+            {/* Subtle gradient overlay for readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
 
-            {/* Badge lokasi & featured */}
-            <div className="absolute top-2 left-2 md:top-3 md:left-3 flex flex-col gap-1 md:gap-2">
+            {/* Top-left badges */}
+            <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
               {property.is_featured && (
-                <Badge className={`${locationBadge.color} text-white border-0 flex items-center gap-1 px-1.5 py-0.5 text-[10px] md:text-xs`}>
+                <span className="inline-flex items-center gap-1 bg-amber-500 text-white text-[10px] md:text-[11px] font-semibold px-2 py-0.5 rounded-full shadow-sm">
                   <Crown className="h-2.5 w-2.5 md:h-3 md:w-3" />
                   Featured
-                </Badge>
+                </span>
               )}
-
               {showLocationBadge && (
-                <Badge className="bg-background/95 text-foreground border-0 flex items-center px-1.5 py-0.5 text-[10px] md:text-xs">
-                  <MapPin className="h-2.5 w-2.5 md:h-3 md:w-3 mr-1" />
+                <span className="inline-flex items-center gap-0.5 bg-white/90 backdrop-blur-sm text-slate-700 text-[10px] md:text-[11px] font-medium px-2 py-0.5 rounded-full shadow-sm">
+                  <MapPin className="h-2.5 w-2.5 md:h-3 md:w-3 text-slate-500" />
                   {locationBadge.text}
-                </Badge>
+                </span>
               )}
             </div>
 
-            {/* Tombol like */}
+            {/* Discount badge - top right */}
+            {discountPercentage > 0 && (
+              <span className="absolute top-2.5 right-2.5 bg-rose-500 text-white text-[10px] md:text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                -{discountPercentage}%
+              </span>
+            )}
+
+            {/* Heart button */}
             <button
               type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                setIsLiked(!isLiked);
-              }}
-              className={`absolute top-2 right-2 md:top-3 md:right-3 bg-background hover:bg-background shadow-md rounded-full p-1.5 md:p-2 transition-all duration-300 ${isLiked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              onClick={(e) => { e.preventDefault(); setIsLiked(!isLiked); }}
+              className={`absolute bottom-2.5 right-2.5 bg-white/90 backdrop-blur-sm hover:bg-white rounded-full p-1.5 md:p-2 shadow-md transition-all duration-200 ${isLiked ? 'opacity-100 scale-100' : 'opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100'
                 }`}
               aria-label={isLiked ? 'Hapus dari favorit' : 'Tambah ke favorit'}
             >
-              <Heart
-                className={`h-4 w-4 md:h-5 md:w-5 transition-colors ${isLiked ? 'text-red-500 fill-current' : 'text-muted-foreground'
-                  }`}
-              />
+              <Heart className={`h-3.5 w-3.5 md:h-4 md:w-4 transition-colors ${isLiked ? 'text-rose-500 fill-rose-500' : 'text-slate-600'
+                }`} />
             </button>
 
-            {/* Rating */}
+            {/* Rating badge - bottom left */}
             {showRating && (
-              <div className="absolute bottom-2 left-2 md:bottom-3 md:left-3 bg-background rounded-md px-1.5 py-0.5 md:px-2 md:py-1 flex items-center gap-1 shadow-sm md:shadow-md text-[10px] md:text-xs">
-                <Star className="h-3 w-3 md:h-4 md:w-4 text-yellow-500 fill-current" />
-                <span className="font-medium text-foreground">4.5</span>
+              <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-white/90 backdrop-blur-sm rounded-full px-2 py-0.5 shadow-sm">
+                <Star className="h-3 w-3 md:h-3.5 md:w-3.5 text-amber-400 fill-amber-400" />
+                <span className="text-[11px] md:text-xs font-semibold text-slate-700">4.5</span>
               </div>
             )}
           </div>
 
-          <CardContent className="p-4 md:p-6">
-            {/* Info utama */}
-            <div className="space-y-1 md:space-y-2">
-              <h3 className="text-base md:text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                {property.name}
-              </h3>
+          {/* ═══ Content ═════════════════════════════════════ */}
+          <div className="p-3.5 md:p-5">
 
-              {/* Lokasi */}
-              <div className="hidden md:flex items-center text-muted-foreground text-sm">
-                <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
-                <span className="truncate" title={property.address}>
-                  {property.address}
-                </span>
-              </div>
-
-              {/* Deskripsi */}
-              <p className="hidden md:line-clamp-3 text-muted-foreground text-sm leading-relaxed" title={property.description}>
-                {property.description}
-              </p>
+            {/* Name + Address */}
+            <h3 className="text-sm md:text-lg font-bold text-slate-900 leading-tight line-clamp-1 group-hover:text-blue-600 transition-colors duration-200">
+              {property.name}
+            </h3>
+            <div className="flex items-center gap-1 mt-1 text-slate-500">
+              <MapPin className="h-3 w-3 md:h-3.5 md:w-3.5 shrink-0" />
+              <span className="text-[11px] md:text-xs truncate">{property.address}</span>
             </div>
 
-            {/* Statistik properti */}
-            <div className="flex items-center gap-2 md:gap-4 text-xs md:text-sm text-muted-foreground mt-2 md:mt-4">
-              <div className="flex items-center" title={`${property.bedroom_count} Kamar Tidur`}>
-                <Bed className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                <span className="font-medium">{property.bedroom_count}</span>
-              </div>
+            {/* Description — toggleable, full text always in DOM for SEO */}
+            {cleanDescription && (
+              <div className="mt-2">
+                {/* Full description hidden visually but crawlable by search engines */}
+                <span className="sr-only">{cleanDescription}</span>
 
-              <div className="flex items-center" title={`${property.bathroom_count} Kamar Mandi`}>
-                <Bath className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                <span className="font-medium">{property.bathroom_count}</span>
-              </div>
+                {/* Visible: short or full based on toggle */}
+                <p className="text-xs md:text-[13px] text-slate-500 leading-relaxed">
+                  {showFullDesc ? cleanDescription : shortDescription}
+                </p>
 
-              <div className="flex items-center" title={`Maksimal ${property.capacity} tamu`}>
-                <Users className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                <span className="font-medium">{property.capacity}</span>
-              </div>
-            </div>
-
-            {/* Fasilitas */}
-            {property.amenities?.length > 0 && (
-              <div className="flex flex-wrap gap-0.5 md:gap-1 mt-2 md:mt-3">
-                {property.amenities.slice(0, 5).map((amenity, index) => (
-                  <AmenityItem
-                    key={`amenity-${amenity.id || amenity.name}-${index}`}
-                    amenity={amenity}
-                    variant="badge"
-                    showName={false}
-                    className="text-[10px] md:text-xs py-0.5 px-1 md:px-2"
-                  />
-                ))}
-
-                {property.amenities.length > 5 && (
-                  <Badge variant="outline" className="text-[10px] md:text-xs bg-gray-50 py-0.5 px-1 md:px-2">
-                    +{property.amenities.length - 5} {t('common.more')}
-                  </Badge>
+                {isDescLong && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowFullDesc(!showFullDesc); }}
+                    className="text-[11px] md:text-xs text-blue-600 hover:text-blue-700 font-medium mt-0.5 focus:outline-none"
+                  >
+                    {showFullDesc ? 'Sembunyikan' : 'Selengkapnya'}
+                  </button>
                 )}
               </div>
             )}
 
-            {/* Harga */}
-            <div className="mt-5 pt-4 border-t border-border text-right space-y-1">
-
-              {/* Harga coret */}
-              <div className="text-xs text-destructive line-through leading-none h-4 flex justify-end items-center">
-                {formatCurrency(inflatedRate)}
-              </div>
-
-              {/* Harga utama */}
-              <div className="flex flex-col items-end leading-tight">
-                <span className="text-xl font-bold text-brand-accent">
-                  {formatCurrency(currentRate)}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  / malam
-                </span>
-              </div>
-
-              {/* Badge + Hemat */}
-              <div className="flex justify-end items-center gap-2 text-xs leading-none h-4">
-                <Badge variant="destructive" className="text-[10px] py-0.5 px-1.5 leading-none">
-                  -{discountPercentage}%
-                </Badge>
-                <span className="text-green-600 font-semibold leading-none">
-                  Hemat {formatCurrency(discountAmount)}
-                </span>
-              </div>
-
+            {/* ── Stats row — full-width grid with text labels ── */}
+            <div className="grid grid-cols-3 gap-1.5 md:gap-2 mt-3 md:mt-4">
+              <StatItem icon={Bed} value={property.bedroom_count} label="Kamar Tidur" shortLabel="K. Tidur" />
+              <StatItem icon={Bath} value={property.bathroom_count} label="Kamar Mandi" shortLabel="K. Mandi" />
+              <StatItem icon={Users} value={property.capacity} label="Maks Tamu" shortLabel="Tamu" />
             </div>
 
-          </CardContent>
-        </Card>
+            {/* Amenities */}
+            {property.amenities?.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2.5 md:mt-3">
+                {property.amenities.slice(0, 4).map((amenity, i) => (
+                  <AmenityItem
+                    key={`amenity-${amenity.id || amenity.name}-${i}`}
+                    amenity={amenity}
+                    variant="badge"
+                    showName={false}
+                    className="text-[10px] md:text-[11px] py-0 px-1.5 h-5 md:h-6 border-slate-200 text-slate-500"
+                  />
+                ))}
+                {property.amenities.length > 4 && (
+                  <span className="inline-flex items-center text-[10px] md:text-[11px] text-slate-400 px-1">
+                    +{property.amenities.length - 4}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* ── Price section ──────────────────────── */}
+            <div className="mt-3 md:mt-4 pt-3 border-t border-slate-100">
+              <div className="flex items-end justify-between">
+                {/* Left: pricing */}
+                <div>
+                  <span className="text-[11px] text-rose-300 line-through block leading-none">
+                    {formatCurrency(inflatedRate)}
+                  </span>
+                  <div className="flex items-baseline gap-1 mt-0.5">
+                    <span className="text-lg md:text-xl font-bold text-slate-900">
+                      {formatCurrency(currentRate)}
+                    </span>
+                    <span className="text-[11px] md:text-xs text-slate-400 font-medium">
+                      /malam
+                    </span>
+                  </div>
+                </div>
+
+                {/* Right: CTA hint */}
+                <span className="text-[11px] md:text-xs text-blue-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity duration-200 pb-0.5">
+                  Lihat →
+                </span>
+              </div>
+            </div>
+          </div>
+        </article>
       </Link>
     </motion.div>
+  );
+}
+
+// ─── Stat sub-component ──────────────────────────────────────────────
+function StatItem({ icon: Icon, value, label, shortLabel }: { icon: React.ElementType; value: number; label: string; shortLabel: string }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center bg-slate-50 rounded-md py-1.5 md:py-2"
+      title={`${value} ${label}`}
+    >
+      <div className="flex items-center gap-1">
+        <Icon className="h-3 w-3 md:h-3.5 md:w-3.5 text-slate-400" />
+        <span className="text-xs md:text-sm font-bold text-slate-800">{value}</span>
+      </div>
+      <span className="text-[8px] md:text-[10px] text-slate-400 font-medium leading-tight mt-0.5 md:hidden">{shortLabel}</span>
+      <span className="text-[10px] text-slate-400 font-medium leading-tight mt-0.5 hidden md:block">{label}</span>
+    </div>
   );
 }

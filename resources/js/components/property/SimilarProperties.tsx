@@ -31,7 +31,6 @@ export const SimilarProperties: React.FC<SimilarPropertiesProps> = ({ properties
             <PropertyCardEnhanced 
               key={property.slug}
               property={property}
-              className="shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
             />
           ))}
         </div>

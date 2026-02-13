@@ -43,6 +43,8 @@ const publicNavItems = [
 const authNavItems = [
     { key: 'dashboard', href: '/dashboard', icon: Home, label: 'nav.dashboard' },
     { key: 'profile', href: '/settings/profile', icon: User, label: 'nav.profile' },
+    { key: 'properties', href: '/properties', icon: Building2, label: 'nav.properties' },
+    { key: 'articles', href: '/articles', icon: FileText, label: 'nav.articles' },
 ];
 
 export default function GuestLayout({
