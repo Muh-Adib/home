@@ -19,11 +19,11 @@ class BookingResource extends JsonResource
         return [
             'id' => $this->id,
             'booking_number' => $this->booking_number,
-            
+
             // Property Information
             'property' => new PropertyResource($this->whenLoaded('property')),
             'property_id' => $this->property_id,
-            
+
             // Guest Information
             'guest' => [
                 'name' => $this->guest_name,
@@ -33,7 +33,7 @@ class BookingResource extends JsonResource
                 'id_number' => $this->guest_id_number,
                 'gender' => $this->guest_gender,
             ],
-            
+
             // Guest Count
             'guest_count' => [
                 'total' => $this->guest_count,
@@ -41,7 +41,7 @@ class BookingResource extends JsonResource
                 'female' => $this->guest_female,
                 'children' => $this->guest_children,
             ],
-            
+
             // Dates
             'dates' => [
                 'check_in' => $this->check_in->toDateString(),
@@ -49,7 +49,7 @@ class BookingResource extends JsonResource
                 'check_in_time' => $this->check_in_time,
                 'nights' => $this->nights,
             ],
-            
+
             // Financial
             'financial' => [
                 'base_amount' => $this->base_amount,
@@ -61,7 +61,7 @@ class BookingResource extends JsonResource
                 'remaining_amount' => $this->remaining_amount,
                 'formatted_total' => $this->formatted_total_amount,
             ],
-            
+
             // Status
             'status' => [
                 'booking' => $this->booking_status,
@@ -69,7 +69,7 @@ class BookingResource extends JsonResource
                 'verification' => $this->verification_status ?? null,
                 'color' => $this->getStatusColor(),
             ],
-            
+
             // Additional Info
             'relationship_type' => $this->relationship_type,
             'special_requests' => $this->special_requests,
@@ -78,13 +78,16 @@ class BookingResource extends JsonResource
                 $this->internal_notes
             ),
             'source' => $this->source,
-            
+            'external_id' => $this->external_id,
+            'external_reservation_url' => $this->external_reservation_url,
+            'external_phone' => $this->external_phone,
+
             // Metadata
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
             'verified_at' => $this->verified_at?->toISOString(),
             'verified_by' => new UserResource($this->whenLoaded('verifiedBy')),
-            
+
             // Permissions
             'can' => [
                 'update' => $this->when(

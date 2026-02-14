@@ -175,7 +175,7 @@ export default function PropertyForm({
         setSyncing(true);
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = `/admin/properties/${property.id}/sync-ical`;
+        form.action = `/admin/properties/${property.slug}/sync-ical`;
         const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         if (token) {
             const input = document.createElement('input');

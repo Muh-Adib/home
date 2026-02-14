@@ -155,6 +155,7 @@ class BookingManagementController extends Controller
                 'formatted_total_amount' => $booking->formatted_total_amount,
                 'booking_status' => $booking->booking_status,
                 'payment_status' => $booking->payment_status,
+                'external_reservation_url' => $booking->external_reservation_url,
                 'status_color' => $booking->getStatusColor(),
                 'can_edit' => $user->can('update', $booking),
             ];
@@ -722,6 +723,7 @@ class BookingManagementController extends Controller
                 'booking_status',
                 'payment_status',
                 'property_id',
+                'external_reservation_url',
                 'created_at'
             ])
             ->with('property:id,name');
@@ -793,6 +795,7 @@ class BookingManagementController extends Controller
                     'guest_count',
                     'source',
                     'external_id',
+                    'external_reservation_url',
                 ])
                 ->with([
                     'property:id,name,capacity,base_rate',
@@ -874,6 +877,7 @@ class BookingManagementController extends Controller
                 'booking_status',
                 'payment_status',
                 'guest_count',
+                'external_reservation_url',
                 'created_at',
                 'updated_at'
             ])

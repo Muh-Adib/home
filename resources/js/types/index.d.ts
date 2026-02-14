@@ -222,6 +222,9 @@ export interface Booking {
     services?: BookingService[];
     payments?: Payment[];
     workflow?: BookingWorkflow[];
+
+    //ical sync
+    external_reservation_url?:string;
 }
 
 export interface BookingGuest {

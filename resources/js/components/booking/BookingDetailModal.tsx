@@ -70,6 +70,8 @@ export default function BookingDetailModal({
         }
     };
 
+    const detailLink = booking.external_reservation_url || `/admin/bookings/${booking.booking_number}`;
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             {/* z-[150] to ensure it's above fullscreen elements if possible */}
@@ -387,9 +389,9 @@ export default function BookingDetailModal({
                 {/* 3. Footer Actions */}
                 <div className="bg-white p-4 border-t flex flex-wrap justify-between items-center gap-3">
                     <Button variant="outline" asChild size="sm">
-                        <Link href={`/admin/bookings/${booking.booking_number}`}>
+                        <a href={detailLink} target="_blank" rel="noopener noreferrer">
                             <Eye className="w-4 h-4 mr-2" /> Full Details
-                        </Link>
+                        </a>
                     </Button>
 
                     <div className="flex gap-2">

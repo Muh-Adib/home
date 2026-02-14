@@ -70,6 +70,8 @@ class Booking extends Model
         'created_by',
         'source',
         'external_id',
+        'external_reservation_url',
+        'external_phone',
     ];
 
     protected $casts = [
