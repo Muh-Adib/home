@@ -17,9 +17,12 @@ class ICalService
     public function generateForProperty(Property $property): string
     {
         $bookings = $property->bookings()
+            ->select(['check_in','check_out','booking_number','source'])
             ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
-            ->where('check_out', '>=', now()->startOfDay())
-            ->get();
+            ->whereNotIn('source', ['airbnb', 'booking_com', 'ota'])
+            ->where('check_out', '>=', today())
+            ->orderBy('check_in')
+            ->cursor();
 
         $ical = [
             'BEGIN:VCALENDAR',
