@@ -1,10 +1,12 @@
 import React from 'react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import { Users, Bed, AlertCircle, Plus, Minus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/utils';
 
 interface GuestCountFormProps {
     guestMale: number;
@@ -23,6 +25,49 @@ interface GuestCountFormProps {
     onGuestCountChange: (genderType: 'male' | 'female' | 'children', newCount: number) => void;
 }
 
+interface GuestCounterProps {
+    label: string;
+    value: number;
+    onChange: (newValue: number) => void;
+    error?: string;
+    min?: number;
+}
+
+const GuestCounter = ({ label, value, onChange, error, min = 0 }: GuestCounterProps) => (
+    <div className="flex flex-col gap-2 items-center">
+        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+            {label}
+        </label>
+        <div className="flex items-center gap-3">
+            <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 shrink-0 rounded-full"
+                onClick={() => onChange(Math.max(min, value - 1))}
+                disabled={value <= min}
+            >
+                <Minus className="h-4 w-4" />
+                <span className="sr-only">Decrease {label}</span>
+            </Button>
+            <div className="w-12 text-center font-medium tabular-nums">
+                {value}
+            </div>
+            <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 shrink-0 rounded-full"
+                onClick={() => onChange(value + 1)}
+            >
+                <Plus className="h-4 w-4" />
+                <span className="sr-only">Increase {label}</span>
+            </Button>
+        </div>
+        {error && <span className="text-[0.8rem] font-medium text-destructive">{error}</span>}
+    </div>
+);
+
 export default function GuestCountForm({
     guestMale,
     guestFemale,
@@ -39,151 +84,72 @@ export default function GuestCountForm({
     const guestCountError = totalGuests > capacityMax;
 
     return (
-        <div className="space-y-4 w-full max-w-3xl mx-auto">
-            <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-semibold text-foreground">{t('booking.guest_count')}</h3>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 bg-muted/50 p-4 sm:p-6 rounded-lg border border-border text-center">
-                <div className="space-y-1 flex flex-col items-center">
-                    <Label htmlFor="guest_male" className="text-sm font-medium">{t('booking.male_adults')}</Label>
+        <Card className="w-full shadow-sm gap-0">
+            <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        {/* Tombol - */}
-                        <button
-                            type="button"
-                            onClick={() => onGuestCountChange('male', Math.max(0, guestMale - 1))}
-                            className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted shrink-0 text-primary transition-colors"
-                        >
-                            <Minus className="h-5 w-5" />
-                        </button>
-
-                        {/* Input */}
-                        <div className="w-20 shrink-0">
-                            <Input
-                                id="guest_male"
-                                type="number"
-                                min="0"
-                                value={guestMale}
-                                onChange={(e) => onGuestCountChange('male', parseInt(e.target.value) || 0)}
-                                className={`h-12 text-center text-base ${errors?.guest_male ? 'border-red-500' : ''}`}
-                            />
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                            <Users className="h-4 w-4 text-primary" />
                         </div>
-
-                        {/* Tombol + */}
-                        <button
-                            type="button"
-                            onClick={() => onGuestCountChange('male', guestMale + 1)}
-                            className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted shrink-0 text-primary transition-colors"
-                        >
-                            <Plus className="h-5 w-5" />
-                        </button>
-                    </div>
-                    {errors?.guest_male && (
-                        <p className="text-sm text-red-600">{errors.guest_male}</p>
-                    )}
-                </div>
-                <div className="space-y-1 flex flex-col items-center">
-                    <Label htmlFor="guest_female" className="text-sm font-medium">{t('booking.female_adults')}</Label>
-                    <div className="flex items-center gap-2">
-                        {/* Tombol - */}
-                        <button
-                            type="button"
-                            onClick={() => onGuestCountChange('female', Math.max(0, guestFemale - 1))}
-                            className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted shrink-0 text-primary transition-colors"
-                        >
-                            <Minus className="h-5 w-5" />
-                        </button>
-                        <div className="w-20 shrink-0">
-                            <Input
-                                id="guest_female"
-                                type="number"
-                                min="0"
-                                value={guestFemale}
-                                onChange={(e) => onGuestCountChange('female', parseInt(e.target.value) || 0)}
-                                className={`h-12 text-center text-base ${errors?.guest_female ? 'border-red-500' : ''}`}
-                            />
+                        <div>
+                            <CardTitle className="text-base font-semibold">{t('booking.guest_count')}</CardTitle>
+                            <CardDescription className="text-xs">
+                                {t('booking.property_capacity')}: {capacity} - {capacityMax} {t('booking.guests')}
+                            </CardDescription>
                         </div>
-                        {/* Tombol + */}
-                        <button
-                            type="button"
-                            onClick={() => onGuestCountChange('female', guestFemale + 1)}
-                            className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted shrink-0 text-primary transition-colors"
-                        >
-                            <Plus className="h-5 w-5" />
-                        </button>
                     </div>
-                    {errors?.guest_female && (
-                        <p className="text-sm text-red-600">{errors.guest_female}</p>
-                    )}
-                </div>
-                <div className="space-y-1 flex flex-col items-center">
-                    <Label htmlFor="guest_children" className="text-sm font-medium">{t('booking.children')}</Label>
-                    <div className="flex items-center gap-2">
-                        {/* Tombol - */}
-                        <button
-                            type="button"
-                            onClick={() => onGuestCountChange('children', Math.max(0, guestChildren - 1))}
-                            className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted shrink-0 text-primary transition-colors"
-                        >
-                            <Minus className="h-5 w-5" />
-                        </button>
-                        <div className="w-20 shrink-0">
-                            <Input
-                                id="guest_children"
-                                type="number"
-                                min="0"
-                                value={guestChildren}
-                                onChange={(e) => onGuestCountChange('children', parseInt(e.target.value) || 0)}
-                                className={`h-12 text-center text-base ${errors?.guest_children ? 'border-red-500' : ''}`}
-                            />
-                        </div>
-                        {/* Tombol + */}
-                        <button
-                            type="button"
-                            onClick={() => onGuestCountChange('children', guestChildren + 1)}
-                            className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted shrink-0 text-primary transition-colors"
-                        >
-                            <Plus className="h-5 w-5" />
-                        </button>
-                    </div>
-                    {errors?.guest_children && (
-                        <p className="text-sm text-red-600">{errors.guest_children}</p>
-                    )}
-                </div>
-            </div>
-
-            {/* Guest Count Summary */}
-            <div className="bg-muted/50 p-4 sm:p-6 rounded-lg border border-border">
-                <div className="flex items-center justify-between mb-3">
-                    <span className="font-medium text-base">{t('booking.total_guests')}:</span>
-                    <Badge variant={guestCountError ? "destructive" : "secondary"} className="text-sm px-3 py-1">
-                        {totalGuests} guests
+                    <Badge variant={guestCountError ? "destructive" : "secondary"} className="text-sm px-2.5 py-0.5">
+                        {totalGuests} {t('booking.guests')}
                     </Badge>
                 </div>
-                <div className="text-sm text-muted-foreground mb-3">
-                    {t('booking.property_capacity')}: {capacity} - {capacityMax} {t('booking.guests')}
+            </CardHeader>
+            <Separator />
+            <CardContent className="grid py-6">
+                <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-center justify-center pb-6">
+                    <GuestCounter
+                        label={t('booking.male_adults')}
+                        value={guestMale}
+                        onChange={(val) => onGuestCountChange('male', val)}
+                        error={errors?.guest_male}
+                    />
+                    <GuestCounter
+                        label={t('booking.female_adults')}
+                        value={guestFemale}
+                        onChange={(val) => onGuestCountChange('female', val)}
+                        error={errors?.guest_female}
+                    />
+                    <GuestCounter
+                        label={t('booking.children')}
+                        value={guestChildren}
+                        onChange={(val) => onGuestCountChange('children', val)}
+                        error={errors?.guest_children}
+                    />
                 </div>
 
-                {extraBeds > 0 && (
-                    <div className="flex items-center gap-2 text-sm mb-3 p-2 bg-primary/10 rounded border border-primary/20">
-                        <Bed className="h-4 w-4 text-primary" />
-                        <span className="font-medium text-foreground">{t('booking.extra_beds_needed')}: {extraBeds}</span>
-                        <span className="text-muted-foreground">
-                            (+Rp {(extraBeds * extraBedRate).toLocaleString("id-ID")}/night)
-                        </span>
-                    </div>
-                )}
+                {/* Summary / Alerts Section */}
+                <div className="space-y-3 pt-2">
+                    {extraBeds > 0 && (
+                        <div className="flex items-center justify-between text-sm px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-md text-amber-900 dark:text-amber-200">
+                            <div className="flex items-center gap-2">
+                                <Bed className="h-4 w-4" />
+                                <span className="font-medium">{t('booking.extra_beds_needed')}: {extraBeds}</span>
+                            </div>
+                            <span className="text-xs font-medium bg-amber-100 dark:bg-amber-900 px-2 py-0.5 rounded-full">
+                                +Rp {(extraBeds * extraBedRate).toLocaleString("id-ID")}
+                            </span>
+                        </div>
+                    )}
 
-                {guestCountError && (
-                    <Alert className="mt-3 border-red-500/20 bg-red-500/10">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription className="text-red-600">
-                            {t('booking.guest_count_exceeds', { max: capacityMax })}
-                        </AlertDescription>
-                    </Alert>
-                )}
-            </div>
-        </div>
+                    {guestCountError && (
+                        <Alert variant="destructive" className="py-2">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>
+                                {t('booking.guest_count_exceeds', { max: capacityMax })}
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
     );
 }
