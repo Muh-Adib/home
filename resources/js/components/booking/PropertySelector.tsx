@@ -14,11 +14,6 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-    Drawer,
-    DrawerContent,
-    DrawerTrigger,
-} from '@/components/ui/drawer';
 import { Building2, Users, DollarSign, Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Property } from '@/types';
@@ -34,24 +29,6 @@ export interface PropertySelectorProps {
     label?: string;
 }
 
-function useMediaQuery(query: string) {
-    const [value, setValue] = useState(false);
-
-    useEffect(() => {
-        function onChange(event: MediaQueryListEvent) {
-            setValue(event.matches);
-        }
-
-        const result = matchMedia(query);
-        result.addEventListener("change", onChange);
-        setValue(result.matches);
-
-        return () => result.removeEventListener("change", onChange);
-    }, [query]);
-
-    return value;
-}
-
 const PropertySelector = memo(function PropertySelector({
     properties,
     selectedPropertyId,
@@ -63,43 +40,8 @@ const PropertySelector = memo(function PropertySelector({
     label = 'Pilih Properti *',
 }: PropertySelectorProps) {
     const [open, setOpen] = useState(false);
-    const isDesktop = useMediaQuery("(min-width: 768px)");
 
-    const PropertyListContent = (
-        <Command>
-            <CommandInput placeholder="Cari properti..." />
-            <CommandList>
-                <CommandEmpty>Properti tidak ditemukan.</CommandEmpty>
-                <CommandGroup>
-                    {properties.map((property) => (
-                        <CommandItem
-                            key={property.id}
-                            value={property.id.toString()}
-                            keywords={[property.name, property.address]}
-                            onSelect={() => {
-                                onPropertyChange(property.id.toString());
-                                setOpen(false);
-                            }}
-                            className="cursor-pointer"
-                        >
-                            <Check
-                                className={cn(
-                                    "mr-2 h-4 w-4",
-                                    selectedPropertyId === property.id.toString()
-                                        ? "opacity-100"
-                                        : "opacity-0"
-                                )}
-                            />
-                            <div className="flex flex-col">
-                                <span>{property.name}</span>
-                                <span className="text-xs text-muted-foreground truncate max-w-[200px]">{property.address}</span>
-                            </div>
-                        </CommandItem>
-                    ))}
-                </CommandGroup>
-            </CommandList>
-        </Command>
-    );
+    // PropertyListContent removed
 
     const TriggerButton = (
         <Button
@@ -126,31 +68,51 @@ const PropertySelector = memo(function PropertySelector({
             <div>
                 <Label htmlFor="property_id" className={error ? 'text-red-500' : ''}>{label}</Label>
 
-                {isDesktop ? (
-                    <Popover open={open} onOpenChange={setOpen}>
-                        <PopoverTrigger asChild>
-                            {TriggerButton}
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                            {PropertyListContent}
-                        </PopoverContent>
-                    </Popover>
-                ) : (
-                    <Drawer open={open} onOpenChange={setOpen}>
-                        <DrawerTrigger asChild>
-                            {TriggerButton}
-                        </DrawerTrigger>
-                        <DrawerContent>
-                            <div className="mt-4 border-t">
-                                {PropertyListContent}
-                            </div>
-                        </DrawerContent>
-                    </Drawer>
-                )}
+                <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                        {TriggerButton}
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command>
+                            <CommandInput placeholder="Cari properti..." />
+                            <CommandList>
+                                <CommandEmpty>Properti tidak ditemukan.</CommandEmpty>
+                                <CommandGroup>
+                                    {properties.map((property) => (
+                                        <CommandItem
+                                            key={property.id}
+                                            value={property.id.toString()}          // ✅ Ganti ini
+                                            keywords={[property.name, property.address].filter(Boolean) as string[]}
+                                            onSelect={(currentValue) => {
+                                                onPropertyChange(currentValue);     // ✅ Langsung pakai currentValue
+                                                setOpen(false);
+                                            }}
+                                            className="cursor-pointer"
+                                        >
+                                            <Check
+                                                className={cn(
+                                                    "mr-2 h-4 w-4",
+                                                    selectedPropertyId === property.id.toString()
+                                                        ? "opacity-100"
+                                                        : "opacity-0"
+                                                )}
+                                            />
+                                            <div className="flex flex-col">
+                                                <span>{property.name}</span>
+                                                <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                                    {property.address}
+                                                </span>
+                                            </div>
+                                        </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                            </CommandList>
+                        </Command>
+                    </PopoverContent>
+                </Popover>
 
                 {error && <p className="text-sm text-red-600 mt-1">{error}</p>}
             </div>
-
             {/* Property Details Preview */}
             {showDetails && currentProperty && (
                 <div className="bg-slate-50 p-4 rounded-lg">
