@@ -266,7 +266,8 @@ PROMPT;
         array $properties = [],
         string $provider = 'openrouter',
         string $language = 'id',
-        string $tone = 'casual'
+        string $tone = 'casual',
+        ?string $intent = null
     ): array {
         $propertyContext = '';
         if (!empty($properties)) {
@@ -293,8 +294,11 @@ PROMPT;
             default => 'Tone: Balanced and engaging.',
         };
 
+        $intentInstruction = $intent ? "INTENT: {$intent}. Objective: Adapt the writing style to satisfy this intent (e.g., highly persuasive for transactional, deeply helpful for informational).\n" : "";
+
         $prompt = "Write a comprehensive article {$langInstruction} based on this outline:\n\n{$outline}\n\n" .
             "Keywords: " . implode(', ', $keywords) . $propertyContext . "\n\n" .
+            $intentInstruction .
             "WRITING RULES (STRICT):\n" .
             "- {$toneInstruction}\n" .
             "- Minimum 600 words.\n" .
@@ -500,8 +504,8 @@ PROMPT;
         // Rate Limit Protection (RPM/TPM)
         // Gemini is strict, so we force a pause to ensure the token bucket has time to refill.
         if ($provider === 'gemini' || $provider === 'google') {
-            Log::info("AIArticleService: Pausing 10s for Gemini Rate Limit Protection...");
-            sleep(10);
+            Log::info("AIArticleService: Pausing 3s for Gemini Rate Limit Protection...");
+            sleep(3);
         } else {
             // Minimal pause for other providers to prevent burst flagging
             usleep(500000); // 0.5s

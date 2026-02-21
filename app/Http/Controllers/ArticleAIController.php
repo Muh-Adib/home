@@ -118,6 +118,7 @@ class ArticleAIController extends Controller
             'provider' => 'nullable|string|in:openrouter,gemini',
             'language' => 'nullable|string|in:id,en',
             'tone' => 'nullable|string|in:professional,casual',
+            'intent' => 'nullable|string',
         ]);
 
         try {
@@ -134,7 +135,8 @@ class ArticleAIController extends Controller
                 $properties,
                 $validated['provider'] ?? config('article.ai.default_provider'),
                 $validated['language'] ?? 'id',
-                $validated['tone'] ?? 'professional'
+                $validated['tone'] ?? 'professional',
+                $validated['intent'] ?? null
             );
 
             return response()->json($result);

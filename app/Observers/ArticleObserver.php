@@ -79,6 +79,17 @@ class ArticleObserver
                 $dataToSync['assigned_to'] = $article->author_id;
             }
 
+            // Sync AI suggestions (intent/variations) back to ContentPlan
+            if ($article->isDirty('generation_metadata')) {
+                $metadata = $article->generation_metadata ?? [];
+                $suggestions = $article->contentPlan->ai_suggestions ?? [];
+
+                $suggestions['search_intent'] = $metadata['search_intent'] ?? ($suggestions['search_intent'] ?? null);
+                $suggestions['keyword_variations'] = $metadata['keyword_variations'] ?? ($suggestions['keyword_variations'] ?? null);
+
+                $dataToSync['ai_suggestions'] = $suggestions;
+            }
+
             $article->contentPlan->update($dataToSync);
 
             ContentPlan::$isSyncing = false;

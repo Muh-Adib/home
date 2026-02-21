@@ -76,7 +76,7 @@ class AIArticleGenerationTest extends TestCase
         /** Mock: single combined content call */
         $aiService->shouldReceive('generateMarketingArticle')
             ->once()
-            ->andReturn([
+            ->andReturnUsing(fn() => [
                 'success' => true,
                 'content' => '## Liburan ke Jogja saat Festival Jazz' . str_repeat(' lorem ipsum', 60),
                 'excerpt' => 'Liburan ke Jogja saat festival.',

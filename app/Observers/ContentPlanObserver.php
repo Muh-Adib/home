@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\ContentPlan;
+use App\Models\Article;
 use Illuminate\Support\Str;
 
 class ContentPlanObserver
@@ -27,14 +28,39 @@ class ContentPlanObserver
             return;
         }
 
+        // 1. Auto-create Article when moving to 'writing' status
+        if ($contentPlan->isDirty('status') && $contentPlan->status === 'writing' && !$contentPlan->article) {
+            Article::create([
+                'title' => $contentPlan->title,
+                'target_keywords' => $contentPlan->target_keywords,
+                'status' => 'writing',
+                'language' => 'id',
+                'content_plan_id' => $contentPlan->id,
+                'author_id' => $contentPlan->assigned_to ?? $contentPlan->created_by,
+                'generation_metadata' => [
+                    'search_intent' => $contentPlan->ai_suggestions['search_intent'] ?? null,
+                    'keyword_variations' => $contentPlan->ai_suggestions['keyword_variations'] ?? null,
+                ],
+            ]);
+        }
+
+        // 2. Sync data to existing Article
         if ($contentPlan->article) {
-            \App\Models\Article::$isSyncing = true;
+            Article::$isSyncing = true;
 
             $dataToSync = [
                 'status' => $contentPlan->status,
                 'title' => $contentPlan->title,
                 'target_keywords' => $contentPlan->target_keywords,
             ];
+
+            // Sync AI suggestions (intent/variations) to generation_metadata
+            if ($contentPlan->isDirty('ai_suggestions')) {
+                $metadata = $contentPlan->article->generation_metadata ?? [];
+                $metadata['search_intent'] = $contentPlan->ai_suggestions['search_intent'] ?? null;
+                $metadata['keyword_variations'] = $contentPlan->ai_suggestions['keyword_variations'] ?? null;
+                $dataToSync['generation_metadata'] = $metadata;
+            }
 
             // Sync dates
             if ($contentPlan->planned_publish_date) {
@@ -48,7 +74,17 @@ class ContentPlanObserver
 
             $contentPlan->article->update($dataToSync);
 
-            \App\Models\Article::$isSyncing = false;
+            Article::$isSyncing = false;
+        }
+    }
+
+    /**
+     * Handle the ContentPlan "deleted" event.
+     */
+    public function deleted(ContentPlan $contentPlan): void
+    {
+        if ($contentPlan->article) {
+            $contentPlan->article->delete();
         }
     }
 }

@@ -20,19 +20,27 @@ return new class extends Migration {
 
     public function up(): void
     {
+        $driver = DB::connection()->getDriverName();
+
         // 1. Sanitise: remap any legacy values not in the new set → 'draft'
         $valid = implode(',', array_map(fn($v) => "'$v'", self::VALUES));
 
         DB::statement("UPDATE articles SET status = 'draft' WHERE status NOT IN ($valid)");
 
-        // 2. Alter the column with the full enum definition
-        $enumList = implode("','", self::VALUES);
-        DB::statement("ALTER TABLE articles MODIFY COLUMN status ENUM('{$enumList}') NOT NULL DEFAULT 'idea'");
+        // 2. Alter the column with the full enum definition (Skiped for SQLite)
+        if ($driver === 'mysql') {
+            $enumList = implode("','", self::VALUES);
+            DB::statement("ALTER TABLE articles MODIFY COLUMN status ENUM('{$enumList}') NOT NULL DEFAULT 'idea'");
+        }
     }
 
     public function down(): void
     {
-        // Restore the previous, shorter enum (adjust if yours was different)
-        DB::statement("ALTER TABLE articles MODIFY COLUMN status ENUM('draft','published','archived') NOT NULL DEFAULT 'draft'");
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'mysql') {
+            // Restore the previous, shorter enum (adjust if yours was different)
+            DB::statement("ALTER TABLE articles MODIFY COLUMN status ENUM('draft','published','archived') NOT NULL DEFAULT 'draft'");
+        }
     }
 };

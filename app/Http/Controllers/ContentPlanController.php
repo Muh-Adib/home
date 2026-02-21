@@ -210,6 +210,7 @@ class ContentPlanController extends Controller
      */
     public function generateCalendar(Request $request): JsonResponse
     {
+        set_time_limit(600); // Increase limit for AI generation if sync
         $validated = $request->validate([
             'keywords' => 'required|array|min:1',
             'article_count' => 'nullable|integer|min:1|max:60',

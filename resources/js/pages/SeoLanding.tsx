@@ -62,8 +62,6 @@ interface SeoLandingProps {
         answer: string;
     }>;
     seo: any;
-    faqSchema?: string;
-    breadcrumbSchema?: string;
     totalCount: number;
 }
 
@@ -73,8 +71,6 @@ export default function SeoLanding({
     content,
     faqs,
     seo,
-    faqSchema,
-    breadcrumbSchema,
     totalCount
 }: SeoLandingProps) {
     const [showScrollTop, setShowScrollTop] = useState(false);
@@ -122,15 +118,6 @@ export default function SeoLanding({
             <SeoHead />
             <SchemaOrg />
 
-            {/* FAQ & Breadcrumb Structured Data (JSON-LD) */}
-            <Head>
-                {faqSchema && (
-                    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: faqSchema }} />
-                )}
-                {breadcrumbSchema && (
-                    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: breadcrumbSchema }} />
-                )}
-            </Head>
 
             {/* Animated Hero Section with Background Image */}
             <motion.section

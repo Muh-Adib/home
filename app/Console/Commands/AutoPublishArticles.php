@@ -38,6 +38,7 @@ class AutoPublishArticles extends Command
             ->get();
 
         foreach ($articles as $article) {
+            /** @var Article $article */
             try {
                 $article->update([
                     'status' => 'published',

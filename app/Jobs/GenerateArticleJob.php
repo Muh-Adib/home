@@ -42,6 +42,7 @@ class GenerateArticleJob implements ShouldQueue
      */
     public function handle(AIArticleService $aiService): void
     {
+        set_time_limit(600); // Article generation can take minutes
         try {
             $properties = [];
             if (!empty($this->propertyIds)) {
@@ -50,13 +51,16 @@ class GenerateArticleJob implements ShouldQueue
                     ->toArray();
             }
 
+            $intent = $this->article->generation_metadata['search_intent'] ?? null;
+
             $result = $aiService->generateContent(
                 $this->outline,
                 $this->keywords,
                 $properties,
                 $this->provider,
                 $this->language,
-                $this->tone
+                $this->tone,
+                $intent
             );
 
             $this->article->update([

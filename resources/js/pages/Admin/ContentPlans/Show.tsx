@@ -45,16 +45,23 @@ interface ContentPlan {
     planned_publish_date: string | null;
     ai_research_data: any; // Context: { search_intent?, target_audience_analysis?, key_points?, suggested_tone?, abstract? }
     ai_outline: string | null;
+    ai_suggestions?: {
+        search_intent: string;
+        keyword_variations: Record<string, string[]>;
+    } | null;
     created_at: string;
     creator?: { id: number; name: string };
     assignee?: { id: number; name: string };
     article?: { id: number; title: string; slug: string };
 }
 
+type PlanStatus = ContentPlan['status'];
+type PlanContentType = ContentPlan['content_type'];
+
 interface Props {
     plan: ContentPlan;
-    statuses: string[];
-    contentTypes: string[];
+    statuses: PlanStatus[];
+    contentTypes: PlanContentType[];
     users: { id: number; name: string }[];
 }
 
@@ -331,7 +338,7 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
 
                                             <div className="space-y-2">
                                                 <Label htmlFor="status" className="text-xs uppercase font-bold text-gray-500">Status</Label>
-                                                <Select value={data.status} onValueChange={val => setData('status', val)}>
+                                                <Select value={data.status} onValueChange={val => setData('status', val as PlanStatus)}>
                                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                                     <SelectContent>
                                                         {statuses.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
@@ -352,7 +359,7 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
 
                                             <div className="space-y-2">
                                                 <Label htmlFor="content_type" className="text-xs uppercase font-bold text-gray-500">Tipe Konten</Label>
-                                                <Select value={data.content_type} onValueChange={val => setData('content_type', val)}>
+                                                <Select value={data.content_type} onValueChange={val => setData('content_type', val as PlanContentType)}>
                                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                                     <SelectContent>
                                                         {contentTypes.map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
@@ -588,6 +595,43 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
                                         Edit Article Content
                                     </Button>
                                 </CardContent>
+                            </Card>
+                        )}
+
+                        {/* AI Intent & Variations Card */}
+                        {plan.ai_suggestions && (
+                            <Card className="border-none shadow-sm bg-blue-50/50 ring-1 ring-blue-100 p-6 space-y-4">
+                                <div className="flex items-center gap-2 pb-2 border-b border-blue-100">
+                                    <Sparkles className="w-4 h-4 text-blue-600" />
+                                    <h4 className="text-[10px] font-black text-blue-900 uppercase tracking-[0.2em] leading-none">AI SEO Strategy</h4>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">Primary Search Intent</div>
+                                        <Badge className="bg-blue-600 text-white border-none uppercase text-[10px] px-2 py-0.5">
+                                            {plan.ai_suggestions.search_intent}
+                                        </Badge>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <div className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">Keyword Variations</div>
+                                        <div className="grid grid-cols-1 gap-3">
+                                            {Object.entries(plan.ai_suggestions.keyword_variations).map(([intent, keywords]) => (
+                                                <div key={intent} className="bg-white/50 p-2 rounded-lg border border-blue-50">
+                                                    <div className="text-[9px] font-bold text-gray-400 uppercase mb-1 tracking-tighter">{intent}</div>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {keywords.map((kw, idx) => (
+                                                            <span key={idx} className="text-[11px] text-blue-800 bg-blue-100/50 px-1.5 py-0.5 rounded leading-none">
+                                                                {kw}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
                             </Card>
                         )}
 

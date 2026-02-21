@@ -32,6 +32,7 @@ class GenerateCalendarJob implements ShouldQueue
      */
     public function handle(ContentPlanService $contentPlanService): void
     {
+        set_time_limit(600); // Increase limit for AI generation
         try {
             Log::info("Starting GenerateCalendarJob for User ID: {$this->userId}", [
                 'keywords' => $this->keywords,

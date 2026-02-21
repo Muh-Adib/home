@@ -202,7 +202,7 @@ class SeoService
                 ->availability('https://schema.org/InStock')
         );
 
-        return (string) $schema->toScript();
+        return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -232,7 +232,7 @@ class SeoService
             );
         }
 
-        return (string) $schema->toScript();
+        return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -256,7 +256,7 @@ class SeoService
                     ->availableLanguage(['Indonesian', 'English'])
             );
 
-        return (string) $schema->toScript();
+        return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -273,7 +273,7 @@ class SeoService
                     ->queryInput('required name=search_term_string')
             );
 
-        return (string) $schema->toScript();
+        return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -337,7 +337,7 @@ class SeoService
 
         $faqPage->mainEntity($questions);
 
-        return (string) $faqPage->toScript();
+        return json_encode($faqPage, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -358,7 +358,7 @@ class SeoService
             );
         }
 
-        return (string) $howTo->toScript();
+        return json_encode($howTo, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -377,7 +377,7 @@ class SeoService
             );
         }
 
-        return (string) $breadcrumb->toScript();
+        return json_encode($breadcrumb, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -395,7 +395,7 @@ class SeoService
             ->bestRating(5)
             ->worstRating(1);
 
-        return (string) $aggregateRating->toScript();
+        return json_encode($aggregateRating, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -433,7 +433,7 @@ class SeoService
             );
         }
 
-        return (string) $schema->toScript();
+        return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -453,7 +453,7 @@ class SeoService
             ->uploadDate($property->created_at->toIso8601String())
             ->duration('PT1M'); // Default 1 minute
 
-        return (string) $video->toScript();
+        return json_encode($video, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -541,7 +541,7 @@ class SeoService
             $schema->keywords(implode(', ', $article->seo_keywords));
         }
 
-        return (string) $schema->toScript();
+        return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**

@@ -8,6 +8,33 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property int $id
+ * @property string $title
+ * @property string $slug
+ * @property string|null $content
+ * @property string|null $excerpt
+ * @property string|null $meta_title
+ * @property string|null $meta_description
+ * @property array|null $seo_keywords
+ * @property array|null $target_keywords
+ * @property string $language
+ * @property string $status
+ * @property \Illuminate\Support\Carbon|null $published_at
+ * @property \Illuminate\Support\Carbon|null $scheduled_at
+ * @property string|null $ai_provider
+ * @property string|null $ai_model
+ * @property array|null $generation_metadata
+ * @property int $author_id
+ * @property int|null $content_plan_id
+ * @property int $view_count
+ * @property int $click_count
+ * @property float|null $avg_time_on_page
+ * @property string|null $featured_image
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
+ * @property \Illuminate\Support\Carbon|null $deleted_at
+ */
 class Article extends Model
 {
     use HasFactory, SoftDeletes;
