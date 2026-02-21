@@ -20,7 +20,7 @@ class ContentPlanService
      */
     public function createPlan(array $data): ContentPlan
     {
-        return ContentPlan::create([
+        $plan = ContentPlan::create([
             'title' => $data['title'] ?? null,
             'description' => $data['description'] ?? null,
             'target_keywords' => $data['target_keywords'] ?? [],
@@ -32,6 +32,24 @@ class ContentPlanService
             'created_by' => $data['created_by'] ?? auth()->id(),
             'assigned_to' => $data['assigned_to'] ?? null,
         ]);
+
+        // IMMEDIATELY create the Article entity (Source of Truth) for ALL text-based content
+        $textBasedTypes = ['article', 'guide', 'tips', 'comparison', 'news', 'review'];
+
+        if (in_array($data['content_type'], $textBasedTypes)) {
+            Article::create([
+                'content_plan_id' => $plan->id,
+                'title' => $plan->title ?? 'Untitled Article',
+                'slug' => \Str::slug(($plan->title ?? 'untitled') . '-' . \Str::random(6)),
+                'status' => $plan->status, // Sync status
+                'author_id' => $plan->assigned_to ?? $plan->created_by,
+                'target_keywords' => $plan->target_keywords,
+                'scheduled_at' => $plan->planned_publish_date, // Sync schedule
+                'language' => 'id',
+            ]);
+        }
+
+        return $plan;
     }
 
     /**
@@ -67,7 +85,7 @@ class ContentPlanService
             "Target Audience: {$targetAudience}\n\n" .
             "For each article, provide:\n" .
             "1. Title (SEO-optimized, engaging)\n" .
-            "2. Related keywords (2-3 keywords)\n" .
+            "2. Related keywords (4-6 keywords)\n" .
             "3. Content type (guide, tips, comparison, news, review)\n" .
             "4. Day offset (0-{$articleCount}, spread evenly)\n" .
             "5. Description (one sentence)\n" .
@@ -121,11 +139,12 @@ class ContentPlanService
     }
 
     /**
-     * Research topic using AI
+     * Research topic using AI (Deep Analysis)
      */
     public function researchTopic(ContentPlan $plan): array
     {
-        $research = $this->aiService->researchTopic($plan->title ?? 'general topic');
+        // Use the new analyzeTopic method (LLM based)
+        $research = $this->aiService->analyzeTopic($plan->title ?? 'general topic');
 
         $plan->update([
             'ai_research_data' => $research,
@@ -143,7 +162,8 @@ class ContentPlanService
         $outline = $this->aiService->generateOutline(
             $plan->title ?? 'Article',
             $plan->target_keywords ?? [],
-            'gemini'
+            'gemini',
+            $plan->ai_research_data ?? [] // Pass research context
         );
 
         $plan->update([
@@ -171,14 +191,15 @@ class ContentPlanService
     }
 
     /**
-     * Update plan status with validation
+     * Update plan status with validation (Sync to Article)
      */
     public function updateStatus(ContentPlan $plan, string $status): void
     {
-        $validStatuses = ['idea', 'researching', 'outlining', 'writing', 'reviewing', 'scheduled', 'published'];
+        $validStatuses = ['idea', 'researching', 'outlining', 'writing', 'draft', 'reviewing', 'scheduled', 'published'];
 
         if (in_array($status, $validStatuses)) {
             $plan->update(['status' => $status]);
+            // Sync handled by ContentPlanObserver
         }
     }
 
@@ -189,18 +210,24 @@ class ContentPlanService
     {
         return $plan->planned_publish_date instanceof Carbon
             && $plan->planned_publish_date->isPast()
-            && !$plan->article
+            && (!$plan->article || $plan->article->status !== 'published')
             && $plan->status !== 'published';
     }
 
     /**
      * Convert content plan to article
+     * (Deprecated/Refactored: Now simply returns existing article or creates one if missing)
      */
     public function convertToArticle(ContentPlan $plan): Article
     {
+        if ($plan->article) {
+            return $plan->article;
+        }
+
+        // Fallback for old plans without articles
         $article = Article::create([
             'title' => $plan->title,
-            'slug' => \Str::slug($plan->title),
+            'slug' => \Str::slug($plan->title . '-' . uniqid()),
             'target_keywords' => $plan->target_keywords,
             'language' => 'id',
             'status' => 'draft',
@@ -208,7 +235,6 @@ class ContentPlanService
             'author_id' => $plan->assigned_to ?? $plan->created_by,
         ]);
 
-        // Update plan status
         $plan->update(['status' => 'writing']);
 
         return $article;
@@ -219,41 +245,74 @@ class ContentPlanService
      */
     public function bulkUpdateStatus(array $uuids, string $status): int
     {
-        return ContentPlan::whereIn('uuid', $uuids)->update(['status' => $status]);
+        $plans = ContentPlan::whereIn('uuid', $uuids)->with('article')->get();
+        $count = 0;
+
+        foreach ($plans as $plan) {
+            $this->updateStatus($plan, $status);
+            $count++;
+        }
+
+        return $count;
     }
 
     /**
-     * Assign plan to user
+     * Assign plan to user (Sync to Article)
      */
     public function assignToUser(ContentPlan $plan, User $user): ContentPlan
     {
         $plan->assignTo($user);
+        // Sync handled by ContentPlanObserver
+
         return $plan->fresh();
     }
 
     /**
-     * Get calendar data for a specific month
+     * Get calendar data for a specific month (Source: Article > Plan)
      */
     public function getCalendarData(string $month, array $filters = []): array
     {
         $start = Carbon::parse($month)->startOfMonth();
         $end = $start->copy()->endOfMonth();
 
-        $query = ContentPlan::whereBetween('planned_publish_date', [$start, $end]);
+        // Query plans within range, or plans with articles within range
+        $query = ContentPlan::with(['creator', 'assignee', 'article'])
+            ->where(function ($q) use ($start, $end) {
+                // Plan date in range
+                $q->whereBetween('planned_publish_date', [$start, $end])
+                    // OR Article scheduled/published date in range
+                    ->orWhereHas('article', function ($qa) use ($start, $end) {
+                    $qa->whereBetween('scheduled_at', [$start, $end])
+                        ->orWhereBetween('published_at', [$start, $end]);
+                });
+            });
 
         $this->applyFilters($query, $filters);
 
-        $plans = $query->with(['creator', 'assignee', 'article'])->get();
+        $plans = $query->get();
 
         return $plans->map(function ($plan) {
+            // Determine display date
+            $date = $plan->planned_publish_date;
+            if ($plan->article) {
+                if ($plan->article->status === 'published' && $plan->article->published_at) {
+                    $date = $plan->article->published_at;
+                } elseif ($plan->article->scheduled_at) {
+                    $date = $plan->article->scheduled_at;
+                }
+            }
+
+            // Determine status
+            $status = $plan->article->status ?? $plan->status;
+
             return [
                 'id' => $plan->uuid,
                 'title' => $plan->title,
-                'start' => $plan->planned_publish_date?->format('Y-m-d'),
-                'backgroundColor' => $this->getStatusColor($plan->status),
-                'borderColor' => $this->getStatusColor($plan->status),
+                'start' => $date?->format('Y-m-d'),
+                'backgroundColor' => $this->getStatusColor($status),
+                'borderColor' => $this->getStatusColor($status),
                 'extendedProps' => [
-                    'status' => $plan->status,
+                    'status' => $status,
                     'priority' => $plan->priority,
                     'content_type' => $plan->content_type,
                     'has_article' => $plan->article !== null,
@@ -263,22 +322,32 @@ class ContentPlanService
     }
 
     /**
-     * Get kanban data grouped by status
+     * Get kanban data grouped by status (Source: Article)
      */
     public function getKanbanData(array $filters = []): array
     {
         $statuses = ['idea', 'researching', 'outlining', 'writing', 'reviewing', 'scheduled', 'published'];
+
+        // Eager load article to be the source of truth
+        $query = ContentPlan::has('article') // Only plans with articles
+            ->with(['creator', 'assignee', 'article'])
+            ->orderBy('priority', 'desc');
+
+        // For plans without articles (legacy or non-article types), we might still want to show them?
+        // User requirement: "Content Plan TIDAK lagi menghasilkan entitas plan kosong"
+        // So we assume all valid plans now have articles.
+        // Left join logic via Eloquent:
+
+        $this->applyFilters($query, $filters);
+
+        $plans = $query->get();
+
         $data = [];
-
         foreach ($statuses as $status) {
-            $query = ContentPlan::where('status', $status);
-
-            $this->applyFilters($query, $filters);
-
-            $data[$status] = $query->with(['creator', 'assignee', 'article'])
-                ->orderBy('priority', 'desc')
-                ->orderBy('planned_publish_date')
-                ->get();
+            // Filter collection by ARTICLE status, or fallback to plan status
+            $data[$status] = $plans->filter(function ($plan) use ($status) {
+                return ($plan->article->status ?? $plan->status) === $status;
+            })->values();
         }
 
         return $data;
@@ -298,7 +367,12 @@ class ContentPlanService
         }
 
         if (!empty($filters['status'])) {
-            $query->where('status', $filters['status']);
+            // Filter by Article status or Plan status (fallback)
+            $status = $filters['status'];
+            $query->where(function ($q) use ($status) {
+                $q->where('status', $status)
+                    ->orWhereHas('article', fn($qa) => $qa->where('status', $status));
+            });
         }
 
         if (!empty($filters['assigned_to'])) {
@@ -315,6 +389,10 @@ class ContentPlanService
      */
     public function getPipelineStats(array $filters = []): array
     {
+        // Getting stats is harder now with distributed truth.
+        // We'll trust the Plan status mostly for counts unless we want to do heavy joins.
+        // Assuming updateStatus keeps Plan status in sync as "cache".
+
         $baseQuery = ContentPlan::query();
         $this->applyFilters($baseQuery, $filters);
 
@@ -330,7 +408,7 @@ class ContentPlanService
             now()->addMonth()->endOfMonth()
         ])->count();
 
-        $inProgress = (clone $baseQuery)->whereIn('status', ['writing', 'reviewing'])->count();
+        $inProgress = (clone $baseQuery)->whereIn('status', ['writing', 'reviewing', 'draft', 'outlining'])->count();
 
         $byStatus = (clone $baseQuery)->selectRaw('status, count(*) as count')
             ->groupBy('status')
@@ -352,13 +430,14 @@ class ContentPlanService
     private function getStatusColor(string $status): string
     {
         return match ($status) {
-            'idea' => '#9CA3AF',
-            'researching' => '#3B82F6',
-            'outlining' => '#8B5CF6',
-            'writing' => '#F59E0B',
-            'reviewing' => '#EF4444',
-            'scheduled' => '#10B981',
-            'published' => '#059669',
+            'idea' => '#9CA3AF', // Gray
+            'researching' => '#3B82F6', // Blue
+            'outlining' => '#8B5CF6', // Purple
+            'writing' => '#F59E0B', // Amber
+            'draft' => '#F59E0B', // Amber
+            'reviewing' => '#EF4444', // Red
+            'scheduled' => '#10B981', // Emerald
+            'published' => '#059669', // Green
             default => '#6B7280',
         };
     }

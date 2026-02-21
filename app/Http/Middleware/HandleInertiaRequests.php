@@ -42,7 +42,7 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
-        
+
         $seoService = app(\App\Services\SeoService::class);
 
         return [
@@ -59,11 +59,11 @@ class HandleInertiaRequests extends Middleware
                 'asset_url' => config('app.asset_url', config('app.url')),
                 'env' => config('app.env'),
             ],
-            'ziggy' => fn (): array => [
+            'ziggy' => fn(): array => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),
             ],
-            'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'sidebarOpen' => !$request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             // Share CSRF token untuk frontend (optional, tapi membantu)
             'csrf' => csrf_token(),
             // Flash messages for toast notifications
@@ -80,7 +80,7 @@ class HandleInertiaRequests extends Middleware
                 'defaultImage' => asset('og-image.jpg'),
             ],
             // Default SEO (bisa di-override per page)
-            'seo' => fn () => $seoService->forHomepage(),
+            'seo' => fn() => $seoService->generate(),
         ];
     }
 }

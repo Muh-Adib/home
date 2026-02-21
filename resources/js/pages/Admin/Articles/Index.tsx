@@ -29,7 +29,7 @@ interface Article {
     id: number;
     title: string;
     slug: string;
-    status: 'draft' | 'scheduled' | 'published' | 'archived';
+    status: 'draft' | 'scheduled' | 'published' | 'archived' | 'reviewing';
     language: string;
     published_at?: string;
     scheduled_at?: string;
@@ -90,15 +90,16 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
         });
     };
 
-    const getStatusBadge = (status: Article['status']) => {
-        const statusConfig = {
-            draft: { variant: 'secondary' as const, label: 'Draft' },
-            scheduled: { variant: 'outline' as const, label: 'Scheduled' },
-            published: { variant: 'default' as const, label: 'Published' },
-            archived: { variant: 'destructive' as const, label: 'Archived' },
+    const getStatusBadge = (status: string) => {
+        const statusConfig: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
+            draft: { variant: 'secondary', label: 'Draft' },
+            scheduled: { variant: 'outline', label: 'Scheduled' },
+            published: { variant: 'default', label: 'Published' },
+            archived: { variant: 'destructive', label: 'Archived' },
+            reviewing: { variant: 'secondary', label: 'In Review' },
         };
 
-        const config = statusConfig[status];
+        const config = statusConfig[status] || { variant: 'secondary', label: status };
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
 
@@ -184,6 +185,7 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
                                     <SelectContent>
                                         <SelectItem value="all">All Status</SelectItem>
                                         <SelectItem value="draft">Draft</SelectItem>
+                                        <SelectItem value="reviewing">In Review</SelectItem>
                                         <SelectItem value="scheduled">Scheduled</SelectItem>
                                         <SelectItem value="published">Published</SelectItem>
                                         <SelectItem value="archived">Archived</SelectItem>
@@ -330,7 +332,7 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
                                                                     </Link>
                                                                 </DropdownMenuItem>
                                                             )}
-                                                            {canEdit(article) && article.status === 'draft' && (
+                                                            {canEdit(article) && (article.status === 'draft' || article.status === 'reviewing') && (
                                                                 <DropdownMenuItem onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     handlePublish(article);

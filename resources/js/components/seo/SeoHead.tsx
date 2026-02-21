@@ -16,7 +16,7 @@ export function SeoHead({ title, description, image, noIndex = false }: SeoHeadP
     const metaTitle = title || seo?.title || globalSeo.siteName;
     const metaDescription = description || seo?.description || '';
     const metaImage = image || seo?.image || globalSeo.defaultImage;
-    const canonicalUrl = seo?.url || (typeof window !== 'undefined' ? window.location.href : '');
+    const canonicalUrl = seo?.url || '';
 
     return (
         <Head>

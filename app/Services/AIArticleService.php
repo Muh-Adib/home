@@ -12,9 +12,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * AIArticleService - AI provider abstraction dengan key rotation
  * 
- * Supports: Open
-
-Router, Gemini
+ * Supports: Open Router, Gemini
  * Features: Auto key rotation, usage tracking, web search integration
  */
 class AIArticleService
@@ -31,7 +29,8 @@ class AIArticleService
             "- Use these keywords naturally\n" .
             "- NO introduction text, NO numbering, NO explanations\n" .
             "- ONLY return the titles, one per line\n" .
-            "- Make them click-worthy and informative";
+            "- Make them click-worthy and informative\n" .
+            "- Using Bahasa Indonesia";
 
         $response = $this->callAI($provider, $prompt, maxTokens: 300);
 
@@ -44,20 +43,111 @@ class AIArticleService
     }
 
     /**
-     * Generate article outline
+     * Analyze topic using AI (Deep Research)
      */
-    public function generateOutline(string $title, array $keywords, string $provider = 'openrouter'): array
+    public function analyzeTopic(string $topic): array
     {
+        $prompt = "Analyze the topic: '{$topic}' for a property rental blog article.\n\n" .
+            "Provide a deep analysis in JSON format with the following keys:\n" .
+            "- search_intent: What is the user looking for? (Informational, Transactional, etc.)\n" .
+            "- target_audience_analysis: Who is this for? (Renters, Owners, Investors)\n" .
+            "- key_points: Array of 5-7 critical points/facts that MUST be covered.\n" .
+            "- suggested_tone: The best tone for this article.\n" .
+            "- competitor_analysis: Brief summary of what competitors usually cover.\n\n" .
+            "CRITICAL:\n" .
+            "- Language: Bahasa Indonesia\n" .
+            "- Return ONLY valid JSON.\n" .
+            "- No intro/outro text.";
+
+        $response = $this->callAI('gemini', $prompt, maxTokens: 1000); // Prefer Gemini for analysis
+
+        // Parse JSON
+        $content = $response['content'];
+        if (preg_match('/\{.*\}/s', $content, $matches)) {
+            $jsonStr = $matches[0];
+        } else {
+            $jsonStr = $content;
+        }
+
+        $data = json_decode($jsonStr, true);
+
+        if (!$data) {
+            // Fallback if JSON fails
+            return [
+                'success' => true,
+                'search_intent' => 'Informational',
+                'target_audience_analysis' => 'General Audience',
+                'key_points' => $this->parseList($content), // Treat as list if not JSON
+                'suggested_tone' => 'Neutral',
+                'raw_output' => $content
+            ];
+        }
+
+        return array_merge(['success' => true], $data);
+    }
+
+    /**
+     * Analyze news relevance for traveler/stay perspective
+     */
+    public function analyzeNewsRelevance(array $newsItem): array
+    {
+        $prompt = "Analyze this news item for a Yogyakarta homestay/villa travel blog.\n\n" .
+            "News: '{$newsItem['title']}'\n" .
+            "Source: {$newsItem['source']}\n\n" .
+            "Determine if this news is a good 'trigger' for recommending accommodation.\n" .
+            "Criteria for High Score (7-10):\n" .
+            "- Major events (concerts, festivals) that bring crowds.\n" .
+            "- Seasonal updates (holiday traffic, weather warnings).\n" .
+            "- New tourism openings.\n" .
+            "Criteria for Low Score (0-6):\n" .
+            "- Politics, crime (unless safety advisory), minor local issues.\n\n" .
+            "Return JSON:\n" .
+            "{\n" .
+            "  \"score\": (0-10),\n" .
+            "  \"reason\": \"Short explanation\",\n" .
+            "  \"traveler_angle\": \"How to frame this for travelers (e.g., 'Book early due to heavy traffic')\"\n" .
+            "}";
+
+        $response = $this->callAI('gemini', $prompt, maxTokens: 500);
+        $content = $response['content'];
+
+        // Extract JSON
+        if (preg_match('/\{.*\}/s', $content, $matches)) {
+            $jsonStr = $matches[0];
+        } else {
+            $jsonStr = $content;
+        }
+
+        return json_decode($jsonStr, true) ?? ['score' => 5, 'reason' => 'Failed to parse', 'traveler_angle' => 'General info'];
+    }
+
+    /**
+     * Generate article outline with Research Context & Custom Instructions
+     */
+    public function generateOutline(string $title, array $keywords, string $provider = 'openrouter', array $researchContext = [], string $customInstructions = ''): array
+    {
+        $contextStr = "";
+        if (!empty($researchContext)) {
+            $contextStr = "\nCONTEXT FROM RESEARCH:\n" .
+                "Intent: " . ($researchContext['search_intent'] ?? '') . "\n" .
+                "Audience: " . ($researchContext['target_audience_analysis'] ?? '') . "\n" .
+                "Key Points to Cover: " . implode(', ', $researchContext['key_points'] ?? []) . "\n";
+        }
+
+        if (empty($customInstructions)) {
+            $customInstructions = "- Create comprehensive outline with sections and sub-points\n" .
+                "- Include: Introduction, main sections, conclusion";
+        }
+
         $prompt = "Create a detailed article outline for: '{$title}'\n" .
-            "Target keywords: " . implode(', ', $keywords) . "\n\n" .
-            "CRITICAL INSTRUCTIONS:\n" .
-            "- Create comprehensive outline with sections and sub-points\n" .
-            "- Include: Introduction, main sections, conclusion\n" .
+            "Target keywords: " . implode(', ', $keywords) . "\n" .
+            $contextStr . "\n" .
+            "INSTRUCTIONS:\n" .
+            $customInstructions . "\n" .
             "- Use hierarchical structure (I., A., 1., etc.)\n" .
-            "- NO introduction text like 'Here is the outline' or 'Here's a detailed'\n" .
-            "- NO meta-commentary\n" .
+            "- NO introduction text like 'Here is the outline'\n" .
             "- START DIRECTLY with the outline\n" .
-            "- ONLY return outline, nothing else";
+            "- Language: Bahasa Indonesia";
 
         $response = $this->callAI($provider, $prompt, maxTokens: 1500);
         Log::info($response['content']);
@@ -70,6 +160,104 @@ class AIArticleService
     }
 
     /**
+     * Generate a full marketing-focused article in a SINGLE AI call.
+     * This merges Outline + Content into one optimized prompt.
+     * Used by GenerateTrendingArticleJob.
+     */
+    public function generateMarketingArticle(
+        string $articleTitle,
+        string $newsTrigger,
+        string $newsSource,
+        string $travelerAngle,
+        array $keywords,
+        array $properties = [],
+    ): array {
+        $propertyContext = '';
+        if (!empty($properties)) {
+            $propertyList = array_map(function ($p) {
+                $url = route('properties.show', $p['slug'] ?? \Illuminate\Support\Str::slug($p['name']));
+                $usp = !empty($p['description'])
+                    ? substr(strip_tags($p['description']), 0, 120) . '...'
+                    : 'Homestay nyaman di Yogyakarta.';
+                return "- **{$p['name']}**: {$usp}\n  Link: {$url}";
+            }, $properties);
+
+            $propertyContext = "\n\nPROPERTI YANG HARUS DISEBUTKAN (sebagai solusi alami):\n" .
+                implode("\n", $propertyList) .
+                "\n\nCARA MENYEBUT PROPERTI:\n" .
+                "- Selipkan sebagai solusi dari masalah yang dihadapi wisatawan.\n" .
+                "- Contoh: 'Untuk keluarga yang bawa anak, [Nama Villa](URL) cocok karena ada halaman luas.'\n" .
+                "- JANGAN buat bagian 'Rekomendasi Penginapan' yang terpisah, selipkan secara natural.\n" .
+                "- Gunakan format markdown link: [Nama Properti](URL).";
+        }
+
+        $keywordStr = implode(', ', $keywords);
+
+        $prompt = <<<PROMPT
+Kamu adalah penulis travel blog profesional Indonesia yang juga ahli marketing homestay & villa di Yogyakarta.
+Tugas: Tulis artikel panduan menginap yang terasa MANUSIAWI, MEMBANTU, dan secara halus mempromosikan properti kami.
+
+===[ KONTEKS BERITA (Pemicu, bukan topik utama) ]===
+Tren/event terbaru: "{$newsTrigger}" ({$newsSource})
+Traveler Angle: {$travelerAngle}
+
+===[ JUDUL ARTIKEL ]===
+{$articleTitle}
+
+===[ KATA KUNCI ]===
+{$keywordStr}
+{$propertyContext}
+
+===[ STRUKTUR WAJIB (IKUTI DENGAN KETAT) ]===
+**1. HOOK / PEMBUKA** (1–2 paragraf)
+   - Cerita kecil yang relatable tentang seorang wisatawan / kesulitan mencari penginapan saat event.
+   - Pertanyaan reflektif. Contoh: "Pernah nggak, kamu udah jauh-jauh ke Jogja, eh tempat menginap penuh semua?"
+
+**2. KONTEKS TREN** (1 paragraf ringkas)
+   - Jelaskan kenapa Jogja sedang ramai / event ini penting bagi wisatawan.
+   - Jangan copy-paste berita. Rangkum sudut pandang WISATAWAN.
+
+**3. MASALAH WISATAWAN** (1–2 paragraf)
+   - Dampak nyata: hotel penuh, harga melonjak, akses macet, capek setelah seharian jalan.
+   - Bangun empati. Buat pembaca merasa "ini masalah ku juga."
+
+**4. SOLUSI MENGINAP** (2–3 paragraf)
+   - Kenalkan homestay/villa sebagai solusi cerdas.
+   - Di sini sisipkan properti kami secara natural (jika tersedia).
+   - Tips memilih homestay: dekat lokasi, kapasitas, fasilitas.
+
+**5. TIPS BONUS** (poin-poin ringkas)
+   - Tips transportasi, kuliner, atau aktivitas di sekitar.
+
+**6. PENUTUP + SOFT CTA** (1 paragraf)
+   - Kalimat penutup hangat.
+   - Soft CTA: "Cek ketersediaan homestay kami sebelum musim ramai tiba!"
+
+===[ ATURAN PENULISAN ]===
+- Bahasa Indonesia, santai, hangat, seperti ngobrol dengan teman.
+- MINIMUM 700 kata.
+- DILARANG: "Berdasarkan data", "Kesimpulannya", "Tentunya", "Sejatinya", "Dalam hal ini".
+- DILARANG: pembuka seperti "Tentu, ini dia artikel..." atau "Berikut adalah..."
+- Gunakan heading H2 (##) dan H3 (###) untuk struktur.
+- Bold kata kunci penting.
+- LANGSUNG mulai dengan teks artikel (tanpa judul di baris pertama).
+PROMPT;
+
+        $response = $this->callAI('gemini', $prompt, maxTokens: 4000);
+        $content = $response['content'];
+        $wordCount = str_word_count(strip_tags($content));
+
+        return [
+            'success' => true,
+            'content' => $content,
+            'excerpt' => $this->generateExcerpt($content),
+            'meta_description' => $this->generateMetaDescription($content, $keywords),
+            'word_count' => $wordCount,
+            'provider' => 'gemini',
+        ];
+    }
+
+    /**
      * Generate full article content
      */
     public function generateContent(
@@ -78,34 +266,45 @@ class AIArticleService
         array $properties = [],
         string $provider = 'openrouter',
         string $language = 'id',
-        string $tone = 'professional'
+        string $tone = 'casual'
     ): array {
         $propertyContext = '';
         if (!empty($properties)) {
-            $propertyContext = "\n\nMention these properties naturally: " .
-                implode(', ', array_map(fn($p) => $p['name'], $properties));
+            $propertyList = array_map(function ($p) {
+                $url = route('properties.show', $p['slug'] ?? \Illuminate\Support\Str::slug($p['name']));
+                // Add brief USPs if available to help AI context
+                $usp = $p['description'] ? substr(strip_tags($p['description']), 0, 100) . '...' : 'Homestay nyaman di Jogja.';
+                return "- **{$p['name']}**: {$usp} (Link: {$url})";
+            }, $properties);
+
+            $propertyContext = "\n\nINTEGRATION INSTRUCTIONS (CRITICAL):\n" .
+                "We strongly recommend these properties as SOLUTIONS to the reader's needs (e.g., 'If you bring family, House A is perfect because...').\n" .
+                "- Don't just list them. Weave them into the narrative naturally.\n" .
+                "- Use markdown links: [Property Name](URL)\n" .
+                "Properties to feature:\n" .
+                implode("\n", $propertyList);
         }
 
         $langInstruction = $language === 'id' ? 'in Indonesian (Bahasa Indonesia)' : 'in English';
 
         $toneInstruction = match ($tone) {
-            'casual' => 'Use a friendly, conversational tone like a blog post. Be engaging and relatable.',
-            'professional' => 'Use a professional, informative tone suitable for business content.',
-            default => 'Use a balanced, engaging tone.',
+            'casual' => 'Tone: Friendly, human, storytelling, like a local friend giving advice. Avoid robotic/formal language.',
+            'professional' => 'Tone: Professional yet engaging.',
+            default => 'Tone: Balanced and engaging.',
         };
 
         $prompt = "Write a comprehensive article {$langInstruction} based on this outline:\n\n{$outline}\n\n" .
-            "Keywords to include: " . implode(', ', $keywords) . $propertyContext . "\n\n" .
-            "CRITICAL INSTRUCTIONS:\n" .
+            "Keywords: " . implode(', ', $keywords) . $propertyContext . "\n\n" .
+            "WRITING RULES (STRICT):\n" .
             "- {$toneInstruction}\n" .
-            "- Minimum 500 words\n" .
-            "- SEO-optimized with natural keyword integration\n" .
-            "- Use markdown formatting (headings, lists, bold, italic)\n" .
-            "- NO introduction text like 'Here is the article' or 'Tentu, ini dia artikel'\n" .
-            "- NO meta-commentary or explanations\n" .
-            "- START DIRECTLY with the article content without title\n" .
-            "- Write engaging, informative content\n" .
-            "- ONLY return the article markdown, nothing else";
+            "- Minimum 600 words.\n" .
+            "- HUMAN TOUCH: Use micro-stories, rhetorical questions, and empathy.\n" .
+            "- AVOID: 'Berdasarkan data', 'Kesimpulan', 'Tentunya', 'Sejatinya'.\n" .
+            "- STRATEGY: Angle Wisatawan -> Masalah (Crowd/Price/Fatigue) -> Solusi (Stay at our properties).\n" .
+            "- SEO: Natural keyword placement.\n" .
+            "- FORMAT: Markdown (H2, H3, bold key phrases).\n" .
+            "- NO intro/meta commentary. Start with the Hook.\n" .
+            "- ONLY return the article content.";
 
         $response = $this->callAI($provider, $prompt, maxTokens: 2500);
 
@@ -298,8 +497,26 @@ class AIArticleService
      */
     public function callAI(string $provider, string $prompt, int $maxTokens = 1000): array
     {
+        // Rate Limit Protection (RPM/TPM)
+        // Gemini is strict, so we force a pause to ensure the token bucket has time to refill.
+        if ($provider === 'gemini' || $provider === 'google') {
+            Log::info("AIArticleService: Pausing 10s for Gemini Rate Limit Protection...");
+            sleep(10);
+        } else {
+            // Minimal pause for other providers to prevent burst flagging
+            usleep(500000); // 0.5s
+        }
+
         // Try requested provider first
         $providerKey = AIProviderKey::getOptimalKey($provider);
+
+        // SAFEGUARD: Check for 4M Token Limit (User Request)
+        if ($providerKey && ($provider === 'gemini' || $provider === 'google')) {
+            if ($providerKey->tokens_used >= 3900000) {
+                Log::warning("AI Key '{$providerKey->name}' approaching 4M tokens ({$providerKey->tokens_used}). Pausing 60s for safety...");
+                sleep(60);
+            }
+        }
 
         // If requested provider has no keys, try to fallback to any available provider
         if (!$providerKey) {
@@ -342,46 +559,57 @@ class AIArticleService
             );
         }
 
-        try {
-            $apiKey = $providerKey->api_key;
+        $retryCount = 0;
+        $maxRetries = 1;
 
-            if ($provider === 'openrouter') {
-                $result = $this->callOpenRouter($apiKey, $prompt, $maxTokens);
-            } elseif ($provider === 'gemini') {
-                $result = $this->callGemini($apiKey, $prompt, $maxTokens);
-            } else {
-                throw new \Exception("Unsupported provider: {$provider}");
-            }
+        do {
+            try {
+                $apiKey = $providerKey->api_key;
 
-            // Track usage
-            $providerKey->incrementUsage(
-                tokens: $result['tokens'] ?? 0,
-                cost: $result['cost'] ?? 0
-            );
+                if ($provider === 'openrouter') {
+                    $result = $this->callOpenRouter($apiKey, $prompt, $maxTokens);
+                } elseif ($provider === 'gemini') {
+                    $result = $this->callGemini($apiKey, $prompt, $maxTokens);
+                } else {
+                    throw new \Exception("Unsupported provider: {$provider}");
+                }
 
-            return $result;
+                // Track usage
+                $providerKey->incrementUsage(
+                    tokens: $result['tokens'] ?? 0,
+                    cost: $result['cost'] ?? 0
+                );
 
-        } catch (AIGenerationException $e) {
-            // Re-throw our custom exceptions
-            throw $e;
-        } catch (\Exception $e) {
-            Log::error('AI generation failed', [
-                'provider' => $provider,
-                'key_id' => $providerKey->id ?? null,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+                return $result;
 
-            throw new AIGenerationException(
-                'AI generation failed',
-                [
+            } catch (AIGenerationException $e) {
+                // Check for 429 and retry
+                if ($e->getCode() === 429 && $retryCount < $maxRetries) {
+                    $retryCount++;
+                    Log::warning("AI Provider 429 Rate Limit hit. Pausing 60s then retrying (Attempt {$retryCount})...");
+                    sleep(60);
+                    continue;
+                }
+                throw $e;
+            } catch (\Exception $e) {
+                Log::error('AI generation failed', [
                     'provider' => $provider,
-                    'original_error' => $e->getMessage(),
-                    'suggestion' => 'This might be a temporary issue. Please try again.',
-                    'retry_suggested' => true,
-                ]
-            );
-        }
+                    'key_id' => $providerKey->id ?? null,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+
+                throw new AIGenerationException(
+                    'AI generation failed',
+                    [
+                        'provider' => $provider,
+                        'original_error' => $e->getMessage(),
+                        'suggestion' => 'This might be a temporary issue. Please try again.',
+                        'retry_suggested' => true,
+                    ]
+                );
+            }
+        } while ($retryCount <= $maxRetries);
     }
 
     /**

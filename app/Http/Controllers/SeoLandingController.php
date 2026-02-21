@@ -86,11 +86,16 @@ class SeoLandingController extends Controller
             }
 
             // Prepare SEO data (match SeoService format + robots)
+            $canonicalUrl = $page->url;
+            if ($properties->currentPage() > 1) {
+                $canonicalUrl .= '?page=' . $properties->currentPage();
+            }
+
             $seo = [
                 'title' => $page->title,
                 'description' => $page->meta_description,
                 'image' => asset('og-image.jpg'), // Default OG image
-                'url' => $page->url,
+                'url' => $canonicalUrl,
                 'type' => 'website',
                 'robots' => 'index, follow', // Explicitly allow indexing
                 // OpenGraph
@@ -98,7 +103,7 @@ class SeoLandingController extends Controller
                     'title' => $page->title,
                     'description' => $page->meta_description,
                     'image' => asset('og-image.jpg'),
-                    'url' => $page->url,
+                    'url' => $canonicalUrl,
                     'type' => 'website',
                 ],
                 // Twitter

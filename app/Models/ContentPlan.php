@@ -12,6 +12,11 @@ class ContentPlan extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /**
+     * Flag to prevent infinite loops during synchronization
+     */
+    public static bool $isSyncing = false;
+
     protected $fillable = [
         'uuid',
         'title',

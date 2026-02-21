@@ -20,7 +20,7 @@ interface ContentPlan {
     target_keywords: string[];
     target_audience: string | null;
     content_type: string | null;
-    status: 'idea' | 'researching' | 'outlining' | 'writing' | 'reviewing' | 'scheduled' | 'published';
+    status: 'idea' | 'researching' | 'outlining' | 'writing' | 'draft' | 'reviewing' | 'scheduled' | 'published';
     priority: number;
     planned_publish_date: string | null;
     created_at: string;
@@ -167,11 +167,20 @@ export default function Index({ view, month, stats, filters, users, events = [],
         setLoading(true);
         try {
             const response = await axios.post(route('admin.content-plans.generate-calendar'), formData);
-            toast.success(`Successfully generated ${response.data.count} content plans!`);
+
+            if (response.data.job_started) {
+                toast.success(response.data.message || 'Calendar generation started in background.');
+                toast.info('You will receive a notification when it is complete.');
+            } else {
+                toast.success(`Successfully generated ${response.data.count} content plans!`);
+            }
+
             setShowCalendarModal(false);
+            // We don't reload immediately because it's a background job
+            // But we can reload to clear any stale state if needed
             router.reload();
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Failed to generate calendar');
+            toast.error(error.response?.data?.error || 'Failed to start generation job');
         } finally {
             setLoading(false);
         }
@@ -271,167 +280,110 @@ export default function Index({ view, month, stats, filters, users, events = [],
                                     <SelectItem value="researching">Researching</SelectItem>
                                     <SelectItem value="outlining">Outlining</SelectItem>
                                     <SelectItem value="writing">Writing</SelectItem>
+                                    <SelectItem value="draft">Draft</SelectItem>
                                     <SelectItem value="reviewing">Reviewing</SelectItem>
                                     <SelectItem value="scheduled">Scheduled</SelectItem>
                                     <SelectItem value="published">Published</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
-
-                        <div className="w-full md:w-48">
-                            <Label className="text-xs text-gray-500 mb-1 block">Assignee</Label>
-                            <Select
-                                value={assigneeFilter}
-                                onValueChange={(val) => {
-                                    setAssigneeFilter(val);
-                                    router.get(route('admin.content-plans.index'), {
-                                        view: selectedView,
-                                        month,
-                                        search,
-                                        status: statusFilter === 'all' ? undefined : statusFilter,
-                                        assigned_to: val === 'all' ? undefined : val,
-                                    }, { preserveState: true });
-                                }}
-                            >
-                                <SelectTrigger className="h-9">
-                                    <SelectValue placeholder="All Users" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Users</SelectItem>
-                                    {users.map(u => (
-                                        <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-9"
-                            onClick={() => {
-                                setSearch('');
-                                setStatusFilter('all');
-                                setAssigneeFilter('all');
-                                router.get(route('admin.content-plans.index'), { view: selectedView, month });
-                            }}
-                        >
-                            Reset
-                        </Button>
-                    </div>
-                </div>
-
-                {/* View Switcher */}
-                <div className="bg-white rounded-lg shadow mb-6">
-                    <div className="border-b px-6 py-4 flex items-center gap-2">
-                        <Button
-                            variant={selectedView === 'calendar' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => switchView('calendar')}
-                            className="gap-2"
-                        >
-                            <Calendar className="w-4 h-4" />
-                            Calendar
-                        </Button>
-                        <Button
-                            variant={selectedView === 'kanban' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => switchView('kanban')}
-                            className="gap-2"
-                        >
-                            <KanbanSquare className="w-4 h-4" />
-                            Kanban
-                        </Button>
-                        <Button
-                            variant={selectedView === 'list' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => switchView('list')}
-                            className="gap-2"
-                        >
-                            <List className="w-4 h-4" />
-                            List
-                        </Button>
-                    </div>
-
-                    <div className="p-6">
-                        {/* Calendar View */}
-                        {selectedView === 'calendar' && (
-                            <CalendarView
-                                events={events}
-                                onEventClick={handleEventClick}
-                                onDateClick={handleDateClick}
-                                onEventDrop={handleEventDrop}
-                            />
-                        )}
-
-                        {/* Kanban View */}
-                        {selectedView === 'kanban' && (
-                            <KanbanView
-                                columns={columns}
-                                onStatusChange={handleStatusChange}
-                                onConvertToArticle={handleConvertToArticle}
-                            />
-                        )}
-
-                        {/* List View */}
-                        {selectedView === 'list' && (
-                            <div className="space-y-4">
-                                {plans?.data && plans.data.length > 0 ? (
-                                    plans.data.map((plan) => (
-                                        <div
-                                            key={plan.uuid}
-                                            className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                                            onClick={() => router.get(route('admin.content-plans.show', plan.uuid))}
-                                        >
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex-1">
-                                                    <h3 className="font-semibold text-lg text-gray-900">
-                                                        {plan.title || 'Untitled'}
-                                                    </h3>
-                                                    {plan.description && (
-                                                        <p className="text-gray-600 text-sm mt-1 line-clamp-2">
-                                                            {plan.description}
-                                                        </p>
-                                                    )}
-                                                    <div className="flex gap-2 mt-3">
-                                                        <span className={cn(
-                                                            'px-2 py-1 rounded text-xs font-medium',
-                                                            plan.status === 'idea' && 'bg-gray-100 text-gray-700',
-                                                            plan.status === 'researching' && 'bg-blue-100 text-blue-700',
-                                                            plan.status === 'outlining' && 'bg-yellow-100 text-yellow-700',
-                                                            plan.status === 'writing' && 'bg-orange-100 text-orange-700',
-                                                            plan.status === 'reviewing' && 'bg-purple-100 text-purple-700',
-                                                            plan.status === 'scheduled' && 'bg-green-100 text-green-700',
-                                                            plan.status === 'published' && 'bg-teal-100 text-teal-700',
-                                                        )}>
-                                                            {plan.status}
-                                                        </span>
-                                                        {plan.planned_publish_date && (
-                                                            <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-600">
-                                                                📅 {new Date(plan.planned_publish_date).toLocaleDateString()}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="text-center py-12">
-                                        <p className="text-gray-500">Tidak ada content plan</p>
-                                        <Button
-                                            onClick={() => setShowCreateModal(true)}
-                                            className="mt-4"
-                                        >
-                                            Buat Rencana Konten Pertama
-                                        </Button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
+
+            {/* View Content */}
+            {selectedView === 'calendar' && (
+                <CalendarView
+                    events={events}
+                    onEventClick={handleEventClick}
+                    onDateClick={handleDateClick}
+                    onEventDrop={handleEventDrop}
+                />
+            )}
+
+            {selectedView === 'kanban' && (
+                <KanbanView
+                    columns={columns}
+                    onStatusChange={handleStatusChange}
+                    onConvertToArticle={handleConvertToArticle}
+                    onCardClick={(uuid) => router.get(route('admin.content-plans.show', uuid))}
+                />
+            )}
+
+            {selectedView === 'list' && (
+                <div className="space-y-4">
+                    {plans?.data && plans.data.length > 0 ? (
+                        plans.data.map((plan) => (
+                            <div
+                                key={plan.uuid}
+                                className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer flex flex-col md:flex-row gap-4 justify-between"
+                                onClick={() => router.get(route('admin.content-plans.show', plan.uuid))}
+                            >
+                                <div className="flex-1 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-gray-900">{plan.title || 'Untitled Plan'}</h3>
+                                        <span className={cn(
+                                            'px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider',
+                                            plan.status === 'idea' && 'bg-gray-100 text-gray-700',
+                                            plan.status === 'researching' && 'bg-blue-100 text-blue-700',
+                                            plan.status === 'outlining' && 'bg-yellow-100 text-yellow-700',
+                                            plan.status === 'writing' && 'bg-orange-100 text-orange-700',
+                                            plan.status === 'draft' && 'bg-orange-100 text-orange-700',
+                                            plan.status === 'reviewing' && 'bg-purple-100 text-purple-700',
+                                            plan.status === 'scheduled' && 'bg-green-100 text-green-700',
+                                            plan.status === 'published' && 'bg-teal-100 text-teal-700',
+                                        )}>
+                                            {plan.status}
+                                        </span>
+                                    </div>
+                                    <p className="text-sm text-gray-500 line-clamp-2">{plan.description}</p>
+                                    <div className="flex items-center gap-4 text-xs text-gray-400">
+                                        {plan.planned_publish_date && (
+                                            <span className="flex items-center gap-1">
+                                                <Calendar className="w-3 h-3" />
+                                                {new Date(plan.planned_publish_date).toLocaleDateString()}
+                                            </span>
+                                        )}
+                                        {plan.target_audience && (
+                                            <span>Target: {plan.target_audience}</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    {plan.article ? (
+                                        <Button variant="outline" size="sm" className="text-emerald-600 border-emerald-200 bg-emerald-50 pointer-events-none">
+                                            Article Linked
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleConvertToArticle(plan.uuid);
+                                            }}
+                                        >
+                                            Convert to Article
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="text-center py-12 bg-white rounded-lg border border-dashed">
+                            <p className="text-gray-500">Tidak ada content plan ditemukan</p>
+                            <Button
+                                onClick={() => setShowCreateModal(true)}
+                                className="mt-4"
+                                variant="outline"
+                            >
+                                Buat Rencana Konten Pertama
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* AI Calendar Generator Modal */}
             <AICalendarModal

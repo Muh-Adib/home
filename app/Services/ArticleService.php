@@ -92,9 +92,7 @@ class ArticleService
                 'scheduled_at' => null,
             ]);
 
-            if ($article->content_plan_id) {
-                $article->contentPlan->markAsPublished();
-            }
+            // Sync handled by ArticleObserver
 
             return true;
         });

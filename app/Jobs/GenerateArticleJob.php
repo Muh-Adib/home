@@ -33,7 +33,7 @@ class GenerateArticleJob implements ShouldQueue
         protected array $propertyIds = [],
         protected string $provider = 'gemini',
         protected string $language = 'id',
-        protected string $tone = 'professional'
+        protected string $tone = 'casual'
     ) {
     }
 

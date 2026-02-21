@@ -32,7 +32,7 @@ class SeoService
         $title = $config['title'] ?? 'Homsjogja';
         $description = $config['description'] ?? 'Homestay Terbaik di Yogyakarta';
         $image = $config['image'] ?? asset(self::DEFAULTS['og_image']);
-        $url = $config['url'] ?? url()->current();
+        $url = $config['url'] ?? $this->calculateCanonicalUrl();
         $type = $config['type'] ?? 'website';
         $robots = $config['robots'] ?? 'index, follow';
 
@@ -304,7 +304,6 @@ class SeoService
             'title' => 'Daftar Lengkap Homestay di Yogyakarta - Sewa Sekarang',
             // GEO: Action-oriented (transactional) + comparison keywords
             'description' => 'Sewa homestay di Yogyakarta dengan mudah! Daftar lengkap penginapan untuk semua budget. Bandingkan harga mulai 150rb-500rb/malam, lihat fasilitas, pilih lokasi strategis dekat Malioboro. Filter berdasarkan harga, kapasitas, dan amenitas. Booking online aman!',
-            'url' => route('properties.index'),
         ]);
     }
 
@@ -568,5 +567,22 @@ class SeoService
 
         // Basic strip tags if any HTML remains
         return trim(strip_tags($text));
+    }
+
+    /**
+     * Calculate strict canonical URL
+     * Retains 'page' param, strips everything else (tracking, sort, filters)
+     */
+    private function calculateCanonicalUrl(): string
+    {
+        $url = url()->current();
+
+        // Check for pagination
+        $page = request()->get('page');
+        if ($page && is_numeric($page) && $page > 1) {
+            $url .= '?page=' . $page;
+        }
+
+        return $url;
     }
 }

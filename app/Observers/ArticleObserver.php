@@ -50,6 +50,39 @@ class ArticleObserver
         if ($article->isDirty('status') && $article->status === 'published') {
             SitemapController::clearCache();
         }
+
+        // Prevent infinite loop
+        if (Article::$isSyncing) {
+            return;
+        }
+
+        // Sync to ContentPlan
+        if ($article->content_plan_id && $article->contentPlan) {
+            ContentPlan::$isSyncing = true;
+
+            $dataToSync = [
+                'status' => $article->status,
+                'title' => $article->title,
+                'target_keywords' => $article->target_keywords,
+            ];
+
+            // Sync dates
+            if ($article->scheduled_at) {
+                $dataToSync['planned_publish_date'] = $article->scheduled_at;
+            } elseif ($article->published_at) {
+                $dataToSync['actual_publish_date'] = $article->published_at;
+                $dataToSync['planned_publish_date'] = $article->published_at;
+            }
+
+            // Sync author
+            if ($article->author_id) {
+                $dataToSync['assigned_to'] = $article->author_id;
+            }
+
+            $article->contentPlan->update($dataToSync);
+
+            ContentPlan::$isSyncing = false;
+        }
     }
 
     /**

@@ -19,7 +19,8 @@ import {
     Check,
     X,
     Save,
-    MoreHorizontal
+    MoreHorizontal,
+    Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -29,6 +30,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 interface ContentPlan {
     id: number;
@@ -37,11 +39,11 @@ interface ContentPlan {
     description: string | null;
     target_keywords: string[];
     target_audience: string | null;
-    content_type: string | null;
-    status: string;
+    content_type: 'article' | 'guide' | 'tips' | 'comparison' | 'news' | 'review';
+    status: 'idea' | 'researching' | 'outlining' | 'writing' | 'reviewing' | 'scheduled' | 'published';
     priority: number;
     planned_publish_date: string | null;
-    ai_research_data: any;
+    ai_research_data: any; // Context: { search_intent?, target_audience_analysis?, key_points?, suggested_tone?, abstract? }
     ai_outline: string | null;
     created_at: string;
     creator?: { id: number; name: string };
@@ -71,6 +73,9 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
     const [isEditing, setIsEditing] = React.useState(false);
     const [isEditingOutline, setIsEditingOutline] = React.useState(false);
     const [editedOutline, setEditedOutline] = React.useState(plan.ai_outline || '');
+    const [showConvertModal, setShowConvertModal] = React.useState(false);
+    const [showDeleteModal, setShowDeleteModal] = React.useState(false);
+    const [deleteLoading, setDeleteLoading] = React.useState(false);
 
     const { data, setData, put, processing, errors } = useForm({
         title: plan.title || '',
@@ -116,13 +121,24 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
     };
 
     const handleDelete = () => {
-        if (!confirm(`Delete content plan "${plan.title}"?`)) return;
+        setShowDeleteModal(true);
+    };
 
+    const confirmDelete = () => {
+        setDeleteLoading(true);
         router.delete(route('admin.content-plans.destroy', plan.uuid), {
             onSuccess: () => {
                 toast.success('Content plan deleted successfully');
-                router.get(route('admin.content-plans.index'));
+                // The backend should redirect, but we can ensure it here if needed
             },
+            onFinish: () => {
+                setDeleteLoading(false);
+                setShowDeleteModal(false);
+            },
+            onError: () => {
+                setDeleteLoading(false);
+                toast.error('Failed to delete plan');
+            }
         });
     };
 
@@ -152,9 +168,11 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
         }
     };
 
-    const handleConvertToArticle = async () => {
-        if (!confirm('Convert this plan to an article?')) return;
+    const handleConvertToArticle = () => {
+        setShowConvertModal(true);
+    };
 
+    const processConversion = async () => {
         setLoading(true);
         try {
             const response = await axios.post(route('admin.content-plans.convert-to-article', plan.uuid));
@@ -162,9 +180,12 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
 
             if (response.data.redirect) {
                 window.location.href = response.data.redirect;
+            } else {
+                setShowConvertModal(false);
             }
         } catch (error: any) {
             toast.error(error.response?.data?.error || 'Failed to convert to article');
+            setShowConvertModal(false);
         } finally {
             setLoading(false);
         }
@@ -214,6 +235,16 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {plan.article && (
+                            <Button
+                                onClick={() => router.get(route('admin.articles.edit', plan.article!.slug))}
+                                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-sm"
+                            >
+                                <FileText className="w-4 h-4" />
+                                Edit Article
+                            </Button>
+                        )}
+
                         {!isEditing ? (
                             <Button onClick={() => setIsEditing(true)} variant="outline" className="gap-2 shadow-sm">
                                 <Edit className="w-4 h-4" />
@@ -444,16 +475,28 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-col items-center justify-center py-20 text-gray-400 bg-white/50">
-                                                        <Sparkles className="w-12 h-12 mb-4 opacity-20" />
-                                                        <p className="text-sm">Gunakan tombol AI Research & Outline untuk memulai</p>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="mt-6 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
-                                                            onClick={handleGenerateOutline}
-                                                        >
-                                                            Generate Outline
-                                                        </Button>
+                                                        {loading ? (
+                                                            <>
+                                                                <Loader2 className="w-12 h-12 mb-4 text-indigo-500 animate-spin" />
+                                                                <p className="text-sm font-medium text-indigo-600">Generating Outline with AI...</p>
+                                                                <p className="text-xs text-gray-400 mt-2">This may take a few seconds.</p>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Sparkles className="w-12 h-12 mb-4 opacity-20" />
+                                                                <p className="text-sm">Gunakan tombol AI Research & Outline untuk memulai</p>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="mt-6 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                                                    onClick={handleGenerateOutline}
+                                                                    disabled={loading}
+                                                                >
+                                                                    <Sparkles className="w-4 h-4 mr-2" />
+                                                                    Generate Outline
+                                                                </Button>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -548,31 +591,98 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
                             </Card>
                         )}
 
-                        {/* AI Research Abstract Card */}
-                        {plan.ai_research_data?.abstract && (
-                            <Card className="border-none shadow-sm bg-purple-50 ring-1 ring-purple-100 p-6">
-                                <div className="flex items-center gap-2 mb-4">
+                        {/* AI Research Data Card */}
+                        {(plan.ai_research_data?.search_intent || plan.ai_research_data?.abstract || loading) && (
+                            <Card className="border-none shadow-sm bg-purple-50 ring-1 ring-purple-100 p-6 space-y-4">
+                                <div className="flex items-center gap-2 pb-2 border-b border-purple-100">
                                     <Sparkles className="w-4 h-4 text-purple-600" />
-                                    <h4 className="text-[10px] font-black text-purple-900 uppercase tracking-[0.2em] leading-none">AI Research Summary</h4>
+                                    <h4 className="text-[10px] font-black text-purple-900 uppercase tracking-[0.2em] leading-none">Deep Analysis</h4>
                                 </div>
-                                <p className="text-sm text-purple-900/70 leading-relaxed line-clamp-6 italic mb-4">
-                                    "{plan.ai_research_data.abstract}"
-                                </p>
-                                {plan.ai_research_data.url && (
-                                    <a
-                                        href={plan.ai_research_data.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-[10px] font-bold text-purple-600 hover:underline flex items-center justify-end"
-                                    >
-                                        Read Full Source →
-                                    </a>
+
+                                {loading && !plan.ai_research_data ? (
+                                    <div className="flex flex-col items-center justify-center py-8 text-purple-400">
+                                        <Loader2 className="w-8 h-8 mb-2 animate-spin" />
+                                        <span className="text-xs">Analyzing topic...</span>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* New Deep Analysis Display */}
+                                        {plan.ai_research_data?.search_intent ? (
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1">Search Intent</div>
+                                                    <p className="text-sm font-semibold text-purple-900">{plan.ai_research_data.search_intent}</p>
+                                                </div>
+
+                                                <div>
+                                                    <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1">Target Audience</div>
+                                                    <p className="text-sm text-purple-800">{plan.ai_research_data.target_audience_analysis}</p>
+                                                </div>
+
+                                                <div>
+                                                    <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1">Key Points</div>
+                                                    <ul className="list-disc pl-4 space-y-1">
+                                                        {plan.ai_research_data.key_points?.map((point: string, idx: number) => (
+                                                            <li key={idx} className="text-xs text-purple-800 leading-relaxed">{point}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+
+                                                {plan.ai_research_data.suggested_tone && (
+                                                    <div className="flex items-center gap-2 pt-2">
+                                                        <span className="text-[10px] font-bold text-purple-400 uppercase">Tone:</span>
+                                                        <Badge variant="outline" className="text-xs border-purple-200 text-purple-700 bg-purple-100/50">
+                                                            {plan.ai_research_data.suggested_tone}
+                                                        </Badge>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            /* Legacy/Fallback Abstract Display */
+                                            <>
+                                                <p className="text-sm text-purple-900/70 leading-relaxed line-clamp-6 italic mb-4">
+                                                    "{plan.ai_research_data?.abstract}"
+                                                </p>
+                                                {plan.ai_research_data?.url && (
+                                                    <a
+                                                        href={plan.ai_research_data.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-[10px] font-bold text-purple-600 hover:underline flex items-center justify-end"
+                                                    >
+                                                        Read Full Source →
+                                                    </a>
+                                                )}
+                                            </>
+                                        )}
+                                    </>
                                 )}
                             </Card>
                         )}
                     </div>
                 </div>
             </div>
+
+            <ConfirmModal
+                isOpen={showConvertModal}
+                onClose={() => setShowConvertModal(false)}
+                onConfirm={processConversion}
+                title="Convert to Article?"
+                description="This will create a new article draft based on this content plan. You will be redirected to the article editor."
+                confirmText="Yes, Convert"
+                loading={loading}
+            />
+            <ConfirmModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={confirmDelete}
+                title={`Delete "${plan.title || 'Untitled'}"?`}
+                description="Are you sure you want to delete this content plan? This action cannot be undone."
+                confirmText="Yes, Delete"
+                cancelText="Cancel"
+                variant="destructive"
+                loading={deleteLoading}
+            />
         </AdminLayout>
     );
 }

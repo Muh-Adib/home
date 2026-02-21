@@ -166,7 +166,7 @@ class ContentPlanController extends Controller
     /**
      * Update content plan
      */
-    public function update(Request $request, ContentPlan $contentPlan): RedirectResponse
+    public function update(Request $request, ContentPlan $contentPlan)
     {
         $validated = $request->validate([
             'title' => 'nullable|string|max:255',
@@ -181,6 +181,14 @@ class ContentPlanController extends Controller
         ]);
 
         $plan = $this->contentPlanService->updatePlan($contentPlan, $validated);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Content plan updated successfully!',
+                'plan' => $plan,
+            ]);
+        }
 
         return redirect()->route('admin.content-plans.show', $contentPlan->uuid)
             ->with('success', 'Content plan updated successfully!');
@@ -198,7 +206,7 @@ class ContentPlanController extends Controller
     }
 
     /**
-     * Generate monthly content calendar using AI
+     * Generate monthly content calendar using AI (Async Job)
      */
     public function generateCalendar(Request $request): JsonResponse
     {
@@ -210,18 +218,21 @@ class ContentPlanController extends Controller
         ]);
 
         try {
-            $plans = $this->contentPlanService->generateMonthlyCalendar(
+            // Dispatch job instead of running synchronously
+            \App\Jobs\GenerateCalendarJob::dispatch(
                 $validated['keywords'],
                 $validated['article_count'] ?? 30,
                 $validated['target_audience'] ?? 'property renters',
-                $validated['start_date'] ?? null
+                $validated['start_date'] ?? null,
+                auth()->id()
             );
 
             return response()->json([
                 'success' => true,
-                'plans' => $plans,
-                'count' => count($plans),
+                'message' => 'Calendar generation started in background. Please check back in a few minutes.',
+                'job_started' => true,
             ]);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

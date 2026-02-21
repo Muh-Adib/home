@@ -124,7 +124,7 @@ class ArticleAIController extends Controller
             $properties = [];
             if (!empty($validated['property_ids'])) {
                 $properties = \App\Models\Property::whereIn('id', $validated['property_ids'])
-                    ->get(['id', 'name', 'slug'])
+                    ->get(['id', 'name', 'slug', 'description']) // include description for USP generation
                     ->toArray();
             }
 

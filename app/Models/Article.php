@@ -12,6 +12,11 @@ class Article extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /**
+     * Flag to prevent infinite loops during synchronization
+     */
+    public static bool $isSyncing = false;
+
     protected $fillable = [
         'title',
         'slug',
@@ -22,7 +27,7 @@ class Article extends Model
         'seo_keywords',
         'target_keywords',
         'language',
-        'status',
+        'status', // idea, researching, outlining, writing, reviewing, scheduled, published
         'published_at',
         'scheduled_at',
         'ai_provider',
@@ -118,5 +123,16 @@ class Article extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * Schedule the article for publishing
+     */
+    public function schedule(\DateTimeInterface $date): bool
+    {
+        return $this->update([
+            'status' => 'scheduled',
+            'scheduled_at' => $date,
+        ]);
     }
 }

@@ -744,6 +744,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="draft">Draft</SelectItem>
+                                            <SelectItem value="reviewing">In Review</SelectItem>
                                             <SelectItem value="scheduled">Scheduled</SelectItem>
                                             <SelectItem value="published">Published</SelectItem>
                                         </SelectContent>

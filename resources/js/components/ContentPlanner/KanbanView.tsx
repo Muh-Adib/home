@@ -34,6 +34,7 @@ interface KanbanViewProps {
     columns: Record<string, ContentPlan[]>;
     onStatusChange: (planUuid: string, newStatus: string) => void;
     onConvertToArticle: (planUuid: string) => void;
+    onCardClick?: (uuid: string) => void;
 }
 
 const STATUS_CONFIG = {
@@ -46,7 +47,7 @@ const STATUS_CONFIG = {
     published: { label: 'Published', color: 'bg-teal-100 text-teal-700 border-teal-300' },
 };
 
-function PlanCard({ plan, onConvertToArticle }: { plan: ContentPlan; onConvertToArticle: (uuid: string) => void }) {
+function PlanCard({ plan, onConvertToArticle, onCardClick }: { plan: ContentPlan; onConvertToArticle: (uuid: string) => void; onCardClick?: (uuid: string) => void }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: plan.uuid });
 
     const style = {
@@ -65,7 +66,7 @@ function PlanCard({ plan, onConvertToArticle }: { plan: ContentPlan; onConvertTo
                 "bg-white rounded-lg border-2 shadow-sm hover:shadow-md transition-all p-4 cursor-pointer mb-3",
                 isDragging && "opacity-50 ring-2 ring-blue-500"
             )}
-            onClick={() => router.get(route('admin.content-plans.show', plan.uuid))}
+            onClick={() => onCardClick ? onCardClick(plan.uuid) : router.get(route('admin.content-plans.show', plan.uuid))}
         >
             <div className="flex items-start justify-between mb-2">
                 <h4 className="font-semibold text-sm line-clamp-2">{plan.title || 'Untitled'}</h4>
@@ -134,7 +135,7 @@ function PlanCard({ plan, onConvertToArticle }: { plan: ContentPlan; onConvertTo
     );
 }
 
-function KanbanColumn({ status, title, plans, onConvertToArticle }: { status: string; title: string; plans: ContentPlan[]; onConvertToArticle: (uuid: string) => void }) {
+function KanbanColumn({ status, title, plans, onConvertToArticle, onCardClick }: { status: string; title: string; plans: ContentPlan[]; onConvertToArticle: (uuid: string) => void; onCardClick?: (uuid: string) => void }) {
     const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG];
 
     return (
@@ -148,7 +149,7 @@ function KanbanColumn({ status, title, plans, onConvertToArticle }: { status: st
             <div className="bg-gray-50 rounded-b-lg border-2 border-t-0 border-gray-200 p-3 min-h-[500px]">
                 <SortableContext items={plans.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
                     {plans.map(plan => (
-                        <PlanCard key={plan.uuid} plan={plan} onConvertToArticle={onConvertToArticle} />
+                        <PlanCard key={plan.uuid} plan={plan} onConvertToArticle={onConvertToArticle} onCardClick={onCardClick} />
                     ))}
                 </SortableContext>
                 {plans.length === 0 && (
@@ -161,7 +162,7 @@ function KanbanColumn({ status, title, plans, onConvertToArticle }: { status: st
     );
 }
 
-export default function KanbanView({ columns, onStatusChange, onConvertToArticle }: KanbanViewProps) {
+export default function KanbanView({ columns, onStatusChange, onConvertToArticle, onCardClick }: KanbanViewProps) {
     const [activeUuid, setActiveUuid] = React.useState<string | null>(null);
 
     const handleDragStart = (event: DragStartEvent) => {
@@ -224,6 +225,7 @@ export default function KanbanView({ columns, onStatusChange, onConvertToArticle
                         title={STATUS_CONFIG[status as keyof typeof STATUS_CONFIG].label}
                         plans={columns[status] || []}
                         onConvertToArticle={onConvertToArticle}
+                        onCardClick={onCardClick}
                     />
                 ))}
             </div>

@@ -27,7 +27,7 @@ return new class extends Migration {
 
             // Language & Publishing
             $table->string('language', 5)->default('id'); // 'id', 'en', etc.
-            $table->enum('status', ['draft', 'scheduled', 'published', 'archived'])->default('draft');
+            $table->enum('status', ['idea', 'researching', 'outlining', 'writing', 'draft', 'reviewing', 'scheduled', 'published', 'archived'])->default('idea');
             $table->timestamp('published_at')->nullable();
             $table->timestamp('scheduled_at')->nullable();
 
@@ -60,7 +60,7 @@ return new class extends Migration {
             $table->index('created_at');
 
             // Full-text search index (for MySQL)
-            $table->fullText(['title', 'content']); // Uncomment for MySQL 5.7+
+            // $table->fullText(['title', 'content']); // Uncomment for MySQL 5.7+
         });
     }
 

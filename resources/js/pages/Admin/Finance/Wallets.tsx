@@ -263,9 +263,9 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
         )}
       </div>
 
-      {errors.error && (
+      {(errors as Record<string, string>).error && (
         <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-          {errors.error}
+          {(errors as Record<string, string>).error}
         </div>
       )}
 
@@ -314,7 +314,7 @@ function InlineTransactionForm({ walletId, walletCategories }: { walletId: numbe
         </div>
         <div>
           <Label className="text-xs">Nominal <span className="text-red-500">*</span></Label>
-          <Input type="number" step="1" min="0.01" placeholder="0" value={data.amount} onChange={(e) => setData('amount', e.target.value)} required />
+          <Input type="number" step="1" min="0" placeholder="0" value={data.amount} onChange={(e) => setData('amount', e.target.value)} required />
         </div>
       </div>
       <div className="grid gap-2 md:grid-cols-2">
