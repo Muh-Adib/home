@@ -30,6 +30,7 @@ class StoreArticleRequest extends FormRequest
             'property_ids.*' => 'exists:properties,id',
             'ai_provider' => 'nullable|string',
             'ai_model' => 'nullable|string',
+            'schema_markup' => 'nullable|string',
         ];
     }
 }

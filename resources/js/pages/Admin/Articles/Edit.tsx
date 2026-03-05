@@ -57,6 +57,10 @@ interface ArticleEditProps {
             uuid: string;
             ai_outline?: string;
         };
+        generation_metadata?: {
+            schema_markup?: string;
+            [key: string]: any;
+        };
     };
     properties: Property[];
     linkedPropertyIds?: number[];
@@ -67,11 +71,28 @@ interface ArticleEditProps {
     };
 }
 
+interface ArticleFormData {
+    title: string;
+    content: string;
+    excerpt: string;
+    meta_title: string;
+    meta_description: string;
+    seo_keywords: string[];
+    target_keywords: string[];
+    status: string;
+    language: string;
+    scheduled_at: string;
+    featured_image: string;
+    property_ids: number[];
+    outline: string;
+    schema_markup: string;
+}
+
 export default function ArticleEdit({ article, properties, linkedPropertyIds = [], languages, config }: ArticleEditProps) {
     const page = usePage<PageProps>();
     const isEdit = !!article;
 
-    const { data, setData, post, put, processing, errors } = useForm({
+    const { data, setData, post, put, processing, errors } = useForm<ArticleFormData>({
         title: article?.title || '',
         content: article?.content || '',
         excerpt: article?.excerpt || '',
@@ -85,6 +106,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
         featured_image: article?.featured_image || '',
         property_ids: linkedPropertyIds,
         outline: article?.content_plan?.ai_outline || '',
+        schema_markup: article?.generation_metadata?.schema_markup || '',
     });
 
     const [activeTab, setActiveTab] = useState('editor');
@@ -327,9 +349,14 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                 throw new Error(outlineResponse.data.error || 'Failed to generate outline');
             }
 
-            // Show outline for editing
+            // Set outline and any newly discovered keywords
+            const updates: any = { outline: outlineResponse.data.outline };
+            if (outlineResponse.data.lsi_keywords && outlineResponse.data.lsi_keywords.length > 0) {
+                updates.target_keywords = [...new Set([...data.target_keywords, ...outlineResponse.data.lsi_keywords])];
+            }
+
             setGeneratedOutline(outlineResponse.data.outline);
-            setData('outline', outlineResponse.data.outline); // Also update form state
+            setData(prevData => ({ ...prevData, ...updates }));
             setShowOutlineModal(true);
 
             toast.success('Outline generated!', {
@@ -369,18 +396,24 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
             });
 
             if (contentResponse.data.success) {
-                // Set content
-                setData('content', contentResponse.data.content);
+                const updates: Partial<ArticleFormData> = { content: contentResponse.data.content };
 
                 // Auto-fill excerpt if empty
                 if (!data.excerpt && contentResponse.data.excerpt) {
-                    setData('excerpt', contentResponse.data.excerpt);
+                    updates.excerpt = contentResponse.data.excerpt;
                 }
 
                 // Auto-fill meta description if empty
                 if (!data.meta_description && contentResponse.data.meta_description) {
-                    setData('meta_description', contentResponse.data.meta_description);
+                    updates.meta_description = contentResponse.data.meta_description;
                 }
+
+                // Auto-fill schema markup if returned
+                if (contentResponse.data.schema_markup) {
+                    updates.schema_markup = contentResponse.data.schema_markup;
+                }
+
+                setData(prevData => ({ ...prevData, ...updates }));
 
                 toast.success('Article generated!', {
                     description: `${contentResponse.data.word_count} words + metadata created`,

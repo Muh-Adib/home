@@ -16,8 +16,13 @@ class ArticleService
     public function createArticle(array $data): Article
     {
         return DB::transaction(function () use ($data) {
+            $createData = $data;
+            if (!empty($data['schema_markup'])) {
+                $createData['generation_metadata'] = ['schema_markup' => $data['schema_markup']];
+            }
+
             $article = Article::create([
-                ...$data,
+                ...$createData,
                 'author_id' => Auth::id(),
                 'published_at' => ($data['status'] ?? '') === 'published' ? now() : null,
             ]);
@@ -38,12 +43,21 @@ class ArticleService
     public function updateArticle(Article $article, array $data): Article
     {
         return DB::transaction(function () use ($article, $data) {
-            $article->update([
+            $updateData = [
                 ...$data,
                 'published_at' => ($data['status'] ?? '') === 'published' && !$article->published_at
                     ? now()
                     : $article->published_at,
-            ]);
+            ];
+
+            if (array_key_exists('schema_markup', $data)) {
+                $updateData['generation_metadata'] = array_merge(
+                    $article->generation_metadata ?? [],
+                    ['schema_markup' => $data['schema_markup']]
+                );
+            }
+
+            $article->update($updateData);
 
             if (isset($data['property_ids'])) {
                 $article->properties()->sync($data['property_ids']);

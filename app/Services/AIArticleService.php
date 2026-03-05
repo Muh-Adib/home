@@ -127,34 +127,51 @@ class AIArticleService
     public function generateOutline(string $title, array $keywords, string $provider = 'openrouter', array $researchContext = [], string $customInstructions = ''): array
     {
         $contextStr = "";
+        $intent = $researchContext['search_intent'] ?? 'Informasional';
+
         if (!empty($researchContext)) {
             $contextStr = "\nCONTEXT FROM RESEARCH:\n" .
-                "Intent: " . ($researchContext['search_intent'] ?? '') . "\n" .
+                "Intent: " . $intent . "\n" .
                 "Audience: " . ($researchContext['target_audience_analysis'] ?? '') . "\n" .
                 "Key Points to Cover: " . implode(', ', $researchContext['key_points'] ?? []) . "\n";
         }
 
         if (empty($customInstructions)) {
-            $customInstructions = "- Create comprehensive outline with sections and sub-points\n" .
-                "- Include: Introduction, main sections, conclusion";
+            $customInstructions = "- Buat outline komprehensif dengan fokus pada E-E-A-T (Expertise, Experience, Authoritativeness, Trustworthiness).\n" .
+                "- Masukkan bagian untuk FAQ atau ulasan pelanggan jika relevan.\n" .
+                "- Selain outline, berikan juga 5-7 saran 'LSI Keywords' (kata kunci turunan/terkait) yang relevan dengan topik ini.\n" .
+                "- Keluarkan LSI Keywords di baris-baris pertama dengan format: 'LSI Keywords: kata1, kata2, kata3...'. Setelah itu baru tulis outlinenya.\n" .
+                "- Pastikan ada struktur pembuka (prolog), isi yang detail, dan kesimpulan (epilog).\n" .
+                "- Integrasikan kata kunci secara natural dalam subheading (H2, H3).";
         }
 
-        $prompt = "Create a detailed article outline for: '{$title}'\n" .
-            "Target keywords: " . implode(', ', $keywords) . "\n" .
+        $prompt = "Tugas: Buat outline artikel mendalam untuk judul: '{$title}'\n" .
+            "Kata kunci target: " . implode(', ', $keywords) . "\n" .
             $contextStr . "\n" .
-            "INSTRUCTIONS:\n" .
+            "INSTRUKSI KHUSUS:\n" .
             $customInstructions . "\n" .
-            "- Use hierarchical structure (I., A., 1., etc.)\n" .
-            "- NO introduction text like 'Here is the outline'\n" .
-            "- START DIRECTLY with the outline\n" .
-            "- Language: Bahasa Indonesia";
+            "- Gunakan struktur hierarkis (H1 untuk judul, H2 untuk poin utama, H3 untuk sub-poin).\n" .
+            "- Pastikan setiap bagian menjawab 'Search Intent' pengguna: " . $intent . ".\n" .
+            "- Jangan ada teks pembuka seperti 'Ini adalah outline'; LANGSUNG MULAI.\n" .
+            "- Bahasa: Bahasa Indonesia.";
 
         $response = $this->callAI($provider, $prompt, maxTokens: 1500);
-        Log::info($response['content']);
+        $content = $response['content'];
+        Log::info($content);
+
+        // Extract LSI Keywords if present
+        $lsiKeywords = [];
+        if (preg_match('/LSI Keywords:\s*(.+)/i', $content, $matches)) {
+            $lsiStr = $matches[1];
+            $lsiKeywords = array_map('trim', explode(',', $lsiStr));
+            // Remove the LSI line from the outline content
+            $content = trim(preg_replace('/LSI Keywords:\s*(.+)/i', '', $content));
+        }
 
         return [
             'success' => true,
-            'outline' => $response['content'],
+            'outline' => $content,
+            'lsi_keywords' => $lsiKeywords,
             'provider' => $provider,
         ];
     }
@@ -297,23 +314,43 @@ PROMPT;
         $intentInstruction = $intent ? "INTENT: {$intent}. Objective: Adapt the writing style to satisfy this intent (e.g., highly persuasive for transactional, deeply helpful for informational).\n" : "";
 
         $prompt = "Write a comprehensive article {$langInstruction} based on this outline:\n\n{$outline}\n\n" .
-            "Keywords: " . implode(', ', $keywords) . $propertyContext . "\n\n" .
+            "Keywords: " . implode(', ', $keywords) . "\n" .
+            $propertyContext . "\n\n" .
             $intentInstruction .
             "WRITING RULES (STRICT):\n" .
             "- {$toneInstruction}\n" .
             "- Minimum 600 words.\n" .
-            "- HUMAN TOUCH: Use micro-stories, rhetorical questions, and empathy.\n" .
-            "- AVOID: 'Berdasarkan data', 'Kesimpulan', 'Tentunya', 'Sejatinya'.\n" .
+            "- HUMAN TOUCH & EXPERIENCE (E-E-A-T): Use micro-stories, rhetorical questions, and empathy. Describe how the USPs feel to the guest (e.g., sensory details of the pool, or the comfort of the living room).\n" .
+            "- SHOW, DON'T TELL: Instead of saying 'It is perfect', describe the scene (e.g., 'Spacious backyard safe for kids to play while parents drink coffee on the terrace').\n" .
+            "- LOCAL CONTEXT: Mention at least 2 specific nearby local landmarks or legendary food spots (e.g., within a 15-minute radius) to build local authority.\n" .
+            "- INTERNAL LINKING: Naturally mention 1-2 other local guides, travel tips, or areas if relevant.\n" .
+            "- AVOID: 'Berdasarkan data', 'Kesimpulan', 'Tentunya', 'Sejatinya', 'Dalam hal ini'.\n" .
             "- STRATEGY: Angle Wisatawan -> Masalah (Crowd/Price/Fatigue) -> Solusi (Stay at our properties).\n" .
-            "- SEO: Natural keyword placement.\n" .
-            "- FORMAT: Markdown (H2, H3, bold key phrases).\n" .
-            "- NO intro/meta commentary. Start with the Hook.\n" .
-            "- ONLY return the article content.";
+            "- SEO: Natural keyword placement. Bold important phrases, but don't overdo it.\n" .
+            "- FORMAT: Markdown (H1 for main title, H2, H3).\n" .
+            "- SCHEMA MARKUP: At the very end of your response, output a valid JSON-LD Schema block (type Article or LocalBusiness) based on the context, enclosed in ```json ... ``` tags.\n" .
+            "- NO intro/meta commentary. Start directly with the content. (No 'Here is the article'!).";
 
-        $response = $this->callAI($provider, $prompt, maxTokens: 2500);
+        $response = $this->callAI($provider, $prompt, maxTokens: 4500);
 
         $content = $response['content'];
         $wordCount = str_word_count(strip_tags($content));
+
+        // Extract Schema Markup if present
+        $schemaMarkup = null;
+        // Relaxed regex to catch ```json ... ``` or just ``` ... ``` with JSON-LD inside
+        if (preg_match('/```(?:json)?\s*(\{.*?"@context"\s*:\s*"https?:\/\/schema\.org".*?\})\s*```/is', $content, $matches)) {
+            $schemaMarkup = $matches[1];
+            // Remove the schema block from the main content so it's not rendered in the article body
+            $content = trim(preg_replace('/```(?:json)?\s*\{.*?"@context"\s*:\s*"https?:\/\/schema\.org".*?\}\s*```/is', '', $content));
+        } elseif (preg_match('/```json\s*(\{.*?\})\s*```/is', $content, $matches)) {
+            // Fallback if it's explicitly json but maybe doesn't have the context string exactly
+            $schemaMarkup = $matches[1];
+            $content = trim(preg_replace('/```json\s*\{.*?\}\s*```/is', '', $content));
+        }
+
+        // Ensure no trailing text is left if schema was at the very end
+        $content = preg_replace('/SCHEMA MARKUP:\s*$/i', '', $content);
 
         // Generate excerpt (first 2-3 sentences or 150-200 chars)
         $excerpt = $this->generateExcerpt($content);
@@ -324,6 +361,7 @@ PROMPT;
         return [
             'success' => true,
             'content' => $content,
+            'schema_markup' => $schemaMarkup,
             'excerpt' => $excerpt,
             'meta_description' => $metaDescription,
             'word_count' => $wordCount,
@@ -339,12 +377,24 @@ PROMPT;
         // Remove markdown and HTML
         $text = strip_tags(preg_replace('/[#*_\[\]()]/', '', $content));
 
-        // Get first 2 sentences or 200 chars, whichever is shorter
-        $sentences = preg_split('/(?<=[.!?])\s+/', $text, 3);
-        $excerpt = implode(' ', array_slice($sentences, 0, 2));
+        // Attempt to find the "Hook" (often the first paragraph)
+        // Split by double newline to get paragraphs
+        $paragraphs = array_filter(array_map('trim', explode("\n\n", $text)));
+        $firstPara = reset($paragraphs) ?: '';
 
-        if (strlen($excerpt) > 200) {
-            $excerpt = substr($excerpt, 0, 197) . '...';
+        // Follow AIDA: Get first 2-3 sentences or around 160-200 chars
+        $sentences = preg_split('/(?<=[.!?])\s+/', $firstPara, 4);
+        $excerpt = implode(' ', array_slice($sentences, 0, 3));
+
+        // Trim intelligently
+        if (mb_strlen($excerpt) > 200) {
+            // Cut at last space before 197 chars
+            $excerpt = mb_substr($excerpt, 0, 197);
+            $lastSpace = mb_strrpos($excerpt, ' ');
+            if ($lastSpace !== false && $lastSpace > 100) {
+                $excerpt = mb_substr($excerpt, 0, $lastSpace);
+            }
+            $excerpt .= '...';
         }
 
         return trim($excerpt);
@@ -358,21 +408,34 @@ PROMPT;
         // Remove markdown and get clean text
         $text = strip_tags(preg_replace('/[#*_\[\]()]/', '', $content));
 
-        // Get first paragraph or 160 chars
-        $paragraphs = preg_split('/\n\n+/', $text);
-        $firstPara = $paragraphs[0] ?? '';
+        $paragraphs = array_filter(array_map('trim', explode("\n\n", $text)));
+        $firstPara = reset($paragraphs) ?: '';
 
-        // Include main keyword if not already present
+        // Try to construct a compelling description using the main keyword
         $mainKeyword = $keywords[0] ?? '';
+
         if ($mainKeyword && stripos($firstPara, $mainKeyword) === false) {
-            $description = $mainKeyword . ': ' . $firstPara;
+            // If keyword isn't in first paragraph naturally, prepend it gracefully
+            // e.g., "Mencari \{keyword\}? \{sentence\}"
+            $sentences = preg_split('/(?<=[.!?])\s+/', $firstPara, 3);
+            $firstSentence = $sentences[0] ?? '';
+            $description = ucfirst($mainKeyword) . ': ' . $firstSentence;
+            if (mb_strlen($description) < 100 && isset($sentences[1])) {
+                $description .= ' ' . $sentences[1];
+            }
         } else {
             $description = $firstPara;
         }
 
-        // Trim to 160 chars
-        if (strlen($description) > 160) {
-            $description = substr($description, 0, 157) . '...';
+        // Enforce 160 chars strictly without cutting mid-word if possible
+        if (mb_strlen($description) > 160) {
+            $description = mb_substr($description, 0, 157);
+            $lastSpace = mb_strrpos($description, ' ');
+            if ($lastSpace !== false && $lastSpace > 100) { // ensure we don't cut too short
+                $description = mb_substr($description, 0, $lastSpace);
+            }
+            // Remove trailing punctuation before adding ellipsis
+            $description = rtrim($description, '.,!?:;') . '...';
         }
 
         return trim($description);

@@ -204,6 +204,7 @@ PROMPT;
 
         $plan->update([
             'ai_outline' => $outline['outline'],
+            'target_keywords' => array_unique(array_merge($plan->target_keywords ?? [], $outline['lsi_keywords'] ?? [])),
             'status' => 'outlining',
         ]);
 
