@@ -68,7 +68,6 @@ class GenerateArticleJob implements ShouldQueue
                 'generation_metadata' => array_merge($this->article->generation_metadata ?? [], [
                     'generated_at' => now()->toDateTimeString(),
                     'provider' => $this->provider,
-                    'schema_markup' => $result['schema_markup'] ?? null,
                 ]),
             ]);
 

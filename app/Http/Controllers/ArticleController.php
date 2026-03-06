@@ -68,6 +68,33 @@ class ArticleController extends Controller
 
         $articles = $query->paginate(20);
 
+        // Map the result to inject completeness score
+        $articles->getCollection()->transform(function ($article) {
+            $score = 0;
+
+            // 1. Has featured image (30%)
+            if (!empty($article->featured_image))
+                $score += 30;
+
+            // 2. Has meta description or excerpt (20%)
+            if (!empty($article->meta_description) || !empty($article->excerpt))
+                $score += 20;
+
+            // 3. Word count > 300 (30%)
+            $wordCount = str_word_count(strip_tags($article->content ?? ''));
+            if ($wordCount >= 300)
+                $score += 30;
+            else if ($wordCount >= 100)
+                $score += 15;
+
+            // 4. Linked to properties (20%)
+            if ($article->properties_count > 0)
+                $score += 20;
+
+            $article->completeness_score = $score;
+            return $article;
+        });
+
         return Inertia::render('Admin/Articles/Index', [
             'articles' => $articles,
             'filters' => [

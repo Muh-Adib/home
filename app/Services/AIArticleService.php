@@ -11,12 +11,17 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * AIArticleService - AI provider abstraction dengan key rotation
- * 
+ *
  * Supports: Open Router, Gemini
- * Features: Auto key rotation, usage tracking, web search integration
+ * Features: Auto key rotation, usage tracking, type-aware prompt delegation
  */
 class AIArticleService
 {
+    public function __construct(
+        private readonly ArticlePromptService $promptService
+    ) {
+    }
+
     /**
      * Generate article title suggestions
      */
@@ -47,13 +52,28 @@ class AIArticleService
      */
     public function analyzeTopic(string $topic): array
     {
+        // 1. Ambil data competitor SERP secara gratis (bisa kosong jika scraper diblokir)
+        $scraper = app(SerpScraperService::class);
+        $competitorData = $scraper->scrapeTopResults($topic, 3);
+        $competitorContext = "";
+
+        if (!empty($competitorData)) {
+            $competitorContext = "\n\n=== [ TOP 3 COMPETITOR DI GOOGLE SAAT INI ] ===\n";
+            foreach ($competitorData as $i => $comp) {
+                $num = $i + 1;
+                $competitorContext .= "{$num}. Title: {$comp['title']}\n   Snippet: {$comp['snippet']}\n";
+            }
+            $competitorContext .= "\nInstruksi Tambahan: Pastikan analisismu LEBIH BAIK dan MENUTUPI CELAH dari kompetitor di atas.\n";
+        }
+
         $prompt = "Analyze the topic: '{$topic}' for a property rental blog article.\n\n" .
             "Provide a deep analysis in JSON format with the following keys:\n" .
             "- search_intent: What is the user looking for? (Informational, Transactional, etc.)\n" .
             "- target_audience_analysis: Who is this for? (Renters, Owners, Investors)\n" .
             "- key_points: Array of 5-7 critical points/facts that MUST be covered.\n" .
             "- suggested_tone: The best tone for this article.\n" .
-            "- competitor_analysis: Brief summary of what competitors usually cover.\n\n" .
+            "- competitor_analysis: Brief summary of what competitors usually cover.\n" .
+            $competitorContext . "\n\n" .
             "CRITICAL:\n" .
             "- Language: Bahasa Indonesia\n" .
             "- Return ONLY valid JSON.\n" .
@@ -122,49 +142,45 @@ class AIArticleService
     }
 
     /**
-     * Generate article outline with Research Context & Custom Instructions
+    /**
+     * Generate article outline — delegates prompt to ArticlePromptService
+     *
+     * @param string $articleType travel_guide|seo_article|property_article|event_article
      */
-    public function generateOutline(string $title, array $keywords, string $provider = 'openrouter', array $researchContext = [], string $customInstructions = ''): array
-    {
-        $contextStr = "";
-        $intent = $researchContext['search_intent'] ?? 'Informasional';
-
-        if (!empty($researchContext)) {
-            $contextStr = "\nCONTEXT FROM RESEARCH:\n" .
-                "Intent: " . $intent . "\n" .
-                "Audience: " . ($researchContext['target_audience_analysis'] ?? '') . "\n" .
-                "Key Points to Cover: " . implode(', ', $researchContext['key_points'] ?? []) . "\n";
+    public function generateOutline(
+        string $title,
+        array $keywords,
+        string $provider = 'gemini',
+        array $researchContext = [],
+        string $customInstructions = '',
+        string $articleType = 'travel_guide'
+    ): array {
+        // Use custom instructions if provided (legacy support), otherwise delegate to prompt service
+        if (!empty($customInstructions)) {
+            $intent = $researchContext['search_intent'] ?? 'Informasional';
+            $contextStr = '';
+            if (!empty($researchContext)) {
+                $contextStr = "\nCONTEXT FROM RESEARCH:\n"
+                    . 'Intent: ' . $intent . "\n"
+                    . 'Audience: ' . ($researchContext['target_audience_analysis'] ?? '') . "\n"
+                    . 'Key Points: ' . implode(', ', $researchContext['key_points'] ?? []) . "\n";
+            }
+            $prompt = "Tugas: Buat outline artikel untuk: '{$title}'\n"
+                . 'Kata kunci: ' . implode(', ', $keywords) . "\n"
+                . $contextStr
+                . "INSTRUKSI KHUSUS:\n{$customInstructions}";
+        } else {
+            $prompt = $this->promptService->outlinePrompt($articleType, $title, $keywords, $researchContext);
         }
-
-        if (empty($customInstructions)) {
-            $customInstructions = "- Buat outline komprehensif dengan fokus pada E-E-A-T (Expertise, Experience, Authoritativeness, Trustworthiness).\n" .
-                "- Masukkan bagian untuk FAQ atau ulasan pelanggan jika relevan.\n" .
-                "- Selain outline, berikan juga 5-7 saran 'LSI Keywords' (kata kunci turunan/terkait) yang relevan dengan topik ini.\n" .
-                "- Keluarkan LSI Keywords di baris-baris pertama dengan format: 'LSI Keywords: kata1, kata2, kata3...'. Setelah itu baru tulis outlinenya.\n" .
-                "- Pastikan ada struktur pembuka (prolog), isi yang detail, dan kesimpulan (epilog).\n" .
-                "- Integrasikan kata kunci secara natural dalam subheading (H2, H3).";
-        }
-
-        $prompt = "Tugas: Buat outline artikel mendalam untuk judul: '{$title}'\n" .
-            "Kata kunci target: " . implode(', ', $keywords) . "\n" .
-            $contextStr . "\n" .
-            "INSTRUKSI KHUSUS:\n" .
-            $customInstructions . "\n" .
-            "- Gunakan struktur hierarkis (H1 untuk judul, H2 untuk poin utama, H3 untuk sub-poin).\n" .
-            "- Pastikan setiap bagian menjawab 'Search Intent' pengguna: " . $intent . ".\n" .
-            "- Jangan ada teks pembuka seperti 'Ini adalah outline'; LANGSUNG MULAI.\n" .
-            "- Bahasa: Bahasa Indonesia.";
 
         $response = $this->callAI($provider, $prompt, maxTokens: 1500);
         $content = $response['content'];
-        Log::info($content);
+        Log::info('[AIArticleService] Outline generated', ['type' => $articleType, 'title' => $title]);
 
         // Extract LSI Keywords if present
         $lsiKeywords = [];
         if (preg_match('/LSI Keywords:\s*(.+)/i', $content, $matches)) {
-            $lsiStr = $matches[1];
-            $lsiKeywords = array_map('trim', explode(',', $lsiStr));
-            // Remove the LSI line from the outline content
+            $lsiKeywords = array_map('trim', explode(',', $matches[1]));
             $content = trim(preg_replace('/LSI Keywords:\s*(.+)/i', '', $content));
         }
 
@@ -173,6 +189,7 @@ class AIArticleService
             'outline' => $content,
             'lsi_keywords' => $lsiKeywords,
             'provider' => $provider,
+            'article_type' => $articleType,
         ];
     }
 
@@ -275,7 +292,9 @@ PROMPT;
     }
 
     /**
-     * Generate full article content
+     * Generate full article content — delegates prompt to ArticlePromptService
+     *
+     * @param string $articleType travel_guide|seo_article|property_article|event_article
      */
     public function generateContent(
         string $outline,
@@ -284,88 +303,54 @@ PROMPT;
         string $provider = 'openrouter',
         string $language = 'id',
         string $tone = 'casual',
-        ?string $intent = null
+        ?string $intent = null,
+        string $articleType = 'travel_guide'
     ): array {
-        $propertyContext = '';
-        if (!empty($properties)) {
-            $propertyList = array_map(function ($p) {
-                $url = route('properties.show', $p['slug'] ?? \Illuminate\Support\Str::slug($p['name']));
-                // Add brief USPs if available to help AI context
-                $usp = $p['description'] ? substr(strip_tags($p['description']), 0, 100) . '...' : 'Homestay nyaman di Jogja.';
-                return "- **{$p['name']}**: {$usp} (Link: {$url})";
-            }, $properties);
+        // Ambil maksimal 3 artikel relevan untuk internal linking
+        $linkedArticles = \App\Models\Article::where('status', 'published')
+            ->inRandomOrder()
+            ->limit(3)
+            ->get(['title', 'slug'])
+            ->toArray();
 
-            $propertyContext = "\n\nINTEGRATION INSTRUCTIONS (CRITICAL):\n" .
-                "We strongly recommend these properties as SOLUTIONS to the reader's needs (e.g., 'If you bring family, House A is perfect because...').\n" .
-                "- Don't just list them. Weave them into the narrative naturally.\n" .
-                "- Use markdown links: [Property Name](URL)\n" .
-                "Properties to feature:\n" .
-                implode("\n", $propertyList);
+        $prompt = $this->promptService->contentPrompt(
+            $articleType,
+            $outline,
+            $keywords,
+            $properties,
+            $language,
+            $tone,
+            $linkedArticles
+        );
+
+        // Append intent instruction if provided (legacy support)
+        if ($intent) {
+            $prompt .= "\n\nSEARCH INTENT: {$intent}. Pastikan artikel menjawab intent ini secara tuntas.";
         }
 
-        $langInstruction = $language === 'id' ? 'in Indonesian (Bahasa Indonesia)' : 'in English';
-
-        $toneInstruction = match ($tone) {
-            'casual' => 'Tone: Friendly, human, storytelling, like a local friend giving advice. Avoid robotic/formal language.',
-            'professional' => 'Tone: Professional yet engaging.',
-            default => 'Tone: Balanced and engaging.',
-        };
-
-        $intentInstruction = $intent ? "INTENT: {$intent}. Objective: Adapt the writing style to satisfy this intent (e.g., highly persuasive for transactional, deeply helpful for informational).\n" : "";
-
-        $prompt = "Write a comprehensive article {$langInstruction} based on this outline:\n\n{$outline}\n\n" .
-            "Keywords: " . implode(', ', $keywords) . "\n" .
-            $propertyContext . "\n\n" .
-            $intentInstruction .
-            "WRITING RULES (STRICT):\n" .
-            "- {$toneInstruction}\n" .
-            "- Minimum 600 words.\n" .
-            "- HUMAN TOUCH & EXPERIENCE (E-E-A-T): Use micro-stories, rhetorical questions, and empathy. Describe how the USPs feel to the guest (e.g., sensory details of the pool, or the comfort of the living room).\n" .
-            "- SHOW, DON'T TELL: Instead of saying 'It is perfect', describe the scene (e.g., 'Spacious backyard safe for kids to play while parents drink coffee on the terrace').\n" .
-            "- LOCAL CONTEXT: Mention at least 2 specific nearby local landmarks or legendary food spots (e.g., within a 15-minute radius) to build local authority.\n" .
-            "- INTERNAL LINKING: Naturally mention 1-2 other local guides, travel tips, or areas if relevant.\n" .
-            "- AVOID: 'Berdasarkan data', 'Kesimpulan', 'Tentunya', 'Sejatinya', 'Dalam hal ini'.\n" .
-            "- STRATEGY: Angle Wisatawan -> Masalah (Crowd/Price/Fatigue) -> Solusi (Stay at our properties).\n" .
-            "- SEO: Natural keyword placement. Bold important phrases, but don't overdo it.\n" .
-            "- FORMAT: Markdown (H1 for main title, H2, H3).\n" .
-            "- SCHEMA MARKUP: At the very end of your response, output a valid JSON-LD Schema block (type Article or LocalBusiness) based on the context, enclosed in ```json ... ``` tags.\n" .
-            "- NO intro/meta commentary. Start directly with the content. (No 'Here is the article'!).";
-
-        $response = $this->callAI($provider, $prompt, maxTokens: 4500);
+        $response = $this->callAI($provider, $prompt, maxTokens: 5000);
 
         $content = $response['content'];
+
+        // Strip any stray ```json blocks the AI might still produce (safety net)
+        $content = trim(preg_replace('/```(?:json)?\s*\{[^`]+\}\s*```/is', '', $content));
+
         $wordCount = str_word_count(strip_tags($content));
 
-        // Extract Schema Markup if present
-        $schemaMarkup = null;
-        // Relaxed regex to catch ```json ... ``` or just ``` ... ``` with JSON-LD inside
-        if (preg_match('/```(?:json)?\s*(\{.*?"@context"\s*:\s*"https?:\/\/schema\.org".*?\})\s*```/is', $content, $matches)) {
-            $schemaMarkup = $matches[1];
-            // Remove the schema block from the main content so it's not rendered in the article body
-            $content = trim(preg_replace('/```(?:json)?\s*\{.*?"@context"\s*:\s*"https?:\/\/schema\.org".*?\}\s*```/is', '', $content));
-        } elseif (preg_match('/```json\s*(\{.*?\})\s*```/is', $content, $matches)) {
-            // Fallback if it's explicitly json but maybe doesn't have the context string exactly
-            $schemaMarkup = $matches[1];
-            $content = trim(preg_replace('/```json\s*\{.*?\}\s*```/is', '', $content));
-        }
-
-        // Ensure no trailing text is left if schema was at the very end
-        $content = preg_replace('/SCHEMA MARKUP:\s*$/i', '', $content);
-
-        // Generate excerpt (first 2-3 sentences or 150-200 chars)
-        $excerpt = $this->generateExcerpt($content);
-
-        // Generate meta description
-        $metaDescription = $this->generateMetaDescription($content, $keywords);
+        Log::info('[AIArticleService] Content generated', [
+            'type' => $articleType,
+            'word_count' => $wordCount,
+            'provider' => $provider,
+        ]);
 
         return [
             'success' => true,
             'content' => $content,
-            'schema_markup' => $schemaMarkup,
-            'excerpt' => $excerpt,
-            'meta_description' => $metaDescription,
+            'excerpt' => $this->generateExcerpt($content),
+            'meta_description' => $this->generateMetaDescription($content, $keywords),
             'word_count' => $wordCount,
             'provider' => $provider,
+            'article_type' => $articleType,
         ];
     }
 

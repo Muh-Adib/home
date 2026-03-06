@@ -69,72 +69,71 @@ export default function ArticleShow({ article, relatedArticles }: ArticleShowPro
             <SchemaOrg />
 
             <div className="min-h-screen bg-gray-50">
-                {/* Header */}
-                <div className="bg-white border-b">
-                    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                        <Link href="/articles" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6">
+                {/* Enhanced Hero section - Edge to Edge */}
+                <div className="relative w-full min-h-[50vh] flex flex-col justify-end overflow-hidden bg-gray-900 mt-[-2rem]">
+                    {/* Background Image */}
+                    {article.featured_image ? (
+                        <>
+                            <img
+                                src={article.featured_image.startsWith('http') ? article.featured_image : `/storage/${article.featured_image}`}
+                                alt={article.title}
+                                className="absolute inset-0 w-full h-full object-cover opacity-60"
+                            />
+                            {/* Gradient Overlay for Text Readability */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/60 to-transparent"></div>
+                        </>
+                    ) : (
+                        <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-blue-800 to-indigo-900"></div>
+                    )}
+
+                    {/* Header Content overlaying image map */}
+                    <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 w-full pt-32">
+                        <Link href="/articles" className="inline-flex items-center text-sm text-gray-300 hover:text-white mb-6 transition-colors">
                             <ArrowLeft className="h-4 w-4 mr-2" />
                             Back to Articles
                         </Link>
 
                         <div className="space-y-4">
-                            <Badge variant="outline">{article.language === 'id' ? '🇮🇩 Bahasa Indonesia' : '🇬🇧 English'}</Badge>
+                            <Badge variant="outline" className="border-white/40 text-white bg-black/20 backdrop-blur-sm">
+                                {article.language === 'id' ? '🇮🇩 Bahasa Indonesia' : '🇬🇧 English'}
+                            </Badge>
 
-                            <h1 className="text-4xl font-bold text-gray-900 leading-tight">
+                            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight drop-shadow-md max-w-4xl">
                                 {article.title}
                             </h1>
 
                             {article.excerpt && (
-                                <p className="text-xl text-gray-600 leading-relaxed">
+                                <p className="text-xl text-gray-200 leading-relaxed max-w-3xl drop-shadow">
                                     {article.excerpt}
                                 </p>
                             )}
 
-                            <div className="flex items-center gap-6 text-sm text-gray-500">
-                                <div className="flex items-center gap-2">
-                                    <User className="h-4 w-4" />
-                                    {article.author.name}
+                            <div className="flex flex-wrap items-center gap-6 text-sm text-gray-300 pt-4">
+                                <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-full backdrop-blur-sm">
+                                    <User className="h-4 w-4 text-brand-accent-30" />
+                                    <span className="font-medium text-white">{article.author.name}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Calendar className="h-4 w-4" />
+                                    <Calendar className="h-4 w-4 text-brand-accent-30" />
                                     {formatDate(article.published_at)}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Eye className="h-4 w-4" />
+                                    <Eye className="h-4 w-4 text-brand-accent-30" />
                                     {article.view_count.toLocaleString()} views
                                 </div>
-                            </div>
 
-                            <div className="flex gap-2">
-                                <Button variant="outline" size="sm">
+                                <Button variant="outline" size="sm" className="ml-auto bg-white/10 text-white border-white/20 hover:bg-white/20 hover:text-white">
                                     <Share2 className="h-4 w-4 mr-2" />
                                     Share
                                 </Button>
                             </div>
                         </div>
                     </div>
-
-                    {/* Featured Image Hero */}
-                    {article.featured_image && (
-                        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
-                            <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-gradient-to-br from-gray-100 to-gray-200">
-                                <img
-                                    src={article.featured_image.startsWith('http') ? article.featured_image : `/storage/${article.featured_image}`}
-                                    alt={article.title}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        // Hide image if it fails to load
-                                        e.currentTarget.style.display = 'none';
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* Content */}
-                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                         {/* Main Content */}
                         <div className="lg:col-span-2">
                             <Card>
@@ -224,65 +223,67 @@ export default function ArticleShow({ article, relatedArticles }: ArticleShowPro
                         </div>
 
                         {/* Sidebar */}
-                        <div className="space-y-6">
-                            {/* Featured Properties */}
-                            {article.properties.length > 0 && (
-                                <Card>
-                                    <CardContent className="p-6">
-                                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                                            Featured Properties
-                                        </h3>
-                                        <div className="space-y-4">
-                                            {article.properties.map(property => (
-                                                <Link
-                                                    key={property.id}
-                                                    href={`/properties/${property.slug}`}
-                                                    className="block group"
-                                                >
-                                                    <div className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-                                                        {property.media.length > 0 && (
-                                                            <img
-                                                                src={property.media[0].url}
-                                                                alt={property.name}
-                                                                className="w-full h-32 object-cover"
-                                                                loading="lazy"
-                                                            />
-                                                        )}
-                                                        <div className="p-3">
-                                                            <h4 className="font-semibold text-gray-900 group-hover:text-blue-600 mb-1">
-                                                                {property.name}
-                                                            </h4>
-                                                            <p className="text-sm text-gray-600 line-clamp-1">
-                                                                {property.address}
-                                                            </p>
-                                                            <p className="text-sm font-semibold text-blue-600 mt-2">
-                                                                Mulai Rp {property.base_rate.toLocaleString()}/malam
-                                                            </p>
+                        <div className="lg:col-span-1">
+                            <div className="sticky top-24 space-y-6">
+                                {/* Featured Properties */}
+                                {article.properties.length > 0 && (
+                                    <Card>
+                                        <CardContent className="p-6">
+                                            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                                                Featured Properties
+                                            </h3>
+                                            <div className="space-y-4">
+                                                {article.properties.map(property => (
+                                                    <Link
+                                                        key={property.id}
+                                                        href={`/properties/${property.slug}`}
+                                                        className="block group"
+                                                    >
+                                                        <div className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                                                            {property.media.length > 0 && (
+                                                                <img
+                                                                    src={property.media[0].url}
+                                                                    alt={property.name}
+                                                                    className="w-full h-32 object-cover"
+                                                                    loading="lazy"
+                                                                />
+                                                            )}
+                                                            <div className="p-3">
+                                                                <h4 className="font-semibold text-gray-900 group-hover:text-blue-600 mb-1">
+                                                                    {property.name}
+                                                                </h4>
+                                                                <p className="text-sm text-gray-600 line-clamp-1">
+                                                                    {property.address}
+                                                                </p>
+                                                                <p className="text-sm font-semibold text-blue-600 mt-2">
+                                                                    Mulai Rp {property.base_rate.toLocaleString()}/malam
+                                                                </p>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </Link>
-                                            ))}
-                                        </div>
+                                                    </Link>
+                                                ))}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {/* CTA */}
+                                <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                                    <CardContent className="p-6">
+                                        <h3 className="text-lg font-semibold mb-2">
+                                            Cari Penginapan Murah di Jogja
+                                        </h3>
+                                        <p className="text-blue-100 mb-4 text-sm">
+                                            Temukan villa, homestay, gapuesthouse, dan hotel murah di Jogja
+                                        </p>
+                                        <Link href="/properties">
+                                            <Button variant="secondary" className="w-full">
+                                                Lihat Semua Penginapan
+                                            </Button>
+                                        </Link>
                                     </CardContent>
                                 </Card>
-                            )}
-
-                            {/* CTA */}
-                            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                                <CardContent className="p-6">
-                                    <h3 className="text-lg font-semibold mb-2">
-                                        Cari Penginapan Murah di Jogja
-                                    </h3>
-                                    <p className="text-blue-100 mb-4 text-sm">
-                                        Temukan villa, homestay, gapuesthouse, dan hotel murah di Jogja
-                                    </p>
-                                    <Link href="/properties">
-                                        <Button variant="secondary" className="w-full">
-                                            Lihat Semua Penginapan
-                                        </Button>
-                                    </Link>
-                                </CardContent>
-                            </Card>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -110,25 +110,27 @@ export default function ArticlesPublicIndex({ articles, filters }: ArticlesIndex
                                                 )}
                                             </div>
 
-                                            <CardContent className="p-6 flex flex-col h-full">
-                                                <div className="flex-1">
+                                            <CardContent className="p-0 flex flex-col h-full">
+                                                <div className="p-6 flex-1 flex flex-col">
                                                     <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
                                                         <Calendar className="h-4 w-4" />
                                                         {formatDate(article.published_at)}
                                                     </div>
 
-                                                    <h2 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors line-clamp-2">
+                                                    <h2 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors line-clamp-2 h-[56px]">
                                                         {article.title}
                                                     </h2>
 
-                                                    {article.excerpt && (
-                                                        <p className="text-gray-600 mb-4 line-clamp-3 text-sm">
+                                                    {article.excerpt ? (
+                                                        <p className="text-gray-600 mb-4 line-clamp-3 text-sm flex-1">
                                                             {article.excerpt}
                                                         </p>
+                                                    ) : (
+                                                        <div className="flex-1"></div>
                                                     )}
                                                 </div>
 
-                                                <div className="flex items-center justify-between pt-4 border-t">
+                                                <div className="px-6 py-4 bg-gray-50 flex items-center justify-between border-t mt-auto">
                                                     <div className="flex items-center gap-2 text-sm text-gray-500">
                                                         <Eye className="h-4 w-4" />
                                                         {article.view_count.toLocaleString()} views

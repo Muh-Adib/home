@@ -37,7 +37,9 @@ class AIArticleGenerationTest extends TestCase
             ->andReturn(['score' => 4, 'reason' => 'Not travel relevant', 'traveler_angle' => 'None']);
 
         /** No content generation should be called */
-        $aiService->shouldNotReceive('generateMarketingArticle');
+        $aiService->shouldNotReceive('generateTitle');
+        $aiService->shouldNotReceive('generateOutline');
+        $aiService->shouldNotReceive('generateContent');
 
         $job = new GenerateTrendingArticleJob();
         $job->handle($newsService, $aiService);
@@ -48,7 +50,7 @@ class AIArticleGenerationTest extends TestCase
     #[\PHPUnit\Framework\Attributes\Test]
     public function it_generates_article_for_high_relevance_news(): void
     {
-        /** Seed active property */
+        /** Seed active property & admin user */
         Property::factory()->create(['name' => 'Villa A', 'status' => 'active']);
         User::factory()->create(['role' => 'super_admin']);
 
@@ -73,16 +75,42 @@ class AIArticleGenerationTest extends TestCase
                 'traveler_angle' => 'Book early for Jazz Festival Yogyakarta',
             ]);
 
-        /** Mock: single combined content call */
-        $aiService->shouldReceive('generateMarketingArticle')
+        /** Mock: Step 1 — Title generation */
+        $aiService->shouldReceive('generateTitle')
             ->once()
-            ->andReturnUsing(fn() => [
+            ->andReturn([
                 'success' => true,
-                'content' => '## Liburan ke Jogja saat Festival Jazz' . str_repeat(' lorem ipsum', 60),
-                'excerpt' => 'Liburan ke Jogja saat festival.',
-                'meta_description' => 'Panduan menginap saat Jazz Festival Yogyakarta.',
-                'word_count' => 700,
+                'titles' => [
+                    'Villa Murah Jogja Saat Jazz Festival: Panduan Lengkap',
+                    'Rekomendasi Homestay Jogja untuk Jazz Festival 2026',
+                    'Menginap Nyaman di Jogja Saat Jazz Festival',
+                ],
                 'provider' => 'gemini',
+                'model' => 'gemini-pro',
+            ]);
+
+        /** Mock: Step 2 — Outline generation */
+        $aiService->shouldReceive('generateOutline')
+            ->once()
+            ->andReturn([
+                'success' => true,
+                'outline' => "## Hook\nJogja Jazz Festival selalu menarik ribuan pengunjung...\n\n## Area Menginap\n### Dekat Venue Festival\n### Dekat Malioboro\n\n## Estimasi Budget\n- Villa: Rp 1.500.000/malam\n\n## CTA\nSegera booking sebelum penuh!",
+                'lsi_keywords' => ['festival Jogja', 'penginapan murah Yogyakarta', 'villa rombongan Jogja'],
+                'provider' => 'gemini',
+                'article_type' => 'event_article',
+            ]);
+
+        /** Mock: Step 3 — Content generation */
+        $aiService->shouldReceive('generateContent')
+            ->once()
+            ->andReturn([
+                'success' => true,
+                'content' => '## Jazz Festival Jogja dan Dilema Penginapan' . str_repeat(' lorem ipsum', 80),
+                'excerpt' => 'Panduan lengkap menginap di Jogja saat Jazz Festival.',
+                'meta_description' => 'Cari villa murah di Jogja untuk Jazz Festival? Temukan rekomendasi terbaik di sini.',
+                'word_count' => 820,
+                'provider' => 'gemini',
+                'article_type' => 'event_article',
             ]);
 
         $job = new GenerateTrendingArticleJob();
@@ -92,7 +120,10 @@ class AIArticleGenerationTest extends TestCase
 
         $article = Article::first();
         $this->assertEquals('reviewing', $article->status);
-        $this->assertStringContainsString('Panduan Menginap', $article->title);
         $this->assertEquals('id', $article->language);
+        $this->assertEquals('event_article', $article->generation_metadata['article_type']);
+        $this->assertNotEmpty($article->generation_metadata['lsi_keywords']);
+        $this->assertNotEmpty($article->generation_metadata['keyword_category']);
+        $this->assertGreaterThan(0, $article->generation_metadata['word_count']);
     }
 }

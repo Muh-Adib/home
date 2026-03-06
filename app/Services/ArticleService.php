@@ -16,13 +16,8 @@ class ArticleService
     public function createArticle(array $data): Article
     {
         return DB::transaction(function () use ($data) {
-            $createData = $data;
-            if (!empty($data['schema_markup'])) {
-                $createData['generation_metadata'] = ['schema_markup' => $data['schema_markup']];
-            }
-
             $article = Article::create([
-                ...$createData,
+                ...$data,
                 'author_id' => Auth::id(),
                 'published_at' => ($data['status'] ?? '') === 'published' ? now() : null,
             ]);
@@ -49,13 +44,6 @@ class ArticleService
                     ? now()
                     : $article->published_at,
             ];
-
-            if (array_key_exists('schema_markup', $data)) {
-                $updateData['generation_metadata'] = array_merge(
-                    $article->generation_metadata ?? [],
-                    ['schema_markup' => $data['schema_markup']]
-                );
-            }
 
             $article->update($updateData);
 

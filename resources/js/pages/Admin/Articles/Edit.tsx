@@ -21,7 +21,10 @@ import {
     Loader2,
     X,
     Upload,
-    FileText
+    FileText,
+    CheckCircle,
+    AlertTriangle,
+    Activity
 } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import axios from 'axios';
@@ -58,7 +61,6 @@ interface ArticleEditProps {
             ai_outline?: string;
         };
         generation_metadata?: {
-            schema_markup?: string;
             [key: string]: any;
         };
     };
@@ -85,8 +87,35 @@ interface ArticleFormData {
     featured_image: string;
     property_ids: number[];
     outline: string;
-    schema_markup: string;
+    article_type: string;
 }
+
+const ARTICLE_TYPES = [
+    {
+        value: 'travel_guide',
+        label: 'Travel Guide',
+        description: 'Panduan praktis: lokasi, harga, rekomendasi & CTA booking',
+        badge: 'Recommended',
+    },
+    {
+        value: 'seo_article',
+        label: 'SEO Article',
+        description: 'Artikel mendalam berbasis keyword, FAQ & topical authority',
+        badge: null,
+    },
+    {
+        value: 'property_article',
+        label: 'Property Feature',
+        description: 'Showcase satu properti dengan storytelling & booking CTA',
+        badge: null,
+    },
+    {
+        value: 'event_article',
+        label: 'Event Article',
+        description: 'Artikel timely dipicu event/tren lokal Jogja',
+        badge: null,
+    },
+];
 
 export default function ArticleEdit({ article, properties, linkedPropertyIds = [], languages, config }: ArticleEditProps) {
     const page = usePage<PageProps>();
@@ -106,7 +135,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
         featured_image: article?.featured_image || '',
         property_ids: linkedPropertyIds,
         outline: article?.content_plan?.ai_outline || '',
-        schema_markup: article?.generation_metadata?.schema_markup || '',
+        article_type: 'travel_guide',
     });
 
     const [activeTab, setActiveTab] = useState('editor');
@@ -343,6 +372,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                 title: data.title,
                 keywords: data.target_keywords,
                 provider: config.default_provider,
+                article_type: data.article_type,
             });
 
             if (!outlineResponse.data.success) {
@@ -393,6 +423,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                 language: data.language,
                 tone: contentTone,
                 provider: config.default_provider,
+                article_type: data.article_type,
             });
 
             if (contentResponse.data.success) {
@@ -406,11 +437,6 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                 // Auto-fill meta description if empty
                 if (!data.meta_description && contentResponse.data.meta_description) {
                     updates.meta_description = contentResponse.data.meta_description;
-                }
-
-                // Auto-fill schema markup if returned
-                if (contentResponse.data.schema_markup) {
-                    updates.schema_markup = contentResponse.data.schema_markup;
                 }
 
                 setData(prevData => ({ ...prevData, ...updates }));
@@ -633,32 +659,67 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
 
                     {/* Sidebar - 1 column */}
                     <div className="space-y-6">
-                        {/* SEO Score */}
-                        <Card>
-                            <CardHeader>
+                        {/* Quality & Completeness Score */}
+                        <Card className={seoScore >= 80 ? 'border-green-200 shadow-sm shadow-green-100' : seoScore >= 50 ? 'border-amber-200' : 'border-red-200'}>
+                            <CardHeader className={`pb-3 border-b ${seoScore >= 80 ? 'bg-green-50/50' : seoScore >= 50 ? 'bg-amber-50/50' : 'bg-red-50/50'}`}>
                                 <CardTitle className="text-sm flex items-center justify-between">
                                     <span className="flex items-center gap-2">
-                                        <BarChart className="h-4 w-4" />
-                                        SEO Score
+                                        <Activity className="h-4 w-4" />
+                                        Quality Score
                                     </span>
-                                    <Badge variant={seoScore >= 70 ? 'default' : seoScore >= 50 ? 'outline' : 'destructive'}>
-                                        {seoScore}/100
-                                    </Badge>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-lg font-bold ${seoScore >= 80 ? 'text-green-600' : seoScore >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                                            {seoScore}%
+                                        </span>
+                                        {seoScore >= 80 ? (
+                                            <CheckCircle className="h-5 w-5 text-green-500" />
+                                        ) : (
+                                            <AlertTriangle className={`h-5 w-5 ${seoScore < 50 ? 'text-red-500 animate-pulse' : 'text-amber-500'}`} />
+                                        )}
+                                    </div>
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <div className="w-full bg-gray-200 rounded-full h-2">
+                            <CardContent className="pt-4 space-y-4">
+                                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
                                     <div
-                                        className={`h-2 rounded-full transition-all ${seoScore >= 70 ? 'bg-green-600' : seoScore >= 50 ? 'bg-yellow-600' : 'bg-red-600'
+                                        className={`h-full rounded-full transition-all duration-500 ${seoScore >= 80 ? 'bg-green-500' :
+                                                seoScore >= 50 ? 'bg-amber-400' : 'bg-red-500'
                                             }`}
                                         style={{ width: `${seoScore}%` }}
                                     />
                                 </div>
-                                <p className="text-xs text-gray-600 mt-2">
-                                    {seoScore >= 70 ? 'Excellent! Ready to publish' :
-                                        seoScore >= 50 ? 'Good, but can be improved' :
-                                            'Needs improvement'}
+                                <p className="text-xs font-medium text-gray-700">
+                                    {seoScore >= 80 ? '✨ Excellent! Ready to publish.' :
+                                        seoScore >= 50 ? '⚠️ Good, but can be improved.' :
+                                            '🚨 Needs major improvements.'}
                                 </p>
+
+                                <div className="space-y-1.5 pt-2 border-t text-[11px]">
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500">Judul (30-60 char)</span>
+                                        <span className={data.title.length >= 30 && data.title.length <= 60 ? 'text-green-600 font-medium' : 'text-red-500'}>{data.title.length >= 30 && data.title.length <= 60 ? '✓' : '✗'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500">Meta Desc (120-160)</span>
+                                        <span className={data.meta_description.length >= 120 && data.meta_description.length <= 160 ? 'text-green-600 font-medium' : 'text-red-500'}>{data.meta_description.length >= 120 && data.meta_description.length <= 160 ? '✓' : '✗'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500">Featured Image</span>
+                                        <span className={data.featured_image ? 'text-green-600 font-medium' : 'text-red-500'}>{data.featured_image ? '✓' : '✗'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500">Target Keywords (≥3)</span>
+                                        <span className={data.target_keywords.length >= 3 ? 'text-green-600 font-medium' : 'text-red-500'}>{data.target_keywords.length >= 3 ? '✓' : '✗'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500">Linked Properties</span>
+                                        <span className={data.property_ids.length > 0 ? 'text-green-600 font-medium' : 'text-red-500'}>{data.property_ids.length > 0 ? '✓' : '✗'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500">Panjang Konten (≥500)</span>
+                                        <span className={data.content.split(/\s+/).length >= 500 ? 'text-green-600 font-medium' : 'text-red-500'}>{data.content.split(/\s+/).length >= 500 ? '✓' : '✗'}</span>
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
 
@@ -694,6 +755,43 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                         {data.outline ? 'Regenerate' : 'Generate'}
                                     </Button>
                                 </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Article Type Selector */}
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                    <FileText className="h-4 w-4" />
+                                    Tipe Artikel
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                {ARTICLE_TYPES.map((type) => (
+                                    <button
+                                        key={type.value}
+                                        type="button"
+                                        onClick={() => setData('article_type', type.value)}
+                                        className={`w-full text-left p-2.5 rounded-lg border transition-all ${data.article_type === type.value
+                                            ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-0.5">
+                                            <span className={`text-xs font-semibold ${data.article_type === type.value ? 'text-primary' : 'text-gray-800'}`}>
+                                                {type.label}
+                                            </span>
+                                            {type.badge && (
+                                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
+                                                    {type.badge}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 leading-tight">
+                                            {type.description}
+                                        </p>
+                                    </button>
+                                ))}
                             </CardContent>
                         </Card>
 

@@ -28,7 +28,6 @@ class UpdateArticleRequest extends FormRequest
             'property_ids' => 'nullable|array',
             'property_ids.*' => 'exists:properties,id',
             'outline' => 'nullable|string',
-            'schema_markup' => 'nullable|string',
         ];
     }
 }

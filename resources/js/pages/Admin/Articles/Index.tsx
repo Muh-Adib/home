@@ -21,7 +21,10 @@ import {
     BarChart,
     Copy,
     Send,
-    Kanban
+    Kanban,
+    AlertTriangle,
+    CheckCircle,
+    Activity
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -41,6 +44,7 @@ interface Article {
     properties_count: number;
     created_at: string;
     content_plan_id?: number;
+    completeness_score?: number;
 }
 
 interface ArticlesIndexProps {
@@ -147,6 +151,70 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
                     )}
                 </div>
 
+                {/* Top KPI Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500">Total Articles</p>
+                                    <h3 className="text-2xl font-bold text-gray-900 mt-1">{articles.total}</h3>
+                                </div>
+                                <div className="p-3 bg-blue-50 text-blue-600 rounded-full">
+                                    <FileText className="h-5 w-5" />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500">Total Views</p>
+                                    <h3 className="text-2xl font-bold text-gray-900 mt-1">
+                                        {articles.data.reduce((acc, curr) => acc + curr.view_count, 0).toLocaleString()}
+                                    </h3>
+                                </div>
+                                <div className="p-3 bg-green-50 text-green-600 rounded-full">
+                                    <Eye className="h-5 w-5" />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500">Avg Completeness</p>
+                                    <h3 className="text-2xl font-bold text-gray-900 mt-1">
+                                        {articles.data.length > 0
+                                            ? Math.round(articles.data.reduce((acc, curr) => acc + (curr.completeness_score || 0), 0) / articles.data.length)
+                                            : 0}%
+                                    </h3>
+                                </div>
+                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full">
+                                    <Activity className="h-5 w-5" />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500">Need Attention</p>
+                                    <h3 className="text-2xl font-bold text-red-600 mt-1">
+                                        {articles.data.filter(a => (a.completeness_score || 0) < 50 && a.status === 'published').length}
+                                    </h3>
+                                </div>
+                                <div className="p-3 bg-red-50 text-red-600 rounded-full">
+                                    <AlertTriangle className="h-5 w-5" />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
                 {/* Filters */}
                 <Card>
                     <CardHeader>
@@ -238,6 +306,7 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
                                             <TableHead>Status</TableHead>
                                             <TableHead>Language</TableHead>
                                             <TableHead>Author</TableHead>
+                                            <TableHead>Quality Score</TableHead>
                                             <TableHead>Views</TableHead>
                                             <TableHead>Properties</TableHead>
                                             <TableHead>Date</TableHead>
@@ -282,6 +351,32 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="text-sm text-gray-900">{article.author.name}</div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col gap-1 w-24">
+                                                        <div className="flex items-center justify-between text-xs font-medium">
+                                                            <span className={
+                                                                (article.completeness_score || 0) >= 80 ? 'text-green-600' :
+                                                                    (article.completeness_score || 0) >= 50 ? 'text-amber-600' : 'text-red-500'
+                                                            }>
+                                                                {article.completeness_score || 0}%
+                                                            </span>
+                                                            {(article.completeness_score || 0) < 50 && article.status === 'published' && (
+                                                                <AlertTriangle className="h-3 w-3 text-red-500 animate-pulse" />
+                                                            )}
+                                                            {(article.completeness_score || 0) >= 80 && (
+                                                                <CheckCircle className="h-3 w-3 text-green-500" />
+                                                            )}
+                                                        </div>
+                                                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                                            <div
+                                                                className={`h-1.5 rounded-full ${(article.completeness_score || 0) >= 80 ? 'bg-green-500' :
+                                                                        (article.completeness_score || 0) >= 50 ? 'bg-amber-400' : 'bg-red-500'
+                                                                    }`}
+                                                                style={{ width: `${article.completeness_score || 0}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center text-sm text-gray-500">

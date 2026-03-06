@@ -74,13 +74,17 @@ class ArticleAIController extends Controller
             'title' => 'required|string',
             'keywords' => 'required|array',
             'provider' => 'nullable|string|in:openrouter,gemini',
+            'article_type' => 'nullable|string|in:travel_guide,seo_article,property_article,event_article',
         ]);
 
         try {
             $result = $this->aiService->generateOutline(
                 $validated['title'],
                 $validated['keywords'],
-                $validated['provider'] ?? config('article.ai.default_provider')
+                $validated['provider'] ?? config('article.ai.default_provider'),
+                [],
+                '',
+                $validated['article_type'] ?? 'travel_guide'
             );
 
             return response()->json($result);
@@ -93,10 +97,7 @@ class ArticleAIController extends Controller
                 'retry_suggested' => $e->shouldRetry(),
             ], $e->getCode() ?: 500);
         } catch (\Exception $e) {
-            Log::error('Unexpected error in outline generation', [
-                'error' => $e->getMessage(),
-            ]);
-
+            Log::error('Unexpected error in outline generation', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'error' => 'An unexpected error occurred',
@@ -119,13 +120,14 @@ class ArticleAIController extends Controller
             'language' => 'nullable|string|in:id,en',
             'tone' => 'nullable|string|in:professional,casual',
             'intent' => 'nullable|string',
+            'article_type' => 'nullable|string|in:travel_guide,seo_article,property_article,event_article',
         ]);
 
         try {
             $properties = [];
             if (!empty($validated['property_ids'])) {
                 $properties = \App\Models\Property::whereIn('id', $validated['property_ids'])
-                    ->get(['id', 'name', 'slug', 'description']) // include description for USP generation
+                    ->get(['id', 'name', 'slug', 'description'])
                     ->toArray();
             }
 
@@ -135,8 +137,9 @@ class ArticleAIController extends Controller
                 $properties,
                 $validated['provider'] ?? config('article.ai.default_provider'),
                 $validated['language'] ?? 'id',
-                $validated['tone'] ?? 'professional',
-                $validated['intent'] ?? null
+                $validated['tone'] ?? 'casual',
+                $validated['intent'] ?? null,
+                $validated['article_type'] ?? 'travel_guide'
             );
 
             return response()->json($result);
@@ -149,10 +152,7 @@ class ArticleAIController extends Controller
                 'retry_suggested' => $e->shouldRetry(),
             ], $e->getCode() ?: 500);
         } catch (\Exception $e) {
-            Log::error('Unexpected error in content generation', [
-                'error' => $e->getMessage(),
-            ]);
-
+            Log::error('Unexpected error in content generation', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'error' => 'An unexpected error occurred',
