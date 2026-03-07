@@ -622,12 +622,12 @@ PROMPT;
     private function buildImageGenerationBlock(): string
     {
         return "\n\n===[ VISUAL & ILUSTRASI ARTIKEL ]===\n"
-            . "Setiap kali kamu membahas sub-topik baru (setelah H2), kamu WAJIB menyisipkan satu gambar ilustrasi secara on-the-fly.\n"
-            . "Gunakan format Markdown Image berikut dengan URL dinamis ini (tanpa spasi di keyword):\n"
-            . "![Keterangan gambar bahasa Indonesia](https://loremflickr.com/800/400/{keyword1},{keyword2})\n"
-            . "Contoh: Jika membahas Malioboro, tulis: `![Suasana Jalan Malioboro Yogyakarta](https://loremflickr.com/800/400/malioboro,yogyakarta)`\n"
-            . "Contoh: Jika membahas Villa Keluarga, tulis: `![Villa keluarga dengan kolam renang](https://loremflickr.com/800/400/villa,family)`\n"
-            . "Pastikan URL menggunakan kata kunci bahasa inggris atau nama tempat agar visualnya masuk akal.";
+            . "Setiap kali kamu membahas sub-topik baru (setelah H2), kamu WAJIB menyisipkan satu gambar ilustrasi yang relevan.\n"
+            . "Gunakan gambar nyata dari internet (seperti dari Unsplash, Wikimedia Commons, Pexels, atau sumber publik yang valid) JANGAN MENGGUNAKAN loremflickr.\n"
+            . "Gunakan format Markdown Image dan WAJIB sertakan pengutipan sumber di bawah gambar, dengan format:\n"
+            . "![Keterangan gambar bahasa Indonesia](https://url-gambar-asli-dari-internet.jpg)\n"
+            . "*Sumber gambar: [Nama Fotografer / Situs](https://url-referensi-asli.com)*\n"
+            . "Pastikan gambar sangat relevan dengan topik yang sedang dibicarakan di section tersebut.";
     }
 
     private function getJogjaContext(): string
