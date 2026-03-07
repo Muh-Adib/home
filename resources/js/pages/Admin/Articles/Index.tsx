@@ -24,9 +24,12 @@ import {
     Kanban,
     AlertTriangle,
     CheckCircle,
-    Activity
+    Activity,
+    Clock
 } from 'lucide-react';
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Article {
     id: number;
@@ -63,6 +66,12 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [languageFilter, setLanguageFilter] = useState(filters.language || 'all');
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Effect to clear loading state when articles prop changes
+    useEffect(() => {
+        setIsLoading(false);
+    }, [articles]);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -70,6 +79,7 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
     ];
 
     const handleSearch = () => {
+        setIsLoading(true);
         router.get('/admin/articles', {
             search: searchTerm,
             status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -77,6 +87,8 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
         }, {
             preserveState: true,
             preserveScroll: true,
+            only: ['articles', 'filters'],
+            onFinish: () => setIsLoading(false)
         });
     };
 
@@ -104,7 +116,7 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
         };
 
         const config = statusConfig[status] || { variant: 'secondary', label: status };
-        return <Badge variant={config.variant}>{config.label}</Badge>;
+        return <Badge variant={config.variant as any}>{config.label}</Badge>;
     };
 
     // Check permissions
@@ -153,341 +165,163 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
 
                 {/* Top KPI Metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Card>
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500">Total Articles</p>
-                                    <h3 className="text-2xl font-bold text-gray-900 mt-1">{articles.total}</h3>
-                                </div>
-                                <div className="p-3 bg-blue-50 text-blue-600 rounded-full">
-                                    <FileText className="h-5 w-5" />
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500">Total Views</p>
-                                    <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                                        {articles.data.reduce((acc, curr) => acc + curr.view_count, 0).toLocaleString()}
-                                    </h3>
-                                </div>
-                                <div className="p-3 bg-green-50 text-green-600 rounded-full">
-                                    <Eye className="h-5 w-5" />
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500">Avg Completeness</p>
-                                    <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                                        {articles.data.length > 0
-                                            ? Math.round(articles.data.reduce((acc, curr) => acc + (curr.completeness_score || 0), 0) / articles.data.length)
-                                            : 0}%
-                                    </h3>
-                                </div>
-                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full">
-                                    <Activity className="h-5 w-5" />
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500">Need Attention</p>
-                                    <h3 className="text-2xl font-bold text-red-600 mt-1">
-                                        {articles.data.filter(a => (a.completeness_score || 0) < 50 && a.status === 'published').length}
-                                    </h3>
-                                </div>
-                                <div className="p-3 bg-red-50 text-red-600 rounded-full">
-                                    <AlertTriangle className="h-5 w-5" />
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <p className="text-sm text-gray-600">Total Articles</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">{articles.total}</p>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <p className="text-sm text-gray-600">Total Views</p>
+                        <p className="text-2xl font-bold text-green-600 mt-1">
+                            {articles.data.reduce((acc, curr) => acc + curr.view_count, 0).toLocaleString()}
+                        </p>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <p className="text-sm text-gray-600">Avg Completeness</p>
+                        <p className="text-2xl font-bold text-indigo-600 mt-1">
+                            {articles.data.length > 0
+                                ? Math.round(articles.data.reduce((acc, curr) => acc + (curr.completeness_score || 0), 0) / articles.data.length)
+                                : 0}%
+                        </p>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <p className="text-sm text-gray-600">Need Attention</p>
+                        <p className="text-2xl font-bold text-red-600 mt-1">
+                            {articles.data.filter(a => (a.completeness_score || 0) < 50 && a.status === 'published').length}
+                        </p>
+                    </div>
                 </div>
 
                 {/* Filters */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                            <Filter className="h-5 w-5" />
-                            Filters
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">
-                                    Search
-                                </label>
-                                <div className="flex gap-2">
-                                    <Input
-                                        placeholder="Search articles..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                                    />
-                                    <Button onClick={handleSearch} variant="outline">
-                                        <Search className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">
-                                    Status
-                                </label>
-                                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Status</SelectItem>
-                                        <SelectItem value="draft">Draft</SelectItem>
-                                        <SelectItem value="reviewing">In Review</SelectItem>
-                                        <SelectItem value="scheduled">Scheduled</SelectItem>
-                                        <SelectItem value="published">Published</SelectItem>
-                                        <SelectItem value="archived">Archived</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">
-                                    Language
-                                </label>
-                                <Select value={languageFilter} onValueChange={setLanguageFilter}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Languages</SelectItem>
-                                        {languages.map(lang => (
-                                            <SelectItem key={lang} value={lang}>
-                                                {lang === 'id' ? '🇮🇩 Indonesia' : '🇬🇧 English'}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="flex items-end">
-                                <Button onClick={handleSearch} className="w-full">
-                                    Apply Filters
-                                </Button>
+                <div className="bg-white rounded-lg shadow-sm border p-4">
+                    <div className="flex flex-col md:flex-row gap-4 items-end">
+                        <div className="flex-1 w-full">
+                            <label className="text-xs text-gray-500 mb-1 block">Search Articles</label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                    placeholder="Search by title or slug..."
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        // Debounce search
+                                        const timer = setTimeout(() => {
+                                             setIsLoading(true);
+                                             router.get('/admin/articles', {
+                                                search: e.target.value,
+                                                status: statusFilter !== 'all' ? statusFilter : undefined,
+                                                language: languageFilter !== 'all' ? languageFilter : undefined,
+                                             }, { preserveState: true, only: ['articles', 'filters'], onFinish: () => setIsLoading(false) });
+                                        }, 500);
+                                        return () => clearTimeout(timer);
+                                    }}
+                                    className="pl-10 h-9"
+                                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                                />
                             </div>
                         </div>
-                    </CardContent>
-                </Card>
 
-                {/* Articles Table */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-lg">
-                            All Articles ({articles.total})
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {articles.data.length > 0 ? (
-                            <div className="overflow-x-auto">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Title</TableHead>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead>Language</TableHead>
-                                            <TableHead>Author</TableHead>
-                                            <TableHead>Quality Score</TableHead>
-                                            <TableHead>Views</TableHead>
-                                            <TableHead>Properties</TableHead>
-                                            <TableHead>Date</TableHead>
-                                            <TableHead className="text-right">Actions</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {articles.data.map((article) => (
-                                            <TableRow
-                                                key={article.id}
-                                                className="cursor-pointer hover:bg-gray-50"
-                                                onClick={() => router.visit(`/admin/articles/${article.slug}/edit`)}
-                                            >
-                                                <TableCell>
-                                                    <div className="flex items-center space-x-3">
-                                                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                                                            <FileText className="h-5 w-5 text-gray-600" />
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <div className="font-medium text-gray-900 flex items-center gap-2">
-                                                                {article.title}
-                                                                {article.content_plan_id && (
-                                                                    <Badge variant="outline" className="text-xs">
-                                                                        <Kanban className="h-3 w-3 mr-1" />
-                                                                        From Plan
-                                                                    </Badge>
-                                                                )}
-                                                            </div>
-                                                            <div className="text-sm text-gray-500">
-                                                                /{article.slug}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    {getStatusBadge(article.status)}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <span className="text-sm">
-                                                        {article.language === 'id' ? '🇮🇩 ID' : '🇬🇧 EN'}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="text-sm text-gray-900">{article.author.name}</div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col gap-1 w-24">
-                                                        <div className="flex items-center justify-between text-xs font-medium">
-                                                            <span className={
-                                                                (article.completeness_score || 0) >= 80 ? 'text-green-600' :
-                                                                    (article.completeness_score || 0) >= 50 ? 'text-amber-600' : 'text-red-500'
-                                                            }>
-                                                                {article.completeness_score || 0}%
-                                                            </span>
-                                                            {(article.completeness_score || 0) < 50 && article.status === 'published' && (
-                                                                <AlertTriangle className="h-3 w-3 text-red-500 animate-pulse" />
-                                                            )}
-                                                            {(article.completeness_score || 0) >= 80 && (
-                                                                <CheckCircle className="h-3 w-3 text-green-500" />
-                                                            )}
-                                                        </div>
-                                                        <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                                            <div
-                                                                className={`h-1.5 rounded-full ${(article.completeness_score || 0) >= 80 ? 'bg-green-500' :
-                                                                        (article.completeness_score || 0) >= 50 ? 'bg-amber-400' : 'bg-red-500'
-                                                                    }`}
-                                                                style={{ width: `${article.completeness_score || 0}%` }}
-                                                            ></div>
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center text-sm text-gray-500">
-                                                        <BarChart className="h-4 w-4 mr-1" />
-                                                        {article.view_count}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="text-sm text-gray-500">
-                                                        {article.properties_count} linked
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="text-sm text-gray-500">
-                                                        {article.published_at
-                                                            ? new Date(article.published_at).toLocaleDateString()
-                                                            : new Date(article.created_at).toLocaleDateString()
-                                                        }
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={(e) => e.stopPropagation()}
-                                                            >
-                                                                <MoreHorizontal className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                            <DropdownMenuSeparator />
-                                                            {article.status === 'published' && (
-                                                                <DropdownMenuItem asChild>
-                                                                    <Link href={`/articles/${article.slug}`} target="_blank">
-                                                                        <Eye className="h-4 w-4 mr-2" />
-                                                                        View Published
-                                                                    </Link>
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                            {canEdit(article) && (
-                                                                <DropdownMenuItem asChild>
-                                                                    <Link href={`/admin/articles/${article.slug}/edit`}>
-                                                                        <Edit className="h-4 w-4 mr-2" />
-                                                                        Edit
-                                                                    </Link>
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                            {canEdit(article) && (article.status === 'draft' || article.status === 'reviewing') && (
-                                                                <DropdownMenuItem onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handlePublish(article);
-                                                                }}>
-                                                                    <Send className="h-4 w-4 mr-2" />
-                                                                    Publish Now
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                            {canEdit(article) && (
-                                                                <DropdownMenuItem asChild>
-                                                                    <Link href={`/admin/articles/${article.slug}/duplicate`} method="post">
-                                                                        <Copy className="h-4 w-4 mr-2" />
-                                                                        Duplicate
-                                                                    </Link>
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                            {canDelete(article) && (
-                                                                <>
-                                                                    <DropdownMenuSeparator />
-                                                                    <DropdownMenuItem
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleDelete(article);
-                                                                        }}
-                                                                        className="text-red-600"
-                                                                    >
-                                                                        <Trash2 className="h-4 w-4 mr-2" />
-                                                                        Delete
-                                                                    </DropdownMenuItem>
-                                                                </>
-                                                            )}
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        ) : (
-                            <div className="text-center py-12">
-                                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                                    No articles yet
-                                </h3>
-                                <p className="text-gray-500 mb-6">
-                                    Start creating articles to improve SEO and showcase properties
-                                </p>
-                                {canCreate && (
-                                    <Link href="/admin/articles/create">
-                                        <Button>
-                                            <Plus className="h-4 w-4 mr-2" />
-                                            Create Your First Article
-                                        </Button>
-                                    </Link>
-                                )}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                        <div className="w-full md:w-48">
+                            <label className="text-xs text-gray-500 mb-1 block">Status</label>
+                            <Select 
+                                value={statusFilter} 
+                                onValueChange={(val) => {
+                                    setStatusFilter(val);
+                                    setIsLoading(true);
+                                    router.get('/admin/articles', {
+                                        search: searchTerm,
+                                        status: val !== 'all' ? val : undefined,
+                                        language: languageFilter !== 'all' ? languageFilter : undefined,
+                                    }, { preserveState: true, preserveScroll: true, only: ['articles', 'filters'], onFinish: () => setIsLoading(false) });
+                                }}
+                            >
+                                <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="All Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Status</SelectItem>
+                                    <SelectItem value="draft">Draft</SelectItem>
+                                    <SelectItem value="reviewing">In Review</SelectItem>
+                                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                                    <SelectItem value="published">Published</SelectItem>
+                                    <SelectItem value="archived">Archived</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="w-full md:w-48">
+                            <label className="text-xs text-gray-500 mb-1 block">Language</label>
+                            <Select 
+                                value={languageFilter} 
+                                onValueChange={(val) => {
+                                    setLanguageFilter(val);
+                                    setIsLoading(true);
+                                    router.get('/admin/articles', {
+                                        search: searchTerm,
+                                        status: statusFilter !== 'all' ? statusFilter : undefined,
+                                        language: val !== 'all' ? val : undefined,
+                                    }, { preserveState: true, preserveScroll: true, only: ['articles', 'filters'], onFinish: () => setIsLoading(false) });
+                                }}
+                            >
+                                <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="All Languages" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Languages</SelectItem>
+                                    {languages.map(lang => (
+                                        <SelectItem key={lang} value={lang}>
+                                            {lang === 'id' ? '🇮🇩 Indonesia' : '🇬🇧 English'}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Articles List / Table view removed */}
+                <div className="space-y-4">
+                    <div className="mb-2 text-sm text-gray-500">
+                        All Articles ({articles.total})
+                    </div>
+                    
+                    {isLoading ? (
+                        <div className="space-y-4">
+                            {[1, 2, 3].map((i) => (
+                                <ArticleSkeleton key={i} />
+                            ))}
+                        </div>
+                    ) : articles.data.length > 0 ? (
+                        articles.data.map((article) => (
+                            <ArticleCard 
+                                key={article.id} 
+                                article={article} 
+                                getStatusBadge={getStatusBadge}
+                                onPublish={handlePublish}
+                                onDelete={handleDelete}
+                                canEdit={canEdit(article)}
+                                canDelete={canDelete(article)}
+                            />
+                        ))
+                    ) : (
+                        <div className="text-center py-12 bg-white rounded-lg border border-dashed">
+                            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">
+                                No articles yet
+                            </h3>
+                            <p className="text-gray-500 mb-6">
+                                Start creating articles to improve SEO and showcase properties
+                            </p>
+                            {canCreate && (
+                                <Link href="/admin/articles/create">
+                                    <Button>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Create Your First Article
+                                    </Button>
+                                </Link>
+                            )}
+                        </div>
+                    )}
+                </div>
 
                 {/* Pagination */}
                 {articles.data.length > 0 && articles.last_page > 1 && (
@@ -517,3 +351,178 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
         </AdminLayout>
     );
 }
+
+// Subcomponents
+const ArticleSkeleton = () => (
+    <div className="bg-white border rounded-lg p-5 flex flex-col md:flex-row gap-4 justify-between">
+        <div className="flex-1 space-y-3">
+            <div className="flex items-center gap-2">
+                <Skeleton className="h-5 w-64 rounded-md" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+            <Skeleton className="h-4 w-80 rounded-md" />
+            <div className="flex items-center gap-4 pt-2">
+                <Skeleton className="h-3 w-20 rounded-md" />
+                <Skeleton className="h-3 w-20 rounded-md" />
+                <Skeleton className="h-3 w-24 rounded-md" />
+                <Skeleton className="h-3 w-32 rounded-md" />
+            </div>
+        </div>
+        <div className="w-8">
+            <Skeleton className="h-8 w-8 rounded-md" />
+        </div>
+    </div>
+);
+
+interface ArticleCardProps {
+    article: Article;
+    getStatusBadge: (status: string) => React.ReactNode;
+    onPublish: (article: Article) => void;
+    onDelete: (article: Article) => void;
+    canEdit: boolean;
+    canDelete: boolean;
+}
+
+const ArticleCard = React.memo(({ article, getStatusBadge, onPublish, onDelete, canEdit, canDelete }: ArticleCardProps) => {
+    return (
+        <div
+            className="group bg-white border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer flex flex-col md:flex-row gap-4 justify-between"
+            onClick={() => router.visit(`/admin/articles/${article.slug}/edit`)}
+        >
+            <div className="flex-1 space-y-2">
+                <div className="flex items-start gap-2 max-w-[90%]">
+                    <h3 className="text-base font-bold text-gray-900 line-clamp-1">{article.title}</h3>
+                    {getStatusBadge(article.status)}
+                    {article.content_plan_id && (
+                        <div className="text-[10px] hidden sm:flex items-center px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-medium tracking-wide">
+                            <Kanban className="h-3 w-3 mr-1" />
+                            From Plan
+                        </div>
+                    )}
+                </div>
+                
+                <div className="flex items-center text-sm text-gray-500 gap-2">
+                    <span className="font-mono text-xs bg-gray-50 px-1.5 py-0.5 rounded border">/{article.slug}</span>
+                    <span className="hidden sm:inline-block text-gray-300">•</span>
+                    <span>By {article.author.name}</span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500 pt-1">
+                    <span className="flex items-center line-clamp-1">
+                         {article.language === 'id' ? '🇮🇩 ID' : '🇬🇧 EN'}
+                    </span>
+                    
+                    <span className="flex items-center">
+                        <BarChart className="h-3.5 w-3.5 mr-1" />
+                        {article.view_count} views
+                    </span>
+                    
+                    <span>{article.properties_count} properties linked</span>
+
+                    <span className="flex items-center">
+                        {article.status === 'scheduled' && article.scheduled_at ? (
+                            <>
+                                <Clock className="h-3.5 w-3.5 mr-1 text-amber-500" />
+                                <span className="text-amber-600 font-medium">Auto-publishes {new Date(article.scheduled_at).toLocaleDateString()}</span>
+                            </>
+                        ) : (
+                            <>
+                                <Calendar className="h-3.5 w-3.5 mr-1" />
+                                {article.published_at
+                                    ? new Date(article.published_at).toLocaleDateString()
+                                    : new Date(article.created_at).toLocaleDateString()
+                                }
+                            </>
+                        )}
+                    </span>
+                    
+                    {/* Completeness logic simplified for the card */}
+                    <div className="flex items-center ml-auto">
+                        <span className={cn(
+                            "font-medium mr-1.5",
+                            (article.completeness_score || 0) >= 80 ? 'text-green-600' :
+                                (article.completeness_score || 0) >= 50 ? 'text-amber-600' : 'text-red-500'
+                        )}>
+                            Score: {article.completeness_score || 0}%
+                        </span>
+                        {(article.completeness_score || 0) < 50 && article.status === 'published' && (
+                            <span title="Needs attention">
+                                <AlertTriangle className="h-3 w-3 text-red-500 animate-pulse" />
+                            </span>
+                        )}
+                        {(article.completeness_score || 0) >= 80 && (
+                            <CheckCircle className="h-3 w-3 text-green-500" />
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="bg-gray-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {article.status === 'published' && (
+                            <DropdownMenuItem asChild>
+                                <Link href={`/articles/${article.slug}`} target="_blank">
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    View Published
+                                </Link>
+                            </DropdownMenuItem>
+                        )}
+                        {canEdit && (
+                            <DropdownMenuItem asChild>
+                                <Link href={`/admin/articles/${article.slug}/edit`}>
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit Article
+                                </Link>
+                            </DropdownMenuItem>
+                        )}
+                        {canEdit && (article.status === 'draft' || article.status === 'reviewing') && (
+                            <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                onPublish(article);
+                            }}>
+                                <Send className="h-4 w-4 mr-2 text-blue-600" />
+                                <span className="text-blue-600 font-medium">Publish Now</span>
+                            </DropdownMenuItem>
+                        )}
+                        {canEdit && (
+                            <DropdownMenuItem asChild>
+                                <Link href={`/admin/articles/${article.slug}/duplicate`} method="post">
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    Duplicate
+                                </Link>
+                            </DropdownMenuItem>
+                        )}
+                        {canDelete && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete(article);
+                                    }}
+                                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                </DropdownMenuItem>
+                            </>
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+        </div>
+    );
+});

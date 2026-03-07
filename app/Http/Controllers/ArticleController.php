@@ -66,7 +66,7 @@ class ArticleController extends Controller
             $query->orderBy($sortField, $sortDirection);
         }
 
-        $articles = $query->paginate(20);
+        $articles = $query->paginate(15);
 
         // Map the result to inject completeness score
         $articles->getCollection()->transform(function ($article) {
