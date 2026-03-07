@@ -16,7 +16,7 @@ function Tabs({
   )
 }
 
-function TabsList({ className, ...props }) {
+function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
@@ -30,7 +30,7 @@ function TabsList({ className, ...props }) {
 }
 
 
-function TabsTrigger({ className, ...props }) {
+function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   return (
     <TabsPrimitive.Trigger
       className={cn(

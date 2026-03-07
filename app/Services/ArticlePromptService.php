@@ -56,14 +56,15 @@ CONTEXT;
         string $type,
         string $title,
         array $keywords,
-        array $researchContext = []
+        array $researchContext = [],
+        array $properties = []
     ): string {
         return match ($type) {
-            'travel_guide' => $this->travelGuideOutlinePrompt($title, $keywords, $researchContext),
-            'seo_article' => $this->seoArticleOutlinePrompt($title, $keywords, $researchContext),
-            'property_article' => $this->propertyArticleOutlinePrompt($title, $keywords, $researchContext),
-            'event_article' => $this->eventArticleOutlinePrompt($title, $keywords, $researchContext),
-            default => $this->travelGuideOutlinePrompt($title, $keywords, $researchContext),
+            'travel_guide' => $this->travelGuideOutlinePrompt($title, $keywords, $researchContext, $properties),
+            'seo_article' => $this->seoArticleOutlinePrompt($title, $keywords, $researchContext, $properties),
+            'property_article' => $this->propertyArticleOutlinePrompt($title, $keywords, $researchContext, $properties),
+            'event_article' => $this->eventArticleOutlinePrompt($title, $keywords, $researchContext, $properties),
+            default => $this->travelGuideOutlinePrompt($title, $keywords, $researchContext, $properties),
         };
     }
 
@@ -92,12 +93,33 @@ CONTEXT;
     // TRAVEL GUIDE — Tipe artikel utama HomsJogja
     // =========================================================================
 
-    private function travelGuideOutlinePrompt(string $title, array $keywords, array $researchContext): string
+    private function travelGuideOutlinePrompt(string $title, array $keywords, array $researchContext, array $properties = []): string
     {
         $kwStr = implode(', ', $keywords);
         $intent = $researchContext['search_intent'] ?? 'Transactional + Informational';
         $audience = $researchContext['target_audience_analysis'] ?? 'Wisatawan keluarga, rombongan, dan pasangan yang ingin menginap di Yogyakarta';
         $keyPoints = !empty($researchContext['key_points']) ? implode(', ', $researchContext['key_points']) : '';
+
+        // Build real property data block for outline
+        $propertyOutlineBlock = '';
+        if (!empty($properties)) {
+            $lines = array_map(function ($p) {
+                $url = route('properties.show', $p['slug'] ?? Str::slug($p['name']));
+                $location = $p['location'] ?? 'Yogyakarta';
+                $capacity = $p['capacity'] ?? '?';
+                $bedrooms = $p['bedrooms'] ?? '?';
+                $priceMin = $p['base_rate'] ? 'Rp ' . number_format((int)$p['base_rate'], 0, ',', '.') : '~';
+                $line = "- **{$p['name']}** | Lokasi: {$location} | {$capacity} tamu | {$bedrooms} kamar | Harga mulai {$priceMin}/malam | URL: {$url}";
+                if (!empty($p['images'])) {
+                    $line .= "\n  Foto: " . implode(', ', $p['images']);
+                }
+                return $line;
+            }, $properties);
+
+            $propertyOutlineBlock = "\n\nPROPERTI HOMSJOGJA YANG HARUS DISEBUT DALAM OUTLINE:\n"
+                . implode("\n", $lines)
+                . "\n\nPENTING: Gunakan nama asli properti di atas (bukan placeholder) saat membuat struktur 'Rekomendasi Villa'. Sertakan juga nama-nama properti ini di FAQ jika relevan.";
+        }
 
         return <<<PROMPT
 Kamu adalah pakar SEO content strategist untuk website sewa villa & homestay di Yogyakarta (HomsJogja.com).
@@ -108,6 +130,7 @@ Keyword Target: {$kwStr}
 Search Intent: {$intent}
 Target Audience: {$audience}
 {$keyPoints}
+{$propertyOutlineBlock}
 
 {$this->getJogjaContext()}
 
@@ -248,7 +271,7 @@ PROMPT;
     // SEO ARTICLE — Keyword depth, topical authority
     // =========================================================================
 
-    private function seoArticleOutlinePrompt(string $title, array $keywords, array $researchContext): string
+    private function seoArticleOutlinePrompt(string $title, array $keywords, array $researchContext, array $properties = []): string
     {
         $kwStr = implode(', ', $keywords);
         $intent = $researchContext['search_intent'] ?? 'Informational';
@@ -345,7 +368,7 @@ PROMPT;
     // PROPERTY ARTICLE — Feature satu properti
     // =========================================================================
 
-    private function propertyArticleOutlinePrompt(string $title, array $keywords, array $researchContext): string
+    private function propertyArticleOutlinePrompt(string $title, array $keywords, array $researchContext, array $properties = []): string
     {
         $kwStr = implode(', ', $keywords);
 
@@ -450,7 +473,7 @@ PROMPT;
     // EVENT ARTICLE — Triggered by trending news/event
     // =========================================================================
 
-    private function eventArticleOutlinePrompt(string $title, array $keywords, array $researchContext): string
+    private function eventArticleOutlinePrompt(string $title, array $keywords, array $researchContext, array $properties = []): string
     {
         $kwStr = implode(', ', $keywords);
         $travelerAngle = $researchContext['traveler_angle'] ?? 'Wisatawan yang mengunjungi Jogja saat event berlangsung';
@@ -561,11 +584,21 @@ PROMPT;
         }
 
         $lines = array_map(function ($p) use ($detailed) {
+            // Coba ambil list gambar jika $p memiliki id
+            $imageContext = '';
+            if (isset($p['id'])) {
+                $propertyModel = \App\Models\Property::with('media')->find($p['id']);
+                if ($propertyModel && $propertyModel->media->count() > 0) {
+                    $imageUrls = $propertyModel->media->take(3)->pluck('url')->toArray();
+                    $imageContext = "\n  Gambar Asli Properti (Gunakan URL ini di markdown JIKA membahas properti ini):\n  - " . implode("\n  - ", $imageUrls);
+                }
+            }
+
             $url = route('properties.show', $p['slug'] ?? Str::slug($p['name']));
             $usp = !empty($p['description'])
                 ? substr(strip_tags($p['description']), 0, $detailed ? 200 : 120) . '...'
                 : 'Homestay nyaman di Yogyakarta.';
-            return "- **{$p['name']}**: {$usp}\n  Link: {$url}";
+            return "- **{$p['name']}**: {$usp}\n  Link: {$url}{$imageContext}";
         }, $properties);
 
         return "\n\nPROPERTI HOMSJOGJA (sisipkan sebagai rekomendasi natural — BUKAN hard sell):\n"
@@ -574,6 +607,7 @@ PROMPT;
             . "- Selipkan sebagai solusi dari masalah/kebutuhan pembaca\n"
             . "- Contoh: 'Untuk keluarga yang bawa anak, [Nama Villa](URL) cocok karena ada halaman luas dan kolam renang aman.'\n"
             . "- Gunakan format markdown link: [Nama Properti](URL)\n"
+            . "- JIKA kamu menyebut properti ini, WAJIB sertakan salah satu Gambar Asli Properti di atas menggunakan Markdown Image format: ![Keterangan](URL_Gambar_Asli)\n"
             . "- JANGAN buat section 'Rekomendasi Properti Kami' yang terpisah — sisipkan natural dalam narasi.";
     }
 

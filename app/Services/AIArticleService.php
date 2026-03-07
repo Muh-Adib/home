@@ -153,7 +153,8 @@ class AIArticleService
         string $provider = 'gemini',
         array $researchContext = [],
         string $customInstructions = '',
-        string $articleType = 'travel_guide'
+        string $articleType = 'travel_guide',
+        array $properties = []
     ): array {
         // Use custom instructions if provided (legacy support), otherwise delegate to prompt service
         if (!empty($customInstructions)) {
@@ -170,7 +171,7 @@ class AIArticleService
                 . $contextStr
                 . "INSTRUKSI KHUSUS:\n{$customInstructions}";
         } else {
-            $prompt = $this->promptService->outlinePrompt($articleType, $title, $keywords, $researchContext);
+            $prompt = $this->promptService->outlinePrompt($articleType, $title, $keywords, $researchContext, $properties);
         }
 
         $response = $this->callAI($provider, $prompt, maxTokens: 1500);
@@ -307,7 +308,7 @@ PROMPT;
         string $articleType = 'travel_guide'
     ): array {
         // Ambil maksimal 3 artikel relevan untuk internal linking
-        $linkedArticles = \App\Models\Article::where('status', 'published')
+        $linkedArticles = Article::where('status', 'published')
             ->inRandomOrder()
             ->limit(3)
             ->get(['title', 'slug'])

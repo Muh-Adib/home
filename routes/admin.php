@@ -122,6 +122,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
             // Image management
             Route::post('/upload-image', 'uploadImage')->name('upload-image');
             Route::delete('/delete-image', 'deleteImage')->name('delete-image');
+            Route::get('/media', 'getMedia')->name('media');
         });
 
     // AI Article Assistance API

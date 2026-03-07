@@ -345,6 +345,7 @@ PROMPT;
         $count = 0;
 
         foreach ($plans as $plan) {
+            /** @var ContentPlan $plan */
             $this->updateStatus($plan, $status);
             $count++;
         }

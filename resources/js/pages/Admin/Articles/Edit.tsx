@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { type BreadcrumbItem, type PageProps } from '@/types';
 import { router, useForm, usePage } from '@inertiajs/react';
@@ -24,7 +25,8 @@ import {
     FileText,
     CheckCircle,
     AlertTriangle,
-    Activity
+    Activity,
+    Trash2
 } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import axios from 'axios';
@@ -38,6 +40,16 @@ interface Property {
     id: number;
     name: string;
     slug: string;
+}
+
+interface MediaItem {
+    id: string;
+    url: string;
+    path: string;
+    name: string;
+    size: number;
+    last_modified: number;
+    source: 'article' | 'property';
 }
 
 interface ArticleEditProps {
@@ -149,6 +161,9 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
     const [generatedOutline, setGeneratedOutline] = useState('');
     const [showOutlineModal, setShowOutlineModal] = useState(false);
     const [contentTone, setContentTone] = useState<'professional' | 'casual'>('professional');
+    const [showMediaExplorer, setShowMediaExplorer] = useState(false);
+    const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+    const [loadingMedia, setLoadingMedia] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // AI Generator hooks
@@ -373,6 +388,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                 keywords: data.target_keywords,
                 provider: config.default_provider,
                 article_type: data.article_type,
+                property_ids: data.property_ids ?? [],
             });
 
             if (!outlineResponse.data.success) {
@@ -506,6 +522,56 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
         setData('target_keywords', data.target_keywords.filter(k => k !== keyword));
     };
 
+    // Media Library functions
+    const fetchMedia = async () => {
+        setLoadingMedia(true);
+        try {
+            const response = await axios.get('/admin/articles/media');
+            if (response.data.success) {
+                setMediaItems(response.data.media);
+            }
+        } catch (error) {
+            console.error('Failed to fetch media:', error);
+            toast.error('Failed to load media library');
+        } finally {
+            setLoadingMedia(false);
+        }
+    };
+
+    const handleDeleteMedia = async (e: React.MouseEvent, path: string) => {
+        e.stopPropagation();
+        if (!confirm('Are you sure you want to delete this image? This action cannot be undone.')) return;
+
+        const loadingToast = toast.loading('Deleting image...');
+        try {
+            const response = await axios.delete('/admin/articles/delete-image', { data: { path } });
+            if (response.data.success) {
+                setMediaItems(mediaItems.filter(item => item.path !== path));
+                toast.success('Image deleted', { id: loadingToast });
+            } else {
+                throw new Error(response.data.message || 'Failed to delete');
+            }
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to delete image', { id: loadingToast });
+        }
+    };
+
+    const insertMediaToEditor = (url: string) => {
+        const markdownImage = `\n![Image description](${url})\n`;
+        const cursorPosition = textareaRef.current?.selectionStart || data.content.length;
+        const newContent = data.content.substring(0, cursorPosition) + markdownImage + data.content.substring(cursorPosition);
+        setData('content', newContent);
+        setShowMediaExplorer(false);
+        toast.success('Image inserted into editor');
+    };
+
+    // Article actions
+    const handleDeleteArticle = () => {
+        if (confirm('Are you sure you want to delete this article? This action cannot be undone.')) {
+            router.delete(`/admin/articles/${article?.slug}`);
+        }
+    };
+
     // Form submission
     const handleSubmit = (overrideStatus?: string) => {
         if (overrideStatus) {
@@ -566,6 +632,17 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                     </div>
 
                     <div className="flex items-center gap-3 w-full md:w-auto">
+                        {isEdit && (
+                            <Button
+                                variant="outline"
+                                onClick={handleDeleteArticle}
+                                className="bg-white text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hidden sm:flex"
+                                title="Delete Article"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        )}
+
                         <Button
                             variant="outline"
                             onClick={() => setShowPreview(!showPreview)}
@@ -582,7 +659,8 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                         <div className={`w-2 h-2 rounded-full ${
                                             data.status === 'published' ? 'bg-green-500' :
                                             data.status === 'scheduled' ? 'bg-amber-500' :
-                                            data.status === 'reviewing' ? 'bg-blue-500' : 'bg-gray-400'
+                                            data.status === 'reviewing' ? 'bg-blue-500' :
+                                            data.status === 'archived' ? 'bg-gray-600' : 'bg-gray-400'
                                         }`} />
                                         <SelectValue />
                                     </div>
@@ -592,6 +670,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                     <SelectItem value="reviewing">In Review</SelectItem>
                                     <SelectItem value="scheduled">Scheduled</SelectItem>
                                     <SelectItem value="published">Published</SelectItem>
+                                    <SelectItem value="archived">Archived</SelectItem>
                                 </SelectContent>
                             </Select>
                             
@@ -657,9 +736,110 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                     </p>
                                 </div>
 
-                                {/* Markdown Editor */}
+                                {/* Markdown Editor with Toolbar */}
                                 <div>
                                     <Label htmlFor="content">Content (Markdown) *</Label>
+
+                                    {/* ── Google Docs-style Toolbar ── */}
+                                    <div className="flex items-center gap-0.5 border border-b-0 rounded-t-md bg-gray-50 px-2 py-1.5 flex-wrap">
+                                        {/* Heading buttons */}
+                                        {[
+                                            { label: 'H2', insert: '\n## ', title: 'Heading 2' },
+                                            { label: 'H3', insert: '\n### ', title: 'Heading 3' },
+                                        ].map(({ label, insert, title }) => (
+                                            <button
+                                                key={label}
+                                                type="button"
+                                                title={title}
+                                                className="px-2 py-1 text-xs font-bold text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                                                onClick={() => {
+                                                    const ta = textareaRef.current;
+                                                    if (!ta) return;
+                                                    const start = ta.selectionStart;
+                                                    const newVal = data.content.slice(0, start) + insert + data.content.slice(start);
+                                                    setData('content', newVal);
+                                                    setTimeout(() => { ta.focus(); ta.setSelectionRange(start + insert.length, start + insert.length); }, 0);
+                                                }}
+                                            >{label}</button>
+                                        ))}
+
+                                        <div className="w-px h-4 bg-gray-300 mx-1" />
+
+                                        {/* Inline formatting */}
+                                        {[
+                                            { icon: 'B', wrap: '**', title: 'Bold', cls: 'font-extrabold' },
+                                            { icon: 'I', wrap: '*', title: 'Italic', cls: 'italic' },
+                                        ].map(({ icon, wrap, title, cls }) => (
+                                            <button
+                                                key={icon}
+                                                type="button"
+                                                title={title}
+                                                className={`px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors ${cls}`}
+                                                onClick={() => {
+                                                    const ta = textareaRef.current;
+                                                    if (!ta) return;
+                                                    const start = ta.selectionStart, end = ta.selectionEnd;
+                                                    const selected = data.content.slice(start, end) || 'text';
+                                                    const replacement = `${wrap}${selected}${wrap}`;
+                                                    const newVal = data.content.slice(0, start) + replacement + data.content.slice(end);
+                                                    setData('content', newVal);
+                                                    setTimeout(() => { ta.focus(); ta.setSelectionRange(start + wrap.length, start + wrap.length + selected.length); }, 0);
+                                                }}
+                                            >{icon}</button>
+                                        ))}
+
+                                        <button
+                                            type="button"
+                                            title="Blockquote"
+                                            className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                                            onClick={() => {
+                                                const ta = textareaRef.current;
+                                                if (!ta) return;
+                                                const start = ta.selectionStart;
+                                                const newVal = data.content.slice(0, start) + '\n> ' + data.content.slice(start);
+                                                setData('content', newVal);
+                                                setTimeout(() => { ta.focus(); ta.setSelectionRange(start + 3, start + 3); }, 0);
+                                            }}
+                                        >"</button>
+
+                                        <button
+                                            type="button"
+                                            title="Horizontal Rule"
+                                            className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                                            onClick={() => {
+                                                const ta = textareaRef.current;
+                                                if (!ta) return;
+                                                const start = ta.selectionStart;
+                                                const ins = '\n\n---\n\n';
+                                                setData('content', data.content.slice(0, start) + ins + data.content.slice(start));
+                                                setTimeout(() => { ta.focus(); ta.setSelectionRange(start + ins.length, start + ins.length); }, 0);
+                                            }}
+                                        >—</button>
+
+                                        <div className="w-px h-4 bg-gray-300 mx-1" />
+
+                                        {/* Insert Image — triggers Dialog via state */}
+                                        <button
+                                            type="button"
+                                            title="Insert Image"
+                                            disabled={uploadingImage}
+                                            className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition-colors disabled:opacity-50"
+                                            onClick={() => {
+                                                setShowMediaExplorer(true);
+                                                fetchMedia();
+                                            }}
+                                        >
+                                            <ImageIcon className="h-3.5 w-3.5" />
+                                            Insert Image
+                                        </button>
+
+                                        <div className="ml-auto flex items-center gap-2 text-[11px] text-gray-400 select-none pr-1">
+                                            <span>Drag & drop ·</span>
+                                            <span>{data.content.split(/\s+/).filter(Boolean).length} words</span>
+                                        </div>
+                                    </div>
+
+                                    {/* ── Textarea ── */}
                                     <div
                                         className="relative"
                                         onDrop={handleDrop}
@@ -670,48 +850,129 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                             id="content"
                                             value={data.content}
                                             onChange={e => setData('content', e.target.value)}
-                                            placeholder="Write your article content in Markdown...
-
-**Tips:**
-- Use ## for headings
-- **bold** and *italic*
-- Drag & drop images to upload
-- Use AI to generate content"
-                                            rows={20}
-                                            className="font-mono text-sm"
+                                            placeholder={"Write your article content in Markdown...\n\nTips:\n- Use ## and ### for headings\n- **bold** and *italic*\n- Drag & drop images or click 'Insert Image' above"}
+                                            rows={22}
+                                            className="font-mono text-sm rounded-t-none border-t-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-blue-400 resize-y"
                                         />
                                         {uploadingImage && (
-                                            <div className="absolute top-2 right-2 bg-blue-500 text-white px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                                            <div className="absolute top-2 right-2 bg-blue-500 text-white px-3 py-1 rounded-full text-sm flex items-center gap-2 shadow-md">
                                                 <Loader2 className="h-4 w-4 animate-spin" />
                                                 Uploading...
                                             </div>
                                         )}
                                     </div>
                                     {errors.content && <p className="text-sm text-red-600 mt-1">{errors.content}</p>}
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        {data.content.split(/\s+/).length} words
-                                    </p>
 
-                                    {/* Image Upload Button */}
-                                    <div className="flex gap-2 mt-2">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => document.getElementById('image-upload')?.click()}
-                                            disabled={uploadingImage}
-                                        >
-                                            <Upload className="h-4 w-4 mr-2" />
-                                            Upload Image (WebP)
-                                        </Button>
-                                        <input
-                                            id="image-upload"
-                                            type="file"
-                                            accept="image/*"
-                                            className="hidden"
-                                            onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])}
-                                        />
-                                    </div>
+                                    {/* ── Media Explorer Dialog (standalone, state-controlled) ── */}
+                                    <Dialog open={showMediaExplorer} onOpenChange={(open) => {
+                                        setShowMediaExplorer(open);
+                                        if (open) fetchMedia();
+                                    }}>
+                                        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0">
+                                            <DialogHeader className="p-6 border-b shrink-0 bg-white">
+                                                <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+                                                    <ImageIcon className="h-5 w-5 text-primary" />
+                                                    Insert Image
+                                                </DialogTitle>
+                                            </DialogHeader>
+                                            <Tabs defaultValue="library" className="flex-1 flex flex-col min-h-0 bg-gray-50/30">
+                                                <div className="px-6 pt-4 shrink-0">
+                                                    <TabsList className="grid w-[400px] grid-cols-2">
+                                                        <TabsTrigger value="library">Library & Properties</TabsTrigger>
+                                                        <TabsTrigger value="upload">Upload New Image</TabsTrigger>
+                                                    </TabsList>
+                                                </div>
+
+                                                {/* Library tab */}
+                                                <TabsContent value="library" className="flex-1 overflow-y-auto p-6 pt-4 m-0 min-h-0">
+                                                    {loadingMedia ? (
+                                                        <div className="flex justify-center flex-col items-center h-full text-gray-500">
+                                                            <Loader2 className="h-8 w-8 animate-spin mb-4" />
+                                                            <p className="font-medium animate-pulse">Loading media library...</p>
+                                                        </div>
+                                                    ) : mediaItems.length === 0 ? (
+                                                        <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                                                            <div className="h-16 w-16 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center mb-4">
+                                                                <ImageIcon className="h-8 w-8" />
+                                                            </div>
+                                                            <p className="text-lg font-bold text-gray-900 mb-1">No media found</p>
+                                                            <p className="text-gray-500">Switch to "Upload" tab to add your first image.</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6 gap-4 pb-12">
+                                                            {mediaItems.map((item) => (
+                                                                <div key={item.id} className="group relative border rounded-lg shadow-sm overflow-hidden bg-white aspect-square flex flex-col hover:shadow-md transition-shadow">
+                                                                    <div className="flex-1 relative cursor-pointer bg-gray-100" onClick={() => insertMediaToEditor(item.url)}>
+                                                                        <img src={item.url} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+                                                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                                                                            <div className="opacity-0 group-hover:opacity-100 bg-white shadow-lg text-black text-xs font-bold px-3 py-1.5 flex items-center gap-1.5 rounded-md transform translate-y-2 group-hover:translate-y-0 transition-all duration-200">
+                                                                                <ImageIcon className="h-3.5 w-3.5" /> Insert
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="px-2 py-1.5 bg-white flex items-center justify-between border-t gap-1">
+                                                                        <div className="flex flex-col truncate flex-1 min-w-0">
+                                                                            <span className="truncate text-[11px] font-medium text-gray-700" title={item.name}>{item.name}</span>
+                                                                            {item.source === 'property' ? (
+                                                                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 self-start mt-0.5 border-blue-200 text-blue-700 bg-blue-50/50 font-semibold rounded-sm">Property</Badge>
+                                                                            ) : (
+                                                                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 self-start mt-0.5 border-green-200 text-green-700 bg-green-50/50 font-semibold rounded-sm">Article</Badge>
+                                                                            )}
+                                                                        </div>
+                                                                        {item.source === 'article' && (
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-6 w-6 text-gray-400 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
+                                                                                onClick={(e) => handleDeleteMedia(e, item.path)}
+                                                                                title="Delete permanently"
+                                                                            >
+                                                                                <Trash2 className="h-3 w-3" />
+                                                                            </Button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </TabsContent>
+
+                                                {/* Upload tab */}
+                                                <TabsContent value="upload" className="flex-1 p-6 m-0 flex items-center justify-center min-h-0">
+                                                    <div
+                                                        className="w-full max-w-lg flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-white hover:bg-blue-50/40 hover:border-blue-400 transition-all cursor-pointer py-16 px-8 text-center shadow-sm"
+                                                        onClick={() => document.getElementById('image-upload')?.click()}
+                                                    >
+                                                        {uploadingImage ? (
+                                                            <div className="flex flex-col items-center gap-4">
+                                                                <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+                                                                <p className="text-gray-700 font-semibold">Uploading & converting to WebP...</p>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <div className="h-16 w-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-5">
+                                                                    <Upload className="h-8 w-8" />
+                                                                </div>
+                                                                <p className="text-lg font-bold text-gray-900 mb-1">Click to Upload an Image</p>
+                                                                <p className="text-sm text-gray-500 mb-1">or drag & drop directly onto the editor</p>
+                                                                <p className="text-xs text-gray-400">JPG, PNG, GIF, WEBP · Max 5MB · Auto-converted to WebP</p>
+                                                            </>
+                                                        )}
+                                                        <input
+                                                            id="image-upload"
+                                                            type="file"
+                                                            accept="image/*"
+                                                            className="hidden"
+                                                            onChange={(e) => {
+                                                                e.stopPropagation();
+                                                                if (e.target.files?.[0]) handleImageUpload(e.target.files[0]);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </TabsContent>
+                                            </Tabs>
+                                        </DialogContent>
+                                    </Dialog>
                                 </div>
                             </CardContent>
                         </Card>

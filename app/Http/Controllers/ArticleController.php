@@ -14,8 +14,10 @@ use App\Http\Requests\Admin\UpdateArticleRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Models\PropertyMedia;
 
 class ArticleController extends Controller
 {
@@ -332,6 +334,56 @@ class ArticleController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Get media for the article editor
+     */
+    public function getMedia(): JsonResponse
+    {
+        $this->authorize('create', Article::class);
+
+        $mediaList = [];
+
+        // 1. Get uploaded images from articles/images directory
+        $articleImages = Storage::disk('public')->allFiles('articles/images');
+        foreach ($articleImages as $path) {
+            if (in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                $mediaList[] = [
+                    'id' => 'article_' . md5($path),
+                    'url' => asset('storage/' . $path),
+                    'path' => $path,
+                    'name' => basename($path),
+                    'size' => Storage::disk('public')->size($path),
+                    'last_modified' => Storage::disk('public')->lastModified($path),
+                    'source' => 'article',
+                ];
+            }
+        }
+
+        // 2. Get property images
+        $propertyImages = PropertyMedia::with('property:id,name')->get();
+        foreach ($propertyImages as $media) {
+            $mediaList[] = [
+                'id' => 'property_' . $media->id,
+                'url' => $media->url,
+                'path' => $media->file_path,
+                'name' => $media->property ? $media->property->name . ' - ' . basename($media->file_path) : basename($media->file_path),
+                'size' => $media->file_size,
+                'last_modified' => strtotime($media->updated_at),
+                'source' => 'property',
+            ];
+        }
+
+        // Sort by last modified (newest first)
+        usort($mediaList, function ($a, $b) {
+            return $b['last_modified'] <=> $a['last_modified'];
+        });
+
+        return response()->json([
+            'success' => true,
+            'media' => $mediaList,
+        ]);
     }
 
     /**

@@ -75,16 +75,44 @@ class ArticleAIController extends Controller
             'keywords' => 'required|array',
             'provider' => 'nullable|string|in:openrouter,gemini',
             'article_type' => 'nullable|string|in:travel_guide,seo_article,property_article,event_article',
+            'property_ids' => 'nullable|array',
+            'property_ids.*' => 'exists:properties,id',
         ]);
 
         try {
+            // Load real property data to inject into outline prompt
+            $properties = [];
+            if (!empty($validated['property_ids'])) {
+                $properties = \App\Models\Property::with(['media' => function ($q) {
+                    $q->orderBy('display_order');
+                }])
+                ->whereIn('id', $validated['property_ids'])
+                ->get(['id', 'name', 'slug', 'description', 'location', 'address', 'capacity', 'bedroom_count', 'base_rate'])
+                ->map(function ($p) {
+                    $coverImages = $p->media->take(3)->pluck('url')->toArray();
+                    return [
+                        'id' => $p->id,
+                        'name' => $p->name,
+                        'slug' => $p->slug,
+                        'description' => $p->description,
+                        'location' => $p->location ?? $p->address,
+                        'capacity' => $p->capacity,
+                        'bedrooms' => $p->bedroom_count,
+                        'base_rate' => $p->base_rate,
+                        'images' => $coverImages,
+                    ];
+                })
+                ->toArray();
+            }
+
             $result = $this->aiService->generateOutline(
                 $validated['title'],
                 $validated['keywords'],
                 $validated['provider'] ?? config('article.ai.default_provider'),
                 [],
                 '',
-                $validated['article_type'] ?? 'travel_guide'
+                $validated['article_type'] ?? 'travel_guide',
+                $properties
             );
 
             return response()->json($result);
