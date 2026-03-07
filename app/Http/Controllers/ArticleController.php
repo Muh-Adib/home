@@ -202,11 +202,18 @@ class ArticleController extends Controller
     /**
      * Update article
      */
-    public function update(UpdateArticleRequest $request, Article $article): RedirectResponse
+    public function update(UpdateArticleRequest $request, Article $article)
     {
         $this->authorize('update', $article);
 
         $this->articleService->updateArticle($article, $request->validated());
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Article updated automatically.'
+            ]);
+        }
 
         return redirect()->back()
             ->with('success', 'Article updated successfully.');

@@ -370,6 +370,8 @@ class ImageService
             $base = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
         }
 
+        $base = substr($base, 0, 50);
+
         $timestamp = now()->format('YmdHis');
         $random = Str::random(8);
 

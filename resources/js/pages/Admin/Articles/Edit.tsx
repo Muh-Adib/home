@@ -466,6 +466,34 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
         }
     };
 
+    const [isAutoSaving, setIsAutoSaving] = useState(false);
+    const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const prevDataRef = useRef(data);
+
+    // Auto-save effect
+    useEffect(() => {
+        if (!isEdit || !article) return;
+
+        if (JSON.stringify(prevDataRef.current) === JSON.stringify(data)) return;
+
+        const timer = setTimeout(async () => {
+            setIsAutoSaving(true);
+            try {
+                await axios.put(`/admin/articles/${article.slug}`, data, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                setLastSaved(new Date());
+                prevDataRef.current = data;
+            } catch (error) {
+                console.error('Auto-save failed:', error);
+            } finally {
+                setIsAutoSaving(false);
+            }
+        }, 2000);
+
+        return () => clearTimeout(timer);
+    }, [data, isEdit, article]);
+
     // Keyword management
     const addKeyword = () => {
         if (keywordInput.trim() && !data.target_keywords.includes(keywordInput.trim())) {
@@ -479,13 +507,22 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
     };
 
     // Form submission
-    const handleSubmit = (status: string) => {
-        setData('status', status);
+    const handleSubmit = (overrideStatus?: string) => {
+        if (overrideStatus) {
+            setData('status', overrideStatus);
+            // Small timeout to ensure state is updated before Inertia grabs it
+            setTimeout(() => {
+                if (isEdit && article) {
+                    put(`/admin/articles/${article.slug}`, { preserveScroll: true });
+                } else {
+                    post('/admin/articles');
+                }
+            }, 50);
+            return;
+        }
 
         if (isEdit && article) {
-            put(`/admin/articles/${article.slug}`, {
-                preserveScroll: true,
-            });
+            put(`/admin/articles/${article.slug}`, { preserveScroll: true });
         } else {
             post('/admin/articles');
         }
@@ -497,44 +534,88 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
         <AdminLayout breadcrumbs={breadcrumbs} title={isEdit ? 'Edit Article' : 'New Article'}>
             <div className="space-y-6">
                 {/* Header with Actions */}
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">
                             {isEdit ? 'Edit Article' : 'Create New Article'}
                         </h1>
-                        <p className="text-gray-600 mt-1">
-                            {isEdit ? `Editing ${article?.title}` : 'Write SEO-optimized content with AI assistance'}
-                        </p>
+                        <div className="flex items-center flex-wrap gap-2 mt-1.5">
+                            {lastSaved ? (
+                                <span className="flex items-center text-sm text-green-600 font-medium">
+                                    <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                    Saved {lastSaved.toLocaleTimeString()}
+                                </span>
+                            ) : (
+                                <span className="text-sm text-gray-500">
+                                    {isEdit ? `Editing ${article?.title}` : 'Write SEO-optimized content'}
+                                </span>
+                            )}
+
+                            {data.status === 'scheduled' && (
+                                <div className="flex items-center gap-1.5 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-200 ml-2">
+                                    <Calendar className="h-3.5 w-3.5" />
+                                    <input
+                                        type="datetime-local"
+                                        value={data.scheduled_at}
+                                        onChange={e => setData('scheduled_at', e.target.value)}
+                                        className="h-6 text-xs w-[180px] border-0 bg-transparent p-0 focus:ring-0 shadow-none font-medium text-amber-900 cursor-pointer"
+                                    />
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-3 w-full md:w-auto">
                         <Button
                             variant="outline"
                             onClick={() => setShowPreview(!showPreview)}
+                            className="bg-white hidden sm:flex"
                         >
                             <Eye className="h-4 w-4 mr-2" />
                             {showPreview ? 'Hide' : 'Show'} Preview
                         </Button>
-                        <Button
-                            variant="outline"
-                            onClick={() => handleSubmit('draft')}
-                            disabled={processing}
-                        >
-                            <Save className="h-4 w-4 mr-2" />
-                            Save Draft
-                        </Button>
-                        <Button
-                            onClick={() => handleSubmit('published')}
-                            disabled={processing}
-                            className="bg-green-600 hover:bg-green-700"
-                        >
-                            {processing ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                                <Send className="h-4 w-4 mr-2" />
-                            )}
-                            Publish
-                        </Button>
+
+                        <div className="flex-1 md:flex-none flex bg-white rounded-md border shadow-sm items-center h-10">
+                            <Select value={data.status} onValueChange={value => setData('status', value)}>
+                                <SelectTrigger className="border-0 focus:ring-0 shadow-none h-full w-full md:w-[140px] rounded-r-none text-sm font-medium bg-transparent">
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${
+                                            data.status === 'published' ? 'bg-green-500' :
+                                            data.status === 'scheduled' ? 'bg-amber-500' :
+                                            data.status === 'reviewing' ? 'bg-blue-500' : 'bg-gray-400'
+                                        }`} />
+                                        <SelectValue />
+                                    </div>
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="draft">Draft</SelectItem>
+                                    <SelectItem value="reviewing">In Review</SelectItem>
+                                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                                    <SelectItem value="published">Published</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            
+                            <div className="w-[1px] h-6 bg-gray-200" />
+                            
+                            <Button
+                                onClick={() => handleSubmit(data.status)}
+                                disabled={processing}
+                                variant="ghost"
+                                className={`rounded-l-none border-0 h-full hover:bg-gray-50 px-4
+                                    ${data.status === 'published' ? 'text-green-600 hover:text-green-700' : 'text-primary hover:text-primary/80'}
+                                    font-semibold
+                                `}
+                            >
+                                {processing || isAutoSaving ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : data.status === 'published' ? (
+                                    <Send className="h-4 w-4 mr-2" />
+                                ) : (
+                                    <Save className="h-4 w-4 mr-2" />
+                                )}
+                                {processing || isAutoSaving ? 'Saving' : data.status === 'published' ? 'Publish' : 'Save'}
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
@@ -851,7 +932,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                         {/* Settings */}
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-sm">Settings</CardTitle>
+                                <CardTitle className="text-sm">Article Settings</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div>
@@ -866,33 +947,6 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                         </SelectContent>
                                     </Select>
                                 </div>
-
-                                <div>
-                                    <Label htmlFor="status">Status</Label>
-                                    <Select value={data.status} onValueChange={value => setData('status', value)}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="draft">Draft</SelectItem>
-                                            <SelectItem value="reviewing">In Review</SelectItem>
-                                            <SelectItem value="scheduled">Scheduled</SelectItem>
-                                            <SelectItem value="published">Published</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                {data.status === 'scheduled' && (
-                                    <div>
-                                        <Label htmlFor="scheduled_at">Schedule Date</Label>
-                                        <Input
-                                            id="scheduled_at"
-                                            type="datetime-local"
-                                            value={data.scheduled_at}
-                                            onChange={e => setData('scheduled_at', e.target.value)}
-                                        />
-                                    </div>
-                                )}
                             </CardContent>
                         </Card>
 

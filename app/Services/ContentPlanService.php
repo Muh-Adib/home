@@ -544,6 +544,6 @@ PROMPT;
     private function generateCalendarWithAI(string $prompt): array
     {
         // Try gemini first, then fallback via AIArticleService logic
-        return $this->aiService->callAI('gemini', $prompt, maxTokens: 2000);
+        return $this->aiService->callAI('gemini', $prompt, maxTokens: 8192);
     }
 }

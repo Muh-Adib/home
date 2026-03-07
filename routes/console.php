@@ -21,4 +21,4 @@ Schedule::job(new \App\Jobs\GenerateTrendingArticleJob)
     ->timezone('Asia/Jakarta');
 
 // Auto-Publish Articles
-Schedule::command('articles:auto-publish')->hourly();
+Schedule::command('articles:auto-publish')->everyMinute();

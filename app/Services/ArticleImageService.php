@@ -35,7 +35,7 @@ class ArticleImageService
         // Determine directory path
         $directory = 'articles/images';
         if ($article) {
-            $directory .= '/' . $article->slug;
+            $directory .= '/' . substr($article->slug, 0, 50);
         }
 
         // Upload using centralized ImageService
