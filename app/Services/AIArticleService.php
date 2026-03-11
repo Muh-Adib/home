@@ -619,10 +619,16 @@ PROMPT;
             try {
                 $apiKey = $providerKey->api_key;
 
+                $modelId = $providerKey->metadata['model'] ?? null;
+
                 if ($provider === 'openrouter') {
-                    $result = $this->callOpenRouter($apiKey, $prompt, $maxTokens);
+                    $result = $this->callOpenRouter($apiKey, $prompt, $maxTokens, $modelId);
                 } elseif ($provider === 'gemini') {
-                    $result = $this->callGemini($apiKey, $prompt, $maxTokens);
+                    $result = $this->callGemini($apiKey, $prompt, $maxTokens, $modelId);
+                } elseif ($provider === 'openai') {
+                    $result = $this->callOpenAI($apiKey, $prompt, $maxTokens, $modelId);
+                } elseif ($provider === 'anthropic') {
+                    $result = $this->callAnthropic($apiKey, $prompt, $maxTokens, $modelId);
                 } else {
                     throw new \Exception("Unsupported provider: {$provider}");
                 }
@@ -668,9 +674,9 @@ PROMPT;
     /**
      * Call OpenRouter API
      */
-    private function callOpenRouter(string $apiKey, string $prompt, int $maxTokens): array
+    private function callOpenRouter(string $apiKey, string $prompt, int $maxTokens, ?string $modelId = null): array
     {
-        $model = config('article.ai.providers.openrouter.default_model', 'anthropic/claude-3.5-sonnet');
+        $model = $modelId ?: config('article.ai.providers.openrouter.default_model', 'anthropic/claude-3.5-sonnet');
 
         $response = Http::withHeaders([
             'Authorization' => "Bearer {$apiKey}",
@@ -720,9 +726,9 @@ PROMPT;
     /**
      * Call Gemini API
      */
-    private function callGemini(string $apiKey, string $prompt, int $maxTokens): array
+    private function callGemini(string $apiKey, string $prompt, int $maxTokens, ?string $modelId = null): array
     {
-        $model = config('article.ai.providers.gemini.default_model', 'gemini-2.5-flash-lite');
+        $model = $modelId ?: config('article.ai.providers.gemini.default_model', 'gemini-2.5-flash-lite');
 
         $response = Http::post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}", [
             'contents' => [
@@ -764,6 +770,89 @@ PROMPT;
             'model' => $model,
             'tokens' => $data['usageMetadata']['totalTokenCount'] ?? 0,
             'cost' => 0, // Gemini pricing
+        ];
+    }
+
+    /**
+     * Call OpenAI API
+     */
+    private function callOpenAI(string $apiKey, string $prompt, int $maxTokens, ?string $modelId = null): array
+    {
+        $model = $modelId ?: config('article.ai.providers.openai.default_model', 'gpt-4o-mini');
+
+        $response = Http::withHeaders([
+            'Authorization' => "Bearer {$apiKey}",
+            'Content-Type' => 'application/json',
+        ])->post('https://api.openai.com/v1/chat/completions', [
+            'model' => $model,
+            'messages' => [
+                ['role' => 'user', 'content' => $prompt],
+            ],
+            'max_tokens' => $maxTokens,
+        ]);
+
+        if (!$response->successful()) {
+            $errorBody = $response->json();
+            $errorMessage = $errorBody['error']['message'] ?? 'Unknown API error';
+
+            throw new AIGenerationException("OpenAI API error: {$errorMessage}", [
+                'provider' => 'openai',
+                'status_code' => $response->status(),
+                'original_error' => $errorMessage,
+                'suggestion' => 'Check your OpenAI API key or limits.',
+                'retry_suggested' => $response->status() >= 500,
+            ], $response->status());
+        }
+
+        $data = $response->json();
+
+        return [
+            'content' => $data['choices'][0]['message']['content'] ?? '',
+            'model' => $model,
+            'tokens' => $data['usage']['total_tokens'] ?? 0,
+            'cost' => 0,
+        ];
+    }
+
+    /**
+     * Call Anthropic API
+     */
+    private function callAnthropic(string $apiKey, string $prompt, int $maxTokens, ?string $modelId = null): array
+    {
+        $model = $modelId ?: config('article.ai.providers.anthropic.default_model', 'claude-3-5-sonnet-latest');
+
+        $response = Http::withHeaders([
+            'x-api-key' => $apiKey,
+            'anthropic-version' => '2023-06-01',
+            'Content-Type' => 'application/json',
+        ])->post('https://api.anthropic.com/v1/messages', [
+            'model' => $model,
+            'messages' => [
+                ['role' => 'user', 'content' => $prompt],
+            ],
+            'max_tokens' => $maxTokens,
+        ]);
+
+        if (!$response->successful()) {
+            $errorBody = $response->json();
+            $errorMessage = $errorBody['error']['message'] ?? 'Unknown API error';
+
+            throw new AIGenerationException("Anthropic API error: {$errorMessage}", [
+                'provider' => 'anthropic',
+                'status_code' => $response->status(),
+                'original_error' => $errorMessage,
+                'suggestion' => 'Check your Anthropic API key or limits.',
+                'retry_suggested' => $response->status() >= 500,
+            ], $response->status());
+        }
+
+        $data = $response->json();
+
+        return [
+            'content' => current(array_filter($data['content'] ?? [], fn($c) => $c['type'] === 'text'))['text'] ?? '',
+            'model' => $model,
+            'tokens' => ($data['usage']['input_tokens'] ?? 0) + ($data['usage']['output_tokens'] ?? 0),
+            'cost' => 0,
         ];
     }
 

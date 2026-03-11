@@ -174,6 +174,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
             Route::get('/', 'index')->name('index');
             Route::get('/create', 'create')->name('create');
             Route::post('/', 'store')->name('store');
+            Route::post('/sync', 'sync')->name('sync');
             Route::get('/{aiKey}/edit', 'edit')->name('edit');
             Route::put('/{aiKey}', 'update')->name('update');
             Route::delete('/{aiKey}', 'destroy')->name('destroy');

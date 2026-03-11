@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AIProviderKey;
+use App\Services\AIProviderSyncService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -166,5 +167,37 @@ class AIProviderKeyController extends Controller
         $aiKey->update(['is_active' => !$aiKey->is_active]);
 
         return back()->with('success', 'Key status updated successfully');
+    }
+
+    /**
+     * Sync models and rate limits with provider API
+     */
+    public function sync(Request $request, AIProviderSyncService $syncService)
+    {
+        $validated = $request->validate([
+            'provider' => 'required|string|in:openrouter,gemini,openai,anthropic',
+            'api_key' => 'required|string',
+        ]);
+
+        $apiKey = $validated['api_key'];
+
+        // If the key is masked, it means they are doing sync on existing key without changing it,
+        // we need to resolve it by ID if passed.
+        if (str_contains($apiKey, '****') && $request->has('id')) {
+            $keyModel = AIProviderKey::find($request->input('id'));
+            if ($keyModel) {
+                $apiKey = $keyModel->api_key;
+            } else {
+                return response()->json(['success' => false, 'message' => 'Invalid key reference.']);
+            }
+        }
+
+        $result = $syncService->sync($validated['provider'], $apiKey);
+
+        if (!$result['success']) {
+            return response()->json($result, 400);
+        }
+
+        return response()->json($result);
     }
 }

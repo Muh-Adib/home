@@ -23,6 +23,51 @@ use Inertia\Inertia;
 |--------------------------------------------------------------------------
 */
 
+/*
+|--------------------------------------------------------------------------
+| 410 GONE ROUTES (WordPress & Legacy URLs)
+|--------------------------------------------------------------------------
+| Instructs search engines to drop these URLs from index.
+*/
+
+// Specific moved/deleted properties
+Route::get('/properties/{oldSlug}', function () {
+    abort(410);
+})->whereIn('oldSlug', [
+    'abrenara', 'pavilo-b', 'sunjava-sunset', 'villa-cubic', 'arayya', 'sunjava-sunrise'
+]);
+
+// Legacy prefixes
+Route::get('/{legacyPrefix}/{any?}', function () {
+    abort(410);
+})->whereIn('legacyPrefix', [
+    'produk', 'fasilitas-utama', 'fasilitas', 'author', 'tag', '2025',
+    'product-category', 'property', 'proprtey', 'akomodasi', 'tipe-unit',
+    'jet-popup', 'search', 'shop', 'blog'
+])->where('any', '.*');
+
+// Specific standalone legacy pages
+$legacyStandalone = [
+    'home',
+    'tentang-kami',
+    'perbedaan-jenis-akomodasi-villa-guesthouse-dan-homestay',
+    'refund_returns',
+    'keunggulan-homestay-alternatif-penginapan-yang-serasa-di-rumah',
+    'help',
+    'petualangan-tak-terlupakan-jelajahi-pesona-jogja-dari-sunrise-hingga-midnight',
+    'keunikan-menginap-di-homestay-lebih-dari-sekadar-akomodasi',
+    'akun',
+    'terms',
+    'contact',
+    'lebaran-seru-bersama-homsjogja-nikmati-momen-spesial-di-akomodasi-terbaik-yogyakarta',
+];
+
+foreach ($legacyStandalone as $url) {
+    Route::any("/{$url}", function () {
+        abort(410);
+    });
+}
+
 // CSRF Token endpoint for refreshing token (prevents 419 errors)
 Route::get('/csrf-token', function (Request $request) {
     return response()->json(['token' => csrf_token()]);

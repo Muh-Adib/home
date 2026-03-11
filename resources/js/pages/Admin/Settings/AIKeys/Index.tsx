@@ -32,6 +32,7 @@ interface AIKey {
     requests_per_minute?: number;
     daily_limit?: number;
     auto_rotate: boolean;
+    metadata?: Record<string, any>;
     masked_key: string;
     created_at: string;
 }
@@ -196,7 +197,7 @@ export default function AIKeysIndex({ keys, stats }: AIKeysIndexProps) {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Name</TableHead>
+                                            <TableHead>Key & Model</TableHead>
                                             <TableHead>Provider</TableHead>
                                             <TableHead>Status</TableHead>
                                             <TableHead>Priority</TableHead>
@@ -215,7 +216,16 @@ export default function AIKeysIndex({ keys, stats }: AIKeysIndexProps) {
                                                         <div className="font-medium text-gray-900">
                                                             {key.name}
                                                         </div>
-                                                        <div className="text-sm text-gray-500 font-mono">
+                                                        {key.metadata?.model ? (
+                                                            <div className="text-xs text-blue-600 font-mono mt-0.5 max-w-[200px] truncate" title={key.metadata.model}>
+                                                                {key.metadata.model}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-xs text-gray-400 mt-0.5">
+                                                                Default Model
+                                                            </div>
+                                                        )}
+                                                        <div className="text-xs text-gray-500 font-mono mt-0.5">
                                                             {key.masked_key}
                                                         </div>
                                                     </div>

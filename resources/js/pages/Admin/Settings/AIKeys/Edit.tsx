@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { type BreadcrumbItem } from '@/types';
 import { router, useForm } from '@inertiajs/react';
-import { Save, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { Save, ArrowLeft, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
+import axios from 'axios';
 
 interface AIKeyEditProps {
     aiKey?: {
@@ -30,6 +31,9 @@ interface AIKeyEditProps {
 export default function AIKeyEdit({ aiKey, providers }: AIKeyEditProps) {
     const isEdit = !!aiKey;
     const [showApiKey, setShowApiKey] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+    const [availableModels, setAvailableModels] = useState<{id: string, name: string}[]>(aiKey?.metadata?.availableModels || []);
+    const [syncMessage, setSyncMessage] = useState<{type: 'success'|'error', text: string} | null>(null);
 
     const { data, setData, post, put, processing, errors } = useForm({
         name: aiKey?.name || '',
@@ -68,6 +72,44 @@ export default function AIKeyEdit({ aiKey, providers }: AIKeyEditProps) {
             anthropic: 'Anthropic Claude',
         };
         return names[provider] || provider;
+    };
+
+    const handleSync = async () => {
+        if (!data.api_key && !isEdit) {
+            setSyncMessage({ type: 'error', text: 'Please enter API key first' });
+            return;
+        }
+
+        setSyncing(true);
+        setSyncMessage(null);
+
+        try {
+            const response = await axios.post('/admin/settings/ai-keys/sync', {
+                provider: data.provider,
+                api_key: data.api_key || aiKey?.masked_key,
+                id: aiKey?.id
+            });
+
+            if (response.data.success) {
+                setAvailableModels(response.data.models || []);
+                setSyncMessage({ type: 'success', text: `Successfully synced ${response.data.models?.length || 0} models! Select your model below.` });
+
+                setData('metadata', {
+                    ...data.metadata,
+                    availableModels: response.data.models || [],
+                });
+
+                if (response.data.rate_limit) {
+                    if (response.data.rate_limit.requests_per_minute) {
+                        setData('requests_per_minute', response.data.rate_limit.requests_per_minute);
+                    }
+                }
+            }
+        } catch (error: any) {
+            setSyncMessage({ type: 'error', text: error.response?.data?.message || 'Sync failed. Check your API key or connectivity.' });
+        } finally {
+            setSyncing(false);
+        }
     };
 
     return (
@@ -168,7 +210,48 @@ export default function AIKeyEdit({ aiKey, providers }: AIKeyEditProps) {
                                             Current: {aiKey.masked_key}
                                         </p>
                                     )}
+
+                                    <div className="mt-4 border-t pt-4">
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            onClick={handleSync}
+                                            disabled={syncing || (!data.api_key && !isEdit)}
+                                        >
+                                            <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+                                            {syncing ? 'Syncing...' : 'Test & Sync API Key'}
+                                        </Button>
+                                        {syncMessage && (
+                                            <p className={`text-sm mt-2 font-medium ${syncMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                                                {syncMessage.text}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
+
+                                {availableModels.length > 0 && (
+                                    <div className="pt-4">
+                                        <Label htmlFor="model_select">Default Target Model</Label>
+                                        <Select 
+                                            value={data.metadata?.model || ''} 
+                                            onValueChange={(value) => setData('metadata', { ...data.metadata, model: value })}
+                                        >
+                                            <SelectTrigger id="model_select" className="mt-1">
+                                                <SelectValue placeholder="Select a model" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {availableModels.map((model) => (
+                                                    <SelectItem key={model.id} value={model.id}>
+                                                        {model.name} {model.id !== model.name && `(${model.id})`}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-sm text-gray-500 mt-1">
+                                            This model will be used when content generation utilizes this key.
+                                        </p>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
 
