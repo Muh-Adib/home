@@ -153,27 +153,40 @@ class ArticleController extends Controller
      */
     public function show(string $slug): Response
     {
-        $article = Article::where('slug', $slug)
-            ->with(['author', 'properties.media'])
-            ->firstOrFail();
+        $cacheKey = "article_show_{$slug}";
+
+        $data = \Illuminate\Support\Facades\Cache::remember($cacheKey, 3600, function () use ($slug) {
+            $article = Article::where('slug', $slug)
+                ->with(['author', 'properties.media'])
+                ->firstOrFail();
+
+            $relatedArticles = Article::published()
+                ->where('id', '!=', $article->id)
+                ->where('language', $article->language)
+                ->limit(3)
+                ->get();
+
+            return [
+                'article' => $article,
+                'relatedArticles' => $relatedArticles,
+                'seo' => $this->seoService->forArticle($article),
+                'schema' => $this->seoService->articleSchema($article),
+            ];
+        });
+
+        $article = $data['article'];
 
         $this->authorize('view', $article);
 
-        // Increment view count
-        $article->increment('view_count');
-
-        // Get related articles
-        $relatedArticles = Article::published()
-            ->where('id', '!=', $article->id)
-            ->where('language', $article->language)
-            ->limit(3)
-            ->get();
+        // Increment view count directly in DB to avoid stale cache issues
+        Article::where('id', $article->id)->increment('view_count');
+        $article->view_count++; // Update local memory copy for UI display
 
         return Inertia::render('Articles/Show', [
             'article' => $article,
-            'relatedArticles' => $relatedArticles,
-            'seo' => $this->seoService->forArticle($article),
-            'schema' => $this->seoService->articleSchema($article),
+            'relatedArticles' => $data['relatedArticles'],
+            'seo' => $data['seo'],
+            'schema' => $data['schema'],
         ]);
     }
 
@@ -405,7 +418,11 @@ class ArticleController extends Controller
             $query->search($request->get('search'));
         }
 
-        $articles = $query->paginate(12);
+        $cacheKey = 'articles_index_' . md5(json_encode($request->only(['page', 'language', 'search'])));
+        
+        $articles = \Illuminate\Support\Facades\Cache::remember($cacheKey, 3600, function () use ($query) {
+            return $query->paginate(12);
+        });
 
         return Inertia::render('Articles/Index', [
             'articles' => $articles,

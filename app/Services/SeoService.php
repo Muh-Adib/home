@@ -123,9 +123,11 @@ class SeoService
         $schema = Schema::{$schemaMethod}()
             ->name($property->name)
             ->description($description)
-            ->image($imageUrl)
+            ->image(Schema::imageObject()->url($imageUrl))
             ->url($url)
             ->identifier((string) $property->id)
+            ->sku('HOM-' . $property->id)
+            ->brand(Schema::brand()->name('Homsjogja'))
             ->priceRange('IDR ' . number_format($property->base_rate, 0, ',', '.'))
             ->address(
                 Schema::postalAddress()
@@ -200,6 +202,11 @@ class SeoService
                 ->price($property->base_rate)
                 ->priceCurrency('IDR')
                 ->availability('https://schema.org/InStock')
+                ->sku('HOM-' . $property->id)
+                ->hasMerchantReturnPolicy(
+                    Schema::merchantReturnPolicy()
+                        ->setProperty('returnPolicyCategory', 'https://schema.org/MerchantReturnNotPermitted')
+                )
         );
 
         return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

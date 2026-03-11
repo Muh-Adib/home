@@ -102,15 +102,21 @@ Route::get('/property/{slug}/ical/{token}', [\App\Http\Controllers\ICalControlle
 Route::get('/', function () {
     $seoService = app(\App\Services\SeoService::class);
 
-    $featuredProperties = \App\Models\Property::active()
-        ->featured()
-        ->with(['media', 'amenities'])
-        ->limit(6)
-        ->get();
+    $featuredProperties = Cache::remember('featured_properties_homepage', 3600, function () {
+        return \App\Models\Property::active()
+            ->featured()
+            ->with(['media', 'amenities'])
+            ->limit(6)
+            ->get();
+    });
+
+    $seo = Cache::remember('seo_homepage', 3600, function () use ($seoService) {
+        return $seoService->forHomepage();
+    });
 
     return Inertia::render('welcome', [
         'featuredProperties' => $featuredProperties,
-        'seo' => $seoService->forHomepage(),
+        'seo' => $seo,
     ]);
 })->name('home');
 

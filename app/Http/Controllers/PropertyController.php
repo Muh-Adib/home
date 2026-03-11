@@ -142,8 +142,15 @@ class PropertyController extends Controller
             $properties->setCollection($sorted);
         }
 
-        // Get filter options
-        $amenities = Amenity::active()->ordered()->get();
+        // Get filter options (Cached)
+        $amenities = Cache::remember('active_amenities_ordered', 86400, function () {
+            return Amenity::active()->ordered()->get();
+        });
+
+        // Cache SEO for Properties Index
+        $seoData = Cache::remember('seo_properties_index', 86400, function () {
+            return $this->seoService->forPropertiesIndex();
+        });
 
         return Inertia::render('Properties/Index', [
             'properties' => $properties,
@@ -156,7 +163,7 @@ class PropertyController extends Controller
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
             ],
-            'seo' => $this->seoService->forPropertiesIndex(),
+            'seo' => $seoData,
         ]);
     }
 
@@ -168,20 +175,25 @@ class PropertyController extends Controller
      */
     public function show(Request $request, Property $property): Response
     {
-        $property->load([
-            'owner',
-            'amenities' => function ($query) {
-                $query->where('property_amenities.is_available', true);
-            },
-            'media' => function ($query) {
-                $query->orderBy('display_order');
-            },
-            'seasonalRates' => function ($query) {
-                $query->where('is_active', true)
-                    ->orderBy('priority', 'desc');
-            }
-        ])->loadCount('approvedReviews')
-            ->loadAvg('approvedReviews as rating_avg', 'rating');
+        // Cache the relations load for 1 hour to prevent DB hits on refresh
+        $cacheKey = "property_show_{$property->id}_relations";
+        /** @var \App\Models\Property $property */
+        $property = Cache::remember($cacheKey, 3600, function () use ($property) {
+            return $property->load([
+                'owner',
+                'amenities' => function ($query) {
+                    $query->where('property_amenities.is_available', true);
+                },
+                'media' => function ($query) {
+                    $query->orderBy('display_order');
+                },
+                'seasonalRates' => function ($query) {
+                    $query->where('is_active', true)
+                        ->orderBy('priority', 'desc');
+                }
+            ])->loadCount('approvedReviews')
+                ->loadAvg('approvedReviews as rating_avg', 'rating');
+        });
 
         // Get search parameters
         $checkIn = $request->get('check_in') ?: today()->toDateString();
@@ -192,8 +204,11 @@ class PropertyController extends Controller
         $startDate = today()->toDateString();
         $endDate = today()->addMonths(3)->toDateString();
 
-        // Use single source of truth for availability and rates
-        $availabilityData = $this->availabilityService->getAvailabilityData($property, $startDate, $endDate);
+        // Use single source of truth for availability and rates (Cached)
+        $availCacheKey = "property_{$property->id}_avail_{$startDate}_{$endDate}";
+        $availabilityData = Cache::remember($availCacheKey, 3600, function () use ($property, $startDate, $endDate) {
+            return $this->availabilityService->getAvailabilityData($property, $startDate, $endDate);
+        });
 
         // Mapping for backward compatibility with frontend if necessary
         $availabilityAndRates = array_merge($availabilityData, [
@@ -274,15 +289,25 @@ class PropertyController extends Controller
             });
         }
 
-        // GEO: Generate FAQs for this property
-        $faqs = $this->seoService->getPropertyFaqs($property);
+        // Cache heavy SEO and Schema generation
+        $seoCacheKey = "property_seo_{$property->id}";
+        $seoData = Cache::remember($seoCacheKey, 3600, function () use ($property) {
+            $faqs = $this->seoService->getPropertyFaqs($property);
+            $breadcrumbs = [
+                ['name' => 'Home', 'url' => route('home')],
+                ['name' => 'Properties', 'url' => route('properties.index')],
+                ['name' => $property->name, 'url' => route('properties.show', $property->slug)]
+            ];
 
-        // GEO: Breadcrumb schema for navigation context
-        $breadcrumbs = [
-            ['name' => 'Home', 'url' => route('home')],
-            ['name' => 'Properties', 'url' => route('properties.index')],
-            ['name' => $property->name, 'url' => route('properties.show', $property->slug)]
-        ];
+            return [
+                'seo' => $this->seoService->forProperty($property),
+                'schema' => $this->seoService->propertySchema($property),
+                'faqSchema' => $this->seoService->faqSchema($faqs),
+                'breadcrumbSchema' => $this->seoService->breadcrumbSchema($breadcrumbs),
+                'videoSchema' => $this->seoService->videoSchema($property),
+                'faqs' => $faqs,
+            ];
+        });
 
         return Inertia::render('Properties/Show', [
             'property' => $property,
@@ -293,14 +318,13 @@ class PropertyController extends Controller
                 'guests' => $guestCount,
             ],
             'availabilityData' => $availabilityAndRates,
-            'seo' => $this->seoService->forProperty($property),
-            'schema' => $this->seoService->propertySchema($property),
+            'seo' => $seoData['seo'],
+            'schema' => $seoData['schema'],
             // GEO: Additional schemas for AI optimization
-            'faqSchema' => $this->seoService->faqSchema($faqs),
-            'breadcrumbSchema' => $this->seoService->breadcrumbSchema($breadcrumbs),
-            // 'localBusinessSchema' => $this->seoService->localBusinessSchema($property), // REMOVED: Duplicates propertySchema
-            'videoSchema' => $this->seoService->videoSchema($property), // NEW: Video schema for TikTok
-            'faqs' => $faqs, // For FAQ component
+            'faqSchema' => $seoData['faqSchema'],
+            'breadcrumbSchema' => $seoData['breadcrumbSchema'],
+            'videoSchema' => $seoData['videoSchema'],
+            'faqs' => $seoData['faqs'], // For FAQ component
         ]);
     }
 
