@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Cache;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\PaymentController;
@@ -215,9 +216,13 @@ Route::get('/s/{slug}', [SeoLandingController::class, 'show'])
 // 301 Redirect: old /{slug} → /s/{slug} for backward compatibility
 // IMPORTANT: Exclude known application routes to avoid conflicts
 Route::get('/{oldSlug}', function (string $oldSlug) {
-    $exists = \App\Models\SeoLandingPage::where('slug', $oldSlug)->exists();
+    $exists = Cache::remember(
+        "seo_slug_{$oldSlug}",
+        3600,
+        fn() => \App\Models\SeoLandingPage::where('slug',$oldSlug)->exists()
+    );
     if ($exists) {
         return redirect("/s/{$oldSlug}", 301);
     }
-    abort(404);
+    abort(410);
 })->where('oldSlug', '(?!dashboard|admin|properties|booking|bookings|api|my-bookings|my-payments|profile|notifications|about|faq|support|health|sitemap|locale|csrf-token|login|register|password|email|verify-email|logout|settings|up)[a-z0-9-]+');
