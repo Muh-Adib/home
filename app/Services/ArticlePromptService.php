@@ -162,13 +162,16 @@ STRUKTUR WAJIB SINGKAT (H2 & H3 saja, tanpa deskripsi):
 ### FAQ
 
 ATURAN PENTING:
-- Buat outline SANGAT SINGKAT dan padat. HANYA tulis judul H2 (##) dan H3 (###).
-- DILARANG menambahkan poin penjelasan/deskripsi panjang di bawah heading untuk MENGHEMAT TOKEN.
-- HANYA gunakan H2 (##) dan H3 (###) — DILARANG roman numeral (I, II, III).
+- Buat struktur outline H2 (##) dan H3 (###).
+- Outline harus menjawab search intent, JANGAN nulis penjelasan/paragraf di dalam outline. Cukup judulnya saja.
+- Gunakan H2 (##) dan H3 (###) — DILARANG roman numeral (I, II, III).
 - Bahasa: Bahasa Indonesia.
 
-SEBELUM outline, output: "LSI Keywords: [5-7 keyword LSI relevan dipisah koma]"
-Lalu langsung mulai outline tanpa teks pembuka.
+OUTPUT_FORMAT:
+LSI Keywords: keyword1, keyword2, keyword3, keyword4, keyword5
+## [Judul H2 Pertama]
+### [Sub-judul H3]
+DILARANG memberikan teks pembuka seperti "Tentu" atau "Berikut adalah". Langsung tulis "LSI Keywords:".
 PROMPT;
     }
 
@@ -298,13 +301,15 @@ STRUKTUR OUTLINE SINGKAT (SEO-Optimized):
 ## Kesimpulan + CTA
 
 ATURAN:
-- Buat outline SANGAT SINGKAT dan padat. HANYA tulis H2 (##) dan H3 (###).
-- DILARANG memberikan poin deskripsi/penjelasan panjang di bawah heading untuk MENGHEMAT TOKEN.
-- Outline harus menjawab intent: apa, di mana, berapa, bagaimana.
+- Buat struktur outline H2 (##) dan H3 (###) yang menjawab intent (apa, di mana, berapa, bagaimana).
+- JANGAN menulis penjelasan atau paragraf di dalam outline. Cukup judul heading saja.
 - Bahasa Indonesia.
 
-Output dimulai dengan: "LSI Keywords: [7-10 keyword LSI]"
-Lalu langsung outline.
+OUTPUT_FORMAT:
+LSI Keywords: keyword1, keyword2, keyword3, keyword4, keyword5
+## [Judul H2 Pertama]
+### [Sub-judul H3]
+DILARANG memberikan teks pembuka. Langsung tulis "LSI Keywords:".
 PROMPT;
     }
 
@@ -377,11 +382,15 @@ STRUKTUR OUTLINE SINGKAT:
 ## Cara Booking di HomsJogja
 
 ATURAN:
-- Buat outline SANGAT SINGKAT dan padat. HANYA tulis H2 (##) dan H3 (###).
-- DILARANG memberikan poin deskripsi/penjelasan panjang di bawah heading untuk MENGHEMAT TOKEN.
+- Buat struktur outline H2 (##) dan H3 (###).
+- JANGAN menulis penjelasan atau paragraf di dalam outline. Cukup judul heading saja.
 - Nada: warm, personal.
 
-Output dimulai dengan: "LSI Keywords: [5-7 keyword LSI]"
+OUTPUT_FORMAT:
+LSI Keywords: keyword1, keyword2, keyword3, keyword4, keyword5
+## [Judul H2 Pertama]
+### [Sub-judul H3]
+DILARANG memberikan teks pembuka. Langsung tulis "LSI Keywords:".
 PROMPT;
     }
 
@@ -469,10 +478,15 @@ STRUKTUR OUTLINE SINGKAT:
 ## CTA: Booking Villa di HomsJogja Sekarang!
 
 ATURAN: 
-- Buat outline SANGAT SINGKAT dan padat. HANYA tulis H2 (##) dan H3 (###).
-- DILARANG memberikan poin deskripsi/penjelasan panjang di bawah heading untuk MENGHEMAT TOKEN.
+- Buat struktur outline H2 (##) dan H3 (###).
+- JANGAN menulis penjelasan atau paragraf di dalam outline. Cukup judul heading saja.
 - Nada: urgent, relevan.
-Output dimulai dengan: "LSI Keywords: [5-7 keyword]"
+
+OUTPUT_FORMAT:
+LSI Keywords: keyword1, keyword2, keyword3, keyword4, keyword5
+## [Judul H2 Pertama]
+### [Sub-judul H3]
+DILARANG memberikan teks pembuka. Langsung tulis "LSI Keywords:".
 PROMPT;
     }
 

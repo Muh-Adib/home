@@ -95,7 +95,7 @@ KATA KUNCI UTAMA: {$keywordStr}
 TARGET PEMBACA: {$targetAudience}
 
 UNTUK SETIAP ARTIKEL, hasilkan:
-1. "title"             : Judul artikel SEO (Bahasa Indonesia, menarik, mengandung kata kunci)
+1. "title"             : Judul artikel SEO (MAKSIMAL 60 KARAKTER, Bahasa Indonesia, menarik, mengandung kata kunci)
 2. "keywords"          : 4-6 kata kunci UTAMA untuk artikel ini (primary keywords)
 3. "search_intent"     : Intent dominan pengguna. Pilih SATU dari:
                           - "informational"  → Pembaca mencari pengetahuan (panduan, cara, apa itu)
@@ -119,6 +119,7 @@ UNTUK SETIAP ARTIKEL, hasilkan:
 ATURAN KRITIS:
 - Return HANYA JSON array yang valid. TANPA teks intro atau penutup.
 - Semua konten teks (title, description, keywords, variasi) WAJIB dalam Bahasa Indonesia.
+- Judul (title) WAJIB di bawah 60 karakter agar optimal untuk SEO.
 - Distribusi search_intent harus seimbang: ~30% informational, ~30% transactional, ~25% local, ~15% commercial.
 - Hindari duplikasi judul atau kata kunci antar artikel.
 - Format: [{"title":"...","keywords":[...],"search_intent":"...","keyword_variations":{...},"content_type":"...","day_offset":N,"description":"...","priority":N}]

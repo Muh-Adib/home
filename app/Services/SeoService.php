@@ -291,10 +291,10 @@ class SeoService
     public function forHomepage(): array
     {
         return $this->generate([
-            // TARGET: "homestay di Jogja" + "terbaik"
-            'title' => 'Homestay di Jogja - Sewa Penginapan Terbaik Mulai 150rb/Malam',
+            // TARGET: "homestay jogja", "villa murah jogja", "penginapan murah jogja"
+            'title' => 'Homestay Jogja, Villa & Penginapan Murah Jogja | Homsjogja',
             // GEO: Natural language + target keywords
-            'description' => 'Cari homestay di Jogja dengan harga terjangkau? Temukan homestay terbaik di Yogyakarta mulai 150rb/malam. Lokasi strategis dekat Malioboro, fasilitas lengkap, WiFi gratis. Booking mudah & aman. Pilihan terbaik untuk liburan keluarga!',
+            'description' => 'Cari homestay Jogja, villa murah Jogja, atau penginapan murah Jogja? Temukan sewa penginapan hemat & nyaman mulai 150rb/malam dekat Malioboro. Fasilitas lengkap, family friendly, booking mudah & aman!',
             'url' => route('home'),
         ]);
     }
@@ -307,10 +307,10 @@ class SeoService
     public function forPropertiesIndex(): array
     {
         return $this->generate([
-            // DIFFERENTIATED from homepage - focus on "daftar" (list) & "sewa" (rent)
-            'title' => 'Daftar Lengkap Homestay di Yogyakarta - Sewa Sekarang',
+            // TARGET: "sewa homestay jogja", "villa jogja", "penginapan murah"
+            'title' => 'Sewa Homestay Jogja, Villa & Penginapan Murah di Yogyakarta',
             // GEO: Action-oriented (transactional) + comparison keywords
-            'description' => 'Sewa homestay di Yogyakarta dengan mudah! Daftar lengkap penginapan untuk semua budget. Bandingkan harga mulai 150rb-500rb/malam, lihat fasilitas, pilih lokasi strategis dekat Malioboro. Filter berdasarkan harga, kapasitas, dan amenitas. Booking online aman!',
+            'description' => 'Sewa homestay Jogja & villa murah Jogja tanpa ribet! Daftar lengkap penginapan murah Jogja untuk berbagai budget mulai 150rb-500rb/malam. Fasilitas lengkap, lokasi strategis dekat Malioboro. Filter harga & booking online aman!',
         ]);
     }
 

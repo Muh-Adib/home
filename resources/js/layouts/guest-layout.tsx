@@ -37,7 +37,6 @@ const publicNavItems = [
     { key: 'properties', href: '/properties', icon: Building2, label: 'nav.properties' },
     { key: 'articles', href: '/articles', icon: FileText, label: 'nav.articles' },
     { key: 'about', href: '/about', icon: Info, label: 'nav.about' },
-    { key: 'contact', href: '/contact', icon: Phone, label: 'nav.contact' },
 ];
 
 const authNavItems = [

@@ -142,9 +142,9 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                 <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold text-white mb-4 leading-tight">
                                     <span className="block font-light">Temukan</span>
                                     <span className="block text-brand-accent font-bold">
-                                        Homestay
+                                        Homestay Jogja
                                     </span>
-                                    <span className="block font-light">Impian Anda</span>
+                                    <span className="block font-light md:text-5xl">& Villa Murah</span>
                                 </h1>
 
                                 <div className="text-xl md:text-2xl text-white/80 font-light tracking-wide">
@@ -162,7 +162,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                 <p className="text-lg text-white/90 leading-relaxed text-center">
                                     Dari dekat Malioboro hingga Taman Sari, rasakan kehangatan
                                     <span className="text-brand-accent font-medium"> hospitality Jogja</span> yang autentik.
-                                    Setiap homestay menawarkan pengalaman unik yang tak terlupakan.
+                                    Jelajahi pilihan <strong>penginapan murah Jogja</strong> dan homestay keluarga dengan fasilitas terlengkap.
                                 </p>
                             </motion.div>
 
@@ -203,10 +203,10 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                     Pilihan Terbaik
                                 </Badge>
                                 <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
-                                    Homestay Terfavorit
+                                    Homestay Jogja Terfavorit
                                 </h2>
                                 <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-light">
-                                    Koleksi terbaik homestay dengan citarasa Jogja yang autentik
+                                    Koleksi penginapan dan villa murah Jogja dengan citarasa autentik
                                 </p>
                             </motion.div>
 
