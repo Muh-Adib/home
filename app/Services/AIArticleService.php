@@ -142,7 +142,6 @@ class AIArticleService
     }
 
     /**
-    /**
      * Generate article outline — delegates prompt to ArticlePromptService
      *
      * @param string $articleType travel_guide|seo_article|property_article|event_article
@@ -280,6 +279,27 @@ PROMPT;
 
         $response = $this->callAI('gemini', $prompt, maxTokens: 4000);
         $content = $response['content'];
+
+        // Agentic continuation loop
+        $isComplete = $this->isArticleComplete($content, 'event_article'); // Event/Marketing type logic
+        $maxContinuations = 2;
+        $continuations = 0;
+        
+        while (!$isComplete && $continuations < $maxContinuations) {
+            $continuations++;
+            Log::info("[AIArticleService] Marketing Article incomplete, requesting continuation (Attempt {$continuations})");
+            
+            $continuePrompt = "Lanjutkan penulisan artikel di bawah ini, lanjutkan tepat pada kata terakhir yang terpotong (jangan tulis ulang dari awal, jangan membuat intro, langsung lanjutkan kalimatnya sampai selesai). Teks terakhir:\n\n...\n" . 
+                mb_substr($content, -1500);
+                
+            $continueResponse = $this->callAI('gemini', $continuePrompt, maxTokens: 3000);
+            
+            $continuation = preg_replace('/^(Tentu|Baik|Berikut|Ini|Lanjutan).*?:/i', '', trim($continueResponse['content']));
+            $content .= "\n" . trim($continuation);
+            
+            $isComplete = $this->isArticleComplete($content, 'event_article');
+        }
+
         $wordCount = str_word_count(strip_tags($content));
 
         return [
@@ -333,6 +353,26 @@ PROMPT;
 
         $content = $response['content'];
 
+        // Agentic continuation loop
+        $isComplete = $this->isArticleComplete($content, $articleType);
+        $maxContinuations = 2;
+        $continuations = 0;
+        
+        while (!$isComplete && $continuations < $maxContinuations) {
+            $continuations++;
+            Log::info("[AIArticleService] Article incomplete, requesting continuation (Attempt {$continuations})");
+            
+            $continuePrompt = "Lanjutkan penulisan artikel di bawah ini, lanjutkan tepat pada kata terakhir yang terpotong (jangan tulis ulang dari awal, jangan membuat intro, langsung lanjutkan kalimatnya sampai selesai). Teks terakhir:\n\n...\n" . 
+                mb_substr($content, -1500);
+                
+            $continueResponse = $this->callAI($provider, $continuePrompt, maxTokens: 3000);
+            
+            $continuation = preg_replace('/^(Tentu|Baik|Berikut|Ini|Lanjutan).*?:/i', '', trim($continueResponse['content']));
+            $content .= "\n" . trim($continuation);
+            
+            $isComplete = $this->isArticleComplete($content, $articleType);
+        }
+
         // Strip any stray ```json blocks the AI might still produce (safety net)
         $content = trim(preg_replace('/```(?:json)?\s*\{[^`]+\}\s*```/is', '', $content));
 
@@ -353,6 +393,31 @@ PROMPT;
             'provider' => $provider,
             'article_type' => $articleType,
         ];
+    }
+
+    /**
+     * Cek apakah artikel sudah selesai (tidak terpotong).
+     */
+    private function isArticleComplete(string $content, string $articleType): bool
+    {
+        $contentLower = strtolower($content);
+        $lastChar = substr(trim(strip_tags($content)), -1);
+        $validEnds = ['.', '!', '?', '>'];
+        
+        // Structural check: Most of our prompts require a CTA or FAQ at the end
+        if ($articleType === 'travel_guide' || $articleType === 'seo_article') {
+            $hasFaq = str_contains($contentLower, 'faq') || str_contains($contentLower, 'pertanyaan');
+            if (!$hasFaq) return false;
+        }
+        
+        if ($articleType === 'property_article' || $articleType === 'event_article') {
+            $hasCta = str_contains($contentLower, 'homsjogja.com/properties') || 
+                      str_contains($contentLower, 'booking');
+            if (!$hasCta) return false;
+        }
+        
+        // Ensure sentence is finished
+        return in_array($lastChar, $validEnds);
     }
 
     /**

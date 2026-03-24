@@ -134,49 +134,38 @@ Target Audience: {$audience}
 
 {$this->getJogjaContext()}
 
-STRUKTUR WAJIB (ikuti PERSIS urutan ini):
+STRUKTUR WAJIB SINGKAT (H2 & H3 saja, tanpa deskripsi):
 ## [Judul H2 menarik yang mencakup keyword utama]
 
 ### Hook Pembuka
-- [1-2 hook bullet points: pertanyaan relatable atau situasi yang dialami wisatawan]
 
-## 1. Mengapa [Topik] Menjadi Pilihan Utama Wisatawan Jogja
-- [Popularitas destinasi, angka kunjungan, tren wisata]
+## [Topik Utama Mengapa Jogja]
 
-## 2. Area/Lokasi Terbaik [Topik] di Jogja
-### [Area 1 + nama wisata terdekat + jarak real dalam km]
-### [Area 2 + nama wisata terdekat + jarak real dalam km]  
-### [Area 3 + nama wisata terdekat + jarak real dalam km]
+## Lokasi Terbaik di Jogja
+### [Area 1 - Jarak ke wisata]
+### [Area 2 - Jarak ke wisata]
 
-## 3. Rekomendasi [Villa/Homestay] Terbaik untuk [Topik]
-### [Tipe untuk keluarga — kapasitas, harga estimasi]
-### [Tipe untuk rombongan/group — kapasitas, harga estimasi]
-### [Tipe budget-friendly — harga estimasi]
+## Rekomendasi Villa/Homestay
+### [Villa Keluarga]
+### [Villa Rombongan]
 
-## 4. Estimasi Budget Lengkap [Topik] di Jogja
-- [Tabel atau list: harga villa, transportasi, makan, tiket wisata]
+## Estimasi Budget Lengkap
 
-## 5. Tips Memilih dan Booking [Villa/Homestay] yang Tepat
-- [5-7 tips praktis anti-rugi]
+## Tips Memilih dan Booking
 
-## 6. Panduan Transportasi dan Aksesibilitas
-- [Cara sampai, pilihan transportasi, estimasi waktu]
+## Panduan Transportasi
 
-## 7. Kuliner Wajib di Sekitar Area Menginap
-- [2-3 rekomendasi kuliner legendary Jogja dekat area villa]
+## Kuliner Terdekat
 
-## CTA Section: Temukan Villa Ideal Kamu di HomsJogja
-- [Bullet benefits HomsJogja + ajakan cek ketersediaan]
+## CTA: Temukan Villa Ideal di HomsJogja
 
 ### FAQ
-- [3-5 pertanyaan yang paling sering dicari tentang topik ini]
 
 ATURAN PENTING:
-- HANYA gunakan H2 (##) dan H3 (###) — DILARANG roman numeral (I, II, III) atau huruf (A, B, C)
-- Setiap H2 harus mengandung keyword atau sinonim secara natural
-- Sertakan data real: jarak km, estimasi harga IDR, kapasitas orang
-- Output: outline saja, bukan artikel lengkap
-- Bahasa: Bahasa Indonesia yang conversational
+- Buat outline SANGAT SINGKAT dan padat. HANYA tulis judul H2 (##) dan H3 (###).
+- DILARANG menambahkan poin penjelasan/deskripsi panjang di bawah heading untuk MENGHEMAT TOKEN.
+- HANYA gunakan H2 (##) dan H3 (###) — DILARANG roman numeral (I, II, III).
+- Bahasa: Bahasa Indonesia.
 
 SEBELUM outline, output: "LSI Keywords: [5-7 keyword LSI relevan dipisah koma]"
 Lalu langsung mulai outline tanpa teks pembuka.
@@ -289,38 +278,30 @@ Poin Kunci yang HARUS Dicakup:
 
 {$this->getJogjaContext()}
 
-STRUKTUR OUTLINE (SEO-Optimized):
-## [H2 dengan keyword utama]
+STRUKTUR OUTLINE SINGKAT (SEO-Optimized):
+## [H2 Utama dengan Keyword]
 
-### Definisi / Konteks Singkat
-- [Apa, mengapa relevan bagi pembaca]
+### Definisi / Konteks
 
-## [Subtopik 1 — H2 dengan LSI keyword]
-### [Sub-subtopik H3]
-### [Sub-subtopik H3]
+## [Subtopik 1 — LSI keyword]
+### [Sub-subtopik]
 
-## [Subtopik 2 — H2 dengan LSI keyword]
-### [Sub-subtopik H3]
-### [Sub-subtopik H3]
+## [Subtopik 2 — LSI keyword]
+### [Sub-subtopik]
 
-## [Subtopik 3 — Perbandingan atau Data]
-- [Tabel atau list dengan data konkret]
+## [Perbandingan / Data]
 
-## Rekomendasi Praktis untuk Pembaca
-### [Rekomendasi spesifik 1]
-### [Rekomendasi spesifik 2]
+## Rekomendasi Praktis
 
-## FAQ — Pertanyaan Yang Paling Sering Dicari
-- [5-7 FAQ dengan search intent berbeda]
+## FAQ — Pertanyaan Sering Dicari
 
 ## Kesimpulan + CTA
-- [Summary + ajakan action yang relevan]
 
 ATURAN:
-- Gunakan HANYA H2 (##) dan H3 (###)
-- Sertakan data kuantitatif (angka, persentase, jarak, harga) di setiap section
-- Outline harus menjawab minimal 4 angle search intent: apa, di mana, berapa, bagaimana
-- Bahasa Indonesia
+- Buat outline SANGAT SINGKAT dan padat. HANYA tulis H2 (##) dan H3 (###).
+- DILARANG memberikan poin deskripsi/penjelasan panjang di bawah heading untuk MENGHEMAT TOKEN.
+- Outline harus menjawab intent: apa, di mana, berapa, bagaimana.
+- Bahasa Indonesia.
 
 Output dimulai dengan: "LSI Keywords: [7-10 keyword LSI]"
 Lalu langsung outline.
@@ -381,37 +362,24 @@ Keyword: {$kwStr}
 
 {$this->getJogjaContext()}
 
-STRUKTUR OUTLINE:
-## Hook: Pengalaman Pertama Tamu di [Nama Properti]
-- [Cerita mini atau deskripsi imajinatif yang bikin pembaca penasaran]
-
-## Kenapa [Nama Properti] Jadi Pilihan Favorit di Jogja
-### Lokasi Strategis: [Nama properti] vs Alternatif Lain
-### Fasilitas yang Bikin Betah (Plus Detailnya)
-### Kapasitas dan Kesesuaian untuk Berbagai Grup
-
-## Pengalaman Menginap Sehari Penuh di [Nama Properti]
-### Pagi: [Aktivitas / suasana pagi di properti]
-### Siang: [Day trip ke wisata sekitar]
-### Malam: [Aktivitas malam / kuliner]
-
-## Estimasi Budget Menginap di [Nama Properti]
-- [Breakdown biaya: villa, makan, transportasi, wisata]
-
-## Review dan Keunggulan Dibanding Kompetitor
-### Apa yang Tidak Bisa Kamu Dapat di Hotel
-### Apa yang Membuat Tamu Selalu Kembali
-
-## Tips Booking dan Persiapan Sebelum Datang
-- [5 tips spesifik untuk tamu baru]
-
-## Cara Booking [Nama Properti] di HomsJogja
-- [CTA step-by-step + link booking]
+STRUKTUR OUTLINE SINGKAT:
+## Hook: Pengalaman Tamu di [Properti]
+## Kenapa [Properti] Jadi Pilihan
+### Lokasi Strategis
+### Fasilitas Unggulan
+## Pengalaman Sehari Penuh
+### Pagi
+### Siang
+### Malam
+## Estimasi Budget Menginap
+## Review dan Keunggulan
+## Tips Booking
+## Cara Booking di HomsJogja
 
 ATURAN:
-- HANYA H2 dan H3
-- Nada: warm, personal, seperti rekomendasi teman
-- Sertakan data real: jarak ke 3 wisata populer, harga villa
+- Buat outline SANGAT SINGKAT dan padat. HANYA tulis H2 (##) dan H3 (###).
+- DILARANG memberikan poin deskripsi/penjelasan panjang di bawah heading untuk MENGHEMAT TOKEN.
+- Nada: warm, personal.
 
 Output dimulai dengan: "LSI Keywords: [5-7 keyword LSI]"
 PROMPT;
@@ -488,32 +456,22 @@ Traveler Angle: {$travelerAngle}
 
 {$this->getJogjaContext()}
 
-STRUKTUR OUTLINE:
-## Hook: [Event/Tren] yang Bikin Jogja Makin Ramai
-- [Gambarkan situasi: antusiasme wisatawan, keramaian yang terjadi]
+STRUKTUR OUTLINE SINGKAT:
+## Hook: [Event/Tren] Membawa Keramaian di Jogja
+## Fakta Penting tentang [Event]
+### Waktu & Lokasi
+## Dampak: Hotel Penuh & Akses Padat
+## Solusi Cerdas: Menginap di Villa Sekitar Lokasi
+### Area Strategis
+## Rekomendasi Tempat Menginap untuk [Event]
+### [Sebutkan Villa/Tipe]
+## Tips Persiapan Liburan
+## CTA: Booking Villa di HomsJogja Sekarang!
 
-## Apa yang Perlu Kamu Tahu tentang [Event/Tren] Ini
-### Kapan dan Di Mana Berlangsung
-### Mengapa Ini Menarik bagi Wisatawan
-
-## Dampaknya: Hotel Penuh, Harga Naik, Akses Padat
-- [Problem yang dialami wisatawan yang tidak siap]
-
-## Solusi Cerdas: Menginap di Villa/Homestay Saat [Event]
-### Keuntungan Villa vs Hotel saat Event Ramai
-### Area Strategis untuk Menginap Saat [Event]
-
-## Rekomendasi Tempat Menginap untuk [Event] di Jogja
-### [Tipe villa untuk keluarga]
-### [Tipe villa untuk rombongan]
-
-## Tips Persiapan Liburan ke Jogja Saat [Event]
-- [Booking awal, estimasi biaya, tips transportasi]
-
-## CTA: Jangan Sampai Kehabisan Villa Saat [Event]!
-- [Urgency + link HomsJogja]
-
-ATURAN: HANYA H2/H3, data real, bahasa Indonesia casual.
+ATURAN: 
+- Buat outline SANGAT SINGKAT dan padat. HANYA tulis H2 (##) dan H3 (###).
+- DILARANG memberikan poin deskripsi/penjelasan panjang di bawah heading untuk MENGHEMAT TOKEN.
+- Nada: urgent, relevan.
 Output dimulai dengan: "LSI Keywords: [5-7 keyword]"
 PROMPT;
     }
@@ -651,16 +609,17 @@ PROMPT;
     }
 
     /**
-     * Build AI image generation instruction block (using free loremflickr API)
+     * Build AI image generation instruction block (menggunakan Pollinations AI untuk gambar dinamis yang valid)
      */
     private function buildImageGenerationBlock(): string
     {
         return "\n\n===[ VISUAL & ILUSTRASI ARTIKEL ]===\n"
             . "Setiap kali kamu membahas sub-topik baru (setelah H2), kamu WAJIB menyisipkan satu gambar ilustrasi yang relevan.\n"
-            . "Gunakan gambar nyata dari internet (seperti dari Unsplash, Wikimedia Commons, Pexels, atau sumber publik yang valid) JANGAN MENGGUNAKAN loremflickr.\n"
-            . "Gunakan format Markdown Image dan WAJIB sertakan pengutipan sumber di bawah gambar, dengan format:\n"
-            . "![Keterangan gambar bahasa Indonesia](https://url-gambar-asli-dari-internet.jpg)\n"
-            . "*Sumber gambar: [Nama Fotografer / Situs](https://url-referensi-asli.com)*\n"
+            . "SANGAT PENTING: Untuk memastikan link gambar selalu valid dan tidak error (404), SANGAT DILARANG menggunakan Unsplash/Pexels/Wikimedia karena sering usang. Gunakan layanan gambar dinamis dari Pollinations AI.\n"
+            . "Gunakan URL berikut dengan format Markdown Image:\n"
+            . "![Keterangan gambar bahasa Indonesia](https://image.pollinations.ai/prompt/[deskripsi-gambar-bahasa-inggris-dipisah-spasi]?width=800&height=450&nologo=true)\n\n"
+            . "Contoh penggunaan (pastikan deskripsi bahasa Inggris URL encoded):\n"
+            . "![Jalan Malioboro Yogyakarta](https://image.pollinations.ai/prompt/malioboro%20street%20yogyakarta%20indonesia%20beautiful%20photography?width=800&height=450&nologo=true)\n\n"
             . "Pastikan gambar sangat relevan dengan topik yang sedang dibicarakan di section tersebut.";
     }
 

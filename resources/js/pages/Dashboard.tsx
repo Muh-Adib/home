@@ -51,16 +51,27 @@ function KPICard({
     color?: string;
 }) {
     const formatValue = (val: number | string) => {
-        if (typeof val === 'number') {
+        const numVal = typeof val === 'string' ? parseFloat(val) : val;
+        
+        if (!isNaN(numVal) && val !== null && val !== '') {
             if (prefix === 'Rp') {
                 return new Intl.NumberFormat('id-ID', {
                     style: 'currency',
                     currency: 'IDR',
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 0
-                }).format(val);
+                }).format(numVal);
             }
-            return val.toLocaleString('id-ID');
+            if (suffix === '%') {
+                return new Intl.NumberFormat('id-ID', {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1
+                }).format(numVal);
+            }
+            return new Intl.NumberFormat('id-ID', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(numVal);
         }
         return val;
     };

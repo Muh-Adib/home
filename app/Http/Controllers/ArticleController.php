@@ -153,7 +153,8 @@ class ArticleController extends Controller
      */
     public function show(string $slug): Response
     {
-        $cacheKey = "article_show_{$slug}";
+        $safeSlug = strlen($slug) > 50 ? substr($slug, 0, 50) . '_' . md5($slug) : $slug;
+        $cacheKey = "article_show_{$safeSlug}";
 
         $data = \Illuminate\Support\Facades\Cache::remember($cacheKey, 3600, function () use ($slug) {
             $article = Article::where('slug', $slug)
@@ -352,19 +353,24 @@ class ArticleController extends Controller
     /**
      * Get media for the article editor
      */
-    public function getMedia(): JsonResponse
+    public function getMedia(Request $request): JsonResponse
     {
         $this->authorize('create', Article::class);
 
         $mediaList = [];
+        $search = $request->get('search');
 
         // 1. Get uploaded images from articles/images directory
         $articleImages = Storage::disk('public')->allFiles('articles/images');
         foreach ($articleImages as $path) {
             if (in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                if ($search && !str_contains(strtolower(basename($path)), strtolower($search))) {
+                    continue;
+                }
                 $mediaList[] = [
                     'id' => 'article_' . md5($path),
                     'url' => asset('storage/' . $path),
+                    'thumbnail_url' => asset('storage/' . $path),
                     'path' => $path,
                     'name' => basename($path),
                     'size' => Storage::disk('public')->size($path),
@@ -375,11 +381,19 @@ class ArticleController extends Controller
         }
 
         // 2. Get property images
-        $propertyImages = PropertyMedia::with('property:id,name')->get();
+        $propertyQuery = PropertyMedia::with('property:id,name');
+        if ($search) {
+            $propertyQuery->whereHas('property', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%");
+            });
+        }
+        $propertyImages = $propertyQuery->get();
+
         foreach ($propertyImages as $media) {
             $mediaList[] = [
                 'id' => 'property_' . $media->id,
                 'url' => $media->url,
+                'thumbnail_url' => $media->thumbnail_url ?? $media->url,
                 'path' => $media->file_path,
                 'name' => $media->property ? $media->property->name . ' - ' . basename($media->file_path) : basename($media->file_path),
                 'size' => $media->file_size,

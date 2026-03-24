@@ -45,6 +45,7 @@ interface Property {
 interface MediaItem {
     id: string;
     url: string;
+    thumbnail_url?: string;
     path: string;
     name: string;
     size: number;
@@ -162,6 +163,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
     const [showOutlineModal, setShowOutlineModal] = useState(false);
     const [contentTone, setContentTone] = useState<'professional' | 'casual'>('professional');
     const [showMediaExplorer, setShowMediaExplorer] = useState(false);
+    const [searchMedia, setSearchMedia] = useState('');
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
     const [loadingMedia, setLoadingMedia] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -523,10 +525,10 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
     };
 
     // Media Library functions
-    const fetchMedia = async () => {
+    const fetchMedia = async (query = '') => {
         setLoadingMedia(true);
         try {
-            const response = await axios.get('/admin/articles/media');
+            const response = await axios.get('/admin/articles/media', { params: { search: query } });
             if (response.data.success) {
                 setMediaItems(response.data.media);
             }
@@ -826,7 +828,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                             className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition-colors disabled:opacity-50"
                                             onClick={() => {
                                                 setShowMediaExplorer(true);
-                                                fetchMedia();
+                                                fetchMedia(searchMedia);
                                             }}
                                         >
                                             <ImageIcon className="h-3.5 w-3.5" />
@@ -866,7 +868,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                     {/* ── Media Explorer Dialog (standalone, state-controlled) ── */}
                                     <Dialog open={showMediaExplorer} onOpenChange={(open) => {
                                         setShowMediaExplorer(open);
-                                        if (open) fetchMedia();
+                                        if (open) fetchMedia(searchMedia);
                                     }}>
                                         <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0">
                                             <DialogHeader className="p-6 border-b shrink-0 bg-white">
@@ -884,7 +886,20 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                                 </div>
 
                                                 {/* Library tab */}
-                                                <TabsContent value="library" className="flex-1 overflow-y-auto p-6 pt-4 m-0 min-h-0">
+                                                <TabsContent value="library" className="flex-1 flex flex-col overflow-hidden p-6 pt-4 m-0 min-h-0">
+                                                    <div className="flex gap-2 mb-4 shrink-0">
+                                                        <Input 
+                                                            placeholder="Cari gambar properti (e.g. Abaia)..." 
+                                                            value={searchMedia} 
+                                                            onChange={(e) => setSearchMedia(e.target.value)}
+                                                            onKeyDown={(e) => e.key === 'Enter' && fetchMedia(searchMedia)}
+                                                        />
+                                                        <Button variant="secondary" onClick={() => fetchMedia(searchMedia)}>
+                                                            Cari
+                                                        </Button>
+                                                    </div>
+                                                    
+                                                    <div className="flex-1 overflow-y-auto">
                                                     {loadingMedia ? (
                                                         <div className="flex justify-center flex-col items-center h-full text-gray-500">
                                                             <Loader2 className="h-8 w-8 animate-spin mb-4" />
@@ -903,7 +918,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                                             {mediaItems.map((item) => (
                                                                 <div key={item.id} className="group relative border rounded-lg shadow-sm overflow-hidden bg-white aspect-square flex flex-col hover:shadow-md transition-shadow">
                                                                     <div className="flex-1 relative cursor-pointer bg-gray-100" onClick={() => insertMediaToEditor(item.url)}>
-                                                                        <img src={item.url} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+                                                                        <img src={item.thumbnail_url || item.url} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
                                                                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
                                                                             <div className="opacity-0 group-hover:opacity-100 bg-white shadow-lg text-black text-xs font-bold px-3 py-1.5 flex items-center gap-1.5 rounded-md transform translate-y-2 group-hover:translate-y-0 transition-all duration-200">
                                                                                 <ImageIcon className="h-3.5 w-3.5" /> Insert
@@ -935,6 +950,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                                             ))}
                                                         </div>
                                                     )}
+                                                    </div>
                                                 </TabsContent>
 
                                                 {/* Upload tab */}

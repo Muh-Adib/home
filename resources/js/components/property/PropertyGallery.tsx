@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useImageGallery } from '@/hooks/use-image-gallery';
 import { LazyImage } from '@/components/ui/LazyImage';
+import { useState } from 'react';
 
 interface PropertyGalleryProps {
     images: Array<{
@@ -52,13 +53,48 @@ export function PropertyGallery({
         );
     }
 
+    // Touch handlers for swipe
+    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [touchEnd, setTouchEnd] = useState<number | null>(null);
+    const minSwipeDistance = 50;
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        setTouchEnd(null);
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const handleTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+        
+        if (isLeftSwipe && hasMultipleImages) {
+            nextImage();
+        }
+        if (isRightSwipe && hasMultipleImages) {
+            prevImage();
+        }
+    };
+
     return (
         <Card className="overflow-hidden shadow-xl border-0 card-modern">
             <CardContent className="p-0">
-                <div className="relative">
+                <div 
+                    className="relative"
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                >
                     <div className="aspect-[4/3] sm:aspect-[16/10] bg-gradient-to-br from-muted/50 to-background">
                         {currentImage ? (
                             <LazyImage
+                                key={currentImage.url}
                                 src={currentImage.url}
                                 alt={currentImage.alt_text || propertyName}
                                 className="w-full h-full object-cover"
@@ -81,7 +117,7 @@ export function PropertyGallery({
                                 variant="secondary"
                                 size="sm"
                                 className="absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 bg-background/90 hover:bg-background shadow-lg border border-border/50 backdrop-blur-sm h-8 w-8 sm:h-10 sm:w-10 p-0"
-                                onClick={prevImage}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); prevImage(); }}
                             >
                                 <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
                             </Button>
@@ -89,7 +125,7 @@ export function PropertyGallery({
                                 variant="secondary"
                                 size="sm"
                                 className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 bg-background/90 hover:bg-background shadow-lg border border-border/50 backdrop-blur-sm h-8 w-8 sm:h-10 sm:w-10 p-0"
-                                onClick={nextImage}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); nextImage(); }}
                             >
                                 <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
                             </Button>
