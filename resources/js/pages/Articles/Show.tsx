@@ -5,9 +5,8 @@ import { Button } from '@/components/ui/button';
 import { type PageProps } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { Calendar, User, Eye, ArrowLeft, Share2 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useEffect } from 'react';
+import { ArticleContent } from '@/components/Article/ArticleContent';
 import { SeoHead } from '@/components/seo/SeoHead';
 import { SchemaOrg } from '@/components/seo/SchemaOrg';
 
@@ -136,60 +135,7 @@ export default function ArticleShow({ article, relatedArticles }: ArticleShowPro
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                         {/* Main Content */}
                         <div className="lg:col-span-2">
-                            <Card>
-                                <CardContent className="pt-8">
-                                    <article className="prose prose-lg max-w-none">
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkGfm]}
-                                            components={{
-                                                h1: ({ children }) => <h1 className="text-3xl font-bold mt-8 mb-4">{children}</h1>,
-                                                h2: ({ children }) => <h2 className="text-2xl font-bold mt-6 mb-3">{children}</h2>,
-                                                h3: ({ children }) => <h3 className="text-xl font-bold mt-5 mb-2">{children}</h3>,
-                                                p: ({ children }) => <p className="text-gray-700 leading-relaxed mb-4">{children}</p>,
-                                                a: ({ href, children }) => (
-                                                    <a
-                                                        href={href}
-                                                        className="text-blue-600 hover:text-blue-800 underline"
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                    >
-                                                        {children}
-                                                    </a>
-                                                ),
-                                                img: ({ src, alt }) => (
-                                                    <img
-                                                        src={src}
-                                                        alt={alt || ''}
-                                                        className="rounded-lg my-6 w-full"
-                                                        loading="lazy"
-                                                    />
-                                                ),
-                                                ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-2">{children}</ul>,
-                                                ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-2">{children}</ol>,
-                                                blockquote: ({ children }) => (
-                                                    <blockquote className="border-l-4 border-blue-500 pl-4 italic my-6 text-gray-600">
-                                                        {children}
-                                                    </blockquote>
-                                                ),
-                                                code: ({ className, children }) => {
-                                                    const isInline = !className;
-                                                    return isInline ? (
-                                                        <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
-                                                            {children}
-                                                        </code>
-                                                    ) : (
-                                                        <code className="block bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm font-mono my-4">
-                                                            {children}
-                                                        </code>
-                                                    );
-                                                },
-                                            }}
-                                        >
-                                            {article.content}
-                                        </ReactMarkdown>
-                                    </article>
-                                </CardContent>
-                            </Card>
+                            <ArticleContent content={article.content} />
 
                             {/* Related Articles */}
                             {relatedArticles.length > 0 && (
