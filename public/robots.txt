@@ -26,7 +26,8 @@ User-agent: CCBot
 Allow: /
 
 # === SITEMAPS ===
-Sitemap: {{APP_URL}}/sitemap.xml
+Sitemap: https://homsjogja.com/sitemap.xml
+Sitemap: https://homsjogja.com/sitemap-articles.xml
 
 # === CRAWL RATE (Optional) ===
 # Crawl-delay: 1

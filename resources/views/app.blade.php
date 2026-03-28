@@ -25,6 +25,25 @@
     <script defer src="https://umami.homsjogja.cloud/script.js"
         data-website-id="20a0dc87-67d7-44f4-95b7-d1efa140d1ed"></script>
 
+    {{-- Google Analytics GA4 — Hanya untuk halaman publik (bukan admin/staff/dashboard) --}}
+    @php
+        $isAdminRoute = request()->is('admin/*', 'staff/*', 'dashboard*', 'settings/*', 'my-bookings*', 'my-payments*');
+    @endphp
+    @if(!$isAdminRoute)
+    <!-- Google tag (gtag.js) G-314DHT11HB -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-314DHT11HB"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-314DHT11HB', {
+            'anonymize_ip': true,
+            'cookie_flags': 'SameSite=None;Secure',
+            'send_page_view': true
+        });
+    </script>
+    @endif
+
     {{-- Inline style to set the HTML background color based on our theme in app.css --}}
     <style>
         html {

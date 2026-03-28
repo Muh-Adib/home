@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Google Indexing API (Service Account)
+    |--------------------------------------------------------------------------
+    | Credentials for Google Indexing API to notify Google when property
+    | pages are created, updated, or deleted.
+    |--------------------------------------------------------------------------
+    */
+    'google_indexing' => [
+        'client_email' => env('GOOGLE_INDEXING_CLIENT_EMAIL'),
+        'private_key'  => env('GOOGLE_INDEXING_PRIVATE_KEY'),
+    ],
+
 ];

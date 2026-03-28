@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { type PageProps } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { Calendar, User, Eye, ArrowLeft, Share2 } from 'lucide-react';
-import { useEffect } from 'react';
 import { ArticleContent } from '@/components/Article/ArticleContent';
 import { SeoHead } from '@/components/seo/SeoHead';
 import { SchemaOrg } from '@/components/seo/SchemaOrg';
@@ -47,11 +46,6 @@ interface ArticleShowProps {
 
 export default function ArticleShow({ article, relatedArticles }: ArticleShowProps) {
     const page = usePage<PageProps>();
-
-    useEffect(() => {
-        // Update page title for SEO
-        document.title = article.title;
-    }, [article.title]);
 
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('id-ID', {
