@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Jobs\NotifyGoogleIndexingJob;
 use App\Models\Article;
 use App\Models\ContentPlan;
 use Illuminate\Support\Str;
@@ -30,6 +31,14 @@ class ArticleObserver
     public function created(Article $article): void
     {
         $this->ensureContentPlan($article);
+
+        // Notify Google if article is published immediately upon creation
+        if ($article->status === 'published') {
+            NotifyGoogleIndexingJob::dispatch(
+                $this->buildArticleUrl($article),
+                'URL_UPDATED'
+            )->onQueue('indexing');
+        }
     }
 
     /**
@@ -47,8 +56,36 @@ class ArticleObserver
      */
     public function updated(Article $article): void
     {
-        if ($article->isDirty('status') && $article->status === 'published') {
+        $statusChanged   = $article->isDirty('status');
+        $becamePublished = $statusChanged && $article->status === 'published';
+        $becameUnpublished = $statusChanged && $article->status !== 'published';
+
+        if ($article->status === 'published') {
             SitemapController::clearCache();
+        }
+
+        // Deindex if article was unpublished (went from published → draft/archived)
+        if ($becameUnpublished) {
+            NotifyGoogleIndexingJob::dispatch(
+                $this->buildArticleUrl($article),
+                'URL_DELETED'
+            )->onQueue('indexing');
+        }
+
+        // Notify Google if article just became published
+        elseif ($becamePublished) {
+            NotifyGoogleIndexingJob::dispatch(
+                $this->buildArticleUrl($article),
+                'URL_UPDATED'
+            )->onQueue('indexing');
+        }
+
+        // Notify Google if key SEO content changed on an already-published article
+        elseif ($article->status === 'published' && $article->isDirty(['title', 'slug', 'content', 'excerpt', 'seo_title', 'seo_description', 'featured_image'])) {
+            NotifyGoogleIndexingJob::dispatch(
+                $this->buildArticleUrl($article),
+                'URL_UPDATED'
+            )->onQueue('indexing');
         }
 
         // Prevent infinite loop
@@ -102,6 +139,23 @@ class ArticleObserver
     public function deleted(Article $article): void
     {
         SitemapController::clearCache();
+
+        // Deindex from Google if the deleted article was published
+        if ($article->status === 'published') {
+            NotifyGoogleIndexingJob::dispatch(
+                $this->buildArticleUrl($article),
+                'URL_DELETED'
+            )->onQueue('indexing');
+        }
+    }
+
+    /**
+     * Build the public-facing URL for an article.
+     */
+    private function buildArticleUrl(Article $article): string
+    {
+        $baseUrl = rtrim(config('app.url'), '/');
+        return "{$baseUrl}/articles/{$article->slug}";
     }
 
     /**
