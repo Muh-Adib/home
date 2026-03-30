@@ -21,8 +21,8 @@ import HeroSearchBar from '@/components/ui/hero-search-bar';
 import PropertyCardEnhanced from '@/components/ui/property-card-enhanced';
 import ScrollToTop from '@/components/ui/scroll-to-top';
 
-// Lazy loading the massive sections to split code
-const BelowFoldContent = lazy(() => import('./Welcome/BelowFoldContent'));
+// Static import for SSR (SEO optimization)
+import BelowFoldContent from './Welcome/BelowFoldContent';
 
 interface WelcomeProps {
     featuredProperties: Property[];
@@ -115,29 +115,20 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                     />
 
                     <div className="container mx-auto px-6 relative z-10 text-center pt-20">
-                        <motion.div
-                            className="hero-content max-w-4xl mx-auto"
-                            initial={{ opacity: 0, y: 50 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.8, delay: 0.2 }}
+                        <div
+                            className="hero-content max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-1000 fill-mode-both"
                         >
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.6, delay: 0.4 }}
-                                className="flex justify-center mb-8"
+                            <div
+                                className="flex justify-center mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 fill-mode-both"
                             >
                                 <Badge className="bg-brand-primary-20 backdrop-blur-md border border-brand-accent-30 text-white px-6 py-2 text-sm font-medium rounded-full shadow-lg">
                                     <Crown className="h-4 w-4 mr-2" />
                                     Homestay Terpercaya di Jogja
                                 </Badge>
-                            </motion.div>
+                            </div>
 
-                            <motion.div
-                                className="text-center mb-8"
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.8, delay: 0.6 }}
+                            <div
+                                className="text-center mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-500 fill-mode-both"
                             >
                                 <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold text-white mb-4 leading-tight">
                                     <span className="block font-light">Temukan</span>
@@ -151,33 +142,27 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                     <span className="block">Pengalaman menginap yang tak terlupakan</span>
                                     <span className="block text-brand-accent">di jantung budaya Jawa</span>
                                 </div>
-                            </motion.div>
+                            </div>
 
-                            <motion.div
-                                className="max-w-3xl mx-auto mb-12"
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.6, delay: 0.8 }}
+                            <div
+                                className="max-w-3xl mx-auto mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-700 fill-mode-both"
                             >
                                 <p className="text-lg text-white/90 leading-relaxed text-center">
                                     Dari dekat Malioboro hingga Taman Sari, rasakan kehangatan
                                     <span className="text-brand-accent font-medium"> hospitality Jogja</span> yang autentik.
                                     Jelajahi pilihan <strong>penginapan murah Jogja</strong> dan homestay keluarga dengan fasilitas terlengkap.
                                 </p>
-                            </motion.div>
+                            </div>
 
-                            <motion.div
-                                initial={{ opacity: 0, y: 30 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.8, delay: 1.0 }}
-                                className="max-w-4xl mx-auto mb-8"
+                            <div
+                                className="max-w-4xl mx-auto mb-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-1000 fill-mode-both"
                             >
                                 <HeroSearchBar
                                     onSearch={handleQuickSearch}
                                     loading={searchLoading}
                                 />
-                            </motion.div>
-                        </motion.div>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
@@ -246,10 +231,8 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                     </motion.section>
                 )}
 
-                {/* Below The Fold Extracted - Lazy Loaded */}
-                <Suspense fallback={<div className="min-h-[400px] flex items-center justify-center opacity-50">Memuat...</div>}>
-                    <BelowFoldContent auth={auth} testimonials={testimonials} />
-                </Suspense>
+                {/* Below The Fold Extracted - Statically Loaded for SSR / SEO */}
+                <BelowFoldContent auth={auth} testimonials={testimonials} />
             </div>
 
             <ScrollToTop />

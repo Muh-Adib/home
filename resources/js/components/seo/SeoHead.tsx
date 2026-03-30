@@ -50,6 +50,21 @@ export function SeoHead({ title, description, image, noIndex = false }: SeoHeadP
             <meta name="twitter:title" content={seo?.twitter.title || metaTitle} />
             <meta name="twitter:description" content={seo?.twitter.description || metaDescription} />
             <meta name="twitter:image" content={seo?.twitter.image || metaImage} />
+
+            {/* Anti-Blank Page for SSR/SEO when JS is disabled */}
+            <noscript>
+                {`<style>
+                    /* Force visibility for framer-motion elements during SSR or when JS is disabled */
+                    [style*="opacity: 0"] {
+                        opacity: 1 !important;
+                        transform: none !important;
+                    }
+                    /* Backup generic rule if syntax differs */
+                    .hero-section, section, div {
+                        opacity: 1 !important;
+                    }
+                </style>`}
+            </noscript>
         </Head>
     );
 }
