@@ -168,17 +168,38 @@ class AIArticleService
         $content = $response['content'];
         Log::info('[AIArticleService] Outline generated', ['type' => $articleType, 'title' => $title]);
 
-        // Extract LSI Keywords if present
-        $lsiKeywords = [];
-        if (preg_match('/LSI Keywords:\s*(.+)/i', $content, $matches)) {
-            $lsiKeywords = array_map('trim', explode(',', $matches[1]));
-            $content = trim(preg_replace('/LSI Keywords:\s*(.+)/i', '', $content));
+        // Bersihkan balasan jika AI bandel mengembalikan format markdown code block ```json ... ```
+        $cleanContent = trim((string) preg_replace('/```json\s*|\s*```/i', '', $content));
+        $parsed = json_decode($cleanContent, true);
+
+        // Fallback jika AI gagal memberikan JSON dan masih ngeyel mengirim Teks biasa
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($parsed)) {
+            Log::warning('[AIArticleService] AI Outline is not a valid JSON. Using text fallback parser.', [
+                'error' => json_last_error_msg(),
+                'raw_content' => substr($content, 0, 100) . '...' // Log portion only safely
+            ]);
+
+            // Ekstrak LSI jika ada di format lama, dengan regex yang aman
+            $lsiKeywords = [];
+            if (preg_match('/LSI Keywords:\s*([^\n]+)/i', $content, $matches)) {
+                $lsiKeywords = array_map('trim', explode(',', $matches[1]));
+                // Hapus HANYA baris LSI Keywords saja, bukan keseluruhan isi
+                $content = trim(preg_replace('/LSI Keywords:\s*[^\n]+/i', '', $content));
+            }
+
+            return [
+                'success' => true,
+                'outline' => $content,
+                'lsi_keywords' => $lsiKeywords,
+                'provider' => $provider,
+                'article_type' => $articleType,
+            ];
         }
 
         return [
             'success' => true,
-            'outline' => $content,
-            'lsi_keywords' => $lsiKeywords,
+            'outline' => $parsed['outline'] ?? '',
+            'lsi_keywords' => $parsed['lsi_keywords'] ?? [],
             'provider' => $provider,
             'article_type' => $articleType,
         ];

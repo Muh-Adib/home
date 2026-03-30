@@ -174,11 +174,19 @@ ATURAN PENTING:
 - Gunakan H2 (##) dan H3 (###) — DILARANG roman numeral (I, II, III).
 - Bahasa: Bahasa Indonesia.
 
-OUTPUT_FORMAT:
-LSI Keywords: keyword1, keyword2, keyword3, keyword4, keyword5
-## [Judul H2 Pertama]
-### [Sub-judul H3]
-DILARANG memberikan teks pembuka seperti "Tentu" atau "Berikut adalah". Langsung tulis "LSI Keywords:".
+OUTPUT_FORMAT (SUPER IMPORTANT):
+Kamu WAJIB mengembalikan output ini sebagai RAW JSON. Jangan gunakan blok kode markdown ```json ... ```, berikan hanya object JSON murni!
+
+{
+  "lsi_keywords": [
+    "keyword1",
+    "keyword2",
+    "keyword3"
+  ],
+  "outline": "## [Judul H2 Pertama]\n### [Sub-judul H3]\n## [Judul H2 Selanjutnya]..."
+}
+
+DILARANG memberikan kalimat pembuka apapun seperti "Tentu" atau "Tentu, ini outlinenya:". Kembalikan HANYA teks JSON yang valid!
 PROMPT;
     }
 
