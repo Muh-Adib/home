@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
     ArrowLeft,
     Edit,
@@ -477,8 +479,14 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
                                         ) : (
                                             <div className="p-6">
                                                 {plan.ai_outline ? (
-                                                    <div className="bg-white rounded-xl p-8 shadow-inner border border-indigo-50 min-h-[200px] whitespace-pre-wrap font-sans text-gray-800 leading-loose">
-                                                        {plan.ai_outline}
+                                                    <div className="bg-white rounded-xl p-8 shadow-inner border border-indigo-50 min-h-[200px] prose prose-sm max-w-none
+                                                        prose-headings:text-indigo-900 prose-h2:text-base prose-h2:font-bold prose-h2:border-b prose-h2:border-indigo-100 prose-h2:pb-1 prose-h2:mb-2
+                                                        prose-h3:text-sm prose-h3:font-semibold prose-h3:text-indigo-700 prose-h3:mt-1 prose-h3:mb-1
+                                                        prose-p:text-gray-700 prose-li:text-gray-700
+                                                    ">
+                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                            {plan.ai_outline}
+                                                        </ReactMarkdown>
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-col items-center justify-center py-20 text-gray-400 bg-white/50">

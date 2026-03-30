@@ -1006,7 +1006,40 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                     <div className="prose max-w-none">
                                         <h1>{data.title || 'Untitled Article'}</h1>
                                         {data.excerpt && <p className="lead text-gray-600">{data.excerpt}</p>}
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        <ReactMarkdown 
+                                            remarkPlugins={[remarkGfm]}
+                                            components={{
+                                                p: ({ children }) => {
+                                                    const contentStr = React.Children.toArray(children).reduce((acc, child) => {
+                                                        return acc + (typeof child === 'string' ? child : '');
+                                                    }, '');
+                                                    
+                                                    const imageMatch = typeof contentStr === 'string' ? contentStr.match(/^\[IMAGE:\s*(.*?)\]$/is) : null;
+                                                    
+                                                    if (imageMatch) {
+                                                        const desc = imageMatch[1];
+                                                        return (
+                                                            <div 
+                                                                className="my-6 border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-blue-100 transition-colors"
+                                                                onClick={() => {
+                                                                    setSearchMedia(desc.slice(0, 30));
+                                                                    setShowMediaExplorer(true);
+                                                                    fetchMedia(desc.slice(0, 30));
+                                                                }}
+                                                            >
+                                                                <ImageIcon className="h-8 w-8 text-blue-400 mb-2" />
+                                                                <p className="font-semibold text-blue-700 m-0">Image Placeholder</p>
+                                                                <p className="text-sm text-blue-600/80 m-0 mt-1 max-w-sm">{desc}</p>
+                                                                <Button type="button" size="sm" variant="outline" className="mt-4 bg-white hover:bg-white border-blue-200">
+                                                                    Click to Insert Image
+                                                                </Button>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return <p>{children}</p>;
+                                                }
+                                            }}
+                                        >
                                             {data.content || '*No content yet...*'}
                                         </ReactMarkdown>
                                     </div>

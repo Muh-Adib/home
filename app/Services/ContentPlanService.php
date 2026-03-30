@@ -187,29 +187,83 @@ PROMPT;
     /**
      * Generate outline for content plan.
      *
-     * Automatically injects search_intent + keyword_variations (from ai_suggestions)
-     * as custom instructions so the outline is structured around the correct intent.
+     * - Maps content_type → article_type for proper prompt template selection.
+     * - Injects search_intent & keyword_variations as intent_instructions inside researchContext
+     *   (not as standalone customInstructions) so ArticlePromptService always gets the rich template.
+     * - Loads linked properties if available (for travel_guide / property_article types).
      */
     public function generateOutlineForPlan(ContentPlan $plan): string
     {
-        // Build intent-aware custom instructions from stored ai_suggestions
-        $customInstructions = $this->buildOutlineInstructions($plan);
+        // Map content type to article type for ArticlePromptService
+        $articleType = $this->mapContentTypeToArticleType($plan->content_type ?? 'article');
+
+        // Build intent-aware instructions from stored ai_suggestions
+        $intentInstructions = $this->buildOutlineInstructions($plan);
+
+        // Merge research context + intent instructions
+        $researchContext = array_merge(
+            $plan->ai_research_data ?? [],
+            !empty($intentInstructions) ? ['intent_instructions' => $intentInstructions] : []
+        );
+
+        // Load related properties for this plan (articles linked via content_plan_id)
+        $properties = [];
+        if ($plan->article && !empty($plan->article->property_ids ?? [])) {
+            $propertyIds = is_array($plan->article->property_ids)
+                ? $plan->article->property_ids
+                : json_decode($plan->article->property_ids, true) ?? [];
+
+            if (!empty($propertyIds)) {
+                $properties = \App\Models\Property::with(['media' => fn($q) => $q->orderBy('display_order')])
+                    ->whereIn('id', $propertyIds)
+                    ->get(['id', 'name', 'slug', 'description', 'location', 'address', 'capacity', 'bedroom_count', 'base_rate'])
+                    ->map(fn($p) => [
+                        'id'          => $p->id,
+                        'name'        => $p->name,
+                        'slug'        => $p->slug,
+                        'description' => $p->description,
+                        'location'    => $p->location ?? $p->address,
+                        'capacity'    => $p->capacity,
+                        'bedrooms'    => $p->bedroom_count,
+                        'base_rate'   => $p->base_rate,
+                        'images'      => $p->media->take(3)->pluck('url')->toArray(),
+                    ])
+                    ->toArray();
+            }
+        }
 
         $outline = $this->aiService->generateOutline(
-            $plan->title ?? 'Article',
-            $plan->target_keywords ?? [],
-            'gemini',
-            $plan->ai_research_data ?? [],   // research context
-            $customInstructions               // intent-aware instructions
+            title: $plan->title ?? 'Article',
+            keywords: $plan->target_keywords ?? [],
+            provider: 'gemini',
+            researchContext: $researchContext,
+            customInstructions: '',   // no longer used — merged into researchContext above
+            articleType: $articleType,
+            properties: $properties,
         );
 
         $plan->update([
-            'ai_outline' => $outline['outline'],
+            'ai_outline'      => $outline['outline'],
             'target_keywords' => array_unique(array_merge($plan->target_keywords ?? [], $outline['lsi_keywords'] ?? [])),
-            'status' => 'outlining',
+            'status'          => 'outlining',
         ]);
 
         return $outline['outline'];
+    }
+
+    /**
+     * Map ContentPlan content_type to ArticlePromptService article_type
+     */
+    private function mapContentTypeToArticleType(string $contentType): string
+    {
+        return match ($contentType) {
+            'guide'      => 'travel_guide',
+            'news'       => 'event_article',
+            'review'     => 'property_article',
+            'comparison' => 'seo_article',
+            'tips'       => 'seo_article',
+            default      => 'travel_guide',
+        };
     }
 
     /**

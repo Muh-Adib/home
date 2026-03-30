@@ -121,6 +121,12 @@ CONTEXT;
                 . "\n\nPENTING: Gunakan nama asli properti di atas (bukan placeholder) saat membuat struktur 'Rekomendasi Villa'. Sertakan juga nama-nama properti ini di FAQ jika relevan.";
         }
 
+        // Inject intent instructions from ContentPlanService if present
+        $intentBlock = '';
+        if (!empty($researchContext['intent_instructions'])) {
+            $intentBlock = "\n\nINSTRUKSI TAMBAHAN (WAJIB diikuti):\n" . $researchContext['intent_instructions'];
+        }
+
         return <<<PROMPT
 Kamu adalah pakar SEO content strategist untuk website sewa villa & homestay di Yogyakarta (HomsJogja.com).
 
@@ -131,6 +137,7 @@ Search Intent: {$intent}
 Target Audience: {$audience}
 {$keyPoints}
 {$propertyOutlineBlock}
+{$intentBlock}
 
 {$this->getJogjaContext()}
 
@@ -547,7 +554,9 @@ PROMPT;
     // =========================================================================
 
     /**
-     * Build property context block untuk diinjeksi ke content prompt
+     * Build property context block untuk diinjeksi ke content prompt.
+     * Images are expected to be pre-loaded in $p['images'] array (dari controller/job).
+     * Tidak lagi melakukan query DB dari sini untuk menghindari N+1.
      */
     private function buildPropertyBlock(array $properties, bool $detailed = false): string
     {
@@ -556,22 +565,32 @@ PROMPT;
         }
 
         $lines = array_map(function ($p) use ($detailed) {
-            // Coba ambil list gambar jika $p memiliki id
-            $imageContext = '';
-            if (isset($p['id'])) {
-                $propertyModel = \App\Models\Property::with('media')->find($p['id']);
-                if ($propertyModel && $propertyModel->media->count() > 0) {
-                    $imageUrls = $propertyModel->media->take(3)->pluck('url')->toArray();
-                    $imageContext = "\n  Gambar Asli Properti (Gunakan URL ini di markdown JIKA membahas properti ini):\n  - " . implode("\n  - ", $imageUrls);
-                }
-            }
-
             $url = route('properties.show', $p['slug'] ?? Str::slug($p['name']));
             $usp = !empty($p['description'])
                 ? substr(strip_tags($p['description']), 0, $detailed ? 200 : 120) . '...'
                 : 'Homestay nyaman di Yogyakarta.';
-            return "- **{$p['name']}**: {$usp}\n  Link: {$url}{$imageContext}";
+
+            $line = "- **{$p['name']}**: {$usp}\n  Link: {$url}";
+
+            // Gunakan foto properti asli yang sudah di-inject (sudah di-eager-load di controller/job)
+            $images = $p['images'] ?? [];
+            if (!empty($images)) {
+                $line .= "\n  Foto Asli Properti (WAJIB gunakan URL ini, bukan URL lain):\n";
+                foreach ($images as $imgUrl) {
+                    $line .= "    - {$imgUrl}\n";
+                }
+            }
+
+            return $line;
         }, $properties);
+
+        $hasAnyImages = collect($properties)->contains(fn($p) => !empty($p['images']));
+
+        $imageInstruction = $hasAnyImages
+            ? "- JIKA kamu menyebut properti ini, WAJIB sertakan foto aslinya menggunakan: ![Keterangan singkat](URL_Foto_Asli_di_atas)\n"
+              . "- DILARANG menggunakan URL gambar selain yang tercantum di atas untuk properti ini."
+            : "- Untuk ilustrasi sub-topik baru, gunakan format placeholder: [IMAGE: deskripsi singkat bahasa Indonesia]\n"
+              . "  Contoh: [IMAGE: Suasana villa dengan kolam renang di Yogyakarta]";
 
         return "\n\nPROPERTI HOMSJOGJA (sisipkan sebagai rekomendasi natural — BUKAN hard sell):\n"
             . implode("\n", $lines)
@@ -579,7 +598,7 @@ PROMPT;
             . "- Selipkan sebagai solusi dari masalah/kebutuhan pembaca\n"
             . "- Contoh: 'Untuk keluarga yang bawa anak, [Nama Villa](URL) cocok karena ada halaman luas dan kolam renang aman.'\n"
             . "- Gunakan format markdown link: [Nama Properti](URL)\n"
-            . "- JIKA kamu menyebut properti ini, WAJIB sertakan salah satu Gambar Asli Properti di atas menggunakan Markdown Image format: ![Keterangan](URL_Gambar_Asli)\n"
+            . $imageInstruction . "\n"
             . "- JANGAN buat section 'Rekomendasi Properti Kami' yang terpisah — sisipkan natural dalam narasi.";
     }
 
@@ -623,18 +642,27 @@ PROMPT;
     }
 
     /**
-     * Build AI image generation instruction block (menggunakan Pollinations AI untuk gambar dinamis yang valid)
+     * Build image instruction block.
+     * Strategi HYBRID:
+     * - Jika ada foto properti asli (sudah di-inject via buildPropertyBlock), AI wajib pakai foto itu.
+     * - Untuk sub-topik yang tidak memiliki foto properti: gunakan placeholder [IMAGE: deskripsi].
+     * - DILARANG menggunakan URL external yang tidak terjamin valid (Pollinations, Unsplash, Pexels, dll).
      */
     private function buildImageGenerationBlock(): string
     {
-        return "\n\n===[ VISUAL & ILUSTRASI ARTIKEL ]===\n"
-            . "Setiap kali kamu membahas sub-topik baru (setelah H2), kamu WAJIB menyisipkan satu gambar ilustrasi yang relevan.\n"
-            . "SANGAT PENTING: Untuk memastikan link gambar selalu valid dan tidak error (404), SANGAT DILARANG menggunakan Unsplash/Pexels/Wikimedia karena sering usang. Gunakan layanan gambar dinamis dari Pollinations AI.\n"
-            . "Gunakan URL berikut dengan format Markdown Image:\n"
-            . "![Keterangan gambar bahasa Indonesia](https://image.pollinations.ai/prompt/[deskripsi-gambar-bahasa-inggris-dipisah-spasi]?width=800&height=450&nologo=true)\n\n"
-            . "Contoh penggunaan (pastikan deskripsi bahasa Inggris URL encoded):\n"
-            . "![Jalan Malioboro Yogyakarta](https://image.pollinations.ai/prompt/malioboro%20street%20yogyakarta%20indonesia%20beautiful%20photography?width=800&height=450&nologo=true)\n\n"
-            . "Pastikan gambar sangat relevan dengan topik yang sedang dibicarakan di section tersebut.";
+        return "\n\n===[ ATURAN ILUSTRASI ARTIKEL ]===\n"
+            . "Setiap kali kamu membahas sub-topik baru (setelah H2), sisipkan satu ilustrasi dengan ATURAN BERIKUT:\n\n"
+            . "PRIORITAS 1 — Jika kamu menyebut properti HomsJogja yang memiliki Foto Asli:\n"
+            . "  Gunakan foto asid properti tersebut: ![Keterangan singkat](URL_Foto_Asli)\n\n"
+            . "PRIORITAS 2 — Jika tidak ada foto properti yang relevan untuk sub-topik ini:\n"
+            . "  Tulis placeholder: [IMAGE: deskripsi singkat dalam Bahasa Indonesia]\n"
+            . "  Contoh: [IMAGE: Suasana villa dengan kolam renang di Yogyakarta]\n"
+            . "  Contoh: [IMAGE: Wisatawan menikmati sarapan di teras villa]\n"
+            . "  Contoh: [IMAGE: Jalan Malioboro saat pagi hari]\n\n"
+            . "DILARANG KERAS:\n"
+            . "  - Menggunakan URL gambar external (Unsplash, Pexels, Pixabay, Pollinations, Wikipedia, dll)\n"
+            . "  - Membuat URL gambar yang tidak ada dalam daftar Foto Asli Properti di atas\n"
+            . "  - Mengosongkan bagian ilustrasi sama sekali";
     }
 
     private function getJogjaContext(): string

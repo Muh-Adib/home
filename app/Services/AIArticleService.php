@@ -142,9 +142,10 @@ class AIArticleService
     }
 
     /**
-     * Generate article outline — delegates prompt to ArticlePromptService
+     * Generate article outline — always delegates prompt to ArticlePromptService.
      *
      * @param string $articleType travel_guide|seo_article|property_article|event_article
+     * @param string $customInstructions Intent-specific instructions merged into researchContext
      */
     public function generateOutline(
         string $title,
@@ -155,25 +156,15 @@ class AIArticleService
         string $articleType = 'travel_guide',
         array $properties = []
     ): array {
-        // Use custom instructions if provided (legacy support), otherwise delegate to prompt service
+        // Merge customInstructions into researchContext so ArticlePromptService can use it.
+        // This eliminates the old fork that bypassed the rich prompt templates.
         if (!empty($customInstructions)) {
-            $intent = $researchContext['search_intent'] ?? 'Informasional';
-            $contextStr = '';
-            if (!empty($researchContext)) {
-                $contextStr = "\nCONTEXT FROM RESEARCH:\n"
-                    . 'Intent: ' . $intent . "\n"
-                    . 'Audience: ' . ($researchContext['target_audience_analysis'] ?? '') . "\n"
-                    . 'Key Points: ' . implode(', ', $researchContext['key_points'] ?? []) . "\n";
-            }
-            $prompt = "Tugas: Buat outline artikel untuk: '{$title}'\n"
-                . 'Kata kunci: ' . implode(', ', $keywords) . "\n"
-                . $contextStr
-                . "INSTRUKSI KHUSUS:\n{$customInstructions}";
-        } else {
-            $prompt = $this->promptService->outlinePrompt($articleType, $title, $keywords, $researchContext, $properties);
+            $researchContext['intent_instructions'] = $customInstructions;
         }
 
-        $response = $this->callAI($provider, $prompt, maxTokens: 1500);
+        $prompt = $this->promptService->outlinePrompt($articleType, $title, $keywords, $researchContext, $properties);
+
+        $response = $this->callAI($provider, $prompt, maxTokens: 2500);
         $content = $response['content'];
         Log::info('[AIArticleService] Outline generated', ['type' => $articleType, 'title' => $title]);
 

@@ -256,6 +256,16 @@ function SmartParagraph({ children }: { children?: React.ReactNode }) {
         return <ImageSlideshow images={images} />;
     }
 
+    // Checking for unreplaced [IMAGE: xyz] placeholder
+    if (meaningful.length === 1 && typeof meaningful[0] === 'string') {
+        const text = meaningful[0] as string;
+        const match = text.match(/^\[IMAGE:\s*(.*?)\]$/is);
+        if (match) {
+            // Hide unreplaced placeholder in public view
+            return null;
+        }
+    }
+
     return <p className="text-gray-700 leading-relaxed mb-4">{children}</p>;
 }
 
