@@ -320,11 +320,19 @@ ATURAN:
 - JANGAN menulis penjelasan atau paragraf di dalam outline. Cukup judul heading saja.
 - Bahasa Indonesia.
 
-OUTPUT_FORMAT:
-LSI Keywords: keyword1, keyword2, keyword3, keyword4, keyword5
-## [Judul H2 Pertama]
-### [Sub-judul H3]
-DILARANG memberikan teks pembuka. Langsung tulis "LSI Keywords:".
+OUTPUT_FORMAT (SUPER IMPORTANT):
+Kamu WAJIB mengembalikan output ini sebagai RAW JSON. Jangan gunakan blok kode markdown ```json ... ```, berikan hanya object JSON murni!
+
+{
+  "lsi_keywords": [
+    "keyword1",
+    "keyword2",
+    "keyword3"
+  ],
+  "outline": "## [Judul H2 Pertama]\n### [Sub-judul H3]\n## [Judul H2 Selanjutnya]..."
+}
+
+DILARANG memberikan kalimat pembuka apapun seperti "Tentu" atau "Tentu, ini outlinenya:". Kembalikan HANYA teks JSON yang valid!
 PROMPT;
     }
 
@@ -401,11 +409,19 @@ ATURAN:
 - JANGAN menulis penjelasan atau paragraf di dalam outline. Cukup judul heading saja.
 - Nada: warm, personal.
 
-OUTPUT_FORMAT:
-LSI Keywords: keyword1, keyword2, keyword3, keyword4, keyword5
-## [Judul H2 Pertama]
-### [Sub-judul H3]
-DILARANG memberikan teks pembuka. Langsung tulis "LSI Keywords:".
+OUTPUT_FORMAT (SUPER IMPORTANT):
+Kamu WAJIB mengembalikan output ini sebagai RAW JSON. Jangan gunakan blok kode markdown ```json ... ```, berikan hanya object JSON murni!
+
+{
+  "lsi_keywords": [
+    "keyword1",
+    "keyword2",
+    "keyword3"
+  ],
+  "outline": "## [Judul H2 Pertama]\n### [Sub-judul H3]\n## [Judul H2 Selanjutnya]..."
+}
+
+DILARANG memberikan kalimat pembuka apapun seperti "Tentu" atau "Tentu, ini outlinenya:". Kembalikan HANYA teks JSON yang valid!
 PROMPT;
     }
 
@@ -497,11 +513,19 @@ ATURAN:
 - JANGAN menulis penjelasan atau paragraf di dalam outline. Cukup judul heading saja.
 - Nada: urgent, relevan.
 
-OUTPUT_FORMAT:
-LSI Keywords: keyword1, keyword2, keyword3, keyword4, keyword5
-## [Judul H2 Pertama]
-### [Sub-judul H3]
-DILARANG memberikan teks pembuka. Langsung tulis "LSI Keywords:".
+OUTPUT_FORMAT (SUPER IMPORTANT):
+Kamu WAJIB mengembalikan output ini sebagai RAW JSON. Jangan gunakan blok kode markdown ```json ... ```, berikan hanya object JSON murni!
+
+{
+  "lsi_keywords": [
+    "keyword1",
+    "keyword2",
+    "keyword3"
+  ],
+  "outline": "## [Judul H2 Pertama]\n### [Sub-judul H3]\n## [Judul H2 Selanjutnya]..."
+}
+
+DILARANG memberikan kalimat pembuka apapun seperti "Tentu" atau "Tentu, ini outlinenya:". Kembalikan HANYA teks JSON yang valid!
 PROMPT;
     }
 
@@ -554,6 +578,72 @@ ATURAN:
 - Bangun urgency tapi jangan clickbait
 - DILARANG: {$this->getForbiddenPhrases()}
 - LANGSUNG mulai konten.
+PROMPT;
+    }
+
+    // =========================================================================
+    // MARKETING ARTICLE — Single prompt for trending news
+    // =========================================================================
+
+    public function marketingArticlePrompt(
+        string $title,
+        string $newsTrigger,
+        string $newsSource,
+        string $travelerAngle,
+        array $keywords,
+        array $properties = []
+    ): string {
+        $kwStr = implode(', ', $keywords);
+        $propertyBlock = $this->buildPropertyBlock($properties, true);
+
+        return <<<PROMPT
+Kamu adalah penulis travel blog profesional Indonesia yang juga ahli marketing homestay & villa di Yogyakarta.
+Tugas: Tulis artikel panduan menginap yang terasa MANUSIAWI, MEMBANTU, dan secara halus mempromosikan properti kami.
+
+===[ KONTEKS BERITA (Pemicu, bukan topik utama) ]===
+Tren/event terbaru: "{$newsTrigger}" ({$newsSource})
+Traveler Angle: {$travelerAngle}
+
+===[ JUDUL ARTIKEL ]===
+{$title}
+
+===[ KATA KUNCI ]===
+{$kwStr}
+{$propertyBlock}
+
+===[ STRUKTUR WAJIB (IKUTI DENGAN KETAT) ]===
+**1. HOOK / PEMBUKA** (1–2 paragraf)
+   - Cerita kecil yang relatable tentang seorang wisatawan / kesulitan mencari penginapan saat event.
+   - Pertanyaan reflektif. Contoh: "Pernah nggak, kamu udah jauh-jauh ke Jogja, eh tempat menginap penuh semua?"
+
+**2. KONTEKS TREN** (1 paragraf ringkas)
+   - Jelaskan kenapa Jogja sedang ramai / event ini penting bagi wisatawan.
+   - Jangan copy-paste berita. Rangkum sudut pandang WISATAWAN.
+
+**3. MASALAH WISATAWAN** (1–2 paragraf)
+   - Dampak nyata: hotel penuh, harga melonjak, akses macet, capek setelah seharian jalan.
+   - Bangun empati. Buat pembaca merasa "ini masalah ku juga."
+
+**4. SOLUSI MENGINAP** (2–3 paragraf)
+   - Kenalkan homestay/villa sebagai solusi cerdas.
+   - Di sini sisipkan properti kami secara natural (jika tersedia).
+   - Tips memilih homestay: dekat lokasi, kapasitas, fasilitas.
+
+**5. TIPS BONUS** (poin-poin ringkas)
+   - Tips transportasi, kuliner, atau aktivitas di sekitar.
+
+**6. PENUTUP + SOFT CTA** (1 paragraf)
+   - Kalimat penutup hangat.
+   - Soft CTA: "Cek ketersediaan homestay kami sebelum musim ramai tiba!"
+
+===[ ATURAN PENULISAN ]===
+- Bahasa Indonesia, santai, hangat, seperti ngobrol dengan teman.
+- MINIMUM 700 kata.
+- DILARANG: {$this->getForbiddenPhrases()}
+- DILARANG: pembuka seperti "Tentu, ini dia artikel..." atau "Berikut adalah..."
+- Gunakan heading H2 (##) dan H3 (###) untuk struktur.
+- Bold kata kunci penting.
+- LANGSUNG mulai dengan teks artikel (tanpa judul di baris pertama).
 PROMPT;
     }
 
