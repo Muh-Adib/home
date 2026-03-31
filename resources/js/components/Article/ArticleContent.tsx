@@ -13,7 +13,8 @@ interface ImageData {
 // ─── Single Image ────────────────────────────────────────────────────────────
 function SingleImage({ src, alt }: ImageData) {
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
-    const [isLoaded, setIsLoaded] = useState(false);
+    // Untuk SSR, anggap gambar sudah “loaded” agar tidak dirender dengan opacity 0
+    const [isLoaded, setIsLoaded] = useState(typeof window === 'undefined');
 
     return (
         <>
@@ -237,17 +238,18 @@ function SmartParagraph({ children }: { children?: React.ReactNode }) {
         return true;
     });
 
+    // ReactMarkdown maps markdown `img` to our custom components, jadi
+    // untuk case “gambar saja di dalam paragraf”, kita harus mendeteksi
+    // SingleImage/ImageSlideshow (dan fallback `<img>` bila ada).
     const allImages = meaningful.length > 0 && meaningful.every((child) => {
-        return React.isValidElement(child) && child.type === 'img';
+        if (!React.isValidElement(child)) return false;
+        return child.type === 'img' || child.type === SingleImage;
     });
 
     if (allImages) {
         const images: ImageData[] = meaningful.map((child) => {
             const el = child as React.ReactElement<{ src?: string; alt?: string }>;
-            return {
-                src: el.props.src || '',
-                alt: el.props.alt || '',
-            };
+            return { src: el.props.src || '', alt: el.props.alt || '' };
         });
 
         if (images.length === 1) {

@@ -1,12 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
 
-// Fix for default markers in React Leaflet
+// Leaflet & react-leaflet hanya boleh di-load di browser (bukan saat SSR)
+let L: typeof import('leaflet') | null = null;
+let RL: typeof import('react-leaflet') | null = null;
+
 if (typeof window !== 'undefined') {
-    delete (L.Icon.Default.prototype as any)._getIconUrl;
-    L.Icon.Default.mergeOptions({
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    L = require('leaflet');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    RL = require('react-leaflet');
+    // Import CSS di client-side saja
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('leaflet/dist/leaflet.css');
+}
+
+// Fix for default markers in React Leaflet (hanya ketika Leaflet sudah tersedia)
+if (typeof window !== 'undefined' && L) {
+    delete (L!.Icon.Default.prototype as any)._getIconUrl;
+    L!.Icon.Default.mergeOptions({
         iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
         iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
@@ -27,6 +38,8 @@ interface MapProps {
 
 // Component untuk update map position ketika props berubah
 const MapUpdater: React.FC<{ lat: number; lng: number; zoom: number }> = ({ lat, lng, zoom }) => {
+    if (!RL) return null;
+    const { useMap } = RL;
     const map = useMap();
 
     useEffect(() => {
@@ -44,6 +57,8 @@ const DraggableMarker: React.FC<{
     address?: string;
     onLocationChange?: (lat: number, lng: number) => void;
 }> = ({ lat, lng, propertyName, address, onLocationChange }) => {
+    if (!RL || !L) return null;
+    const { Marker, Popup } = RL;
     const [position, setPosition] = useState<[number, number]>([lat, lng]);
 
     useEffect(() => {
@@ -100,6 +115,8 @@ const StaticMarker: React.FC<{
     propertyName?: string;
     address?: string;
 }> = ({ lat, lng, propertyName, address }) => {
+    if (!RL) return null;
+    const { Marker, Popup } = RL;
     return (
         <Marker position={[lat, lng]}>
             {(propertyName || address) && (
@@ -139,8 +156,8 @@ export const Map: React.FC<MapProps> = ({
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Prevent rendering on server (SSR)
-    if (typeof window === 'undefined') {
+    // Prevent rendering on server (SSR) atau sebelum Leaflet siap
+    if (typeof window === 'undefined' || !RL || !L) {
         return null;
     }
 
@@ -230,37 +247,43 @@ export const Map: React.FC<MapProps> = ({
             style={{ height, width: '100%' }}
             className={`rounded-lg border overflow-hidden ${className}`}
         >
-            <MapContainer
+            {/** MapContainer dkk diambil dari react-leaflet yang sudah di-require di client */}
+            {(() => {
+                const { MapContainer, TileLayer } = RL!;
+                return (
+                    <MapContainer
                 center={[lat, lng]}
                 zoom={zoom}
                 style={{ height: '100%', width: '100%' }}
                 zoomControl={true}
                 attributionControl={true}
-            >
-                <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
+                >
+                        <TileLayer
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
 
-                <MapUpdater lat={lat} lng={lng} zoom={zoom} />
+                        <MapUpdater lat={lat} lng={lng} zoom={zoom} />
 
-                {draggable ? (
-                    <DraggableMarker
-                        lat={lat}
-                        lng={lng}
-                        propertyName={propertyName}
-                        address={address}
-                        onLocationChange={onLocationChange}
-                    />
-                ) : (
-                    <StaticMarker
-                        lat={lat}
-                        lng={lng}
-                        propertyName={propertyName}
-                        address={address}
-                    />
-                )}
-            </MapContainer>
+                        {draggable ? (
+                            <DraggableMarker
+                                lat={lat}
+                                lng={lng}
+                                propertyName={propertyName}
+                                address={address}
+                                onLocationChange={onLocationChange}
+                            />
+                        ) : (
+                            <StaticMarker
+                                lat={lat}
+                                lng={lng}
+                                propertyName={propertyName}
+                                address={address}
+                            />
+                        )}
+                    </MapContainer>
+                );
+            })()}
         </div>
     );
 };

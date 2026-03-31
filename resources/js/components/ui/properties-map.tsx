@@ -1,14 +1,24 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { Link } from '@inertiajs/react';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+// Leaflet & react-leaflet hanya boleh di-load di browser (bukan saat SSR)
+let L: typeof import('leaflet') | null = null;
+let RL: typeof import('react-leaflet') | null = null;
+
+if (typeof window !== 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    L = require('leaflet');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    RL = require('react-leaflet');
+    // Import CSS di client-side saja
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('leaflet/dist/leaflet.css');
+}
 import { MapPin, Users, DollarSign, Landmark, GraduationCap, Building2, Train } from 'lucide-react';
 
-// Fix for default markers in React Leaflet
-if (typeof window !== 'undefined') {
-    delete (L.Icon.Default.prototype as any)._getIconUrl;
-    L.Icon.Default.mergeOptions({
+// Fix for default markers in React Leaflet (hanya ketika Leaflet sudah tersedia)
+if (typeof window !== 'undefined' && L) {
+    delete (L!.Icon.Default.prototype as any)._getIconUrl;
+    L!.Icon.Default.mergeOptions({
         iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
         iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
@@ -220,6 +230,8 @@ interface PropertiesMapProps {
 
 // Component untuk update map bounds ketika properties berubah
 const MapBoundsUpdater: React.FC<{ properties: Property[]; includeLandmarks?: boolean }> = ({ properties, includeLandmarks = true }) => {
+    if (!RL || !L) return null;
+    const { useMap } = RL;
     const map = useMap();
 
     useEffect(() => {
@@ -258,10 +270,13 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Prevent rendering on server
-    if (typeof window === 'undefined') {
+    // Prevent rendering pada server atau sebelum Leaflet/react-leaflet siap
+    if (typeof window === 'undefined' || !RL || !L) {
         return null;
     }
+
+    // Ambil komponen dari react-leaflet yang sudah di-require di client
+    const { MapContainer, TileLayer, Marker, Popup } = RL;
 
     // Inject custom CSS for popup styling and hover effects
     useEffect(() => {

@@ -58,11 +58,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/clear/read', 'clearRead')->name('clear-read');
     });
 
-    // Profile Routes
+    // Profile Routes (user area)
+    // Gunakan nama berbeda agar tidak bentrok dengan routes di routes/settings.php
     Route::controller(\App\Http\Controllers\Settings\ProfileController::class)->group(function () {
-        Route::get('/profile', 'edit')->name('profile.edit');
-        Route::patch('/profile', 'update')->name('profile.update');
-        Route::delete('/profile', 'destroy')->name('profile.destroy');
+        Route::get('/profile', 'edit')->name('user.profile.edit');
+        Route::patch('/profile', 'update')->name('user.profile.update');
+        Route::delete('/profile', 'destroy')->name('user.profile.destroy');
     });
 
     // Payment Gateway Initiate (Authenticated Users)
