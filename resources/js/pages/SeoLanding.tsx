@@ -24,6 +24,7 @@ import {
     ChevronUp,
     Award,
     Sparkles,
+    Search,
 } from 'lucide-react';
 import { Property } from '@/types/property';
 
@@ -63,6 +64,12 @@ interface SeoLandingProps {
     }>;
     seo: any;
     totalCount: number;
+    relatedPages?: Array<{
+        id: number;
+        title: string;
+        slug: string;
+        target_keyword: string;
+    }>;
 }
 
 export default function SeoLanding({
@@ -71,7 +78,8 @@ export default function SeoLanding({
     content,
     faqs,
     seo,
-    totalCount
+    totalCount,
+    relatedPages = []
 }: SeoLandingProps) {
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [showStickyCTA, setShowStickyCTA] = useState(false);
@@ -505,6 +513,41 @@ export default function SeoLanding({
                     <FAQSection items={faqs} />
                 </div>
             </section>
+
+            {/* Related PSEO Pages (Internal Linking) */}
+            {relatedPages.length > 0 && (
+                <section className="py-8 md:py-12 bg-muted/20 border-t border-border">
+                    <div className="container mx-auto px-4 sm:px-6">
+                        <h2 className="text-xl md:text-2xl font-bold text-foreground mb-4 md:mb-6 flex items-center gap-2">
+                            <MapPin className="h-5 w-5 text-brand-primary" />
+                            Pilihan Lain Disekitar Anda
+                        </h2>
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                            {relatedPages.map((relatedPage) => (
+                                <Link 
+                                    key={relatedPage.id} 
+                                    href={`/s/${relatedPage.slug}`}
+                                    className="group flex flex-col justify-center p-4 bg-white border border-border rounded-xl hover:border-brand-primary/50 hover:shadow-md transition-all"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center group-hover:bg-brand-primary transition-colors flex-shrink-0">
+                                            <Search className="h-5 w-5 text-brand-primary group-hover:text-white" />
+                                        </div>
+                                        <div className="overflow-hidden">
+                                            <h3 className="font-semibold text-foreground text-sm truncate group-hover:text-brand-primary transition-colors">
+                                                {relatedPage.target_keyword || relatedPage.title}
+                                            </h3>
+                                            <span className="text-xs text-brand-primary flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity translate-x-[-10px] group-hover:translate-x-0">
+                                                Jelajahi <ArrowRight className="h-3 w-3" />
+                                            </span>
+                                        </div>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
 
             {/* CTA Section */}
             <section className="relative py-12 md:py-16 overflow-hidden">

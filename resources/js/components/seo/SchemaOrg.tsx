@@ -15,8 +15,9 @@ export function SchemaOrg({ schema }: SchemaOrgProps) {
         faqSchema,
         breadcrumbSchema,
         localBusinessSchema,
-        videoSchema
-    } = usePage<PageProps>().props;
+        videoSchema,
+        itemListSchema
+    } = usePage<PageProps>().props as PageProps & { itemListSchema?: string };
 
     return (
         <Head>
@@ -86,6 +87,16 @@ export function SchemaOrg({ schema }: SchemaOrgProps) {
                     type="application/ld+json"
                     dangerouslySetInnerHTML={{
                         __html: videoSchema,
+                    }}
+                />
+            )}
+
+            {/* GEO: ItemList Schema for List of Properties/Articles */}
+            {typeof itemListSchema === 'string' && (
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{
+                        __html: itemListSchema,
                     }}
                 />
             )}

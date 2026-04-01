@@ -44,9 +44,11 @@ class SeoLandingController extends Controller
 
             // Check if filtered query has results
             $filteredCount = $filteredQuery->count();
+            $isFallback = $filteredCount === 0;
 
             // If no results from filter, fall back to showing all properties
-            if ($filteredCount === 0) {
+            // BUT we will mark this page as NOINDEX later!
+            if ($isFallback) {
                 // Use the original query (no filters)
                 $properties = $query->orderBy('is_featured', 'desc')
                     ->orderBy('created_at', 'desc')
@@ -97,7 +99,7 @@ class SeoLandingController extends Controller
                 'image' => asset('og-image.jpg'), // Default OG image
                 'url' => $canonicalUrl,
                 'type' => 'website',
-                'robots' => 'index, follow', // Explicitly allow indexing
+                'robots' => $isFallback ? 'noindex, follow' : 'index, follow', // Prevent indexing if no exact properties match
                 // OpenGraph
                 'og' => [
                     'title' => $page->title,
@@ -149,6 +151,47 @@ class SeoLandingController extends Controller
                 ],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
+            // Generate ItemList Schema (GEO: For AI/LLM structured lists)
+            $itemListElements = [];
+            $position = 1;
+            foreach ($properties->items() as $prop) {
+                $itemListElements[] = [
+                    '@type' => 'ListItem',
+                    'position' => $position++,
+                    'url' => route('properties.show', $prop->slug),
+                    'name' => $prop->name
+                ];
+            }
+            
+            $itemListSchema = empty($itemListElements) ? null : json_encode([
+                '@context' => 'https://schema.org',
+                '@type' => 'ItemList',
+                'name' => 'Daftar ' . $page->title,
+                'itemListElement' => $itemListElements,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            // Fetch related PSEO pages for internal linking (Orphan page mitigation)
+            $location = $page->filters['location'] ?? null;
+            $relatedPagesQuery = SeoLandingPage::active()->where('id', '!=', $page->id);
+            
+            if ($location) {
+                // Try to prioritize the same location using LIKE for broad DB compatibility
+                $relatedPagesQuery->where('filters', 'LIKE', '%"' . $location . '"%');
+            }
+            
+            $relatedPages = $relatedPagesQuery->inRandomOrder()->limit(6)->get(['id', 'title', 'slug', 'target_keyword']);
+            
+            // Backfill with random active pages if we don't have enough
+            if ($relatedPages->count() < 6) {
+                $excludeIds = $relatedPages->pluck('id')->push($page->id)->toArray();
+                $backfill = SeoLandingPage::active()
+                    ->whereNotIn('id', $excludeIds)
+                    ->inRandomOrder()
+                    ->limit(6 - $relatedPages->count())
+                    ->get(['id', 'title', 'slug', 'target_keyword']);
+                $relatedPages = $relatedPages->concat($backfill);
+            }
+
             return Inertia::render('SeoLanding', [
                 'page' => $page,
                 'properties' => $properties,
@@ -157,6 +200,8 @@ class SeoLandingController extends Controller
                 'seo' => $seo,
                 'faqSchema' => $faqSchema,
                 'breadcrumbSchema' => $breadcrumbSchema,
+                'itemListSchema' => $itemListSchema,
+                'relatedPages' => $relatedPages,
                 'totalCount' => $properties->total(),
             ]);
 
@@ -322,28 +367,28 @@ class SeoLandingController extends Controller
             [
                 'question' => "Berapa harga {$keyword} per malam?",
                 'answer' => $maxPrice
-                    ? "Harga {$keyword} di platform kami mulai dari Rp 100rb hingga Rp " . number_format($maxPrice, 0, ',', '.') . " per malam, tergantung fasilitas dan lokasi. Tersedia {$totalProperties}+ pilihan sesuai budget Anda."
-                    : "Harga {$keyword} bervariasi mulai dari Rp 100rb hingga Rp 1 juta per malam, tergantung tipe properti, fasilitas, dan lokasinya. Kami punya {$totalProperties}+ pilihan untuk semua budget.",
+                    ? "Harga {$keyword} di {$location} mulai dari Rp 100.000 hingga Rp " . number_format($maxPrice, 0, ',', '.') . " per malam. Harga ini sudah mencakup fasilitas dasar. Tersedia {$totalProperties}+ pilihan properti yang bisa disesuaikan dengan budget Anda."
+                    : "Harga {$keyword} di {$location} berkisar antara Rp 100.000 hingga Rp 1.000.000 per malam. Perbedaan harga ditentukan oleh tipe properti, kelengkapan fasilitas, dan jarak ke pusat wisata.",
             ],
             [
                 'question' => "Bagaimana cara booking {$keyword}?",
-                'answer' => "Booking sangat mudah! Pilih properti yang Anda suka, tentukan tanggal check-in dan check-out, masukkan jumlah tamu, lalu ikuti proses pembayaran. Konfirmasi booking akan dikirim via email dan WhatsApp dalam beberapa menit.",
+                'answer' => "Anda dapat melakukan booking langsung melalui website Homsjogja dengan memilih tanggal check-in, check-out, dan jumlah tamu. Pembayaran dilakukan secara online dan aman, dengan konfirmasi instan via email dan WhatsApp.",
             ],
             [
                 'question' => "Apakah ada minimum booking {$keyword}?",
-                'answer' => "Sebagian besar properti memiliki minimum stay 1 malam untuk weekday dan 2 malam untuk weekend/long weekend. Beberapa properti juga menawarkan diskon khusus untuk long stay (7+ malam).",
+                'answer' => "Ya, durasi menginap minimum adalah 1 malam untuk hari biasa (weekday) dan 2 malam untuk akhir pekan (weekend). Kami juga menyediakan potongan harga khusus untuk tamu yang menginap lebih dari 7 malam.",
             ],
             [
                 'question' => "Fasilitas apa saja yang tersedia di {$keyword}?",
-                'answer' => "Fasilitas umum yang tersedia meliputi WiFi gratis, AC, kamar mandi dalam, air panas, area parkir, dan dapur. Beberapa properti juga dilengkapi dengan kolam renang, taman, dan area BBQ. Detail fasilitas bisa dilihat di halaman masing-masing properti.",
+                'answer' => "Fasilitas standar yang disediakan mencakup WiFi gratis, AC, kamar mandi dalam, air panas, area parkir, dan dapur bersama. Beberapa properti premium juga menyediakan kolam renang pribadi dan area BBQ.",
             ],
             [
                 'question' => "Dimana lokasi {$keyword}?",
-                'answer' => "Semua {$keyword} yang kami tawarkan berlokasi di {$location} dan sekitarnya. Jarak ke lokasi wisata populer seperti Malioboro, Keraton, dan Prambanan berkisar 10-45 menit berkendara tergantung lokasi properti.",
+                'answer' => "Properti {$keyword} berlokasi strategis di area {$location}. Sebagian besar properti kami hanya berjarak 10-45 menit perjalanan darat dari destinasi utama seperti Jalan Malioboro, Keraton Yogyakarta, dan Candi Prambanan.",
             ],
             [
                 'question' => "Apakah harga sudah termasuk breakfast?",
-                'answer' => "Tergantung properti. Beberapa {$keyword} sudah include breakfast, sebagian lainnya menawarkan breakfast dengan biaya tambahan. Info lengkap ada di deskripsi masing-masing properti.",
+                'answer' => "Tergantung pada properti yang Anda pilih. Beberapa properti menjadikan sarapan pagi (breakfast) sebagai layanan inklusif gratis, sementara yang lain menawarkannya dengan biaya tambahan terpisah.",
             ],
         ];
     }

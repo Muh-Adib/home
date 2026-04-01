@@ -257,10 +257,21 @@ class SeoService
             ])
             ->contactPoint(
                 Schema::contactPoint()
-                    ->telephone('+62-812-3456-7890') // Update with real number
+                    ->telephone('+62-8112-5000-82') // Update with real number
                     ->contactType('Customer Service')
                     ->areaServed('ID')
                     ->availableLanguage(['Indonesian', 'English'])
+            )
+            ->address(
+                Schema::postalAddress()
+                    ->addressLocality('Yogyakarta')
+                    ->addressRegion('DI Yogyakarta')
+                    ->addressCountry('ID')
+            )
+            ->areaServed(
+                Schema::place()
+                    ->name('Yogyakarta')
+                    ->alternateName('Jogja')
             );
 
         return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -274,6 +285,16 @@ class SeoService
         $schema = Schema::webSite()
             ->name('Homsjogja')
             ->url(config('app.url'))
+            ->about(
+                Schema::place()
+                    ->name('Yogyakarta')
+                    ->alternateName('Jogja')
+            )
+            ->mentions([
+                Schema::thing()->name('Homestay'),
+                Schema::thing()->name('Villa Murah'),
+                Schema::thing()->name('Penginapan')
+            ])
             ->potentialAction(
                 Schema::searchAction()
                     ->target(config('app.url') . '/properties?search={search_term_string}')

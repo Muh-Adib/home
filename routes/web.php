@@ -91,9 +91,11 @@ Route::get('/health', function () {
     ]);
 })->name('health');
 
-// Dynamic Sitemap
-Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
+// Dynamic Sitemaps (Index & Chunks for 100k+ Pages)
+Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.index');
+Route::get('/sitemap-core.xml', [SitemapController::class, 'core'])->name('sitemap.core');
 Route::get('/sitemap-articles.xml', [SitemapController::class, 'articles'])->name('sitemap.articles');
+Route::get('/sitemap-pseo-{chunk}.xml', [SitemapController::class, 'pseo'])->name('sitemap.pseo');
 
 // iCal Export (Public but protected by token)
 Route::get('/property/{slug}/ical/{token}', [\App\Http\Controllers\ICalController::class, 'export'])->name('ical.export');
