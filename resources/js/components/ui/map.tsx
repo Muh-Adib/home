@@ -1,28 +1,4 @@
-import React, { useEffect, useState } from 'react';
-
-// Leaflet & react-leaflet hanya boleh di-load di browser (bukan saat SSR)
-let L: typeof import('leaflet') | null = null;
-let RL: typeof import('react-leaflet') | null = null;
-
-if (typeof window !== 'undefined') {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    L = require('leaflet');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    RL = require('react-leaflet');
-    // Import CSS di client-side saja
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require('leaflet/dist/leaflet.css');
-}
-
-// Fix for default markers in React Leaflet (hanya ketika Leaflet sudah tersedia)
-if (typeof window !== 'undefined' && L) {
-    delete (L!.Icon.Default.prototype as any)._getIconUrl;
-    L!.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-    });
-}
+import React, { useEffect, useState, useRef } from 'react';
 
 interface MapProps {
     lat: number;
@@ -37,13 +13,14 @@ interface MapProps {
 }
 
 // Component untuk update map position ketika props berubah
-const MapUpdater: React.FC<{ lat: number; lng: number; zoom: number }> = ({ lat, lng, zoom }) => {
-    if (!RL) return null;
+const MapUpdater: React.FC<{ lat: number; lng: number; zoom: number; RL: any }> = ({ lat, lng, zoom, RL }) => {
     const { useMap } = RL;
     const map = useMap();
 
     useEffect(() => {
-        map.setView([lat, lng], zoom);
+        if (map) {
+            map.setView([lat, lng], zoom);
+        }
     }, [lat, lng, zoom, map]);
 
     return null;
@@ -56,10 +33,12 @@ const DraggableMarker: React.FC<{
     propertyName?: string;
     address?: string;
     onLocationChange?: (lat: number, lng: number) => void;
-}> = ({ lat, lng, propertyName, address, onLocationChange }) => {
-    if (!RL || !L) return null;
+    RL: any;
+    L: any;
+}> = ({ lat, lng, propertyName, address, onLocationChange, RL, L }) => {
     const { Marker, Popup } = RL;
     const [position, setPosition] = useState<[number, number]>([lat, lng]);
+    const markerRef = useRef<any>(null);
 
     useEffect(() => {
         setPosition([lat, lng]);
@@ -75,8 +54,6 @@ const DraggableMarker: React.FC<{
             }
         },
     };
-
-    const markerRef = React.useRef<L.Marker>(null);
 
     return (
         <Marker
@@ -114,8 +91,8 @@ const StaticMarker: React.FC<{
     lng: number;
     propertyName?: string;
     address?: string;
-}> = ({ lat, lng, propertyName, address }) => {
-    if (!RL) return null;
+    RL: any;
+}> = ({ lat, lng, propertyName, address, RL }) => {
     const { Marker, Popup } = RL;
     return (
         <Marker position={[lat, lng]}>
@@ -153,13 +130,9 @@ export const Map: React.FC<MapProps> = ({
     draggable = false,
     onLocationChange
 }) => {
+    const [modules, setModules] = useState<{ L: any; RL: any } | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-    // Prevent rendering on server (SSR) atau sebelum Leaflet siap
-    if (typeof window === 'undefined' || !RL || !L) {
-        return null;
-    }
 
     // Validasi koordinat
     const isValidCoordinate = (coord: number) => {
@@ -170,13 +143,53 @@ export const Map: React.FC<MapProps> = ({
     const isValidLng = isValidCoordinate(lng) && lng >= -180 && lng <= 180;
 
     useEffect(() => {
-        // Simulasi loading untuk memastikan map container siap
-        const timer = setTimeout(() => {
-            setIsLoading(false);
-        }, 100);
+        let mounted = true;
 
-        return () => clearTimeout(timer);
-    }, []);
+        const loadModules = async () => {
+            if (typeof window === 'undefined') return;
+            try {
+                const leafletModule = await import('leaflet');
+                const reactLeafletModule = await import('react-leaflet');
+                await import('leaflet/dist/leaflet.css');
+
+                const L = leafletModule.default || leafletModule;
+                const RL = reactLeafletModule;
+
+                // Fix for default markers
+                if (L.Icon && L.Icon.Default) {
+                    delete (L.Icon.Default.prototype as any)._getIconUrl;
+                    L.Icon.Default.mergeOptions({
+                        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+                        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+                    });
+                }
+
+                if (mounted) {
+                    setModules({ L, RL });
+                    setIsLoading(false);
+                }
+            } catch (err: any) {
+                console.error("Failed to load map modules:", err);
+                if (mounted) {
+                    setError(err.message);
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        if (isValidLat && isValidLng) {
+            loadModules();
+        }
+
+        return () => {
+            mounted = false;
+        };
+    }, [isValidLat, isValidLng]);
+
+    if (typeof window === 'undefined') {
+        return null;
+    }
 
     // Jika koordinat tidak valid, tampilkan pesan error
     if (!isValidLat || !isValidLng) {
@@ -202,7 +215,7 @@ export const Map: React.FC<MapProps> = ({
     }
 
     // Tampilkan loading state
-    if (isLoading) {
+    if (isLoading || !modules) {
         return (
             <div
                 style={{ height: '100%', width: '100%' }}
@@ -231,59 +244,58 @@ export const Map: React.FC<MapProps> = ({
                         onClick={() => {
                             setError(null);
                             setIsLoading(true);
-                            setTimeout(() => setIsLoading(false), 100);
+                            setTimeout(() => window.location.reload(), 100);
                         }}
                         className="mt-2 px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors"
                     >
-                        Coba Lagi
+                        Muat Ulang Halaman
                     </button>
                 </div>
             </div>
         );
     }
 
+    const { MapContainer, TileLayer } = modules.RL;
+
     return (
         <div
             style={{ height, width: '100%' }}
             className={`rounded-lg border overflow-hidden ${className}`}
         >
-            {/** MapContainer dkk diambil dari react-leaflet yang sudah di-require di client */}
-            {(() => {
-                const { MapContainer, TileLayer } = RL!;
-                return (
-                    <MapContainer
+            <MapContainer
                 center={[lat, lng]}
                 zoom={zoom}
                 style={{ height: '100%', width: '100%' }}
                 zoomControl={true}
                 attributionControl={true}
-                >
-                        <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        />
+            >
+                <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
 
-                        <MapUpdater lat={lat} lng={lng} zoom={zoom} />
+                <MapUpdater lat={lat} lng={lng} zoom={zoom} RL={modules.RL} />
 
-                        {draggable ? (
-                            <DraggableMarker
-                                lat={lat}
-                                lng={lng}
-                                propertyName={propertyName}
-                                address={address}
-                                onLocationChange={onLocationChange}
-                            />
-                        ) : (
-                            <StaticMarker
-                                lat={lat}
-                                lng={lng}
-                                propertyName={propertyName}
-                                address={address}
-                            />
-                        )}
-                    </MapContainer>
-                );
-            })()}
+                {draggable ? (
+                    <DraggableMarker
+                        lat={lat}
+                        lng={lng}
+                        propertyName={propertyName}
+                        address={address}
+                        onLocationChange={onLocationChange}
+                        RL={modules.RL}
+                        L={modules.L}
+                    />
+                ) : (
+                    <StaticMarker
+                        lat={lat}
+                        lng={lng}
+                        propertyName={propertyName}
+                        address={address}
+                        RL={modules.RL}
+                    />
+                )}
+            </MapContainer>
         </div>
     );
 };
