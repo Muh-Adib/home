@@ -128,7 +128,6 @@ class SeoService
             ->image($imageUrls->toArray())
             ->url($url)
             ->identifier((string) $property->id)
-            ->sku('HOM-' . $property->id)
             ->brand(Schema::brand()->name('Homsjogja'))
             ->priceRange('IDR ' . number_format($property->base_rate, 0, ',', '.'))
             ->address(
@@ -197,20 +196,6 @@ class SeoService
                     ->reviewCount($property->approved_reviews_count ?? 1)
             );
         }
-
-        // Add offers (Booking link)
-        $schema->offers(
-            Schema::offer()
-                ->url(route('bookings.create', $property->slug))
-                ->price($property->base_rate)
-                ->priceCurrency('IDR')
-                ->availability('https://schema.org/InStock')
-                ->sku('HOM-' . $property->id)
-                ->hasMerchantReturnPolicy(
-                    Schema::merchantReturnPolicy()
-                        ->setProperty('returnPolicyCategory', 'https://schema.org/MerchantReturnNotPermitted')
-                )
-        );
 
         return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
