@@ -102,28 +102,30 @@ class SeoService
      */
     public function propertySchema($property): string
     {
-        $imageUrl = $property->media->first()?->url ?? asset('og-image.jpg');
         $description = $this->stripMarkdown($property->description);
         $url = route('properties.show', $property->slug);
 
         // Map internal property type to Schema.org type method
-        // Schema types: https://schema.org/LodgingBusiness
-        $schemaMethod = match ($property->type) {
-            'villa' => 'vacationRental',
-            'homestay' => 'bedAndBreakfast', // Homestay is essentially a B&B or GuestHouse
-            'guest_house' => 'hostel', // Or lodgingBusiness
+        // Using vacationRental for most types as they are rented as a whole unit
+        $schemaMethod = match (strtolower($property->type ?? 'homestay')) {
             'hotel' => 'hotel',
-            'apartment' => 'apartment',
-            'resort' => 'resort',
-            default => 'lodgingBusiness',
+            default => 'vacationRental',
         };
 
+        // Collect up to 5 images for the rich snippet requirements
+        $imageUrls = collect();
+        if ($property->relationLoaded('media') && $property->media->isNotEmpty()) {
+            $imageUrls = $property->media->take(5)->pluck('url');
+        } else {
+            $imageUrls->push(asset('og-image.jpg'));
+        }
+
         // Create the schema object dynamically using Spatie factory
-        /** @var \Spatie\SchemaOrg\LodgingBusiness $schema */
+        /** @var \Spatie\SchemaOrg\VacationRental $schema */
         $schema = Schema::{$schemaMethod}()
             ->name($property->name)
             ->description($description)
-            ->image(Schema::imageObject()->url($imageUrl))
+            ->image($imageUrls->toArray())
             ->url($url)
             ->identifier((string) $property->id)
             ->sku('HOM-' . $property->id)
@@ -139,6 +141,7 @@ class SeoService
             ->checkinTime($property->check_in_time?->format('H:i') ?? '14:00')
             ->checkoutTime($property->check_out_time?->format('H:i') ?? '12:00')
             ->numberOfRooms($property->bedroom_count)
+            ->setProperty('numberOfBedrooms', $property->bedroom_count)
             ->numberOfBathroomsTotal($property->bathroom_count)
             ->occupancy(
                 Schema::quantitativeValue()
