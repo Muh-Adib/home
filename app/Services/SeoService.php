@@ -130,6 +130,9 @@ class SeoService
             ->identifier((string) $property->id)
             ->brand(Schema::brand()->name('Homsjogja'))
             ->priceRange('IDR ' . number_format($property->base_rate, 0, ',', '.'))
+            ->setProperty('currenciesAccepted', 'IDR')
+            ->setProperty('paymentAccepted', 'Cash, Credit Card, Bank Transfer')
+            ->setProperty('availableLanguage', ['id', 'en'])
             ->address(
                 Schema::postalAddress()
                     ->streetAddress($property->address ?? 'Yogyakarta')
@@ -186,6 +189,7 @@ class SeoService
                     ->latitude($property->lat)
                     ->longitude($property->lng)
             );
+            $schema->setProperty('hasMap', "https://www.google.com/maps/search/?api=1&query={$property->lat},{$property->lng}");
         }
 
         // Add Rating
