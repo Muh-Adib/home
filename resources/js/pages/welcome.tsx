@@ -208,6 +208,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                                             property={property}
                                             showLocationBadge={true}
                                             showRating={true}
+                                            priority={index < 2}
                                         />
                                     </motion.div>
                                 ))}

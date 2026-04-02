@@ -22,6 +22,7 @@ interface PropertyCardEnhancedProps {
   className?: string;
   showLocationBadge?: boolean;
   showRating?: boolean;
+  priority?: boolean;
 }
 
 /**
@@ -80,6 +81,7 @@ export default function PropertyCardEnhanced({
   className = '',
   showLocationBadge = true,
   showRating = true,
+  priority = false,
 }: PropertyCardEnhancedProps) {
   const [isLiked, setIsLiked] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
@@ -129,16 +131,17 @@ export default function PropertyCardEnhanced({
               <img
                 src={property.media[0].url}
                 alt={property.name}
-                loading="lazy"
-                className={`w-full h-full object-cover transition-all duration-700 ease-out ${imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
+                loading={priority ? 'eager' : 'lazy'}
+                fetchPriority={priority ? 'high' : 'auto'}
+                className={`w-full h-full object-cover transition-all duration-700 ease-out ${imageLoaded && !priority ? 'opacity-100 scale-100' : (priority ? 'opacity-100 scale-100' : 'opacity-0 scale-105')
                   } group-hover:scale-105`}
                 onLoad={() => setImageLoaded(true)}
                 onError={() => setImageError(true)}
               />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-                <Building2 className="h-10 w-10 md:h-12 md:w-12 text-slate-300" />
-                <span className="text-xs text-slate-400 mt-2">No Image</span>
+                <Building2 className="h-10 w-10 md:h-12 md:w-12 text-slate-400" />
+                <span className="text-xs text-slate-500 mt-2">No Image</span>
               </div>
             )}
 
@@ -148,7 +151,7 @@ export default function PropertyCardEnhanced({
             {/* Top-left badges */}
             <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
               {property.is_featured && (
-                <span className="inline-flex items-center gap-1 bg-amber-500 text-white text-[10px] md:text-[11px] font-semibold px-2 py-0.5 rounded-full shadow-sm">
+                <span className="inline-flex items-center gap-1 bg-amber-500 text-slate-900 text-[10px] md:text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm">
                   <Crown className="h-2.5 w-2.5 md:h-3 md:w-3" />
                   Featured
                 </span>
@@ -163,7 +166,7 @@ export default function PropertyCardEnhanced({
 
             {/* Discount badge - top right */}
             {discountPercentage > 0 && (
-              <span className="absolute top-2.5 right-2.5 bg-rose-500 text-white text-[10px] md:text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+              <span className="absolute top-2.5 right-2.5 bg-rose-600 text-white text-[10px] md:text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm">
                 -{discountPercentage}%
               </span>
             )}
@@ -216,7 +219,7 @@ export default function PropertyCardEnhanced({
                   <button
                     type="button"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowFullDesc(!showFullDesc); }}
-                    className="text-[11px] md:text-xs text-blue-600 hover:text-blue-700 font-medium mt-0.5 focus:outline-none"
+                    className="text-[12px] text-blue-600 hover:text-blue-700 font-medium py-2 -my-2 focus:outline-none"
                   >
                     {showFullDesc ? 'Sembunyikan' : 'Selengkapnya'}
                   </button>
@@ -244,7 +247,7 @@ export default function PropertyCardEnhanced({
                   />
                 ))}
                 {property.amenities.length > 4 && (
-                  <span className="inline-flex items-center text-[10px] md:text-[11px] text-slate-400 px-1">
+                  <span className="inline-flex items-center text-[10px] md:text-[11px] text-slate-500 px-1">
                     +{property.amenities.length - 4}
                   </span>
                 )}
@@ -256,14 +259,14 @@ export default function PropertyCardEnhanced({
               <div className="flex items-end justify-between">
                 {/* Left: pricing */}
                 <div>
-                  <span className="text-[11px] text-rose-300 line-through block leading-none">
+                  <span className="text-[11px] text-rose-500 line-through block leading-none">
                     {formatCurrency(inflatedRate)}
                   </span>
                   <div className="flex items-baseline gap-1 mt-0.5">
                     <span className="text-lg md:text-xl font-bold text-slate-900">
                       {formatCurrency(currentRate)}
                     </span>
-                    <span className="text-[11px] md:text-xs text-slate-400 font-medium">
+                    <span className="text-[11px] md:text-xs text-slate-500 font-medium">
                       /malam
                     </span>
                   </div>
@@ -290,11 +293,11 @@ function StatItem({ icon: Icon, value, label, shortLabel }: { icon: React.Elemen
       title={`${value} ${label}`}
     >
       <div className="flex items-center gap-1">
-        <Icon className="h-3 w-3 md:h-3.5 md:w-3.5 text-slate-400" />
+        <Icon className="h-3 w-3 md:h-3.5 md:w-3.5 text-slate-500" />
         <span className="text-xs md:text-sm font-bold text-slate-800">{value}</span>
       </div>
-      <span className="text-[8px] md:text-[10px] text-slate-400 font-medium leading-tight mt-0.5 md:hidden">{shortLabel}</span>
-      <span className="text-[10px] text-slate-400 font-medium leading-tight mt-0.5 hidden md:block">{label}</span>
+      <span className="text-[8px] md:text-[10px] text-slate-500 font-medium leading-tight mt-0.5 md:hidden">{shortLabel}</span>
+      <span className="text-[10px] text-slate-500 font-medium leading-tight mt-0.5 hidden md:block">{label}</span>
     </div>
   );
 }

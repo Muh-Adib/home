@@ -298,7 +298,7 @@ export default function SeoLanding({
                                 variants={itemVariants}
                                 whileHover={{ y: -8, transition: { duration: 0.2 } }}
                             >
-                                <PropertyCardEnhanced property={property} />
+                                <PropertyCardEnhanced property={property} priority={index < 2} />
                             </motion.div>
                         ))}
                     </motion.div>
