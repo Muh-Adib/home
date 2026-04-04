@@ -164,6 +164,17 @@ class PropertyController extends Controller
                 'check_out' => $checkOut,
             ],
             'seo' => $seoData,
+            'itemListSchema' => Cache::remember('schema_properties_index', 3600, function () use ($properties) {
+                return $this->seoService->propertiesIndexSchema($properties->getCollection());
+            }),
+            'breadcrumbSchema' => json_encode([
+                '@context' => 'https://schema.org',
+                '@type' => 'BreadcrumbList',
+                'itemListElement' => [
+                    ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => route('home')],
+                    ['@type' => 'ListItem', 'position' => 2, 'name' => 'Penginapan Yogyakarta', 'item' => route('properties.index')],
+                ],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);
     }
 
@@ -190,7 +201,10 @@ class PropertyController extends Controller
                 'seasonalRates' => function ($query) {
                     $query->where('is_active', true)
                         ->orderBy('priority', 'desc');
-                }
+                },
+                'approvedReviews' => function ($query) {
+                    $query->latest()->limit(3);
+                },
             ])->loadCount('approvedReviews')
                 ->loadAvg('approvedReviews as rating_avg', 'rating');
         });

@@ -4,19 +4,24 @@ import { Link } from '@inertiajs/react';
 let L: typeof import('leaflet') | null = null;
 let RL: typeof import('react-leaflet') | null = null;
 
-if (typeof window !== 'undefined') {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    L = require('leaflet');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    RL = require('react-leaflet');
-    // Import CSS di client-side saja
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require('leaflet/dist/leaflet.css');
+// Dynamic import — tidak menggunakan require() agar kompatibel dengan Vite/ESM
+async function loadLeaflet() {
+    if (typeof window === 'undefined') return;
+    if (L && RL) return;
+    const [leaflet, reactLeaflet] = await Promise.all([
+        import('leaflet'),
+        import('react-leaflet'),
+        import('leaflet/dist/leaflet.css'),
+    ]);
+    L = leaflet.default ?? leaflet;
+    RL = reactLeaflet as any;
+    fixLeafletIcons();
 }
 import { MapPin, Users, DollarSign, Landmark, GraduationCap, Building2, Train } from 'lucide-react';
 
-// Fix for default markers in React Leaflet (hanya ketika Leaflet sudah tersedia)
-if (typeof window !== 'undefined' && L) {
+// Fix for default markers — called inside loadLeaflet after L is ready
+function fixLeafletIcons() {
+    if (!L) return;
     delete (L!.Icon.Default.prototype as any)._getIconUrl;
     L!.Icon.Default.mergeOptions({
         iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -27,7 +32,7 @@ if (typeof window !== 'undefined' && L) {
 
 // Create custom icon for properties with hover effect
 const createPropertyIcon = () => {
-    return L.divIcon({
+    return L!.divIcon({
         className: 'custom-property-marker',
         html: `
             <div class="property-marker-wrapper" style="
@@ -77,7 +82,7 @@ const createLandmarkIcon = (type: 'landmark' | 'university' | 'supermarket' | 'p
 
     const config = iconConfig[type] || iconConfig.landmark;
 
-    return L.divIcon({
+    return L!.divIcon({
         className: 'custom-landmark-marker',
         html: `
             <div class="landmark-marker-wrapper" style="
@@ -247,7 +252,7 @@ const MapBoundsUpdater: React.FC<{ properties: Property[]; includeLandmarks?: bo
         if (allPoints.length === 0) return;
 
         // Calculate bounds dari semua points
-        const bounds = L.latLngBounds(allPoints);
+        const bounds = L!.latLngBounds(allPoints);
 
         // Fit map to bounds dengan padding
         map.fitBounds(bounds, {
@@ -269,16 +274,14 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
     const [properties, setProperties] = useState<Property[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [leafletReady, setLeafletReady] = useState(false);
 
-    // Prevent rendering pada server atau sebelum Leaflet/react-leaflet siap
-    if (typeof window === 'undefined' || !RL || !L) {
-        return null;
-    }
+    // 1. Load Leaflet dynamically on mount — must be first hook
+    useEffect(() => {
+        loadLeaflet().then(() => setLeafletReady(true));
+    }, []);
 
-    // Ambil komponen dari react-leaflet yang sudah di-require di client
-    const { MapContainer, TileLayer, Marker, Popup } = RL;
-
-    // Inject custom CSS for popup styling and hover effects
+    // 2. Inject custom CSS — always called regardless of leafletReady
     useEffect(() => {
         const style = document.createElement('style');
         style.textContent = `
@@ -327,21 +330,7 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
         };
     }, []);
 
-    // Calculate default center dari properties atau use provided center
-    const mapCenter = useMemo(() => {
-        if (center) return center;
-
-        if (properties.length > 0) {
-            // Calculate center dari semua properties
-            const avgLat = properties.reduce((sum, p) => sum + p.lat, 0) / properties.length;
-            const avgLng = properties.reduce((sum, p) => sum + p.lng, 0) / properties.length;
-            return [avgLat, avgLng] as [number, number];
-        }
-
-        // Default center: Yogyakarta
-        return [-7.7972, 110.3688] as [number, number];
-    }, [properties, center]);
-
+    // 3. Fetch properties — always called regardless of leafletReady
     useEffect(() => {
         const fetchProperties = async () => {
             try {
@@ -366,6 +355,34 @@ export const PropertiesMap: React.FC<PropertiesMapProps> = ({
 
         fetchProperties();
     }, []);
+
+    // 4. Calculate default center — always called regardless of leafletReady
+    const mapCenter = useMemo(() => {
+        if (center) return center;
+        if (properties.length > 0) {
+            const avgLat = properties.reduce((sum, p) => sum + p.lat, 0) / properties.length;
+            const avgLng = properties.reduce((sum, p) => sum + p.lng, 0) / properties.length;
+            return [avgLat, avgLng] as [number, number];
+        }
+        return [-7.7972, 110.3688] as [number, number];
+    }, [properties, center]);
+
+    // All hooks are above — conditional returns are safe below this line
+
+    // Prevent rendering sebelum Leaflet siap
+    if (typeof window === 'undefined' || !leafletReady || !RL || !L) {
+        return (
+            <div style={{ height, width: '100%' }} className={`rounded-lg border bg-gray-100 flex items-center justify-center ${className}`}>
+                <div className="text-center text-gray-500 p-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p>Memuat peta...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Ambil komponen dari react-leaflet yang sudah di-load
+    const { MapContainer, TileLayer, Marker, Popup } = RL;
 
     // Loading state
     if (loading) {

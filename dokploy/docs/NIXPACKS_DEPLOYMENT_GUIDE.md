@@ -1,11 +1,11 @@
 # 🚀 Nixpacks Deployment Guide
-## Property Management System - Laravel 12 + React + WebSocket
+## Property Management System website Homsjogja - Laravel 12 + React + WebSocket
 
 ---
 
 ## 📋 **OVERVIEW**
 
-Dokumen ini menjelaskan cara deploy aplikasi Property Management System menggunakan Nixpacks di Dokploy dengan konfigurasi Supervisor untuk menjalankan semua services dalam satu container.
+Dokumen ini menjelaskan cara deploy aplikasi Property Management System website Homsjogja menggunakan Nixpacks di Dokploy dengan konfigurasi Supervisor untuk menjalankan semua services dalam satu container.
 
 ---
 

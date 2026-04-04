@@ -89,17 +89,20 @@ class SeoLandingController extends Controller
 
             // Prepare SEO data (match SeoService format + robots)
             $canonicalUrl = $page->url;
+            // Pagination pages: noindex untuk hemat crawl budget
+            // Google tidak perlu mengindeks ?page=2, ?page=3, dst
+            $robotsValue = $isFallback ? 'noindex, follow' : 'index, follow';
             if ($properties->currentPage() > 1) {
-                $canonicalUrl .= '?page=' . $properties->currentPage();
+                $robotsValue = 'noindex, follow';
             }
 
             $seo = [
                 'title' => $page->title,
                 'description' => $page->meta_description,
-                'image' => asset('og-image.jpg'), // Default OG image
+                'image' => asset('og-image.jpg'),
                 'url' => $canonicalUrl,
                 'type' => 'website',
-                'robots' => $isFallback ? 'noindex, follow' : 'index, follow', // Prevent indexing if no exact properties match
+                'robots' => $robotsValue,
                 // OpenGraph
                 'og' => [
                     'title' => $page->title,

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import GuestLayout from '@/layouts/guest-layout';
 import { SeoHead } from '@/components/seo/SeoHead';
+import { SchemaOrg } from '@/components/seo/SchemaOrg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -154,6 +155,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
     return (
         <GuestLayout variant='minimal'>
             <SeoHead />
+            <SchemaOrg />
 
             <div className="min-h-screen bg-brand-background">
                 <div className="max-w-7xl mx-auto space-y-4 md:space-y-6 px-4 py-4 md:px-6 md:py-6">

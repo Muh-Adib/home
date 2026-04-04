@@ -1,8 +1,8 @@
 # 🚀 Dokploy Deployment Summary
 
-## Property Management System - Laravel 12 + React 18 + WebSocket
+## Property Management System website Homsjogja - Laravel 12 + React 18 + WebSocket
 
-Ringkasan lengkap konfigurasi deployment untuk aplikasi Property Management System menggunakan Dockerfile dengan external Redis dan MySQL services.
+Ringkasan lengkap konfigurasi deployment untuk aplikasi Property Management System website Homsjogja menggunakan Dockerfile dengan external Redis dan MySQL services.
 
 ---
 

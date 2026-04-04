@@ -1,12 +1,12 @@
 # Data Flow Diagram (DFD)
-## Property Management System
+## Property Management System website Homsjogja
 
 ---
 
 ## 1. OVERVIEW
 
 ### 1.1 DFD Purpose
-Data Flow Diagram menggambarkan bagaimana data mengalir melalui sistem Property Management System, dari input hingga output, serta proses-proses yang terjadi di antaranya.
+Data Flow Diagram menggambarkan bagaimana data mengalir melalui sistem Property Management System website Homsjogja, dari input hingga output, serta proses-proses yang terjadi di antaranya.
 
 ### 1.2 DFD Levels
 - **Level 0**: Context Diagram - System overview
@@ -29,7 +29,7 @@ Data Flow Diagram menggambarkan bagaimana data mengalir melalui sistem Property 
          ▼                       ▼                       ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                                                                  │
-│            PROPERTY MANAGEMENT SYSTEM (PMS)                     │
+│            Property Management System website Homsjogja (PMS)                     │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
          ▲                       ▲                       ▲

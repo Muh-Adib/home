@@ -73,6 +73,8 @@ class HandleInertiaRequests extends Middleware
                 'warning' => $request->session()->get('warning'),
                 'info' => $request->session()->get('info'),
             ],
+            // Broadcast driver info for frontend Echo initialization
+            'broadcastDriver' => config('broadcasting.default', 'log'),
             // ✨ Global SEO data (always available)
             'globalSeo' => [
                 'organizationSchema' => $seoService->organizationSchema(),

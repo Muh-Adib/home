@@ -2,7 +2,7 @@
 
 ## 🎯 Overview
 
-Dokumen ini menjelaskan implementasi frontend untuk integrasi iPaymu Payment Gateway di Property Management System, termasuk komponen React, form handling, dan user flow.
+Dokumen ini menjelaskan implementasi frontend untuk integrasi iPaymu Payment Gateway di Property Management System website Homsjogja, termasuk komponen React, form handling, dan user flow.
 
 ---
 

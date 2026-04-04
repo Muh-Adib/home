@@ -197,7 +197,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
             deletePayment(`/admin/payments/${payment.payment_number}`, {
                 onSuccess: () => {
                     // Redirect to the booking page, not the payments list
-                    router.visit(`/admin/booking-management/${payment.booking.booking_number}`);
+                    router.visit(`/admin/bookings/${payment.booking.booking_number}`);
                 },
                 onError: (e) => console.log('ERROR', e),
                 onFinish: () => console.log('FINISHED'),

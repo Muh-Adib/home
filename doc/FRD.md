@@ -4,7 +4,7 @@
 
 ### 1.1 Latar Belakang
 
-Manajemen properti seperti homestay dan villa menghadapi tantangan dalam mengelola pemesanan, harga musiman, keuangan, serta operasional sehari-hari. Oleh karena itu, dibutuhkan sebuah sistem manajemen properti (Property Management System) yang mampu menangani banyak unit dan properti dalam satu platform terintegrasi.
+Manajemen properti seperti homestay dan villa menghadapi tantangan dalam mengelola pemesanan, harga musiman, keuangan, serta operasional sehari-hari. Oleh karena itu, dibutuhkan sebuah sistem manajemen properti (Property Management System website Homsjogja) yang mampu menangani banyak unit dan properti dalam satu platform terintegrasi.
 
 ### 1.2 Tujuan Dokumen
 
@@ -17,7 +17,7 @@ Aplikasi akan mencakup fitur manajemen properti, dynamic pricing, integrasi OTA,
 ### 1.4 Definisi Istilah
 
 * **OTA**: Online Travel Agent
-* **PMS**: Property Management System
+* **PMS**: Property Management System website Homsjogja
 * **ADR**: Average Daily Rate
 
 ## 2. Tujuan Sistem

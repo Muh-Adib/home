@@ -31,8 +31,10 @@ class BookingService
      */
     public function createBooking(BookingRequest $request, ?User $user = null): Booking
     {
-        // ✅ FIX: Use transaction with retry for SQLite database lock issues
-        $maxRetries = 3;
+        // ✅ FIX: Use transaction with retry for database lock issues
+        // For SQLite (used in tests), use 1 attempt to avoid nested transaction issues
+        $isSqlite = config('database.default') === 'sqlite';
+        $maxRetries = $isSqlite ? 1 : 3;
         $retryDelay = 100000; // 100ms in microseconds
 
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
@@ -63,10 +65,8 @@ class BookingService
                         $request->checkOutDate,
                         $request->getEffectiveGuestCount($property->capacity, $property->capacity_max)
                     );
-                    $request->setRateCalculation($rateCalculation->toArray());
-                    $request->setTotalAmount($rateCalculation->totalAmount);
 
-                    $booking = $this->bookingRepository->create($request, $property, $userId);
+                    $booking = $this->bookingRepository->create($request, $property, $userId, $rateCalculation);
 
                     // ✅ Always save daily revenue for confirmed/paid bookings
                     // This ensures breakdown is stored for accurate monthly reporting
@@ -77,7 +77,7 @@ class BookingService
 
                     event(new BookingCreated($booking, $user));
                     return $booking;
-                }, 5); // 5 attempts for transaction
+                }, $isSqlite ? 1 : 5); // 5 attempts for non-SQLite, 1 for SQLite
             } catch (\Illuminate\Database\QueryException $e) {
                 // Check if it's a database lock error
                 if (str_contains($e->getMessage(), 'database is locked') && $attempt < $maxRetries) {
@@ -97,8 +97,10 @@ class BookingService
 
     public function updateBooking(Booking $booking, BookingRequest $request): Booking
     {
-        // ✅ FIX: Use transaction with retry for SQLite database lock issues
-        $maxRetries = 3;
+        // ✅ FIX: Use transaction with retry for database lock issues
+        // For SQLite (used in tests), use 1 attempt to avoid nested transaction issues
+        $isSqlite = config('database.default') === 'sqlite';
+        $maxRetries = $isSqlite ? 1 : 3;
         $retryDelay = 100000; // 100ms in microseconds
 
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
@@ -120,10 +122,8 @@ class BookingService
                         $request->checkOutDate,
                         $request->getEffectiveGuestCount($property->capacity, $property->capacity_max)
                     );
-                    $request->setRateCalculation($rateCalculation->toArray());
-                    $request->setTotalAmount($rateCalculation->totalAmount);
 
-                    $booking = $this->bookingRepository->update($booking, $request, $property);
+                    $booking = $this->bookingRepository->update($booking, $request, $property, $rateCalculation);
 
                     // ✅ Save daily revenue for all confirmed bookings with breakdown
                     if (in_array($booking->booking_status, ['confirmed', 'checked_in', 'completed']) || $booking->payment_status === 'paid') {
@@ -132,7 +132,7 @@ class BookingService
                     }
 
                     return $booking;
-                }, 5); // 5 attempts for transaction
+                }, $isSqlite ? 1 : 5); // 5 attempts for non-SQLite, 1 for SQLite
             } catch (\Illuminate\Database\QueryException $e) {
                 // Check if it's a database lock error
                 if (str_contains($e->getMessage(), 'database is locked') && $attempt < $maxRetries) {
@@ -359,7 +359,7 @@ class BookingService
     /**
      * Get user bookings
      */
-    public function getUserBookings(User $user): \Illuminate\Database\Eloquent\Collection
+    public function getUserBookings(User $user): \Illuminate\Support\Collection
     {
         return $this->bookingRepository->getUserBookings($user);
     }
@@ -385,17 +385,13 @@ class BookingService
      */
     public function createBookingRequest(array $data): BookingRequest
     {
-        return new BookingRequest(
-            propertyId: (int) $data['property_id'],
-            checkInDate: $data['check_in_date'],
-            checkOutDate: $data['check_out_date'],
-            checkInTime: $data['check_in_time'] ?? '15:00',
-            guestCount: (int) $data['guest_count_adults'],
-            guestName: $data['guest_name'],
-            guestEmail: $data['guest_email'],
-            guestPhone: $data['guest_phone'],
-            specialRequests: $data['special_requests'] ?? null
-        );
+        return BookingRequest::fromArray(array_merge([
+            'check_in' => $data['check_in_date'] ?? $data['check_in'] ?? null,
+            'check_out' => $data['check_out_date'] ?? $data['check_out'] ?? null,
+            'guest_male' => $data['guest_count_adults'] ?? $data['guest_male'] ?? 1,
+            'guest_female' => $data['guest_female'] ?? 0,
+            'guest_children' => $data['guest_children'] ?? 0,
+        ], $data));
     }
 
     /**

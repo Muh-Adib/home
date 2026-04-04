@@ -10,6 +10,8 @@ use App\Models\Property;
 use App\Models\User;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
+use App\Jobs\SyncPaymentIncomeJob;
+use App\Services\AvailabilityService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -33,11 +35,10 @@ use Illuminate\Support\Facades\Storage;
 class AdminBookingService
 {
     public function __construct(
-        private BookingService $bookingService,
         private GuestCountService $guestCountService,
-        private BookingServiceSyncService $serviceSyncService,
+        private BookingExtraServiceSyncService $serviceSyncService,
         private RateOverrideLogService $rateOverrideLogService,
-        private PaymentIncomeSyncService $paymentIncomeSyncService,
+        private AvailabilityService $availabilityService,
         private \App\Actions\Booking\CreateBookingAction $createBookingAction,
         private \App\Actions\User\EnsureGuestUserAction $ensureUserAction,
         private ImageService $imageService
@@ -57,26 +58,66 @@ class AdminBookingService
         ?UploadedFile $paymentProof,
         User $admin
     ): AdminBookingResult {
+        // 1. Guest count validation (before transaction)
+        $property = Property::findOrFail($validated['property_id']);
+        $guestCount = $this->guestCountService->calculateFromRequest($property, $validated);
+
+        if ($guestCount > $property->capacity_max) {
+            return AdminBookingResult::failure([
+                'guest_count' => "Total guests ({$guestCount}) exceeds property maximum capacity ({$property->capacity_max}).",
+            ]);
+        }
+
+        // 2. Availability check (before transaction)
+        $forceOverride = (bool) ($validated['force_ota_override'] ?? false);
+        $availability = $this->availabilityService->checkAvailability(
+            $property,
+            $validated['check_in_date'],
+            $validated['check_out_date'],
+            $guestCount,
+            null,
+            $forceOverride
+        );
+
+        if (!$availability['available']) {
+            $overlappingBookings = \App\Models\Booking::where('property_id', $property->id)
+                ->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
+                ->where('check_in', '<', $validated['check_out_date'])
+                ->where('check_out', '>', $validated['check_in_date'])
+                ->get(['id', 'source']);
+
+            $blockedByOtaOnly = $overlappingBookings->every(
+                fn($b) => in_array($b->source, ['airbnb', 'booking_com', 'ota'])
+            );
+
+            return AdminBookingResult::failure([
+                'error' => 'Property is not available for selected dates.',
+                'booked_periods' => $availability['booked_periods'] ?? [],
+                'can_override' => $blockedByOtaOnly,
+            ]);
+        }
+
         try {
             DB::beginTransaction();
 
-            // 1. Calculate guest count (needed for BookingRequest)
-            $property = Property::findOrFail($validated['property_id']);
-            $guestCount = $this->guestCountService->calculateFromRequest($property, $validated);
-
-            // 2. Prepare booking data
+            // 3. Prepare booking data (reuse already-computed $property and $guestCount)
             $bookingData = $this->prepareBookingData($validated, $guestCount);
 
-            // 3. Create booking via CreateBookingAction (Shared logic)
+            // 4. Create booking via CreateBookingAction (Shared logic)
             $booking = $this->createBookingAction->execute($bookingData, $admin);
 
-            // 4. Create payment if provided
+            // 5. Create payment if provided
             $payment = null;
             if (!empty($validated['payment_method_id']) && !empty($validated['payment_amount'])) {
                 $payment = $this->createPayment($booking, $validated, $paymentProof, $admin);
             }
 
             DB::commit();
+
+            // Dispatch async payment income sync after commit (not inside transaction)
+            if ($payment && $payment->payment_status === 'verified') {
+                SyncPaymentIncomeJob::dispatch($payment->id)->afterCommit();
+            }
 
             return AdminBookingResult::success($booking, $payment);
 
@@ -126,62 +167,6 @@ class AdminBookingService
     }
 
     /**
-     * Apply admin-specific metadata to booking
-     */
-    private function applyAdminMetadata(Booking $booking, User $admin, array $validated): void
-    {
-        $booking->update([
-            'created_by' => $admin->id,
-            'source' => $validated['source'] ?? 'direct',
-        ]);
-    }
-
-    /**
-     * Apply rate override and log the change
-     */
-    private function applyRateOverride(Booking $booking, array $validated, User $admin): void
-    {
-        $originalAmount = $booking->total_amount;
-        $overrideAmount = $validated['override_amount'];
-        $overrideReason = $validated['override_reason'] ?? null;
-
-        $logMessage = $this->rateOverrideLogService->generateLog(
-            $admin,
-            (float) $originalAmount,
-            (float) $overrideAmount,
-            $overrideReason
-        );
-
-        $booking->update([
-            'total_amount' => $overrideAmount,
-            'internal_notes' => $this->rateOverrideLogService->appendToNotes(
-                $booking->internal_notes,
-                $logMessage
-            ),
-        ]);
-    }
-
-    /**
-     * Auto-confirm booking
-     */
-    private function autoConfirmBooking(Booking $booking, User $admin): void
-    {
-        $booking->update([
-            'verification_status' => 'approved',
-            'verified_by' => $admin->id,
-            'verified_at' => now(),
-        ]);
-
-        $booking->workflow()->create([
-            'step' => 'approved',
-            'status' => 'completed',
-            'processed_by' => $admin->id,
-            'processed_at' => now(),
-            'notes' => 'Manual booking created by admin and auto-confirmed',
-        ]);
-    }
-
-    /**
      * Create payment and handle payment proof upload
      */
     private function createPayment(
@@ -213,11 +198,6 @@ class AdminBookingService
 
         // Update booking payment status
         $booking->updatePaymentStatus();
-
-        // Sync income if verified
-        if ($paymentStatus === 'verified') {
-            $this->paymentIncomeSyncService->syncOnVerified($payment);
-        }
 
         // Handle payment proof upload
         if ($paymentProof) {

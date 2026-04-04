@@ -1,7 +1,7 @@
 import './bootstrap.js';
 import '../css/app.css';
 
-import { hydrateRoot } from 'react-dom/client'
+import { createRoot, hydrateRoot } from 'react-dom/client'
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import i18n from './lib/i18n';
@@ -41,7 +41,7 @@ createInertiaApp({
     title: (title) => `${title} - ${appName}`,
     resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx', { eager: false })),
     setup({ el, App, props }) {
-        hydrateRoot(el,
+        const jsx = (
             <QueryClientProvider client={queryClient}>
                 <I18nextProvider i18n={i18n}>
                     <GlobalPageLoader>
@@ -51,6 +51,13 @@ createInertiaApp({
                 </I18nextProvider>
             </QueryClientProvider>
         );
+
+        // hydrateRoot if SSR content exists, createRoot otherwise
+        if (el.childElementCount > 0) {
+            hydrateRoot(el, jsx);
+        } else {
+            createRoot(el).render(jsx);
+        }
     },
     progress: false,
     defaults: {

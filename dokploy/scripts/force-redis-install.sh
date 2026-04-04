@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 🔧 FORCE REDIS EXTENSION INSTALLATION
-# Property Management System - Laravel 12 + React + WebSocket
+# Property Management System website Homsjogja - Laravel 12 + React + WebSocket
 
 set -e
 

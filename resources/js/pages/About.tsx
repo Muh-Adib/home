@@ -5,10 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Heart, Users, Home, Star, MapPin, Phone, Mail, Instagram, Facebook } from 'lucide-react';
+import { SeoHead } from '@/components/seo/SeoHead';
+import { SchemaOrg } from '@/components/seo/SchemaOrg';
 
 export default function About() {
     return (
         <GuestLayout>
+            <SeoHead />
+            <SchemaOrg />
             <Head title="Tentang Kami - Homsjogja" />
             
             <div className="min-h-screen bg-brand-background">

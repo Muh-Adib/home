@@ -1,5 +1,5 @@
 # AI Coding Rules & Development Guidelines (Optimized)
-## Property Management System - Laravel 12.x & React 18+ (Existing Structure)
+## Property Management System website Homsjogja - Laravel 12.x & React 18+ (Existing Structure)
 
 ---
 
@@ -128,7 +128,7 @@ export function PropertyCard({ property, onSelect, className }: PropertyCardProp
 ### 2.3 TypeScript Types Extensions (Tambah ke types/index.d.ts)
 ```tsx
 // IKUTI PATTERN EXISTING types/index.d.ts
-// TAMBAHKAN types untuk Property Management System
+// TAMBAHKAN types untuk Property Management System website Homsjogja
 
 // EXTEND EXISTING User interface
 export interface User {

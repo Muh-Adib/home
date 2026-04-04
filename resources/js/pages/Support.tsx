@@ -22,6 +22,9 @@ import {
     Home,
     Settings
 } from 'lucide-react';
+import { SeoHead } from '@/components/seo/SeoHead';
+import { SchemaOrg } from '@/components/seo/SchemaOrg';
+} from 'lucide-react';
 
 export default function Support() {
     const [selectedCategory, setSelectedCategory] = useState('');
@@ -129,6 +132,8 @@ export default function Support() {
 
     return (
         <GuestLayout>
+            <SeoHead />
+            <SchemaOrg />
             <Head title="Dukungan - Homsjogja" />
             
             <div className="min-h-screen bg-brand-background">

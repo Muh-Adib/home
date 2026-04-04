@@ -110,7 +110,7 @@ return [
     | Performance Optimization Settings
     |--------------------------------------------------------------------------
     |
-    | These settings optimize cache performance for the Property Management System
+    | These settings optimize cache performance for the Property Management System website Homsjogja
     |
     */
     

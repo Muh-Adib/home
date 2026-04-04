@@ -19,7 +19,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Bookings', href: '/admin/bookings' },
-        { title: 'Details', href: `/admin/booking-management/${booking.booking_number}` },
+        { title: 'Details', href: `/admin/bookings/${booking.booking_number}` },
         { title: 'Edit' },
     ];
 

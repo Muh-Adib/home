@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 🚀 SAFE STARTUP SCRIPT
-# Property Management System - Laravel 12 + React + WebSocket
+# Property Management System website Homsjogja - Laravel 12 + React + WebSocket
 # Enhanced with proper error handling and no looping
 
 set -euo pipefail
@@ -42,7 +42,7 @@ exit_with_success() {
     exit 0
 }
 
-echo "🚀 Starting Property Management System (Safe Mode)..."
+echo "🚀 Starting Property Management System website Homsjogja (Safe Mode)..."
 
 # Force clear persistent bootstrap cache (prevents CollisionServiceProvider error)
 log_info "🧹 Cleaning bootstrap cache..."

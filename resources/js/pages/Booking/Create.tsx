@@ -334,7 +334,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
 
     return (
         <GuestLayout>
-            <Head title={`${t('booking.book_your_stay')} ${property.name} - Property Management System`} />
+            <Head title={`${t('booking.book_your_stay')} ${property.name} - Homsjogja`} />
 
             <div className="min-h-screen bg-background">
                 {/* Header */}

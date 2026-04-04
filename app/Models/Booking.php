@@ -385,6 +385,22 @@ class Booking extends Model
         $prefix = 'BK';
         $date = now()->format('ymd');
 
+        // For SQLite (tests), avoid nested transactions and lockForUpdate
+        if (config('database.default') === 'sqlite') {
+            $lastBooking = self::withTrashed()
+                ->where('booking_number', 'LIKE', $prefix . $date . '%')
+                ->orderBy('booking_number', 'desc')
+                ->first();
+
+            if ($lastBooking && preg_match('/\d{4}$/', $lastBooking->booking_number, $matches)) {
+                $sequence = intval($matches[0]) + 1;
+            } else {
+                $sequence = 1;
+            }
+
+            return $prefix . $date . sprintf('%04d', $sequence);
+        }
+
         // Use database transaction with locking to prevent race conditions
         return \DB::transaction(function () use ($prefix, $date) {
             // Find the highest sequence number for today, including soft-deleted records

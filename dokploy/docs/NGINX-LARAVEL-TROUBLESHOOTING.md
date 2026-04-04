@@ -1,5 +1,5 @@
 # 🔧 NGINX LARAVEL TROUBLESHOOTING
-## Property Management System - Laravel 12 + React + WebSocket
+## Property Management System website Homsjogja - Laravel 12 + React + WebSocket
 
 ---
 
@@ -43,7 +43,7 @@ curl http://localhost/health
 # {
 #   "status": "ok",
 #   "timestamp": "2025-01-XX XX:XX:XX",
-#   "service": "Property Management System",
+#   "service": "Property Management System website Homsjogja",
 #   "version": "1.0.0",
 #   "checks": {
 #     "laravel": "ok",

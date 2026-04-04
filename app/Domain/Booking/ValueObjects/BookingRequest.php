@@ -6,9 +6,6 @@ use Carbon\Carbon;
 
 class BookingRequest
 {
-    public array $rateCalculation = [];
-    public int $totalAmount = 0;
-
     public function __construct(
         // Property Information
         public readonly int $propertyId,
@@ -165,13 +162,4 @@ class BookingRequest
         );
     }
 
-    public function setRateCalculation(array $rateCalculation): void
-    {
-        $this->rateCalculation = $rateCalculation;
-    }
-
-    public function setTotalAmount(int $totalAmount): void
-    {
-        $this->totalAmount = $totalAmount;
-    }
 }

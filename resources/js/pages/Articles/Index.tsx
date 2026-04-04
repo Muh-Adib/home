@@ -6,6 +6,8 @@ import { type PaginatedData } from '@/types';
 import { Link, router } from '@inertiajs/react';
 import { Search, Calendar, Eye, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
+import { SeoHead } from '@/components/seo/SeoHead';
+import { SchemaOrg } from '@/components/seo/SchemaOrg';
 
 interface Article {
     id: number;
@@ -50,6 +52,8 @@ export default function ArticlesPublicIndex({ articles, filters }: ArticlesIndex
 
     return (
         <GuestLayout variant='minimal'>
+            <SeoHead />
+            <SchemaOrg />
             <div className="min-h-screen bg-gray-50">
                 {/* Hero Section */}
                 <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white">

@@ -8,7 +8,7 @@
 
 ## 📋 OVERVIEW
 
-Telah berhasil menghapus fitur **Inventory Management** dan **Cleaning Task Management** dari Property Management System dengan hati-hati untuk menghindari breaking changes pada fitur lainnya.
+Telah berhasil menghapus fitur **Inventory Management** dan **Cleaning Task Management** dari Property Management System website Homsjogja dengan hati-hati untuk menghindari breaking changes pada fitur lainnya.
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## 🎯 Overview
 
-Dokumen ini menjelaskan alur lengkap implementasi iPaymu Payment Gateway di Property Management System, mulai dari inisiasi pembayaran hingga verifikasi dan sinkronisasi income.
+Dokumen ini menjelaskan alur lengkap implementasi iPaymu Payment Gateway di Property Management System website Homsjogja, mulai dari inisiasi pembayaran hingga verifikasi dan sinkronisasi income.
 
 ---
 

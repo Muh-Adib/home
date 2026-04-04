@@ -1,5 +1,5 @@
 # ===========================================
-# PROPERTY MANAGEMENT SYSTEM - ENVIRONMENT VARIABLES
+# Property Management System website Homsjogja - ENVIRONMENT VARIABLES
 # ===========================================
 
 # ===========================================
@@ -7,7 +7,7 @@
 # ===========================================
 
 # Application Environment
-APP_NAME="Property Management System"
+APP_NAME="Property Management System website Homsjogja"
 APP_ENV=production
 APP_KEY=base64:your-32-character-app-key-here
 APP_DEBUG=false
@@ -60,7 +60,7 @@ MAIL_USERNAME=null
 MAIL_PASSWORD=null
 MAIL_ENCRYPTION=null
 MAIL_FROM_ADDRESS=noreply@example.com
-MAIL_FROM_NAME="Property Management System"
+MAIL_FROM_NAME="Property Management System website Homsjogja"
 
 # ===========================================
 # LOGGING CONFIGURATION

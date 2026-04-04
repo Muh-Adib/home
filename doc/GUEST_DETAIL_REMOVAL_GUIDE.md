@@ -2,7 +2,7 @@
 
 ## 📋 Overview
 
-Dokumen ini menjelaskan penghapusan fitur guest detail dari aplikasi Property Management System tanpa mengubah struktur database. Fitur guest detail telah dihapus untuk menyederhanakan proses booking dan meningkatkan user experience.
+Dokumen ini menjelaskan penghapusan fitur guest detail dari aplikasi Property Management System website Homsjogja tanpa mengubah struktur database. Fitur guest detail telah dihapus untuk menyederhanakan proses booking dan meningkatkan user experience.
 
 ---
 

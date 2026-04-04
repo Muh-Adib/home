@@ -1,11 +1,11 @@
 # AI Prompting Guide
-## Property Management System Development
+## Property Management System website Homsjogja Development
 
 ---
 
 ## 📋 OVERVIEW
 
-Dokumen ini menyediakan prompts AI yang terstruktur untuk mengembangkan Property Management System dari awal hingga akhir. Setiap prompt dirancang dengan tag dokumentasi yang tepat untuk memastikan konsistensi dan kualitas development.
+Dokumen ini menyediakan prompts AI yang terstruktur untuk mengembangkan Property Management System website Homsjogja dari awal hingga akhir. Setiap prompt dirancang dengan tag dokumentasi yang tepat untuk memastikan konsistensi dan kualitas development.
 
 ---
 
@@ -13,7 +13,7 @@ Dokumen ini menyediakan prompts AI yang terstruktur untuk mengembangkan Property
 
 ### 1.1 Environment Setup Prompt
 ```
-**CONTEXT**: Saya akan memulai pengembangan Property Management System menggunakan Laravel 12.x dan React 18+ dengan Shadcn UI.
+**CONTEXT**: Saya akan memulai pengembangan Property Management System website Homsjogja menggunakan Laravel 12.x dan React 18+ dengan Shadcn UI.
 
 **TASK**: Setup complete development environment
 

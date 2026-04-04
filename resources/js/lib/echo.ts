@@ -50,8 +50,26 @@ async function testWebSocketConnection(url: string): Promise<boolean> {
 // Enhanced Echo configuration with error handling
 function createEchoInstance(): Echo<any> | null {
     try {
+        // Skip Echo entirely if broadcasting is disabled (log/null driver)
+        // Read broadcast driver from the Inertia initial page data embedded in the DOM
+        let broadcastDriver = 'log';
+        try {
+            const pageEl = document.getElementById('app');
+            const pageData = pageEl ? JSON.parse(pageEl.dataset.page ?? '{}') : {};
+            broadcastDriver = pageData?.props?.broadcastDriver ?? 'log';
+        } catch {
+            broadcastDriver = 'log';
+        }
+
+        if (broadcastDriver === 'log' || broadcastDriver === 'null') {
+            // Silently skip — no WebSocket needed
+            return null;
+        }
+
         // Get WebSocket URL dinamis dari utility function (non-hook version)
         const wsUrl = getWebSocketUrlSafe();
+
+        console.log('🔌 Creating Echo instance with URL:', wsUrl);
 
         console.log('🔌 Creating Echo instance with URL:', wsUrl);
 

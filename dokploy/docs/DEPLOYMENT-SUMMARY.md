@@ -1,5 +1,5 @@
 # 🎉 DEPLOYMENT KONFIGURASI SELESAI
-## Property Management System - Laravel 12 + React + WebSocket
+## Property Management System website Homsjogja - Laravel 12 + React + WebSocket
 
 ---
 
@@ -229,7 +229,7 @@ curl http://localhost:6001
 
 ---
 
-**🎉 SELAMAT!** Konfigurasi deployment Nixpacks untuk Property Management System sudah selesai dan siap untuk deployment di Dokploy.
+**🎉 SELAMAT!** Konfigurasi deployment Nixpacks untuk Property Management System website Homsjogja sudah selesai dan siap untuk deployment di Dokploy.
 
 **📅 Last Updated**: 2025  
 **📝 Version**: 1.0  

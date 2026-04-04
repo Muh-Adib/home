@@ -12,6 +12,8 @@ import {
     Phone,
     MessageCircle
 } from 'lucide-react';
+import { SeoHead } from '@/components/seo/SeoHead';
+import { SchemaOrg } from '@/components/seo/SchemaOrg';
 
 export default function FAQ() {
     const [searchQuery, setSearchQuery] = useState('');
@@ -218,6 +220,8 @@ export default function FAQ() {
 
     return (
         <GuestLayout>
+            <SeoHead />
+            <SchemaOrg />
             <Head title="FAQ - Homsjogja" />
             
             <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">

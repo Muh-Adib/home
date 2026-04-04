@@ -260,17 +260,6 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
         Route::patch('bookings/{booking:booking_number}/checkout', 'checkout')->name('bookings.checkout');
         Route::get('bookings/{booking:booking_number}/whatsapp', 'sendWhatsApp')->name('bookings.whatsapp');
 
-        // Booking management routes
-        Route::get('booking-management', 'index')->name('booking-management.index');
-        Route::get('booking-management/calendar', 'calendar')->name('booking-management.calendar');
-        Route::get('booking-management/create', 'create')->name('booking-management.create');
-        Route::post('booking-management', 'store')->name('booking-management.store');
-        Route::get('booking-management/{booking:booking_number}', 'show')->name('booking-management.show');
-        Route::get('booking-management/{booking:booking_number}/edit', 'edit')->name('booking-management.edit');
-        Route::patch('booking-management/{booking:booking_number}', 'update')->name('booking-management.update');
-        Route::delete('booking-management/{booking:booking_number}', 'destroy')->name('booking-management.destroy');
-        Route::patch('booking-management/{booking:booking_number}/status', 'updateStatus')->name('booking-management.update-status');
-
         // Import/Export
         Route::get('bookings/export/download', 'export')->name('bookings.export');
         Route::post('bookings/import/preview', 'importPreview')->name('bookings.import.preview');

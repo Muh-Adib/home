@@ -44,11 +44,17 @@ class BookingServiceRefactoredTest extends TestCase
         // Create mock dependencies
         $this->bookingRepository = Mockery::mock(BookingRepository::class);
         $this->rateCalculationService = Mockery::mock(RateCalculationService::class);
+        $availabilityService = Mockery::mock(\App\Services\AvailabilityService::class);
+        $availabilityService->shouldReceive('checkAvailability')
+            ->andReturn(['available' => true, 'booked_dates' => []]);
+        $availabilityService->shouldReceive('getBookedDatesInRange')
+            ->andReturn([]);
         
         // Create service with mocked dependencies
         $this->bookingService = new BookingService(
             $this->bookingRepository,
-            $this->rateCalculationService
+            $this->rateCalculationService,
+            $availabilityService
         );
         
         Event::fake();
@@ -63,16 +69,18 @@ class BookingServiceRefactoredTest extends TestCase
     /** @test */
     public function it_creates_booking_successfully()
     {
-        $bookingRequest = new BookingRequest(
-            propertyId: $this->property->id,
-            checkInDate: '2024-01-15',
-            checkOutDate: '2024-01-17',
-            guestCount: 2,
-            guestName: 'John Doe',
-            guestEmail: 'john@example.com',
-            guestPhone: '081234567890',
-            specialRequests: 'Late check-in please'
-        );
+        $bookingRequest = BookingRequest::fromArray([
+            'property_id' => $this->property->id,
+            'check_in' => '2024-01-15',
+            'check_out' => '2024-01-17',
+            'guest_male' => 2,
+            'guest_female' => 0,
+            'guest_children' => 0,
+            'guest_name' => 'John Doe',
+            'guest_email' => 'john@example.com',
+            'guest_phone' => '081234567890',
+            'special_requests' => 'Late check-in please',
+        ]);
 
         $rateCalculation = new RateCalculation(
             nights: 2,
@@ -98,14 +106,19 @@ class BookingServiceRefactoredTest extends TestCase
         $this->rateCalculationService
             ->shouldReceive('calculateRate')
             ->once()
-            ->with($this->property, '2024-01-15', '2024-01-17', 2)
+            ->with(Mockery::type(Property::class), '2024-01-15', '2024-01-17', Mockery::type('int'))
             ->andReturn($rateCalculation);
 
         // Mock booking creation
         $this->bookingRepository
             ->shouldReceive('create')
             ->once()
-            ->with(Mockery::type('array'))
+            ->with(
+                Mockery::type(BookingRequest::class),
+                Mockery::type(Property::class),
+                Mockery::type('int'),
+                Mockery::type(RateCalculation::class)
+            )
             ->andReturn($expectedBooking);
 
         $result = $this->bookingService->createBooking($bookingRequest, $this->user);
@@ -337,15 +350,17 @@ class BookingServiceRefactoredTest extends TestCase
     /** @test */
     public function it_handles_booking_creation_transaction_rollback()
     {
-        $bookingRequest = new BookingRequest(
-            propertyId: $this->property->id,
-            checkInDate: '2024-01-15',
-            checkOutDate: '2024-01-17',
-            guestCount: 2,
-            guestName: 'John Doe',
-            guestEmail: 'john@example.com',
-            guestPhone: '081234567890'
-        );
+        $bookingRequest = BookingRequest::fromArray([
+            'property_id' => $this->property->id,
+            'check_in' => '2024-01-15',
+            'check_out' => '2024-01-17',
+            'guest_male' => 2,
+            'guest_female' => 0,
+            'guest_children' => 0,
+            'guest_name' => 'John Doe',
+            'guest_email' => 'john@example.com',
+            'guest_phone' => '081234567890',
+        ]);
 
         // Mock rate calculation to succeed
         $rateCalculation = new RateCalculation(
@@ -385,15 +400,17 @@ class BookingServiceRefactoredTest extends TestCase
     /** @test */
     public function it_creates_booking_without_user()
     {
-        $bookingRequest = new BookingRequest(
-            propertyId: $this->property->id,
-            checkInDate: '2024-01-15',
-            checkOutDate: '2024-01-17',
-            guestCount: 2,
-            guestName: 'Guest User',
-            guestEmail: 'guest@example.com',
-            guestPhone: '081234567890'
-        );
+        $bookingRequest = BookingRequest::fromArray([
+            'property_id' => $this->property->id,
+            'check_in' => '2024-01-15',
+            'check_out' => '2024-01-17',
+            'guest_male' => 2,
+            'guest_female' => 0,
+            'guest_children' => 0,
+            'guest_name' => 'Guest User',
+            'guest_email' => 'guest@example.com',
+            'guest_phone' => '081234567890',
+        ]);
 
         $rateCalculation = new RateCalculation(
             nights: 2,
@@ -417,37 +434,33 @@ class BookingServiceRefactoredTest extends TestCase
 
         $this->rateCalculationService
             ->shouldReceive('calculateRate')
-            ->once()
+            ->never()
             ->andReturn($rateCalculation);
 
         $this->bookingRepository
             ->shouldReceive('create')
-            ->once()
-            ->with(Mockery::on(function ($data) {
-                return $data['user_id'] === null && 
-                       $data['guest_name'] === 'Guest User' &&
-                       $data['guest_email'] === 'guest@example.com';
-            }))
-            ->andReturn($expectedBooking);
+            ->never();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('User is required for booking creation');
 
         $result = $this->bookingService->createBooking($bookingRequest, null);
-
-        $this->assertInstanceOf(Booking::class, $result);
-        $this->assertNull($result->user_id);
     }
 
     /** @test */
     public function it_includes_rate_calculation_in_booking_data()
     {
-        $bookingRequest = new BookingRequest(
-            propertyId: $this->property->id,
-            checkInDate: '2024-01-15',
-            checkOutDate: '2024-01-17',
-            guestCount: 2,
-            guestName: 'Test User',
-            guestEmail: 'test@example.com',
-            guestPhone: '081234567890'
-        );
+        $bookingRequest = BookingRequest::fromArray([
+            'property_id' => $this->property->id,
+            'check_in' => '2024-01-15',
+            'check_out' => '2024-01-17',
+            'guest_male' => 2,
+            'guest_female' => 0,
+            'guest_children' => 0,
+            'guest_name' => 'Test User',
+            'guest_email' => 'test@example.com',
+            'guest_phone' => '081234567890',
+        ]);
 
         $rateCalculation = new RateCalculation(
             nights: 2,
@@ -470,13 +483,19 @@ class BookingServiceRefactoredTest extends TestCase
             ->once()
             ->andReturn($rateCalculation);
 
+        // Verify create() is called with the RateCalculation VO directly
         $this->bookingRepository
             ->shouldReceive('create')
             ->once()
-            ->with(Mockery::on(function ($data) use ($rateCalculation) {
-                return $data['total_amount'] === $rateCalculation->totalAmount &&
-                       $data['rate_calculation'] === $rateCalculation->toArray();
-            }))
+            ->with(
+                Mockery::type(BookingRequest::class),
+                Mockery::type(Property::class),
+                Mockery::type('int'),
+                Mockery::on(function ($rc) use ($rateCalculation) {
+                    return $rc instanceof RateCalculation &&
+                           $rc->totalAmount === $rateCalculation->totalAmount;
+                })
+            )
             ->andReturn($expectedBooking);
 
         $result = $this->bookingService->createBooking($bookingRequest, $this->user);

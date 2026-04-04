@@ -209,9 +209,9 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
         if (requiresExtraConfirmation && !confirmDelete) {
             return;
         }
-        deleteBooking(`/admin/booking-management/${booking.booking_number}`, {
+        deleteBooking(`/admin/bookings/${booking.booking_number}`, {
             onSuccess: () => {
-                router.visit('/admin/booking-management');
+                router.visit('/admin/bookings');
             },
         });
     };

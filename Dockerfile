@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile untuk Nixpacks Deployment
-# Property Management System - Laravel 12 + React + WebSocket
+# Property Management System website Homsjogja - Laravel 12 + React + WebSocket
 # Optimized untuk Dokploy dengan Redis dan DB terpisah
 
 # 1) Build stage for frontend assets

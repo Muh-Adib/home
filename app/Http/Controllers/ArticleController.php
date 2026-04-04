@@ -444,6 +444,16 @@ class ArticleController extends Controller
                 'search' => $request->get('search'),
                 'language' => $request->get('language'),
             ],
+            'seo' => $this->seoService->forArticlesIndex(),
+            'itemListSchema' => $this->seoService->articlesIndexSchema($articles->getCollection()),
+            'breadcrumbSchema' => json_encode([
+                '@context' => 'https://schema.org',
+                '@type' => 'BreadcrumbList',
+                'itemListElement' => [
+                    ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => route('home')],
+                    ['@type' => 'ListItem', 'position' => 2, 'name' => 'Artikel', 'item' => route('articles.index')],
+                ],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);
     }
 }

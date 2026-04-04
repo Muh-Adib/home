@@ -124,15 +124,70 @@ Route::get('/', function () {
 
 // Static Pages
 Route::get('/about', function () {
-    return Inertia::render('About');
+    $seoService = app(\App\Services\SeoService::class);
+    return Inertia::render('About', [
+        'seo' => $seoService->generate([
+            'title' => 'Tentang Homsjogja - Platform Booking Penginapan Terpercaya di Yogyakarta',
+            'description' => 'Homsjogja adalah platform booking homestay, villa, dan penginapan terbaik di Yogyakarta. Kami menghubungkan wisatawan dengan penginapan berkualitas di Jogja sejak 2023.',
+            'url' => url('/about'),
+        ]),
+        'schema' => $seoService->aboutPageSchema(),
+        'breadcrumbSchema' => json_encode([
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => [
+                ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => url('/')],
+                ['@type' => 'ListItem', 'position' => 2, 'name' => 'Tentang Kami', 'item' => url('/about')],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ]);
 })->name('about');
 
 Route::get('/faq', function () {
-    return Inertia::render('FAQ');
+    $seoService = app(\App\Services\SeoService::class);
+    return Inertia::render('FAQ', [
+        'seo' => $seoService->generate([
+            'title' => 'FAQ - Pertanyaan Umum Seputar Booking Penginapan | Homsjogja',
+            'description' => 'Temukan jawaban atas pertanyaan umum seputar booking homestay, villa, dan penginapan di Yogyakarta bersama Homsjogja.',
+            'url' => url('/faq'),
+        ]),
+        'faqSchema' => $seoService->faqPageSchema(),
+        'breadcrumbSchema' => json_encode([
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => [
+                ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => url('/')],
+                ['@type' => 'ListItem', 'position' => 2, 'name' => 'FAQ', 'item' => url('/faq')],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ]);
 })->name('faq');
 
 Route::get('/support', function () {
-    return Inertia::render('Support');
+    $seoService = app(\App\Services\SeoService::class);
+    return Inertia::render('Support', [
+        'seo' => $seoService->generate([
+            'title' => 'Bantuan & Dukungan | Homsjogja',
+            'description' => 'Butuh bantuan? Tim support Homsjogja siap membantu Anda 24/7. Hubungi kami untuk pertanyaan seputar booking, pembayaran, atau penginapan di Yogyakarta.',
+            'url' => url('/support'),
+        ]),
+        'schema' => json_encode([
+            '@context' => 'https://schema.org',
+            '@type' => 'ContactPage',
+            'name' => 'Bantuan & Dukungan Homsjogja',
+            'description' => 'Halaman bantuan dan dukungan pelanggan Homsjogja',
+            'url' => url('/support'),
+            'mainEntity' => [
+                '@type' => 'Organization',
+                'name' => 'Homsjogja',
+                'contactPoint' => [
+                    '@type' => 'ContactPoint',
+                    'contactType' => 'Customer Support',
+                    'availableLanguage' => ['Indonesian', 'English'],
+                ],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ]);
 })->name('support');
 
 // Legal Pages (specific slugs)

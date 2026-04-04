@@ -1,4 +1,4 @@
-# Functional Requirements Document (FRD) - Property Management System
+# Functional Requirements Document (FRD) - Property Management System website Homsjogja
 
 ## 1. Pendahuluan
 
@@ -8,7 +8,7 @@ Manajemen properti seperti homestay dan villa menghadapi tantangan dalam mengelo
 
 ### 1.2 Tujuan Dokumen
 
-Dokumen ini mendefinisikan kebutuhan fungsional dari sistem Property Management System (PMS) yang komprehensif untuk mengelola multiple properti homestay/villa dalam satu platform terintegrasi.
+Dokumen ini mendefinisikan kebutuhan fungsional dari sistem Property Management System website Homsjogja (PMS) yang komprehensif untuk mengelola multiple properti homestay/villa dalam satu platform terintegrasi.
 
 ### 1.3 Ruang Lingkup
 
@@ -25,7 +25,7 @@ Aplikasi akan mencakup:
 ### 1.4 Definisi Istilah
 
 * **OTA**: Online Travel Agent (Booking.com, Agoda, Traveloka, dll)
-* **PMS**: Property Management System
+* **PMS**: Property Management System website Homsjogja
 * **ADR**: Average Daily Rate
 * **RevPAR**: Revenue Per Available Room
 * **Channel Manager**: Sistem untuk sinkronisasi inventory dan rate ke multiple OTA
@@ -501,7 +501,7 @@ Search: Elasticsearch (optional)
 
 **OTA (Online Travel Agent)**: Third-party booking websites like Booking.com
 
-**PMS (Property Management System)**: Software for managing hotel/homestay operations
+**PMS (Property Management System website Homsjogja)**: Software for managing hotel/homestay operations
 
 ---
 

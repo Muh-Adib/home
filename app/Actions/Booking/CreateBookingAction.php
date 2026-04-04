@@ -10,7 +10,7 @@ use App\Models\Booking;
 use App\Models\Property;
 use App\Models\User;
 use App\Services\BookingService;
-use App\Services\BookingServiceSyncService;
+use App\Services\BookingExtraServiceSyncService;
 use App\Services\RateOverrideLogService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +24,7 @@ class CreateBookingAction
     public function __construct(
         private EnsureGuestUserAction $ensureUserAction,
         private BookingService $bookingService,
-        private BookingServiceSyncService $serviceSyncService,
+        private BookingExtraServiceSyncService $serviceSyncService,
         private RateOverrideLogService $rateOverrideLogService
     ) {
     }

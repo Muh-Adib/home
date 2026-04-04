@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # 🚀 STARTUP SCRIPT
-# Property Management System - Laravel 12 + React + WebSocket
+# Property Management System website Homsjogja - Laravel 12 + React + WebSocket
 
 set -e
 
-echo "🚀 Starting Property Management System..."
+echo "🚀 Starting Property Management System website Homsjogja..."
 
 # Rely on Dokploy-provided environment variables (do not create or load .env)
 echo "🌍 Using Dokploy environment variables (no .env creation)"

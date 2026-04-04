@@ -539,8 +539,8 @@ export default function BookingForm({
             forceFormData: mode === 'create', // Needed for file upload in create
             onSuccess: () => {
                 const targetRoute = mode === 'create'
-                    ? route('admin.booking-management.index')
-                    : route('admin.booking-management.show', bookingNumber);
+                    ? route('admin.bookings.index')
+                    : route('admin.bookings.show', bookingNumber);
                 router.visit(targetRoute);
             },
             onError: (errors: any) => {
@@ -568,10 +568,10 @@ export default function BookingForm({
             if (showPaymentForm) {
                 // Ensure payment fields are present
             }
-            router.post(route('admin.booking-management.store'), formData, submitOptions);
+            router.post(route('admin.bookings.store'), formData, submitOptions);
         } else {
             // Edit mode (Patch)
-            router.patch(route('admin.booking-management.update', bookingNumber), formData, submitOptions);
+            router.patch(route('admin.bookings.update', bookingNumber), formData, submitOptions);
         }
     };
 

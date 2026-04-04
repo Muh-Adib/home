@@ -1,19 +1,19 @@
 # System Requirements Document (SRD)
-## Property Management System
+## Property Management System website Homsjogja
 
 ---
 
 ## 1. OVERVIEW
 
 ### 1.1 Project Information
-- **Project Name**: Property Management System (PMS)
+- **Project Name**: Property Management System website Homsjogja (PMS)
 - **Version**: 1.0
 - **Date**: 2024
 - **Team**: Development Team
 - **Document Type**: System Requirements Document
 
 ### 1.2 Purpose
-Dokumen ini mendefinisikan requirements teknis dan fungsional untuk pengembangan Property Management System yang akan mengelola villa/homestay secara komprehensif.
+Dokumen ini mendefinisikan requirements teknis dan fungsional untuk pengembangan Property Management System website Homsjogja yang akan mengelola villa/homestay secara komprehensif.
 
 ---
 

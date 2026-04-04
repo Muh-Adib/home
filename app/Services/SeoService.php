@@ -98,60 +98,32 @@ class SeoService
 
     /**
      * Generate Schema.org for property
-     * Uses LodgingBusiness/VacationRental as primary type to match Schema.org best practices for accommodations.
+     * Uses VacationRental as primary type with all GSC-required fields:
+     * identifier, containsPlace, review, additionalType, aggregateRating
      */
     public function propertySchema($property): string
     {
         $description = $this->stripMarkdown($property->description);
         $url = route('properties.show', $property->slug);
 
-        // Map internal property type to Schema.org type method
-        // Using vacationRental for most types as they are rented as a whole unit
-        $schemaMethod = match (strtolower($property->type ?? 'homestay')) {
-            'hotel' => 'hotel',
-            default => 'vacationRental',
+        // Map property type to Schema.org @type and additionalType URL
+        $typeMap = match (strtolower($property->type ?? 'homestay')) {
+            'hotel'     => ['type' => 'Hotel',         'additionalType' => 'https://schema.org/Hotel'],
+            'villa'     => ['type' => 'VacationRental', 'additionalType' => 'https://schema.org/House'],
+            'apartment' => ['type' => 'Apartment',     'additionalType' => 'https://schema.org/Apartment'],
+            'guesthouse'=> ['type' => 'GuestHouse',    'additionalType' => 'https://schema.org/BedAndBreakfast'],
+            default     => ['type' => 'VacationRental', 'additionalType' => 'https://schema.org/LodgingBusiness'],
         };
 
-        // Collect up to 5 images for the rich snippet requirements
+        // Collect up to 8 images
         $imageUrls = collect();
         if ($property->relationLoaded('media') && $property->media->isNotEmpty()) {
-            $imageUrls = $property->media->take(5)->pluck('url');
+            $imageUrls = $property->media->take(8)->pluck('url');
         } else {
             $imageUrls->push(asset('og-image.jpg'));
         }
 
-        // Create the schema object dynamically using Spatie factory
-        /** @var \Spatie\SchemaOrg\VacationRental $schema */
-        $schema = Schema::{$schemaMethod}()
-            ->name($property->name)
-            ->description($description)
-            ->image($imageUrls->toArray())
-            ->url($url)
-            ->identifier((string) $property->id)
-            ->brand(Schema::brand()->name('Homsjogja'))
-            ->priceRange('IDR ' . number_format($property->base_rate, 0, ',', '.'))
-            ->setProperty('currenciesAccepted', 'IDR')
-            ->setProperty('paymentAccepted', 'Cash, Credit Card, Bank Transfer')
-            ->setProperty('availableLanguage', ['id', 'en'])
-            ->address(
-                Schema::postalAddress()
-                    ->streetAddress($property->address ?? 'Yogyakarta')
-                    ->addressLocality('Yogyakarta')
-                    ->addressRegion('DI Yogyakarta')
-                    ->addressCountry('ID')
-            )
-            ->checkinTime($property->check_in_time?->format('H:i') ?? '14:00')
-            ->checkoutTime($property->check_out_time?->format('H:i') ?? '12:00')
-            ->numberOfRooms($property->bedroom_count)
-            ->setProperty('numberOfBedrooms', $property->bedroom_count)
-            ->numberOfBathroomsTotal($property->bathroom_count)
-            ->occupancy(
-                Schema::quantitativeValue()
-                    ->value($property->capacity_max)
-                    ->unitText('Person')
-            );
-
-        // Safely resolve amenities (Handle conflict between 'amenities' attribute and relationship)
+        // Safely resolve amenities
         $amenitiesList = collect();
         if ($property->relationLoaded('amenities')) {
             $amenitiesList = $property->getRelation('amenities');
@@ -159,46 +131,142 @@ class SeoService
             $amenitiesList = collect($property->amenities);
         }
 
-        // Add amenities to schema
-        if ($amenitiesList->isNotEmpty()) {
-            $schema->amenityFeature(
-                $amenitiesList->map(function ($amenity) {
-                    // Handle case where amenity is just a string (if from JSON attribute) or Model
-                    $name = is_string($amenity) ? $amenity : ($amenity->name ?? null);
-                    if ($name) {
-                        return Schema::locationFeatureSpecification()
-                            ->name($name)
-                            ->value(true);
-                    }
-                    return null;
-                })->filter()->values()->toArray()
-            );
-        }
+        // Build amenityFeature list
+        $amenityFeatures = $amenitiesList->map(function ($amenity) {
+            $name = is_string($amenity) ? $amenity : ($amenity->name ?? null);
+            return $name ? [
+                '@type' => 'LocationFeatureSpecification',
+                'name' => $name,
+                'value' => true,
+            ] : null;
+        })->filter()->values()->toArray();
 
-        // Check for pets allowed in amenities
+        // Pets allowed check
         $petsAllowed = $amenitiesList->contains(function ($a) {
             $name = is_string($a) ? $a : ($a->name ?? '');
             return str_contains(strtolower($name), 'pet') || str_contains(strtolower($name), 'hewan');
         });
-        $schema->petsAllowed($petsAllowed);
 
-        // Add GeoCoordinates if available
-        if ($property->lat && $property->lng) {
-            $schema->geo(
-                Schema::geoCoordinates()
-                    ->latitude($property->lat)
-                    ->longitude($property->lng)
-            );
-            $schema->setProperty('hasMap', "https://www.google.com/maps/search/?api=1&query={$property->lat},{$property->lng}");
+        // Build containsPlace — rooms as Place entities
+        $containsPlace = [];
+        if ($property->bedroom_count > 0) {
+            for ($i = 1; $i <= min($property->bedroom_count, 5); $i++) {
+                $containsPlace[] = [
+                    '@type' => 'Room',
+                    'name' => "Kamar Tidur {$i}",
+                    'amenityFeature' => [
+                        ['@type' => 'LocationFeatureSpecification', 'name' => 'Tempat Tidur', 'value' => true],
+                    ],
+                ];
+            }
+        }
+        if ($property->bathroom_count > 0) {
+            $containsPlace[] = [
+                '@type' => 'Room',
+                'name' => 'Kamar Mandi',
+                'amenityFeature' => [
+                    ['@type' => 'LocationFeatureSpecification', 'name' => 'Kamar Mandi Dalam', 'value' => true],
+                ],
+            ];
         }
 
-        // Add Rating
-        if ($property->rating_avg) {
-            $schema->aggregateRating(
-                Schema::aggregateRating()
-                    ->ratingValue($property->rating_avg)
-                    ->reviewCount($property->approved_reviews_count ?? 1)
-            );
+        // Build the schema array manually for full control over GSC-required fields
+        $schema = [
+            '@context' => 'https://schema.org',
+            '@type' => $typeMap['type'],
+            // GSC required: additionalType
+            'additionalType' => $typeMap['additionalType'],
+            // GSC required: identifier (use canonical URL as primary identifier)
+            'identifier' => [
+                '@type' => 'PropertyValue',
+                'name' => 'url',
+                'value' => $url,
+            ],
+            'name' => $property->name,
+            'description' => $description,
+            'image' => $imageUrls->toArray(),
+            'url' => $url,
+            'brand' => ['@type' => 'Brand', 'name' => 'Homsjogja'],
+            'priceRange' => 'IDR ' . number_format($property->base_rate, 0, ',', '.') . ' - IDR ' . number_format($property->base_rate * 2, 0, ',', '.'),
+            'currenciesAccepted' => 'IDR',
+            'paymentAccepted' => 'Cash, Credit Card, Bank Transfer',
+            'availableLanguage' => ['id', 'en'],
+            'address' => [
+                '@type' => 'PostalAddress',
+                'streetAddress' => $property->address ?? 'Yogyakarta',
+                'addressLocality' => 'Yogyakarta',
+                'addressRegion' => 'DI Yogyakarta',
+                'addressCountry' => 'ID',
+                'postalCode' => '55000',
+            ],
+            'checkinTime' => $property->check_in_time?->format('H:i') ?? '14:00',
+            'checkoutTime' => $property->check_out_time?->format('H:i') ?? '12:00',
+            'numberOfRooms' => $property->bedroom_count,
+            'numberOfBedrooms' => $property->bedroom_count,
+            'numberOfBathroomsTotal' => $property->bathroom_count,
+            'occupancy' => [
+                '@type' => 'QuantitativeValue',
+                'value' => $property->capacity_max,
+                'unitText' => 'Person',
+            ],
+            'petsAllowed' => $petsAllowed,
+        ];
+
+        // GSC required: containsPlace
+        if (!empty($containsPlace)) {
+            $schema['containsPlace'] = $containsPlace;
+        }
+
+        // Amenity features
+        if (!empty($amenityFeatures)) {
+            $schema['amenityFeature'] = $amenityFeatures;
+        }
+
+        // Geo coordinates
+        if ($property->lat && $property->lng) {
+            $schema['geo'] = [
+                '@type' => 'GeoCoordinates',
+                'latitude' => (float) $property->lat,
+                'longitude' => (float) $property->lng,
+            ];
+            $schema['hasMap'] = "https://www.google.com/maps/search/?api=1&query={$property->lat},{$property->lng}";
+        }
+
+        // GSC required: aggregateRating with bestRating and worstRating
+        if ($property->rating_avg && ($property->approved_reviews_count ?? 0) > 0) {
+            $schema['aggregateRating'] = [
+                '@type' => 'AggregateRating',
+                'ratingValue' => round((float) $property->rating_avg, 1),
+                'reviewCount' => (int) $property->approved_reviews_count,
+                'bestRating' => 5,
+                'worstRating' => 1,
+            ];
+        }
+
+        // GSC required: review — include up to 3 approved reviews if loaded
+        if ($property->relationLoaded('approvedReviews') && $property->approvedReviews->isNotEmpty()) {
+            $schema['review'] = $property->approvedReviews->take(3)->map(function ($review) use ($property) {
+                $reviewSchema = [
+                    '@type' => 'Review',
+                    'reviewRating' => [
+                        '@type' => 'Rating',
+                        'ratingValue' => (int) $review->rating,
+                        'bestRating' => 5,
+                        'worstRating' => 1,
+                    ],
+                    'author' => [
+                        '@type' => 'Person',
+                        'name' => $review->reviewer_name ?? 'Tamu',
+                    ],
+                    'reviewBody' => $this->stripMarkdown($review->comment ?? ''),
+                    'datePublished' => $review->created_at?->toIso8601String(),
+                    'itemReviewed' => [
+                        '@type' => 'LodgingBusiness',
+                        'name' => $property->name,
+                    ],
+                ];
+                return $reviewSchema;
+            })->toArray();
         }
 
         return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -511,9 +579,9 @@ class SeoService
     public function forArticle($article, array $extra = []): array
     {
         $title = $article->meta_title ?? $article->title;
-        $description = $this->stripMarkdown($article->meta_description ?? $article->excerpt ?? Str::limit(strip_tags($article->content), 155));
+        $description = $this->stripMarkdown($article->meta_description ?? $article->excerpt ?? Str::limit(strip_tags($article->content ?? ''), 155));
         $image = $article->featured_image
-            ? asset('storage/' . $article->featured_image)
+            ? (str_starts_with($article->featured_image, 'http') ? $article->featured_image : asset('storage/' . $article->featured_image))
             : asset('og-image.jpg');
         $url = route('articles.show', $article->slug);
 
@@ -528,40 +596,197 @@ class SeoService
     }
 
     /**
-     * Generate Schema.org for article
+     * Generate Schema.org for article (BlogPosting / NewsArticle)
      */
     public function articleSchema($article): string
     {
-        $schema = Schema::article()
-            ->headline($article->meta_title ?? $article->title)
-            ->description($this->stripMarkdown($article->meta_description ?? $article->excerpt ?? Str::limit(strip_tags($article->content), 155)))
-            ->image($article->featured_image
-                ? asset('storage/' . $article->featured_image)
-                : asset('images/default-article.jpg'))
-            ->datePublished($article->published_at?->toIso8601String())
-            ->dateModified($article->updated_at->toIso8601String())
-            ->author(
-                Schema::person()
-                    ->name($article->author->name)
-            )
-            ->publisher(
-                Schema::organization()
-                    ->name(config('app.name'))
-                    ->logo(
-                        Schema::imageObject()
-                            ->url(asset('images/logo.png'))
-                    )
-            )
-            ->mainEntityOfPage(
-                Schema::webPage()
-                    ->identifier(route('articles.show', $article->slug))
-            );
+        $type = ($article->language ?? 'id') === 'id' ? 'BlogPosting' : 'NewsArticle';
+        $url = route('articles.show', $article->slug);
+        $image = $article->featured_image
+            ? (str_starts_with($article->featured_image, 'http') ? $article->featured_image : asset('storage/' . $article->featured_image))
+            : asset('og-image.jpg');
 
-        if ($article->seo_keywords) {
-            $schema->keywords(implode(', ', $article->seo_keywords));
+        $schema = [
+            '@context' => 'https://schema.org',
+            '@type' => $type,
+            'headline' => $article->title,
+            'description' => $this->stripMarkdown($article->excerpt ?? Str::limit(strip_tags($article->content ?? ''), 155)),
+            'image' => $image,
+            'url' => $url,
+            'datePublished' => $article->published_at?->toIso8601String(),
+            'dateModified' => $article->updated_at?->toIso8601String(),
+            'author' => [
+                '@type' => 'Person',
+                'name' => $article->author?->name ?? 'Homsjogja',
+            ],
+            'publisher' => [
+                '@type' => 'Organization',
+                'name' => 'Homsjogja',
+                'logo' => ['@type' => 'ImageObject', 'url' => asset('logo.svg')],
+            ],
+            'mainEntityOfPage' => ['@type' => 'WebPage', '@id' => $url],
+            'inLanguage' => ($article->language ?? 'id') === 'id' ? 'id-ID' : 'en-US',
+        ];
+
+        if (!empty($article->view_count)) {
+            $schema['interactionStatistic'] = [
+                '@type' => 'InteractionCounter',
+                'interactionType' => 'https://schema.org/ReadAction',
+                'userInteractionCount' => $article->view_count,
+            ];
+        }
+
+        if (!empty($article->seo_keywords)) {
+            $keywords = is_array($article->seo_keywords) ? implode(', ', $article->seo_keywords) : $article->seo_keywords;
+            $schema['keywords'] = $keywords;
         }
 
         return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * Generate ItemList schema for Properties index page
+     */
+    public function propertiesIndexSchema($properties): string
+    {
+        $items = collect($properties)->take(10)->values()->map(function ($property, $index) {
+            return [
+                '@type' => 'ListItem',
+                'position' => $index + 1,
+                'url' => route('properties.show', $property->slug),
+                'name' => $property->name,
+                'description' => $this->stripMarkdown(Str::limit($property->description, 100)),
+                'image' => $property->media->first()?->url ?? asset('og-image.jpg'),
+            ];
+        })->toArray();
+
+        $schema = [
+            '@context' => 'https://schema.org',
+            '@type' => 'ItemList',
+            'name' => 'Daftar Homestay & Penginapan di Yogyakarta',
+            'description' => 'Daftar lengkap homestay, villa, dan penginapan terbaik di Yogyakarta',
+            'url' => route('properties.index'),
+            'numberOfItems' => count($items),
+            'itemListElement' => $items,
+        ];
+
+        return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * Generate ItemList schema for Articles index page
+     */
+    public function articlesIndexSchema($articles): string
+    {
+        $items = collect($articles)->take(10)->values()->map(function ($article, $index) {
+            $image = $article->featured_image
+                ? (str_starts_with($article->featured_image, 'http') ? $article->featured_image : asset('storage/' . $article->featured_image))
+                : asset('og-image.jpg');
+
+            return [
+                '@type' => 'ListItem',
+                'position' => $index + 1,
+                'url' => route('articles.show', $article->slug),
+                'name' => $article->title,
+                'image' => $image,
+            ];
+        })->toArray();
+
+        $schema = [
+            '@context' => 'https://schema.org',
+            '@type' => 'ItemList',
+            'name' => 'Artikel & Panduan Wisata Yogyakarta',
+            'description' => 'Kumpulan artikel, tips, dan panduan menginap di Yogyakarta dari Homsjogja',
+            'url' => route('articles.index'),
+            'numberOfItems' => count($items),
+            'itemListElement' => $items,
+        ];
+
+        return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * Generate SEO data for articles index
+     */
+    public function forArticlesIndex(): array
+    {
+        return $this->generate([
+            'title' => 'Artikel & Panduan Wisata Yogyakarta | Homsjogja',
+            'description' => 'Baca artikel, tips menginap, dan panduan wisata Yogyakarta dari Homsjogja. Temukan rekomendasi homestay, villa, dan penginapan terbaik di Jogja.',
+            'url' => route('articles.index'),
+        ]);
+    }
+
+    /**
+     * Generate AboutPage schema
+     */
+    public function aboutPageSchema(): string
+    {
+        $schema = [
+            '@context' => 'https://schema.org',
+            '@type' => 'AboutPage',
+            'name' => 'Tentang Homsjogja',
+            'description' => 'Homsjogja adalah platform booking homestay, villa, dan penginapan terbaik di Yogyakarta. Kami menghubungkan wisatawan dengan penginapan berkualitas di Jogja.',
+            'url' => url('/about'),
+            'mainEntity' => [
+                '@type' => 'Organization',
+                'name' => 'Homsjogja',
+                'url' => config('app.url'),
+                'logo' => asset('logo.svg'),
+                'description' => 'Platform booking penginapan terpercaya di Yogyakarta',
+                'foundingLocation' => [
+                    '@type' => 'Place',
+                    'name' => 'Yogyakarta, Indonesia',
+                ],
+                'areaServed' => [
+                    '@type' => 'City',
+                    'name' => 'Yogyakarta',
+                    'alternateName' => 'Jogja',
+                ],
+                'contactPoint' => [
+                    '@type' => 'ContactPoint',
+                    'contactType' => 'Customer Service',
+                    'availableLanguage' => ['Indonesian', 'English'],
+                ],
+            ],
+        ];
+
+        return json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * Generate FAQPage schema for the /faq route
+     */
+    public function faqPageSchema(): string
+    {
+        $faqs = [
+            [
+                'question' => 'Bagaimana cara booking penginapan di Homsjogja?',
+                'answer' => 'Pilih properti yang Anda inginkan, tentukan tanggal check-in dan check-out, masukkan jumlah tamu, lalu klik "Booking Sekarang". Ikuti proses pembayaran dan konfirmasi akan dikirim ke email Anda.',
+            ],
+            [
+                'question' => 'Apa metode pembayaran yang tersedia?',
+                'answer' => 'Homsjogja menerima pembayaran melalui transfer bank, kartu kredit/debit, dan dompet digital. Semua transaksi diproses dengan aman.',
+            ],
+            [
+                'question' => 'Apakah bisa cancel booking?',
+                'answer' => 'Kebijakan pembatalan tergantung pada properti yang dipilih. Silakan baca kebijakan refund di halaman detail properti sebelum melakukan booking.',
+            ],
+            [
+                'question' => 'Berapa harga rata-rata penginapan di Homsjogja?',
+                'answer' => 'Harga penginapan di Homsjogja mulai dari Rp 150.000 per malam untuk homestay, hingga Rp 1.000.000+ per malam untuk villa premium. Harga bervariasi tergantung tipe properti, fasilitas, dan musim.',
+            ],
+            [
+                'question' => 'Apakah penginapan di Homsjogja cocok untuk keluarga?',
+                'answer' => 'Ya, sebagian besar properti di Homsjogja ramah keluarga dengan kapasitas hingga 10-20 orang. Tersedia fasilitas seperti dapur, ruang keluarga, dan area bermain.',
+            ],
+            [
+                'question' => 'Dimana lokasi penginapan Homsjogja?',
+                'answer' => 'Properti Homsjogja tersebar di berbagai lokasi strategis di Yogyakarta, termasuk dekat Malioboro, Prambanan, Kaliurang, dan kawasan wisata lainnya.',
+            ],
+        ];
+
+        return $this->faqSchema($faqs);
     }
 
     /**

@@ -1,5 +1,5 @@
 # UI/UX Guidelines & Design System
-## Property Management System
+## Property Management System website Homsjogja
 
 ---
 
@@ -757,6 +757,6 @@ const BookingForm = lazy(() => import('./BookingForm'));
 ---
 
 **UI/UX Guidelines Version**: 1.0  
-**Design System**: Property Management System  
+**Design System**: Property Management System website Homsjogja  
 **Last Updated**: 2025  
 **Framework**: React + Tailwind CSS 

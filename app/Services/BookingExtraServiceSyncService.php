@@ -15,7 +15,7 @@ use App\Models\BookingService;
  * - Menghitung total services amount
  * - Update/replace existing services
  */
-class BookingServiceSyncService
+class BookingExtraServiceSyncService
 {
     /**
      * Sync booking services and return total amount.
