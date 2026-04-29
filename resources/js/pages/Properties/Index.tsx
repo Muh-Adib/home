@@ -119,7 +119,7 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
         { value: 'name', label: t('properties.sort.name') },
     ];
 
-    const amenityCategories = amenities.reduce((acc, amenity) => {
+    const amenityCategories = (Array.isArray(amenities) ? amenities : []).reduce((acc, amenity) => {
         if (!acc[amenity.category]) {
             acc[amenity.category] = [];
         }

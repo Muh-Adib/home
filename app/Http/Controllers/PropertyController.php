@@ -139,7 +139,7 @@ class PropertyController extends Controller
 
         // Get filter options (Cached)
         $amenities = Cache::remember('active_amenities_ordered', 86400, function () {
-            return Amenity::active()->ordered()->get();
+            return Amenity::active()->ordered()->get()->toArray();
         });
 
         // Cache SEO for Properties Index
