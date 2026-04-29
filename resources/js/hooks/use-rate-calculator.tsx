@@ -259,7 +259,7 @@ export function useRateCalculator(options: UseRateCalculatorOptions = {}) {
                 guestCount: request.guestCount || 2
             });
 
-            const data = await apiPost<any>(`/properties/${request.propertySlug}/calculate-rate`, {
+            const data = await apiPost<any>(`/api/properties/${request.propertySlug}/calculate-rate`, {
                 check_in: request.checkIn,
                 check_out: request.checkOut,
                 guest_count: request.guestCount || 2,

@@ -227,7 +227,7 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
             }
 
             const result = await apiPost<{ success: boolean; calculation?: RateCalculation }>(
-                `/properties/${property.slug}/calculate-rate`,
+                `/api/properties/${property.slug}/calculate-rate`,
                 {
                     check_in: data.check_in,
                     check_out: data.check_out,

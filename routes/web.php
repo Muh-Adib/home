@@ -179,6 +179,8 @@ Route::get(
 Route::prefix('api')->name('api.')->group(function () {
     Route::get('properties/{property:slug}/calculate-rate', [BookingController::class, 'calculateRate'])
         ->name('properties.calculate-rate');
+    Route::post('properties/{property:slug}/calculate-rate', [BookingController::class, 'calculateRate'])
+        ->name('properties.calculate-rate.post');
     Route::get('properties/{property:slug}/availability', [BookingController::class, 'getAvailability'])
         ->name('properties.availability');
     Route::get('properties/{property:slug}/availability-and-rates', [BookingController::class, 'getAvailabilityAndRates'])
