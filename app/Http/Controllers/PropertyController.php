@@ -149,7 +149,7 @@ class PropertyController extends Controller
 
         return Inertia::render('Properties/Index', [
             'properties' => $properties,
-            'amenities' => $amenities,
+            'amenities' => array_values((array) $amenities), // ensure plain indexed array
             'filters' => [
                 'search' => $request->input('search'),
                 'amenities' => $request->input('amenities'),
@@ -183,9 +183,9 @@ class PropertyController extends Controller
     {
         // Cache the relations load for 1 hour to prevent DB hits on refresh
         $cacheKey = "property_show_v2_{$property->id}_relations";
-        /** @var Property $property */
-        $property = Cache::remember($cacheKey, 3600, function () use ($property) {
-            return $property->load([
+        /** @var array $propertyData */
+        $propertyData = Cache::remember($cacheKey, 3600, function () use ($property) {
+            $loaded = $property->load([
                 'owner',
                 'amenities' => function ($query) {
                     $query->where('property_amenities.is_available', true);
@@ -202,7 +202,25 @@ class PropertyController extends Controller
                 },
             ])->loadCount('approvedReviews')
                 ->loadAvg('approvedReviews as rating_avg', 'rating');
+
+            // Serialize to plain array immediately — never cache Eloquent models
+            return $loaded->toArray();
         });
+
+        // Re-hydrate a fresh model instance with the cached plain data
+        // so downstream code (rate calculation, etc.) still works with the model
+        $property->fill(collect($propertyData)->except([
+            'owner', 'amenities', 'media', 'seasonal_rates', 'approved_reviews',
+        ])->toArray());
+
+        // Attach serialized relations as plain arrays on the model
+        $property->setRelation('owner', $propertyData['owner'] ?? null);
+        $property->setRelation('amenities', collect($propertyData['amenities'] ?? []));
+        $property->setRelation('media', collect($propertyData['media'] ?? []));
+        $property->setRelation('seasonalRates', collect($propertyData['seasonal_rates'] ?? []));
+        $property->setRelation('approvedReviews', collect($propertyData['approved_reviews'] ?? []));
+        $property->approved_reviews_count = $propertyData['approved_reviews_count'] ?? 0;
+        $property->rating_avg = $propertyData['rating_avg'] ?? null;
 
         // Get search parameters
         $checkIn = $request->input('check_in') ?: today()->toDateString();
@@ -320,8 +338,8 @@ class PropertyController extends Controller
         });
 
         return Inertia::render('Properties/Show', [
-            'property' => $property,
-            'similarProperties' => $similarProperties,
+            'property' => $property->toArray(),
+            'similarProperties' => $similarProperties->toArray(),
             'searchParams' => [
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
