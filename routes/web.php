@@ -34,12 +34,7 @@ use Illuminate\Support\Facades\Route;
 | Instructs search engines to drop these URLs from index.
 */
 
-// Specific moved/deleted properties
-Route::get('/properties/{oldSlug}', function () {
-    abort(410);
-})->whereIn('oldSlug', [
-    'abrenara', 'pavilo-b', 'sunjava-sunset', 'villa-cubic', 'arayya', 'sunjava-sunrise',
-]);
+
 
 // Legacy prefixes
 Route::get('/{legacyPrefix}/{any?}', function () {
