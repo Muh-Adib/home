@@ -182,83 +182,64 @@ class PropertyController extends Controller
      */
     public function show(Request $request, Property $property): Response
     {
-        // Cache the relations load for 1 hour to prevent DB hits on refresh
-        $cacheKey = "property_show_v2_{$property->id}_relations";
-        /** @var array $propertyData */
-        $propertyData = Cache::remember($cacheKey, 3600, function () use ($property) {
-            $loaded = $property->load([
-                'owner',
-                'amenities' => function ($query) {
-                    $query->where('property_amenities.is_available', true);
-                },
-                'media' => function ($query) {
-                    $query->orderBy('display_order');
-                },
-                'seasonalRates' => function ($query) {
-                    $query->where('is_active', true)
-                        ->orderBy('priority', 'desc');
-                },
-                'approvedReviews' => function ($query) {
-                    $query->latest()->limit(3);
-                },
-            ])->loadCount('approvedReviews')
-                ->loadAvg('approvedReviews as rating_avg', 'rating');
-
-            // Serialize to plain array immediately — never cache Eloquent models
-            return $loaded->toArray();
-        });
-
-        // Re-hydrate a fresh model instance with the cached plain data
-        // so downstream code (rate calculation, etc.) still works with the model
-        $property->fill(collect($propertyData)->except([
-            'owner', 'amenities', 'media', 'seasonal_rates', 'approved_reviews',
-        ])->toArray());
-
-        // Attach serialized relations as plain arrays on the model
-        $property->setRelation('owner', $propertyData['owner'] ?? null);
-        $property->setRelation('amenities', collect($propertyData['amenities'] ?? []));
-        $property->setRelation('media', collect($propertyData['media'] ?? []));
-        $property->setRelation('seasonalRates', collect($propertyData['seasonal_rates'] ?? []));
-        $property->setRelation('approvedReviews', collect($propertyData['approved_reviews'] ?? []));
-        $property->approved_reviews_count = $propertyData['approved_reviews_count'] ?? 0;
-        $property->rating_avg = $propertyData['rating_avg'] ?? null;
+        try {
+        // Load relations fresh — no caching of Eloquent models
+        $property->load([
+            'owner',
+            'amenities' => function ($query) {
+                $query->where('property_amenities.is_available', true);
+            },
+            'media' => function ($query) {
+                $query->orderBy('display_order');
+            },
+            'seasonalRates' => function ($query) {
+                $query->where('is_active', true)
+                    ->orderBy('priority', 'desc');
+            },
+            'approvedReviews' => function ($query) {
+                $query->latest()->limit(3);
+            },
+        ])->loadCount('approvedReviews')
+            ->loadAvg('approvedReviews as rating_avg', 'rating');
 
         // Get search parameters
         $checkIn = $request->input('check_in') ?: today()->toDateString();
-        $checkOut = $request->input('check_out') ?: today()->addDays($property->min_stay_weekday)->toDateString();
-        $guestCount = $request->input('guests', 2);
+        $checkOut = $request->input('check_out') ?: today()->addDays($property->min_stay_weekday ?? 1)->toDateString();
+        $guestCount = (int) $request->input('guests', 2);
 
-        // Pre-load 3-month availability and rates data
+        // Pre-load 3-month availability and rates data (safe to cache — returns plain array)
         $startDate = today()->toDateString();
         $endDate = today()->addMonths(3)->toDateString();
 
-        // Use single source of truth for availability and rates (Cached)
         $availCacheKey = "property_v2_{$property->id}_avail_{$startDate}_{$endDate}";
         $availabilityData = Cache::remember($availCacheKey, 3600, function () use ($property, $startDate, $endDate) {
             return $this->availabilityService->getAvailabilityData($property, $startDate, $endDate);
         });
 
-        // Mapping for backward compatibility with frontend if necessary
         $availabilityAndRates = array_merge($availabilityData, [
             'guest_count' => $guestCount,
-            'property_info' => $availabilityData['property'],
-            'rates' => $availabilityData['availability_data']['rates'],
+            'property_info' => $availabilityData['property'] ?? [],
+            'rates' => $availabilityData['availability_data']['rates'] ?? [],
         ]);
 
-        // Calculate current rate if dates are provided menggunakan RateCalculationService
+        // Calculate current rate
         if ($checkIn && $checkOut) {
             try {
                 $rateCalculation = $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount);
+                $nights = max(1, $rateCalculation->nights);
                 $rateCalculationArray = $rateCalculation->toArray();
                 $property->current_rate_calculation = $rateCalculationArray;
                 $property->current_total_rate = $rateCalculation->totalAmount;
-                $property->current_rate_per_night = $rateCalculation->totalAmount / $rateCalculation->nights;
+                $property->current_rate_per_night = $rateCalculation->totalAmount / $nights;
                 $property->formatted_current_rate = 'Rp '.number_format($property->current_rate_per_night, 0, ',', '.');
                 $property->has_seasonal_rate = $rateCalculation->seasonalPremium > 0;
                 $property->seasonal_rate_info = $rateCalculation->breakdown['rate_breakdown']['seasonal_rates_applied'] ?? [];
                 $property->rate_breakdown = $rateCalculationArray;
-            } catch (\Exception $e) {
-                // Fallback to base rate if calculation fails
+            } catch (\Throwable $e) {
+                Log::warning('Rate calculation failed for property show', [
+                    'property_id' => $property->id,
+                    'error' => $e->getMessage(),
+                ]);
                 $property->current_total_rate = $property->base_rate;
                 $property->current_rate_per_night = $property->base_rate;
                 $property->formatted_current_rate = $property->formatted_base_rate;
@@ -266,19 +247,16 @@ class PropertyController extends Controller
                 $property->seasonal_rate_info = [];
             }
         } else {
-            // Get default seasonal rate info for display
             if ($property->seasonalRates->count() > 0) {
                 $property->has_seasonal_rate = true;
-                $property->seasonal_rate_info = $property->seasonalRates->map(function ($rate) {
-                    return [
-                        'name' => $rate->rate_name,
-                        'description' => $rate->description,
-                        'rate_value' => $rate->rate_value,
-                        'rate_type' => $rate->rate_type,
-                        'start_date' => $rate->start_date,
-                        'end_date' => $rate->end_date,
-                    ];
-                })->toArray();
+                $property->seasonal_rate_info = $property->seasonalRates->map(fn ($rate) => [
+                    'name' => $rate->rate_name,
+                    'description' => $rate->description,
+                    'rate_value' => $rate->rate_value,
+                    'rate_type' => $rate->rate_type,
+                    'start_date' => $rate->start_date,
+                    'end_date' => $rate->end_date,
+                ])->toArray();
             } else {
                 $property->has_seasonal_rate = false;
                 $property->seasonal_rate_info = [];
@@ -355,6 +333,17 @@ class PropertyController extends Controller
             'videoSchema' => $seoData['videoSchema'],
             'faqs' => $seoData['faqs'], // For FAQ component
         ]);
+        } catch (\Throwable $e) {
+            Log::error('PropertyController::show() failed', [
+                'property_id' => $property->id,
+                'property_slug' => $property->slug,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => collect($e->getTrace())->take(5)->toArray(),
+            ]);
+            throw $e; // Re-throw so Laravel still returns 500 with proper error
+        }
     }
 
     /**

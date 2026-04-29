@@ -118,6 +118,7 @@ else
     php artisan config:clear 2>/dev/null || log_warning "Config clear failed"
     php artisan route:clear 2>/dev/null || log_warning "Route clear failed"
     php artisan view:clear 2>/dev/null || log_warning "View clear failed"
+    php artisan cache:clear 2>/dev/null || log_warning "Cache clear failed"
 
     # Ensure public/index.php exists
     if [ ! -f "public/index.php" ]; then
