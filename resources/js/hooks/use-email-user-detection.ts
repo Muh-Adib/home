@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { usePage } from '@inertiajs/react';
-import { bookingsService } from '@/lib/api';
+import { apiGet } from '@/lib/api';
 
 interface ExistingUser {
     id: number;
@@ -33,7 +33,7 @@ export function useEmailUserDetection(): UseEmailUserDetectionResult {
         
         setIsChecking(true);
         try {
-            const result = await bookingsService.checkEmail(email);
+            const result = await apiGet<{ exists: boolean; user?: ExistingUser }>('/api/check-email', { email });
             
             if (result.exists && result.user) {
                 setFoundUser(result.user);

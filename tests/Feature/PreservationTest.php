@@ -44,7 +44,7 @@ class PreservationTest extends TestCase
      * For all named routes currently used by frontend (admin.bookings.*),
      * all SHALL resolve correctly (non-404).
      *
-     * Observasi: 21 routes admin.bookings.* ditemukan via `php artisan route:list --name=admin.bookings`
+     * Observasi: Routes admin.bookings.* ditemukan via `php artisan route:list --name=admin.bookings`
      *
      * **Validates: Requirements 3.1, 3.2, 3.3, 3.8**
      */
@@ -63,9 +63,6 @@ class PreservationTest extends TestCase
             'admin.bookings.reject',
             'admin.bookings.checkin',
             'admin.bookings.checkout',
-            'admin.bookings.calendar',
-            'admin.bookings.timeline',
-            'admin.bookings.timeline.show',
             'admin.bookings.export',
             'admin.bookings.import.preview',
             'admin.bookings.import.confirmed',
@@ -73,6 +70,7 @@ class PreservationTest extends TestCase
             'admin.bookings.check-in-out.generate-text',
             'admin.bookings.send-payment-link',
             'admin.bookings.whatsapp',
+            'admin.bookings.daily-operations',
         ];
 
         foreach ($expectedRoutes as $routeName) {
@@ -114,17 +112,17 @@ class PreservationTest extends TestCase
     }
 
     /**
-     * For all admin.bookings.* calendar routes, they SHALL return non-404 when accessed by admin.
+     * For all admin.bookings.* check-in-out routes, they SHALL return non-404 when accessed by admin.
      *
      * **Validates: Requirements 3.1, 3.8**
      */
-    public function test_admin_bookings_calendar_resolves_non_404(): void
+    public function test_admin_bookings_check_in_out_resolves_non_404(): void
     {
         $response = $this->actingAs($this->admin)
-            ->get(route('admin.bookings.calendar'));
+            ->get(route('admin.bookings.check-in-out'));
 
         $this->assertNotEquals(404, $response->getStatusCode(),
-            "Route admin.bookings.calendar harus resolve (non-404)"
+            "Route admin.bookings.check-in-out harus resolve (non-404)"
         );
     }
 

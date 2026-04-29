@@ -91,10 +91,8 @@ export default function EmailSettings({ settings }: EmailSettingsProps) {
 
     const handleTestEmail = () => {
         if (data.test_email) {
-            post('/admin/settings/email/test', {
-                data: { test_email: data.test_email },
-                preserveState: true,
-            });
+            // Inertia v3: form state (including test_email) is sent automatically — no `data` option needed.
+            post('/admin/settings/email/test', { preserveState: true });
         }
     };
 

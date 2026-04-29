@@ -5,13 +5,14 @@ namespace Tests\Feature\Admin;
 use App\Models\Property;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class PropertyManagementTest extends TestCase
 {
     // use RefreshDatabase; // Commented out to avoid wiping existing dev data if not using in-memory DB
 
-    /** @test */
+    #[Test]
     public function admin_can_create_property_with_type()
     {
         // Mock authentication as admin
@@ -51,7 +52,7 @@ class PropertyManagementTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function admin_can_update_property_type()
     {
         // Mock authentication as admin
@@ -60,7 +61,7 @@ class PropertyManagementTest extends TestCase
 
         $property = Property::factory()->create([
             'type' => 'homestay',
-            'owner_id' => $admin->id
+            'owner_id' => $admin->id,
         ]);
 
         $data = [
@@ -78,8 +79,8 @@ class PropertyManagementTest extends TestCase
             'weekend_premium_type' => $property->weekend_premium_type,
             'cleaning_fee' => $property->cleaning_fee,
             'extra_bed_rate' => $property->extra_bed_rate,
-            'check_in_time' => $property->check_in_time->format('H:i'), // Format time
-            'check_out_time' => $property->check_out_time->format('H:i'),
+            'check_in_time' => is_string($property->check_in_time) ? $property->check_in_time : $property->check_in_time->format('H:i'),
+            'check_out_time' => is_string($property->check_out_time) ? $property->check_out_time : $property->check_out_time->format('H:i'),
             'min_stay_weekday' => $property->min_stay_weekday,
             'min_stay_weekend' => $property->min_stay_weekend,
             'min_stay_peak' => $property->min_stay_peak,

@@ -5,12 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\Property;
-use App\Models\FinancialReport;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class ReportController extends Controller
 {
@@ -19,19 +17,19 @@ class ReportController extends Controller
      */
     public function index(Request $request): Response
     {
-        $period = $request->get('period', 'month'); // month, quarter, year
+        $period = $request->input('period', 'month'); // month, quarter, year
         $startDate = $this->getStartDate($period);
         $endDate = now();
 
         // Financial Overview
         $financialData = $this->getFinancialOverview($startDate, $endDate);
-        
+
         // Booking Overview
         $bookingData = $this->getBookingOverview($startDate, $endDate);
-        
+
         // Property Performance
         $propertyData = $this->getPropertyPerformance($startDate, $endDate);
-        
+
         // Recent Activity
         $recentActivity = $this->getRecentActivity();
 
@@ -49,18 +47,18 @@ class ReportController extends Controller
      */
     public function financial(Request $request): Response
     {
-        $period = $request->get('period', 'month');
-        $propertyId = $request->get('property_id');
-        
+        $period = $request->input('period', 'month');
+        $propertyId = $request->input('property_id');
+
         $startDate = $this->getStartDate($period);
         $endDate = now();
 
         // Revenue analysis
         $revenueData = $this->getRevenueAnalysis($startDate, $endDate, $propertyId);
-        
+
         // Payment analysis
         $paymentData = $this->getPaymentAnalysis($startDate, $endDate, $propertyId);
-        
+
         // Monthly trends
         $trends = $this->getFinancialTrends($startDate, $endDate, $propertyId);
 
@@ -83,18 +81,18 @@ class ReportController extends Controller
      */
     public function occupancy(Request $request): Response
     {
-        $period = $request->get('period', 'month');
-        $propertyId = $request->get('property_id');
-        
+        $period = $request->input('period', 'month');
+        $propertyId = $request->input('property_id');
+
         $startDate = $this->getStartDate($period);
         $endDate = now();
 
         // Occupancy rates
         $occupancyData = $this->getOccupancyRates($startDate, $endDate, $propertyId);
-        
+
         // Booking patterns
         $bookingPatterns = $this->getBookingPatterns($startDate, $endDate, $propertyId);
-        
+
         // Guest demographics
         $guestDemographics = $this->getGuestDemographics($startDate, $endDate, $propertyId);
 
@@ -117,15 +115,17 @@ class ReportController extends Controller
      */
     public function propertyPerformance(Request $request): Response
     {
-        $period = $request->get('period', 'month');
+        $period = $request->input('period', 'month');
         $startDate = $this->getStartDate($period);
         $endDate = now();
 
         $properties = Property::active()
-            ->with(['bookings' => function ($q) use ($startDate, $endDate) {
-                $q->where('booking_status', '!=', 'cancelled')
-                  ->whereBetween('check_in', [$startDate, $endDate]);
-            }])
+            ->with([
+                'bookings' => function ($q) use ($startDate, $endDate) {
+                    $q->where('booking_status', '!=', 'cancelled')
+                        ->whereBetween('check_in', [$startDate, $endDate]);
+                },
+            ])
             ->get()
             ->map(function ($property) use ($startDate, $endDate) {
                 $bookings = $property->bookings;
@@ -156,13 +156,13 @@ class ReportController extends Controller
      */
     public function export(Request $request)
     {
-        $type = $request->get('type'); // financial, occupancy, property
-        $format = $request->get('format', 'xlsx'); // xlsx, csv, pdf
-        $period = $request->get('period', 'month');
-        
+        $type = $request->input('type'); // financial, occupancy, property
+        $format = $request->input('format', 'xlsx'); // xlsx, csv, pdf
+        $period = $request->input('period', 'month');
+
         // Generate report based on type and export
         // Implementation would depend on export library (e.g., Laravel Excel)
-        
+
         return response()->json(['message' => 'Export functionality to be implemented']);
     }
 
@@ -170,7 +170,7 @@ class ReportController extends Controller
 
     private function getStartDate($period): Carbon
     {
-        return match($period) {
+        return match ($period) {
             'week' => now()->startOfWeek(),
             'month' => now()->startOfMonth(),
             'quarter' => now()->startOfQuarter(),
@@ -230,14 +230,14 @@ class ReportController extends Controller
             ->withCount([
                 'bookings as total_bookings' => function ($q) use ($startDate, $endDate) {
                     $q->where('booking_status', '!=', 'cancelled')
-                      ->whereBetween('check_in', [$startDate, $endDate]);
-                }
+                        ->whereBetween('check_in', [$startDate, $endDate]);
+                },
             ])
             ->withSum([
                 'bookings as total_revenue' => function ($q) use ($startDate, $endDate) {
                     $q->where('booking_status', '!=', 'cancelled')
-                      ->whereBetween('check_in', [$startDate, $endDate]);
-                }
+                        ->whereBetween('check_in', [$startDate, $endDate]);
+                },
             ], 'total_amount')
             ->orderByDesc('total_revenue')
             ->limit(10)
@@ -270,7 +270,7 @@ class ReportController extends Controller
                 return [
                     'type' => 'payment',
                     'title' => "Payment verified: {$payment->payment_number}",
-                    'description' => "Amount: Rp " . number_format($payment->amount) . " - Booking: {$payment->booking->booking_number}",
+                    'description' => 'Amount: Rp '.number_format($payment->amount)." - Booking: {$payment->booking->booking_number}",
                     'time' => $payment->verified_at,
                     'status' => 'verified',
                 ];
@@ -325,11 +325,11 @@ class ReportController extends Controller
         // Monthly revenue trends for the period
         $months = [];
         $current = $startDate->copy()->startOfMonth();
-        
+
         while ($current->lte($endDate)) {
             $monthStart = $current->copy()->startOfMonth();
             $monthEnd = $current->copy()->endOfMonth();
-            
+
             $query = Payment::where('payment_status', 'verified')
                 ->whereBetween('verified_at', [$monthStart, $monthEnd]);
 
@@ -358,7 +358,7 @@ class ReportController extends Controller
     private function getOccupancyRates($startDate, $endDate, $propertyId = null): array
     {
         $query = Property::query();
-        
+
         if ($propertyId) {
             $query->where('id', $propertyId);
         }
@@ -413,9 +413,16 @@ class ReportController extends Controller
                 return Carbon::parse($booking->created_at)->diffInDays($booking->check_in);
             })
             ->groupBy(function ($days) {
-                if ($days <= 7) return '0-7 days';
-                if ($days <= 30) return '8-30 days';
-                if ($days <= 60) return '31-60 days';
+                if ($days <= 7) {
+                    return '0-7 days';
+                }
+                if ($days <= 30) {
+                    return '8-30 days';
+                }
+                if ($days <= 60) {
+                    return '31-60 days';
+                }
+
                 return '60+ days';
             })
             ->map(function ($group) {
@@ -461,4 +468,4 @@ class ReportController extends Controller
             'average_party_size' => $bookings->avg('guest_count'),
         ];
     }
-} 
+}

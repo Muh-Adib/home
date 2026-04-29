@@ -2,35 +2,40 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
-use App\Services\BookingService;
-use App\Services\RateCalculationService;
-use App\Repositories\BookingRepository;
 use App\Domain\Booking\ValueObjects\BookingRequest;
 use App\Domain\Booking\ValueObjects\RateCalculation;
-use App\Models\Property;
-use App\Models\Booking;
-use App\Models\User;
 use App\Events\BookingCreated;
+use App\Models\Booking;
+use App\Models\Property;
+use App\Models\User;
+use App\Repositories\BookingRepository;
+use App\Services\AvailabilityService;
+use App\Services\BookingService;
+use App\Services\RateCalculationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\DB;
 use Mockery;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class BookingServiceRefactoredTest extends TestCase
 {
     use RefreshDatabase;
 
     private BookingService $bookingService;
+
     private Property $property;
+
     private User $user;
+
     private BookingRepository $bookingRepository;
+
     private RateCalculationService $rateCalculationService;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Create test data
         $this->property = Property::factory()->create([
             'base_rate' => 500000,
@@ -38,25 +43,25 @@ class BookingServiceRefactoredTest extends TestCase
             'capacity_max' => 6,
             'min_stay_weekday' => 2,
         ]);
-        
+
         $this->user = User::factory()->create();
-        
+
         // Create mock dependencies
         $this->bookingRepository = Mockery::mock(BookingRepository::class);
         $this->rateCalculationService = Mockery::mock(RateCalculationService::class);
-        $availabilityService = Mockery::mock(\App\Services\AvailabilityService::class);
+        $availabilityService = Mockery::mock(AvailabilityService::class);
         $availabilityService->shouldReceive('checkAvailability')
             ->andReturn(['available' => true, 'booked_dates' => []]);
         $availabilityService->shouldReceive('getBookedDatesInRange')
             ->andReturn([]);
-        
+
         // Create service with mocked dependencies
         $this->bookingService = new BookingService(
             $this->bookingRepository,
             $this->rateCalculationService,
             $availabilityService
         );
-        
+
         Event::fake();
     }
 
@@ -66,7 +71,7 @@ class BookingServiceRefactoredTest extends TestCase
         parent::tearDown();
     }
 
-    /** @test */
+    #[Test]
     public function it_creates_booking_successfully()
     {
         $bookingRequest = BookingRequest::fromArray([
@@ -131,7 +136,7 @@ class BookingServiceRefactoredTest extends TestCase
         Event::assertDispatched(BookingCreated::class);
     }
 
-    /** @test */
+    #[Test]
     public function it_creates_booking_from_array_data()
     {
         $data = [
@@ -141,7 +146,7 @@ class BookingServiceRefactoredTest extends TestCase
             'guest_name' => 'Jane Doe',
             'guest_email' => 'jane@example.com',
             'guest_phone' => '081234567891',
-            'special_requests' => 'Early check-in'
+            'special_requests' => 'Early check-in',
         ];
 
         $rateCalculation = new RateCalculation(
@@ -178,7 +183,7 @@ class BookingServiceRefactoredTest extends TestCase
         $this->assertInstanceOf(Booking::class, $result);
     }
 
-    /** @test */
+    #[Test]
     public function it_creates_booking_request_from_array()
     {
         $data = [
@@ -189,7 +194,7 @@ class BookingServiceRefactoredTest extends TestCase
             'guest_name' => 'Test User',
             'guest_email' => 'test@example.com',
             'guest_phone' => '081234567890',
-            'special_requests' => null
+            'special_requests' => null,
         ];
 
         $bookingRequest = $this->bookingService->createBookingRequest($data);
@@ -205,7 +210,7 @@ class BookingServiceRefactoredTest extends TestCase
         $this->assertNull($bookingRequest->specialRequests);
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_rate_using_rate_service()
     {
         $expectedCalculation = new RateCalculation(
@@ -241,7 +246,7 @@ class BookingServiceRefactoredTest extends TestCase
         $this->assertEquals(1100000, $result->totalAmount);
     }
 
-    /** @test */
+    #[Test]
     public function it_validates_minimum_stay_requirements()
     {
         // Valid stay (meets minimum)
@@ -261,7 +266,7 @@ class BookingServiceRefactoredTest extends TestCase
         $this->assertFalse($isInvalid);
     }
 
-    /** @test */
+    #[Test]
     public function it_validates_guest_count()
     {
         // Valid guest count (within limits)
@@ -281,7 +286,7 @@ class BookingServiceRefactoredTest extends TestCase
         $this->assertFalse($isInvalidZero);
     }
 
-    /** @test */
+    #[Test]
     public function it_gets_user_bookings()
     {
         $expectedBookings = collect([
@@ -301,7 +306,7 @@ class BookingServiceRefactoredTest extends TestCase
         $this->assertEquals($expectedBookings, $result);
     }
 
-    /** @test */
+    #[Test]
     public function it_cancels_booking()
     {
         $booking = Booking::factory()->make(['id' => 1]);
@@ -319,7 +324,7 @@ class BookingServiceRefactoredTest extends TestCase
         $this->assertTrue($result);
     }
 
-    /** @test */
+    #[Test]
     public function it_gets_booked_dates_for_property()
     {
         $expectedDates = ['2024-01-15', '2024-01-16'];
@@ -327,13 +332,13 @@ class BookingServiceRefactoredTest extends TestCase
         // Since we're testing the integration with AvailabilityService,
         // we need to use the real implementation
         $realBookingService = app(BookingService::class);
-        
+
         // Create actual booking to test with
         Booking::factory()->create([
             'property_id' => $this->property->id,
             'check_in' => '2024-01-15',
             'check_out' => '2024-01-17',
-            'booking_status' => 'confirmed'
+            'booking_status' => 'confirmed',
         ]);
 
         $result = $realBookingService->getBookedDates(
@@ -347,7 +352,7 @@ class BookingServiceRefactoredTest extends TestCase
         $this->assertContains('2024-01-16', $result);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_booking_creation_transaction_rollback()
     {
         $bookingRequest = BookingRequest::fromArray([
@@ -397,7 +402,7 @@ class BookingServiceRefactoredTest extends TestCase
         Event::assertNotDispatched(BookingCreated::class);
     }
 
-    /** @test */
+    #[Test]
     public function it_creates_booking_without_user()
     {
         $bookingRequest = BookingRequest::fromArray([
@@ -447,7 +452,7 @@ class BookingServiceRefactoredTest extends TestCase
         $result = $this->bookingService->createBooking($bookingRequest, null);
     }
 
-    /** @test */
+    #[Test]
     public function it_includes_rate_calculation_in_booking_data()
     {
         $bookingRequest = BookingRequest::fromArray([

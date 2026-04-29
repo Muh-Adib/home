@@ -6,7 +6,7 @@ use App\Models\Article;
 use App\Models\ContentPlan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Event;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class ArticleContentPlanSyncTest extends TestCase
@@ -24,7 +24,7 @@ class ArticleContentPlanSyncTest extends TestCase
         ContentPlan::$isSyncing = false;
     }
 
-    /** @test */
+    #[Test]
     public function article_status_syncs_to_content_plan()
     {
         // 1. Create linked entities
@@ -53,7 +53,7 @@ class ArticleContentPlanSyncTest extends TestCase
         $this->assertEquals('reviewing', $plan->fresh()->status);
     }
 
-    /** @test */
+    #[Test]
     public function content_plan_status_syncs_to_article()
     {
         $plan = ContentPlan::create([
@@ -79,7 +79,7 @@ class ArticleContentPlanSyncTest extends TestCase
         $this->assertEquals('researching', $article->fresh()->status);
     }
 
-    /** @test */
+    #[Test]
     public function article_schedule_syncs_to_content_plan()
     {
         $plan = ContentPlan::create([
@@ -108,7 +108,7 @@ class ArticleContentPlanSyncTest extends TestCase
         $this->assertEquals('scheduled', $plan->fresh()->status);
     }
 
-    /** @test */
+    #[Test]
     public function content_plan_date_syncs_to_article()
     {
         $plan = ContentPlan::create([
@@ -136,7 +136,7 @@ class ArticleContentPlanSyncTest extends TestCase
         $this->assertEquals($date->format('Y-m-d H:i:s'), $article->fresh()->scheduled_at->format('Y-m-d H:i:s'));
     }
 
-    /** @test */
+    #[Test]
     public function bidirectional_title_sync()
     {
         $plan = ContentPlan::create([
@@ -164,7 +164,7 @@ class ArticleContentPlanSyncTest extends TestCase
         $this->assertEquals('Updated by Plan', $article->fresh()->title);
     }
 
-    /** @test */
+    #[Test]
     public function infinite_loop_prevention()
     {
         $plan = ContentPlan::create([

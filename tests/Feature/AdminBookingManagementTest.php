@@ -2,22 +2,24 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Models\User;
-use App\Models\Property;
 use App\Models\Booking;
-use App\Models\PaymentMethod;
 use App\Models\Payment;
+use App\Models\PaymentMethod;
+use App\Models\Property;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
-use Carbon\Carbon;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class AdminBookingManagementTest extends TestCase
 {
     use RefreshDatabase, WithFaker;
 
     protected $admin;
+
     protected $property;
+
     protected $paymentMethod;
 
     protected function setUp(): void
@@ -51,7 +53,7 @@ class AdminBookingManagementTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function admin_can_create_booking_with_payment()
     {
         $bookingData = [
@@ -80,7 +82,7 @@ class AdminBookingManagementTest extends TestCase
         ];
 
         $response = $this->actingAs($this->admin)
-            ->post(route('admin.booking-management.store'), $bookingData);
+            ->post(route('admin.bookings.store'), $bookingData);
 
         $response->assertRedirect();
 
@@ -101,7 +103,7 @@ class AdminBookingManagementTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function admin_can_create_booking_with_rate_override()
     {
         $bookingData = [
@@ -128,7 +130,7 @@ class AdminBookingManagementTest extends TestCase
         ];
 
         $response = $this->actingAs($this->admin)
-            ->post(route('admin.booking-management.store'), $bookingData);
+            ->post(route('admin.bookings.store'), $bookingData);
 
         $response->assertSessionHasNoErrors();
         $response->assertRedirect();
@@ -144,7 +146,7 @@ class AdminBookingManagementTest extends TestCase
         $this->assertStringContainsString('Early bird discount for repeat customer', $booking->internal_notes);
     }
 
-    /** @test */
+    #[Test]
     public function admin_can_edit_booking_with_reschedule()
     {
         // Create initial booking
@@ -188,7 +190,7 @@ class AdminBookingManagementTest extends TestCase
         $this->assertEquals(5, $booking->guest_count); // 2+2+1
     }
 
-    /** @test */
+    #[Test]
     public function admin_can_edit_booking_with_rate_override()
     {
         // Create initial booking
@@ -236,7 +238,7 @@ class AdminBookingManagementTest extends TestCase
         $this->assertStringContainsString('Special discount for VIP customer', $booking->internal_notes);
     }
 
-    /** @test */
+    #[Test]
     public function payment_is_required_for_confirmed_booking()
     {
         $bookingData = [
@@ -258,12 +260,12 @@ class AdminBookingManagementTest extends TestCase
         ];
 
         $response = $this->actingAs($this->admin)
-            ->post(route('admin.booking-management.store'), $bookingData);
+            ->post(route('admin.bookings.store'), $bookingData);
 
         $response->assertSessionHasErrors(['payment_method_id']);
     }
 
-    /** @test */
+    #[Test]
     public function rate_override_requires_reason()
     {
         $bookingData = [
@@ -288,12 +290,12 @@ class AdminBookingManagementTest extends TestCase
         ];
 
         $response = $this->actingAs($this->admin)
-            ->post(route('admin.booking-management.store'), $bookingData);
+            ->post(route('admin.bookings.store'), $bookingData);
 
         $response->assertSessionHasErrors(['override_reason']);
     }
 
-    /** @test */
+    #[Test]
     public function guest_count_cannot_exceed_property_capacity()
     {
         $bookingData = [
@@ -317,12 +319,12 @@ class AdminBookingManagementTest extends TestCase
         ];
 
         $response = $this->actingAs($this->admin)
-            ->post(route('admin.booking-management.store'), $bookingData);
+            ->post(route('admin.bookings.store'), $bookingData);
 
         $response->assertSessionHasErrors(['guest_count']);
     }
 
-    /** @test */
+    #[Test]
     public function admin_can_view_booking_edit_form()
     {
         $booking = Booking::factory()->create([
@@ -336,30 +338,28 @@ class AdminBookingManagementTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertInertia(
-            fn($page) =>
-            $page->component('Admin/Bookings/Edit')
+            fn ($page) => $page->component('Admin/Bookings/Edit')
                 ->has('booking')
                 ->has('properties')
                 ->has('paymentMethods')
         );
     }
 
-    /** @test */
+    #[Test]
     public function admin_can_view_booking_create_form()
     {
         $response = $this->actingAs($this->admin)
-            ->get(route('admin.booking-management.create'));
+            ->get(route('admin.bookings.create'));
 
         $response->assertStatus(200);
         $response->assertInertia(
-            fn($page) =>
-            $page->component('Admin/Bookings/Create')
+            fn ($page) => $page->component('Admin/Bookings/Create')
                 ->has('properties')
                 ->has('paymentMethods')
         );
     }
 
-    /** @test */
+    #[Test]
     public function existing_payments_are_preserved_during_reschedule()
     {
         // Create booking with payment

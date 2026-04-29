@@ -2,39 +2,36 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Events\PaymentStatusChanged;
-use App\Services\PaymentIncomeSyncService;
-use App\Services\PaymentGatewayService;
-use App\Models\Payment;
+use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\Income;
+use App\Models\Payment;
 use App\Models\PaymentMethod;
-use Illuminate\Http\Request;
+use App\Models\User;
+use App\Services\PaymentGatewayService;
+use App\Services\PaymentIncomeSyncService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
-use App\Models\User;
-use App\Models\Income;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 
 /**
  * Payment Controller
- * 
+ *
  * This controller handles the payment process for admin bookings.
  * It includes methods for creating, storing, and managing payments.
- * 
- * @package App\Http\Controllers\Admin
+ *
  * @author Muhammad Adib Aulia Hanif <adwk.project@gmail.com>
  */
-
 class PaymentController extends Controller
 {
     protected PaymentIncomeSyncService $incomeSyncService;
+
     protected PaymentGatewayService $gatewayService;
 
     public function __construct(
@@ -64,7 +61,7 @@ class PaymentController extends Controller
         'Bank Mega',
         'Bank Bukopin',
         'Bank Syariah Indonesia (BSI)',
-        
+
         // Digital Banks
         'Jenius (BTPN)',
         'Digibank by DBS',
@@ -72,7 +69,7 @@ class PaymentController extends Controller
         'Neo Commerce (Bank Neo)',
         'SeaBank',
         'Allo Bank',
-        
+
         // E-Wallets
         'GoPay',
         'OVO',
@@ -80,7 +77,7 @@ class PaymentController extends Controller
         'LinkAja',
         'ShopeePay',
         'PayPal',
-        
+
         // Other
         'Lainnya',
     ];
@@ -91,30 +88,30 @@ class PaymentController extends Controller
     public function index(Request $request): Response
     {
         $this->authorize('viewAny', Payment::class);
-        
+
         $query = Payment::query()
             ->with(['booking.property', 'paymentMethod', 'verifier']);
 
         // Filter by status
         if ($request->filled('status')) {
-            $query->where('payment_status', $request->get('status'));
+            $query->where('payment_status', $request->input('status'));
         }
 
         // Filter by payment method
         if ($request->filled('payment_method')) {
-            $query->where('payment_method_id', $request->get('payment_method'));
+            $query->where('payment_method_id', $request->input('payment_method'));
         }
 
         // Search
         if ($request->filled('search')) {
-            $search = $request->get('search');
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('payment_number', 'like', "%{$search}%")
-                  ->orWhere('reference_number', 'like', "%{$search}%")
-                  ->orWhereHas('booking', function ($bq) use ($search) {
-                      $bq->where('booking_number', 'like', "%{$search}%")
-                         ->orWhere('guest_name', 'like', "%{$search}%");
-                  });
+                    ->orWhere('reference_number', 'like', "%{$search}%")
+                    ->orWhereHas('booking', function ($bq) use ($search) {
+                        $bq->where('booking_number', 'like', "%{$search}%")
+                            ->orWhere('guest_name', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -138,10 +135,10 @@ class PaymentController extends Controller
             'paymentMethods' => $paymentMethods,
             'stats' => $stats,
             'filters' => [
-                'search' => $request->get('search'),
-                'status' => $request->get('status'),
-                'payment_method' => $request->get('payment_method'),
-            ]
+                'search' => $request->input('search'),
+                'status' => $request->input('status'),
+                'payment_method' => $request->input('payment_method'),
+            ],
         ]);
     }
 
@@ -151,16 +148,16 @@ class PaymentController extends Controller
     public function create(Request $request): Response
     {
         $this->authorize('create', Payment::class);
-        
+
         $selectedBooking = null;
         if ($request->filled('booking_id')) {
             // Support both booking_id and booking_number
-            if (is_numeric($request->get('booking_id'))) {
-                $selectedBooking = Booking::with('property')->find($request->get('booking_id'));
+            if (is_numeric($request->input('booking_id'))) {
+                $selectedBooking = Booking::with('property')->find($request->input('booking_id'));
             } else {
-                $selectedBooking = Booking::with('property')->where('booking_number', $request->get('booking_id'))->first();
+                $selectedBooking = Booking::with('property')->where('booking_number', $request->input('booking_id'))->first();
             }
-            
+
             if ($selectedBooking) {
                 // Calculate remaining amount
                 $paidAmount = $selectedBooking->payments()->where('payment_status', 'verified')->sum('amount');
@@ -179,6 +176,7 @@ class PaymentController extends Controller
                 $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
                 $booking->paid_amount = $paidAmount;
                 $booking->remaining_amount = $booking->total_amount - $paidAmount;
+
                 return $booking;
             })
             ->filter(function ($booking) {
@@ -228,7 +226,7 @@ class PaymentController extends Controller
         try {
             $booking = Booking::findOrFail($validated['booking_id']);
             $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
-            
+
             // Check if amount is valid
             $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
             $pendingAmount = $booking->total_amount - $paidAmount;
@@ -268,10 +266,10 @@ class PaymentController extends Controller
             // Update booking payment status if verified
             if ($validated['payment_status'] === 'verified') {
                 $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-                
+
                 if ($totalPaid >= $booking->total_amount) {
                     $booking->update(['payment_status' => 'fully_paid']);
-                    
+
                     // Auto-confirm booking if requested and fully paid
                     if ($validated['auto_confirm'] && $booking->booking_status === 'pending_verification') {
                         $booking->update(['booking_status' => 'confirmed']);
@@ -300,7 +298,8 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-            return back()->withErrors(['error' => 'Failed to create payment: ' . $e->getMessage()]);
+
+            return back()->withErrors(['error' => 'Failed to create payment: '.$e->getMessage()]);
         }
     }
 
@@ -310,10 +309,10 @@ class PaymentController extends Controller
     public function manualCreate(Request $request): Response
     {
         $this->authorize('create', Payment::class);
-        
+
         $booking = null;
         if ($request->filled('booking_id')) {
-            $booking = Booking::with('property')->find($request->get('booking_id'));
+            $booking = Booking::with('property')->find($request->input('booking_id'));
             if ($booking) {
                 // Calculate remaining amount
                 $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
@@ -332,6 +331,7 @@ class PaymentController extends Controller
                 $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
                 $booking->paid_amount = $paidAmount;
                 $booking->remaining_amount = $booking->total_amount - $paidAmount;
+
                 return $booking;
             })
             ->filter(function ($booking) {
@@ -353,12 +353,12 @@ class PaymentController extends Controller
     public function createForBooking(Booking $booking): Response
     {
         $this->authorize('create', Payment::class);
-        
+
         // Calculate remaining amount
         $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
         $booking->paid_amount = $paidAmount;
         $booking->remaining_amount = $booking->total_amount - $paidAmount;
-        
+
         $paymentMethods = PaymentMethod::active()->get();
         $users = User::whereIn('role', ['super_admin', 'property_manager', 'finance'])->get();
 
@@ -397,7 +397,7 @@ class PaymentController extends Controller
             'gateway_transaction_id' => 'nullable|string|max:255',
             'auto_confirm' => 'boolean',
         ]);
-        //dd($validated);
+        // dd($validated);
 
         try {
             // Check if amount is valid
@@ -473,10 +473,10 @@ class PaymentController extends Controller
                 // Update booking payment status if verified
                 if ($validated['payment_status'] === 'verified') {
                     $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-                    
+
                     if ($totalPaid >= $booking->total_amount) {
                         $booking->update(['payment_status' => 'fully_paid']);
-                        
+
                         // Auto-confirm booking if requested and fully paid
                         if ($validated['auto_confirm'] && $booking->booking_status === 'pending_verification') {
                             $booking->update(['booking_status' => 'confirmed']);
@@ -512,7 +512,7 @@ class PaymentController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return back()->withErrors(['error' => 'Failed to create payment: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Failed to create payment: '.$e->getMessage()]);
         }
     }
 
@@ -522,12 +522,12 @@ class PaymentController extends Controller
     public function createAdditional(Booking $booking): Response
     {
         $this->authorize('create', Payment::class);
-        
+
         // Calculate current payment status
         $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
         $booking->paid_amount = $paidAmount;
         $booking->remaining_amount = $booking->total_amount - $paidAmount;
-        
+
         $paymentMethods = PaymentMethod::active()->get();
         $users = User::whereIn('role', ['super_admin', 'property_manager', 'finance'])->get();
 
@@ -623,7 +623,8 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-            return back()->withErrors(['error' => 'Failed to create additional payment: ' . $e->getMessage()]);
+
+            return back()->withErrors(['error' => 'Failed to create additional payment: '.$e->getMessage()]);
         }
     }
 
@@ -654,7 +655,7 @@ class PaymentController extends Controller
         try {
             $booking = Booking::findOrFail($validated['booking_id']);
             $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
-            
+
             // Check if amount is valid
             $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
             $pendingAmount = $booking->total_amount - $paidAmount;
@@ -685,10 +686,10 @@ class PaymentController extends Controller
             // Update booking payment status if verified
             if ($validated['payment_status'] === 'verified') {
                 $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-                
+
                 if ($totalPaid >= $booking->total_amount) {
                     $booking->update(['payment_status' => 'fully_paid']);
-                    
+
                     // Auto-confirm booking if requested and fully paid
                     if ($validated['auto_confirm'] && $booking->booking_status === 'pending_verification') {
                         $booking->update(['booking_status' => 'confirmed']);
@@ -706,7 +707,7 @@ class PaymentController extends Controller
                     'status' => 'completed',
                     'processed_by' => Auth::id(),
                     'processed_at' => now(),
-                    'notes' => "Manual payment recorded: {$payment->payment_number} - " . $validated['admin_notes'],
+                    'notes' => "Manual payment recorded: {$payment->payment_number} - ".$validated['admin_notes'],
                 ]);
             }
 
@@ -717,7 +718,8 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-            return back()->withErrors(['error' => 'Failed to record payment: ' . $e->getMessage()]);
+
+            return back()->withErrors(['error' => 'Failed to record payment: '.$e->getMessage()]);
         }
     }
 
@@ -734,7 +736,7 @@ class PaymentController extends Controller
             'booking.guests',
             'paymentMethod',
             'processor',
-            'verifier'
+            'verifier',
         ]);
 
         // Calculate booking payment summary
@@ -759,7 +761,7 @@ class PaymentController extends Controller
             'booking.property',
             'paymentMethod',
             'processor',
-            'verifier'
+            'verifier',
         ]);
 
         $paymentMethods = PaymentMethod::active()->get();
@@ -807,10 +809,10 @@ class PaymentController extends Controller
         DB::beginTransaction();
         try {
             $booking = $payment->booking;
-            
+
             // Check if amount is valid (excluding current payment from calculation) - only if amount is being updated
             if (isset($validated['amount'])) {
-                // cek apakah ada payment lainnya 
+                // cek apakah ada payment lainnya
                 $paidAmount = $booking->payments()
                     ->where('payment_status', 'verified')
                     ->where('id', '!=', $payment->id)
@@ -819,6 +821,7 @@ class PaymentController extends Controller
 
                 if ($validated['amount'] > $pendingAmount) {
                     DB::rollBack();
+
                     return back()->withErrors(['amount' => 'Payment amount exceeds pending amount.']);
                 }
             }
@@ -831,7 +834,7 @@ class PaymentController extends Controller
                     Storage::disk('public')->delete($payment->attachment_path);
                 }
                 $attachmentPath = $request->file('attachment')->store('payments/attachments', 'public');
-            } elseif (!$validated['keep_existing_attachment']) {
+            } elseif (! $validated['keep_existing_attachment']) {
                 // Remove attachment if not keeping existing
                 if ($payment->attachment_path && Storage::disk('public')->exists($payment->attachment_path)) {
                     Storage::disk('public')->delete($payment->attachment_path);
@@ -852,7 +855,7 @@ class PaymentController extends Controller
 
             // Prepare update data - only include fields that are provided (for PATCH)
             $updateData = [];
-            
+
             if (isset($validated['payment_method_id'])) {
                 $updateData['payment_method_id'] = $validated['payment_method_id'];
                 $updateData['payment_method'] = $paymentMethod->type;
@@ -896,8 +899,8 @@ class PaymentController extends Controller
                 $updateData['processed_by'] = $validated['processed_by'] ?: $payment->processed_by;
             }
             if (isset($validated['verified_by'])) {
-                $updateData['verified_by'] = $validated['payment_status'] === 'verified' 
-                    ? ($validated['verified_by'] ?: Auth::id()) 
+                $updateData['verified_by'] = $validated['payment_status'] === 'verified'
+                    ? ($validated['verified_by'] ?: Auth::id())
                     : null;
             }
             if (isset($validated['gateway_transaction_id'])) {
@@ -906,7 +909,7 @@ class PaymentController extends Controller
 
             // Handle verified_at based on payment_status
             if (isset($validated['payment_status'])) {
-                if ($validated['payment_status'] === 'verified' && !$payment->verified_at) {
+                if ($validated['payment_status'] === 'verified' && ! $payment->verified_at) {
                     $updateData['verified_at'] = now();
                 } elseif ($validated['payment_status'] !== 'verified') {
                     $updateData['verified_at'] = null;
@@ -918,37 +921,35 @@ class PaymentController extends Controller
 
             // Status berubah menjadi verified
             $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-            if ($payment->status === 'verified')
-            {
-                $booking->update(['dp_amount'=>$totalPaid]);
-                $booking->update(['dp_paid_amount'=>$totalPaid]);
+            if ($payment->payment_status === 'verified') {
+                $booking->update(['dp_amount' => $totalPaid]);
+                $booking->update(['dp_paid_amount' => $totalPaid]);
                 $remainingPayment = $booking->total_amount - $totalPaid;
-                $booking->update(['remaining_amount'=>$remainingPayment]);
+                $booking->update(['remaining_amount' => $remainingPayment]);
             }
 
             // Handle perubahan status payment dan update booking payment status
             $newStatus = $validated['payment_status'] ?? $oldStatus;
             if ($oldStatus !== $newStatus) {
                 if ($newStatus === 'verified') {
-                    
-          
-                if ($totalPaid >= $booking->total_amount) {
-                    $booking->update(['payment_status' => 'fully_paid']);
-                } elseif (($validated['payment_type'] ?? $payment->payment_type) === 'dp') {
-                    $booking->update(['payment_status' => 'dp_received']);
-                }
 
-                // Sinkronkan income saat verified
+                    if ($totalPaid >= $booking->total_amount) {
+                        $booking->update(['payment_status' => 'fully_paid']);
+                    } elseif (($validated['payment_type'] ?? $payment->payment_type) === 'dp') {
+                        $booking->update(['payment_status' => 'dp_received']);
+                    }
+
+                    // Sinkronkan income saat verified
                     $this->incomeSyncService->syncOnVerified($payment);
 
-                // Create workflow entry
-                $booking->workflow()->create([
-                    'step' => 'payment_verified',
-                    'status' => 'completed',
-                    'processed_by' => Auth::id(),
-                    'processed_at' => now(),
-                    'notes' => "Payment updated and verified: {$payment->payment_number}",
-                ]);
+                    // Create workflow entry
+                    $booking->workflow()->create([
+                        'step' => 'payment_verified',
+                        'status' => 'completed',
+                        'processed_by' => Auth::id(),
+                        'processed_at' => now(),
+                        'notes' => "Payment updated and verified: {$payment->payment_number}",
+                    ]);
                 } elseif ($newStatus === 'refunded') {
                     // Status berubah menjadi refunded - hapus income
                     $this->incomeSyncService->syncOnRefunded($payment);
@@ -988,7 +989,8 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-            return back()->withErrors(['error' => 'Failed to update payment: ' . $e->getMessage()]);
+
+            return back()->withErrors(['error' => 'Failed to update payment: '.$e->getMessage()]);
         }
     }
 
@@ -1007,7 +1009,7 @@ class PaymentController extends Controller
         try {
             $payment->update([
                 'payment_status' => 'verified',
-                'verification_notes' => $request->get('verification_notes'),
+                'verification_notes' => $request->input('verification_notes'),
                 'verified_by' => Auth::id(),
                 'verified_at' => now(),
             ]);
@@ -1044,6 +1046,7 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
+
             return back()->withErrors(['error' => 'Failed to verify payment.']);
         }
     }
@@ -1063,7 +1066,7 @@ class PaymentController extends Controller
         try {
             $payment->update([
                 'payment_status' => 'failed',
-                'verification_notes' => $request->get('rejection_reason'),
+                'verification_notes' => $request->input('rejection_reason'),
                 'verified_by' => Auth::id(),
                 'verified_at' => now(),
             ]);
@@ -1077,7 +1080,7 @@ class PaymentController extends Controller
                 'status' => 'failed',
                 'processed_by' => Auth::id(),
                 'processed_at' => now(),
-                'notes' => "Payment rejected: {$request->get('rejection_reason')}",
+                'notes' => "Payment rejected: {$request->input('rejection_reason')}",
             ]);
 
             // Send notification for status change
@@ -1090,6 +1093,7 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
+
             return back()->withErrors(['error' => 'Failed to reject payment.']);
         }
     }
@@ -1101,6 +1105,7 @@ class PaymentController extends Controller
     {
         $this->authorize('delete', $payment);
 
+        DB::beginTransaction();
         try {
             $booking = $payment->booking;
             $paymentNumber = $payment->payment_number;
@@ -1151,8 +1156,9 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-            return back()->withErrors(['error' => 'Failed to delete payment: ' . $e->getMessage()]);
+
+            return back()->withErrors(['error' => 'Failed to delete payment: '.$e->getMessage()]);
         }
     }
-
-} 
+    
+}

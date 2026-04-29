@@ -1,5 +1,5 @@
 import React from 'react';
-import { Head, useForm, Link } from '@inertiajs/react';
+import { Head, useForm, Link, router } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -98,13 +98,13 @@ export default function SystemSettings({ settings, stats, logs }: SystemSettings
 
     const handleClearCache = () => {
         if (confirm('Apakah Anda yakin ingin membersihkan cache?')) {
-            Link.post('/admin/settings/system/clear-cache');
+            router.post('/admin/settings/system/clear-cache');
         }
     };
 
     const handleBackup = () => {
         if (confirm('Apakah Anda yakin ingin membuat backup database?')) {
-            Link.post('/admin/settings/system/backup');
+            router.post('/admin/settings/system/backup');
         }
     };
 

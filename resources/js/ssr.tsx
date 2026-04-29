@@ -15,12 +15,7 @@ createServer((page) =>
         page,
         render: ReactDOMServer.renderToString,
         title: (title) => `${title} - ${appName}`,
-        defaults: {
-            future: {
-                useDataInertiaHeadAttribute: true,
-            },
-        },
-        resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx', { eager: false })),
+        resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx', { eager: true })),
         setup: ({ App, props }) => {
             /* eslint-disable */
             // ... (Kode Ziggy Global Routes Anda di sini, sudah benar)

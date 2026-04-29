@@ -10,7 +10,7 @@ import { type BreadcrumbItem } from '@/types';
 import { router, useForm } from '@inertiajs/react';
 import { Save, ArrowLeft, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
-import axios from 'axios';
+import { apiPost } from '@/lib/api';
 
 interface AIKeyEditProps {
     aiKey?: {
@@ -84,29 +84,33 @@ export default function AIKeyEdit({ aiKey, providers }: AIKeyEditProps) {
         setSyncMessage(null);
 
         try {
-            const response = await axios.post('/admin/settings/ai-keys/sync', {
+            const result = await apiPost<{
+                success: boolean;
+                models?: { id: string; name: string }[];
+                rate_limit?: { requests_per_minute?: number };
+            }>('/admin/settings/ai-keys/sync', {
                 provider: data.provider,
                 api_key: data.api_key || aiKey?.masked_key,
                 id: aiKey?.id
             });
 
-            if (response.data.success) {
-                setAvailableModels(response.data.models || []);
-                setSyncMessage({ type: 'success', text: `Successfully synced ${response.data.models?.length || 0} models! Select your model below.` });
+            if (result.success) {
+                setAvailableModels(result.models || []);
+                setSyncMessage({ type: 'success', text: `Successfully synced ${result.models?.length || 0} models! Select your model below.` });
 
                 setData('metadata', {
                     ...data.metadata,
-                    availableModels: response.data.models || [],
+                    availableModels: result.models || [],
                 });
 
-                if (response.data.rate_limit) {
-                    if (response.data.rate_limit.requests_per_minute) {
-                        setData('requests_per_minute', response.data.rate_limit.requests_per_minute);
+                if (result.rate_limit) {
+                    if (result.rate_limit.requests_per_minute) {
+                        setData('requests_per_minute', result.rate_limit.requests_per_minute);
                     }
                 }
             }
         } catch (error: any) {
-            setSyncMessage({ type: 'error', text: error.response?.data?.message || 'Sync failed. Check your API key or connectivity.' });
+            setSyncMessage({ type: 'error', text: error?.data?.message || error?.message || 'Sync failed. Check your API key or connectivity.' });
         } finally {
             setSyncing(false);
         }

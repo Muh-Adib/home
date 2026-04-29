@@ -4,22 +4,21 @@ namespace App\Http\Controllers;
 
 use App\Models\Property;
 use App\Models\PropertyMedia;
-use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
+use App\Services\ImageService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use App\Services\ImageService;
-use Inertia\Inertia;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class MediaController extends Controller
 {
     public function __construct(
         private ImageService $imageService
-    ) {
-    }
+    ) {}
+
     /**
      * Upload property media
      */
@@ -37,8 +36,8 @@ class MediaController extends Controller
                 function ($attribute, $value, $fail) {
                     // Custom validation for file content security
                     if ($value->getMimeType() && str_starts_with($value->getMimeType(), 'image/')) {
-                        if (!$this->isValidImageFile($value)) {
-                            $fail('The ' . $attribute . ' contains invalid or potentially dangerous content.');
+                        if (! $this->isValidImageFile($value)) {
+                            $fail('The '.$attribute.' contains invalid or potentially dangerous content.');
                         }
                         // Validate image dimensions - lebih fleksibel
                         $imageInfo = @getimagesize($value->getRealPath());
@@ -79,13 +78,13 @@ class MediaController extends Controller
                 // Generate secure filename
                 $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
                 $extension = $file->getClientOriginalExtension();
-                $safeName = Str::slug($originalName) . '_' . time() . '_' . Str::random(8) . '.' . $extension;
+                $safeName = Str::slug($originalName).'_'.time().'_'.Str::random(8).'.'.$extension;
 
                 // Store file with security checks
                 $path = $this->storeFileSecurely($file, $safeName, $property);
 
-                if (!$path) {
-                    throw new \Exception('Failed to store file securely: ' . $file->getClientOriginalName());
+                if (! $path) {
+                    throw new \Exception('Failed to store file securely: '.$file->getClientOriginalName());
                 }
 
                 // Determine media type
@@ -155,15 +154,15 @@ class MediaController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Upload failed: ' . $e->getMessage(),
+                'message' => 'Upload failed: '.$e->getMessage(),
             ], 500);
         }
     }
 
     /**
      * Validate if uploaded file is a legitimate image file
-     * 
-     * @param \Illuminate\Http\UploadedFile $file
+     *
+     * @param  UploadedFile  $file
      * @return bool
      */
     private function isValidImageFile($file)
@@ -190,7 +189,7 @@ class MediaController extends Controller
                 }
             }
 
-            if (!$isValid) {
+            if (! $isValid) {
                 return false;
             }
 
@@ -207,10 +206,10 @@ class MediaController extends Controller
                     'image/jpg',
                     'image/png',
                     'image/gif',
-                    'image/webp'
+                    'image/webp',
                 ];
 
-                if (!in_array($imageInfo['mime'], $allowedMimeTypes)) {
+                if (! in_array($imageInfo['mime'], $allowedMimeTypes)) {
                     return false;
                 }
             }
@@ -222,16 +221,17 @@ class MediaController extends Controller
                 'file' => $file->getClientOriginalName(),
                 'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
 
     /**
      * Store file with additional security measures
-     * 
-     * @param \Illuminate\Http\UploadedFile $file
-     * @param string $safeName
-     * @param Property $property
+     *
+     * @param  UploadedFile  $file
+     * @param  string  $safeName
+     * @param  Property  $property
      * @return string|false
      */
     private function storeFileSecurely($file, $safeName, $property)
@@ -240,12 +240,12 @@ class MediaController extends Controller
             $directory = "properties/{$property->slug}/media";
             $path = $file->storeAs($directory, $safeName, 'public');
 
-            if (!$path) {
+            if (! $path) {
                 return false;
             }
 
             // Set proper file permissions
-            $fullPath = storage_path('app/public/' . $path);
+            $fullPath = storage_path('app/public/'.$path);
             if (file_exists($fullPath)) {
                 chmod($fullPath, 0644); // Read/write for owner, read for others
             }
@@ -258,6 +258,7 @@ class MediaController extends Controller
                 'property_id' => $property->id,
                 'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -280,19 +281,19 @@ class MediaController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         // If setting as featured, unset other featured images for this property
-        if ($request->get('is_featured')) {
+        if ($request->input('is_featured')) {
             PropertyMedia::where('property_id', $media->property_id)
                 ->where('id', '!=', $media->id)
                 ->update(['is_featured' => false]);
         }
 
         // If setting as cover, unset other cover images for this property
-        if ($request->get('is_cover')) {
+        if ($request->input('is_cover')) {
             PropertyMedia::where('property_id', $media->property_id)
                 ->where('id', '!=', $media->id)
                 ->update(['is_cover' => false]);
@@ -300,10 +301,10 @@ class MediaController extends Controller
 
         $updateData = $request->only(['title', 'alt_text', 'category', 'is_featured', 'is_cover']);
         if ($request->has('description')) {
-            $updateData['description'] = $request->get('description');
+            $updateData['description'] = $request->input('description');
         }
         if ($request->has('display_order')) {
-            $updateData['display_order'] = $request->get('display_order');
+            $updateData['display_order'] = $request->input('display_order');
         }
 
         $media->update($updateData);
@@ -311,7 +312,7 @@ class MediaController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Media updated successfully',
-            'data' => $media->fresh()
+            'data' => $media->fresh(),
         ]);
     }
 
@@ -331,12 +332,12 @@ class MediaController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Media deleted successfully'
+                'message' => 'Media deleted successfully',
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete media: ' . $e->getMessage()
+                'message' => 'Failed to delete media: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -354,11 +355,11 @@ class MediaController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
-        $mediaIds = $request->get('media_ids');
+        $mediaIds = $request->input('media_ids');
 
         foreach ($mediaIds as $index => $mediaId) {
             PropertyMedia::where('id', $mediaId)
@@ -368,7 +369,7 @@ class MediaController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Media reordered successfully'
+            'message' => 'Media reordered successfully',
         ]);
     }
 
@@ -384,7 +385,7 @@ class MediaController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $media
+            'data' => $media,
         ]);
     }
 
@@ -403,7 +404,7 @@ class MediaController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Featured image updated successfully',
-            'data' => $media->fresh()
+            'data' => $media->fresh(),
         ]);
     }
 
@@ -417,20 +418,20 @@ class MediaController extends Controller
 
         foreach ($media as $mediaItem) {
             try {
-                if (!$mediaItem->thumbnail_path) {
+                if (! $mediaItem->thumbnail_path) {
                     $this->generateThumbnail($mediaItem);
                     $processed++;
                 }
             } catch (\Exception $e) {
                 // Log error but continue processing
-                \Log::error("Failed to generate thumbnail for media {$mediaItem->id}: " . $e->getMessage());
+                \Log::error("Failed to generate thumbnail for media {$mediaItem->id}: ".$e->getMessage());
             }
         }
 
         return response()->json([
             'success' => true,
             'message' => "Generated {$processed} thumbnails",
-            'processed' => $processed
+            'processed' => $processed,
         ]);
     }
 
@@ -447,14 +448,14 @@ class MediaController extends Controller
                 $this->optimizeImage($mediaItem);
                 $optimized++;
             } catch (\Exception $e) {
-                \Log::error("Failed to optimize image {$mediaItem->id}: " . $e->getMessage());
+                \Log::error("Failed to optimize image {$mediaItem->id}: ".$e->getMessage());
             }
         }
 
         return response()->json([
             'success' => true,
             'message' => "Optimized {$optimized} images",
-            'optimized' => $optimized
+            'optimized' => $optimized,
         ]);
     }
 
@@ -463,7 +464,7 @@ class MediaController extends Controller
     private function processAndStoreMedia($file, Property $property, string $type): PropertyMedia
     {
         $filename = $this->generateUniqueFilename($file);
-        $path = "properties/{$property->slug}/" . $filename;
+        $path = "properties/{$property->slug}/".$filename;
 
         // Store original file
         $storedPath = Storage::disk('public')->putFileAs(

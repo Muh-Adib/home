@@ -1,30 +1,32 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\Admin\PropertyManagementController;
-use App\Http\Controllers\Admin\BookingManagementController;
-use App\Http\Controllers\Admin\PaymentController;
-use App\Http\Controllers\Admin\FinanceController;
-use App\Http\Controllers\Admin\InventoryController;
-use App\Http\Controllers\Admin\ReportController;
-use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\PaymentMethodController;
-use App\Http\Controllers\Admin\SettingsController;
-use App\Http\Controllers\Admin\GowaAdminController;
-use App\Http\Controllers\Admin\LegalPageController;
-use App\Http\Controllers\Admin\ExtraServiceController;
-use App\Http\Controllers\ArticleController;
-use App\Http\Controllers\ArticleAIController;
-use App\Http\Controllers\ContentPlanController;
-use App\Http\Controllers\AIProviderKeyController;
-use App\Http\Controllers\MediaController;
-use App\Http\Controllers\AmenityController;
-use App\Http\Controllers\Admin\RateManagementController;
-use App\Http\Controllers\Admin\PropertySeasonalRateController;
 use App\Http\Controllers\Admin\AdminSeoLandingController;
+use App\Http\Controllers\Admin\Booking\BookingApiController;
+use App\Http\Controllers\Admin\BookingManagementController;
 use App\Http\Controllers\Admin\CheckInOutController;
-
+use App\Http\Controllers\Admin\ExtraServiceController;
+use App\Http\Controllers\Admin\FinanceController;
+use App\Http\Controllers\Admin\GowaAdminController;
+use App\Http\Controllers\Admin\InventoryController;
+use App\Http\Controllers\Admin\LegalPageController;
+use App\Http\Controllers\Admin\PaymentController;
+use App\Http\Controllers\Admin\PaymentMethodController;
+use App\Http\Controllers\Admin\PropertyManagementController;
+use App\Http\Controllers\Admin\PropertySeasonalRateController;
+use App\Http\Controllers\Admin\RateManagementController;
+use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AIProviderKeyController;
+use App\Http\Controllers\AmenityController;
+use App\Http\Controllers\ArticleAIController;
+use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\ContentPlanController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ICalController;
+use App\Http\Controllers\MediaController;
+use App\Http\Controllers\PaymentGatewayController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -48,7 +50,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
         Route::patch('properties/{property:slug}/toggle-featured', 'toggleFeatured')->name('properties.toggle-featured');
         Route::post('properties/{property:slug}/duplicate', 'duplicate')->name('properties.duplicate');
         Route::get('properties/{property:slug}/analytics', 'analytics')->name('properties.analytics');
-        Route::post('properties/{property}/sync-ical', [\App\Http\Controllers\ICalController::class, 'sync'])->name('properties.sync-ical');
+        Route::post('properties/{property}/sync-ical', [ICalController::class, 'sync'])->name('properties.sync-ical');
     });
 
     // Media Management
@@ -242,7 +244,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
     Route::controller(BookingManagementController::class)->group(function () {
         // Main booking routes
         Route::get('bookings', 'index')->name('bookings.index');
-        Route::get('bookings/calendar', 'calendar')->name('bookings.calendar');
+        Route::get('bookings/daily-operations', 'dailyOperations')->name('bookings.daily-operations');
 
         Route::get('bookings/create', 'create')->name('bookings.create');
         Route::post('bookings', 'store')->name('bookings.store');
@@ -250,8 +252,6 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
         Route::get('bookings/{booking:booking_number}', 'show')->name('bookings.show');
         Route::get('bookings/{booking:booking_number}/edit', 'edit')->name('bookings.edit');
         Route::put('bookings/{booking:booking_number}', 'update')->name('bookings.update');
-        Route::get('bookings/timeline', 'timelineView')->name('bookings.timeline');
-        Route::get('bookings/timeline/{booking:booking_number}', 'timeline')->name('bookings.timeline.show');
 
         Route::patch('bookings/{booking:booking_number}/verify', 'verify')->name('bookings.verify');
         Route::patch('bookings/{booking:booking_number}/reject', 'reject')->name('bookings.reject');
@@ -269,14 +269,14 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
 
 // Booking Management API (Authenticated but custom prefix)
 Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->prefix('api/admin/booking-management')->name('api.admin.booking-management.')->group(function () {
-    $controller = BookingManagementController::class;
+    $controller = BookingApiController::class;
     Route::get('timeline', [$controller, 'timeline']);
     Route::get('timeline-data', [$controller, 'timelineData']); // For infinite scroll lazy loading
     Route::get('search', [$controller, 'search']); // For search bar
     Route::post('check-availability', [$controller, 'checkAvailability']);
     Route::post('calculate-rate', [$controller, 'calculateRate']);
     Route::post('availability-and-rates', [$controller, 'availabilityAndRates']);
-    Route::post('property-date-range', [$controller, 'getPropertyDateRange']);
+    Route::get('property-date-range', [$controller, 'getPropertyDateRange']);
 
 });
 
@@ -290,7 +290,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
 Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
     Route::post(
         '/bookings/{booking:booking_number}/payment-gateway/generate-link',
-        [\App\Http\Controllers\PaymentGatewayController::class, 'generateLink']
+        [PaymentGatewayController::class, 'generateLink']
     )->name('payment-gateway.generate-link');
     Route::post(
         '/bookings/{booking:booking_number}/payment-gateway/send-link',

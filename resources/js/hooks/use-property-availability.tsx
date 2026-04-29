@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { propertiesService } from '@/lib/api';
+import { apiGet } from '@/lib/api';
 
 interface AvailabilityData {
     success: boolean;
@@ -82,13 +82,7 @@ export function usePropertyAvailability(
     } = useQuery<AvailabilityData>({
         queryKey: ['property-availability', propertySlug, guestCount, monthsToFetch],
         queryFn: async () => {
-            const params = new URLSearchParams({
-                start_date: startDate.toISOString().split('T')[0],
-                end_date: endDate.toISOString().split('T')[0],
-                guest_count: guestCount.toString()
-            });
-
-            return await propertiesService.getAvailabilityAndRates(propertySlug, {
+            return await apiGet<AvailabilityData>(`/api/properties/${propertySlug}/availability-rates`, {
                 start_date: startDate.toISOString().split('T')[0],
                 end_date: endDate.toISOString().split('T')[0],
                 guest_count: guestCount,
@@ -96,7 +90,7 @@ export function usePropertyAvailability(
         },
         enabled: enabled && !!propertySlug,
         staleTime: 5 * 60 * 1000, // 5 minutes
-        cacheTime: 10 * 60 * 1000, // 10 minutes
+        gcTime: 10 * 60 * 1000, // 10 minutes
         refetchOnWindowFocus: false,
     });
 

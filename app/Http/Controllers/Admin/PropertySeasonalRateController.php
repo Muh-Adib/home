@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Property;
 use App\Models\PropertySeasonalRate;
 use App\Services\RateCalculationService;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -118,13 +118,13 @@ class PropertySeasonalRateController extends Controller
             'guest_count' => 'integer|min:1|max:20',
         ]);
 
-        $guestCount = $request->get('guest_count', $property->capacity);
-        
+        $guestCount = $request->input('guest_count', $property->capacity);
+
         try {
             $calculation = $this->rateCalculationService->calculateRate(
                 $property,
-                $request->get('start_date'),
-                $request->get('end_date'),
+                $request->input('start_date'),
+                $request->input('end_date'),
                 $guestCount
             );
 
@@ -135,8 +135,8 @@ class PropertySeasonalRateController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 400);
         }
     }
-} 
+}

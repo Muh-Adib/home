@@ -2,32 +2,34 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Models\User;
-use App\Models\Property;
 use App\Models\Booking;
+use App\Models\Property;
+use App\Models\User;
 use App\Services\AvailabilityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
-use Carbon\Carbon;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class BookingTest extends TestCase
 {
     use RefreshDatabase, WithFaker;
 
     protected $user;
+
     protected $property;
+
     protected $availabilityService;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->user = User::factory()->create([
             'role' => 'guest',
             'name' => 'Test User',
             'email' => 'test@example.com',
-            'phone' => '081234567890'
+            'phone' => '081234567890',
         ]);
 
         $this->property = Property::factory()->create([
@@ -47,21 +49,20 @@ class BookingTest extends TestCase
         $this->availabilityService = app(AvailabilityService::class);
     }
 
-    /** @test */
+    #[Test]
     public function user_can_access_booking_create_page()
     {
         $response = $this->actingAs($this->user)
             ->get("/properties/{$this->property->slug}/book");
 
         $response->assertStatus(200);
-        $response->assertInertia(fn ($page) => 
-            $page->component('Booking/Create')
-                ->has('property')
-                ->has('initialFormData')
+        $response->assertInertia(fn ($page) => $page->component('Booking/Create')
+            ->has('property')
+            ->has('initialFormData')
         );
     }
 
-    /** @test */
+    #[Test]
     public function booking_create_page_loads_with_url_parameters()
     {
         $checkIn = now()->addDays(1)->format('Y-m-d');
@@ -72,13 +73,12 @@ class BookingTest extends TestCase
             ->get("/properties/{$this->property->slug}/book?check_in={$checkIn}&check_out={$checkOut}&guests={$guests}");
 
         $response->assertStatus(200);
-        $response->assertInertia(fn ($page) => 
-            $page->component('Booking/Create')
-                ->where('property.slug', $this->property->slug)
+        $response->assertInertia(fn ($page) => $page->component('Booking/Create')
+            ->where('property.slug', $this->property->slug)
         );
     }
 
-    /** @test */
+    #[Test]
     public function user_can_create_booking_with_valid_data()
     {
         $bookingData = [
@@ -113,7 +113,7 @@ class BookingTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_validates_required_fields()
     {
         $response = $this->actingAs($this->user)
@@ -136,7 +136,7 @@ class BookingTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_validates_guest_count()
     {
         $bookingData = [
@@ -161,7 +161,7 @@ class BookingTest extends TestCase
         $response->assertSessionHasErrors(['guest_count']);
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_validates_guest_count_exceeds_capacity()
     {
         $bookingData = [
@@ -186,7 +186,7 @@ class BookingTest extends TestCase
         $response->assertSessionHasErrors(['guest_count']);
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_validates_dates()
     {
         // Test past date
@@ -221,7 +221,7 @@ class BookingTest extends TestCase
         $response->assertSessionHasErrors(['check_out_date']);
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_validates_minimum_stay()
     {
         // Create a booking that doesn't meet minimum stay requirements
@@ -248,7 +248,7 @@ class BookingTest extends TestCase
         $response->assertStatus(302); // Redirect after successful booking
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_validates_property_availability()
     {
         // Create a conflicting booking first
@@ -284,7 +284,7 @@ class BookingTest extends TestCase
         $response->assertSessionHasErrors();
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_calculates_rate_correctly()
     {
         $bookingData = [
@@ -307,7 +307,7 @@ class BookingTest extends TestCase
             ->post("/properties/{$this->property->slug}/book", $bookingData);
 
         $response->assertRedirect();
-        
+
         $booking = Booking::where('property_id', $this->property->id)
             ->where('guest_name', 'Test Guest')
             ->latest()
@@ -319,7 +319,7 @@ class BookingTest extends TestCase
         $this->assertGreaterThan(0, $booking->remaining_amount);
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_handles_guest_details()
     {
         $bookingData = [
@@ -356,7 +356,7 @@ class BookingTest extends TestCase
             ->post("/properties/{$this->property->slug}/book", $bookingData);
 
         $response->assertRedirect();
-        
+
         $booking = Booking::where('property_id', $this->property->id)
             ->where('guest_name', 'Test Guest')
             ->latest()
@@ -366,7 +366,7 @@ class BookingTest extends TestCase
         $this->assertEquals(4, $booking->guest_count); // 2 male + 1 female + 1 child
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_handles_different_dp_percentages()
     {
         $dpPercentages = [30, 50, 70, 100];
@@ -396,7 +396,7 @@ class BookingTest extends TestCase
             // Find the created booking with unique email for each test
             $uniqueEmail = "test{$dpPercentage}@example.com";
             $bookingData['guest_email'] = $uniqueEmail;
-            
+
             $response = $this->actingAs($this->user)
                 ->post("/properties/{$this->property->slug}/book", $bookingData);
 
@@ -415,7 +415,7 @@ class BookingTest extends TestCase
         }
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_handles_extra_beds_calculation()
     {
         $bookingData = [
@@ -433,12 +433,12 @@ class BookingTest extends TestCase
             'relationship_type' => 'keluarga',
             'dp_percentage' => 50,
         ];
-        
+
         $response = $this->actingAs($this->user)
             ->post("/properties/{$this->property->slug}/book", $bookingData);
 
         $response->assertRedirect();
-        
+
         $booking = Booking::where('property_id', $this->property->id)
             ->where('guest_name', 'Test Guest')
             ->latest()
@@ -449,7 +449,7 @@ class BookingTest extends TestCase
         $this->assertGreaterThan(0, $booking->extra_bed_amount);
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_creates_workflow_entry()
     {
         $bookingData = [
@@ -487,7 +487,7 @@ class BookingTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_sends_notifications()
     {
         $bookingData = [
@@ -510,13 +510,13 @@ class BookingTest extends TestCase
             ->post("/properties/{$this->property->slug}/book", $bookingData);
 
         $response->assertRedirect();
-        
+
         // Check if notification was sent (this depends on your notification implementation)
         // You might need to mock the notification or check the notification table
         $this->assertTrue(true); // Placeholder - implement based on your notification system
     }
 
-    /** @test */
+    #[Test]
     public function booking_creation_handles_unauthenticated_user()
     {
         $bookingData = [
@@ -540,4 +540,4 @@ class BookingTest extends TestCase
         // Should redirect to login or handle guest booking
         $response->assertStatus(302);
     }
-} 
+}

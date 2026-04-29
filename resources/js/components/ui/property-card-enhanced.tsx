@@ -68,8 +68,10 @@ const LOCATION_MAP: Record<string, { text: string; color: string }> = {
   kaliurang: { text: 'Kaliurang', color: 'bg-teal-500' },
 };
 
-function getLocationBadge(address: string) {
-  const lower = address.toLowerCase();
+function getLocationBadge(address?: string) {
+  if (!address) return { text: 'Jogja', color: 'bg-slate-500' };
+  
+  const lower = String(address).toLowerCase();
   for (const [key, val] of Object.entries(LOCATION_MAP)) {
     if (lower.includes(key)) return val;
   }

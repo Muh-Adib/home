@@ -4,22 +4,22 @@ namespace App\Http\Controllers\Staff;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\InventoryItem;
 use App\Models\Property;
+use App\Services\CleaningService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\DB;
 
 class CleaningDashboardController extends Controller
 {
     public function __construct(
-        protected \App\Services\CleaningService $cleaningService
-    ) {
-    }
+        protected CleaningService $cleaningService
+    ) {}
 
     public function index()
     {
         // 1. Get Active Inventory Items for the form
-        $inventoryItems = \App\Models\InventoryItem::select('id', 'name', 'unit')
+        $inventoryItems = InventoryItem::select('id', 'name', 'unit')
             ->orderBy('name')
             ->get();
 
@@ -64,7 +64,7 @@ class CleaningDashboardController extends Controller
                 'cleaned_today' => Booking::whereDate('cleaned_at', today())->count(),
                 'pending_cleaning' => $needsCleaning->count(),
                 'high_priority' => $needsCleaning->where('priority', 'high')->count(),
-            ]
+            ],
         ]);
     }
 
@@ -94,11 +94,12 @@ class CleaningDashboardController extends Controller
 
             return redirect()->back()->with(
                 'success',
-                "Property marked as Ready! Keybox updated to: {$request->get('new_keybox_code')}"
+                "Property marked as Ready! Keybox updated to: {$request->input('new_keybox_code')}"
             );
 
         } catch (\Exception $e) {
-            \Log::error('Mark as cleaned failed: ' . $e->getMessage());
+            \Log::error('Mark as cleaned failed: '.$e->getMessage());
+
             return redirect()->back()->with('error', 'Failed to mark as cleaned. Please try again.');
         }
     }
@@ -110,7 +111,7 @@ class CleaningDashboardController extends Controller
     {
         $nextBooking = $booking->property->getNextCheckIn();
 
-        if (!$nextBooking) {
+        if (! $nextBooking) {
             return 'low';
         }
 

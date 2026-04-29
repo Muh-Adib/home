@@ -1,6 +1,8 @@
 # Codebase Overview — Homsjogja
 
-Dokumen ini memberikan gambaran akurat tentang struktur codebase Homsjogja per kondisi terkini setelah audit dan cleanup.
+Gambaran akurat struktur codebase Homsjogja per kondisi terkini.
+
+**Stack:** PHP 8.4 · Laravel 13.4 · Inertia.js v3 · React 19 · Tailwind CSS v4 · MySQL
 
 ---
 
@@ -9,220 +11,352 @@ Dokumen ini memberikan gambaran akurat tentang struktur codebase Homsjogja per k
 ```
 homsjogja/
 ├── app/
-│   ├── Actions/           # Single-action classes (CreateBookingAction, VerifyPaymentAction, dll)
-│   ├── Console/Commands/  # Artisan commands (sync, generate, test notifications, dll)
-│   ├── Domain/            # Value objects domain (BookingRequest, RateCalculation)
-│   ├── Events/            # Laravel events (BookingCreated, PaymentStatusChanged, dll)
-│   ├── Exports/           # Excel export classes (BookingsExport)
-│   ├── Helpers/           # Helper utilities (LogParser)
+│   ├── Actions/                      # Single-action classes
+│   │   ├── Booking/CreateBookingAction.php
+│   │   ├── Payment/VerifyPaymentAction.php
+│   │   └── User/EnsureGuestUserAction.php
+│   ├── Console/Commands/             # Artisan commands
+│   ├── Domain/Booking/ValueObjects/  # BookingRequest, RateCalculation
+│   ├── Events/                       # BookingCreated, BookingStatusChanged, PaymentCreated, PaymentStatusChanged
+│   ├── Exceptions/                   # AIGenerationException
+│   ├── Exports/                      # BookingsExport
+│   ├── Helpers/                      # LogParser
 │   ├── Http/
 │   │   ├── Controllers/
-│   │   │   ├── Admin/     # Controller untuk panel admin
-│   │   │   ├── Auth/      # Controller autentikasi
-│   │   │   ├── Settings/  # Controller pengaturan profil/password
-│   │   │   └── Staff/     # Controller untuk staff (cleaning dashboard)
-│   │   ├── Middleware/    # Middleware aplikasi
-│   │   └── Requests/      # Form request validation
-│   ├── Models/            # Eloquent models
-│   ├── Repositories/      # Repository pattern untuk data access
-│   └── Services/          # Business logic services
+│   │   │   ├── Admin/                # Panel admin
+│   │   │   ├── Auth/                 # Autentikasi
+│   │   │   ├── Settings/             # Profil & password
+│   │   │   └── Staff/                # Staff (cleaning)
+│   │   ├── Middleware/
+│   │   └── Requests/
+│   ├── Models/
+│   │   └── Traits/                   # HasBookingStatus, HasCheckinInstructions, HasPaymentManagement
+│   ├── Repositories/                 # BookingRepository
+│   └── Services/
 ├── database/
-│   ├── migrations/        # Database migrations
-│   └── seeders/           # Database seeders
-├── doc/                   # Dokumentasi teknis dan panduan development
-├── docs/                  # Dokumentasi codebase (file ini)
+│   ├── migrations/
+│   └── seeders/
+├── docs/                             # Dokumentasi codebase (file ini)
 ├── resources/
 │   ├── js/
-│   │   ├── components/    # Komponen React reusable
-│   │   ├── layouts/       # Layout components
-│   │   └── pages/         # Halaman Inertia.js (Admin, Auth, dll)
-│   └── views/             # Blade templates (minimal, sebagian besar via Inertia)
+│   │   ├── components/               # Komponen React reusable
+│   │   ├── config/                   # api.ts
+│   │   ├── hooks/                    # Custom React hooks
+│   │   ├── layouts/                  # Layout components
+│   │   ├── lib/
+│   │   │   └── api/services/         # Typed API service layer
+│   │   ├── locales/                  # en.json, id.json
+│   │   ├── pages/                    # Halaman Inertia.js
+│   │   ├── types/                    # TypeScript type definitions
+│   │   └── utils/                    # Utility functions
+│   └── views/
 └── routes/
-    ├── admin.php          # Route panel admin
-    ├── user.php           # Route frontend user
-    └── staff.php          # Route panel staff
+    ├── admin.php, auth.php, channels.php
+    ├── console.php, settings.php, staff.php
+    ├── user.php, web.php
 ```
 
 ---
 
-## Controller Aktif dan Route-nya
+## Controllers
 
-### Admin Controllers (`app/Http/Controllers/Admin/`)
+### Admin — [`app/Http/Controllers/Admin/`](../app/Http/Controllers/Admin/)
 
-| Controller | Route Prefix | Route Names | Deskripsi |
-|---|---|---|---|
-| `BookingManagementController` | `admin/bookings` | `admin.bookings.*` | Semua operasi booking: CRUD, verify, reject, cancel, checkin, checkout, import, export, timeline |
-| `PropertyManagementController` | `admin/properties` | `admin.properties.*` | Manajemen properti: CRUD, media, analytics, iCal sync |
-| `PaymentController` | `admin/payments` | `admin.payments.*` | Manajemen pembayaran: CRUD, verify, reject |
-| `FinanceController` | `admin/finance` | `admin.finance.*` | Laporan keuangan, income, expense, wallet |
-| `InventoryController` | `admin/inventory` | `admin.inventory.*` | Manajemen inventaris: items, purchases, usages |
-| `ReportController` | `admin/reports` | `admin.reports.*` | Laporan: financial, occupancy, property performance |
-| `UserController` | `admin/users` | `admin.users.*` | Manajemen user (super_admin only) |
-| `PaymentMethodController` | `admin/payment-methods` | `admin.payment-methods.*` | Manajemen metode pembayaran |
-| `SettingsController` | `admin/settings` | `admin.settings.*` | Pengaturan aplikasi: general, payment, email, system, booking, property |
-| `RateManagementController` | `admin/rate-management` | `admin.rate-management.*` | Manajemen tarif properti dan seasonal rates |
-| `PropertySeasonalRateController` | `admin/properties/{property}/seasonal-rates` | `admin.properties.seasonal-rates.*` | Seasonal rates per properti (legacy, backward compat) |
-| `CheckInOutController` | `admin/bookings/check-in-out` | `admin.bookings.check-in-out` | Dashboard check-in/check-out |
-| `ExtraServiceController` | `admin/extra-services` | `admin.extra-services.*` | Manajemen layanan tambahan |
-| `GowaAdminController` | `admin/gowa` | `admin.gowa.*` | Manajemen WhatsApp via GOWA |
-| `LegalPageController` | `admin/legal` | `admin.legal.*` | Manajemen halaman legal |
-| `AdminSeoLandingController` | `admin/seo-pages` | `admin.seo-pages.*` | Manajemen SEO landing pages |
+| Controller | Route Names | Deskripsi |
+|---|---|---|
+| [`BookingManagementController`](../app/Http/Controllers/Admin/BookingManagementController.php) | `admin.bookings.*` | CRUD booking, verify, reject, cancel, checkin, checkout, import, export, timeline |
+| [`Booking/BookingApiController`](../app/Http/Controllers/Admin/Booking/BookingApiController.php) | `/api/admin/booking-management/*` | API endpoint: timeline, search, availability |
+| [`PropertyManagementController`](../app/Http/Controllers/Admin/PropertyManagementController.php) | `admin.properties.*` | CRUD properti, media, analytics, iCal sync |
+| [`PaymentController`](../app/Http/Controllers/Admin/PaymentController.php) | `admin.payments.*` | CRUD pembayaran, verify, reject |
+| [`FinanceController`](../app/Http/Controllers/Admin/FinanceController.php) | `admin.finance.*` | Laporan keuangan, income, expense, wallet |
+| [`InventoryController`](../app/Http/Controllers/Admin/InventoryController.php) | `admin.inventory.*` | Inventaris: items, purchases, usages |
+| [`ReportController`](../app/Http/Controllers/Admin/ReportController.php) | `admin.reports.*` | Laporan financial, occupancy, property performance |
+| [`UserController`](../app/Http/Controllers/Admin/UserController.php) | `admin.users.*` | Manajemen user (super_admin only) |
+| [`PaymentMethodController`](../app/Http/Controllers/Admin/PaymentMethodController.php) | `admin.payment-methods.*` | Metode pembayaran |
+| [`SettingsController`](../app/Http/Controllers/Admin/SettingsController.php) | `admin.settings.*` | General, payment, email, system, booking, property settings |
+| [`RateManagementController`](../app/Http/Controllers/Admin/RateManagementController.php) | `admin.rate-management.*` | Tarif properti & seasonal rates |
+| [`PropertySeasonalRateController`](../app/Http/Controllers/Admin/PropertySeasonalRateController.php) | `admin.properties.seasonal-rates.*` | Seasonal rates per properti (legacy) |
+| [`CheckInOutController`](../app/Http/Controllers/Admin/CheckInOutController.php) | `admin.bookings.check-in-out` | Dashboard check-in/check-out |
+| [`ExtraServiceController`](../app/Http/Controllers/Admin/ExtraServiceController.php) | `admin.extra-services.*` | Layanan tambahan |
+| [`GowaAdminController`](../app/Http/Controllers/Admin/GowaAdminController.php) | `admin.gowa.*` | WhatsApp via GOWA |
+| [`LegalPageController`](../app/Http/Controllers/Admin/LegalPageController.php) | `admin.legal.*` | Halaman legal |
+| [`AdminSeoLandingController`](../app/Http/Controllers/Admin/AdminSeoLandingController.php) | `admin.seo-pages.*` | SEO landing pages |
 
-**Catatan penting:** `BookingManagementController` adalah satu-satunya controller untuk semua operasi booking di panel admin. Route canonical adalah `admin.bookings.*`. Route API terpisah tersedia di prefix `/api/admin/booking-management/` (untuk timeline, search, availability).
-
-### Non-Admin Controllers (`app/Http/Controllers/`)
+### Non-Admin — [`app/Http/Controllers/`](../app/Http/Controllers/)
 
 | Controller | Deskripsi |
 |---|---|
-| `BookingController` | Booking flow untuk user/tamu (frontend) |
-| `PropertyController` | Tampilan properti untuk user/tamu |
-| `PaymentController` | Payment flow untuk user/tamu |
-| `PaymentGatewayController` | Integrasi payment gateway (iPaymu) |
-| `ArticleController` | Manajemen artikel (juga digunakan di admin) |
-| `ArticleAIController` | AI assistance untuk pembuatan artikel |
-| `ContentPlanController` | Content planning dengan AI |
-| `AIProviderKeyController` | Manajemen API keys AI provider |
-| `DashboardController` | Dashboard (admin dan user) |
-| `ICalController` | Sinkronisasi kalender iCal |
-| `MediaController` | Upload dan manajemen media |
-| `AmenityController` | Manajemen amenitas properti |
-| `ReviewController` | Ulasan properti |
-| `ReportController` | Laporan untuk user |
-| `NotificationController` | Notifikasi in-app |
-| `SeoLandingController` | SEO landing pages (frontend) |
-| `SitemapController` | Sitemap XML |
-| `LegalViewController` | Tampilan halaman legal (frontend) |
+| [`BookingController`](../app/Http/Controllers/BookingController.php) | Booking flow user/tamu (frontend) |
+| [`PropertyController`](../app/Http/Controllers/PropertyController.php) | Tampilan properti user/tamu |
+| [`PaymentController`](../app/Http/Controllers/PaymentController.php) | Payment flow user/tamu |
+| [`PaymentGatewayController`](../app/Http/Controllers/PaymentGatewayController.php) | Integrasi iPaymu |
+| [`PaymentMethodController`](../app/Http/Controllers/PaymentMethodController.php) | Metode pembayaran (frontend) |
+| [`ArticleController`](../app/Http/Controllers/ArticleController.php) | Manajemen artikel |
+| [`ArticleAIController`](../app/Http/Controllers/ArticleAIController.php) | AI assistance artikel |
+| [`ContentPlanController`](../app/Http/Controllers/ContentPlanController.php) | Content planning dengan AI |
+| [`AIProviderKeyController`](../app/Http/Controllers/AIProviderKeyController.php) | API keys AI provider |
+| [`DashboardController`](../app/Http/Controllers/DashboardController.php) | Dashboard (admin & user) |
+| [`ICalController`](../app/Http/Controllers/ICalController.php) | Sinkronisasi kalender iCal |
+| [`MediaController`](../app/Http/Controllers/MediaController.php) | Upload & manajemen media |
+| [`AmenityController`](../app/Http/Controllers/AmenityController.php) | Amenitas properti |
+| [`ReviewController`](../app/Http/Controllers/ReviewController.php) | Ulasan properti |
+| [`ReportController`](../app/Http/Controllers/ReportController.php) | Laporan user |
+| [`NotificationController`](../app/Http/Controllers/NotificationController.php) | Notifikasi in-app |
+| [`SeoLandingController`](../app/Http/Controllers/SeoLandingController.php) | SEO landing pages (frontend) |
+| [`SitemapController`](../app/Http/Controllers/SitemapController.php) | Sitemap XML |
+| [`LegalViewController`](../app/Http/Controllers/LegalViewController.php) | Halaman legal (frontend) |
+| [`StaticPageController`](../app/Http/Controllers/StaticPageController.php) | Halaman statis (About, FAQ, Support) |
+
+### Auth — [`app/Http/Controllers/Auth/`](../app/Http/Controllers/Auth/)
+
+`AuthenticatedSessionController`, `RegisteredUserController`, `PasswordResetLinkController`, `NewPasswordController`, `VerifyEmailController`, `WhatsappAuthController`, dll.
+
+### Settings — [`app/Http/Controllers/Settings/`](../app/Http/Controllers/Settings/)
+
+`ProfileController`, `PasswordController`
+
+### Staff — [`app/Http/Controllers/Staff/`](../app/Http/Controllers/Staff/)
+
+[`CleaningDashboardController`](../app/Http/Controllers/Staff/CleaningDashboardController.php)
 
 ---
 
-## Services dan Tanggung Jawabnya
+## Services — [`app/Services/`](../app/Services/)
 
 ### Booking & Availability
 
 | Service | Tanggung Jawab |
 |---|---|
-| `BookingService` | Orkestrasi pembuatan dan update booking, validasi ketersediaan, kalkulasi rate |
-| `AdminBookingService` | Operasi booking dari panel admin: create, update, verify, reject, cancel, checkin, checkout |
-| `BookingExtraServiceSyncService` | Sync extra services (layanan tambahan) pada booking, kalkulasi total services amount |
-| `BookingDailyRevenueService` | Sinkronisasi pendapatan harian per booking untuk laporan |
-| `AvailabilityService` | Pengecekan ketersediaan properti untuk rentang tanggal tertentu |
+| [`BookingService`](../app/Services/BookingService.php) | Orkestrasi pembuatan & update booking, validasi ketersediaan, kalkulasi rate |
+| [`AdminBookingService`](../app/Services/AdminBookingService.php) | Operasi booking dari panel admin |
+| [`BookingQueryService`](../app/Services/BookingQueryService.php) | Query & filtering data booking |
+| [`BookingExtraServiceSyncService`](../app/Services/BookingExtraServiceSyncService.php) | Sync extra services pada booking |
+| [`BookingDailyRevenueService`](../app/Services/BookingDailyRevenueService.php) | Sinkronisasi pendapatan harian per booking |
+| [`AvailabilityService`](../app/Services/AvailabilityService.php) | Pengecekan ketersediaan properti |
 
 ### Rate & Pricing
 
 | Service | Tanggung Jawab |
 |---|---|
-| `RateCalculationService` | Kalkulasi tarif menginap: base rate, weekend premium, seasonal rate, extra bed |
-| `RateService` | Manajemen tarif properti |
-| `RateOverrideLogService` | Logging perubahan tarif manual |
-| `PropertyBusinessRulesService` | Validasi aturan bisnis properti (minimum stay, dll) |
+| [`RateCalculationService`](../app/Services/RateCalculationService.php) | Kalkulasi tarif: base rate, weekend premium, seasonal rate, extra bed |
+| [`RateService`](../app/Services/RateService.php) | Manajemen tarif properti |
+| [`RateOverrideLogService`](../app/Services/RateOverrideLogService.php) | Logging perubahan tarif manual |
+| [`PropertyBusinessRulesService`](../app/Services/PropertyBusinessRulesService.php) | Validasi aturan bisnis properti (minimum stay, dll) |
 
 ### Payment & Finance
 
 | Service | Tanggung Jawab |
 |---|---|
-| `PaymentService` | Pemrosesan pembayaran, verifikasi, status update |
-| `PaymentGatewayService` | Integrasi dengan payment gateway eksternal |
-| `IpaymuService` | Integrasi spesifik dengan iPaymu |
-| `PaymentIncomeSyncService` | Sinkronisasi income dari pembayaran ke laporan keuangan |
-| `WalletService` | Manajemen wallet internal |
-| `WalletAllocationService` | Alokasi dana ke wallet berdasarkan aturan |
+| [`PaymentService`](../app/Services/PaymentService.php) | Pemrosesan pembayaran, verifikasi, status update |
+| [`PaymentGatewayService`](../app/Services/PaymentGatewayService.php) | Integrasi payment gateway eksternal |
+| [`IpaymuService`](../app/Services/IpaymuService.php) | Integrasi spesifik iPaymu |
+| [`PaymentIncomeSyncService`](../app/Services/PaymentIncomeSyncService.php) | Sinkronisasi income dari pembayaran ke laporan |
+| [`WalletService`](../app/Services/WalletService.php) | Manajemen wallet internal |
+| [`WalletAllocationService`](../app/Services/WalletAllocationService.php) | Alokasi dana ke wallet |
 
 ### Content & AI
 
 | Service | Tanggung Jawab |
 |---|---|
-| `ArticleService` | Manajemen artikel: CRUD, publish, schedule |
-| `AIArticleService` | Generasi konten artikel menggunakan AI |
-| `ArticleAnalysisService` | Analisis SEO dan kualitas artikel |
-| `ArticleFeaturedImageService` | Manajemen gambar featured artikel |
-| `ArticleImageService` | Upload dan optimasi gambar artikel |
-| `ArticlePromptService` | Manajemen prompt untuk AI article generation |
-| `ContentPlanService` | Manajemen content plan dengan AI assistance |
-| `AIProviderSyncService` | Sinkronisasi konfigurasi AI provider |
-| `NewsDiscoveryService` | Penemuan berita/topik untuk content planning |
-| `SerpScraperService` | Scraping SERP untuk analisis SEO |
-| `GoogleIndexingService` | Submit URL ke Google Indexing API |
-| `SeoService` | Utilitas SEO umum |
+| [`ArticleService`](../app/Services/ArticleService.php) | CRUD artikel, publish, schedule |
+| [`AIArticleService`](../app/Services/AIArticleService.php) | Generasi konten artikel via AI |
+| [`ArticleAnalysisService`](../app/Services/ArticleAnalysisService.php) | Analisis SEO & kualitas artikel |
+| [`ArticleFeaturedImageService`](../app/Services/ArticleFeaturedImageService.php) | Manajemen gambar featured artikel |
+| [`ArticleImageService`](../app/Services/ArticleImageService.php) | Upload & optimasi gambar artikel |
+| [`ArticlePromptService`](../app/Services/ArticlePromptService.php) | Manajemen prompt AI article generation |
+| [`ContentPlanService`](../app/Services/ContentPlanService.php) | Content plan dengan AI assistance |
+| [`AIProviderSyncService`](../app/Services/AIProviderSyncService.php) | Sinkronisasi konfigurasi AI provider |
+| [`NewsDiscoveryService`](../app/Services/NewsDiscoveryService.php) | Penemuan topik untuk content planning |
+| [`SerpScraperService`](../app/Services/SerpScraperService.php) | Scraping SERP untuk analisis SEO |
+| [`GoogleIndexingService`](../app/Services/GoogleIndexingService.php) | Submit URL ke Google Indexing API |
+| [`SeoService`](../app/Services/SeoService.php) | Utilitas SEO umum |
 
 ### Infrastructure & Utilities
 
 | Service | Tanggung Jawab |
 |---|---|
-| `ImageService` | Upload, resize, optimasi gambar |
-| `ICalService` | Parsing dan generasi file iCal |
-| `GowaService` | Integrasi WhatsApp via GOWA |
-| `WhatsappAuthService` | Autentikasi via WhatsApp OTP |
-| `CleaningService` | Manajemen jadwal cleaning |
-| `InventoryService` | Manajemen inventaris operasional |
-| `GuestCountService` | Kalkulasi dan validasi jumlah tamu |
-| `DashboardRouteService` | Routing dashboard berdasarkan role user |
+| [`ImageService`](../app/Services/ImageService.php) | Upload, resize, optimasi gambar |
+| [`ICalService`](../app/Services/ICalService.php) | Parsing & generasi file iCal |
+| [`GowaService`](../app/Services/GowaService.php) | Integrasi WhatsApp via GOWA |
+| [`WhatsappAuthService`](../app/Services/WhatsappAuthService.php) | Autentikasi via WhatsApp OTP |
+| [`CleaningService`](../app/Services/CleaningService.php) | Manajemen jadwal cleaning |
+| [`InventoryService`](../app/Services/InventoryService.php) | Manajemen inventaris operasional |
+| [`GuestCountService`](../app/Services/GuestCountService.php) | Kalkulasi & validasi jumlah tamu |
+| [`DashboardRouteService`](../app/Services/DashboardRouteService.php) | Routing dashboard berdasarkan role |
 
 ---
 
-## Models dan Status Implementasi
+## Models — [`app/Models/`](../app/Models/)
 
-Semua model berikut sudah **fully implemented** dengan relasi, scopes, dan business logic yang lengkap.
+### Traits — [`app/Models/Traits/`](../app/Models/Traits/)
 
-### Core Booking Models
+| Trait | Deskripsi |
+|---|---|
+| [`HasBookingStatus`](../app/Models/Traits/HasBookingStatus.php) | Status workflow booking |
+| [`HasCheckinInstructions`](../app/Models/Traits/HasCheckinInstructions.php) | Instruksi check-in |
+| [`HasPaymentManagement`](../app/Models/Traits/HasPaymentManagement.php) | Manajemen pembayaran pada booking |
 
-| Model | Tabel | Deskripsi |
+### Core Booking
+
+| Model | Tabel | File |
 |---|---|---|
-| `Booking` | `bookings` | Model utama booking dengan status workflow, relasi ke property, user, payments, services |
-| `BookingService` | `booking_services` | Extra services yang dipesan dalam booking |
-| `BookingGuest` | `booking_guests` | Data tamu tambahan dalam booking |
-| `BookingWorkflow` | `booking_workflows` | Log perubahan status booking |
-| `BookingDailyRevenue` | `booking_daily_revenues` | Breakdown pendapatan harian per booking |
+| `Booking` | `bookings` | [`Booking.php`](../app/Models/Booking.php) |
+| `BookingService` | `booking_services` | [`BookingService.php`](../app/Models/BookingService.php) |
+| `BookingGuest` | `booking_guests` | [`BookingGuest.php`](../app/Models/BookingGuest.php) |
+| `BookingWorkflow` | `booking_workflows` | [`BookingWorkflow.php`](../app/Models/BookingWorkflow.php) |
+| `BookingDailyRevenue` | `booking_daily_revenues` | [`BookingDailyRevenue.php`](../app/Models/BookingDailyRevenue.php) |
 
-### Property Models
+### Property
 
-| Model | Tabel | Deskripsi |
+| Model | Tabel | File |
 |---|---|---|
-| `Property` | `properties` | Properti dengan detail, kapasitas, tarif dasar, relasi ke media, amenitas |
-| `PropertyMedia` | `property_media` | Foto dan media properti |
-| `PropertyExpense` | `property_expenses` | Pengeluaran operasional properti |
-| `PropertySeasonalRate` | `property_seasonal_rates` | Tarif musiman properti |
-| `Amenity` | `amenities` | Fasilitas/amenitas yang tersedia |
-| `ServiceMaster` | `service_masters` | Master data layanan tambahan |
+| `Property` | `properties` | [`Property.php`](../app/Models/Property.php) |
+| `PropertyMedia` | `property_media` | [`PropertyMedia.php`](../app/Models/PropertyMedia.php) |
+| `PropertyExpense` | `property_expenses` | [`PropertyExpense.php`](../app/Models/PropertyExpense.php) |
+| `PropertySeasonalRate` | `property_seasonal_rates` | [`PropertySeasonalRate.php`](../app/Models/PropertySeasonalRate.php) |
+| `Amenity` | `amenities` | [`Amenity.php`](../app/Models/Amenity.php) |
+| `ServiceMaster` | `service_masters` | [`ServiceMaster.php`](../app/Models/ServiceMaster.php) |
 
-### Payment & Finance Models
+### Payment & Finance
 
-| Model | Tabel | Deskripsi |
+| Model | Tabel | File |
 |---|---|---|
-| `Payment` | `payments` | Pembayaran dengan status, metode, bukti transfer |
-| `PaymentMethod` | `payment_methods` | Metode pembayaran yang tersedia |
-| `Income` | `incomes` | Catatan pemasukan |
-| `FinancialReport` | `financial_reports` | Laporan keuangan periodik |
-| `Wallet` | `wallets` | Wallet internal untuk alokasi dana |
-| `WalletTransaction` | `wallet_transactions` | Transaksi wallet |
-| `WalletAllocationRule` | `wallet_allocation_rules` | Aturan alokasi otomatis ke wallet |
+| `Payment` | `payments` | [`Payment.php`](../app/Models/Payment.php) |
+| `PaymentMethod` | `payment_methods` | [`PaymentMethod.php`](../app/Models/PaymentMethod.php) |
+| `Income` | `incomes` | [`Income.php`](../app/Models/Income.php) |
+| `FinancialReport` | `financial_reports` | [`FinancialReport.php`](../app/Models/FinancialReport.php) |
+| `Wallet` | `wallets` | [`Wallet.php`](../app/Models/Wallet.php) |
+| `WalletTransaction` | `wallet_transactions` | [`WalletTransaction.php`](../app/Models/WalletTransaction.php) |
+| `WalletAllocationRule` | `wallet_allocation_rules` | [`WalletAllocationRule.php`](../app/Models/WalletAllocationRule.php) |
 
-### User & Auth Models
+### User & Auth
 
-| Model | Tabel | Deskripsi |
+| Model | Tabel | File |
 |---|---|---|
-| `User` | `users` | User dengan role-based access (super_admin, property_manager, property_owner, front_desk, housekeeping, finance, guest) |
-| `UserProfile` | `user_profiles` | Profil detail user |
-| `WhatsappOtp` | `whatsapp_otps` | OTP untuk autentikasi via WhatsApp |
+| `User` | `users` | [`User.php`](../app/Models/User.php) |
+| `UserProfile` | `user_profiles` | [`UserProfile.php`](../app/Models/UserProfile.php) |
+| `WhatsappOtp` | `whatsapp_otps` | [`WhatsappOtp.php`](../app/Models/WhatsappOtp.php) |
 
-### Content Models
+### Content
 
-| Model | Tabel | Deskripsi |
+| Model | Tabel | File |
 |---|---|---|
-| `Article` | `articles` | Artikel blog dengan SEO metadata, status publish |
-| `ContentPlan` | `content_plans` | Rencana konten dengan AI assistance |
-| `Review` | `reviews` | Ulasan tamu untuk properti |
-| `SeoLandingPage` | `seo_landing_pages` | Halaman landing SEO |
-| `LegalPage` | `legal_pages` | Halaman legal (syarat & ketentuan, privasi, dll) |
+| `Article` | `articles` | [`Article.php`](../app/Models/Article.php) |
+| `ContentPlan` | `content_plans` | [`ContentPlan.php`](../app/Models/ContentPlan.php) |
+| `Review` | `reviews` | [`Review.php`](../app/Models/Review.php) |
+| `SeoLandingPage` | `seo_landing_pages` | [`SeoLandingPage.php`](../app/Models/SeoLandingPage.php) |
+| `LegalPage` | `legal_pages` | [`LegalPage.php`](../app/Models/LegalPage.php) |
 
-### Operational Models
+### Operational
 
-| Model | Tabel | Deskripsi |
+| Model | Tabel | File |
 |---|---|---|
-| `InventoryItem` | `inventory_items` | Item inventaris operasional |
-| `InventoryStockMovement` | `inventory_stock_movements` | Pergerakan stok inventaris |
-| `InventoryUsage` | `inventory_usages` | Penggunaan inventaris |
-| `GowaConfig` | `gowa_configs` | Konfigurasi WhatsApp GOWA |
-| `AIProviderKey` | `ai_provider_keys` | API keys untuk AI provider |
+| `InventoryItem` | `inventory_items` | [`InventoryItem.php`](../app/Models/InventoryItem.php) |
+| `InventoryStockMovement` | `inventory_stock_movements` | [`InventoryStockMovement.php`](../app/Models/InventoryStockMovement.php) |
+| `InventoryUsage` | `inventory_usages` | [`InventoryUsage.php`](../app/Models/InventoryUsage.php) |
+| `GowaConfig` | `gowa_configs` | [`GowaConfig.php`](../app/Models/GowaConfig.php) |
+| `AIProviderKey` | `ai_provider_keys` | [`AIProviderKey.php`](../app/Models/AIProviderKey.php) |
+
+---
+
+## Frontend — [`resources/js/`](../resources/js/)
+
+### Pages — [`resources/js/pages/`](../resources/js/pages/)
+
+| Folder | Halaman |
+|---|---|
+| `Admin/Bookings/` | Index, Show, Create, Edit, BookingForm, CalendarTimeline, CheckInOut, DailyOperations |
+| `Admin/Properties/` | Index, Show, Create, Edit, Media, SeasonalRates/Index |
+| `Admin/Payments/` | Index, Show, Create, Edit, CreateAdditional, CreateForBooking, ManualPayment |
+| `Admin/Finance/` | Index, Incomes, Expenses, Report, Wallets, WalletReport |
+| `Admin/Inventory/` | Items, Purchases, Usages |
+| `Admin/InventoryItems/` | Index |
+| `Admin/InventoryCategories/` | Index |
+| `Admin/ContentPlans/` | Index, Show, Create, Edit |
+| `Admin/Articles/` | Index, Create, Edit |
+| `Admin/Legal/` | Index, Show, Create, Edit, Archive, ViewArchived, History, Trash |
+| `Admin/Settings/` | General, Booking, Email, Payment, Property, System, SystemLogs, Index, AIKeys/Index+Edit, Seo/Index |
+| `Admin/Users/` | Index, Show, Create, Edit |
+| `Admin/RateManagement/` | Index, Show |
+| `Admin/Reports/` | Index |
+| `Admin/Gowa/` | GowaManagement |
+| `Admin/Amenities/` | Index, Create, Edit |
+| `Admin/ExtraServices/` | Index, Create, Edit |
+| `Admin/PaymentMethods/` | Index, Create, Edit |
+| `Admin/CleaningSchedules/` | Index |
+| `Admin/CleaningStaff/` | Index |
+| `Admin/CleaningTasks/` | Index, Show, Create, Edit |
+| `Booking/` | Create, Confirmation |
+| `Payment/` | Create, SecurePayment, Success |
+| `Properties/` | Index, Show |
+| `Articles/` | Index, Show |
+| `Guest/` | Dashboard, Booking/Show |
+| `Staff/` | CleaningDashboard |
+| `auth/` | login, register, forgot-password, reset-password, verify-email, confirm-password, set-password, ChangePassword |
+| `settings/` | profile, password, appearance |
+| Root pages | Dashboard, welcome, About, FAQ, Legal, SeoLanding, Support |
+
+### Components — [`resources/js/components/`](../resources/js/components/)
+
+| Folder | Isi |
+|---|---|
+| `booking/` | BookingTimeline, BookingFilters, BookingDetailModal, RateCalculationCard, GuestInformationForm, dll (34 komponen) |
+| `property/` | PropertyGallery, BookingSidebar, PropertyTabs, ChartPerformance, dll |
+| `dashboard/` | DashboardStats, TodayAgenda, RevenueBreakdownCard, QuickActions, RecentActivity |
+| `charts/` | ChartRevenue, ChartBookingTrends, ChartPropertyPerformance |
+| `ContentPlanner/` | CalendarView, KanbanView, AICalendarModal, CreatePlanModal |
+| `Article/` | ArticleContent |
+| `notifications/` | notification-bell |
+| `seo/` | SeoHead, SchemaOrg, FAQSection |
+| `Features/` | PropertyForm |
+| `ui/` | shadcn/ui components + custom (50+ komponen) |
+
+### Hooks — [`resources/js/hooks/`](../resources/js/hooks/)
+
+`useAdminBookingAvailability`, `useBookingTimeline`, `useBookingFormState`, `useRateCalculator`, `useAvailability`, `usePropertyAvailability`, `usePropertyMinimumStay`, `usePropertyState`, `usePropertyStats`, `useAIGenerator`, `usePaymentForm`, `useNotifications`, `useImageGallery`, `useAppearance`, `useMobile`, dll.
+
+### Layouts — [`resources/js/layouts/`](../resources/js/layouts/)
+
+`admin-layout`, `app-layout`, `auth-layout`, `dashboard-layout`, `guest-layout`
+
+### API Service Layer — [`resources/js/lib/api/`](../resources/js/lib/api/)
+
+`client.ts` + services: `bookings.service.ts`, `payments.service.ts`, `properties.service.ts`, `notifications.service.ts`
+
+### Localization — [`resources/js/locales/`](../resources/js/locales/)
+
+`en.json`, `id.json` — i18n via `resources/js/lib/i18n.ts`
+
+---
+
+## Middleware — [`app/Http/Middleware/`](../app/Http/Middleware/)
+
+| Middleware | Deskripsi |
+|---|---|
+| [`RoleMiddleware`](../app/Http/Middleware/RoleMiddleware.php) | Role-based access control |
+| [`HandleInertiaRequests`](../app/Http/Middleware/HandleInertiaRequests.php) | Share data global ke Inertia |
+| [`HandleAppearance`](../app/Http/Middleware/HandleAppearance.php) | Dark/light mode |
+| [`SetLocale`](../app/Http/Middleware/SetLocale.php) | Bahasa aplikasi |
+| [`ApiResponseFormatter`](../app/Http/Middleware/ApiResponseFormatter.php) | Format response API |
+| [`EnsureEmailVerificationSignature`](../app/Http/Middleware/EnsureEmailVerificationSignature.php) | Verifikasi email |
+| [`ThrottleRequests`](../app/Http/Middleware/ThrottleRequests.php) | Rate limiting |
+| [`TrustProxies`](../app/Http/Middleware/TrustProxies.php) | Trust proxy headers |
+
+---
+
+## Artisan Commands — [`app/Console/Commands/`](../app/Console/Commands/)
+
+| Command | Deskripsi |
+|---|---|
+| `AutoPublishArticles` | Auto-publish artikel terjadwal |
+| `CheckImageSupport` | Cek dukungan format gambar |
+| `CreateSampleBooking` | Buat sample booking untuk testing |
+| `GenerateICalTokensCommand` | Generate token iCal |
+| `ICalSyncCommand` / `SyncICalCommand` | Sinkronisasi kalender iCal |
+| `SyncBookingDailyRevenue` | Sync pendapatan harian booking |
+| `SyncPaymentIncome` | Sync income dari pembayaran |
+| `TestBookingNotifications` / `TestNotifications` / `TestPaymentNotifications` | Testing notifikasi |
+| `UpdateMyBookingsFeature` | Update fitur my bookings |
 
 ---
 
@@ -232,25 +366,23 @@ Semua model berikut sudah **fully implemented** dengan relasi, scopes, dan busin
 
 | Kategori | Konvensi | Contoh |
 |---|---|---|
-| Controller | `PascalCase` + `Controller` suffix | `BookingManagementController` |
-| Service | `PascalCase` + `Service` suffix | `BookingExtraServiceSyncService` |
+| Controller | `PascalCase` + `Controller` | `BookingManagementController` |
+| Service | `PascalCase` + `Service` | `BookingExtraServiceSyncService` |
 | Model | `PascalCase` singular | `Booking`, `Property` |
-| Action | `PascalCase` + `Action` suffix | `CreateBookingAction` |
-| Repository | `PascalCase` + `Repository` suffix | `BookingRepository` |
-| Request | `PascalCase` + `Request` suffix | `CreateBookingRequest` |
-| Event | `PascalCase` past tense | `BookingCreated`, `PaymentStatusChanged` |
-| Command | `PascalCase` + `Command` suffix (opsional) | `SyncBookingDailyRevenue`, `ICalSyncCommand` |
-| Migration | `snake_case` dengan timestamp prefix | `2025_10_30_000004_alter_payment_methods_add_wallet_id.php` |
-| Route name | `dot.notation` dengan prefix resource | `admin.bookings.index`, `admin.payments.verify` |
+| Action | `PascalCase` + `Action` | `CreateBookingAction` |
+| Repository | `PascalCase` + `Repository` | `BookingRepository` |
+| Request | `PascalCase` + `Request` | `CreateBookingRequest` |
+| Event | `PascalCase` past tense | `BookingCreated` |
+| Route name | `dot.notation` | `admin.bookings.index` |
 
 ### TypeScript / React
 
 | Kategori | Konvensi | Contoh |
 |---|---|---|
 | Component | `PascalCase` | `BookingForm`, `CalendarTimeline` |
-| Hook | `camelCase` dengan `use` prefix | `useBookingTimeline`, `useAdminBookingAvailability` |
-| Service (TS) | `camelCase` + `.service.ts` suffix | `bookings.service.ts` |
-| Page | `PascalCase` dalam folder resource | `pages/Admin/Bookings/Index.tsx` |
+| Hook | `camelCase` + `use` prefix | `useBookingTimeline` |
+| Service | `camelCase` + `.service.ts` | `bookings.service.ts` |
+| Page | `PascalCase` dalam folder | `pages/Admin/Bookings/Index.tsx` |
 | Type/Interface | `PascalCase` | `BookingData`, `PropertyProps` |
 
 ### Database
@@ -258,17 +390,17 @@ Semua model berikut sudah **fully implemented** dengan relasi, scopes, dan busin
 | Kategori | Konvensi | Contoh |
 |---|---|---|
 | Tabel | `snake_case` plural | `bookings`, `property_media` |
-| Kolom | `snake_case` | `booking_number`, `check_in`, `total_amount` |
+| Kolom | `snake_case` | `booking_number`, `check_in` |
 | Foreign key | `{model}_id` | `booking_id`, `property_id` |
-| Pivot table | `{model1}_{model2}` alphabetical | `amenity_property` |
-| Timestamp kolom | `created_at`, `updated_at` | — |
-| Soft delete | `deleted_at` | — |
+| Pivot table | alphabetical | `amenity_property` |
 
 ---
 
 ## Catatan Penting
 
-- **Route canonical booking admin**: `admin.bookings.*` — satu-satunya set route untuk operasi booking di panel admin
-- **API route booking**: `/api/admin/booking-management/*` — route terpisah untuk operasi API (timeline, search, availability), bukan duplikat
-- **BookingExtraServiceSyncService**: Menangani sync extra services pada booking (sebelumnya bernama `BookingServiceSyncService`, di-rename untuk menghindari ambiguitas dengan `BookingService`)
-- **Dokumentasi teknis**: Tersedia di direktori `doc/` (panduan deployment, debug guides, API docs, dll)
+- **Route canonical booking admin**: `admin.bookings.*` via `BookingManagementController`
+- **API route booking**: `/api/admin/booking-management/*` via `BookingApiController` — untuk timeline, search, availability
+- **`BookingQueryService`**: service baru untuk query & filtering booking (tidak ada di versi overview sebelumnya)
+- **`StaticPageController`**: controller baru untuk halaman statis (About, FAQ, Support)
+- **`ImageUploadResult`**: value object di `app/Services/ImageUploadResult.php`
+- **Roles user**: `super_admin`, `property_manager`, `property_owner`, `front_desk`, `housekeeping`, `finance`, `guest`

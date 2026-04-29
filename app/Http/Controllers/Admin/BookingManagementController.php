@@ -2,53 +2,67 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Events\BookingStatusChanged;
+use App\Exports\BookingsExport;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\CancelBookingRequest;
+use App\Http\Requests\Admin\CreateBookingRequest;
+use App\Http\Requests\Admin\GeneratePaymentLinkRequest;
+use App\Http\Requests\Admin\RejectBookingRequest;
+use App\Http\Requests\Admin\SendPaymentLinkRequest;
+use App\Http\Requests\Admin\UpdateBookingRequest;
+use App\Http\Requests\Admin\UpdateBookingStatusRequest;
+use App\Http\Requests\Admin\VerifyBookingRequest;
+use App\Imports\BookingsImport;
 use App\Models\Booking;
+use App\Models\Payment;
+use App\Models\PaymentMethod;
 use App\Models\Property;
+use App\Models\ServiceMaster;
 use App\Models\User;
 use App\Services\AdminBookingService;
 use App\Services\AvailabilityService;
+use App\Services\BookingDailyRevenueService;
+use App\Services\BookingExtraServiceSyncService;
 use App\Services\BookingQueryService;
+use App\Services\GuestCountService;
+use App\Services\PaymentGatewayService;
 use App\Services\RateCalculationService;
-use App\Events\BookingStatusChanged;
-use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
+use App\Services\RateOverrideLogService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
+use Inertia\Inertia;
+use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\BookingsExport;
-use App\Imports\BookingsImport;
-use Symfony\Component\HttpFoundation\StreamedResponse;
-use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver;
-use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 /**
  * BookingManagementController - Controller untuk mengelola booking admin
- * 
+ *
  * Controller ini menangani semua fungsi admin terkait booking:
  * - Menampilkan daftar booking untuk admin
  * - Menampilkan detail booking
- * - Membuat booking manual (admin-created bookings)  
+ * - Membuat booking manual (admin-created bookings)
  * - Verifikasi booking
  * - Cancel booking
  * - Check-in/Check-out
  * - Calendar view
  * - Timeline view
- * 
+ *
  * User yang dapat mengakses:
  * - super_admin: dapat mengakses semua booking
- * - admin: dapat mengakses semua booking  
+ * - admin: dapat mengakses semua booking
  * - property_owner: dapat mengakses booking terkait property mereka
  * - property_manager: dapat mengakses booking terkait property mereka
  * - front_desk: dapat mengakses booking terkait property mereka
  * - housekeeping: dapat mengakses booking terkait property mereka
  * - finance: dapat mengakses booking terkait property mereka
- * 
+ *
  * Guest tidak dapat mengakses controller ini
  */
 class BookingManagementController extends Controller
@@ -58,16 +72,22 @@ class BookingManagementController extends Controller
         private BookingQueryService $bookingQueryService,
         private RateCalculationService $rateCalculationService,
         private AvailabilityService $availabilityService,
+        private GuestCountService $guestCountService,
+        private BookingDailyRevenueService $dailyRevenueService,
+        private RateOverrideLogService $rateOverrideLogService,
+        private BookingExtraServiceSyncService $serviceSyncService,
+        private PaymentGatewayService $gatewayService,
     ) {}
 
     /**
-     * Display admin booking calendar with timeline view
+     * Display Daily Operations List
+     * For quick Check-In/Check-Out actions and daily decisions
      */
-    public function calendar(Request $request): Response
+    public function dailyOperations(Request $request): Response
     {
         $user = $request->user();
 
-        // Get properties based on user role
+        // Get properties based on user role for filter dropdown
         $propertiesQuery = Property::query()->with(['owner', 'media']);
 
         if ($user->role === 'property_owner') {
@@ -76,68 +96,63 @@ class BookingManagementController extends Controller
 
         $properties = $propertiesQuery->active()->get();
 
-        // Get date range for calendar (default to current month)
-        $startDate = $request->get('start_date', now()->startOfMonth()->toDateString());
-        $endDate = $request->get('end_date', now()->endOfMonth()->toDateString());
-
-        // Get bookings for the date range
         $bookingsQuery = Booking::query()
-            ->with(['property', 'verifiedBy'])
-            ->whereBetween('check_in', [$startDate, $endDate])
-            ->orWhereBetween('check_out', [$startDate, $endDate])
-            ->orWhere(function ($query) use ($startDate, $endDate) {
-                $query->where('check_in', '<=', $startDate)
-                    ->where('check_out', '>=', $endDate);
-            });
+            ->with(['property', 'verifiedBy', 'payments']);
 
         // Filter by property if specified
         if ($request->filled('property_id')) {
-            $bookingsQuery->where('property_id', $request->get('property_id'));
-        }
-
-        // Filter by user role
-        if ($user->role === 'property_owner') {
+            $bookingsQuery->where('property_id', $request->input('property_id'));
+        } elseif ($user->role === 'property_owner') {
             $bookingsQuery->whereHas('property', function ($query) use ($user) {
                 $query->where('owner_id', $user->id);
             });
         }
 
-        $bookings = $bookingsQuery->get();
+        // Search filter
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $bookingsQuery->where(function ($q) use ($search) {
+                $q->where('booking_number', 'like', "%{$search}%")
+                    ->orWhere('guest_name', 'like', "%{$search}%")
+                    ->orWhere('guest_phone', 'like', "%{$search}%");
+            });
+        }
 
-        // Transform bookings for calendar display
-        $calendarBookings = $bookings->map(function ($booking) use ($user) {
-            return [
-                'id' => $booking->id,
-                'booking_number' => $booking->booking_number,
-                'property_id' => $booking->property_id,
-                'property' => [
-                    'id' => $booking->property->id,
-                    'name' => $booking->property->name,
-                    'address' => $booking->property->address,
-                ],
-                'property_name' => $booking->property->name,
-                'guest_name' => $booking->guest_name,
-                'guest_count' => $booking->guest_count,
-                'check_in' => $booking->check_in instanceof Carbon ? $booking->check_in->toDateString() : $booking->check_in,
-                'check_out' => $booking->check_out instanceof Carbon ? $booking->check_out->toDateString() : $booking->check_out,
-                'nights' => $booking->nights,
-                'total_amount' => $booking->total_amount,
-                'formatted_total_amount' => $booking->formatted_total_amount,
-                'booking_status' => $booking->booking_status,
-                'payment_status' => $booking->payment_status,
-                'external_reservation_url' => $booking->external_reservation_url,
-                'status_color' => $booking->getStatusColor(),
-                'can_edit' => $user->can('update', $booking),
-            ];
-        });
+        // Status & Date Filters
+        if ($request->filled('status')) {
+            $bookingsQuery->where('booking_status', $request->input('status'));
+        } else {
+            // Default filter: CI today/tomorrow OR status is checked_in
+            $today = now()->toDateString();
+            $tomorrow = now()->addDay()->toDateString();
 
-        return Inertia::render('Admin/Bookings/Calendar', [
+            $bookingsQuery->where(function ($q) use ($today, $tomorrow) {
+                $q->whereIn('check_in', [$today, $tomorrow])
+                    ->orWhere('booking_status', 'checked_in');
+            });
+            // Exclude cancelled by default
+            $bookingsQuery->where('booking_status', '!=', 'cancelled');
+        }
+
+        // Sorting
+        $sortBy = $request->input('sort_by', 'check_in'); // check_in or created_at
+        $sortDir = $request->input('sort_dir', 'asc');
+
+        if (in_array($sortBy, ['check_in', 'created_at'])) {
+            $bookingsQuery->orderBy($sortBy, $sortDir);
+        }
+
+        $bookings = $bookingsQuery->paginate(15)->withQueryString();
+
+        return Inertia::render('Admin/Bookings/DailyOperations', [
             'properties' => $properties,
-            'bookings' => $calendarBookings,
+            'bookings' => $bookings,
             'filters' => [
-                'property_id' => $request->get('property_id'),
-                'start_date' => $startDate,
-                'end_date' => $endDate,
+                'property_id' => $request->input('property_id'),
+                'status' => $request->input('status'),
+                'search' => $request->input('search'),
+                'sort_by' => $sortBy,
+                'sort_dir' => $sortDir,
             ],
         ]);
     }
@@ -161,34 +176,34 @@ class BookingManagementController extends Controller
         // Get pre-selected property if specified
         $selectedProperty = null;
         if ($request->filled('property_id')) {
-            $selectedProperty = $properties->firstWhere('id', $request->get('property_id'));
+            $selectedProperty = $properties->firstWhere('id', $request->input('property_id'));
         }
 
         // Get pre-filled dates if specified
         $prefilledData = [
-            'property_id' => $request->get('property_id'),
-            'check_in_date' => $request->get('check_in'),
-            'check_out_date' => $request->get('check_out'),
+            'property_id' => $request->input('property_id'),
+            'check_in_date' => $request->input('check_in'),
+            'check_out_date' => $request->input('check_out'),
         ];
 
         // Get availability data for selected property if exists
         $availabilityData = null;
         if ($selectedProperty) {
             try {
-                $startDate = $request->get('check_in') ?: now()->toDateString();
-                $endDate = $request->get('check_out') ?: now()->addMonths(3)->toDateString();
+                $startDate = $request->input('check_in') ?: now()->toDateString();
+                $endDate = $request->input('check_out') ?: now()->addMonths(3)->toDateString();
 
                 $availabilityData = $this->availabilityService->getAvailabilityData($selectedProperty, $startDate, $endDate);
             } catch (\Throwable $e) {
-                \Log::error('Error getting availability data for admin booking create: ' . $e->getMessage());
+                \Log::error('Error getting availability data for admin booking create: '.$e->getMessage());
             }
         }
 
         // Get payment methods for inline payment form
-        $paymentMethods = \App\Models\PaymentMethod::active()->get();
+        $paymentMethods = PaymentMethod::active()->get();
 
         // Get active service masters for extra services
-        $serviceMasters = \App\Models\ServiceMaster::active()->ordered()->get()->map(function ($service) {
+        $serviceMasters = ServiceMaster::active()->ordered()->get()->map(function ($service) {
             return [
                 'id' => $service->id,
                 'name' => $service->name,
@@ -214,7 +229,7 @@ class BookingManagementController extends Controller
     /**
      * Store manual booking created by admin using AdminBookingService
      */
-    public function store(\App\Http\Requests\Admin\CreateBookingRequest $request): RedirectResponse
+    public function store(CreateBookingRequest $request): RedirectResponse
     {
         set_time_limit(300);
 
@@ -234,465 +249,7 @@ class BookingManagementController extends Controller
     }
 
     /**
-     * Get property availability for date range (API)
-     */
-    public function checkAvailability(\App\Http\Requests\Admin\CheckAvailabilityRequest $request)
-    {
-        // Validation handled in CheckAvailabilityRequest
-
-        $property = Property::findOrFail($request->property_id);
-        $excludeBookingId = $request->get('exclude_booking_id');
-
-        // Use AvailabilityService for all availability checking (now supports excludeBookingId)
-        $availabilityData = $this->availabilityService->checkAvailability(
-            $property,
-            $request->check_in,
-            $request->check_out,
-            $excludeBookingId
-        );
-
-        return response()->json([
-            'available' => $availabilityData['available'],
-            'property_id' => $property->id,
-            'check_in' => $request->check_in,
-            'check_out' => $request->check_out,
-            'booked_dates' => $availabilityData['booked_dates'] ?? [],
-            'booked_periods' => $availabilityData['booked_periods'] ?? [],
-        ]);
-    }
-
-    /**
-     * Calculate rate for property and dates (API)
-     */
-    public function calculateRate(\App\Http\Requests\Admin\CalculateRateRequest $request)
-    {
-        // Validation handled in CalculateRateRequest
-        $validated = $request->validated();
-
-        try {
-            $property = Property::findOrFail($validated['property_id']);
-
-            $rateCalculation = $this->rateCalculationService->calculateRate(
-                $property,
-                $validated['check_in'],
-                $validated['check_out'],
-                $validated['guest_count']
-            );
-
-            return response()->json([
-                'success' => true,
-                'calculation' => $rateCalculation->toArray(),
-                'formatted' => [
-                    'base_amount' => 'Rp ' . number_format($rateCalculation->baseAmount, 0, ',', '.'),
-                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation->extraBedAmount, 0, ',', '.'),
-                    'total_amount' => 'Rp ' . number_format($rateCalculation->totalAmount, 0, ',', '.'),
-                ],
-            ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Property not found',
-                'message' => 'Property dengan ID ' . ($validated['property_id'] ?? 'unknown') . ' tidak ditemukan',
-            ], 404);
-        } catch (\Throwable $e) {
-            \Log::error('Rate calculation error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request' => $request->all(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-                'message' => 'Failed to calculate rate: ' . $e->getMessage(),
-            ], 400);
-        }
-    }
-
-    /**
-     * Get availability and rates combined for admin (single endpoint)
-     */
-    public function availabilityAndRates(\App\Http\Requests\Admin\CalculateRateRequest $request)
-    {
-        // Validation handled in CalculateRateRequest
-        $validated = $request->validated();
-
-        try {
-            $property = Property::findOrFail($validated['property_id']);
-
-            // Availability
-            $availability = $this->availabilityService->checkAvailability(
-                $property,
-                $validated['check_in'],
-                $validated['check_out']
-            );
-
-            // Rate calculation
-            $rateCalculation = $this->rateCalculationService->calculateRate(
-                $property,
-                $validated['check_in'],
-                $validated['check_out'],
-                (int) $validated['guest_count']
-            );
-
-            return response()->json([
-                'success' => true,
-                'property' => [
-                    'id' => $property->id,
-                    'name' => $property->name,
-                    'base_rate' => $property->base_rate,
-                    'capacity' => $property->capacity,
-                    'capacity_max' => $property->capacity_max,
-                    'cleaning_fee' => $property->cleaning_fee,
-                    'extra_bed_rate' => $property->extra_bed_rate,
-                    'weekend_premium_percent' => $property->weekend_premium_percent,
-                    'weekend_premium_type' => $property->weekend_premium_type ?? 'percentage',
-                    'weekend_premium_fixed' => $property->weekend_premium_fixed ?? 0,
-                ],
-                'date_range' => [
-                    'start' => $validated['check_in'],
-                    'end' => $validated['check_out'],
-                ],
-                'guest_count' => (int) $validated['guest_count'],
-                'availability' => $availability,
-                'booked_dates' => $availability['booked_dates'] ?? [],
-                'booked_periods' => $availability['booked_periods'] ?? [],
-                'calculation' => $rateCalculation->toArray(),
-                'formatted' => [
-                    'base_amount' => 'Rp ' . number_format($rateCalculation->baseAmount, 0, ',', '.'),
-                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation->extraBedAmount, 0, ',', '.'),
-                    'total_amount' => 'Rp ' . number_format($rateCalculation->totalAmount, 0, ',', '.'),
-                    'per_night' => 'Rp ' . number_format(($rateCalculation->totalAmount / max($rateCalculation->nights, 1)), 0, ',', '.'),
-                ],
-            ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Property not found',
-                'message' => 'Property dengan ID ' . ($validated['property_id'] ?? 'unknown') . ' tidak ditemukan',
-            ], 404);
-        } catch (\Throwable $e) {
-            \Log::error('Availability and rates error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request' => $request->all(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-                'message' => 'Failed to get availability and rates: ' . $e->getMessage(),
-            ], 400);
-        }
-    }
-
-    /**
-     * Get timeline data for properties
-     */
-    public function timeline(Request $request)
-    {
-        $startDate = $request->get('start_date', now()->startOfMonth()->toDateString());
-        $endDate = $request->get('end_date', now()->addMonths(2)->endOfMonth()->toDateString());
-
-        $bookings = $this->bookingQueryService->getTimelineBookings(
-            startDate: $startDate,
-            endDate: $endDate,
-            propertyId: $request->get('property_id'),
-            status: $request->get('status'),
-            user: $request->user()
-        );
-
-        return response()->json([
-            'bookings' => $bookings,
-            'date_range' => [
-                'start_date' => $startDate,
-                'end_date' => $endDate,
-            ],
-        ]);
-    }
-
-
-    /**
-     * Display timeline view page
-     */
-    public function timelineView(Request $request): Response
-    {
-        $user = $request->user();
-
-        // Get properties for filter
-        $propertiesQuery = Property::query();
-        if ($user->role === 'property_owner') {
-            $propertiesQuery->where('owner_id', $user->id);
-        }
-        $properties = $propertiesQuery->active()->get(['id', 'name']);
-
-        $startDate = $request->get('start_date', now()->startOfMonth()->toDateString());
-        $endDate = $request->get('end_date', now()->addMonths(2)->endOfMonth()->toDateString());
-
-        $bookings = $this->bookingQueryService->getTimelineBookings(
-            startDate: $startDate,
-            endDate: $endDate,
-            propertyId: $request->get('property_id'),
-            status: $request->get('status'),
-            user: $user
-        );
-
-        $stats = [
-            'total_bookings' => $bookings->count(),
-            'pending_verification' => $bookings->where('booking_status', 'pending_verification')->count(),
-            'confirmed' => $bookings->where('booking_status', 'confirmed')->count(),
-            'checked_in' => $bookings->where('booking_status', 'checked_in')->count(),
-            'total_revenue' => $bookings->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out', 'completed'])->sum('total_amount'),
-        ];
-
-        return Inertia::render('Admin/Bookings/Timeline', [
-            'properties' => $properties,
-            'bookings' => $bookings,
-            'stats' => $stats,
-            'filters' => [
-                'property_id' => $request->get('property_id'),
-                'status' => $request->get('status'),
-                'start_date' => $startDate,
-                'end_date' => $endDate,
-                'days' => $request->get('days', '30'),
-            ]
-        ]);
-    }
-
-    /**
-     * Get property date range data for admin booking creation
-     */
-    public function getPropertyDateRange(\App\Http\Requests\Admin\GetPropertyDateRangeRequest $request)
-    {
-        // Validation handled in GetPropertyDateRangeRequest
-
-        $property = Property::findOrFail($request->property_id);
-        $startDate = $request->get('start_date', now()->toDateString());
-        $endDate = $request->get('end_date', now()->addMonths(3)->toDateString());
-
-        try {
-            // Get availability data using AvailabilityService
-            $availability = $this->availabilityService->checkAvailability($property, $startDate, $endDate);
-
-            // Use AvailabilityService for consistency (single source of truth)
-            // This ensures we get ALL booked dates including pending_verification bookings
-            $bookedDates = $this->availabilityService->getBookedDatesInRange($property, $startDate, $endDate);
-
-            // Get seasonal rates if available
-            $seasonalRates = \App\Models\PropertySeasonalRate::getEffectiveRateForProperty(
-                $property->id,
-                Carbon::parse($startDate),
-                Carbon::parse($endDate)
-            );
-
-            return response()->json([
-                'success' => true,
-                'property' => [
-                    'id' => $property->id,
-                    'name' => $property->name,
-                    'base_rate' => $property->base_rate,
-                    'capacity' => $property->capacity,
-                    'capacity_max' => $property->capacity_max,
-                    'cleaning_fee' => $property->cleaning_fee,
-                    'extra_bed_rate' => $property->extra_bed_rate,
-                    'weekend_premium_percent' => $property->weekend_premium_percent,
-                    'weekend_premium_type' => $property->weekend_premium_type ?? 'percentage',
-                    'weekend_premium_fixed' => $property->weekend_premium_fixed ?? 0,
-                ],
-                'date_range' => [
-                    'start' => $startDate,
-                    'end' => $endDate,
-                ],
-                'booked_dates' => $bookedDates,
-                'availability_data' => $availability,
-                'seasonal_rates' => $seasonalRates,
-            ]);
-
-        } catch (\Throwable $e) {
-            \Log::error('Error getting property date range: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to get property date range data',
-            ], 500);
-        }
-    }
-
-    /**
-     * Helper method to get status color
-     */
-    // ✅ REMOVED: getStatusColor() - Now using $booking->getStatusColor() from HasBookingStatus trait
-    // ✅ REMOVED: canEditBooking() - Now using Policy: $user->can('update', $booking)
-
-    /**
-     * Additional validation rules for booking creation/update
-     */
-    // ✅ REMOVED: validateBookingRules() - This logic should be in Form Request (withValidator method)
-    // TODO: Move remaining validation logic to CreateBookingRequest::withValidator()
-
-    /**
-     * Search bookings (independent search API for search bar)
-     */
-    public function search(Request $request): JsonResponse
-    {
-        $query = $request->input('q', '');
-
-        // Minimum 2 characters
-        if (strlen($query) < 2) {
-            return response()->json([
-                'success' => true,
-                'bookings' => [],
-                'count' => 0
-            ]);
-        }
-
-        $user = $request->user();
-
-        // Build query with minimal columns for performance
-        $bookings = Booking::query()
-            ->select([
-                'id',
-                'booking_number',
-                'guest_name',
-                'guest_email',
-                'guest_phone',
-                'check_in',
-                'check_out',
-                'total_amount',
-                'booking_status',
-                'payment_status',
-                'property_id',
-                'external_reservation_url',
-                'created_at'
-            ])
-            ->with('property:id,name');
-
-        // Role-based filtering
-        if ($user->role === 'property_owner') {
-            $bookings->whereHas('property', function ($q) use ($user) {
-                $q->where('owner_id', $user->id);
-            });
-        }
-
-        // Search across multiple fields
-        $bookings->where(function ($q) use ($query) {
-            $q->where('booking_number', 'LIKE', "%{$query}%")
-                ->orWhere('guest_name', 'LIKE', "%{$query}%")
-                ->orWhere('guest_email', 'LIKE', "%{$query}%")
-                ->orWhere('guest_phone', 'LIKE', "%{$query}%");
-        });
-
-        // Exclude cancelled by default
-        $bookings->where('booking_status', '!=', 'cancelled');
-
-        // Order by most recent and limit results
-        $results = $bookings->orderBy('created_at', 'desc')
-            ->limit(20)
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'bookings' => $results,
-            'count' => $results->count()
-        ]);
-    }
-
-    /**
-     * Get timeline data for infinite scroll (API endpoint for lazy loading)
-     * Optimized for performance with minimal queries and data
-     */
-    public function timelineData(Request $request): JsonResponse
-    {
-        try {
-            $user = $request->user();
-
-            // Validate date range
-            $request->validate([
-                'date_from' => 'required|date',
-                'date_to' => 'required|date|after_or_equal:date_from',
-                'property_id' => 'nullable|exists:properties,id',
-                'status' => 'nullable|string',
-            ]);
-
-            $dateFrom = $request->get('date_from');
-            $dateTo = $request->get('date_to');
-
-            $query = Booking::query()
-                ->select([
-                    'id',
-                    'booking_number',
-                    'property_id',
-                    'guest_name',
-                    'guest_email',
-                    'guest_phone',
-                    'check_in',
-                    'check_out',
-                    'nights',
-                    'total_amount',
-                    'booking_status',
-                    'payment_status',
-                    'guest_count',
-                    'source',
-                    'external_id',
-                    'external_reservation_url',
-                ])
-                ->with([
-                    'property:id,name,capacity,base_rate',
-                ]);
-
-            // Filter by property for property owners
-            if ($user->role === 'property_owner') {
-                $query->whereHas('property', function ($q) use ($user) {
-                    $q->where('owner_id', $user->id);
-                });
-            }
-
-            // Property filter
-            if ($request->filled('property_id')) {
-                $query->where('property_id', $request->get('property_id'));
-            }
-
-            // Status filter
-            if ($request->filled('status') && $request->status !== 'all') {
-                $query->where('booking_status', $request->get('status'));
-            } else {
-                // Exclude cancelled bookings by default
-                $query->where('booking_status', '!=', 'cancelled');
-            }
-
-            // Date range filter (overlap logic)
-            $query->where('check_out', '>=', $dateFrom)
-                ->where('check_in', '<=', $dateTo);
-
-            $bookings = $query->orderBy('check_in')->get();
-
-            return response()->json([
-                'success' => true,
-                'bookings' => $bookings,
-                'date_range' => [
-                    'from' => $dateFrom,
-                    'to' => $dateTo,
-                ],
-                'count' => $bookings->count(),
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('[Timeline API] Error:', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to fetch timeline data',
-                'message' => config('app.debug') ? $e->getMessage() : null
-            ], 500);
-        }
-    }
-
-    /**
      * Display admin bookings listing
-     * 
-     * @param Request $request
-     * @return Response
      */
     public function index(Request $request): Response
     {
@@ -717,11 +274,11 @@ class BookingManagementController extends Controller
                 'guest_count',
                 'external_reservation_url',
                 'created_at',
-                'updated_at'
+                'updated_at',
             ])
             ->with([
                 'property:id,name,capacity,base_rate',
-                'payments:id,booking_id,amount,payment_status,payment_method_id'
+                'payments:id,booking_id,amount,payment_status,payment_method_id',
             ]);
 
         // Filter by property for property owners
@@ -733,7 +290,7 @@ class BookingManagementController extends Controller
 
         // Search filter
         if ($request->filled('search')) {
-            $search = $request->get('search');
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('booking_number', 'like', "%{$search}%")
                     ->orWhere('guest_name', 'like', "%{$search}%")
@@ -744,7 +301,7 @@ class BookingManagementController extends Controller
 
         // Status filter - exclude cancelled by default unless explicitly requested
         if ($request->filled('status')) {
-            $query->where('booking_status', $request->get('status'));
+            $query->where('booking_status', $request->input('status'));
         } else {
             // Exclude cancelled bookings by default
             $query->where('booking_status', '!=', 'cancelled');
@@ -752,17 +309,17 @@ class BookingManagementController extends Controller
 
         // Payment status filter
         if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->get('payment_status'));
+            $query->where('payment_status', $request->input('payment_status'));
         }
 
         // Property filter
         if ($request->filled('property_id')) {
-            $query->where('property_id', $request->get('property_id'));
+            $query->where('property_id', $request->input('property_id'));
         }
 
         // Date filter (Overlap Logic)
-        $dateFrom = $request->get('date_from');
-        $dateTo = $request->get('date_to');
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
 
         // Set default dates if not provided (T-7 to T+23 = 30 days)
         if (empty($dateFrom) && empty($dateTo)) {
@@ -796,28 +353,25 @@ class BookingManagementController extends Controller
             'capacity',
             'capacity_max',
             'base_rate',
-            'extra_bed_rate'
+            'extra_bed_rate',
         ]);
 
         return Inertia::render('Admin/Bookings/Index', [
             'bookings' => $bookings,
             'properties' => $properties,
             'filters' => [
-                'search' => $request->get('search'),
-                'status' => $request->get('status'),
-                'payment_status' => $request->get('payment_status'),
-                'property_id' => $request->get('property_id'),
+                'search' => $request->input('search'),
+                'status' => $request->input('status'),
+                'payment_status' => $request->input('payment_status'),
+                'property_id' => $request->input('property_id'),
                 'date_from' => $dateFrom, // Return effective date from
                 'date_to' => $dateTo,     // Return effective date to
-            ]
+            ],
         ]);
     }
 
     /**
      * Show the form for editing the specified booking.
-     * 
-     * @param Booking $booking
-     * @return Response
      */
     public function edit(Booking $booking): Response
     {
@@ -828,17 +382,17 @@ class BookingManagementController extends Controller
             'guests',
             'services',
             'payments.paymentMethod',
-            'workflow.processor'
+            'workflow.processor',
         ]);
 
         // Get properties for dropdown
         $properties = Property::active()->get(['id', 'name']);
 
         // Get payment methods for inline payment form
-        $paymentMethods = \App\Models\PaymentMethod::active()->get();
+        $paymentMethods = PaymentMethod::active()->get();
 
         // Get active service masters for extra services
-        $serviceMasters = \App\Models\ServiceMaster::active()->ordered()->get()->map(function ($service) {
+        $serviceMasters = ServiceMaster::active()->ordered()->get()->map(function ($service) {
             return [
                 'id' => $service->id,
                 'name' => $service->name,
@@ -861,12 +415,8 @@ class BookingManagementController extends Controller
 
     /**
      * Update the specified booking.
-     * 
-     * @param \App\Http\Requests\Admin\UpdateBookingRequest $request
-     * @param Booking $booking
-     * @return RedirectResponse
      */
-    public function update(\App\Http\Requests\Admin\UpdateBookingRequest $request, Booking $booking): RedirectResponse
+    public function update(UpdateBookingRequest $request, Booking $booking): RedirectResponse
     {
         // Authorization is handled in UpdateBookingRequest
         // Validation is handled in UpdateBookingRequest
@@ -925,8 +475,7 @@ class BookingManagementController extends Controller
                 'source' => $validated['source'] ?? 'direct',
             ];
 
-
-            if ($needsRecalculation && !($validated['rate_override'] ?? false)) {
+            if ($needsRecalculation && ! ($validated['rate_override'] ?? false)) {
                 // Recalculate using RateCalculationService
                 $rateCalculation = $this->rateCalculationService->calculateRate(
                     $property,
@@ -985,7 +534,7 @@ class BookingManagementController extends Controller
                 // If total_amount wasn't recalculated (no changes to dates/guests and no override),
                 // we still need to update it if services changed.
 
-                if (!$needsRecalculation && !$validated['rate_override']) {
+                if (! $needsRecalculation && ! $validated['rate_override']) {
                     // Recalculate base to be safe and ensure consistency
                     $rateCalculation = $this->rateCalculationService->calculateRate(
                         $property,
@@ -1025,7 +574,7 @@ class BookingManagementController extends Controller
             $booking->update($updateData);
 
             // Log detailed changes
-            if (!empty($changes)) {
+            if (! empty($changes)) {
                 \Log::info('Booking updated', [
                     'booking_id' => $booking->id,
                     'booking_number' => $booking->booking_number,
@@ -1041,7 +590,7 @@ class BookingManagementController extends Controller
                 'status' => 'completed',
                 'processed_by' => $user->id,
                 'processed_at' => now(),
-                'notes' => 'Booking updated by admin' . ($needsRecalculation ? ' (dates/guests changed, rate recalculated)' : ''),
+                'notes' => 'Booking updated by admin'.($needsRecalculation ? ' (dates/guests changed, rate recalculated)' : ''),
             ]);
 
             // Trigger status change event if status changed
@@ -1052,7 +601,7 @@ class BookingManagementController extends Controller
 
             DB::commit();
 
-            return redirect()->route('admin.booking-management.show', $booking->booking_number)
+            return redirect()->route('admin.bookings.show', $booking->booking_number)
                 ->with('success', 'Booking updated successfully');
 
         } catch (\Exception $e) {
@@ -1069,18 +618,14 @@ class BookingManagementController extends Controller
 
             return redirect()->back()
                 ->withInput()
-                ->withErrors(['error' => 'Failed to update booking: ' . $e->getMessage()]);
+                ->withErrors(['error' => 'Failed to update booking: '.$e->getMessage()]);
         }
     }
 
     /**
      * Update booking status with refund handling
-     * 
-     * @param \App\Http\Requests\Admin\UpdateBookingStatusRequest $request
-     * @param Booking $booking
-     * @return RedirectResponse
      */
-    public function updateStatus(\App\Http\Requests\Admin\UpdateBookingStatusRequest $request, Booking $booking): RedirectResponse
+    public function updateStatus(UpdateBookingStatusRequest $request, Booking $booking): RedirectResponse
     {
         // Authorization and validation handled in UpdateBookingStatusRequest
         $validated = $request->validated();
@@ -1124,7 +669,7 @@ class BookingManagementController extends Controller
                 'status' => 'completed',
                 'processed_by' => $user->id,
                 'processed_at' => now(),
-                'notes' => "Status changed from {$oldStatus} to {$newStatus}" .
+                'notes' => "Status changed from {$oldStatus} to {$newStatus}".
                     ($newStatus === 'cancelled' ? ' (refund processed)' : ''),
             ]);
 
@@ -1140,15 +685,12 @@ class BookingManagementController extends Controller
             DB::rollBack();
 
             return redirect()->back()
-                ->withErrors(['error' => 'Failed to update booking status: ' . $e->getMessage()]);
+                ->withErrors(['error' => 'Failed to update booking status: '.$e->getMessage()]);
         }
     }
 
     /**
      * Display booking details
-     * 
-     * @param Booking $booking
-     * @return Response
      */
     public function show(Booking $booking): Response
     {
@@ -1159,7 +701,7 @@ class BookingManagementController extends Controller
             'guests',
             'services',
             'payments.paymentMethod',
-            'workflow.processor'
+            'workflow.processor',
         ]);
 
         // Generate WhatsApp message template
@@ -1173,12 +715,8 @@ class BookingManagementController extends Controller
 
     /**
      * Verify booking and change status to confirmed
-     * 
-     * @param \App\Http\Requests\Admin\VerifyBookingRequest $request
-     * @param Booking $booking
-     * @return RedirectResponse
      */
-    public function verify(\App\Http\Requests\Admin\VerifyBookingRequest $request, Booking $booking): RedirectResponse
+    public function verify(VerifyBookingRequest $request, Booking $booking): RedirectResponse
     {
         // Authorization and validation handled in VerifyBookingRequest
 
@@ -1199,7 +737,7 @@ class BookingManagementController extends Controller
                 'status' => 'in_progress',
                 'processed_by' => $request->user()->id,
                 'processed_at' => now(),
-                'notes' => $request->get('notes', 'Booking verified and confirmed by admin'),
+                'notes' => $request->input('notes', 'Booking verified and confirmed by admin'),
             ]);
 
             DB::commit();
@@ -1212,7 +750,8 @@ class BookingManagementController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-            \Log::error('Booking verification failed: ' . $e->getMessage());
+            \Log::error('Booking verification failed: '.$e->getMessage());
+
             return redirect()->back()
                 ->withErrors(['error' => 'Failed to verify booking. Please try again.']);
         }
@@ -1220,12 +759,8 @@ class BookingManagementController extends Controller
 
     /**
      * Reject booking with reason
-     * 
-     * @param \App\Http\Requests\Admin\RejectBookingRequest $request
-     * @param Booking $booking
-     * @return RedirectResponse
      */
-    public function reject(\App\Http\Requests\Admin\RejectBookingRequest $request, Booking $booking): RedirectResponse
+    public function reject(RejectBookingRequest $request, Booking $booking): RedirectResponse
     {
         // Authorization and validation handled in RejectBookingRequest
 
@@ -1236,7 +771,7 @@ class BookingManagementController extends Controller
             $booking->update([
                 'verification_status' => 'rejected',
                 'booking_status' => 'cancelled',
-                'cancellation_reason' => $request->get('notes', 'Booking rejected by admin'),
+                'cancellation_reason' => $request->input('notes', 'Booking rejected by admin'),
                 'cancelled_by' => $request->user()->id,
                 'cancelled_at' => now(),
             ]);
@@ -1247,7 +782,7 @@ class BookingManagementController extends Controller
                 'status' => 'completed',
                 'processed_by' => $request->user()->id,
                 'processed_at' => now(),
-                'notes' => $request->get('notes', 'Booking rejected by admin'),
+                'notes' => $request->input('notes', 'Booking rejected by admin'),
             ]);
 
             DB::commit();
@@ -1260,7 +795,8 @@ class BookingManagementController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-            \Log::error('Booking rejection failed: ' . $e->getMessage());
+            \Log::error('Booking rejection failed: '.$e->getMessage());
+
             return redirect()->back()
                 ->with('error', 'Failed to reject booking. Please try again.');
         }
@@ -1268,12 +804,8 @@ class BookingManagementController extends Controller
 
     /**
      * Cancel booking with reason
-     * 
-     * @param \App\Http\Requests\Admin\CancelBookingRequest $request
-     * @param Booking $booking
-     * @return RedirectResponse
      */
-    public function cancel(\App\Http\Requests\Admin\CancelBookingRequest $request, Booking $booking): RedirectResponse
+    public function cancel(CancelBookingRequest $request, Booking $booking): RedirectResponse
     {
         // Authorization and validation handled in CancelBookingRequest
 
@@ -1283,7 +815,7 @@ class BookingManagementController extends Controller
 
             $booking->update([
                 'booking_status' => 'cancelled',
-                'cancellation_reason' => $request->get('cancellation_reason'),
+                'cancellation_reason' => $request->input('cancellation_reason'),
                 'cancelled_by' => $request->user()->id,
                 'cancelled_at' => now(),
             ]);
@@ -1294,7 +826,7 @@ class BookingManagementController extends Controller
                 'status' => 'completed',
                 'processed_by' => $request->user()->id,
                 'processed_at' => now(),
-                'notes' => $request->get('cancellation_reason'),
+                'notes' => $request->input('cancellation_reason'),
             ]);
 
             DB::commit();
@@ -1307,7 +839,8 @@ class BookingManagementController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-            \Log::error('Booking cancellation failed: ' . $e->getMessage());
+            \Log::error('Booking cancellation failed: '.$e->getMessage());
+
             return redirect()->back()
                 ->with('error', 'Failed to cancel booking. Please try again.');
         }
@@ -1315,16 +848,12 @@ class BookingManagementController extends Controller
 
     /**
      * Check-in guest
-     * 
-     * @param Request $request
-     * @param Booking $booking
-     * @return RedirectResponse
      */
     public function checkin(Request $request, Booking $booking): RedirectResponse
     {
         $this->authorize('update', $booking);
 
-        if ($booking->booking_status !== 'confirmed' && $booking->payment_status !== 'fully_paid') {
+        if ($booking->booking_status !== 'confirmed' || $booking->payment_status !== 'fully_paid') {
             return redirect()->back()
                 ->with('error', 'Only confirmed bookings can be checked in.');
         }
@@ -1358,18 +887,15 @@ class BookingManagementController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-            \Log::error('Check-in failed: ' . $e->getMessage());
+            \Log::error('Check-in failed: '.$e->getMessage());
+
             return redirect()->back()
                 ->with('error', 'Failed to check in guest. Please try again.');
         }
     }
 
     /**
-     * Check-out guest  
-     * 
-     * @param Request $request
-     * @param Booking $booking
-     * @return RedirectResponse
+     * Check-out guest
      */
     public function checkout(Request $request, Booking $booking): RedirectResponse
     {
@@ -1405,7 +931,8 @@ class BookingManagementController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-            \Log::error('Check-out failed: ' . $e->getMessage());
+            \Log::error('Check-out failed: '.$e->getMessage());
+
             return redirect()->back()
                 ->with('error', 'Failed to check out guest. Please try again.');
         }
@@ -1428,34 +955,34 @@ class BookingManagementController extends Controller
         $message .= "Halo {$booking->guest_name},\n\n";
         $message .= "Booking Anda telah dikonfirmasi:\n";
         $message .= "📍 *Property*: {$property->name}\n";
-        $message .= "📅 *Check-in*: " . Carbon::parse($booking->check_in)->format('d M Y') . "\n";
-        $message .= "📅 *Check-out*: " . Carbon::parse($booking->check_out)->format('d M Y') . "\n";
+        $message .= '📅 *Check-in*: '.Carbon::parse($booking->check_in)->format('d M Y')."\n";
+        $message .= '📅 *Check-out*: '.Carbon::parse($booking->check_out)->format('d M Y')."\n";
         $message .= "👥 *Jumlah Tamu*: {$booking->guest_count} orang\n";
-        $message .= "💰 *Total*: Rp " . number_format($booking->total_amount, 0, ',', '.') . "\n\n";
+        $message .= '💰 *Total*: Rp '.number_format($booking->total_amount, 0, ',', '.')."\n\n";
 
         // Payment information
         $message .= "*Status Pembayaran:*\n";
-        $message .= "• Status: " . ucfirst($booking->payment_status) . "\n";
+        $message .= '• Status: '.ucfirst($booking->payment_status)."\n";
 
         if ($booking->payment_status !== 'fully_paid') {
             $message .= "• Silakan selesaikan pembayaran untuk konfirmasi booking\n";
-            $message .= "• Link pembayaran: " . route('payments.create', $booking->booking_number) . "\n\n";
+            $message .= '• Link pembayaran: '.route('payments.create', $booking->booking_number)."\n\n";
         } else {
             $message .= "• Pembayaran telah lunas ✅\n";
             $message .= "• Informasi check-in akan tersedia di dashboard Anda\n";
-            $message .= "• Dashboard: " . route('dashboard') . "\n\n";
+            $message .= '• Dashboard: '.route('dashboard')."\n\n";
         }
 
         // Add login info for new users (only if account was just created)
         if ($isNewUser && $guestUser) {
             $message .= "*Akun Login Anda:*\n";
             $message .= "• Email: {$guestUser->email}\n";
-            $message .= "• Login di: " . route('login') . "\n";
+            $message .= '• Login di: '.route('login')."\n";
             $message .= "_Cek email Anda untuk password login_\n\n";
         } elseif ($guestUser) {
             // Existing user
             $message .= "*Akses Dashboard:*\n";
-            $message .= "• Login dengan akun Anda di: " . route('login') . "\n";
+            $message .= '• Login dengan akun Anda di: '.route('login')."\n";
             $message .= "• Email: {$guestUser->email}\n\n";
         }
 
@@ -1465,8 +992,8 @@ class BookingManagementController extends Controller
         return [
             'phone' => $this->formatPhoneNumber($booking->guest_phone),
             'message' => $message,
-            'whatsapp_url' => "https://wa.me/{$this->formatPhoneNumber($booking->guest_phone)}?text=" . urlencode($message),
-            'can_send' => !empty($booking->guest_phone),
+            'whatsapp_url' => "https://wa.me/{$this->formatPhoneNumber($booking->guest_phone)}?text=".urlencode($message),
+            'can_send' => ! empty($booking->guest_phone),
         ];
     }
 
@@ -1480,9 +1007,9 @@ class BookingManagementController extends Controller
 
         // Convert Indonesian format to international
         if (substr($phone, 0, 1) === '0') {
-            $phone = '62' . substr($phone, 1);
+            $phone = '62'.substr($phone, 1);
         } elseif (substr($phone, 0, 2) !== '62') {
-            $phone = '62' . $phone;
+            $phone = '62'.$phone;
         }
 
         return $phone;
@@ -1497,7 +1024,7 @@ class BookingManagementController extends Controller
 
         $whatsappData = $this->generateWhatsAppMessage($booking);
 
-        if (!$whatsappData['can_send']) {
+        if (! $whatsappData['can_send']) {
             return redirect()->back()->with('error', 'Guest phone number not available.');
         }
 
@@ -1507,7 +1034,7 @@ class BookingManagementController extends Controller
     /**
      * Generate payment link untuk booking
      */
-    public function generatePaymentLink(\App\Http\Requests\Admin\GeneratePaymentLinkRequest $request, Booking $booking): JsonResponse|RedirectResponse
+    public function generatePaymentLink(GeneratePaymentLinkRequest $request, Booking $booking): JsonResponse|RedirectResponse
     {
         // Authorization and validation handled in GeneratePaymentLinkRequest
         $validated = $request->validated();
@@ -1521,7 +1048,7 @@ class BookingManagementController extends Controller
 
             if ($validated['amount'] > $pendingAmount) {
                 return back()->withErrors([
-                    'amount' => 'Payment amount exceeds pending amount.'
+                    'amount' => 'Payment amount exceeds pending amount.',
                 ]);
             }
 
@@ -1568,7 +1095,7 @@ class BookingManagementController extends Controller
             ]);
 
             return back()->withErrors([
-                'error' => 'Failed to generate payment link: ' . $e->getMessage()
+                'error' => 'Failed to generate payment link: '.$e->getMessage(),
             ]);
         }
     }
@@ -1576,7 +1103,7 @@ class BookingManagementController extends Controller
     /**
      * Send payment link via WhatsApp atau Email
      */
-    public function sendPaymentLink(\App\Http\Requests\Admin\SendPaymentLinkRequest $request, Booking $booking): RedirectResponse
+    public function sendPaymentLink(SendPaymentLinkRequest $request, Booking $booking): RedirectResponse
     {
         // Authorization and validation handled in SendPaymentLinkRequest
         $validated = $request->validated();
@@ -1605,16 +1132,16 @@ class BookingManagementController extends Controller
             $message = "Halo {$booking->guest_name},\n\n";
             $message .= "Berikut adalah link pembayaran untuk booking Anda:\n";
             $message .= "Booking Number: {$booking->booking_number}\n";
-            $message .= "Amount: Rp " . number_format($validated['amount'], 0, ',', '.') . "\n\n";
+            $message .= 'Amount: Rp '.number_format($validated['amount'], 0, ',', '.')."\n\n";
             $message .= "Link Pembayaran:\n{$paymentUrl}\n\n";
-            $message .= "Link ini berlaku hingga: " . $result['expired_at']->format('d M Y H:i') . "\n\n";
-            $message .= "Terima kasih!";
+            $message .= 'Link ini berlaku hingga: '.$result['expired_at']->format('d M Y H:i')."\n\n";
+            $message .= 'Terima kasih!';
 
             // Send via WhatsApp
             if ($validated['channel'] === 'whatsapp' || $validated['channel'] === 'both') {
                 if ($booking->guest_phone) {
                     $phone = $this->formatPhoneNumber($booking->guest_phone);
-                    $whatsappUrl = "https://wa.me/{$phone}?text=" . urlencode($message);
+                    $whatsappUrl = "https://wa.me/{$phone}?text=".urlencode($message);
 
                     return redirect($whatsappUrl);
                 }
@@ -1642,17 +1169,13 @@ class BookingManagementController extends Controller
             ]);
 
             return back()->withErrors([
-                'error' => 'Failed to send payment link: ' . $e->getMessage()
+                'error' => 'Failed to send payment link: '.$e->getMessage(),
             ]);
         }
     }
 
     /**
      * Delete the specified booking (soft delete).
-     * 
-     * @param Request $request
-     * @param Booking $booking
-     * @return RedirectResponse
      */
     public function destroy(Request $request, Booking $booking): RedirectResponse
     {
@@ -1677,7 +1200,7 @@ class BookingManagementController extends Controller
 
         // Extra confirmation for certain statuses
         $requiresExtraConfirmation = in_array($bookingStatus, ['checked_in', 'confirmed', 'fully_paid']);
-        if ($requiresExtraConfirmation && !$request->has('confirm_delete')) {
+        if ($requiresExtraConfirmation && ! $request->has('confirm_delete')) {
             return back()->withErrors([
                 'error' => 'Booking dengan status ini memerlukan konfirmasi tambahan. Centang kotak konfirmasi untuk melanjutkan.',
             ]);
@@ -1687,7 +1210,7 @@ class BookingManagementController extends Controller
             DB::beginTransaction();
 
             // Soft delete related payments (if any)
-            $booking->payments()->each(function (\App\Models\Payment $payment) {
+            $booking->payments()->each(function (Payment $payment) {
                 $payment->delete();
             });
 
@@ -1723,7 +1246,7 @@ class BookingManagementController extends Controller
             ]);
 
             return back()->withErrors([
-                'error' => 'Gagal menghapus booking: ' . $e->getMessage(),
+                'error' => 'Gagal menghapus booking: '.$e->getMessage(),
             ]);
         }
     }
@@ -1731,7 +1254,6 @@ class BookingManagementController extends Controller
     /**
      * Export bookings to Excel
      */
-
     public function export(Request $request)
     {
         \Log::info('Export requested with filters:', $request->all());
@@ -1743,7 +1265,7 @@ class BookingManagementController extends Controller
             // Use Excel::download with explicit security headers
             return Excel::download($export, $filename, \Maatwebsite\Excel\Excel::XLSX, [
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
                 'X-Content-Type-Options' => 'nosniff',
                 'Content-Security-Policy' => "default-src 'none'",
                 'X-Download-Options' => 'noopen',
@@ -1753,8 +1275,9 @@ class BookingManagementController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Export failed: ' . $e->getMessage());
-            return back()->withErrors(['error' => 'Export failed: ' . $e->getMessage()]);
+            \Log::error('Export failed: '.$e->getMessage());
+
+            return back()->withErrors(['error' => 'Export failed: '.$e->getMessage()]);
         }
     }
 
@@ -1763,13 +1286,15 @@ class BookingManagementController extends Controller
      */
     public function importPreview(Request $request)
     {
+        $this->authorize('create', Booking::class);
+
         $request->validate([
             'file' => 'required|mimes:xlsx,csv',
         ]);
 
         try {
             $file = $request->file('file');
-            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getRealPath());
+            $spreadsheet = IOFactory::load($file->getRealPath());
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
 
@@ -1802,27 +1327,29 @@ class BookingManagementController extends Controller
                     }
 
                     // NEW BOOKING LOGIC: If no booking number, treat as new booking
-                    if (!$bookingNumber) {
+                    if (! $bookingNumber) {
                         $missingFields = $this->validateImportRequiredFields($row);
 
-                        if (!empty($missingFields)) {
+                        if (! empty($missingFields)) {
                             $preview['errors'][] = [
                                 'row' => $rowNumber,
                                 'is_new' => true,
                                 'missing_fields' => $missingFields,
-                                'error' => 'Incomplete data for new booking: ' . implode(', ', $missingFields),
+                                'error' => 'Incomplete data for new booking: '.implode(', ', $missingFields),
                                 'data' => $this->mapImportRowToRawData($row, $property),
                             ];
+
                             continue;
                         }
 
-                        if (!$property) {
+                        if (! $property) {
                             $preview['errors'][] = [
                                 'row' => $rowNumber,
                                 'is_new' => true,
                                 'error' => "Property '{$propertyName}' not found",
                                 'data' => $this->mapImportRowToRawData($row),
                             ];
+
                             continue;
                         }
 
@@ -1833,7 +1360,7 @@ class BookingManagementController extends Controller
                         $guestFemale = (int) ($row[11] ?? 0);
                         $guestChildren = (int) ($row[12] ?? 0);
                         if ($property->capacity < $property->capacity_max) {
-                            $guestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
+                            $guestCount = $guestMale + $guestFemale + (int) floor($guestChildren / 2);
                         } else {
                             $guestCount = $guestMale + $guestFemale + $guestChildren;
                         }
@@ -1847,23 +1374,25 @@ class BookingManagementController extends Controller
                             'data' => $this->mapImportRowToRawData($row, $property),
                             'availability_warning' => $availabilityIssue,
                         ];
+
                         continue;
                     }
 
                     // EXISTING BOOKING LOGIC
-                    if (!$property) {
+                    if (! $property) {
                         $preview['errors'][] = [
                             'row' => $rowNumber,
                             'error' => "Property '{$propertyName}' not found",
                             'data' => $this->mapImportRowToRawData($row),
                         ];
+
                         continue;
                     }
 
                     $existingBooking = Booking::where('booking_number', $bookingNumber)->first();
                     $newData = $this->mapImportRowToRawData($row, $property);
 
-                    if (!$existingBooking) {
+                    if (! $existingBooking) {
                         $checkIn = $this->parseImportDate($row[15]);
                         $checkOut = $this->parseImportDate($row[17]);
 
@@ -1871,7 +1400,7 @@ class BookingManagementController extends Controller
                         $guestFemale = (int) ($row[11] ?? 0);
                         $guestChildren = (int) ($row[12] ?? 0);
                         if ($property->capacity < $property->capacity_max) {
-                            $guestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
+                            $guestCount = $guestMale + $guestFemale + (int) floor($guestChildren / 2);
                         } else {
                             $guestCount = $guestMale + $guestFemale + $guestChildren;
                         }
@@ -1905,7 +1434,7 @@ class BookingManagementController extends Controller
                                 $guestFemale = (int) ($row[11] ?? 0);
                                 $guestChildren = (int) ($row[12] ?? 0);
                                 if ($property->capacity < $property->capacity_max) {
-                                    $guestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
+                                    $guestCount = $guestMale + $guestFemale + (int) floor($guestChildren / 2);
                                 } else {
                                     $guestCount = $guestMale + $guestFemale + $guestChildren;
                                 }
@@ -1952,7 +1481,7 @@ class BookingManagementController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to preview import: ' . $e->getMessage(),
+                'error' => 'Failed to preview import: '.$e->getMessage(),
             ], 400);
         }
     }
@@ -1968,7 +1497,8 @@ class BookingManagementController extends Controller
 
         if (is_numeric($dateValue)) {
             try {
-                $date = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($dateValue);
+                $date = Date::excelToDateTimeObject($dateValue);
+
                 return Carbon::instance($date)->format('Y-m-d');
             } catch (\Exception $e) {
                 return Carbon::createFromDate(1899, 12, 30)->addDays($dateValue)->format('Y-m-d');
@@ -2030,29 +1560,30 @@ class BookingManagementController extends Controller
      */
     private function checkImportAvailability(int $propertyId, ?string $checkIn, ?string $checkOut, int $guestCount = 1): ?string
     {
-        if (!$checkIn || !$checkOut) {
+        if (! $checkIn || ! $checkOut) {
             return null;
         }
 
         $property = Property::find($propertyId);
-        if (!$property) {
+        if (! $property) {
             return 'Property not found';
         }
 
         $availabilityCheck = $this->availabilityService->checkAvailability($property, $checkIn, $checkOut);
 
-        if (!$availabilityCheck['available']) {
+        if (! $availabilityCheck['available']) {
             $conflicts = count($availabilityCheck['booked_periods'] ?? []);
+
             return "Property has {$conflicts} conflicting booking(s) on selected dates";
         }
 
         try {
             $rateCalculation = $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount);
-            if (!$rateCalculation || $rateCalculation->totalAmount <= 0) {
+            if (! $rateCalculation || $rateCalculation->totalAmount <= 0) {
                 return 'Unable to calculate rate for selected dates';
             }
         } catch (\Exception $e) {
-            return 'Rate calculation error: ' . $e->getMessage();
+            return 'Rate calculation error: '.$e->getMessage();
         }
 
         return null;
@@ -2063,22 +1594,22 @@ class BookingManagementController extends Controller
      */
     private function checkImportAvailabilityForUpdate(int $propertyId, ?string $checkIn, ?string $checkOut, int $guestCount = 1, ?int $excludeBookingId = null): ?string
     {
-        if (!$checkIn || !$checkOut) {
+        if (! $checkIn || ! $checkOut) {
             return null;
         }
 
         $property = Property::find($propertyId);
-        if (!$property) {
+        if (! $property) {
             return 'Property not found';
         }
 
         $conflictingBookings = Booking::where('property_id', $propertyId)
             ->where('booking_status', '!=', 'cancelled')
-            ->when($excludeBookingId, fn($q) => $q->where('id', '!=', $excludeBookingId))
+            ->when($excludeBookingId, fn ($q) => $q->where('id', '!=', $excludeBookingId))
             ->where(function ($query) use ($checkIn, $checkOut) {
-                $query->where(fn($q) => $q->where('check_in', '<=', $checkIn)->where('check_out', '>', $checkIn))
-                    ->orWhere(fn($q) => $q->where('check_in', '<', $checkOut)->where('check_out', '>=', $checkOut))
-                    ->orWhere(fn($q) => $q->where('check_in', '>=', $checkIn)->where('check_out', '<=', $checkOut));
+                $query->where(fn ($q) => $q->where('check_in', '<=', $checkIn)->where('check_out', '>', $checkIn))
+                    ->orWhere(fn ($q) => $q->where('check_in', '<', $checkOut)->where('check_out', '>=', $checkOut))
+                    ->orWhere(fn ($q) => $q->where('check_in', '>=', $checkIn)->where('check_out', '<=', $checkOut));
             })
             ->count();
 
@@ -2088,11 +1619,11 @@ class BookingManagementController extends Controller
 
         try {
             $rateCalculation = $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount);
-            if (!$rateCalculation || $rateCalculation->totalAmount <= 0) {
+            if (! $rateCalculation || $rateCalculation->totalAmount <= 0) {
                 return 'Unable to calculate rate for selected dates';
             }
         } catch (\Exception $e) {
-            return 'Rate calculation error: ' . $e->getMessage();
+            return 'Rate calculation error: '.$e->getMessage();
         }
 
         return null;
@@ -2107,7 +1638,7 @@ class BookingManagementController extends Controller
         $paymentMethodId = null;
 
         if ($paymentMethodName) {
-            $paymentMethod = \App\Models\PaymentMethod::where('name', $paymentMethodName)->first();
+            $paymentMethod = PaymentMethod::where('name', $paymentMethodName)->first();
             $paymentMethodId = $paymentMethod ? $paymentMethod->id : null;
         }
 
@@ -2121,9 +1652,9 @@ class BookingManagementController extends Controller
             'guest_country' => $row[7] ? trim($row[7]) : null,
             'guest_id_number' => $row[8] ? trim($row[8]) : null,
             'guest_gender' => $row[9] ? trim($row[9]) : null,
-            'guest_male' => !empty($row[10]) ? (int) $row[10] : 0,
-            'guest_female' => !empty($row[11]) ? (int) $row[11] : 0,
-            'guest_children' => !empty($row[12]) ? (int) $row[12] : 0,
+            'guest_male' => ! empty($row[10]) ? (int) $row[10] : 0,
+            'guest_female' => ! empty($row[11]) ? (int) $row[11] : 0,
+            'guest_children' => ! empty($row[12]) ? (int) $row[12] : 0,
             'relationship_type' => $row[14] ? trim($row[14]) : null,
             'check_in' => $this->parseImportDate($row[15] ?? null),
             'check_in_time' => $row[16] ? trim($row[16]) : '15:00',
@@ -2166,9 +1697,9 @@ class BookingManagementController extends Controller
             'guest_female' => $booking->guest_female,
             'guest_children' => $booking->guest_children,
             'relationship_type' => $booking->relationship_type,
-            'check_in' => $booking->check_in ? $booking->check_in->format('Y-m-d') : null,
+            'check_in' => $booking->check_in instanceof \DateTimeInterface ? $booking->check_in->format('Y-m-d') : $booking->check_in,
             'check_in_time' => $booking->check_in_time,
-            'check_out' => $booking->check_out ? $booking->check_out->format('Y-m-d') : null,
+            'check_out' => $booking->check_out instanceof \DateTimeInterface ? $booking->check_out->format('Y-m-d') : $booking->check_out,
             'nights' => $booking->nights,
             'base_amount' => (float) $booking->base_amount,
             'extra_bed_amount' => (float) $booking->extra_bed_amount,
@@ -2225,6 +1756,8 @@ class BookingManagementController extends Controller
      */
     public function importConfirmed(Request $request)
     {
+        $this->authorize('create', Booking::class);
+
         $request->validate([
             'file' => 'required|mimes:xlsx,csv',
             'accepted_rows' => 'nullable|array',
@@ -2236,9 +1769,10 @@ class BookingManagementController extends Controller
             Excel::import($importer, $request->file('file'));
 
             $count = $importer->getImportedCount();
+
             return back()->with('success', "{$count} Bookings imported successfully.");
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'Import failed: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Import failed: '.$e->getMessage()]);
         }
     }
 }

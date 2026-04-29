@@ -174,13 +174,8 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-
-        post(`/admin/payments/${payment.payment_number}`, {
-            data: {
-                ...data,
-                amount: parseFloat(data.amount),
-                _method: 'PATCH'
-            },
+        // Inertia v3: use patch() directly — no need for _method spoofing or manual FormData.
+        patch(`/admin/payments/${payment.payment_number}`, {
             forceFormData: true,
             preserveScroll: true,
             onSuccess: () => {

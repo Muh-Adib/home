@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Actions\Booking\CreateBookingAction;
+use App\Actions\User\EnsureGuestUserAction;
 use App\Http\Controllers\Controller;
+use App\Models\Property;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -11,6 +14,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -32,15 +36,15 @@ class RegisteredUserController extends Controller
     /**
      * Handle an incoming registration request.
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws ValidationException
      */
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|lowercase|email|max:255|unique:' . User::class,
+            'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'phone' => 'required|string|max:20|unique:' . User::class,
+            'phone' => 'required|string|max:20|unique:'.User::class,
             'gender' => 'nullable|in:male,female',
             'country' => 'required|string|max:100',
         ]);
@@ -62,11 +66,11 @@ class RegisteredUserController extends Controller
 
         // Update last login
         $user->update([
-            'last_login' => now(),
+            'last_login_at' => now(),
         ]);
 
         // Check if email verification is required
-        if (config('app.require_email_verification', true)) {
+        if (config('app.require_email_verification', false)) {
             // Don't pull intended_url yet, keep it for after verification
             return to_route('verification.notice');
         }
@@ -89,8 +93,8 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|lowercase|email|max:255|unique:' . User::class,
-            'phone' => 'required|string|max:20|unique:' . User::class,
+            'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
+            'phone' => 'required|string|max:20|unique:'.User::class,
             'gender' => 'nullable|in:male,female',
             'country' => 'nullable|string|max:100',
             'booking_data' => 'required|string',
@@ -100,7 +104,7 @@ class RegisteredUserController extends Controller
         \DB::beginTransaction();
         try {
             // 1. Create or Find User
-            $ensureUserAction = app(\App\Actions\User\EnsureGuestUserAction::class);
+            $ensureUserAction = app(EnsureGuestUserAction::class);
             $userData = [
                 'guest_name' => $request->name,
                 'guest_email' => $request->email,
@@ -114,10 +118,10 @@ class RegisteredUserController extends Controller
 
             // 3. Create Booking via Action
             $bookingData = json_decode($request->booking_data, true);
-            $property = \App\Models\Property::where('slug', $request->property_slug)->firstOrFail();
+            $property = Property::where('slug', $request->property_slug)->firstOrFail();
             $bookingData['property_id'] = $property->id;
 
-            $createBookingAction = app(\App\Actions\Booking\CreateBookingAction::class);
+            $createBookingAction = app(CreateBookingAction::class);
             $booking = $createBookingAction->execute($bookingData, $user);
 
             \DB::commit();
@@ -131,7 +135,8 @@ class RegisteredUserController extends Controller
                 'error' => $e->getMessage(),
                 'email' => $request->email,
             ]);
-            return back()->withErrors(['error' => 'Failed to create account and booking: ' . $e->getMessage()]);
+
+            return back()->withErrors(['error' => 'Failed to create account and booking: '.$e->getMessage()]);
         }
     }
 }

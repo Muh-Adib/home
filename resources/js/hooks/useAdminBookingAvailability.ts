@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { bookingsService } from '@/lib/api';
+import { apiPost } from '@/lib/api';
 import type { AvailabilityStatus } from '@/types/booking-form.types';
 
 interface UseAdminBookingAvailabilityProps {
@@ -81,7 +81,7 @@ export function useAdminBookingAvailability({
                 isAvailable = data.available;
             } else {
                 // For create mode, use standard service
-                const result = await bookingsService.checkAvailability({
+                const result = await apiPost<{ available: boolean }>('/api/admin/booking-management/check-availability', {
                     property_id: propertyId,
                     check_in: checkIn,
                     check_out: checkOut,

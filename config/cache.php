@@ -103,7 +103,27 @@ return [
     |
     */
 
-    'prefix' => env('CACHE_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_cache_'),
+    // Laravel 13: format prefix diubah dari underscore ke hyphen.
+    // Dipin secara eksplisit untuk menghindari perubahan mendadak jika APP_NAME berubah.
+    'prefix' => env('CACHE_PREFIX', Str::slug(env('APP_NAME', 'laravel')).'-cache-'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Serializable Classes (Laravel 13)
+    |--------------------------------------------------------------------------
+    |
+    | Laravel 13 secara default memblokir unserialization semua PHP objects
+    | dari cache untuk mencegah deserialization gadget chain attacks.
+    |
+    | Daftarkan kelas yang BOLEH di-unserialize dari cache di sini.
+    | Gunakan false untuk mengizinkan semua (tidak disarankan untuk production).
+    |
+    */
+
+    'serializable_classes' => [
+        // Tambahkan class yang di-cache sebagai object di sini, contoh:
+        // App\Data\CachedDashboardStats::class,
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -113,7 +133,7 @@ return [
     | These settings optimize cache performance for the Property Management System website Homsjogja
     |
     */
-    
+
     'performance' => [
         'dashboard_cache_ttl' => env('DASHBOARD_CACHE_TTL', 300), // 5 minutes
         'property_cache_ttl' => env('PROPERTY_CACHE_TTL', 3600), // 1 hour
@@ -132,7 +152,7 @@ return [
     | Define cache tags for better cache management and selective invalidation
     |
     */
-    
+
     'tags' => [
         'properties' => 'properties',
         'bookings' => 'bookings',

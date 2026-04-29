@@ -2,35 +2,36 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Payment;
-use App\Models\Booking;
-use App\Models\PaymentMethod;
 use App\Events\PaymentCreated;
-use App\Services\PaymentGatewayService;
+use App\Models\Booking;
+use App\Models\Payment;
+use App\Models\PaymentMethod;
 use App\Services\ImageService;
-use Illuminate\Http\Request;
+use App\Services\PaymentGatewayService;
+use Carbon\Carbon;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
-
 
 /**
  * Payment Controller
- * 
+ *
  * This controller handles the payment process for guest bookings.
  * It includes methods for creating, storing, and managing payments.
- * 
- * @package App\Http\Controllers
+ *
  * @author Muhammad Adib Aulia Hanif <adwk.project@gmail.com>
  */
-
 class PaymentController extends Controller
 {
     protected PaymentGatewayService $gatewayService;
+
     protected ImageService $imageService;
 
     public function __construct(
@@ -104,8 +105,8 @@ class PaymentController extends Controller
         $paymentType = $paidAmount === 0 ? 'dp' : 'remaining';
 
         // Calculate nights
-        $checkIn = \Carbon\Carbon::parse($booking->check_in);
-        $checkOut = \Carbon\Carbon::parse($booking->check_out);
+        $checkIn = Carbon::parse($booking->check_in);
+        $checkOut = Carbon::parse($booking->check_out);
         $nights = $checkIn->diffInDays($checkOut);
 
         // Get available payment methods (iPaymu dan methods yang aktif)
@@ -166,7 +167,7 @@ class PaymentController extends Controller
 
             if ($validated['amount'] > $pendingAmount) {
                 return back()->withErrors([
-                    'amount' => 'Payment amount exceeds pending amount.'
+                    'amount' => 'Payment amount exceeds pending amount.',
                 ]);
             }
 
@@ -195,16 +196,18 @@ class PaymentController extends Controller
             }
 
             return back()->withErrors([
-                'error' => 'Failed to generate payment URL.'
+                'error' => 'Failed to generate payment URL.',
             ]);
 
-        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+        } catch (AuthorizationException $e) {
             Log::error('Authorization failed', ['error' => $e->getMessage()]);
+
             return back()->withErrors([
-                'error' => 'You are not authorized to make payment for this booking.'
+                'error' => 'You are not authorized to make payment for this booking.',
             ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             Log::error('Validation failed', ['errors' => $e->errors()]);
+
             return back()->withErrors($e->errors());
         } catch (\Exception $e) {
             Log::error('Payment gateway initiation failed', [
@@ -213,7 +216,7 @@ class PaymentController extends Controller
             ]);
 
             return back()->withErrors([
-                'error' => 'Failed to initiate payment: ' . $e->getMessage()
+                'error' => 'Failed to initiate payment: '.$e->getMessage(),
             ]);
         }
     }
@@ -233,17 +236,17 @@ class PaymentController extends Controller
 
         // Filter by status
         if ($request->filled('status')) {
-            $query->where('payment_status', $request->get('status'));
+            $query->where('payment_status', $request->input('status'));
         }
 
         // Filter by type
         if ($request->filled('type')) {
-            $query->where('payment_type', $request->get('type'));
+            $query->where('payment_type', $request->input('type'));
         }
 
         // Search
         if ($request->filled('search')) {
-            $search = $request->get('search');
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('payment_number', 'like', "%{$search}%")
                     ->orWhereHas('booking', function ($bq) use ($search) {
@@ -257,10 +260,10 @@ class PaymentController extends Controller
         return Inertia::render('Guest/MyPayments', [
             'payments' => $payments,
             'filters' => [
-                'search' => $request->get('search'),
-                'status' => $request->get('status'),
-                'type' => $request->get('type'),
-            ]
+                'search' => $request->input('search'),
+                'status' => $request->input('status'),
+                'type' => $request->input('type'),
+            ],
         ]);
     }
 
@@ -285,7 +288,7 @@ class PaymentController extends Controller
     public function securePayment(Booking $booking, string $token): Response
     {
         // Validate payment token
-        if (!$booking->isPaymentTokenValid($token)) {
+        if (! $booking->isPaymentTokenValid($token)) {
             return redirect()->route('my-bookings')
                 ->with('error', 'Invalid or expired payment link.');
         }
@@ -293,9 +296,9 @@ class PaymentController extends Controller
         // Update expiry time to maximum 2 hours from now when link is opened
         // This ensures countdown is always max 2 hours from when user opens the link
         $twoHoursFromNow = now()->addHours(2);
-        if (!$booking->payment_token_expires_at || $booking->payment_token_expires_at->gt($twoHoursFromNow)) {
+        if (! $booking->payment_token_expires_at || $booking->payment_token_expires_at->gt($twoHoursFromNow)) {
             $booking->update([
-                'payment_token_expires_at' => $twoHoursFromNow
+                'payment_token_expires_at' => $twoHoursFromNow,
             ]);
             // Refresh booking to get updated expiry time
             $booking->refresh();
@@ -324,8 +327,8 @@ class PaymentController extends Controller
         $paymentMethods = PaymentMethod::active()->get();
 
         // Calculate nights
-        $checkIn = \Carbon\Carbon::parse($booking->check_in);
-        $checkOut = \Carbon\Carbon::parse($booking->check_out);
+        $checkIn = Carbon::parse($booking->check_in);
+        $checkOut = Carbon::parse($booking->check_out);
         $nights = $checkIn->diffInDays($checkOut);
 
         return Inertia::render('Payment/SecurePayment', [
@@ -367,7 +370,7 @@ class PaymentController extends Controller
     public function securePaymentStore(Request $request, Booking $booking, string $token): RedirectResponse
     {
         // Validate payment token
-        if (!$booking->isPaymentTokenValid($token)) {
+        if (! $booking->isPaymentTokenValid($token)) {
             return redirect()->route('my-bookings')
                 ->with('error', 'Invalid or expired payment link.');
         }
@@ -375,7 +378,7 @@ class PaymentController extends Controller
         // Validate request
         $request->validate([
             'payment_method_id' => 'required|exists:payment_methods,id',
-            'amount' => 'required|numeric|min:1|max:' . $booking->total_amount,
+            'amount' => 'required|numeric|min:1|max:'.$booking->total_amount,
             'proof_of_payment' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048',
             'payment_notes' => 'nullable|string|max:500',
         ]);
@@ -448,15 +451,16 @@ class PaymentController extends Controller
             'thumbnail_height' => 200,
         ]);
 
-        if (!$result->success) {
+        if (! $result->success) {
             // Fallback to simple storage if image processing fails
             Log::warning('Image processing failed, using simple storage', [
                 'error' => $result->error,
             ]);
 
-            $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $filename = time().'_'.uniqid().'.'.$file->getClientOriginalExtension();
             $file->storeAs('payment-proofs', $filename, 'public');
-            return 'payment-proofs/' . $filename;
+
+            return 'payment-proofs/'.$filename;
         }
 
         return $result->path;

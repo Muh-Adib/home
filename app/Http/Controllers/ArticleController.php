@@ -2,22 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Article;
-use App\Models\Property;
-use App\Models\ContentPlan;
-use App\Services\ArticleImageService;
-use App\Services\ArticleService;
-use App\Services\ArticleAnalysisService;
-use App\Services\SeoService;
 use App\Http\Requests\Admin\StoreArticleRequest;
 use App\Http\Requests\Admin\UpdateArticleRequest;
-use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
+use App\Models\Article;
+use App\Models\ContentPlan;
+use App\Models\Property;
+use App\Models\PropertyMedia;
+use App\Services\ArticleAnalysisService;
+use App\Services\ArticleImageService;
+use App\Services\ArticleService;
+use App\Services\SeoService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
-use App\Models\PropertyMedia;
 
 class ArticleController extends Controller
 {
@@ -26,8 +27,7 @@ class ArticleController extends Controller
         private ArticleService $articleService,
         private ArticleAnalysisService $analysisService,
         private SeoService $seoService
-    ) {
-    }
+    ) {}
 
     /**
      * Display article listing for admin
@@ -41,27 +41,27 @@ class ArticleController extends Controller
 
         // Search
         if ($request->filled('search')) {
-            $query->search($request->get('search'));
+            $query->search($request->input('search'));
         }
 
         // Status filter
         if ($request->filled('status')) {
-            $query->where('status', $request->get('status'));
+            $query->where('status', $request->input('status'));
         }
 
         // Language filter
         if ($request->filled('language')) {
-            $query->byLanguage($request->get('language'));
+            $query->byLanguage($request->input('language'));
         }
 
         // Author filter
         if ($request->filled('author_id')) {
-            $query->where('author_id', $request->get('author_id'));
+            $query->where('author_id', $request->input('author_id'));
         }
 
         // Sorting
-        $sortField = $request->get('sort_field', 'created_at');
-        $sortDirection = $request->get('sort_direction', 'desc');
+        $sortField = $request->input('sort_field', 'created_at');
+        $sortDirection = $request->input('sort_direction', 'desc');
 
         $allowedSorts = ['title', 'status', 'published_at', 'view_count', 'created_at'];
         if (in_array($sortField, $allowedSorts)) {
@@ -75,35 +75,40 @@ class ArticleController extends Controller
             $score = 0;
 
             // 1. Has featured image (30%)
-            if (!empty($article->featured_image))
+            if (! empty($article->featured_image)) {
                 $score += 30;
+            }
 
             // 2. Has meta description or excerpt (20%)
-            if (!empty($article->meta_description) || !empty($article->excerpt))
+            if (! empty($article->meta_description) || ! empty($article->excerpt)) {
                 $score += 20;
+            }
 
             // 3. Word count > 300 (30%)
             $wordCount = str_word_count(strip_tags($article->content ?? ''));
-            if ($wordCount >= 300)
+            if ($wordCount >= 300) {
                 $score += 30;
-            else if ($wordCount >= 100)
+            } elseif ($wordCount >= 100) {
                 $score += 15;
+            }
 
             // 4. Linked to properties (20%)
-            if ($article->properties_count > 0)
+            if ($article->properties_count > 0) {
                 $score += 20;
+            }
 
             $article->completeness_score = $score;
+
             return $article;
         });
 
         return Inertia::render('Admin/Articles/Index', [
             'articles' => $articles,
             'filters' => [
-                'search' => $request->get('search'),
-                'status' => $request->get('status'),
-                'language' => $request->get('language'),
-                'author_id' => $request->get('author_id'),
+                'search' => $request->input('search'),
+                'status' => $request->input('status'),
+                'language' => $request->input('language'),
+                'author_id' => $request->input('author_id'),
                 'sort_field' => $sortField,
                 'sort_direction' => $sortDirection,
             ],
@@ -153,10 +158,10 @@ class ArticleController extends Controller
      */
     public function show(string $slug): Response
     {
-        $safeSlug = strlen($slug) > 50 ? substr($slug, 0, 50) . '_' . md5($slug) : $slug;
+        $safeSlug = strlen($slug) > 50 ? substr($slug, 0, 50).'_'.md5($slug) : $slug;
         $cacheKey = "article_show_{$safeSlug}";
 
-        $data = \Illuminate\Support\Facades\Cache::remember($cacheKey, 3600, function () use ($slug) {
+        $data = Cache::remember($cacheKey, 3600, function () use ($slug) {
             $article = Article::where('slug', $slug)
                 ->with(['author', 'properties.media'])
                 ->firstOrFail();
@@ -227,7 +232,7 @@ class ArticleController extends Controller
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Article updated automatically.'
+                'message' => 'Article updated automatically.',
             ]);
         }
 
@@ -305,7 +310,7 @@ class ArticleController extends Controller
 
         try {
             $article = $request->filled('article_slug')
-                ? Article::where('slug', $request->get('article_slug'))->first()
+                ? Article::where('slug', $request->input('article_slug'))->first()
                 : null;
 
             $result = $this->imageService->uploadImage(
@@ -335,7 +340,7 @@ class ArticleController extends Controller
         ]);
 
         try {
-            $deleted = $this->imageService->deleteImage($request->get('path'));
+            $deleted = $this->imageService->deleteImage($request->input('path'));
 
             return response()->json([
                 'success' => $deleted,
@@ -358,19 +363,19 @@ class ArticleController extends Controller
         $this->authorize('create', Article::class);
 
         $mediaList = [];
-        $search = $request->get('search');
+        $search = $request->input('search');
 
         // 1. Get uploaded images from articles/images directory
         $articleImages = Storage::disk('public')->allFiles('articles/images');
         foreach ($articleImages as $path) {
             if (in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-                if ($search && !str_contains(strtolower(basename($path)), strtolower($search))) {
+                if ($search && ! str_contains(strtolower(basename($path)), strtolower($search))) {
                     continue;
                 }
                 $mediaList[] = [
-                    'id' => 'article_' . md5($path),
-                    'url' => asset('storage/' . $path),
-                    'thumbnail_url' => asset('storage/' . $path),
+                    'id' => 'article_'.md5($path),
+                    'url' => asset('storage/'.$path),
+                    'thumbnail_url' => asset('storage/'.$path),
                     'path' => $path,
                     'name' => basename($path),
                     'size' => Storage::disk('public')->size($path),
@@ -391,11 +396,11 @@ class ArticleController extends Controller
 
         foreach ($propertyImages as $media) {
             $mediaList[] = [
-                'id' => 'property_' . $media->id,
+                'id' => 'property_'.$media->id,
                 'url' => $media->url,
                 'thumbnail_url' => $media->thumbnail_url ?? $media->url,
                 'path' => $media->file_path,
-                'name' => $media->property ? $media->property->name . ' - ' . basename($media->file_path) : basename($media->file_path),
+                'name' => $media->property ? $media->property->name.' - '.basename($media->file_path) : basename($media->file_path),
                 'size' => $media->file_size,
                 'last_modified' => strtotime($media->updated_at),
                 'source' => 'property',
@@ -424,25 +429,25 @@ class ArticleController extends Controller
 
         // Language filter
         if ($request->filled('language')) {
-            $query->byLanguage($request->get('language'));
+            $query->byLanguage($request->input('language'));
         }
 
         // Search
         if ($request->filled('search')) {
-            $query->search($request->get('search'));
+            $query->search($request->input('search'));
         }
 
-        $cacheKey = 'articles_index_' . md5(json_encode($request->only(['page', 'language', 'search'])));
-        
-        $articles = \Illuminate\Support\Facades\Cache::remember($cacheKey, 3600, function () use ($query) {
+        $cacheKey = 'articles_index_'.md5(json_encode($request->only(['page', 'language', 'search'])));
+
+        $articles = Cache::remember($cacheKey, 3600, function () use ($query) {
             return $query->paginate(12);
         });
 
         return Inertia::render('Articles/Index', [
             'articles' => $articles,
             'filters' => [
-                'search' => $request->get('search'),
-                'language' => $request->get('language'),
+                'search' => $request->input('search'),
+                'language' => $request->input('language'),
             ],
             'seo' => $this->seoService->forArticlesIndex(),
             'itemListSchema' => $this->seoService->articlesIndexSchema($articles->getCollection()),

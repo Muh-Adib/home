@@ -2,26 +2,27 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
-use App\Services\RateCalculationService;
+use App\Domain\Booking\ValueObjects\RateCalculation;
 use App\Models\Property;
 use App\Models\PropertySeasonalRate;
-use App\Domain\Booking\ValueObjects\RateCalculation;
-use Carbon\Carbon;
+use App\Services\RateCalculationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class RateCalculationServiceTest extends TestCase
 {
     use RefreshDatabase;
 
     private RateCalculationService $rateCalculationService;
+
     private Property $property;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->rateCalculationService = new RateCalculationService();
+        $this->rateCalculationService = new RateCalculationService;
 
         // Create test property
         $this->property = Property::factory()->create([
@@ -37,7 +38,7 @@ class RateCalculationServiceTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_basic_rate_for_weekdays()
     {
         $checkIn = '2024-01-15'; // Monday
@@ -65,7 +66,7 @@ class RateCalculationServiceTest extends TestCase
         $this->assertEquals($expectedTotal, $calculation->totalAmount);
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_weekend_premium()
     {
         $checkIn = '2024-01-19'; // Friday
@@ -85,7 +86,7 @@ class RateCalculationServiceTest extends TestCase
         $this->assertEquals(200000, $calculation->weekendPremium);
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_extra_bed_charges()
     {
         $checkIn = '2024-01-15';
@@ -103,7 +104,7 @@ class RateCalculationServiceTest extends TestCase
         $this->assertEquals(600000, $calculation->extraBedAmount); // 2 extra beds * 150k * 2 nights
     }
 
-    // /** @test */
+    // #[Test]
     // public function it_applies_minimum_stay_discount_for_three_nights()
     // {
     //     $checkIn = '2024-01-15';
@@ -124,7 +125,7 @@ class RateCalculationServiceTest extends TestCase
     //     $this->assertEquals($expectedDiscount, $breakdown['minimum_stay_discount']);
     // }
 
-    // /** @test */
+    // #[Test]
     // public function it_applies_minimum_stay_discount_for_weekly_stays()
     // {
     //     $checkIn = '2024-01-15';
@@ -145,7 +146,7 @@ class RateCalculationServiceTest extends TestCase
     //     $this->assertEquals($expectedDiscount, $breakdown['minimum_stay_discount']);
     // }
 
-    /** @test */
+    #[Test]
     public function it_calculates_tax_correctly()
     {
         $checkIn = '2024-01-15';
@@ -165,7 +166,7 @@ class RateCalculationServiceTest extends TestCase
         $this->assertEquals($expectedTax, $calculation->taxAmount);
     }
 
-    /** @test */
+    #[Test]
     public function it_applies_seasonal_rates()
     {
         // Create seasonal rate
@@ -197,7 +198,7 @@ class RateCalculationServiceTest extends TestCase
         $this->assertGreaterThan(0, $breakdown['seasonal_nights']);
     }
 
-    /** @test */
+    #[Test]
     public function it_identifies_long_weekend_dates()
     {
         $checkIn = '2024-08-16'; // Day before Independence Day
@@ -215,7 +216,7 @@ class RateCalculationServiceTest extends TestCase
         $this->assertTrue($breakdown['rate_breakdown']['long_weekend_applied']);
     }
 
-    /** @test */
+    #[Test]
     public function it_identifies_peak_season_dates()
     {
         $checkIn = '2024-12-20'; // December is peak season
@@ -233,7 +234,7 @@ class RateCalculationServiceTest extends TestCase
         $this->assertTrue($breakdown['rate_breakdown']['peak_season_applied']);
     }
 
-    /** @test */
+    #[Test]
     public function it_provides_detailed_daily_breakdown()
     {
         $checkIn = '2024-01-19'; // Friday
@@ -265,7 +266,7 @@ class RateCalculationServiceTest extends TestCase
         $this->assertNotEmpty($saturdayBreakdown['premiums']);
     }
 
-    /** @test */
+    #[Test]
     public function it_throws_exception_for_invalid_dates()
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -279,7 +280,7 @@ class RateCalculationServiceTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_formatted_rate_successfully()
     {
         $checkIn = '2024-01-15';
@@ -301,7 +302,7 @@ class RateCalculationServiceTest extends TestCase
         $this->assertEquals($guestCount, $result['guest_count']);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_rate_calculation_errors_gracefully()
     {
         $checkIn = '2024-01-17';
@@ -319,7 +320,7 @@ class RateCalculationServiceTest extends TestCase
         $this->assertArrayHasKey('message', $result);
     }
 
-    /** @test */
+    #[Test]
     public function it_provides_comprehensive_summary()
     {
         $checkIn = '2024-01-15';

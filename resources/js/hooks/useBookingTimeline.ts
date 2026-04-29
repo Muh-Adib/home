@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import axios from "axios";
+import { apiGet } from "@/lib/api";
 import { requestCache } from "@/utils/requestCache";
 import { generateTimelineDates } from "@/utils/date";
 import { Booking, Property } from "@/types";
@@ -156,17 +156,18 @@ export function useBookingTimeline({
             const nextEndDate = new Date(currentEndDate);
             nextEndDate.setDate(nextEndDate.getDate() + 14);
 
-            const response = await axios.get('/api/admin/booking-management/timeline-data', {
-                params: {
+            const responseData = await apiGet<{ success: boolean; bookings: Booking[] }>(
+                '/api/admin/booking-management/timeline-data',
+                {
                     date_from: currentEndDate.toISOString().split('T')[0],
                     date_to: nextEndDate.toISOString().split('T')[0],
                 }
-            });
+            );
 
-            if (response.data?.bookings) {
+            if (responseData?.bookings) {
                 setLocalBookings(prev => {
                     const existingIds = new Set(prev.map(b => b.id));
-                    const uniqueNew = (response.data.bookings as Booking[]).filter(b => !existingIds.has(b.id));
+                    const uniqueNew = (responseData.bookings as Booking[]).filter(b => !existingIds.has(b.id));
                     return [...prev, ...uniqueNew];
                 });
             }
@@ -188,15 +189,16 @@ export function useBookingTimeline({
             const previousEndDate = new Date(currentStartDate);
             previousEndDate.setDate(previousEndDate.getDate() - prependDays);
 
-            const response = await axios.get('/api/admin/booking-management/timeline-data', {
-                params: {
+            const responseData = await apiGet<{ success: boolean; bookings: Booking[] }>(
+                '/api/admin/booking-management/timeline-data',
+                {
                     date_from: previousStartDate.toISOString().split('T')[0],
                     date_to: previousEndDate.toISOString().split('T')[0],
                 }
-            });
+            );
 
-            if (response.data?.bookings) {
-                const newBookings = response.data.bookings as Booking[];
+            if (responseData?.bookings) {
+                const newBookings = responseData.bookings as Booking[];
                 setLocalBookings(prev => {
                     const existingIds = new Set(prev.map(b => b.id));
                     const uniqueNew = newBookings.filter(b => !existingIds.has(b.id));

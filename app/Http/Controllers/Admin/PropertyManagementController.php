@@ -3,25 +3,25 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Property;
 use App\Models\Amenity;
+use App\Models\Property;
 use App\Models\User;
 use App\Services\AvailabilityService;
-use Illuminate\Http\Request;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Cache;
 
 class PropertyManagementController extends Controller
 {
     /**
      * Constructor dengan dependency injection untuk AvailabilityService
      */
-    public function __construct(private AvailabilityService $availabilityService)
-    {
-    }
+    public function __construct(private AvailabilityService $availabilityService) {}
 
     /**
      * Display admin properties listing
@@ -38,7 +38,7 @@ class PropertyManagementController extends Controller
                 'media',
                 'bookings' => function ($q) {
                     $q->whereIn('booking_status', ['confirmed', 'checked_in']);
-                }
+                },
             ]);
 
         // Filter by owner for property owners
@@ -48,7 +48,7 @@ class PropertyManagementController extends Controller
 
         // Search
         if ($request->filled('search')) {
-            $search = $request->get('search');
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('address', 'like', "%{$search}%");
@@ -57,12 +57,12 @@ class PropertyManagementController extends Controller
 
         // Status filter
         if ($request->filled('status')) {
-            $query->where('status', $request->get('status'));
+            $query->where('status', $request->input('status'));
         }
 
         // Sorting
         if ($request->filled('sort')) {
-            $sort = $request->get('sort');
+            $sort = $request->input('sort');
             $sortParts = explode('_', $sort);
             if (count($sortParts) === 2) {
                 $field = $sortParts[0];
@@ -85,10 +85,10 @@ class PropertyManagementController extends Controller
         return Inertia::render('Admin/Properties/Index', [
             'properties' => $properties,
             'filters' => [
-                'search' => $request->get('search'),
-                'status' => $request->get('status'),
-                'sort' => $request->get('sort'),
-            ]
+                'search' => $request->input('search'),
+                'status' => $request->input('status'),
+                'sort' => $request->input('sort'),
+            ],
         ]);
     }
 
@@ -134,7 +134,7 @@ class PropertyManagementController extends Controller
                 'string',
                 'max:500',
                 function ($attribute, $value, $fail) {
-                    if ($value && !preg_match('/(?:https?:\/\/)?(?:www\.)?(?:tiktok\.com|vm\.tiktok\.com)\/(?:@[\w.]+)?\/?video\/(\d+)|(?:https?:\/\/)?(?:vm\.tiktok\.com)\/([\w]+)/i', $value)) {
+                    if ($value && ! preg_match('/(?:https?:\/\/)?(?:www\.)?(?:tiktok\.com|vm\.tiktok\.com)\/(?:@[\w.]+)?\/?video\/(\d+)|(?:https?:\/\/)?(?:vm\.tiktok\.com)\/([\w]+)/i', $value)) {
                         $fail('URL TikTok tidak valid. Format yang didukung: https://www.tiktok.com/@username/video/... atau https://vm.tiktok.com/...');
                     }
                 },
@@ -186,12 +186,12 @@ class PropertyManagementController extends Controller
         if ($user->hasRole('property_owner')) {
             $validated['owner_id'] = $user->id;
         } elseif ($user->hasRole('super_admin')) {
-            if ($request->get('owner_id') === 'auto') {
+            if ($request->input('owner_id') === 'auto') {
                 // Auto-assign to the first available property owner
-                $firstOwner = User::hasRole('property_owner')->first();
+                $firstOwner = User::where('role', 'property_owner')->first();
                 $validated['owner_id'] = $firstOwner ? $firstOwner->id : $user->id;
             } else {
-                $validated['owner_id'] = $request->get('owner_id');
+                $validated['owner_id'] = $request->input('owner_id');
             }
         } else {
             $validated['owner_id'] = $user->id;
@@ -204,7 +204,7 @@ class PropertyManagementController extends Controller
 
         // Attach amenities
         if ($request->filled('amenities')) {
-            $property->amenities()->attach($request->get('amenities'));
+            $property->amenities()->attach($request->input('amenities'));
         }
 
         // Invalidate map coordinates cache
@@ -235,7 +235,7 @@ class PropertyManagementController extends Controller
                     $query->where('is_active', true)
                         ->orderBy('priority', 'desc')
                         ->orderBy('start_date', 'asc');
-                }
+                },
             ]);
 
             // Calculate property statistics with error handling
@@ -292,7 +292,7 @@ class PropertyManagementController extends Controller
 
         } catch (\Exception $e) {
             // Log error and return with safe defaults
-            \Log::error('Error loading property data: ' . $e->getMessage());
+            \Log::error('Error loading property data: '.$e->getMessage());
 
             return Inertia::render('Admin/Properties/Show', [
                 'property' => [
@@ -382,7 +382,7 @@ class PropertyManagementController extends Controller
                 'code' => $property->current_keybox_code,
                 'last_updated' => $property->keybox_updated_at,
                 'updated_by' => $property->keyboxUpdatedBy?->name,
-            ]
+            ],
         ]);
     }
 
@@ -405,7 +405,7 @@ class PropertyManagementController extends Controller
                 'string',
                 'max:500',
                 function ($attribute, $value, $fail) {
-                    if ($value && !preg_match('/(?:https?:\/\/)?(?:www\.)?(?:tiktok\.com|vm\.tiktok\.com)\/(?:@[\w.]+)?\/?video\/(\d+)|(?:https?:\/\/)?(?:vm\.tiktok\.com)\/([\w]+)/i', $value)) {
+                    if ($value && ! preg_match('/(?:https?:\/\/)?(?:www\.)?(?:tiktok\.com|vm\.tiktok\.com)\/(?:@[\w.]+)?\/?video\/(\d+)|(?:https?:\/\/)?(?:vm\.tiktok\.com)\/([\w]+)/i', $value)) {
                         $fail('URL TikTok tidak valid. Format yang didukung: https://www.tiktok.com/@username/video/... atau https://vm.tiktok.com/...');
                     }
                 },
@@ -456,7 +456,7 @@ class PropertyManagementController extends Controller
 
         // Sync amenities
         if ($request->has('amenities')) {
-            $property->amenities()->sync($request->get('amenities'));
+            $property->amenities()->sync($request->input('amenities'));
         }
 
         // Invalidate map coordinates cache
@@ -493,7 +493,7 @@ class PropertyManagementController extends Controller
             'media' => function ($query) {
                 $query->orderBy('display_order', 'asc')
                     ->orderBy('created_at', 'desc');
-            }
+            },
         ]);
 
         return Inertia::render('Admin/Properties/Media', [
@@ -506,7 +506,7 @@ class PropertyManagementController extends Controller
      */
     public function bulkStatus(Request $request): RedirectResponse
     {
-        $this->authorize('viewAny', Property::class);
+        $this->authorize('update', Property::class);
 
         $request->validate([
             'property_ids' => 'required|array',
@@ -515,8 +515,8 @@ class PropertyManagementController extends Controller
         ]);
 
         $user = $request->user();
-        $propertyIds = $request->get('property_ids');
-        $status = $request->get('status');
+        $propertyIds = $request->input('property_ids');
+        $status = $request->input('status');
 
         $query = Property::whereIn('id', $propertyIds);
 
@@ -539,7 +539,7 @@ class PropertyManagementController extends Controller
         $this->authorize('update', $property);
 
         $property->update([
-            'is_featured' => !$property->is_featured
+            'is_featured' => ! $property->is_featured,
         ]);
 
         $status = $property->is_featured ? 'featured' : 'unfeatured';
@@ -556,7 +556,7 @@ class PropertyManagementController extends Controller
         $this->authorize('create', Property::class);
 
         $newProperty = $property->replicate();
-        $newProperty->name = $property->name . ' (Copy)';
+        $newProperty->name = $property->name.' (Copy)';
         $newProperty->slug = Str::slug($newProperty->name);
         $newProperty->is_featured = false;
         $newProperty->status = 'inactive';
@@ -587,7 +587,7 @@ class PropertyManagementController extends Controller
                 'bookings' => $bookingAnalytics,
                 'revenue' => $revenueAnalytics,
                 'occupancy' => $occupancyAnalytics,
-            ]
+            ],
         ]);
     }
 
@@ -595,18 +595,18 @@ class PropertyManagementController extends Controller
      * Get property stats API endpoint
      * GET /api/admin/properties/{id}/stats
      */
-    public function stats(Request $request, int $property): \Illuminate\Http\JsonResponse
+    public function stats(Request $request, int $property): JsonResponse
     {
         $property = Property::findOrFail($property);
         $this->authorize('view', $property);
 
         try {
-            $from = $request->get('from', now()->subDays(30)->toDateString());
-            $to = $request->get('to', now()->toDateString());
-            $period = $request->get('period', 'day'); // day, week, month
+            $from = $request->input('from', now()->subDays(30)->toDateString());
+            $to = $request->input('to', now()->toDateString());
+            $period = $request->input('period', 'day'); // day, week, month
 
             // Validate period
-            if (!in_array($period, ['day', 'week', 'month'])) {
+            if (! in_array($period, ['day', 'week', 'month'])) {
                 $period = 'day';
             }
 
@@ -629,10 +629,11 @@ class PropertyManagementController extends Controller
             $averageRating = $bookings->whereNotNull('guest_rating')->avg('guest_rating') ?? 0;
 
             // Calculate occupancy rate
-            $totalDays = \Carbon\Carbon::parse($from)->diffInDays(\Carbon\Carbon::parse($to)) + 1;
+            $totalDays = Carbon::parse($from)->diffInDays(Carbon::parse($to)) + 1;
             $bookedDays = $confirmedBookings->sum(function ($booking) use ($from, $to) {
-                $start = max($booking->check_in, \Carbon\Carbon::parse($from));
-                $end = min($booking->check_out, \Carbon\Carbon::parse($to));
+                $start = max($booking->check_in, Carbon::parse($from));
+                $end = min($booking->check_out, Carbon::parse($to));
+
                 return $start->diffInDays($end);
             });
             $occupancyRate = $totalDays > 0 ? ($bookedDays / $totalDays) * 100 : 0;
@@ -647,7 +648,7 @@ class PropertyManagementController extends Controller
                     'ota' => $bookings->where('source', 'ota')->count(),
                     'walkin' => $bookings->where('source', 'walkin')->count(),
                     'other' => $bookings->whereNotIn('source', ['direct', 'ota', 'walkin'])->count(),
-                ]
+                ],
             ];
 
             // Recent bookings
@@ -694,8 +695,8 @@ class PropertyManagementController extends Controller
     private function generateTrendData($bookings, string $from, string $to, string $period): array
     {
         $trend = [];
-        $start = \Carbon\Carbon::parse($from);
-        $end = \Carbon\Carbon::parse($to);
+        $start = Carbon::parse($from);
+        $end = Carbon::parse($to);
         $current = $start->copy();
 
         while ($current <= $end) {
@@ -721,6 +722,7 @@ class PropertyManagementController extends Controller
             $bookedDays = $periodBookings->where('booking_status', '!=', 'cancelled')->sum(function ($booking) use ($current, $periodEnd) {
                 $start = max($booking->check_in, $current);
                 $end = min($booking->check_out, $periodEnd);
+
                 return $start->diffInDays($end);
             });
             $occupancy = $periodDays > 0 ? ($bookedDays / $periodDays) * 100 : 0;
@@ -815,6 +817,7 @@ class PropertyManagementController extends Controller
                 ->sum(function ($booking) use ($monthStart, $monthEnd) {
                     $start = max($booking->check_in, $monthStart);
                     $end = min($booking->check_out, $monthEnd);
+
                     return $start->diffInDays($end);
                 });
 

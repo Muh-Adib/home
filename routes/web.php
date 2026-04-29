@@ -1,19 +1,23 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Cache;
-use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\ICalController;
+use App\Http\Controllers\LegalViewController;
 use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\AmenityController;
+use App\Http\Controllers\PaymentGatewayController;
+use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SeoLandingController;
 use App\Http\Controllers\SitemapController;
-use App\Http\Controllers\ArticleController;
-use App\Http\Controllers\LegalViewController;
-use App\Http\Controllers\PaymentGatewayController;
-use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\StaticPageController;
+use App\Models\Property;
+use App\Models\SeoLandingPage;
+use App\Services\ImageService;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -34,7 +38,7 @@ use Inertia\Inertia;
 Route::get('/properties/{oldSlug}', function () {
     abort(410);
 })->whereIn('oldSlug', [
-    'abrenara', 'pavilo-b', 'sunjava-sunset', 'villa-cubic', 'arayya', 'sunjava-sunrise'
+    'abrenara', 'pavilo-b', 'sunjava-sunset', 'villa-cubic', 'arayya', 'sunjava-sunrise',
 ]);
 
 // Legacy prefixes
@@ -43,7 +47,7 @@ Route::get('/{legacyPrefix}/{any?}', function () {
 })->whereIn('legacyPrefix', [
     'produk', 'fasilitas-utama', 'fasilitas', 'author', 'tag', '2025',
     'product-category', 'property', 'proprtey', 'akomodasi', 'tipe-unit',
-    'jet-popup', 'search', 'shop', 'blog'
+    'jet-popup', 'search', 'shop', 'blog',
 ])->where('any', '.*');
 
 // Specific standalone legacy pages
@@ -78,6 +82,7 @@ Route::get('/locale/{locale}', function (string $locale) {
     if (in_array($locale, ['en', 'id'])) {
         session(['locale' => $locale]);
     }
+
     return back();
 })->name('locale.switch');
 
@@ -98,97 +103,15 @@ Route::get('/sitemap-articles.xml', [SitemapController::class, 'articles'])->nam
 Route::get('/sitemap-pseo-{chunk}.xml', [SitemapController::class, 'pseo'])->name('sitemap.pseo');
 
 // iCal Export (Public but protected by token)
-Route::get('/property/{slug}/ical/{token}', [\App\Http\Controllers\ICalController::class, 'export'])->name('ical.export');
+Route::get('/property/{slug}/ical/{token}', [ICalController::class, 'export'])->name('ical.export');
 
 // Homepage
-Route::get('/', function () {
-    $seoService = app(\App\Services\SeoService::class);
-
-    $featuredProperties = Cache::remember('featured_properties_homepage', 3600, function () {
-        return \App\Models\Property::active()
-            ->featured()
-            ->with(['media', 'amenities'])
-            ->limit(6)
-            ->get();
-    });
-
-    $seo = Cache::remember('seo_homepage', 3600, function () use ($seoService) {
-        return $seoService->forHomepage();
-    });
-
-    return Inertia::render('welcome', [
-        'featuredProperties' => $featuredProperties,
-        'seo' => $seo,
-    ]);
-})->name('home');
+Route::get('/', [StaticPageController::class, 'home'])->name('home');
 
 // Static Pages
-Route::get('/about', function () {
-    $seoService = app(\App\Services\SeoService::class);
-    return Inertia::render('About', [
-        'seo' => $seoService->generate([
-            'title' => 'Tentang Homsjogja - Platform Booking Penginapan Terpercaya di Yogyakarta',
-            'description' => 'Homsjogja adalah platform booking homestay, villa, dan penginapan terbaik di Yogyakarta. Kami menghubungkan wisatawan dengan penginapan berkualitas di Jogja sejak 2023.',
-            'url' => url('/about'),
-        ]),
-        'schema' => $seoService->aboutPageSchema(),
-        'breadcrumbSchema' => json_encode([
-            '@context' => 'https://schema.org',
-            '@type' => 'BreadcrumbList',
-            'itemListElement' => [
-                ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => url('/')],
-                ['@type' => 'ListItem', 'position' => 2, 'name' => 'Tentang Kami', 'item' => url('/about')],
-            ],
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-    ]);
-})->name('about');
-
-Route::get('/faq', function () {
-    $seoService = app(\App\Services\SeoService::class);
-    return Inertia::render('FAQ', [
-        'seo' => $seoService->generate([
-            'title' => 'FAQ - Pertanyaan Umum Seputar Booking Penginapan | Homsjogja',
-            'description' => 'Temukan jawaban atas pertanyaan umum seputar booking homestay, villa, dan penginapan di Yogyakarta bersama Homsjogja.',
-            'url' => url('/faq'),
-        ]),
-        'faqSchema' => $seoService->faqPageSchema(),
-        'breadcrumbSchema' => json_encode([
-            '@context' => 'https://schema.org',
-            '@type' => 'BreadcrumbList',
-            'itemListElement' => [
-                ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => url('/')],
-                ['@type' => 'ListItem', 'position' => 2, 'name' => 'FAQ', 'item' => url('/faq')],
-            ],
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-    ]);
-})->name('faq');
-
-Route::get('/support', function () {
-    $seoService = app(\App\Services\SeoService::class);
-    return Inertia::render('Support', [
-        'seo' => $seoService->generate([
-            'title' => 'Bantuan & Dukungan | Homsjogja',
-            'description' => 'Butuh bantuan? Tim support Homsjogja siap membantu Anda 24/7. Hubungi kami untuk pertanyaan seputar booking, pembayaran, atau penginapan di Yogyakarta.',
-            'url' => url('/support'),
-        ]),
-        'schema' => json_encode([
-            '@context' => 'https://schema.org',
-            '@type' => 'ContactPage',
-            'name' => 'Bantuan & Dukungan Homsjogja',
-            'description' => 'Halaman bantuan dan dukungan pelanggan Homsjogja',
-            'url' => url('/support'),
-            'mainEntity' => [
-                '@type' => 'Organization',
-                'name' => 'Homsjogja',
-                'contactPoint' => [
-                    '@type' => 'ContactPoint',
-                    'contactType' => 'Customer Support',
-                    'availableLanguage' => ['Indonesian', 'English'],
-                ],
-            ],
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-    ]);
-})->name('support');
+Route::get('/about', [StaticPageController::class, 'about'])->name('about');
+Route::get('/faq', [StaticPageController::class, 'faq'])->name('faq');
+Route::get('/support', [StaticPageController::class, 'support'])->name('support');
 
 // Legal Pages (specific slugs)
 Route::get('/{slug}', [LegalViewController::class, 'show'])
@@ -199,7 +122,7 @@ Route::get('/{slug}', [LegalViewController::class, 'show'])
         'refundpolicy',
         'paymentpolicy',
         'copyrightpolicy',
-        'disclaimer'
+        'disclaimer',
     ]);
 
 // Public Property Routes
@@ -264,15 +187,8 @@ Route::prefix('api')->name('api.')->group(function () {
         ->name('properties.map-coordinates');
     Route::post('check-email', [BookingController::class, 'checkEmailExists'])
         ->name('check-email');
-    Route::get('properties', function () {
-        $properties = \App\Models\Property::active()
-            ->with(['media', 'amenities'])
-            ->get();
-        return response()->json([
-            'status' => 'success',
-            'data' => $properties,
-        ]);
-    });
+    Route::get('properties', [PropertyController::class, 'apiIndex'])
+        ->name('properties.api-index');
 });
 
 /*
@@ -282,14 +198,15 @@ Route::prefix('api')->name('api.')->group(function () {
 */
 
 // Image Optimization Route
-Route::get('/img/{path}', [\App\Services\ImageService::class, 'serve'])
+Route::get('/img/{path}', [ImageService::class, 'serve'])
     ->where('path', '.*')
     ->name('image.serve');
 
 // Optimize Clear (Dev only)
 Route::get('/optimize-clear', function () {
     if (app()->environment('local')) {
-        \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+        Artisan::call('optimize:clear');
+
         return 'Optimized cleared';
     }
     abort(404);
@@ -306,8 +223,9 @@ Route::post('/broadcasting/auth', function (Request $request) {
 |--------------------------------------------------------------------------
 */
 
-require __DIR__ . '/settings.php';
-require __DIR__ . '/auth.php';
+require __DIR__.'/settings.php';
+require __DIR__.'/auth.php';
+require __DIR__.'/dev.php';
 
 /*
 |--------------------------------------------------------------------------
@@ -327,10 +245,14 @@ Route::get('/{oldSlug}', function (string $oldSlug) {
     $exists = Cache::remember(
         "seo_slug_{$oldSlug}",
         3600,
-        fn() => \App\Models\SeoLandingPage::where('slug',$oldSlug)->exists()
+        fn () => SeoLandingPage::where('slug', $oldSlug)->exists()
     );
     if ($exists) {
         return redirect("/s/{$oldSlug}", 301);
     }
     abort(410);
 })->where('oldSlug', '(?!dashboard|admin|properties|booking|bookings|api|my-bookings|my-payments|profile|notifications|about|faq|support|health|sitemap|locale|csrf-token|login|register|password|email|verify-email|logout|settings|up)[a-z0-9-]+');
+
+Route::get('/debug-props', function () {
+    return Property::active()->featured()->with(['media', 'amenities'])->limit(6)->get();
+});

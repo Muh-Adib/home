@@ -2,16 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Models\Article;
 use App\Models\ContentPlan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class ContentPlanCalendarTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @test */
+    #[Test]
     public function can_reschedule_content_plan_via_update_endpoint()
     {
         $user = User::factory()->create(['role' => 'super_admin']);
@@ -27,7 +29,7 @@ class ContentPlanCalendarTest extends TestCase
             'uuid' => (string) \Str::uuid(),
         ]);
 
-        \App\Models\Article::create([
+        Article::create([
             'content_plan_id' => $plan->id,
             'title' => $plan->title,
             'slug' => \Str::slug($plan->title),

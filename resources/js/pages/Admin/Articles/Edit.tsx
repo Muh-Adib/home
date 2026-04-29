@@ -29,7 +29,7 @@ import {
     Trash2
 } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect } from 'react';
-import axios from 'axios';
+import { apiPost, apiPostForm, apiPut, apiGet, apiDelete } from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
@@ -264,12 +264,13 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
         }
 
         try {
-            const response = await axios.post('/admin/articles/upload-image', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
+            const result = await apiPostForm<{ success: boolean; url: string; compression_ratio?: number }>(
+                '/admin/articles/upload-image',
+                formData
+            );
 
-            if (response.data.success) {
-                const imageUrl = response.data.url;
+            if (result.success) {
+                const imageUrl = result.url;
                 const markdown = `![Image](${imageUrl})`;
 
                 // Insert at cursor position
@@ -282,7 +283,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                 }
 
                 toast.success('Image uploaded!', {
-                    description: `Compressed to WebP (${response.data.compression_ratio}% smaller)`,
+                    description: `Compressed to WebP (${result.compression_ratio}% smaller)`,
                     id: loadingToast,
                 });
             }
@@ -320,18 +321,18 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
         });
 
         try {
-            const response = await axios.post('/admin/api/articles/ai/generate-title', {
+            const result = await apiPost<{ success: boolean; titles: string[] }>('/admin/api/articles/ai/generate-title', {
                 keywords: data.target_keywords,
                 provider: config.default_provider,
                 count: 5,
             });
 
-            if (response.data.success && response.data.titles.length > 0) {
-                setGeneratedTitles(response.data.titles);
+            if (result.success && result.titles.length > 0) {
+                setGeneratedTitles(result.titles);
                 setShowTitleModal(true);
 
                 toast.success('Titles generated!', {
-                    description: `Generated ${response.data.titles.length} title options`,
+                    description: `Generated ${result.titles.length} title options`,
                     id: loadingToast,
                 });
             }
@@ -385,7 +386,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
             }
 
             // Generate outline if none exists
-            const outlineResponse = await axios.post('/admin/api/articles/ai/generate-outline', {
+            const outlineResult = await apiPost<{ success: boolean; outline: string; lsi_keywords?: string[]; error?: string }>('/admin/api/articles/ai/generate-outline', {
                 title: data.title,
                 keywords: data.target_keywords,
                 provider: config.default_provider,
@@ -393,17 +394,17 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                 property_ids: data.property_ids ?? [],
             });
 
-            if (!outlineResponse.data.success) {
-                throw new Error(outlineResponse.data.error || 'Failed to generate outline');
+            if (!outlineResult.success) {
+                throw new Error(outlineResult.error || 'Failed to generate outline');
             }
 
             // Set outline and any newly discovered keywords
-            const updates: any = { outline: outlineResponse.data.outline };
-            if (outlineResponse.data.lsi_keywords && outlineResponse.data.lsi_keywords.length > 0) {
-                updates.target_keywords = [...new Set([...data.target_keywords, ...outlineResponse.data.lsi_keywords])];
+            const updates: any = { outline: outlineResult.outline };
+            if (outlineResult.lsi_keywords && outlineResult.lsi_keywords.length > 0) {
+                updates.target_keywords = [...new Set([...data.target_keywords, ...outlineResult.lsi_keywords])];
             }
 
-            setGeneratedOutline(outlineResponse.data.outline);
+            setGeneratedOutline(outlineResult.outline);
             setData(prevData => ({ ...prevData, ...updates }));
             setShowOutlineModal(true);
 
@@ -413,7 +414,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
             });
         } catch (error: any) {
             console.error('Outline generation failed:', error);
-            const errorMessage = error.response?.data?.error || error.message || 'Outline generation failed';
+            const errorMessage = error?.data?.error || error?.message || 'Outline generation failed';
 
             toast.error('Generation failed', {
                 description: errorMessage,
@@ -434,7 +435,13 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
         });
 
         try {
-            const contentResponse = await axios.post('/admin/api/articles/ai/generate-content', {
+            const contentResult = await apiPost<{
+                success: boolean;
+                content: string;
+                excerpt?: string;
+                meta_description?: string;
+                word_count?: number;
+            }>('/admin/api/articles/ai/generate-content', {
                 outline: generatedOutline,
                 keywords: data.target_keywords,
                 property_ids: data.property_ids,
@@ -444,30 +451,30 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                 article_type: data.article_type,
             });
 
-            if (contentResponse.data.success) {
-                const updates: Partial<ArticleFormData> = { content: contentResponse.data.content };
+            if (contentResult.success) {
+                const updates: Partial<ArticleFormData> = { content: contentResult.content };
 
                 // Auto-fill excerpt if empty
-                if (!data.excerpt && contentResponse.data.excerpt) {
-                    updates.excerpt = contentResponse.data.excerpt;
+                if (!data.excerpt && contentResult.excerpt) {
+                    updates.excerpt = contentResult.excerpt;
                 }
 
                 // Auto-fill meta description if empty
-                if (!data.meta_description && contentResponse.data.meta_description) {
-                    updates.meta_description = contentResponse.data.meta_description;
+                if (!data.meta_description && contentResult.meta_description) {
+                    updates.meta_description = contentResult.meta_description;
                 }
 
                 setData(prevData => ({ ...prevData, ...updates }));
 
                 toast.success('Article generated!', {
-                    description: `${contentResponse.data.word_count} words + metadata created`,
+                    description: `${contentResult.word_count} words + metadata created`,
                     id: loadingToast,
                 });
             }
         } catch (error: any) {
             console.error('Content generation failed:', error);
-            const errorMessage = error.response?.data?.error || error.message || 'Content generation failed';
-            const errorDetails = error.response?.data?.details;
+            const errorMessage = error?.data?.error || error?.message || 'Content generation failed';
+            const errorDetails = error?.data?.details;
 
             toast.error('Generation failed', {
                 description: errorMessage,
@@ -497,9 +504,7 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
         const timer = setTimeout(async () => {
             setIsAutoSaving(true);
             try {
-                await axios.put(`/admin/articles/${article.slug}`, data, {
-                    headers: { 'Accept': 'application/json' }
-                });
+                await apiPut(`/admin/articles/${article.slug}`, data);
                 setLastSaved(new Date());
                 prevDataRef.current = data;
             } catch (error) {
@@ -528,9 +533,9 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
     const fetchMedia = async (query = '') => {
         setLoadingMedia(true);
         try {
-            const response = await axios.get('/admin/articles/media', { params: { search: query } });
-            if (response.data.success) {
-                setMediaItems(response.data.media);
+            const result = await apiGet<{ success: boolean; media: MediaItem[] }>('/admin/articles/media', { search: query });
+            if (result.success) {
+                setMediaItems(result.media);
             }
         } catch (error) {
             console.error('Failed to fetch media:', error);
@@ -546,12 +551,12 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
 
         const loadingToast = toast.loading('Deleting image...');
         try {
-            const response = await axios.delete('/admin/articles/delete-image', { data: { path } });
-            if (response.data.success) {
+            const result = await apiDelete<{ success: boolean; message?: string }>('/admin/articles/delete-image', { path });
+            if (result.success) {
                 setMediaItems(mediaItems.filter(item => item.path !== path));
                 toast.success('Image deleted', { id: loadingToast });
             } else {
-                throw new Error(response.data.message || 'Failed to delete');
+                throw new Error(result.message || 'Failed to delete');
             }
         } catch (error: any) {
             toast.error(error.message || 'Failed to delete image', { id: loadingToast });
@@ -1396,14 +1401,15 @@ export default function ArticleEdit({ article, properties, linkedPropertyIds = [
                                                     }
 
                                                     try {
-                                                        const response = await axios.post('/admin/articles/upload-image', formData, {
-                                                            headers: { 'Content-Type': 'multipart/form-data' },
-                                                        });
+                                                        const response = await apiPostForm<{ success: boolean; path: string; url?: string; compression_ratio?: number }>(
+                                                            '/admin/articles/upload-image',
+                                                            formData
+                                                        );
 
-                                                        if (response.data.success) {
-                                                            setData('featured_image', response.data.path);
+                                                        if (response.success) {
+                                                            setData('featured_image', response.path);
                                                             toast.success('Featured image uploaded!', {
-                                                                description: `Compressed to WebP (${response.data.compression_ratio}% smaller)`,
+                                                                description: `Compressed to WebP (${response.compression_ratio}% smaller)`,
                                                                 id: loadingToast,
                                                             });
                                                         }

@@ -27,7 +27,6 @@ class BookingRequest
         public readonly ?string $guestIdNumber,
         public readonly string $guestGender,
         public readonly string $relationshipType,
-        public readonly ?array $guests = [],
 
         // Booking Details
         public readonly ?string $specialRequests,
@@ -35,9 +34,9 @@ class BookingRequest
         public readonly string $bookingStatus,
         public readonly string $paymentStatus,
         public readonly int $dpPercentage,
-        public readonly bool $autoConfirm
-    ) {
-    }
+        public readonly bool $autoConfirm = false,
+        public readonly ?array $guests = [],
+    ) {}
 
     public function getNights(): int
     {
@@ -100,7 +99,7 @@ class BookingRequest
         // ✅ FIX: Better field mapping and validation
         $required = ['property_id', 'check_in', 'check_out', 'guest_name', 'guest_email', 'guest_phone'];
         foreach ($required as $field) {
-            if (!isset($data[$field]) || (is_string($data[$field]) && trim($data[$field]) === '')) {
+            if (! isset($data[$field]) || (is_string($data[$field]) && trim($data[$field]) === '')) {
                 throw new \InvalidArgumentException("Required field '{$field}' is missing or empty");
             }
         }
@@ -110,17 +109,17 @@ class BookingRequest
         $checkOut = $data['check_out'] ?? $data['check_out_date'] ?? null;
         $checkInTime = $data['check_in_time'] ?? '15:00';
 
-        if (!$checkIn || !$checkOut) {
-            throw new \InvalidArgumentException("Check-in and check-out dates are required");
+        if (! $checkIn || ! $checkOut) {
+            throw new \InvalidArgumentException('Check-in and check-out dates are required');
         }
 
         // ✅ FIX: Validate dates
-        if (!strtotime($checkIn) || !strtotime($checkOut)) {
-            throw new \InvalidArgumentException("Invalid date format in check_in or check_out");
+        if (! strtotime($checkIn) || ! strtotime($checkOut)) {
+            throw new \InvalidArgumentException('Invalid date format in check_in or check_out');
         }
 
         if (strtotime($checkIn) >= strtotime($checkOut)) {
-            throw new \InvalidArgumentException("Check-out date must be after check-in date");
+            throw new \InvalidArgumentException('Check-out date must be after check-in date');
         }
 
         // ✅ FIX: Better guest count handling
@@ -130,7 +129,7 @@ class BookingRequest
         $totalGuests = $guestMale + $guestFemale + $guestChildren;
 
         if ($totalGuests <= 0) {
-            throw new \InvalidArgumentException("Total guest count must be greater than 0");
+            throw new \InvalidArgumentException('Total guest count must be greater than 0');
         }
 
         // ✅ FIX: Use total guests if guest_count not provided
@@ -161,5 +160,4 @@ class BookingRequest
             autoConfirm: (bool) ($data['auto_confirm'] ?? false)
         );
     }
-
 }

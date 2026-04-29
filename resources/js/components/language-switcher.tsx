@@ -26,7 +26,7 @@ const languages: Language[] = [
   }
 ];
 
-const LanguageSwitcher = ({className=''} : {className?: string}) => {
+const LanguageSwitcher = ({className='', collapsed=false} : {className?: string; collapsed?: boolean}) => {
   const { i18n } = useTranslation();
 
   const currentLanguage = languages.find(lang => lang.code === i18n.language.substring(0, 2)) || languages[0];
@@ -64,9 +64,13 @@ const LanguageSwitcher = ({className=''} : {className?: string}) => {
         >
           <Globe className="h-4 w-4 mr-2" />
           <span className="mr-1">{currentLanguage.flag}</span>
-          <span className="hidden sm:inline">{currentLanguage.name}</span>
-          <span className="sm:hidden">{currentLanguage.code.toUpperCase()}</span>
-          <ChevronDown className="h-3 w-3 ml-1 opacity-50" />
+          {!collapsed && (
+            <>
+              <span className="hidden sm:inline">{currentLanguage.name}</span>
+              <span className="sm:hidden">{currentLanguage.code.toUpperCase()}</span>
+            </>
+          )}
+          {!collapsed && <ChevronDown className="h-3 w-3 ml-1 opacity-50" />}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48 shadow-lg border-brand-primary-20">

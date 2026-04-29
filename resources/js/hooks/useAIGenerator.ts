@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios, { AxiosError } from 'axios';
+import { apiPost, type ApiError } from '@/lib/api';
 import { toast } from 'sonner';
 
 interface UseAIGeneratorOptions {
@@ -41,20 +41,20 @@ export function useAIGenerator(options: UseAIGeneratorOptions = {}) {
                     setProgress(progressMessage);
                 }
 
-                const response = await axios.post(endpoint, data);
+                const result = await apiPost<{ success: boolean; error?: string } & Record<string, any>>(endpoint, data);
 
-                if (response.data.success) {
-                    onSuccess?.(response.data);
-                    return response.data;
+                if (result.success) {
+                    onSuccess?.(result);
+                    return result;
                 } else {
-                    throw new Error(response.data.error || 'Generation failed');
+                    throw new Error(result.error || 'Generation failed');
                 }
             } catch (error: any) {
-                const axiosError = error as AxiosError<AIErrorResponse>;
-                const errorData = axiosError.response?.data;
+                const apiError = error as ApiError;
+                const errorData = apiError.data as AIErrorResponse | undefined;
 
                 // Check if we should retry
-                if (retries < maxRetries && errorData?.retry_suggested) {
+                if (retries < maxRetries && (errorData as any)?.retry_suggested) {
                     retries++;
                     const delay = Math.pow(2, retries) * 1000; // Exponential backoff
 
@@ -67,7 +67,7 @@ export function useAIGenerator(options: UseAIGeneratorOptions = {}) {
                     return attemptGeneration();
                 } else {
                     // Final failure
-                    const errorMessage = errorData?.error || error.message || 'AI generation failed';
+                    const errorMessage = errorData?.error || apiError.message || 'AI generation failed';
                     const errorDetails = errorData?.details;
 
                     toast.error('Generation failed', {

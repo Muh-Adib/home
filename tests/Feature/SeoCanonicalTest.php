@@ -3,15 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\Property;
-use App\Models\SeoLandingPage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class SeoCanonicalTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @test */
+    #[Test]
     public function homepage_has_correct_canonical_url()
     {
         $response = $this->get('/');
@@ -29,7 +29,7 @@ class SeoCanonicalTest extends TestCase
         $this->assertEquals(url('/'), $pageDirty['props']['seo']['url']);
     }
 
-    /** @test */
+    #[Test]
     public function properties_index_handles_pagination_in_canonical()
     {
         // Create enough properties to force pagination (assuming 12 per page)
@@ -43,22 +43,22 @@ class SeoCanonicalTest extends TestCase
         // Page 2
         $response2 = $this->get(route('properties.index', ['page' => 2]));
         $page2 = $response2->viewData('page');
-        $this->assertEquals(route('properties.index') . '?page=2', $page2['props']['seo']['url']);
+        $this->assertEquals(route('properties.index').'?page=2', $page2['props']['seo']['url']);
 
         // Page 2 with dirty params
         $responseDirty = $this->get(route('properties.index', ['page' => 2, 'sort' => 'price_low']));
         $pageDirty = $responseDirty->viewData('page');
         // Sort param SHOULD NOT be in canonical, but page SHOULD
-        $this->assertEquals(route('properties.index') . '?page=2', $pageDirty['props']['seo']['url']);
+        $this->assertEquals(route('properties.index').'?page=2', $pageDirty['props']['seo']['url']);
     }
 
-    /** @test */
+    #[Test]
     public function property_detail_has_clean_canonical()
     {
         $property = Property::factory()->create([
             'status' => 'active',
             'name' => 'Test Villa',
-            'slug' => 'test-villa'
+            'slug' => 'test-villa',
         ]);
 
         $response = $this->get(route('properties.show', $property->slug));
@@ -67,7 +67,7 @@ class SeoCanonicalTest extends TestCase
         $this->assertEquals(route('properties.show', $property->slug), $page['props']['seo']['url']);
 
         // Dirty URL
-        $responseDirty = $this->get(route('properties.show', $property->slug) . '?clid=123');
+        $responseDirty = $this->get(route('properties.show', $property->slug).'?clid=123');
         $pageDirty = $responseDirty->viewData('page');
         $this->assertEquals(route('properties.show', $property->slug), $pageDirty['props']['seo']['url']);
     }

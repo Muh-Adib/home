@@ -2,41 +2,47 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Services\BookingService;
-use App\Services\RateCalculationService;
-use App\Services\AvailabilityService;
-use App\Services\RateService;
 use App\Domain\Booking\ValueObjects\BookingRequest;
+use App\Events\BookingCreated;
+use App\Models\Booking;
 use App\Models\Property;
 use App\Models\PropertySeasonalRate;
-use App\Models\Booking;
 use App\Models\User;
-use App\Events\BookingCreated;
+use App\Services\AvailabilityService;
+use App\Services\BookingService;
+use App\Services\RateCalculationService;
+use App\Services\RateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class BookingIntegrationTest extends TestCase
 {
     use RefreshDatabase;
 
     private BookingService $bookingService;
+
     private RateCalculationService $rateCalculationService;
+
     private AvailabilityService $availabilityService;
+
     private RateService $rateService;
+
     private Property $property;
+
     private User $user;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Get services from container (integration testing)
         $this->bookingService = app(BookingService::class);
         $this->rateCalculationService = app(RateCalculationService::class);
         $this->availabilityService = app(AvailabilityService::class);
         $this->rateService = app(RateService::class);
-        
+
         // Create test data
         $this->property = Property::factory()->create([
             'base_rate' => 500000,
@@ -47,13 +53,13 @@ class BookingIntegrationTest extends TestCase
             'capacity_max' => 6,
             'min_stay_weekday' => 2,
         ]);
-        
+
         $this->user = User::factory()->create();
-        
+
         Event::fake();
     }
 
-    /** @test */
+    #[Test]
     public function it_completes_full_booking_flow_with_refactored_services()
     {
         // Step 1: Check availability
@@ -118,7 +124,7 @@ class BookingIntegrationTest extends TestCase
         Event::assertDispatched(BookingCreated::class);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_seasonal_rates_integration()
     {
         // Create seasonal rate using RateService
@@ -164,15 +170,15 @@ class BookingIntegrationTest extends TestCase
         ]);
 
         $booking = $this->bookingService->createBooking($bookingRequest, $this->user);
-        
+
         // Booking should include seasonal premium in total
         $this->assertGreaterThan(1000000, $booking->total_amount);
-        
+
         // Verify seasonal premium is reflected in the stored booking fields
         $this->assertGreaterThan(0, $booking->fresh()->total_amount);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_weekend_premium_integration()
     {
         // Book on weekend (Friday to Sunday)
@@ -189,7 +195,7 @@ class BookingIntegrationTest extends TestCase
 
         // Should have weekend premium
         $this->assertGreaterThan(0, $rateCalculation->weekendPremium);
-        
+
         // Weekend premium should be 20% of base rate for 2 nights (Fri + Sat)
         $expectedWeekendPremium = $this->property->base_rate * 0.20 * 2;
         $this->assertEquals($expectedWeekendPremium, $rateCalculation->weekendPremium);
@@ -208,14 +214,14 @@ class BookingIntegrationTest extends TestCase
         ]);
 
         $booking = $this->bookingService->createBooking($bookingRequest, $this->user);
-        
+
         // Verify weekend premium is included in total
         $this->assertGreaterThan(1000000, $booking->total_amount);
         // Total should include base (2*500k=1000000) + weekend premium (200000) + cleaning (100000)
         $this->assertEquals(1000000 + $expectedWeekendPremium + 100000, $booking->total_amount);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_extra_bed_charges_integration()
     {
         // Property capacity is 4, book for 6 guests (2 extra beds needed)
@@ -232,7 +238,7 @@ class BookingIntegrationTest extends TestCase
 
         // Should calculate 2 extra beds
         $this->assertEquals(2, $rateCalculation->extraBeds);
-        
+
         // Extra bed amount = 2 beds * 150k * 2 nights = 600k
         $expectedExtraBedAmount = 2 * $this->property->extra_bed_rate * 2;
         $this->assertEquals($expectedExtraBedAmount, $rateCalculation->extraBedAmount);
@@ -251,13 +257,13 @@ class BookingIntegrationTest extends TestCase
         ]);
 
         $booking = $this->bookingService->createBooking($bookingRequest, $this->user);
-        
+
         // Verify extra bed charges are included
         $this->assertEquals($expectedExtraBedAmount, $booking->extra_bed_amount);
         $this->assertEquals(2, $booking->extra_bed_count);
     }
 
-    /** @test */
+    #[Test]
     public function it_prevents_overlapping_bookings()
     {
         // Create first booking
@@ -299,7 +305,7 @@ class BookingIntegrationTest extends TestCase
         $this->bookingService->createBooking($overlappingBookingRequest, $this->user);
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_minimum_stay_discounts()
     {
         // Book for 7 nights
@@ -315,13 +321,13 @@ class BookingIntegrationTest extends TestCase
         );
 
         $this->assertEquals(7, $rateCalculation->nights);
-        
+
         // Verify the rate calculation returns a valid total
         $this->assertGreaterThan(0, $rateCalculation->totalAmount);
         $this->assertIsArray($rateCalculation->breakdown);
     }
 
-    /** @test */
+    #[Test]
     public function it_manages_rates_through_rate_service()
     {
         // Test base rate update
@@ -348,7 +354,7 @@ class BookingIntegrationTest extends TestCase
         $this->assertEquals($expectedWeekendPremium, $rateCalculation->weekendPremium);
     }
 
-    /** @test */
+    #[Test]
     public function it_provides_booking_statistics_and_availability()
     {
         // Create multiple bookings

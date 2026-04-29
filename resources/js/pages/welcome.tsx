@@ -37,10 +37,15 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
     const appName = "Homsjogja";
     const appUrl = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
 
+    // Ensure featuredProperties is always a plain array
+    const safeFeaturedProperties: Property[] = Array.isArray(featuredProperties)
+        ? featuredProperties
+        : [];
+
     // Prepare slideshow images - try not to use heavy format below the fold yet,
     // eager load these via preload if possible
-    const slideshowImages = featuredProperties
-        .filter(property => property.media && property.media.length > 0)
+    const slideshowImages = safeFeaturedProperties
+        .filter(property => property?.media && property.media.length > 0)
         .slice(0, 5)
         .map(property => ({
             url: property.media[0].url,
@@ -167,7 +172,7 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                 </section>
 
                 {/* Featured Properties */}
-                {featuredProperties.length > 0 && (
+                {safeFeaturedProperties.length > 0 && (
                     <motion.section
                         className="py-20 bg-muted"
                         initial={{ opacity: 0 }}
@@ -196,9 +201,9 @@ export default function Welcome({ featuredProperties }: WelcomeProps) {
                             </motion.div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
-                                {featuredProperties.slice(0, 6).map((property, index) => (
+                                {safeFeaturedProperties.slice(0, 6).map((property, index) => (
                                     <motion.div
-                                        key={property.id}
+                                        key={property?.id || `property-${index}`}
                                         initial={{ opacity: 0, y: 30 }}
                                         whileInView={{ opacity: 1, y: 0 }}
                                         transition={{ duration: 0.6, delay: index * 0.1 }}

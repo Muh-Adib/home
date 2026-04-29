@@ -6,7 +6,9 @@ use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Models\Amenity;
 use App\Models\Property;
+use App\Models\PropertyMedia;
 use App\Models\User;
 
 class PropertySeeder extends Seeder
@@ -415,7 +417,7 @@ class PropertySeeder extends Seeder
             // Assign owner if available
             $owner = $owners->get($index % $owners->count());
             
-            Property::create([
+            $property = Property::create([
                 'name' => $propertyData['name'],
                 'slug' => $slug,
                 'description' => $propertyData['description'],
@@ -445,9 +447,120 @@ class PropertySeeder extends Seeder
                 'updated_at' => now(),
             ]);
 
+            $this->seedPropertyMedia($property);
+            $this->seedPropertyAmenities($property);
+
             $this->command->info("Created property: {$propertyData['name']} with slug: {$slug}");
         }
 
         $this->command->info('Property seeder completed successfully!');
+    }
+
+    /**
+     * Seed placeholder media for a property using Unsplash source images.
+     * Images are keyed by property type/name for relevance.
+     */
+    private function seedPropertyMedia(Property $property): void
+    {
+        // Curated Unsplash photo IDs for Indonesian homestay/villa aesthetics
+        $photoSets = [
+            // Set A - Modern minimalist interior
+            [
+                'photo-1586023492125-27b2c045efd7', // living room
+                'photo-1560448204-e02f11c3d0e2', // bedroom
+                'photo-1584622650111-993a426fbf0a', // bathroom
+                'photo-1556909114-f6e7ad7d3136', // kitchen
+            ],
+            // Set B - Cozy homestay
+            [
+                'photo-1522708323590-d24dbb6b0267', // bedroom
+                'photo-1484154218962-a197022b5858', // kitchen
+                'photo-1507089947368-19c1da9775ae', // living room
+                'photo-1552321554-5fefe8c9ef14', // bathroom
+            ],
+            // Set C - Villa with pool
+            [
+                'photo-1571896349842-33c89424de2d', // pool villa
+                'photo-1540518614846-7eded433c457', // bedroom
+                'photo-1600585154340-be6161a56a0c', // exterior
+                'photo-1600566753086-00f18fb6b3ea', // living room
+            ],
+            // Set D - Traditional Jogja style
+            [
+                'photo-1600047509807-ba8f99d2cdde', // house exterior
+                'photo-1600210492493-0946911123ea', // bedroom
+                'photo-1600121848594-d8644e57abab', // living room
+                'photo-1600566752355-35792bedcfea', // outdoor
+            ],
+        ];
+
+        $setIndex = $property->id % count($photoSets);
+        $photos = $photoSets[$setIndex];
+
+        $categories = ['exterior', 'bedroom', 'bathroom', 'kitchen'];
+
+        foreach ($photos as $order => $photoId) {
+            $category = $categories[$order] ?? 'exterior';
+            $filePath = "properties/{$property->id}/{$photoId}.jpg";
+
+            PropertyMedia::create([
+                'property_id'   => $property->id,
+                'media_type'    => 'image',
+                'file_path'     => "https://images.unsplash.com/{$photoId}?w=800&q=80&auto=format&fit=crop",
+                'file_name'     => "{$photoId}.jpg",
+                'file_size'     => 0,
+                'mime_type'     => 'image/jpeg',
+                'category'      => $category,
+                'title'         => $property->name . ' - ' . ucfirst($category),
+                'alt_text'      => $property->name . ' ' . ucfirst($category),
+                'display_order' => $order + 1,
+                'is_cover'      => $order === 0,
+                'is_featured'   => $order === 0,
+            ]);
+        }
+    }
+
+    /**
+     * Assign common amenities to a property based on its features.
+     */
+    private function seedPropertyAmenities(Property $property): void
+    {
+        // Base amenities every property gets
+        $baseAmenityNames = ['WiFi', 'Air Conditioning', 'Parking', 'Hot Water', 'Towels & Linens'];
+
+        // Extra amenities based on property features
+        if ($property->bedroom_count >= 2) {
+            $baseAmenityNames[] = 'Full Kitchen';
+            $baseAmenityNames[] = 'Refrigerator';
+            $baseAmenityNames[] = 'Dining Table';
+        }
+
+        if ($property->bedroom_count >= 3) {
+            $baseAmenityNames[] = 'TV';
+            $baseAmenityNames[] = 'Washing Machine';
+        }
+
+        if ($property->base_rate >= 1000000) {
+            $baseAmenityNames[] = 'Swimming Pool';
+            $baseAmenityNames[] = 'Garden';
+            $baseAmenityNames[] = 'BBQ Grill';
+        }
+
+        $amenityIds = Amenity::whereIn('name', $baseAmenityNames)
+            ->pluck('id')
+            ->toArray();
+
+        if (empty($amenityIds)) {
+            return;
+        }
+
+        $pivotData = array_fill_keys($amenityIds, [
+            'is_available' => true,
+            'notes'        => null,
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
+
+        $property->amenities()->sync($pivotData);
     }
 }

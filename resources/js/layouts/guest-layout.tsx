@@ -117,9 +117,6 @@ export default function GuestLayout({
                                     </DropdownMenu>
                                 ) : (
                                     <div className="hidden md:flex items-center space-x-2">
-                                        <Link href="/login" className="text-muted-foreground hover:text-brand-primary transition-colors font-medium">
-                                            {t('nav.login')}
-                                        </Link>
                                         <Link href="/register" className="bg-brand-primary text-white px-2 py-2 rounded-lg hover:bg-brand-primary/90 transition-colors font-medium">
                                             {t('nav.register')}
                                         </Link>
@@ -155,15 +152,8 @@ export default function GuestLayout({
                     ) : (
                         <>
                             <Link
-                                href="/login"
-                                className="flex flex-col items-center py-1 px-2 text-xs text-muted-foreground hover:text-brand-primary transition-colors"
-                            >
-                                <LogIn className="h-4 w-4 mb-0.5" />
-                                <span className="font-medium text-[10px] leading-tight">{t('nav.login')}</span>
-                            </Link>
-                            <Link
                                 href="/register"
-                                className="flex flex-col items-center py-1 px-2 text-xs text-brand-primary hover:text-brand-primary/80 transition-colors"
+                                className="flex flex-col items-center py-1 px-2 text-xs text-muted-foreground hover:text-brand-primary transition-colors"
                             >
                                 <UserPlus className="h-4 w-4 mb-0.5" />
                                 <span className="font-medium text-[10px] leading-tight">{t('nav.register')}</span>

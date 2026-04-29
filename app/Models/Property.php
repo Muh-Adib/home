@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+use App\Http\Controllers\SitemapController;
+use App\Services\PropertyBusinessRulesService;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Str;
-use App\Services\PropertyBusinessRulesService;
 
 class Property extends Model
 {
@@ -68,8 +70,8 @@ class Property extends Model
         'weekend_premium_fixed' => 'integer',
         'amenities' => 'array',
         'is_featured' => 'boolean',
-        'check_in_time' => 'datetime:H:i',
-        'check_out_time' => 'datetime:H:i',
+        'check_in_time' => 'string',
+        'check_out_time' => 'string',
         'checkin_instructions' => 'array',
         'ical_import_urls' => 'array',
         'keybox_updated_at' => 'datetime',
@@ -98,15 +100,15 @@ class Property extends Model
 
         // Auto-invalidate sitemap cache (Next.js style)
         static::created(function () {
-            \App\Http\Controllers\SitemapController::clearCache();
+            SitemapController::clearCache();
         });
 
         static::updated(function () {
-            \App\Http\Controllers\SitemapController::clearCache();
+            SitemapController::clearCache();
         });
 
         static::deleted(function () {
-            \App\Http\Controllers\SitemapController::clearCache();
+            SitemapController::clearCache();
         });
     }
 
@@ -209,30 +211,28 @@ class Property extends Model
     protected function formattedBaseRate(): Attribute
     {
         return Attribute::make(
-            get: fn() => 'Rp ' . number_format((int) $this->base_rate, 0, ',', '.')
+            get: fn () => 'Rp '.number_format((int) $this->base_rate, 0, ',', '.')
         );
     }
 
     protected function isAvailable(): Attribute
     {
         return Attribute::make(
-            get: fn() => $this->status === 'active'
+            get: fn () => $this->status === 'active'
         );
     }
 
     protected function totalCapacity(): Attribute
     {
         return Attribute::make(
-            get: fn() => "{$this->capacity}-{$this->capacity_max} guests"
+            get: fn () => "{$this->capacity}-{$this->capacity_max} guests"
         );
     }
-
-
 
     /**
      * Check if booking meets minimum stay requirements
      */
-    private function meetsMinimumStay(\Carbon\Carbon $checkInDate, \Carbon\Carbon $checkOutDate, int $nights): bool
+    private function meetsMinimumStay(Carbon $checkInDate, Carbon $checkOutDate, int $nights): bool
     {
         // Get effective minimum stay considering seasonal rates
         $effectiveMinStay = $this->getEffectiveMinimumStay(
@@ -266,7 +266,7 @@ class Property extends Model
     public function updateKeyboxCode(string $newCode, $updatedBy = null): bool
     {
         // Validate code format (3 digits)
-        if (!preg_match('/^\d{3}$/', $newCode)) {
+        if (! preg_match('/^\d{3}$/', $newCode)) {
             throw new \InvalidArgumentException('Keybox code must be 3 digits');
         }
 
@@ -293,6 +293,7 @@ class Property extends Model
                     $instruction
                 );
             }
+
             return $instruction;
         }, $instructions);
     }
@@ -311,8 +312,8 @@ class Property extends Model
             'additional_info' => [
                 'WiFi password tersedia di dalam rumah',
                 'Harap menjaga kebersihan selama menginap',
-                'Check-out maksimal pukul 11:00'
-            ]
+                'Check-out maksimal pukul 11:00',
+            ],
         ];
     }
 
@@ -354,7 +355,7 @@ class Property extends Model
             ->orderBy('check_in', 'asc')
             ->first(['check_in', 'guest_name']);
 
-        if (!$nextBooking) {
+        if (! $nextBooking) {
             return null;
         }
 
@@ -369,10 +370,10 @@ class Property extends Model
      */
     public function getSeasonalRates($startDate, $endDate): array
     {
-        return \App\Models\PropertySeasonalRate::getEffectiveRateForProperty(
+        return PropertySeasonalRate::getEffectiveRateForProperty(
             $this->id,
-            \Carbon\Carbon::parse($startDate),
-            \Carbon\Carbon::parse($endDate)
+            Carbon::parse($startDate),
+            Carbon::parse($endDate)
         );
     }
 }

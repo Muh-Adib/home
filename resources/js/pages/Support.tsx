@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import { SeoHead } from '@/components/seo/SeoHead';
 import { SchemaOrg } from '@/components/seo/SchemaOrg';
-} from 'lucide-react';
 
 export default function Support() {
     const [selectedCategory, setSelectedCategory] = useState('');

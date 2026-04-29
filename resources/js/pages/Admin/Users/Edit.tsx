@@ -78,54 +78,8 @@ export default function UserEdit({ user }: UserEditProps) {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-
-        const initial = {
-            name: user.name || '',
-            email: user.email || '',
-            phone: user.phone || '',
-            role: user.role || 'guest',
-            status: user.status || 'active',
-            address: user.profile?.address || '',
-            city: user.profile?.city || '',
-            state: user.profile?.state || '',
-            country: user.profile?.country || 'Indonesia',
-            postal_code: user.profile?.postal_code || '',
-            birth_date: user.profile?.birth_date ? user.profile.birth_date.split('T')[0] : '',
-            gender: user.profile?.gender || '',
-            bio: user.profile?.bio || '',
-        } as const;
-
-        // Create FormData untuk handle file upload dan data biasa
-        const formData = new FormData();
-
-        // Add changed fields to FormData
-        (Object.keys(initial) as Array<keyof typeof initial>).forEach((key) => {
-            if (data[key] !== initial[key]) {
-                const value = data[key];
-                // Handle different data types
-                if (value instanceof File) {
-                    formData.append(key, value);
-                } else if (value !== null && value !== undefined) {
-                    formData.append(key, String(value));
-                }
-            }
-        });
-
-        // Only send password if filled
-        if (data.password) {
-            formData.append('password', data.password);
-            if (data.password_confirmation) {
-                formData.append('password_confirmation', data.password_confirmation);
-            }
-        }
-
-        // Only send avatar if selected (File object)
-        if (data.avatar instanceof File) {
-            formData.append('avatar', data.avatar);
-        }
-
+        // Inertia v3: forceFormData handles File objects (avatar) automatically — no manual FormData needed.
         patch(`/admin/users/${user.id}`, {
-            data: formData,
             preserveScroll: true,
             forceFormData: true,
         });
@@ -284,7 +238,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                             id="name"
                                             value={data.name}
                                             onChange={(e) => setData('name', e.target.value)}
-                                            error={errors.name}
+                                            className={errors.name ? 'border-red-500' : ''}
                                         />
                                         {errors.name && (
                                             <p className="text-sm text-red-600">{errors.name}</p>
@@ -298,7 +252,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                             type="email"
                                             value={data.email}
                                             onChange={(e) => setData('email', e.target.value)}
-                                            error={errors.email}
+                                            className={errors.email ? 'border-red-500' : ''}
                                         />
                                         {errors.email && (
                                             <p className="text-sm text-red-600">{errors.email}</p>
@@ -311,7 +265,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                             id="phone"
                                             value={data.phone}
                                             onChange={(e) => setData('phone', e.target.value)}
-                                            error={errors.phone}
+                                            className={errors.phone ? 'border-red-500' : ''}
                                             placeholder="Nomor telepon"
                                         />
                                         {errors.phone && (
@@ -343,7 +297,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                             type="date"
                                             value={data.birth_date}
                                             onChange={(e) => setData('birth_date', e.target.value)}
-                                            error={errors.birth_date}
+                                            className={errors.birth_date ? 'border-red-500' : ''}
                                         />
                                         {errors.birth_date && (
                                             <p className="text-sm text-red-600">{errors.birth_date}</p>
@@ -356,7 +310,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                             id="country"
                                             value={data.country}
                                             onChange={(e) => setData('country', e.target.value)}
-                                            error={errors.country}
+                                            className={errors.country ? 'border-red-500' : ''}
                                         />
                                         {errors.country && (
                                             <p className="text-sm text-red-600">{errors.country}</p>
@@ -406,7 +360,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                         {canEditStatus() && (
                                             <div className="space-y-2">
                                                 <Label htmlFor="status">Status</Label>
-                                                <Select value={data.status} onValueChange={(value) => setData('status', value)}>
+                                                <Select value={data.status} onValueChange={(value:User['status']) => setData('status', value)}>
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Pilih status" />
                                                     </SelectTrigger>
@@ -442,7 +396,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                                 type={showPassword ? "text" : "password"}
                                                 value={data.password}
                                                 onChange={(e) => setData('password', e.target.value)}
-                                                error={errors.password}
+                                                className={errors.password ? 'border-red-500' : ''}
                                                 placeholder="Password baru"
                                             />
                                             <button
@@ -470,7 +424,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                                 type={showPasswordConfirmation ? "text" : "password"}
                                                 value={data.password_confirmation}
                                                 onChange={(e) => setData('password_confirmation', e.target.value)}
-                                                error={errors.password_confirmation}
+                                                className={errors.password_confirmation ? 'border-red-500' : ''}
                                                 placeholder="Konfirmasi password baru"
                                             />
                                             <button
@@ -522,7 +476,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                                 id="city"
                                                 value={data.city}
                                                 onChange={(e) => setData('city', e.target.value)}
-                                                error={errors.city}
+                                                className={errors.city ? 'border-red-500' : ''}
                                                 placeholder="Nama kota"
                                             />
                                             {errors.city && (
@@ -536,7 +490,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                                 id="state"
                                                 value={data.state}
                                                 onChange={(e) => setData('state', e.target.value)}
-                                                error={errors.state}
+                                                className={errors.state ? 'border-red-500' : ''}
                                                 placeholder="Nama provinsi"
                                             />
                                             {errors.state && (
@@ -550,7 +504,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                                 id="postal_code"
                                                 value={data.postal_code}
                                                 onChange={(e) => setData('postal_code', e.target.value)}
-                                                error={errors.postal_code}
+                                                className={errors.postal_code ? 'border-red-500' : ''}
                                                 placeholder="Kode pos"
                                             />
                                             {errors.postal_code && (

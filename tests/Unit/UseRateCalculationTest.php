@@ -2,24 +2,26 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
 use App\Models\Property;
 use App\Services\AvailabilityService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
-use Carbon\Carbon;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class UseRateCalculationTest extends TestCase
 {
     use RefreshDatabase, WithFaker;
 
     protected $property;
+
     protected $availabilityService;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->property = Property::factory()->create([
             'name' => 'Test Villa',
             'slug' => 'test-villa',
@@ -37,7 +39,7 @@ class UseRateCalculationTest extends TestCase
         $this->availabilityService = app(AvailabilityService::class);
     }
 
-    /** @test */
+    #[Test]
     public function it_initializes_with_correct_default_values()
     {
         $availabilityData = [
@@ -66,7 +68,7 @@ class UseRateCalculationTest extends TestCase
         $this->assertTrue(true);
     }
 
-    /** @test */
+    #[Test]
     public function availability_service_calculates_rate_correctly()
     {
         $checkIn = now()->addDays(1)->format('Y-m-d');
@@ -85,13 +87,13 @@ class UseRateCalculationTest extends TestCase
         $this->assertArrayHasKey('dp_amount', $rateCalculation);
         $this->assertArrayHasKey('remaining_amount', $rateCalculation);
         $this->assertArrayHasKey('formatted', $rateCalculation);
-        
+
         $this->assertGreaterThan(0, $rateCalculation['total_amount']);
         $this->assertGreaterThan(0, $rateCalculation['dp_amount']);
         $this->assertGreaterThan(0, $rateCalculation['remaining_amount']);
     }
 
-    /** @test */
+    #[Test]
     public function availability_service_handles_extra_beds()
     {
         $checkIn = now()->addDays(1)->format('Y-m-d');
@@ -108,7 +110,7 @@ class UseRateCalculationTest extends TestCase
         $this->assertIsArray($rateCalculation);
         $this->assertArrayHasKey('extra_bed_amount', $rateCalculation);
         $this->assertGreaterThan(0, $rateCalculation['extra_bed_amount']);
-        
+
         // Calculate expected extra bed amount
         $extraBeds = $guestCount - $this->property->capacity; // 6 - 4 = 2
         $nights = 2; // 3 days - 1 day = 2 nights
@@ -116,7 +118,7 @@ class UseRateCalculationTest extends TestCase
         $this->assertEquals($expectedExtraBedAmount, $rateCalculation['extra_bed_amount']);
     }
 
-    /** @test */
+    #[Test]
     public function availability_service_handles_weekend_premium()
     {
         // Test weekend booking
@@ -134,14 +136,14 @@ class UseRateCalculationTest extends TestCase
         $this->assertIsArray($rateCalculation);
         $this->assertArrayHasKey('weekend_premium', $rateCalculation);
         $this->assertGreaterThan(0, $rateCalculation['weekend_premium']);
-        
+
         // Verify weekend premium calculation
         $baseRate = $this->property->base_rate;
         $weekendPremium = $baseRate * ($this->property->weekend_premium_percent / 100);
         $this->assertEquals($weekendPremium, $rateCalculation['weekend_premium']);
     }
 
-    /** @test */
+    #[Test]
     public function availability_service_handles_cleaning_fee()
     {
         $checkIn = now()->addDays(1)->format('Y-m-d');
@@ -160,7 +162,7 @@ class UseRateCalculationTest extends TestCase
         $this->assertEquals($this->property->cleaning_fee, $rateCalculation['cleaning_fee']);
     }
 
-    /** @test */
+    #[Test]
     public function availability_service_handles_different_dp_percentages()
     {
         $checkIn = now()->addDays(1)->format('Y-m-d');
@@ -180,17 +182,17 @@ class UseRateCalculationTest extends TestCase
             $this->assertIsArray($rateCalculation);
             $this->assertArrayHasKey('dp_amount', $rateCalculation);
             $this->assertArrayHasKey('remaining_amount', $rateCalculation);
-            
+
             // Verify DP calculation
             $expectedDpAmount = $rateCalculation['total_amount'] * $dpPercentage / 100;
             $this->assertEquals($expectedDpAmount, $rateCalculation['dp_amount']);
-            
+
             $expectedRemainingAmount = $rateCalculation['total_amount'] * (100 - $dpPercentage) / 100;
             $this->assertEquals($expectedRemainingAmount, $rateCalculation['remaining_amount']);
         }
     }
 
-    /** @test */
+    #[Test]
     public function availability_service_validates_dates()
     {
         // Test past date
@@ -206,7 +208,7 @@ class UseRateCalculationTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function availability_service_validates_guest_count()
     {
         $checkIn = now()->addDays(1)->format('Y-m-d');
@@ -222,7 +224,7 @@ class UseRateCalculationTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function availability_service_handles_seasonal_rates()
     {
         // Create seasonal rate
@@ -250,7 +252,7 @@ class UseRateCalculationTest extends TestCase
         $this->assertGreaterThan(0, $rateCalculation['seasonal_premium']);
     }
 
-    /** @test */
+    #[Test]
     public function availability_service_formats_amounts_correctly()
     {
         $checkIn = now()->addDays(1)->format('Y-m-d');
@@ -266,19 +268,19 @@ class UseRateCalculationTest extends TestCase
 
         $this->assertIsArray($rateCalculation);
         $this->assertArrayHasKey('formatted', $rateCalculation);
-        
+
         $formatted = $rateCalculation['formatted'];
         $this->assertArrayHasKey('total_amount', $formatted);
         $this->assertArrayHasKey('dp_amount', $formatted);
         $this->assertArrayHasKey('remaining_amount', $formatted);
-        
+
         // Check if amounts are formatted as currency
         $this->assertStringContainsString('Rp', $formatted['total_amount']);
         $this->assertStringContainsString('Rp', $formatted['dp_amount']);
         $this->assertStringContainsString('Rp', $formatted['remaining_amount']);
     }
 
-    /** @test */
+    #[Test]
     public function availability_service_handles_zero_guest_count()
     {
         $checkIn = now()->addDays(1)->format('Y-m-d');
@@ -294,7 +296,7 @@ class UseRateCalculationTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function availability_service_handles_invalid_date_range()
     {
         $checkIn = now()->addDays(3)->format('Y-m-d');
@@ -309,4 +311,4 @@ class UseRateCalculationTest extends TestCase
             $guestCount
         );
     }
-} 
+}

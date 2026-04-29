@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import axios from 'axios';
+import { apiPut, apiPost } from '@/lib/api';
 import { AICalendarModal, CalendarView, KanbanView, CreatePlanModal } from '@/components/ContentPlanner';
 import { CalendarEvent } from '@/components/ContentPlanner/CalendarView';
 
@@ -119,7 +119,7 @@ export default function Index({ view, month, stats, filters, users, events = [],
         const uuid = event.event.id;
         const newDate = event.event.startStr;
         try {
-            await axios.put(route('admin.content-plans.update', uuid), {
+            await apiPut(route('admin.content-plans.update', uuid), {
                 planned_publish_date: newDate,
             });
             toast.success('Plan rescheduled successfully');
@@ -132,7 +132,7 @@ export default function Index({ view, month, stats, filters, users, events = [],
 
     const handleStatusChange = async (planUuid: string, newStatus: string) => {
         try {
-            await axios.put(route('admin.content-plans.update', planUuid), {
+            await apiPut(route('admin.content-plans.update', planUuid), {
                 status: newStatus,
             });
             toast.success('Status updated successfully');
@@ -148,15 +148,15 @@ export default function Index({ view, month, stats, filters, users, events = [],
 
         setLoading(true);
         try {
-            const response = await axios.post(route('admin.content-plans.convert-to-article', planUuid));
+            const result = await apiPost<{ redirect?: string }>(route('admin.content-plans.convert-to-article', planUuid));
             toast.success('Article created successfully!');
 
             // Redirect to article editor
-            if (response.data.redirect) {
-                window.location.href = response.data.redirect;
+            if (result.redirect) {
+                window.location.href = result.redirect;
             }
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Failed to convert to article');
+            toast.error(error?.data?.error || 'Failed to convert to article');
             console.error(error);
         } finally {
             setLoading(false);
@@ -166,13 +166,13 @@ export default function Index({ view, month, stats, filters, users, events = [],
     const handleGenerateCalendar = async (formData: any) => {
         setLoading(true);
         try {
-            const response = await axios.post(route('admin.content-plans.generate-calendar'), formData);
+            const result = await apiPost<{ job_started?: boolean; message?: string; count?: number }>(route('admin.content-plans.generate-calendar'), formData);
 
-            if (response.data.job_started) {
-                toast.success(response.data.message || 'Calendar generation started in background.');
+            if (result.job_started) {
+                toast.success(result.message || 'Calendar generation started in background.');
                 toast.info('You will receive a notification when it is complete.');
             } else {
-                toast.success(`Successfully generated ${response.data.count} content plans!`);
+                toast.success(`Successfully generated ${result.count} content plans!`);
             }
 
             setShowCalendarModal(false);
@@ -180,7 +180,7 @@ export default function Index({ view, month, stats, filters, users, events = [],
             // But we can reload to clear any stale state if needed
             router.reload();
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Failed to start generation job');
+            toast.error(error?.data?.error || 'Failed to start generation job');
         } finally {
             setLoading(false);
         }

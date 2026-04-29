@@ -39,13 +39,15 @@ class BookingImportExportTest extends TestCase
         $file = UploadedFile::fake()->create('bookings.xlsx');
 
         $response = $this->actingAs($admin)
-            ->post(route('admin.bookings.import'), [
+            ->post(route('admin.bookings.import.preview'), [
                 'file' => $file,
             ]);
 
-        $response->assertRedirect();
-        $response->assertSessionHas('success');
-        
-        Excel::assertImported('bookings.xlsx');
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'success',
+            'preview',
+            'summary',
+        ]);
     }
 }

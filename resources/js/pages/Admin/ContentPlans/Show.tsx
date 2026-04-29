@@ -25,7 +25,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
-import axios from 'axios';
+import { apiPut, apiPost } from '@/lib/api';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -116,7 +116,7 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
     const handleUpdateOutline = async () => {
         setLoading(true);
         try {
-            await axios.put(route('admin.content-plans.update', plan.uuid), {
+            await apiPut(route('admin.content-plans.update', plan.uuid), {
                 ai_outline: editedOutline
             });
             setIsEditingOutline(false);
@@ -154,11 +154,11 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
     const handleAIResearch = async () => {
         setLoading(true);
         try {
-            await axios.post(route('admin.content-plans.ai-research', plan.uuid));
+            await apiPost(route('admin.content-plans.ai-research', plan.uuid));
             toast.success('AI research completed!');
             router.reload({ only: ['plan'] });
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Failed to research topic');
+            toast.error(error?.data?.error || 'Failed to research topic');
         } finally {
             setLoading(false);
         }
@@ -167,11 +167,11 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
     const handleGenerateOutline = async () => {
         setLoading(true);
         try {
-            await axios.post(route('admin.content-plans.generate-outline', plan.uuid));
+            await apiPost(route('admin.content-plans.generate-outline', plan.uuid));
             toast.success('Outline generated successfully!');
             router.reload({ only: ['plan'] });
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Failed to generate outline');
+            toast.error(error?.data?.error || 'Failed to generate outline');
         } finally {
             setLoading(false);
         }
@@ -184,16 +184,16 @@ export default function Show({ plan, statuses, contentTypes, users }: Props) {
     const processConversion = async () => {
         setLoading(true);
         try {
-            const response = await axios.post(route('admin.content-plans.convert-to-article', plan.uuid));
+            const result = await apiPost<{ redirect?: string }>(route('admin.content-plans.convert-to-article', plan.uuid));
             toast.success('Article created successfully!');
 
-            if (response.data.redirect) {
-                window.location.href = response.data.redirect;
+            if (result.redirect) {
+                window.location.href = result.redirect;
             } else {
                 setShowConvertModal(false);
             }
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Failed to convert to article');
+            toast.error(error?.data?.error || 'Failed to convert to article');
             setShowConvertModal(false);
         } finally {
             setLoading(false);

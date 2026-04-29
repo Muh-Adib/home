@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Property } from '@/types/property';
-import { propertiesService } from '@/lib/api';
+import { apiPost } from '@/lib/api';
 
 // Import komponen yang baru dibuat
 import BookingDateDisplay from '@/components/booking/BookingDateDisplay';
@@ -226,14 +226,17 @@ export default function BookingCreate({ property, initialFormData, auth }: Booki
                 effectiveGuestCount = data.guest_male + data.guest_female + Math.floor(data.guest_children / 2);
             }
 
-            const result = await propertiesService.calculateRate(property.slug, {
-                check_in: data.check_in,
-                check_out: data.check_out,
-                guest_count: effectiveGuestCount, // Send effective count to API
-            });
+            const result = await apiPost<{ success: boolean; calculation?: RateCalculation }>(
+                `/properties/${property.slug}/calculate-rate`,
+                {
+                    check_in: data.check_in,
+                    check_out: data.check_out,
+                    guest_count: effectiveGuestCount,
+                }
+            );
 
             if (result.success) {
-                setRateCalculation(result.calculation);
+                setRateCalculation(result.calculation ?? null);
                 setAvailabilityStatus('available');
             } else {
                 setAvailabilityStatus('unavailable');

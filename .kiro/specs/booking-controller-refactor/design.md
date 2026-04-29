@@ -375,10 +375,10 @@ public function store(CreateBookingRequest $request): RedirectResponse
 public function timeline(Request $request): JsonResponse
 {
     $bookings = $this->bookingQueryService->getTimelineBookings(
-        startDate: $request->get('start_date', now()->startOfMonth()->toDateString()),
-        endDate: $request->get('end_date', now()->addMonths(2)->endOfMonth()->toDateString()),
-        propertyId: $request->get('property_id'),
-        status: $request->get('status'),
+        startDate: $request->input('start_date', now()->startOfMonth()->toDateString()),
+        endDate: $request->input('end_date', now()->addMonths(2)->endOfMonth()->toDateString()),
+        propertyId: $request->input('property_id'),
+        status: $request->input('status'),
         user: $request->user()
     );
 

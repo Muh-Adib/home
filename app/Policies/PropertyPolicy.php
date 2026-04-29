@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\Property;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class PropertyPolicy
 {
@@ -32,8 +31,7 @@ class PropertyPolicy
      */
     public function create(User $user): bool
     {
-        // Authenticated user dapat membuat property
-        return true;
+        return in_array($user->role, ['super_admin', 'property_manager', 'property_owner']);
     }
 
     /**
@@ -41,8 +39,13 @@ class PropertyPolicy
      */
     public function update(User $user, Property $property): bool
     {
-        // User dapat update property yang mereka miliki atau sebagai admin
-        return $user->isAdmin() || $property->owner_id === $user->id;
+        // Super admin dan property_manager dapat update semua property
+        if (in_array($user->role, ['super_admin', 'property_manager'])) {
+            return true;
+        }
+
+        // Property owner hanya dapat update property milik mereka
+        return $user->role === 'property_owner' && $property->owner_id === $user->id;
     }
 
     /**
@@ -50,8 +53,13 @@ class PropertyPolicy
      */
     public function delete(User $user, Property $property): bool
     {
-        // User dapat delete property yang mereka miliki atau sebagai admin
-        return $user->isAdmin() || $property->owner_id === $user->id;
+        // Super admin dapat delete semua property
+        if ($user->role === 'super_admin') {
+            return true;
+        }
+
+        // Property owner hanya dapat delete property milik mereka
+        return $user->role === 'property_owner' && $property->owner_id === $user->id;
     }
 
     /**
@@ -134,8 +142,8 @@ class PropertyPolicy
 
         // Manager dan finance dapat view reports
         return in_array($user->role, [
-            'property_manager', 
-            'finance'
+            'property_manager',
+            'finance',
         ]);
     }
 
@@ -157,10 +165,10 @@ class PropertyPolicy
                     ->whereIn('booking_status', ['confirmed', 'checked_in'])
                     ->where('check_out', '>', now())
                     ->exists();
-                    
-                return $property->owner_id === $user->id && !$hasConfirmedBookings;
+
+                return $property->owner_id === $user->id && ! $hasConfirmedBookings;
             }
-            
+
             return $property->owner_id === $user->id;
         }
 
@@ -174,9 +182,9 @@ class PropertyPolicy
     public function admin(User $user): bool
     {
         return in_array($user->role, [
-            'super_admin', 
-            'property_manager', 
-            'property_owner'
+            'super_admin',
+            'property_manager',
+            'property_owner',
         ]);
     }
 
@@ -186,9 +194,9 @@ class PropertyPolicy
     public function export(User $user): bool
     {
         return in_array($user->role, [
-            'super_admin', 
-            'property_manager', 
-            'finance'
+            'super_admin',
+            'property_manager',
+            'finance',
         ]);
     }
 }

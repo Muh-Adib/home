@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { router } from '@inertiajs/react';
 import { useCallback, useMemo } from 'react';
-import { ApiClient } from '@/lib/api';
+import { apiGet } from '@/lib/api';
 
 export interface PropertyStatsData {
   kpis: {
@@ -46,13 +46,11 @@ export function usePropertyStats({
 }: UsePropertyStatsOptions) {
   
   const fetchStats = useCallback(async (): Promise<PropertyStatsData> => {
-    const params = new URLSearchParams({
+    return apiGet<PropertyStatsData>(`/api/admin/properties/${propertyId}/stats`, {
       period,
       ...(from && { from }),
       ...(to && { to })
     });
-
-    return ApiClient.get(`/api/admin/properties/${propertyId}/stats?${params}`);
   }, [propertyId, from, to, period]);
 
   const query = useQuery({

@@ -2,26 +2,27 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
-use App\Services\RateService;
 use App\Models\Property;
 use App\Models\PropertySeasonalRate;
-use Carbon\Carbon;
+use App\Services\RateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class RateServiceTest extends TestCase
 {
     use RefreshDatabase;
 
     private RateService $rateService;
+
     private Property $property;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
-        $this->rateService = new RateService();
-        
+
+        $this->rateService = new RateService;
+
         // Create test property
         $this->property = Property::factory()->create([
             'base_rate' => 500000,
@@ -31,7 +32,7 @@ class RateServiceTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_gets_seasonal_rates_for_property()
     {
         // Create seasonal rates
@@ -48,14 +49,14 @@ class RateServiceTest extends TestCase
         $seasonalRates = $this->rateService->getSeasonalRates($this->property);
 
         $this->assertCount(3, $seasonalRates);
-        
+
         // Verify all rates belong to our property
         $seasonalRates->each(function ($rate) {
             $this->assertEquals($this->property->id, $rate->property_id);
         });
     }
 
-    /** @test */
+    #[Test]
     public function it_creates_seasonal_rate_successfully()
     {
         $data = [
@@ -80,7 +81,7 @@ class RateServiceTest extends TestCase
         $this->assertEquals($data['rate_value'], $seasonalRate->rate_value);
     }
 
-    /** @test */
+    #[Test]
     public function it_prevents_overlapping_seasonal_rates()
     {
         // Create existing seasonal rate
@@ -106,7 +107,7 @@ class RateServiceTest extends TestCase
         $this->rateService->createSeasonalRate($this->property, $overlappingData);
     }
 
-    /** @test */
+    #[Test]
     public function it_allows_seasonal_rates_for_different_properties()
     {
         $otherProperty = Property::factory()->create();
@@ -134,7 +135,7 @@ class RateServiceTest extends TestCase
         $this->assertEquals($otherProperty->id, $seasonalRate->property_id);
     }
 
-    /** @test */
+    #[Test]
     public function it_updates_seasonal_rate_successfully()
     {
         $seasonalRate = PropertySeasonalRate::factory()->create([
@@ -162,7 +163,7 @@ class RateServiceTest extends TestCase
         $this->assertTrue($updatedRate->applies_to_weekends_only);
     }
 
-    /** @test */
+    #[Test]
     public function it_prevents_overlapping_when_updating_seasonal_rates()
     {
         // Create two non-overlapping seasonal rates
@@ -195,7 +196,7 @@ class RateServiceTest extends TestCase
         $this->rateService->updateSeasonalRate($rate1, $updateData);
     }
 
-    /** @test */
+    #[Test]
     public function it_deletes_seasonal_rate_successfully()
     {
         $seasonalRate = PropertySeasonalRate::factory()->create([
@@ -210,7 +211,7 @@ class RateServiceTest extends TestCase
         $this->assertDatabaseMissing('property_seasonal_rates', ['id' => $rateId]);
     }
 
-    /** @test */
+    #[Test]
     public function it_updates_base_rate()
     {
         $newBaseRate = 600000.00;
@@ -224,7 +225,7 @@ class RateServiceTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_updates_weekend_premium()
     {
         $newWeekendPremium = 30.0;
@@ -238,7 +239,7 @@ class RateServiceTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_updates_extra_bed_rate()
     {
         $newExtraBedRate = 200000.00;
@@ -252,7 +253,7 @@ class RateServiceTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_updates_cleaning_fee()
     {
         $newCleaningFee = 150000.00;
@@ -266,7 +267,7 @@ class RateServiceTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_gets_effective_rates_for_date_range()
     {
         // Create seasonal rate that covers part of our date range
@@ -283,18 +284,18 @@ class RateServiceTest extends TestCase
         $effectiveRates = $this->rateService->getEffectiveRates($this->property, $startDate, $endDate);
 
         $this->assertIsArray($effectiveRates);
-        
+
         // Should have rates for the seasonal period
         $this->assertArrayHasKey('2024-01-15', $effectiveRates);
         $this->assertArrayHasKey('2024-01-16', $effectiveRates);
         $this->assertArrayHasKey('2024-01-19', $effectiveRates);
-        
+
         // Should not have rates outside the seasonal period
         $this->assertArrayNotHasKey('2024-01-10', $effectiveRates);
         $this->assertArrayNotHasKey('2024-01-25', $effectiveRates);
     }
 
-    /** @test */
+    #[Test]
     public function it_generates_rate_calendar()
     {
         // Create seasonal rate
@@ -316,36 +317,36 @@ class RateServiceTest extends TestCase
         $this->assertArrayHasKey('period', $calendar);
         $this->assertArrayHasKey('calendar', $calendar);
         $this->assertArrayHasKey('base_rates', $calendar);
-        
+
         $this->assertCount($monthsCount, $calendar['calendar']);
-        
+
         // Check base rates section
         $baseRates = $calendar['base_rates'];
         $this->assertEquals($this->property->base_rate, $baseRates['base_rate']);
         $this->assertEquals($this->property->weekend_premium_percent, $baseRates['weekend_premium_percent']);
         $this->assertEquals($this->property->extra_bed_rate, $baseRates['extra_bed_rate']);
         $this->assertEquals($this->property->cleaning_fee, $baseRates['cleaning_fee']);
-        
+
         // Check first month structure
         $firstMonth = $calendar['calendar'][0];
         $this->assertArrayHasKey('year', $firstMonth);
         $this->assertArrayHasKey('month', $firstMonth);
         $this->assertArrayHasKey('month_name', $firstMonth);
         $this->assertArrayHasKey('days', $firstMonth);
-        
+
         // Check day structure
         $dayWithSeasonalRate = collect($firstMonth['days'])->firstWhere('date', '2024-01-15');
         $this->assertNotNull($dayWithSeasonalRate);
         $this->assertNotNull($dayWithSeasonalRate['seasonal_rate']);
         $this->assertEquals(50, $dayWithSeasonalRate['seasonal_rate']['value']);
-        
+
         // Check weekend detection
         $weekendDay = collect($firstMonth['days'])->firstWhere('is_weekend', true);
         $this->assertNotNull($weekendDay);
         $this->assertEquals($this->property->weekend_premium_percent, $weekendDay['weekend_premium']);
     }
 
-    /** @test */
+    #[Test]
     public function it_performs_bulk_rate_updates_successfully()
     {
         $updates = [
@@ -365,24 +366,24 @@ class RateServiceTest extends TestCase
                     'end_date' => '2024-07-31',
                     'rate_type' => 'percentage',
                     'rate_value' => 40,
-                ]
-            ]
+                ],
+            ],
         ];
 
         $results = $this->rateService->bulkUpdateRates($this->property, $updates);
 
         $this->assertCount(3, $results);
-        
+
         // Check all operations succeeded
         foreach ($results as $result) {
             $this->assertTrue($result['success']);
         }
-        
+
         // Verify database updates
         $this->property->refresh();
         $this->assertEquals(550000, $this->property->base_rate);
         $this->assertEquals(25, $this->property->weekend_premium_percent);
-        
+
         // Verify seasonal rate was created
         $this->assertDatabaseHas('property_seasonal_rates', [
             'property_id' => $this->property->id,
@@ -390,7 +391,7 @@ class RateServiceTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_bulk_update_failures_gracefully()
     {
         // Create existing seasonal rate to cause overlap
@@ -414,38 +415,38 @@ class RateServiceTest extends TestCase
                     'end_date' => '2024-08-15',
                     'rate_type' => 'percentage',
                     'rate_value' => 40,
-                ]
+                ],
             ],
             [
                 'type' => 'unknown_type', // This should fail
                 'value' => 123,
-            ]
+            ],
         ];
 
         $results = $this->rateService->bulkUpdateRates($this->property, $updates);
 
         $this->assertCount(3, $results);
-        
+
         // First update should succeed
         $this->assertTrue($results[0]['success']);
         $this->assertEquals('base_rate', $results[0]['type']);
-        
+
         // Second update should fail due to overlap
         $this->assertFalse($results[1]['success']);
         $this->assertEquals('seasonal_rate', $results[1]['type']);
         $this->assertArrayHasKey('error', $results[1]);
-        
+
         // Third update should fail due to unknown type
         $this->assertFalse($results[2]['success']);
         $this->assertEquals('unknown_type', $results[2]['type']);
         $this->assertArrayHasKey('error', $results[2]);
-        
+
         // Verify the successful update was applied
         $this->property->refresh();
         $this->assertEquals(550000, $this->property->base_rate);
     }
 
-    /** @test */
+    #[Test]
     public function it_allows_updating_existing_seasonal_rate_in_bulk_updates()
     {
         // Create existing seasonal rate
@@ -465,19 +466,19 @@ class RateServiceTest extends TestCase
                     'end_date' => $existingRate->end_date,
                     'rate_type' => 'percentage',
                     'rate_value' => 60, // New value
-                ]
-            ]
+                ],
+            ],
         ];
 
         $results = $this->rateService->bulkUpdateRates($this->property, $updates);
 
         $this->assertTrue($results[0]['success']);
-        
+
         // Verify the rate was updated, not created new
         $updatedRate = PropertySeasonalRate::find($existingRate->id);
         $this->assertEquals('Updated Season Name', $updatedRate->name);
         $this->assertEquals(60, $updatedRate->rate_value);
-        
+
         // Verify no new rate was created
         $totalRates = PropertySeasonalRate::where('property_id', $this->property->id)->count();
         $this->assertEquals(1, $totalRates);

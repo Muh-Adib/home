@@ -2,15 +2,16 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class RoleMiddlewareTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @test */
+    #[Test]
     public function middleware_allows_access_for_authorized_role()
     {
         $user = User::factory()->create([
@@ -25,7 +26,7 @@ class RoleMiddlewareTest extends TestCase
         $response->assertStatus(200);
     }
 
-    /** @test */
+    #[Test]
     public function middleware_denies_access_for_unauthorized_role()
     {
         $user = User::factory()->create([
@@ -40,7 +41,7 @@ class RoleMiddlewareTest extends TestCase
         $response->assertStatus(403);
     }
 
-    /** @test */
+    #[Test]
     public function middleware_redirects_unauthenticated_user()
     {
         $response = $this->get('/admin/dashboard');
@@ -49,7 +50,7 @@ class RoleMiddlewareTest extends TestCase
         $response->assertRedirect('/login');
     }
 
-    /** @test */
+    #[Test]
     public function middleware_allows_multiple_roles()
     {
         $user = User::factory()->create([

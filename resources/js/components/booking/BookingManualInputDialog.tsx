@@ -11,7 +11,7 @@ import { usePage } from '@inertiajs/react';
 import PrimaryGuestForm from './PrimaryGuestForm';
 import GuestCountForm from './GuestCountForm';
 import { toast } from 'sonner';
-import axios from 'axios';
+import { apiPost } from '@/lib/api';
 
 interface Property {
     id: number;
@@ -161,7 +161,11 @@ export default function BookingManualInputDialog({
 
         setLoadingRates(true);
         try {
-            const response = await axios.post('/api/admin/booking-management/calculate-rate', {
+            const result = await apiPost<{
+                base_amount: number;
+                total_amount: number;
+                nights: number;
+            }>('/api/admin/booking-management/calculate-rate', {
                 property_id: propertyId,
                 check_in: checkIn,
                 check_out: checkOut,
@@ -170,9 +174,9 @@ export default function BookingManualInputDialog({
                 guest_children: guestChildren,
             });
 
-            setBaseAmount(response.data.base_amount || 0);
-            setTotalAmount(response.data.total_amount || 0);
-            setNights(response.data.nights || 0);
+            setBaseAmount(result.base_amount || 0);
+            setTotalAmount(result.total_amount || 0);
+            setNights(result.nights || 0);
         } catch (error) {
             console.error('Failed to calculate rates:', error);
             toast.error('Failed to calculate rates');

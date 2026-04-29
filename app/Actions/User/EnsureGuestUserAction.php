@@ -14,9 +14,7 @@ use Illuminate\Support\Str;
 class EnsureGuestUserAction
 {
     /**
-     * @param array $data ['guest_email', 'guest_name', 'guest_phone']
-     * @param bool $autoVerify
-     * @return User
+     * @param  array  $data  ['guest_email', 'guest_name', 'guest_phone']
      */
     public function execute(array $data, bool $autoVerify = true): User
     {
@@ -31,7 +29,7 @@ class EnsureGuestUserAction
             })
             ->first();
 
-        if (!$user) {
+        if (! $user) {
             $user = User::create([
                 'name' => $name,
                 'email' => $email,
@@ -39,6 +37,8 @@ class EnsureGuestUserAction
                 'password' => Hash::make(Str::random(16)),
                 'role' => 'guest',
                 'status' => 'active',
+                'gender' => $data['guest_gender'] ?? 'male',
+                'country' => $data['guest_country'] ?? 'Indonesia',
                 'email_verified_at' => $autoVerify ? now() : null,
             ]);
         } else {

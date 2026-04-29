@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Amenity;
-use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,21 +20,21 @@ class AmenityController extends Controller
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->get('search');
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
         // Filter by category
         if ($request->filled('category')) {
-            $query->where('category', $request->get('category'));
+            $query->where('category', $request->input('category'));
         }
 
         // Filter by status
         if ($request->filled('status')) {
-            $status = $request->get('status') === 'active';
+            $status = $request->input('status') === 'active';
             $query->where('is_active', $status);
         }
 
@@ -42,18 +42,18 @@ class AmenityController extends Controller
 
         // Get categories for filter
         $categories = Amenity::select('category')
-                            ->distinct()
-                            ->orderBy('category')
-                            ->pluck('category');
+            ->distinct()
+            ->orderBy('category')
+            ->pluck('category');
 
         return Inertia::render('Admin/Amenities/Index', [
             'amenities' => $amenities,
             'categories' => $categories,
             'filters' => [
-                'search' => $request->get('search'),
-                'category' => $request->get('category'),
-                'status' => $request->get('status'),
-            ]
+                'search' => $request->input('search'),
+                'category' => $request->input('category'),
+                'status' => $request->input('status'),
+            ],
         ]);
     }
 
@@ -91,7 +91,7 @@ class AmenityController extends Controller
         ]);
 
         // Set default sort order if not provided
-        if (!isset($validated['sort_order'])) {
+        if (! isset($validated['sort_order'])) {
             $validated['sort_order'] = Amenity::max('sort_order') + 1;
         }
 
@@ -106,10 +106,12 @@ class AmenityController extends Controller
      */
     public function show(Amenity $amenity): Response
     {
-        $amenity->load(['properties' => function ($query) {
-            $query->select('properties.id', 'properties.name', 'properties.status')
-                  ->withPivot('is_available', 'notes');
-        }]);
+        $amenity->load([
+            'properties' => function ($query) {
+                $query->select('properties.id', 'properties.name', 'properties.status')
+                    ->withPivot('is_available', 'notes');
+            },
+        ]);
 
         return Inertia::render('Admin/Amenities/Show', [
             'amenity' => $amenity,
@@ -142,7 +144,7 @@ class AmenityController extends Controller
     public function update(Request $request, Amenity $amenity): RedirectResponse
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:amenities,name,' . $amenity->id,
+            'name' => 'required|string|max:255|unique:amenities,name,'.$amenity->id,
             'icon' => 'nullable|string|max:100',
             'category' => 'required|string|max:100',
             'description' => 'nullable|string|max:1000',
@@ -164,7 +166,7 @@ class AmenityController extends Controller
         // Check if amenity is being used by properties
         if ($amenity->properties()->count() > 0) {
             return back()->withErrors([
-                'error' => 'Cannot delete amenity that is being used by properties.'
+                'error' => 'Cannot delete amenity that is being used by properties.',
             ]);
         }
 
@@ -183,7 +185,7 @@ class AmenityController extends Controller
 
         // Filter by category if provided
         if ($request->filled('category')) {
-            $query->byCategory($request->get('category'));
+            $query->byCategory($request->input('category'));
         }
 
         $amenities = $query->get(['id', 'name', 'icon', 'category']);
@@ -204,8 +206,8 @@ class AmenityController extends Controller
             'status' => 'required|boolean',
         ]);
 
-        $amenityIds = $request->get('amenity_ids');
-        $status = $request->get('status');
+        $amenityIds = $request->input('amenity_ids');
+        $status = $request->input('status');
 
         Amenity::whereIn('id', $amenityIds)->update(['is_active' => $status]);
 
@@ -222,7 +224,7 @@ class AmenityController extends Controller
     public function toggleStatus(Request $request, Amenity $amenity): RedirectResponse
     {
         $amenity->update([
-            'is_active' => !$amenity->is_active
+            'is_active' => ! $amenity->is_active,
         ]);
 
         $status = $amenity->is_active ? 'activated' : 'deactivated';
@@ -242,11 +244,11 @@ class AmenityController extends Controller
             'amenities.*.sort_order' => 'required|integer|min:0',
         ]);
 
-        $amenities = $request->get('amenities');
+        $amenities = $request->input('amenities');
 
         foreach ($amenities as $amenityData) {
             Amenity::where('id', $amenityData['id'])
-                   ->update(['sort_order' => $amenityData['sort_order']]);
+                ->update(['sort_order' => $amenityData['sort_order']]);
         }
 
         return redirect()->back()

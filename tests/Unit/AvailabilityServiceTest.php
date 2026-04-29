@@ -2,26 +2,28 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
+use App\Models\Booking;
+use App\Models\Property;
 use App\Services\AvailabilityService;
 use App\Services\RateCalculationService;
-use App\Models\Property;
-use App\Models\Booking;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class AvailabilityServiceTest extends TestCase
 {
     use RefreshDatabase;
 
     private AvailabilityService $availabilityService;
+
     private Property $property;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $rateCalculationService = new RateCalculationService();
+        $rateCalculationService = new RateCalculationService;
         $this->availabilityService = new AvailabilityService($rateCalculationService);
 
         // Create test property
@@ -32,7 +34,7 @@ class AvailabilityServiceTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_returns_available_when_no_bookings_exist()
     {
         $checkIn = Carbon::tomorrow()->format('Y-m-d');
@@ -53,7 +55,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertEmpty($result['booked_periods']);
     }
 
-    /** @test */
+    #[Test]
     public function it_returns_unavailable_when_property_is_booked()
     {
         // Create overlapping booking
@@ -79,7 +81,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertNotEmpty($result['booked_periods']);
     }
 
-    /** @test */
+    #[Test]
     public function it_correctly_identifies_booked_dates_in_range()
     {
         // Create booking that overlaps with our search range
@@ -110,7 +112,7 @@ class AvailabilityServiceTest extends TestCase
         }
     }
 
-    /** @test */
+    #[Test]
     public function it_returns_booked_periods_in_correct_format()
     {
         // Create two separate bookings
@@ -146,7 +148,7 @@ class AvailabilityServiceTest extends TestCase
         }
     }
 
-    /** @test */
+    #[Test]
     public function it_ignores_cancelled_bookings()
     {
         // Create cancelled booking
@@ -170,7 +172,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertEmpty($result['booked_dates']);
     }
 
-    /** @test */
+    #[Test]
     public function it_considers_various_confirmed_booking_statuses()
     {
         $confirmedStatuses = ['pending_verification', 'confirmed', 'checked_in', 'checked_out'];
@@ -196,7 +198,7 @@ class AvailabilityServiceTest extends TestCase
         }
     }
 
-    /** @test */
+    #[Test]
     public function it_validates_dates_correctly()
     {
         // Test past check-in date
@@ -223,7 +225,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertNull($errors);
     }
 
-    /** @test */
+    #[Test]
     public function it_delegates_rate_calculation_to_rate_service()
     {
         $checkIn = Carbon::tomorrow()->addDays(5)->format('Y-m-d');
@@ -242,7 +244,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertArrayHasKey('calculation', $result);
     }
 
-    /** @test */
+    #[Test]
     public function it_validates_guest_count_against_property_capacity()
     {
         $checkIn = Carbon::tomorrow()->addDays(5)->format('Y-m-d');
@@ -261,7 +263,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertStringContainsString('capacity', $result['message']);
     }
 
-    /** @test */
+    #[Test]
     public function it_returns_availability_error_when_property_is_booked()
     {
         // Create overlapping booking
@@ -289,7 +291,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertArrayHasKey('alternative_dates', $result['availability_info']);
     }
 
-    /** @test */
+    #[Test]
     public function it_filters_properties_by_availability_correctly()
     {
         // Create another property
@@ -323,7 +325,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertEquals($this->property->id, $availableProperties->first()->id);
     }
 
-    /** @test */
+    #[Test]
     public function it_finds_next_available_dates()
     {
         // Book the next few days
@@ -355,7 +357,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertTrue($availability['available']);
     }
 
-    /** @test */
+    #[Test]
     public function it_provides_debug_availability_information()
     {
         // Create test booking
@@ -385,7 +387,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertNotEmpty($debugInfo['booked_dates']);
     }
 
-    /** @test */
+    #[Test]
     public function it_generates_availability_calendar()
     {
         // Create some bookings in the calendar period
@@ -420,7 +422,7 @@ class AvailabilityServiceTest extends TestCase
         $this->assertArrayHasKey('days', $firstMonth);
 
         // Check some days have is_booked = true
-        $bookedDays = collect($firstMonth['days'])->filter(fn($day) => $day['is_booked']);
+        $bookedDays = collect($firstMonth['days'])->filter(fn ($day) => $day['is_booked']);
         $this->assertGreaterThan(0, $bookedDays->count());
     }
 }

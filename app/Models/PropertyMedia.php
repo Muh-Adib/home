@@ -75,7 +75,16 @@ class PropertyMedia extends Model
     // Accessors
     public function getUrlAttribute(): string
     {
-        return $this->file_path ? asset('storage/' . $this->file_path) : '';
+        if (! $this->file_path) {
+            return '';
+        }
+
+        // If already an absolute URL (e.g. Unsplash, CDN), return as-is
+        if (str_starts_with($this->file_path, 'http://') || str_starts_with($this->file_path, 'https://')) {
+            return $this->file_path;
+        }
+
+        return asset('storage/' . $this->file_path);
     }
 
     public function getThumbnailUrlAttribute(): ?string

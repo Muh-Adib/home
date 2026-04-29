@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateCalendarJob;
 use App\Models\ContentPlan;
+use App\Models\User;
 use App\Services\ContentPlanService;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -14,28 +16,27 @@ class ContentPlanController extends Controller
 {
     public function __construct(
         protected ContentPlanService $contentPlanService
-    ) {
-    }
+    ) {}
 
     /**
      * Display content plans (calendar + kanban + list)
      */
     public function index(Request $request): Response
     {
-        $view = $request->get('view', 'calendar'); // calendar, kanban, list
-        $month = $request->get('month', now()->format('Y-m'));
+        $view = $request->input('view', 'calendar'); // calendar, kanban, list
+        $month = $request->input('month', now()->format('Y-m'));
 
         $filters = [
-            'search' => $request->get('search'),
-            'status' => $request->get('status'),
-            'assigned_to' => $request->get('assigned_to'),
-            'content_type' => $request->get('content_type'),
+            'search' => $request->input('search'),
+            'status' => $request->input('status'),
+            'assigned_to' => $request->input('assigned_to'),
+            'content_type' => $request->input('content_type'),
         ];
 
-        $users = \App\Models\User::select('id', 'name')
+        $users = User::select('id', 'name')
             ->whereIn('role', ['super_admin', 'property_owner', 'property_manager'])
             ->get()
-            ->map(fn($user) => ['id' => $user->id, 'name' => $user->name])
+            ->map(fn ($user) => ['id' => $user->id, 'name' => $user->name])
             ->values();
 
         $data = [
@@ -54,23 +55,23 @@ class ContentPlanController extends Controller
             $query = ContentPlan::with(['creator', 'assignee', 'article']);
 
             // Apply similar filters to list view query
-            if (!empty($filters['search'])) {
+            if (! empty($filters['search'])) {
                 $query->where(function ($q) use ($filters) {
-                    $q->where('title', 'like', '%' . $filters['search'] . '%')
-                        ->orWhere('description', 'like', '%' . $filters['search'] . '%')
+                    $q->where('title', 'like', '%'.$filters['search'].'%')
+                        ->orWhere('description', 'like', '%'.$filters['search'].'%')
                         ->orWhereJsonContains('target_keywords', $filters['search']);
                 });
             }
 
-            if (!empty($filters['status'])) {
+            if (! empty($filters['status'])) {
                 $query->where('status', $filters['status']);
             }
 
-            if (!empty($filters['assigned_to'])) {
+            if (! empty($filters['assigned_to'])) {
                 $query->where('assigned_to', $filters['assigned_to']);
             }
 
-            if (!empty($filters['content_type'])) {
+            if (! empty($filters['content_type'])) {
                 $query->where('content_type', $filters['content_type']);
             }
 
@@ -88,17 +89,17 @@ class ContentPlanController extends Controller
      */
     public function create(Request $request): Response
     {
-        $users = \App\Models\User::select('id', 'name')
+        $users = User::select('id', 'name')
             ->whereIn('role', ['super_admin', 'property_owner', 'property_manager'])
             ->get()
-            ->map(fn($user) => ['id' => $user->id, 'name' => $user->name])
+            ->map(fn ($user) => ['id' => $user->id, 'name' => $user->name])
             ->values();
 
         return Inertia::render('Admin/ContentPlans/Create', [
             'statuses' => ['idea', 'researching', 'outlining', 'writing', 'reviewing', 'scheduled'],
             'contentTypes' => ['article', 'guide', 'tips', 'comparison', 'news', 'review'],
             'users' => $users,
-            'initialDate' => $request->get('planned_publish_date', null),
+            'initialDate' => $request->input('planned_publish_date', null),
         ]);
     }
 
@@ -130,10 +131,10 @@ class ContentPlanController extends Controller
      */
     public function show(ContentPlan $contentPlan): Response
     {
-        $users = \App\Models\User::select('id', 'name')
+        $users = User::select('id', 'name')
             ->whereIn('role', ['super_admin', 'property_owner', 'property_manager'])
             ->get()
-            ->map(fn($user) => ['id' => $user->id, 'name' => $user->name])
+            ->map(fn ($user) => ['id' => $user->id, 'name' => $user->name])
             ->values();
 
         return Inertia::render('Admin/ContentPlans/Show', [
@@ -149,10 +150,10 @@ class ContentPlanController extends Controller
      */
     public function edit(ContentPlan $contentPlan): Response
     {
-        $users = \App\Models\User::select('id', 'name')
+        $users = User::select('id', 'name')
             ->whereIn('role', ['super_admin', 'property_owner', 'property_manager'])
             ->get()
-            ->map(fn($user) => ['id' => $user->id, 'name' => $user->name])
+            ->map(fn ($user) => ['id' => $user->id, 'name' => $user->name])
             ->values();
 
         return Inertia::render('Admin/ContentPlans/Edit', [
@@ -220,7 +221,7 @@ class ContentPlanController extends Controller
 
         try {
             // Dispatch job instead of running synchronously
-            \App\Jobs\GenerateCalendarJob::dispatch(
+            GenerateCalendarJob::dispatch(
                 $validated['keywords'],
                 $validated['article_count'] ?? 30,
                 $validated['target_audience'] ?? 'property renters',

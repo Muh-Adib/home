@@ -1,4 +1,4 @@
-import './bootstrap.js';
+import './bootstrap';
 import '../css/app.css';
 
 import { createRoot, hydrateRoot } from 'react-dom/client'
@@ -60,9 +60,4 @@ createInertiaApp({
         }
     },
     progress: false,
-    defaults: {
-        future: {
-            useDataInertiaHeadAttribute: true,
-        },
-    },
 });

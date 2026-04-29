@@ -2,10 +2,9 @@
 
 namespace App\Policies;
 
+use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\User;
-use App\Models\Booking;
-use App\Models\PaymentMethod;
 use Illuminate\Auth\Access\Response;
 
 class PaymentPolicy
@@ -16,10 +15,10 @@ class PaymentPolicy
     public function viewAny(User $user): bool
     {
         return in_array($user->role, [
-            'super_admin', 
-            'property_manager', 
+            'super_admin',
+            'property_manager',
             'finance',
-            'property_owner'
+            'property_owner',
         ]);
     }
 
@@ -32,15 +31,20 @@ class PaymentPolicy
         if ($user->role === 'super_admin') {
             return true;
         }
-        
+
         // Property owners can view payments for their properties
         if ($user->role === 'property_owner') {
             return $payment->booking->property->owner_id === $user->id;
         }
-        
-        // Users can view their own booking payments
-        return $payment->booking->guest_email === $user->email || 
-               $payment->booking->user_id === $user->id;
+
+        // Staff roles can view all payments
+        if (in_array($user->role, ['property_manager', 'finance', 'front_desk'])) {
+            return true;
+        }
+
+        // Users can view their own booking payments (matched by guest_email or created_by)
+        return $payment->booking->guest_email === $user->email ||
+               $payment->booking->created_by === $user->id;
     }
 
     /**
@@ -60,8 +64,8 @@ class PaymentPolicy
     {
         // Hanya finance yang dapat update payment details
         return in_array($user->role, [
-            'super_admin', 
-            'finance'
+            'super_admin',
+            'finance',
         ]);
     }
 
@@ -76,11 +80,11 @@ class PaymentPolicy
         if ($user->role === 'super_admin') {
             return true;
         }
-        
+
         if ($user->role === 'finance') {
             return in_array($payment->payment_status, ['pending', 'failed', 'cancelled']);
         }
-        
+
         return false;
     }
 
@@ -93,8 +97,8 @@ class PaymentPolicy
         if ($user->role === 'super_admin') {
             return true;
         }
-        
-            // Finance dapat verify semua payment
+
+        // Finance dapat verify semua payment
         if ($user->role === 'finance') {
             return true;
         }
@@ -119,8 +123,8 @@ class PaymentPolicy
     public function manageRejectedPayments(User $user): bool
     {
         return in_array($user->role, [
-            'super_admin', 
-            'finance'
+            'super_admin',
+            'finance',
         ]);
     }
 
@@ -130,7 +134,7 @@ class PaymentPolicy
     public function makePayment(User $user, Booking $booking): bool
     {
         // User must be the guest who made the booking
-        return $booking->guest_email === $user->email || 
+        return $booking->guest_email === $user->email ||
                $booking->user_id === $user->id;
     }
 
@@ -140,7 +144,7 @@ class PaymentPolicy
     public function createForBooking(User $user, Booking $booking): bool
     {
         // User must be the guest who made the booking
-        return $booking->guest_email === $user->email || 
+        return $booking->guest_email === $user->email ||
                $booking->user_id === $user->id;
     }
 
@@ -169,9 +173,9 @@ class PaymentPolicy
 
         // Staff dapat download payment proof
         return in_array($user->role, [
-            'property_manager', 
+            'property_manager',
             'finance',
-            'front_desk'
+            'front_desk',
         ]);
     }
 
@@ -182,8 +186,8 @@ class PaymentPolicy
     {
         // Hanya super admin dan finance yang dapat refund
         return in_array($user->role, [
-            'super_admin', 
-            'finance'
+            'super_admin',
+            'finance',
         ]);
     }
 
@@ -193,10 +197,10 @@ class PaymentPolicy
     public function viewReports(User $user): bool
     {
         return in_array($user->role, [
-            'super_admin', 
-            'property_manager', 
+            'super_admin',
+            'property_manager',
             'finance',
-            'property_owner'
+            'property_owner',
         ]);
     }
 
@@ -206,8 +210,8 @@ class PaymentPolicy
     public function export(User $user): bool
     {
         return in_array($user->role, [
-            'super_admin', 
-            'finance'
+            'super_admin',
+            'finance',
         ]);
     }
 
@@ -217,8 +221,8 @@ class PaymentPolicy
     public function bulkProcess(User $user): bool
     {
         return in_array($user->role, [
-            'super_admin', 
-            'finance'
+            'super_admin',
+            'finance',
         ]);
     }
 }

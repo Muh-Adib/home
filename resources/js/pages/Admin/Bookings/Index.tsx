@@ -24,7 +24,7 @@ import { toast } from 'sonner';
 import { ExportFilterDialog, type ExportFilters } from '@/components/booking/ExportFilterDialog';
 import { ImportPreviewDialog } from '@/components/booking/ImportPreviewDialog';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import axios from 'axios';
+import { apiPostForm } from '@/lib/api';
 
 interface BookingsIndexProps {
     properties: Property[];
@@ -108,20 +108,19 @@ export default function BookingsIndex({ properties, statistics }: BookingsIndexP
             const formData = new FormData();
             formData.append('file', importData.file);
 
-            const response = await axios.post('/admin/bookings/import/preview', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
+            const result = await apiPostForm<{ success: boolean; preview: any }>(
+                '/admin/bookings/import/preview',
+                formData
+            );
 
-            if (response.data.success) {
-                setImportPreview(response.data.preview);
+            if (result.success) {
+                setImportPreview(result.preview);
                 setImportFile(importData.file);
                 setIsImportOpen(false);
                 setIsPreviewOpen(true);
             }
         } catch (error: any) {
-            toast.error('Failed to preview import: ' + (error.response?.data?.error || error.message));
+            toast.error('Failed to preview import: ' + (error?.data?.error || error?.message));
             console.error(error);
         }
     };
@@ -137,11 +136,7 @@ export default function BookingsIndex({ properties, statistics }: BookingsIndexP
                 formData.append(`accepted_rows[${index}]`, row.toString());
             });
 
-            await axios.post('/admin/bookings/import/confirmed', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
+            await apiPostForm('/admin/bookings/import/confirmed', formData);
 
             setIsPreviewOpen(false);
             setImportPreview(null);
@@ -150,7 +145,7 @@ export default function BookingsIndex({ properties, statistics }: BookingsIndexP
             toast.success('Bookings imported successfully');
             handleRefresh(); // Use refresh which reloads properties/stats
         } catch (error: any) {
-            toast.error('Failed to import bookings: ' + (error.response?.data?.error || error.message));
+            toast.error('Failed to import bookings: ' + (error?.data?.error || error?.message));
             console.error(error);
         } finally {
             setIsImporting(false);
@@ -159,23 +154,37 @@ export default function BookingsIndex({ properties, statistics }: BookingsIndexP
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs} title="Booking Management" subtitle="Manage all property bookings">
-            <div className="space-y-3 p-4 md:p-6">
+            <div className='space-y-4'>
                 {/* Compact Modern Header */}
-                <div className="bg-white rounded-lg shadow-sm border p-4">
-                    {/* Title Row */}
-                    <div className="flex items-center justify-between mb-4">
+                <div className="bg-white rounded-xl shadow-sm border p-4 space-y-4">
+
+                    {/* Top Section */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+
+                        {/* Title */}
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                                <Calendar className="h-6 w-6 text-blue-600" />
+                            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+                                <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                                 Booking Management
                             </h1>
-                            <p className="text-sm text-gray-500 mt-0.5">
+                            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
                                 Manage guest bookings, reservations, and calendar timeline
                             </p>
                         </div>
 
-                        {/* Primary Actions */}
-                        <div className="flex items-center gap-2">
+                        {/* Actions */}
+                        <div className="flex flex-wrap items-center gap-2">
+
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleRefresh}
+                                disabled={isRefreshing}
+                                className="flex sm:hidden"
+                            >
+                                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                            </Button>
+
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -183,7 +192,8 @@ export default function BookingsIndex({ properties, statistics }: BookingsIndexP
                                 disabled={isRefreshing}
                                 className="hidden sm:flex"
                             >
-                                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                Refresh
                             </Button>
 
                             <BookingActionsMenu
@@ -191,7 +201,11 @@ export default function BookingsIndex({ properties, statistics }: BookingsIndexP
                                 onImport={() => setIsImportOpen(true)}
                             />
 
-                            <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                            <Button
+                                asChild
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto"
+                            >
                                 <Link href="/admin/bookings/create">
                                     <Plus className="h-4 w-4 mr-1" />
                                     New Booking
@@ -200,8 +214,11 @@ export default function BookingsIndex({ properties, statistics }: BookingsIndexP
                         </div>
                     </div>
 
-                    {/* Search Only - No Filters! */}
-                    <BookingSearchBar placeholder="Search booking code, guest name, phone..." />
+                    {/* Search */}
+                    <div className="w-full">
+                        <BookingSearchBar placeholder="Search booking code, guest name, phone..." />
+                    </div>
+
                 </div>
 
                 {/* Export Filter Dialog */}

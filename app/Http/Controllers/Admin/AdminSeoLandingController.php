@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SeoLandingPage;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Inertia\Inertia;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Inertia\Inertia;
 
 class AdminSeoLandingController extends Controller
 {
@@ -16,7 +16,7 @@ class AdminSeoLandingController extends Controller
         $query = SeoLandingPage::query();
 
         // Search support
-        if ($search = $request->get('search')) {
+        if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('slug', 'like', "%{$search}%")
                     ->orWhere('target_keyword', 'like', "%{$search}%")
@@ -25,8 +25,8 @@ class AdminSeoLandingController extends Controller
         }
 
         // Status filter
-        if ($request->has('status') && $request->get('status') !== 'all') {
-            $query->where('is_active', $request->get('status') === 'active');
+        if ($request->has('status') && $request->input('status') !== 'all') {
+            $query->where('is_active', $request->input('status') === 'active');
         }
 
         $pages = $query->latest()->paginate(15)->appends($request->query());
@@ -34,14 +34,15 @@ class AdminSeoLandingController extends Controller
         // Append url accessor to each item
         $pages->getCollection()->transform(function ($page) {
             $page->append('url');
+
             return $page;
         });
 
         return Inertia::render('Admin/Settings/Seo/Index', [
             'pages' => $pages,
             'filters' => [
-                'search' => $request->get('search', ''),
-                'status' => $request->get('status', 'all'),
+                'search' => $request->input('search', ''),
+                'status' => $request->input('status', 'all'),
             ],
         ]);
     }
@@ -52,7 +53,7 @@ class AdminSeoLandingController extends Controller
     public function checkHealth(SeoLandingPage $seoPage): JsonResponse
     {
         try {
-            $url = url('/s/' . $seoPage->slug);
+            $url = url('/s/'.$seoPage->slug);
             $response = Http::timeout(10)->get($url);
 
             return response()->json([
@@ -76,7 +77,7 @@ class AdminSeoLandingController extends Controller
     private function validationRules(?int $ignoreId = null): array
     {
         $slugUnique = $ignoreId
-            ? 'required|max:255|unique:seo_landing_pages,slug,' . $ignoreId
+            ? 'required|max:255|unique:seo_landing_pages,slug,'.$ignoreId
             : 'required|unique:seo_landing_pages,slug|max:255';
 
         return [
@@ -130,6 +131,7 @@ class AdminSeoLandingController extends Controller
     public function destroy(SeoLandingPage $seoPage)
     {
         $seoPage->delete();
+
         return redirect()->back()->with('success', 'Halaman SEO berhasil dihapus.');
     }
 }

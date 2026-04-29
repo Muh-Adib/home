@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Services\DashboardRouteService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,9 +18,8 @@ class AuthenticatedSessionController extends Controller
      * Show the login page.
      */
     public function __construct(
-        private \App\Services\DashboardRouteService $dashboardRouteService
-    ) {
-    }
+        private DashboardRouteService $dashboardRouteService
+    ) {}
 
     /**
      * Show the login page.
@@ -48,9 +48,9 @@ class AuthenticatedSessionController extends Controller
         // Regenerasi session
         $request->session()->regenerate();
 
-        // Update last_login
+        // Update last_login_at
         $request->user()->update([
-            'last_login' => now(),
+            'last_login_at' => now(),
         ]);
 
         // Ambil intended_url jika ada (hasil dari redirect sebelumnya)
@@ -66,7 +66,6 @@ class AuthenticatedSessionController extends Controller
         // Jika tidak ada manual intended url → pakai Laravel punya tapi override defaultnya dengan logic role kita
         return redirect()->intended(route($targetRoute));
     }
-
 
     /**
      * Destroy an authenticated session.

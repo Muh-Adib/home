@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class NotificationController extends Controller
@@ -14,10 +14,10 @@ class NotificationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = Auth::user();
-        
+
         $notifications = $user->notifications()
             ->latest()
-            ->paginate($request->get('per_page', 10));
+            ->paginate($request->input('per_page', 10));
 
         return response()->json([
             'notifications' => $notifications,
@@ -31,10 +31,10 @@ class NotificationController extends Controller
     public function unread(Request $request): JsonResponse
     {
         $user = Auth::user();
-        
+
         $notifications = $user->unreadNotifications()
             ->latest()
-            ->paginate($request->get('per_page', 10));
+            ->paginate($request->input('per_page', 10));
 
         return response()->json([
             'notifications' => $notifications,
@@ -48,10 +48,10 @@ class NotificationController extends Controller
     public function markAsRead(Request $request, string $id): JsonResponse
     {
         $user = Auth::user();
-        
+
         $notification = $user->notifications()->find($id);
 
-        if (!$notification) {
+        if (! $notification) {
             return response()->json(['message' => 'Notification not found'], 404);
         }
 
@@ -69,7 +69,7 @@ class NotificationController extends Controller
     public function markAllAsRead(): JsonResponse
     {
         $user = Auth::user();
-        
+
         $user->unreadNotifications()->markAsRead();
 
         return response()->json([
@@ -84,10 +84,10 @@ class NotificationController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $user = Auth::user();
-        
+
         $notification = $user->notifications()->find($id);
 
-        if (!$notification) {
+        if (! $notification) {
             return response()->json(['message' => 'Notification not found'], 404);
         }
 
@@ -105,7 +105,7 @@ class NotificationController extends Controller
     public function count(): JsonResponse
     {
         $user = Auth::user();
-        
+
         return response()->json([
             'unread_count' => $user->unreadNotifications()->count(),
             'total_count' => $user->notifications()->count(),
@@ -118,9 +118,9 @@ class NotificationController extends Controller
     public function recent(Request $request): JsonResponse
     {
         $user = Auth::user();
-        
-        $limit = $request->get('limit', 5);
-        
+
+        $limit = $request->input('limit', 5);
+
         $notifications = $user->notifications()
             ->latest()
             ->limit($limit)
@@ -139,7 +139,7 @@ class NotificationController extends Controller
     public function clearRead(): JsonResponse
     {
         $user = Auth::user();
-        
+
         $deleted = $user->readNotifications()->delete();
 
         return response()->json([

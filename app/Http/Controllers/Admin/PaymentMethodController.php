@@ -3,25 +3,23 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\PaymentMethod;
 use App\Http\Requests\StorePaymentMethodRequest;
 use App\Http\Requests\UpdatePaymentMethodRequest;
-use Illuminate\Http\Request;
+use App\Models\PaymentMethod;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Payment Method Controller
- * 
+ *
  * This controller handles the payment method process for admin bookings.
  * It includes methods for creating, storing, and managing payment methods.
- * 
- * @package App\Http\Controllers\Admin
+ *
  * @author Muhammad Adib Aulia Hanif <adwk.project@gmail.com>
  */
-
 class PaymentMethodController extends Controller
 {
     /**
@@ -35,28 +33,28 @@ class PaymentMethodController extends Controller
 
         // Search
         if ($request->filled('search')) {
-            $search = $request->get('search');
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('code', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('code', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
         // Filter by type
         if ($request->filled('type')) {
-            $query->where('type', $request->get('type'));
+            $query->where('type', $request->input('type'));
         }
 
         // Filter by status
         if ($request->filled('status')) {
-            $status = $request->get('status') === 'active';
+            $status = $request->input('status') === 'active';
             $query->where('is_active', $status);
         }
 
         $paymentMethods = $query->orderBy('sort_order')
-                               ->orderBy('name')
-                               ->paginate(20);
+            ->orderBy('name')
+            ->paginate(20);
 
         // Stats
         $stats = [
@@ -70,10 +68,10 @@ class PaymentMethodController extends Controller
             'paymentMethods' => $paymentMethods,
             'stats' => $stats,
             'filters' => [
-                'search' => $request->get('search'),
-                'type' => $request->get('type'),
-                'status' => $request->get('status'),
-            ]
+                'search' => $request->input('search'),
+                'type' => $request->input('type'),
+                'status' => $request->input('status'),
+            ],
         ]);
     }
 
@@ -115,17 +113,19 @@ class PaymentMethodController extends Controller
     {
         $this->authorize('managePaymentMethods', PaymentMethod::class);
 
-        $paymentMethod->load(['payments' => function ($query) {
-            $query->latest()->limit(10);
-        }]);
+        $paymentMethod->load([
+            'payments' => function ($query) {
+                $query->latest()->limit(10);
+            },
+        ]);
 
         // Stats for this payment method
         $stats = [
             'total_payments' => $paymentMethod->payments()->count(),
             'verified_payments' => $paymentMethod->payments()->where('payment_status', 'verified')->count(),
             'total_amount' => $paymentMethod->payments()
-                                           ->where('payment_status', 'verified')
-                                           ->sum('amount'),
+                ->where('payment_status', 'verified')
+                ->sum('amount'),
             'last_used' => $paymentMethod->payments()->latest()->first()?->created_at,
         ];
 
@@ -179,7 +179,7 @@ class PaymentMethodController extends Controller
         // Check if payment method is used in any payments
         if ($paymentMethod->payments()->exists()) {
             return back()->withErrors([
-                'error' => 'Cannot delete payment method that has been used in payments.'
+                'error' => 'Cannot delete payment method that has been used in payments.',
             ]);
         }
 
@@ -202,7 +202,7 @@ class PaymentMethodController extends Controller
         $this->authorize('managePaymentMethods', PaymentMethod::class);
 
         $paymentMethod->update([
-            'is_active' => !$paymentMethod->is_active
+            'is_active' => ! $paymentMethod->is_active,
         ]);
 
         $status = $paymentMethod->is_active ? 'activated' : 'deactivated';
@@ -230,4 +230,4 @@ class PaymentMethodController extends Controller
 
         return back()->with('success', 'Payment methods order updated successfully.');
     }
-} 
+}

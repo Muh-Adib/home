@@ -2,21 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Property;
 use App\Models\Amenity;
-use App\Models\User;
+use App\Models\Property;
 use App\Services\AvailabilityService;
 use App\Services\RateCalculationService;
 use App\Services\SeoService;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 
 class PropertyController extends Controller
 {
@@ -27,8 +22,7 @@ class PropertyController extends Controller
         private AvailabilityService $availabilityService,
         private RateCalculationService $rateCalculationService,
         private SeoService $seoService
-    ) {
-    }
+    ) {}
 
     /**
      * Display a listing of properties (Public)
@@ -48,13 +42,13 @@ class PropertyController extends Controller
                 'seasonalRates' => function ($query) {
                     $query->where('is_active', true)
                         ->orderBy('priority', 'desc');
-                }
+                },
             ])
             ->active();
 
         // Search functionality
         if ($request->filled('search')) {
-            $search = $request->get('search');
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%")
@@ -64,7 +58,7 @@ class PropertyController extends Controller
 
         // Filter by amenities
         if ($request->filled('amenities')) {
-            $amenityIds = explode(',', $request->get('amenities'));
+            $amenityIds = explode(',', $request->input('amenities'));
             $query->whereHas('amenities', function ($q) use ($amenityIds) {
                 $q->whereIn('amenities.id', $amenityIds);
             });
@@ -72,21 +66,21 @@ class PropertyController extends Controller
 
         // Filter by capacity
         if ($request->filled('guests')) {
-            $guests = $request->get('guests');
+            $guests = $request->input('guests');
             $query->where('capacity_max', '>=', $guests);
         }
 
         // Filter by availability (date range)
         if ($request->filled('check_in') && $request->filled('check_out')) {
-            $checkIn = $request->get('check_in');
-            $checkOut = $request->get('check_out');
+            $checkIn = $request->input('check_in');
+            $checkOut = $request->input('check_out');
 
             // Use AvailabilityService untuk filter availability
             $query = $this->availabilityService->filterPropertiesByAvailability($query, $checkIn, $checkOut);
         }
 
         // Sort options
-        $sortBy = $request->get('sort', 'featured');
+        $sortBy = $request->input('sort', 'featured');
         switch ($sortBy) {
             case 'price_low':
                 $query->orderBy('base_rate', 'asc');
@@ -107,9 +101,9 @@ class PropertyController extends Controller
         $properties = $query->paginate(200);
 
         // Calculate current rates for each property
-        $checkIn = $request->get('check_in', now()->toDateString());
-        $checkOut = $request->get('check_out', now()->addDay()->toDateString());
-        $guestCount = $request->get('guests', 2);
+        $checkIn = $request->input('check_in', now()->toDateString());
+        $checkOut = $request->input('check_out', now()->addDay()->toDateString());
+        $guestCount = $request->input('guests', 2);
 
         // Transform properties with rate calculation menggunakan RateCalculationService
         $properties->getCollection()->transform(function ($property) use ($checkIn, $checkOut, $guestCount) {
@@ -119,7 +113,7 @@ class PropertyController extends Controller
                 $property->current_rate_calculation = $rateCalculationArray;
                 $property->current_total_rate = $rateCalculation->totalAmount;
                 $property->current_rate_per_night = $rateCalculation->totalAmount / $rateCalculation->nights;
-                $property->formatted_current_rate = 'Rp ' . number_format($property->current_rate_per_night, 0, ',', '.');
+                $property->formatted_current_rate = 'Rp '.number_format($property->current_rate_per_night, 0, ',', '.');
                 $property->has_seasonal_rate = $rateCalculation->seasonalPremium > 0;
                 $property->seasonal_rate_info = $rateCalculation->breakdown['rate_breakdown']['seasonal_rates_applied'] ?? [];
             } catch (\Exception $e) {
@@ -130,6 +124,7 @@ class PropertyController extends Controller
                 $property->has_seasonal_rate = false;
                 $property->seasonal_rate_info = [];
             }
+
             return $property;
         });
 
@@ -156,9 +151,9 @@ class PropertyController extends Controller
             'properties' => $properties,
             'amenities' => $amenities,
             'filters' => [
-                'search' => $request->get('search'),
-                'amenities' => $request->get('amenities'),
-                'guests' => $request->get('guests'),
+                'search' => $request->input('search'),
+                'amenities' => $request->input('amenities'),
+                'guests' => $request->input('guests'),
                 'sort' => $sortBy,
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
@@ -180,15 +175,15 @@ class PropertyController extends Controller
 
     /**
      * Display the specified property (Public)
-     * 
+     *
      * Route: GET /properties/{property:slug}
      * Property is automatically resolved by Laravel's route model binding
      */
     public function show(Request $request, Property $property): Response
     {
         // Cache the relations load for 1 hour to prevent DB hits on refresh
-        $cacheKey = "property_show_{$property->id}_relations";
-        /** @var \App\Models\Property $property */
+        $cacheKey = "property_show_v2_{$property->id}_relations";
+        /** @var Property $property */
         $property = Cache::remember($cacheKey, 3600, function () use ($property) {
             return $property->load([
                 'owner',
@@ -210,16 +205,16 @@ class PropertyController extends Controller
         });
 
         // Get search parameters
-        $checkIn = $request->get('check_in') ?: today()->toDateString();
-        $checkOut = $request->get('check_out') ?: today()->addDays($property->min_stay_weekday)->toDateString();
-        $guestCount = $request->get('guests', 2);
+        $checkIn = $request->input('check_in') ?: today()->toDateString();
+        $checkOut = $request->input('check_out') ?: today()->addDays($property->min_stay_weekday)->toDateString();
+        $guestCount = $request->input('guests', 2);
 
         // Pre-load 3-month availability and rates data
         $startDate = today()->toDateString();
         $endDate = today()->addMonths(3)->toDateString();
 
         // Use single source of truth for availability and rates (Cached)
-        $availCacheKey = "property_{$property->id}_avail_{$startDate}_{$endDate}";
+        $availCacheKey = "property_v2_{$property->id}_avail_{$startDate}_{$endDate}";
         $availabilityData = Cache::remember($availCacheKey, 3600, function () use ($property, $startDate, $endDate) {
             return $this->availabilityService->getAvailabilityData($property, $startDate, $endDate);
         });
@@ -228,7 +223,7 @@ class PropertyController extends Controller
         $availabilityAndRates = array_merge($availabilityData, [
             'guest_count' => $guestCount,
             'property_info' => $availabilityData['property'],
-            'rates' => $availabilityData['availability_data']['rates']
+            'rates' => $availabilityData['availability_data']['rates'],
         ]);
 
         // Calculate current rate if dates are provided menggunakan RateCalculationService
@@ -239,7 +234,7 @@ class PropertyController extends Controller
                 $property->current_rate_calculation = $rateCalculationArray;
                 $property->current_total_rate = $rateCalculation->totalAmount;
                 $property->current_rate_per_night = $rateCalculation->totalAmount / $rateCalculation->nights;
-                $property->formatted_current_rate = 'Rp ' . number_format($property->current_rate_per_night, 0, ',', '.');
+                $property->formatted_current_rate = 'Rp '.number_format($property->current_rate_per_night, 0, ',', '.');
                 $property->has_seasonal_rate = $rateCalculation->seasonalPremium > 0;
                 $property->seasonal_rate_info = $rateCalculation->breakdown['rate_breakdown']['seasonal_rates_applied'] ?? [];
                 $property->rate_breakdown = $rateCalculationArray;
@@ -277,14 +272,14 @@ class PropertyController extends Controller
             ->where(function ($query) use ($property) {
                 $query->whereBetween('base_rate', [
                     $property->base_rate * 0.7,
-                    $property->base_rate * 1.3
+                    $property->base_rate * 1.3,
                 ])
                     ->orWhere('capacity', $property->capacity);
             })
             ->with([
                 'media' => function ($query) {
                     $query->orderBy('display_order');
-                }
+                },
             ])
             ->limit(4)
             ->get();
@@ -295,22 +290,23 @@ class PropertyController extends Controller
                 try {
                     $rateCalculation = $this->rateCalculationService->calculateRate($similarProperty, $checkIn, $checkOut, $guestCount);
                     $similarProperty->current_rate_per_night = $rateCalculation->totalAmount / $rateCalculation->nights;
-                    $similarProperty->formatted_current_rate = 'Rp ' . number_format($similarProperty->current_rate_per_night, 0, ',', '.');
+                    $similarProperty->formatted_current_rate = 'Rp '.number_format($similarProperty->current_rate_per_night, 0, ',', '.');
                 } catch (\Exception $e) {
                     $similarProperty->formatted_current_rate = $similarProperty->formatted_base_rate;
                 }
+
                 return $similarProperty;
             });
         }
 
         // Cache heavy SEO and Schema generation
-        $seoCacheKey = "property_seo_{$property->id}";
+        $seoCacheKey = "property_seo_v2_{$property->id}";
         $seoData = Cache::remember($seoCacheKey, 3600, function () use ($property) {
             $faqs = $this->seoService->getPropertyFaqs($property);
             $breadcrumbs = [
                 ['name' => 'Home', 'url' => route('home')],
                 ['name' => 'Properties', 'url' => route('properties.index')],
-                ['name' => $property->name, 'url' => route('properties.show', $property->slug)]
+                ['name' => $property->name, 'url' => route('properties.show', $property->slug)],
             ];
 
             return [
@@ -344,7 +340,7 @@ class PropertyController extends Controller
 
     /**
      * Property availability check (API)
-     * 
+     *
      * Route: GET /api/properties/{property:slug}/availability
      * Property is automatically resolved by Laravel's route model binding
      */
@@ -355,8 +351,8 @@ class PropertyController extends Controller
             'check_out' => 'required|date|after:check_in',
         ]);
 
-        $checkIn = $request->get('check_in');
-        $checkOut = $request->get('check_out');
+        $checkIn = $request->input('check_in');
+        $checkOut = $request->input('check_out');
 
         // Gunakan AvailabilityService untuk check availability
         $availability = $this->availabilityService->checkAvailability($property, $checkIn, $checkOut);
@@ -375,9 +371,9 @@ class PropertyController extends Controller
             'guest_count' => 'integer|min:1|max:20',
         ]);
 
-        $checkIn = $request->get('check_in');
-        $checkOut = $request->get('check_out');
-        $guestCount = $request->get('guest_count', $property->capacity);
+        $checkIn = $request->input('check_in');
+        $checkOut = $request->input('check_out');
+        $guestCount = $request->input('guest_count', $property->capacity);
 
         try {
             $rateCalculation = $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount);
@@ -391,17 +387,17 @@ class PropertyController extends Controller
                 ],
                 'calculation' => $rateCalculation->toArray(),
                 'formatted' => [
-                    'base_amount' => 'Rp ' . number_format($rateCalculation->baseAmount, 0, ',', '.'),
-                    'weekend_premium' => 'Rp ' . number_format($rateCalculation->weekendPremium, 0, ',', '.'),
-                    'extra_bed_amount' => 'Rp ' . number_format($rateCalculation->extraBedAmount, 0, ',', '.'),
-                    'cleaning_fee' => 'Rp ' . number_format($rateCalculation->cleaningFee, 0, ',', '.'),
-                    'total_amount' => 'Rp ' . number_format($rateCalculation->totalAmount, 0, ',', '.'),
-                ]
+                    'base_amount' => 'Rp '.number_format($rateCalculation->baseAmount, 0, ',', '.'),
+                    'weekend_premium' => 'Rp '.number_format($rateCalculation->weekendPremium, 0, ',', '.'),
+                    'extra_bed_amount' => 'Rp '.number_format($rateCalculation->extraBedAmount, 0, ',', '.'),
+                    'cleaning_fee' => 'Rp '.number_format($rateCalculation->cleaningFee, 0, ',', '.'),
+                    'total_amount' => 'Rp '.number_format($rateCalculation->totalAmount, 0, ',', '.'),
+                ],
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to calculate rate: ' . $e->getMessage()
+                'error' => 'Failed to calculate rate: '.$e->getMessage(),
             ], 400);
         }
     }
@@ -416,7 +412,7 @@ class PropertyController extends Controller
             ->active();
 
         if ($request->filled('q')) {
-            $search = $request->get('q');
+            $search = $request->input('q');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('address', 'like', "%{$search}%");
@@ -439,7 +435,7 @@ class PropertyController extends Controller
 
     /**
      * Get all property coordinates for map display (Cached API)
-     * 
+     *
      * Route: GET /api/properties/map-coordinates
      * Returns cached coordinates of all active properties
      */
@@ -468,7 +464,7 @@ class PropertyController extends Controller
                                 ->orderBy('display_order', 'asc')
                                 ->orderBy('id', 'asc')
                                 ->limit(1);
-                        }
+                        },
                     ])
                     ->get()
                     ->map(function ($property) {
@@ -495,7 +491,7 @@ class PropertyController extends Controller
                             'lat' => (float) $property->lat,
                             'lng' => (float) $property->lng,
                             'base_rate' => (float) $property->base_rate,
-                            'formatted_base_rate' => 'Rp ' . number_format((float) $property->base_rate, 0, ',', '.'),
+                            'formatted_base_rate' => 'Rp '.number_format((float) $property->base_rate, 0, ',', '.'),
                             'capacity' => (int) $property->capacity,
                             'capacity_max' => (int) $property->capacity_max,
                             'image_url' => $imageUrl,
@@ -522,5 +518,18 @@ class PropertyController extends Controller
         }
     }
 
-    // Admin methods have been moved to App\Http\Controllers\Admin\PropertyManagementController
+    /**
+     * Get all active properties with media and amenities (API)
+     */
+    public function apiIndex(): JsonResponse
+    {
+        $properties = Property::active()
+            ->with(['media', 'amenities'])
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $properties,
+        ]);
+    }
 }

@@ -4,7 +4,7 @@ import { Search, X, Loader2 } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 import { type Booking } from '@/types';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
-import axios from 'axios';
+import { apiGet } from '@/lib/api';
 
 interface BookingSearchBarProps {
     placeholder?: string;
@@ -40,9 +40,10 @@ export default function BookingSearchBar({
 
             setIsSearching(true);
             try {
-                const { data } = await axios.get('/api/admin/booking-management/search', {
-                    params: { q: searchQuery }
-                });
+                const data = await apiGet<{ bookings: Booking[] }>(
+                    '/api/admin/booking-management/search',
+                    { q: searchQuery }
+                );
                 setResults(data.bookings || []);
                 setShowDropdown(true);
             } catch (error) {

@@ -8,6 +8,7 @@ use App\Models\InventoryStockMovement;
 use App\Models\Property;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class CleaningDashboardTest extends TestCase
@@ -15,7 +16,9 @@ class CleaningDashboardTest extends TestCase
     use RefreshDatabase;
 
     private $user;
+
     private $property;
+
     private $item;
 
     protected function setUp(): void
@@ -34,7 +37,7 @@ class CleaningDashboardTest extends TestCase
         $this->actingAs($this->user);
     }
 
-    /** @test */
+    #[Test]
     public function it_can_view_cleaning_dashboard()
     {
         Booking::factory()->create([
@@ -48,7 +51,7 @@ class CleaningDashboardTest extends TestCase
         $response->assertStatus(200);
     }
 
-    /** @test */
+    #[Test]
     public function it_can_mark_property_as_cleaned_with_stock_usage()
     {
         $booking = Booking::factory()->create([
@@ -65,8 +68,8 @@ class CleaningDashboardTest extends TestCase
                 [
                     'item_id' => $this->item->id,
                     'quantity' => 2,
-                ]
-            ]
+                ],
+            ],
         ]);
 
         $response->assertRedirect();
@@ -101,7 +104,7 @@ class CleaningDashboardTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_returns_template_from_last_cleaning()
     {
         // 1. Create a past booking that was cleaned with stock usage

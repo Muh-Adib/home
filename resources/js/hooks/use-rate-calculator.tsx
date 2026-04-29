@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { propertiesService } from '@/lib/api';
+import { apiPost } from '@/lib/api';
 
 /**
  * Interface untuk rate calculation request
@@ -259,7 +259,7 @@ export function useRateCalculator(options: UseRateCalculatorOptions = {}) {
                 guestCount: request.guestCount || 2
             });
 
-            const data = await propertiesService.calculateRate(request.propertySlug, {
+            const data = await apiPost<any>(`/properties/${request.propertySlug}/calculate-rate`, {
                 check_in: request.checkIn,
                 check_out: request.checkOut,
                 guest_count: request.guestCount || 2,

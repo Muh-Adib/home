@@ -7,12 +7,10 @@ use App\Models\Booking;
 use App\Models\BookingDailyRevenue;
 use App\Models\Payment;
 use App\Models\Property;
-use App\Models\FinancialReport;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
-use Carbon\Carbon;
 
 class ReportController extends Controller
 {
@@ -22,15 +20,15 @@ class ReportController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        $period = $request->get('period', 'month');
-        $dateFrom = $request->get('date_from');
-        $dateTo = $request->get('date_to');
-        $propertyId = $request->get('property_id') === 'all' ? null : $request->get('property_id');
-        
+        $period = $request->input('period', 'month');
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+        $propertyId = $request->input('property_id') === 'all' ? null : $request->input('property_id');
+
         // Set date range
         $startDate = $dateFrom ? Carbon::parse($dateFrom) : $this->getStartDate($period);
         $endDate = $dateTo ? Carbon::parse($dateTo) : now();
-        
+
         // Get previous period for comparison
         $diffDays = $startDate->diffInDays($endDate);
         $prevStartDate = $startDate->copy()->subDays($diffDays);
@@ -39,37 +37,37 @@ class ReportController extends Controller
         // Financial Overview
         $financialData = $this->getFinancialOverview($startDate, $endDate, $user, $propertyId);
         $prevFinancialData = $this->getFinancialOverview($prevStartDate, $prevEndDate, $user, $propertyId);
-        
+
         // Booking Overview
         $bookingData = $this->getBookingOverview($startDate, $endDate, $user, $propertyId);
         $prevBookingData = $this->getBookingOverview($prevStartDate, $prevEndDate, $user, $propertyId);
-        
+
         // Property Performance
         $propertyData = $this->getPropertyPerformance($startDate, $endDate, $user, $propertyId);
-        
+
         // Revenue trends
         $revenueByMonth = $this->getRevenueByMonth($startDate, $endDate, $user, $propertyId);
-        
+
         // Payment methods analysis
         $paymentMethods = $this->getPaymentMethodsAnalysis($startDate, $endDate, $user, $propertyId);
 
         // Calculate growth percentages
-        $revenueGrowth = $prevFinancialData['total_revenue'] > 0 
+        $revenueGrowth = $prevFinancialData['total_revenue'] > 0
             ? round((($financialData['total_revenue'] - $prevFinancialData['total_revenue']) / $prevFinancialData['total_revenue']) * 100, 1)
             : 0;
-            
-        $bookingsGrowth = $prevBookingData['total_bookings'] > 0 
+
+        $bookingsGrowth = $prevBookingData['total_bookings'] > 0
             ? round((($bookingData['total_bookings'] - $prevBookingData['total_bookings']) / $prevBookingData['total_bookings']) * 100, 1)
             : 0;
 
         $occupancyRate = $this->calculateOccupancyRate($startDate, $endDate, $user, $propertyId);
         $prevOccupancyRate = $this->calculateOccupancyRate($prevStartDate, $prevEndDate, $user, $propertyId);
-        $occupancyGrowth = $prevOccupancyRate > 0 
+        $occupancyGrowth = $prevOccupancyRate > 0
             ? round((($occupancyRate - $prevOccupancyRate) / $prevOccupancyRate) * 100, 1)
             : 0;
 
         // Properties for filter
-        $properties = $user->role === 'property_owner' 
+        $properties = $user->role === 'property_owner'
             ? Property::where('owner_id', $user->id)->active()->get(['id', 'name'])
             : Property::active()->get(['id', 'name']);
 
@@ -95,7 +93,7 @@ class ReportController extends Controller
                 'date_from' => $dateFrom,
                 'date_to' => $dateTo,
                 'property_id' => $propertyId,
-                'report_type' => $request->get('report_type', 'revenue'),
+                'report_type' => $request->input('report_type', 'revenue'),
                 'period' => $period,
             ],
         ]);
@@ -107,22 +105,22 @@ class ReportController extends Controller
     public function financial(Request $request): Response
     {
         $user = $request->user();
-        $period = $request->get('period', 'month');
-        $propertyId = $request->get('property_id');
-        
+        $period = $request->input('period', 'month');
+        $propertyId = $request->input('property_id');
+
         $startDate = $this->getStartDate($period);
         $endDate = now();
 
         // Revenue analysis
         $revenueData = $this->getRevenueAnalysis($startDate, $endDate, $user, $propertyId);
-        
+
         // Payment analysis
         $paymentData = $this->getPaymentAnalysis($startDate, $endDate, $user, $propertyId);
-        
+
         // Monthly trends
         $trends = $this->getFinancialTrends($startDate, $endDate, $user, $propertyId);
 
-        $properties = $user->role === 'property_owner' 
+        $properties = $user->role === 'property_owner'
             ? Property::where('owner_id', $user->id)->active()->get(['id', 'name'])
             : Property::active()->get(['id', 'name']);
 
@@ -144,22 +142,22 @@ class ReportController extends Controller
     public function occupancy(Request $request): Response
     {
         $user = $request->user();
-        $period = $request->get('period', 'month');
-        $propertyId = $request->get('property_id');
-        
+        $period = $request->input('period', 'month');
+        $propertyId = $request->input('property_id');
+
         $startDate = $this->getStartDate($period);
         $endDate = now();
 
         // Occupancy rates
         $occupancyData = $this->getOccupancyRates($startDate, $endDate, $user, $propertyId);
-        
+
         // Booking patterns
         $bookingPatterns = $this->getBookingPatterns($startDate, $endDate, $user, $propertyId);
-        
+
         // Guest demographics
         $guestDemographics = $this->getGuestDemographics($startDate, $endDate, $user, $propertyId);
 
-        $properties = $user->role === 'property_owner' 
+        $properties = $user->role === 'property_owner'
             ? Property::where('owner_id', $user->id)->active()->get(['id', 'name'])
             : Property::active()->get(['id', 'name']);
 
@@ -181,38 +179,38 @@ class ReportController extends Controller
     public function export(Request $request)
     {
         $user = $request->user();
-        $format = $request->get('format', 'csv');
-        $reportType = $request->get('type', 'revenue');
-        $dateFrom = $request->get('date_from');
-        $dateTo = $request->get('date_to');
-        $propertyId = $request->get('property_id');
-        
+        $format = $request->input('format', 'csv');
+        $reportType = $request->input('type', 'revenue');
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+        $propertyId = $request->input('property_id');
+
         $startDate = $dateFrom ? Carbon::parse($dateFrom) : now()->startOfMonth();
         $endDate = $dateTo ? Carbon::parse($dateTo) : now();
-        
+
         $ownerId = $user->role === 'property_owner' ? $user->id : null;
-        
+
         switch ($reportType) {
             case 'revenue':
                 $data = $this->getRevenueExportData($startDate, $endDate, $ownerId, $propertyId);
-                $filename = 'revenue_report_' . $startDate->format('Ymd') . '_' . $endDate->format('Ymd');
+                $filename = 'revenue_report_'.$startDate->format('Ymd').'_'.$endDate->format('Ymd');
                 break;
             case 'bookings':
                 $data = $this->getBookingsExportData($startDate, $endDate, $ownerId, $propertyId);
-                $filename = 'bookings_report_' . $startDate->format('Ymd') . '_' . $endDate->format('Ymd');
+                $filename = 'bookings_report_'.$startDate->format('Ymd').'_'.$endDate->format('Ymd');
                 break;
             case 'occupancy':
                 $data = $this->getOccupancyExportData($startDate, $endDate, $ownerId, $propertyId);
-                $filename = 'occupancy_report_' . $startDate->format('Ymd') . '_' . $endDate->format('Ymd');
+                $filename = 'occupancy_report_'.$startDate->format('Ymd').'_'.$endDate->format('Ymd');
                 break;
             case 'daily_breakdown':
                 $data = $this->getDailyBreakdownExportData($startDate, $endDate, $ownerId, $propertyId);
-                $filename = 'daily_breakdown_' . $startDate->format('Ymd') . '_' . $endDate->format('Ymd');
+                $filename = 'daily_breakdown_'.$startDate->format('Ymd').'_'.$endDate->format('Ymd');
                 break;
             default:
                 return response()->json(['error' => 'Invalid report type'], 400);
         }
-        
+
         switch ($format) {
             case 'csv':
             case 'excel':
@@ -223,7 +221,7 @@ class ReportController extends Controller
                 return response()->json(['error' => 'Invalid format'], 400);
         }
     }
-    
+
     /**
      * Export revenue data for accountants
      */
@@ -233,32 +231,34 @@ class ReportController extends Controller
             ->inPeriod($startDate, $endDate)
             ->confirmedBookings()
             ->with(['property:id,name', 'booking:id,booking_number,guest_name']);
-        
+
         if ($ownerId) {
             $query->forOwner($ownerId);
         }
-        
+
         if ($propertyId) {
             $query->where('property_id', $propertyId);
         }
-        
+
         // Group by property and month for summary
         $dailyData = $query->orderBy('tanggal')->get();
-        
-        $rows = [[
-            'Date',
-            'Property',
-            'Booking Number',
-            'Guest Name',
-            'Base Amount',
-            'Weekend Premium',
-            'Seasonal Premium',
-            'Extra Bed',
-            'Total Amount',
-            'Rate Type',
-            'Rate Name'
-        ]];
-        
+
+        $rows = [
+            [
+                'Date',
+                'Property',
+                'Booking Number',
+                'Guest Name',
+                'Base Amount',
+                'Weekend Premium',
+                'Seasonal Premium',
+                'Extra Bed',
+                'Total Amount',
+                'Rate Type',
+                'Rate Name',
+            ],
+        ];
+
         foreach ($dailyData as $record) {
             $rows[] = [
                 $record->tanggal->format('Y-m-d'),
@@ -271,10 +271,10 @@ class ReportController extends Controller
                 $record->extra_bed_amount,
                 $record->amount,
                 $record->rate_type,
-                $record->rate_name ?? '-'
+                $record->rate_name ?? '-',
             ];
         }
-        
+
         // Add summary rows
         $totals = $query->selectRaw('
             SUM(base_amount) as total_base,
@@ -283,7 +283,7 @@ class ReportController extends Controller
             SUM(extra_bed_amount) as total_extra_bed,
             SUM(amount) as grand_total
         ')->first();
-        
+
         $rows[] = [];
         $rows[] = ['SUMMARY'];
         $rows[] = ['Total Base Amount', '', '', '', $totals->total_base ?? 0];
@@ -291,10 +291,10 @@ class ReportController extends Controller
         $rows[] = ['Total Seasonal Premium', '', '', '', $totals->total_seasonal ?? 0];
         $rows[] = ['Total Extra Bed', '', '', '', $totals->total_extra_bed ?? 0];
         $rows[] = ['GRAND TOTAL', '', '', '', '', '', '', '', $totals->grand_total ?? 0];
-        
+
         return $rows;
     }
-    
+
     /**
      * Export bookings data
      */
@@ -305,46 +305,48 @@ class ReportController extends Controller
             ->with(['property:id,name', 'user:id,name,email'])
             ->orderBy('check_in')
             ->orderBy('property_id');
-        
+
         if ($ownerId) {
-            $query->whereHas('property', fn($q) => $q->where('owner_id', $ownerId));
+            $query->whereHas('property', fn ($q) => $q->where('owner_id', $ownerId));
         }
-        
+
         if ($propertyId) {
             $query->where('property_id', $propertyId);
         }
-        
-        $rows = [[
-            'No',
-            'Booking Number',
-            'Property',
-            'Guest Name',
-            'Guest Email',
-            'Guest Phone',
-            'Guest Country',
-            'Check In',
-            'Check Out',
-            'Nights',
-            'Guest Count',
-            'Room Amount',
-            'Cleaning Fee',
-            'Extra Bed Fee',
-            'Total Amount',
-            'Booking Status',
-            'Payment Status',
-            'Booking Source',
-            'Special Requests',
-            'Created At'
-        ]];
-        
+
+        $rows = [
+            [
+                'No',
+                'Booking Number',
+                'Property',
+                'Guest Name',
+                'Guest Email',
+                'Guest Phone',
+                'Guest Country',
+                'Check In',
+                'Check Out',
+                'Nights',
+                'Guest Count',
+                'Room Amount',
+                'Cleaning Fee',
+                'Extra Bed Fee',
+                'Total Amount',
+                'Booking Status',
+                'Payment Status',
+                'Booking Source',
+                'Special Requests',
+                'Created At',
+            ],
+        ];
+
         $no = 1;
         $totalAmount = 0;
         $totalBookings = 0;
-        
+
         foreach ($query->get() as $booking) {
             $totalAmount += $booking->total_amount ?? 0;
             $totalBookings++;
-            
+
             $rows[] = [
                 $no++,
                 $booking->booking_number ?? '-',
@@ -365,10 +367,10 @@ class ReportController extends Controller
                 ucfirst(str_replace('_', ' ', $booking->payment_status ?? 'unknown')),
                 ucfirst(str_replace('_', ' ', $booking->booking_source ?? 'direct')),
                 $booking->special_requests ?? '-',
-                $booking->created_at ? $booking->created_at->format('Y-m-d H:i:s') : '-'
+                $booking->created_at ? $booking->created_at->format('Y-m-d H:i:s') : '-',
             ];
         }
-        
+
         // Add summary rows
         $rows[] = [];
         $rows[] = ['SUMMARY'];
@@ -376,59 +378,61 @@ class ReportController extends Controller
         $rows[] = ['Total Revenue:', '', '', '', '', '', '', '', '', '', '', '', '', '', $totalAmount];
         $rows[] = ['Report Period:', $startDate->format('Y-m-d'), 'to', $endDate->format('Y-m-d')];
         $rows[] = ['Generated:', now()->format('Y-m-d H:i:s')];
-        
+
         return $rows;
     }
-    
+
     /**
      * Export occupancy data
      */
     private function getOccupancyExportData($startDate, $endDate, $ownerId, $propertyId): array
     {
         $propertyQuery = Property::active();
-        
+
         if ($ownerId) {
             $propertyQuery->where('owner_id', $ownerId);
         }
-        
+
         if ($propertyId) {
             $propertyQuery->where('id', $propertyId);
         }
-        
-        $rows = [[
-            'Property',
-            'Total Days',
-            'Booked Days',
-            'Occupancy Rate (%)',
-            'Total Revenue',
-            'Average Daily Rate'
-        ]];
-        
+
+        $rows = [
+            [
+                'Property',
+                'Total Days',
+                'Booked Days',
+                'Occupancy Rate (%)',
+                'Total Revenue',
+                'Average Daily Rate',
+            ],
+        ];
+
         foreach ($propertyQuery->get() as $property) {
             $totalDays = $startDate->diffInDays($endDate);
             $occupancy = $this->calculatePropertyOccupancyRate($property->id, $startDate, $endDate);
             $bookedDays = round(($occupancy / 100) * $totalDays);
-            
+
             $revenue = BookingDailyRevenue::where('property_id', $property->id)
                 ->inPeriod($startDate, $endDate)
                 ->confirmedBookings()
                 ->sum('amount');
-            
+
             $avgDailyRate = $bookedDays > 0 ? $revenue / $bookedDays : 0;
-            
+
             $rows[] = [
                 $property->name,
                 $totalDays,
                 $bookedDays,
                 round($occupancy, 2),
                 $revenue,
-                round($avgDailyRate, 2)
+                round($avgDailyRate, 2),
             ];
         }
-        
+
         return $rows;
     }
-    
+
     /**
      * Export detailed daily breakdown
      */
@@ -439,22 +443,24 @@ class ReportController extends Controller
             $propertyId,
             $ownerId
         );
-        
-        $rows = [[
-            'Month',
-            'Total Revenue',
-            'Base Amount',
-            'Weekend Premium',
-            'Seasonal Premium',
-            'Extra Bed Amount',
-            'Days Booked',
-            'Weekend Days',
-            'Seasonal Days'
-        ]];
-        
+
+        $rows = [
+            [
+                'Month',
+                'Total Revenue',
+                'Base Amount',
+                'Weekend Premium',
+                'Seasonal Premium',
+                'Extra Bed Amount',
+                'Days Booked',
+                'Weekend Days',
+                'Seasonal Days',
+            ],
+        ];
+
         foreach ($breakdown as $month) {
             $rows[] = [
-                $month['month_name'] . ' ' . $month['year'],
+                $month['month_name'].' '.$month['year'],
                 $month['total'],
                 $month['base_amount'],
                 $month['weekend_premium'],
@@ -462,33 +468,33 @@ class ReportController extends Controller
                 $month['extra_bed_amount'],
                 $month['days_count'],
                 $month['weekend_days'],
-                $month['seasonal_days']
+                $month['seasonal_days'],
             ];
         }
-        
+
         return $rows;
     }
-    
+
     /**
      * Generate CSV response
      */
     private function exportToCsv(array $data, string $filename)
     {
-        $callback = function() use ($data) {
+        $callback = function () use ($data) {
             $file = fopen('php://output', 'w');
             // Add BOM for Excel UTF-8 compatibility
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-            
+
             foreach ($data as $row) {
                 fputcsv($file, $row);
             }
-            
+
             fclose($file);
         };
-        
+
         return response()->stream($callback, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '.csv"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'.csv"',
         ]);
     }
 
@@ -496,7 +502,7 @@ class ReportController extends Controller
 
     private function getStartDate($period): Carbon
     {
-        return match($period) {
+        return match ($period) {
             'week' => now()->startOfWeek(),
             'month' => now()->startOfMonth(),
             'quarter' => now()->startOfQuarter(),
@@ -535,8 +541,8 @@ class ReportController extends Controller
 
         // Get revenue breakdown
         $breakdown = BookingDailyRevenue::getRevenueBreakdown(
-            $startDate, 
-            $endDate, 
+            $startDate,
+            $endDate,
             $propertyId,
             $user && $user->role === 'property_owner' ? $user->id : null
         );
@@ -585,7 +591,7 @@ class ReportController extends Controller
             ->toArray();
 
         $totalBookings = array_sum($bookings);
-        
+
         $checkIns = Booking::whereDate('check_in', today())
             ->when($user && $user->role === 'property_owner', function ($q) use ($user) {
                 $q->whereHas('property', function ($pq) use ($user) {
@@ -596,7 +602,7 @@ class ReportController extends Controller
                 $q->where('property_id', $propertyId);
             })
             ->count();
-            
+
         $checkOuts = Booking::whereDate('check_out', today())
             ->when($user && $user->role === 'property_owner', function ($q) use ($user) {
                 $q->whereHas('property', function ($pq) use ($user) {
@@ -607,7 +613,7 @@ class ReportController extends Controller
                 $q->where('property_id', $propertyId);
             })
             ->count();
-            
+
         $currentGuests = Booking::where('booking_status', 'checked_in')
             ->when($user && $user->role === 'property_owner', function ($q) use ($user) {
                 $q->whereHas('property', function ($pq) use ($user) {
@@ -641,22 +647,23 @@ class ReportController extends Controller
         }
 
         return $query->withCount([
-                'bookings as total_bookings' => function ($q) use ($startDate, $endDate) {
-                    $q->where('booking_status', '!=', 'cancelled')
-                      ->whereBetween('check_in', [$startDate, $endDate]);
-                }
-            ])
+            'bookings as total_bookings' => function ($q) use ($startDate, $endDate) {
+                $q->where('booking_status', '!=', 'cancelled')
+                    ->whereBetween('check_in', [$startDate, $endDate]);
+            },
+        ])
             ->withSum([
                 'bookings as total_revenue' => function ($q) use ($startDate, $endDate) {
                     $q->where('booking_status', '!=', 'cancelled')
-                      ->whereBetween('check_in', [$startDate, $endDate]);
-                }
+                        ->whereBetween('check_in', [$startDate, $endDate]);
+                },
             ], 'total_amount')
             ->orderByDesc('total_revenue')
             ->limit(10)
             ->get()
             ->map(function ($property) use ($startDate, $endDate) {
                 $occupancyRate = $this->calculatePropertyOccupancyRate($property->id, $startDate, $endDate);
+
                 return [
                     'id' => $property->id,
                     'name' => $property->name,
@@ -673,21 +680,21 @@ class ReportController extends Controller
         $months = [];
         $current = $startDate->copy()->startOfMonth();
         $ownerId = $user && $user->role === 'property_owner' ? $user->id : null;
-        
+
         while ($current->lte($endDate)) {
             $monthStart = $current->copy()->startOfMonth();
             $monthEnd = $current->copy()->endOfMonth();
-            
+
             // Use BookingDailyRevenue for accurate monthly revenue
             $breakdown = BookingDailyRevenue::getRevenueBreakdown(
-                $monthStart, 
-                $monthEnd, 
+                $monthStart,
+                $monthEnd,
                 $propertyId,
                 $ownerId
             );
 
             $bookingQuery = Booking::whereBetween('created_at', [$monthStart, $monthEnd]);
-            
+
             if ($user && $user->role === 'property_owner') {
                 $bookingQuery->whereHas('property', function ($q) use ($user) {
                     $q->where('owner_id', $user->id);
@@ -741,7 +748,7 @@ class ReportController extends Controller
             ->get();
 
         $totalAmount = $payments->sum('amount');
-        
+
         return $payments->map(function ($payment) use ($totalAmount) {
             return [
                 'method' => $payment->method,
@@ -789,7 +796,7 @@ class ReportController extends Controller
     private function formatBookingsByStatus($statusBreakdown): array
     {
         $total = array_sum($statusBreakdown);
-        
+
         return collect($statusBreakdown)->map(function ($count, $status) use ($total) {
             return [
                 'status' => $status,
@@ -802,17 +809,17 @@ class ReportController extends Controller
     private function calculateOccupancyRate($startDate, $endDate, $user = null, $propertyId = null): float
     {
         $propertyQuery = Property::active();
-        
+
         if ($user && $user->role === 'property_owner') {
             $propertyQuery->where('owner_id', $user->id);
         }
-        
+
         if ($propertyId) {
             $propertyQuery->where('id', $propertyId);
         }
 
         $properties = $propertyQuery->get();
-        
+
         if ($properties->isEmpty()) {
             return 0;
         }
@@ -825,20 +832,20 @@ class ReportController extends Controller
                 ->where('booking_status', '!=', 'cancelled')
                 ->where(function ($q) use ($startDate, $endDate) {
                     $q->whereBetween('check_in', [$startDate, $endDate])
-                      ->orWhereBetween('check_out', [$startDate, $endDate])
-                      ->orWhere(function ($q2) use ($startDate, $endDate) {
-                          $q2->where('check_in', '<=', $startDate)
-                             ->where('check_out', '>=', $endDate);
-                      });
+                        ->orWhereBetween('check_out', [$startDate, $endDate])
+                        ->orWhere(function ($q2) use ($startDate, $endDate) {
+                            $q2->where('check_in', '<=', $startDate)
+                                ->where('check_out', '>=', $endDate);
+                        });
                 })
                 ->get()
                 ->sum(function ($booking) use ($startDate, $endDate) {
                     $checkIn = Carbon::parse($booking->check_in);
                     $checkOut = Carbon::parse($booking->check_out);
-                    
+
                     $actualStart = $checkIn->max($startDate);
                     $actualEnd = $checkOut->min($endDate);
-                    
+
                     return $actualStart->diffInDays($actualEnd);
                 });
 
@@ -851,25 +858,25 @@ class ReportController extends Controller
     private function calculatePropertyOccupancyRate($propertyId, $startDate, $endDate): float
     {
         $totalDays = $startDate->diffInDays($endDate);
-        
+
         $bookedDays = Booking::where('property_id', $propertyId)
             ->where('booking_status', '!=', 'cancelled')
             ->where(function ($q) use ($startDate, $endDate) {
                 $q->whereBetween('check_in', [$startDate, $endDate])
-                  ->orWhereBetween('check_out', [$startDate, $endDate])
-                  ->orWhere(function ($q2) use ($startDate, $endDate) {
-                      $q2->where('check_in', '<=', $startDate)
-                         ->where('check_out', '>=', $endDate);
-                  });
+                    ->orWhereBetween('check_out', [$startDate, $endDate])
+                    ->orWhere(function ($q2) use ($startDate, $endDate) {
+                        $q2->where('check_in', '<=', $startDate)
+                            ->where('check_out', '>=', $endDate);
+                    });
             })
             ->get()
             ->sum(function ($booking) use ($startDate, $endDate) {
                 $checkIn = Carbon::parse($booking->check_in);
                 $checkOut = Carbon::parse($booking->check_out);
-                
+
                 $actualStart = $checkIn->max($startDate);
                 $actualEnd = $checkOut->min($endDate);
-                
+
                 return max(0, $actualStart->diffInDays($actualEnd));
             });
 
@@ -934,7 +941,7 @@ class ReportController extends Controller
     private function getOccupancyRates($startDate, $endDate, $user = null, $propertyId = null): array
     {
         $query = Property::query();
-        
+
         if ($user && $user->role === 'property_owner') {
             $query->where('owner_id', $user->id);
         }
@@ -994,9 +1001,16 @@ class ReportController extends Controller
                 return Carbon::parse($booking->created_at)->diffInDays($booking->check_in);
             })
             ->groupBy(function ($days) {
-                if ($days <= 7) return '0-7 days';
-                if ($days <= 30) return '8-30 days';
-                if ($days <= 60) return '31-60 days';
+                if ($days <= 7) {
+                    return '0-7 days';
+                }
+                if ($days <= 30) {
+                    return '8-30 days';
+                }
+                if ($days <= 60) {
+                    return '31-60 days';
+                }
+
                 return '60+ days';
             })
             ->map(function ($group) {

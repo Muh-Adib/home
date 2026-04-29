@@ -25,8 +25,11 @@ class GetPropertyDateRangeRequest extends FormRequest
     {
         return [
             'property_id' => 'required|exists:properties,id',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after:start_date',
+            'start_date'  => 'nullable|date',
+            'end_date'    => 'nullable|date|after:start_date',
+            // Aliases sent by BookingForm.tsx
+            'start'       => 'nullable|date',
+            'end'         => 'nullable|date',
         ];
     }
 

@@ -2,34 +2,38 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
-use App\Services\BookingService;
-use App\Services\AvailabilityService;
-use App\Models\Property;
-use App\Models\User;
-use App\Models\Booking;
 use App\Domain\Booking\ValueObjects\BookingRequest;
 use App\Domain\Booking\ValueObjects\RateCalculation;
+use App\Models\Booking;
+use App\Models\Property;
+use App\Models\User;
+use App\Services\AvailabilityService;
+use App\Services\BookingService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
-use Carbon\Carbon;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class BookingServiceTest extends TestCase
 {
     use RefreshDatabase, WithFaker;
 
     protected $bookingService;
+
     protected $availabilityService;
+
     protected $property;
+
     protected $user;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->bookingService = app(BookingService::class);
         $this->availabilityService = app(AvailabilityService::class);
-        
+
         $this->property = Property::factory()->create([
             'name' => 'Test Villa',
             'slug' => 'test-villa',
@@ -51,7 +55,7 @@ class BookingServiceTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_can_create_booking_request()
     {
         $data = [
@@ -84,7 +88,7 @@ class BookingServiceTest extends TestCase
         $this->assertEquals(50, $bookingRequest->dpPercentage);
     }
 
-    /** @test */
+    #[Test]
     public function it_validates_booking_request_data()
     {
         // Test missing required fields
@@ -97,7 +101,7 @@ class BookingServiceTest extends TestCase
         $this->bookingService->createBookingRequest($data);
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_rate_correctly()
     {
         $checkIn = now()->addDays(1);
@@ -117,7 +121,7 @@ class BookingServiceTest extends TestCase
         $this->assertGreaterThan(0, $rateCalculation->remainingAmount);
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_extra_bed_charges()
     {
         $checkIn = now()->addDays(1);
@@ -133,14 +137,14 @@ class BookingServiceTest extends TestCase
 
         $this->assertInstanceOf(RateCalculation::class, $rateCalculation);
         $this->assertGreaterThan(0, $rateCalculation->extraBedAmount);
-        
+
         // Calculate expected extra bed amount
         $extraBeds = $guestCount - $this->property->capacity; // 6 - 4 = 2
         $expectedExtraBedAmount = $extraBeds * $this->property->extra_bed_rate * 2; // 2 nights
         $this->assertEquals($expectedExtraBedAmount, $rateCalculation->extraBedAmount);
     }
 
-    /** @test */
+    #[Test]
     public function it_validates_minimum_stay_requirements()
     {
         // Test weekend minimum stay
@@ -156,7 +160,7 @@ class BookingServiceTest extends TestCase
         );
     }
 
-    /** @test */
+    #[Test]
     public function it_validates_guest_count_limits()
     {
         // Test guest count exceeds maximum
@@ -166,7 +170,7 @@ class BookingServiceTest extends TestCase
         $this->bookingService->validateGuestCount($this->property, $guestCount);
     }
 
-    /** @test */
+    #[Test]
     public function it_creates_booking_with_workflow()
     {
         $data = [
@@ -207,7 +211,7 @@ class BookingServiceTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_different_dp_percentages()
     {
         $dpPercentages = [30, 50, 100];
@@ -235,17 +239,17 @@ class BookingServiceTest extends TestCase
             $booking = $this->bookingService->createBooking($data);
 
             $this->assertEquals($dpPercentage, $booking->dp_percentage);
-            
+
             // Verify DP calculation
             $expectedDpAmount = $booking->total_amount * $dpPercentage / 100;
             $this->assertEquals($expectedDpAmount, $booking->dp_amount);
-            
+
             $expectedRemainingAmount = $booking->total_amount * (100 - $dpPercentage) / 100;
             $this->assertEquals($expectedRemainingAmount, $booking->remaining_amount);
         }
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_guest_details()
     {
         $data = [
@@ -284,14 +288,14 @@ class BookingServiceTest extends TestCase
         $booking = $this->bookingService->createBooking($data);
 
         $this->assertEquals(4, $booking->guest_count); // 2 male + 1 female + 1 child
-        
+
         // Check if guest details were saved
         $this->assertDatabaseHas('booking_guests', [
             'booking_id' => $booking->id,
             'name' => 'Additional Guest 1',
             'gender' => 'male',
         ]);
-        
+
         $this->assertDatabaseHas('booking_guests', [
             'booking_id' => $booking->id,
             'name' => 'Additional Guest 2',
@@ -299,7 +303,7 @@ class BookingServiceTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_validates_property_availability()
     {
         // Create existing booking
@@ -334,7 +338,7 @@ class BookingServiceTest extends TestCase
         $this->bookingService->createBooking($data);
     }
 
-    /** @test */
+    #[Test]
     public function it_generates_booking_number()
     {
         $data = [
@@ -363,7 +367,7 @@ class BookingServiceTest extends TestCase
         $this->assertEquals(12, strlen($booking->booking_number)); // BK + 10 digits
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_cleaning_fee()
     {
         $checkIn = now()->addDays(1);
@@ -380,7 +384,7 @@ class BookingServiceTest extends TestCase
         $this->assertEquals($this->property->cleaning_fee, $rateCalculation->cleaningFee);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_weekend_premium()
     {
         // Test weekend booking
@@ -396,10 +400,10 @@ class BookingServiceTest extends TestCase
         );
 
         $this->assertGreaterThan(0, $rateCalculation->weekendPremium);
-        
+
         // Verify weekend premium calculation
         $baseRate = $this->property->base_rate;
         $weekendPremium = $baseRate * ($this->property->weekend_premium_percent / 100);
         $this->assertEquals($weekendPremium, $rateCalculation->weekendPremium);
     }
-} 
+}

@@ -2,10 +2,11 @@
 
 namespace App\Models;
 
+use App\Actions\Payment\VerifyPaymentAction;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class Payment extends Model
 {
@@ -55,7 +56,7 @@ class Payment extends Model
         'attachment_full_path',
         'attachment_size',
         'attachment_type',
-        'attachment_exists'
+        'attachment_exists',
     ];
 
     // Boot method
@@ -99,7 +100,7 @@ class Payment extends Model
     // Accessors for attachment information
     public function getAttachmentFilenameAttribute(): ?string
     {
-        if (!$this->attachment_path) {
+        if (! $this->attachment_path) {
             return null;
         }
 
@@ -108,20 +109,20 @@ class Payment extends Model
 
     public function getAttachmentFullPathAttribute(): ?string
     {
-        if (!$this->attachment_path) {
+        if (! $this->attachment_path) {
             return null;
         }
 
-        return asset('storage/' . $this->attachment_path);
+        return asset('storage/'.$this->attachment_path);
     }
 
     public function getAttachmentSizeAttribute(): ?int
     {
-        if (!$this->attachment_path) {
+        if (! $this->attachment_path) {
             return null;
         }
 
-        $fullPath = storage_path('app/public/' . $this->attachment_path);
+        $fullPath = storage_path('app/public/'.$this->attachment_path);
 
         if (file_exists($fullPath)) {
             return filesize($fullPath);
@@ -132,7 +133,7 @@ class Payment extends Model
 
     public function getAttachmentTypeAttribute(): ?string
     {
-        if (!$this->attachment_path) {
+        if (! $this->attachment_path) {
             return null;
         }
 
@@ -149,7 +150,7 @@ class Payment extends Model
 
     public function getAttachmentExistsAttribute(): bool
     {
-        if (!$this->attachment_path) {
+        if (! $this->attachment_path) {
             return false;
         }
 
@@ -176,14 +177,14 @@ class Payment extends Model
     protected function formattedAmount(): Attribute
     {
         return Attribute::make(
-            get: fn() => 'Rp ' . number_format((int) $this->amount, 0, ',', '.')
+            get: fn () => 'Rp '.number_format((int) $this->amount, 0, ',', '.')
         );
     }
 
     protected function statusColor(): Attribute
     {
         return Attribute::make(
-            get: fn() => match ($this->payment_status) {
+            get: fn () => match ($this->payment_status) {
                 'pending' => 'yellow',
                 'verified' => 'green',
                 'failed' => 'red',
@@ -198,14 +199,32 @@ class Payment extends Model
     {
         $prefix = 'PAY';
         $date = now()->format('ymd');
-        $lastPayment = self::whereDate('created_at', today())
-            ->latest('id')
-            ->first();
 
-        $sequence = $lastPayment ?
-            intval(substr($lastPayment->payment_number, -3)) + 1 : 1;
+        // For SQLite (tests), avoid lockForUpdate
+        if (config('database.default') === 'sqlite') {
+            $lastPayment = self::whereDate('created_at', today())
+                ->orderBy('id', 'desc')
+                ->first();
 
-        return $prefix . $date . sprintf('%03d', $sequence);
+            $sequence = $lastPayment
+                ? intval(substr($lastPayment->payment_number, -3)) + 1
+                : 1;
+
+            return $prefix.$date.sprintf('%03d', $sequence);
+        }
+
+        return \DB::transaction(function () use ($prefix, $date) {
+            $lastPayment = self::whereDate('created_at', today())
+                ->lockForUpdate()
+                ->orderBy('id', 'desc')
+                ->first();
+
+            $sequence = $lastPayment
+                ? intval(substr($lastPayment->payment_number, -3)) + 1
+                : 1;
+
+            return $prefix.$date.sprintf('%03d', $sequence);
+        });
     }
 
     // Helper Methods
@@ -216,11 +235,11 @@ class Payment extends Model
 
     public function verify(User $verifier, ?string $notes = null): bool
     {
-        if (!$this->canBeVerified()) {
+        if (! $this->canBeVerified()) {
             return false;
         }
 
-        return app(\App\Actions\Payment\VerifyPaymentAction::class)->execute($this, $verifier, $notes);
+        return app(VerifyPaymentAction::class)->execute($this, $verifier, $notes);
     }
 
     public function getRouteKeyName(): string
@@ -233,7 +252,7 @@ class Payment extends Model
      */
     public function isGatewayPayment(): bool
     {
-        return !empty($this->gateway_transaction_id) || !empty($this->ipaymu_session_id);
+        return ! empty($this->gateway_transaction_id) || ! empty($this->ipaymu_session_id);
     }
 
     /**
@@ -241,7 +260,7 @@ class Payment extends Model
      */
     public function isIpaymuPayment(): bool
     {
-        return !empty($this->ipaymu_session_id) ||
+        return ! empty($this->ipaymu_session_id) ||
             ($this->paymentMethod && $this->paymentMethod->code === 'ipaymu');
     }
 
@@ -250,7 +269,7 @@ class Payment extends Model
      */
     public function isPaymentLinkExpired(): bool
     {
-        if (!$this->ipaymu_expired_at) {
+        if (! $this->ipaymu_expired_at) {
             return false;
         }
 

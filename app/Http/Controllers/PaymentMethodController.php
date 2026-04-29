@@ -3,12 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\PaymentMethod;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Gate;
 
 class PaymentMethodController extends Controller
 {
@@ -18,33 +17,33 @@ class PaymentMethodController extends Controller
     public function index(Request $request): Response
     {
         $this->authorize('managePaymentMethods', PaymentMethod::class);
-        
+
         $query = PaymentMethod::query();
 
         // Search
         if ($request->filled('search')) {
-            $search = $request->get('search');
+            $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('code', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('code', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
         // Filter by type
         if ($request->filled('type')) {
-            $query->where('type', $request->get('type'));
+            $query->where('type', $request->input('type'));
         }
 
         // Filter by status
         if ($request->filled('status')) {
-            $status = $request->get('status') === 'active';
+            $status = $request->input('status') === 'active';
             $query->where('is_active', $status);
         }
 
         $paymentMethods = $query->orderBy('sort_order')
-                               ->orderBy('name')
-                               ->paginate(20);
+            ->orderBy('name')
+            ->paginate(20);
 
         // Stats
         $stats = [
@@ -58,10 +57,10 @@ class PaymentMethodController extends Controller
             'paymentMethods' => $paymentMethods,
             'stats' => $stats,
             'filters' => [
-                'search' => $request->get('search'),
-                'type' => $request->get('type'),
-                'status' => $request->get('status'),
-            ]
+                'search' => $request->input('search'),
+                'type' => $request->input('type'),
+                'status' => $request->input('status'),
+            ],
         ]);
     }
 
@@ -71,7 +70,7 @@ class PaymentMethodController extends Controller
     public function create(): Response
     {
         $this->authorize('managePaymentMethods', Payment::class);
-        
+
         return Inertia::render('Admin/PaymentMethods/Create');
     }
 
@@ -81,7 +80,7 @@ class PaymentMethodController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $this->authorize('managePaymentMethods', Payment::class);
-        
+
         $validated = $request->validate([
             'name' => 'required|string|max:100',
             'code' => 'required|string|max:50|unique:payment_methods,code',
@@ -116,17 +115,19 @@ class PaymentMethodController extends Controller
     {
         $this->authorize('managePaymentMethods', PaymentMethod::class);
 
-        $paymentMethod->load(['payments' => function ($query) {
-            $query->latest()->limit(10);
-        }]);
+        $paymentMethod->load([
+            'payments' => function ($query) {
+                $query->latest()->limit(10);
+            },
+        ]);
 
         // Stats for this payment method
         $stats = [
             'total_payments' => $paymentMethod->payments()->count(),
             'verified_payments' => $paymentMethod->payments()->where('payment_status', 'verified')->count(),
             'total_amount' => $paymentMethod->payments()
-                                           ->where('payment_status', 'verified')
-                                           ->sum('amount'),
+                ->where('payment_status', 'verified')
+                ->sum('amount'),
             'last_used' => $paymentMethod->payments()->latest()->first()?->created_at,
         ];
 
@@ -157,7 +158,7 @@ class PaymentMethodController extends Controller
         dd($request->all());
         $validated = $request->validate([
             'name' => 'required|string|max:100',
-            'code' => 'required|string|max:50|unique:payment_methods,code,' . $paymentMethod->id,
+            'code' => 'required|string|max:50|unique:payment_methods,code,'.$paymentMethod->id,
             'type' => 'required|in:bank_transfer,e_wallet,credit_card,cash',
             'icon' => 'nullable|string|max:10',
             'description' => 'nullable|string',
@@ -218,7 +219,7 @@ class PaymentMethodController extends Controller
         $this->authorize('managePaymentMethods', Payment::class);
 
         $paymentMethod->update([
-            'is_active' => !$paymentMethod->is_active
+            'is_active' => ! $paymentMethod->is_active,
         ]);
 
         $status = $paymentMethod->is_active ? 'activated' : 'deactivated';
@@ -242,7 +243,7 @@ class PaymentMethodController extends Controller
 
         foreach ($validated['payment_methods'] as $methodData) {
             PaymentMethod::where('id', $methodData['id'])
-                        ->update(['sort_order' => $methodData['sort_order']]);
+                ->update(['sort_order' => $methodData['sort_order']]);
         }
 
         return redirect()->back()

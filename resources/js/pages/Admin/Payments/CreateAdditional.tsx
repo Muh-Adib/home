@@ -134,20 +134,8 @@ export default function CreateAdditional({ booking, paymentMethods, users }: Cre
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-
-        const formData = new FormData();
-        Object.keys(data).forEach(key => {
-            if (key === 'attachment' && data.attachment) {
-                formData.append(key, data.attachment);
-            } else if (key !== 'attachment') {
-                formData.append(key, String(data[key as keyof typeof data]));
-            }
-        });
-
-        post(`/admin/payments/booking/${booking.booking_number}/additional`, {
-            data: formData,
-            forceFormData: true,
-        });
+        // Inertia v3: forceFormData auto-serializes File objects — no need to build FormData manually.
+        post(`/admin/payments/booking/${booking.booking_number}/additional`, { forceFormData: true });
     };
 
     const getPaymentTypeIcon = (type: string) => {

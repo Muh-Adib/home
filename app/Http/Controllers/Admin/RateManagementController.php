@@ -6,22 +6,21 @@ use App\Http\Controllers\Controller;
 use App\Models\Property;
 use App\Models\PropertySeasonalRate;
 use App\Services\RateService;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\Validator;
 
 /**
  * RateManagementController - Controller untuk mengelola tarif properti
- * 
+ *
  * Controller ini menangani:
  * - CRUD seasonal rates
  * - Base rate management
  * - Bulk rate updates
  * - Rate calendar view
- * 
+ *
  * Menggunakan RateService untuk semua operasi tarif
  */
 class RateManagementController extends Controller
@@ -40,91 +39,93 @@ class RateManagementController extends Controller
         $startDate = $today->copy()->subDays(30);
         $endDate = $today->copy()->addDays(30);
 
-        $properties = Property::with(['seasonalRates' => function ($query) {
-            $query->where('is_active', true)
-                  ->orderBy('priority', 'desc')
-                  ->orderBy('start_date', 'asc');
-        }])
-        ->where('status', 'active')
-        ->orderBy('name')
-        ->get()
-        ->map(function ($property) use ($today, $startDate, $endDate) {
-            $activeRates = $property->seasonalRates;
-            $currentRate = $activeRates->filter(function ($rate) use ($today) {
-                return $rate->start_date <= $today && $rate->end_date >= $today;
-            })->first();
-            
-            // Build 60-day rate calendar
-            $rateCalendar = [];
-            $current = $startDate->copy();
-            while ($current <= $endDate) {
-                $dateString = $current->format('Y-m-d');
-                $isWeekend = $current->isFriday() || $current->isSaturday() || $current->isSunday();
-                
-                // Find applicable seasonal rate for this date
-                $applicableRate = $activeRates->first(function ($rate) use ($current) {
-                    return $rate->start_date <= $current && $rate->end_date >= $current;
-                });
-                
-                // Calculate effective rate
-                $baseRate = $property->base_rate;
-                $effectiveRate = $baseRate;
-                $rateSource = 'base';
-                $rateName = null;
-                $extraBedRate = $property->extra_bed_rate;
-                
-                if ($applicableRate) {
-                    $effectiveRate = $applicableRate->calculateRate($baseRate);
-                    $rateSource = 'seasonal';
-                    $rateName = $applicableRate->name;
-                    // Use seasonal extra_bed_rate if set
-                    if ($applicableRate->extra_bed_rate !== null) {
-                        $extraBedRate = $applicableRate->extra_bed_rate;
+        $properties = Property::with([
+            'seasonalRates' => function ($query) {
+                $query->where('is_active', true)
+                    ->orderBy('priority', 'desc')
+                    ->orderBy('start_date', 'asc');
+            },
+        ])
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($property) use ($today, $startDate, $endDate) {
+                $activeRates = $property->seasonalRates;
+                $currentRate = $activeRates->filter(function ($rate) use ($today) {
+                    return $rate->start_date <= $today && $rate->end_date >= $today;
+                })->first();
+
+                // Build 60-day rate calendar
+                $rateCalendar = [];
+                $current = $startDate->copy();
+                while ($current <= $endDate) {
+                    $dateString = $current->format('Y-m-d');
+                    $isWeekend = $current->isFriday() || $current->isSaturday() || $current->isSunday();
+
+                    // Find applicable seasonal rate for this date
+                    $applicableRate = $activeRates->first(function ($rate) use ($current) {
+                        return $rate->start_date <= $current && $rate->end_date >= $current;
+                    });
+
+                    // Calculate effective rate
+                    $baseRate = $property->base_rate;
+                    $effectiveRate = $baseRate;
+                    $rateSource = 'base';
+                    $rateName = null;
+                    $extraBedRate = $property->extra_bed_rate;
+
+                    if ($applicableRate) {
+                        $effectiveRate = $applicableRate->calculateRate($baseRate);
+                        $rateSource = 'seasonal';
+                        $rateName = $applicableRate->name;
+                        // Use seasonal extra_bed_rate if set
+                        if ($applicableRate->extra_bed_rate !== null) {
+                            $extraBedRate = $applicableRate->extra_bed_rate;
+                        }
+                    } elseif ($isWeekend && $property->weekend_premium_percent > 0) {
+                        $effectiveRate = $baseRate * (1 + $property->weekend_premium_percent / 100);
+                        $rateSource = 'weekend';
                     }
-                } elseif ($isWeekend && $property->weekend_premium_percent > 0) {
-                    $effectiveRate = $baseRate * (1 + $property->weekend_premium_percent / 100);
-                    $rateSource = 'weekend';
+
+                    $rateCalendar[] = [
+                        'date' => $dateString,
+                        'day' => (int) $current->format('d'),
+                        'dow' => $current->dayOfWeek, // 0=Sunday
+                        'is_weekend' => $isWeekend,
+                        'is_today' => $current->isSameDay($today),
+                        'rate' => $effectiveRate,
+                        'rate_source' => $rateSource, // base, weekend, seasonal
+                        'rate_name' => $rateName,
+                        'extra_bed_rate' => $extraBedRate,
+                    ];
+
+                    $current->addDay();
                 }
-                
-                $rateCalendar[] = [
-                    'date' => $dateString,
-                    'day' => (int) $current->format('d'),
-                    'dow' => $current->dayOfWeek, // 0=Sunday
-                    'is_weekend' => $isWeekend,
-                    'is_today' => $current->isSameDay($today),
-                    'rate' => $effectiveRate,
-                    'rate_source' => $rateSource, // base, weekend, seasonal
-                    'rate_name' => $rateName,
-                    'extra_bed_rate' => $extraBedRate,
+
+                return [
+                    'id' => $property->id,
+                    'name' => $property->name,
+                    'slug' => $property->slug,
+                    'address' => $property->address,
+                    'status' => $property->status,
+                    'base_rate' => $property->base_rate,
+                    'extra_bed_rate' => $property->extra_bed_rate,
+                    'weekend_premium_percent' => $property->weekend_premium_percent,
+                    'capacity' => $property->capacity,
+                    'capacity_max' => $property->capacity_max,
+                    'active_seasonal_rates_count' => $activeRates->count(),
+                    'current_seasonal_rate' => $currentRate ? [
+                        'id' => $currentRate->id,
+                        'name' => $currentRate->name,
+                        'start_date' => $currentRate->start_date->format('Y-m-d'),
+                        'end_date' => $currentRate->end_date->format('Y-m-d'),
+                        'rate_type' => $currentRate->rate_type,
+                        'rate_value' => $currentRate->rate_value,
+                        'extra_bed_rate' => $currentRate->extra_bed_rate,
+                    ] : null,
+                    'rate_calendar' => $rateCalendar,
                 ];
-                
-                $current->addDay();
-            }
-            
-            return [
-                'id' => $property->id,
-                'name' => $property->name,
-                'slug' => $property->slug,
-                'address' => $property->address,
-                'status' => $property->status,
-                'base_rate' => $property->base_rate,
-                'extra_bed_rate' => $property->extra_bed_rate,
-                'weekend_premium_percent' => $property->weekend_premium_percent,
-                'capacity' => $property->capacity,
-                'capacity_max' => $property->capacity_max,
-                'active_seasonal_rates_count' => $activeRates->count(),
-                'current_seasonal_rate' => $currentRate ? [
-                    'id' => $currentRate->id,
-                    'name' => $currentRate->name,
-                    'start_date' => $currentRate->start_date->format('Y-m-d'),
-                    'end_date' => $currentRate->end_date->format('Y-m-d'),
-                    'rate_type' => $currentRate->rate_type,
-                    'rate_value' => $currentRate->rate_value,
-                    'extra_bed_rate' => $currentRate->extra_bed_rate,
-                ] : null,
-                'rate_calendar' => $rateCalendar,
-            ];
-        });
+            });
 
         return Inertia::render('Admin/RateManagement/Index', [
             'properties' => $properties,
@@ -162,7 +163,7 @@ class RateManagementController extends Controller
                     'description' => $rate->description,
                 ];
             });
-        
+
         // Get rate calendar for current month + next 5 months
         $currentMonth = now()->format('Y-m');
         $rateCalendar = $this->rateService->getRateCalendar($property, $currentMonth, 6);
@@ -355,15 +356,15 @@ class RateManagementController extends Controller
         }
 
         try {
-            $results = $this->rateService->bulkUpdateRates($property, $request->get('updates'));
+            $results = $this->rateService->bulkUpdateRates($property, $request->input('updates'));
 
-            $allSuccess = collect($results)->every(fn($result) => $result['success']);
+            $allSuccess = collect($results)->every(fn ($result) => $result['success']);
             $successCount = collect($results)->where('success', true)->count();
             $totalCount = count($results);
 
             return response()->json([
                 'success' => $allSuccess,
-                'message' => $allSuccess 
+                'message' => $allSuccess
                     ? 'All updates completed successfully'
                     : "Completed {$successCount}/{$totalCount} updates",
                 'results' => $results,
@@ -394,8 +395,8 @@ class RateManagementController extends Controller
             ], 422);
         }
 
-        $startMonth = $request->get('start_month');
-        $monthsCount = $request->get('months_count', 6);
+        $startMonth = $request->input('start_month');
+        $monthsCount = $request->input('months_count', 6);
 
         $calendar = $this->rateService->getRateCalendar($property, $startMonth, $monthsCount);
 
