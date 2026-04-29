@@ -10,6 +10,7 @@ use App\Services\SeoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -466,15 +467,13 @@ class PropertyController extends Controller
             // Cache TTL: 1 hour (3600 seconds)
             $cacheTTL = config('cache.performance.property_cache_ttl', 3600);
 
-            // Get from cache or query database
+            // Get from cache or query database — store as plain array, never Eloquent Collection
             $coordinates = Cache::remember($cacheKey, $cacheTTL, function () {
                 return Property::active()
                     ->whereNotNull('lat')
                     ->whereNotNull('lng')
-                    ->where('lat', '>=', -90)
-                    ->where('lat', '<=', 90)
-                    ->where('lng', '>=', -180)
-                    ->where('lng', '<=', 180)
+                    ->whereBetween('lat', [-90, 90])
+                    ->whereBetween('lng', [-180, 180])
                     ->select('id', 'name', 'slug', 'address', 'lat', 'lng', 'base_rate', 'capacity', 'capacity_max')
                     ->with([
                         'media' => function ($query) {
@@ -492,10 +491,9 @@ class PropertyController extends Controller
                         if ($firstMedia) {
                             try {
                                 $imageUrl = $firstMedia->url ?? null;
-                            } catch (\Exception $e) {
-                                \Log::warning('Error getting media URL', [
+                            } catch (\Throwable $e) {
+                                Log::warning('Error getting media URL for map', [
                                     'property_id' => $property->id,
-                                    'media_id' => $firstMedia->id ?? null,
                                     'error' => $e->getMessage(),
                                 ]);
                             }
@@ -514,13 +512,18 @@ class PropertyController extends Controller
                             'capacity_max' => (int) $property->capacity_max,
                             'image_url' => $imageUrl,
                         ];
-                    });
+                    })
+                    ->values()
+                    ->all(); // ← plain PHP array, safe to cache
             });
+
+            // $coordinates is now a plain array
+            $coordinatesArray = is_array($coordinates) ? $coordinates : [];
 
             return response()->json([
                 'success' => true,
-                'count' => $coordinates->count(),
-                'properties' => $coordinates,
+                'count' => count($coordinatesArray),
+                'properties' => $coordinatesArray,
             ]);
         } catch (\Exception $e) {
             \Log::error('Error fetching map coordinates', [
