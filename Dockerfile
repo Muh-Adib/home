@@ -14,8 +14,7 @@ COPY package*.json ./
 
 # Install Node dependencies dengan error handling
 RUN echo "=== Installing Node dependencies ===" && \
-    npm cache clean --force && \
-    npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+    npm ci --legacy-peer-deps
 
 # Build inputs
 COPY tsconfig.json ./
@@ -28,7 +27,7 @@ COPY resources/ ./resources/
 COPY public/ ./public/
 
 # Build assets
-RUN npm run build && \
+RUN NODE_OPTIONS="--max-old-space-size=2048" npm run build && \
     ls -la public/build/
 
 # Production PHP stage dengan Nixpacks compatibility
