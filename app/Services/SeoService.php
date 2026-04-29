@@ -199,8 +199,12 @@ class SeoService
                 'addressCountry' => 'ID',
                 'postalCode' => '55000',
             ],
-            'checkinTime' => $property->check_in_time?->format('H:i') ?? '14:00',
-            'checkoutTime' => $property->check_out_time?->format('H:i') ?? '12:00',
+            'checkinTime' => is_string($property->check_in_time)
+                ? substr($property->check_in_time, 0, 5)
+                : ($property->check_in_time?->format('H:i') ?? '14:00'),
+            'checkoutTime' => is_string($property->check_out_time)
+                ? substr($property->check_out_time, 0, 5)
+                : ($property->check_out_time?->format('H:i') ?? '12:00'),
             'numberOfRooms' => $property->bedroom_count,
             'numberOfBedrooms' => $property->bedroom_count,
             'numberOfBathroomsTotal' => $property->bathroom_count,
