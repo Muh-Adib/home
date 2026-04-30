@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\SeoService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -43,12 +44,12 @@ class HandleInertiaRequests extends Middleware
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
-        $seoService = app(\App\Services\SeoService::class);
+        $seoService = app(SeoService::class);
 
         return [
             ...parent::share($request),
             'name' => config('app.name'),
-            //'quote' => ['message' => trim($message), 'author' => trim($author)],
+            // 'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => $request->user(),
             ],
@@ -59,11 +60,11 @@ class HandleInertiaRequests extends Middleware
                 'asset_url' => config('app.asset_url', config('app.url')),
                 'env' => config('app.env'),
             ],
-            'ziggy' => fn(): array => [
+            'ziggy' => fn (): array => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),
             ],
-            'sidebarOpen' => !$request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             // Share CSRF token untuk frontend (optional, tapi membantu)
             'csrf' => csrf_token(),
             // Flash messages for toast notifications
@@ -81,8 +82,10 @@ class HandleInertiaRequests extends Middleware
                 'siteName' => 'Homsjogja',
                 'defaultImage' => asset('og-image.jpg'),
             ],
+            // WebSite schema — enables Google Sitelinks Search Box
+            'webSiteSchema' => fn (): string => $seoService->webSiteSchema(),
             // Default SEO (bisa di-override per page)
-            'seo' => fn() => $seoService->generate(),
+            'seo' => fn () => $seoService->generate(),
         ];
     }
 }

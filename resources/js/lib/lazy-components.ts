@@ -160,13 +160,6 @@ export const LayoutGroup = lazy(() =>
 );
 
 // ============================================================================
-// AOS (Animation on Scroll)
-// ============================================================================
-
-// Note: AOS is initialized globally in app.tsx
-// It's a utility library, not a React component
-// Import normally where needed: import AOS from 'aos';
-
 // ============================================================================
 // Date Picker (react-day-picker)
 // ============================================================================

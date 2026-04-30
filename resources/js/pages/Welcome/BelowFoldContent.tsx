@@ -1,181 +1,203 @@
 import { Link } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import {
-    Star,
-    ArrowRight,
-    Search,
-    Shield,
-    Sparkles,
-    Award,
-    Quote,
-    User
+    Star, ArrowRight, Search, Shield, Award, Quote, User, Sparkles,
+    MapPin, Clock, CheckCircle,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-interface Props {
-    auth: any;
-    testimonials: any[];
+interface Testimonial {
+    name: string;
+    location: string;
+    rating: number;
+    comment: string;
 }
+
+interface Props {
+    auth: { user?: { name: string } } | null | undefined;
+    testimonials: Testimonial[];
+}
+
+const fadeUp = {
+    hidden: { opacity: 0, y: 24 },
+    visible: (i: number = 0) => ({
+        opacity: 1, y: 0,
+        transition: { duration: 0.55, delay: i * 0.1 },
+    }),
+};
 
 export default function BelowFoldContent({ auth, testimonials }: Props) {
     return (
         <>
-            {/* Stats Section - Enhanced with animations */}
-            <motion.section
-                className="py-20 bg-brand-accent-50"
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                transition={{ duration: 0.6 }}
-                viewport={{ once: true }}
-            >
-                <div className="container mx-auto px-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-12 text-center">
+            {/* ══════════════════════════════════════════════════════════════
+                STATS — Social proof numbers
+                SEO: Reinforces E-E-A-T (authority signals)
+            ══════════════════════════════════════════════════════════════ */}
+            <section aria-label="Statistik Homsjogja" className="py-14 md:py-20 bg-brand-primary">
+                <div className="container mx-auto px-4 sm:px-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12 text-center">
                         {[
-                            { value: "1000+", label: "Homestay Terdaftar", color: "text-primary" },
-                            { value: "50K+", label: "Tamu Puas", color: "text-primary" },
-                            { value: "98%", label: "Rating Positif", color: "text-primary" },
-                            { value: "24/7", label: "Dukungan", color: "text-primary" }
-                        ].map((stat, index) => (
+                            { value: '1.000+', label: 'Properti Terverifikasi' },
+                            { value: '50K+',   label: 'Tamu Puas' },
+                            { value: '4.8/5',  label: 'Rating Rata-rata' },
+                            { value: '24/7',   label: 'Dukungan Pelanggan' },
+                        ].map((stat, i) => (
                             <motion.div
-                                key={index}
-                                className="space-y-3"
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5, delay: index * 0.1 }}
+                                key={i}
+                                custom={i}
+                                initial="hidden"
+                                whileInView="visible"
                                 viewport={{ once: true }}
+                                variants={fadeUp}
+                                className="space-y-2"
                             >
-                                <div className={`text-4xl font-bold ${stat.color}`}>{stat.value}</div>
-                                <div className="text-muted-foreground font-medium">{stat.label}</div>
+                                <div className="text-3xl md:text-4xl font-bold text-white">{stat.value}</div>
+                                <div className="text-sm md:text-base text-white/75 font-medium">{stat.label}</div>
                             </motion.div>
                         ))}
                     </div>
                 </div>
-            </motion.section>
+            </section>
 
-            {/* Features Section - Enhanced with scroll animations */}
-            <motion.section
-                className="py-20 bg-background"
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                transition={{ duration: 0.6 }}
-                viewport={{ once: true }}
-            >
-                <div className="container mx-auto px-6">
+            {/* ══════════════════════════════════════════════════════════════
+                WHY CHOOSE US
+                SEO: H2 with keyword, structured feature list
+            ══════════════════════════════════════════════════════════════ */}
+            <section aria-label="Keunggulan Homsjogja" className="py-16 md:py-24 bg-background">
+                <div className="container mx-auto px-4 sm:px-6">
                     <motion.div
-                        className="text-center mb-16"
-                        initial={{ opacity: 0, y: 30 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6 }}
+                        className="text-center mb-14"
+                        initial="hidden"
+                        whileInView="visible"
                         viewport={{ once: true }}
+                        variants={fadeUp}
                     >
-                        <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
+                        <Badge className="mb-4 bg-brand-primary/10 text-brand-primary border-brand-primary/20 px-4 py-1.5">
+                            <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                            Keunggulan Kami
+                        </Badge>
+                        <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4">
                             Kenapa Pilih Homsjogja?
                         </h2>
-                        <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-light">
-                            Pengalaman menginap dengan cita rasa Jogja yang autentik dan pelayanan modern
+                        <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                            Platform booking homestay &amp; villa Jogja terpercaya dengan pengalaman menginap autentik
                         </p>
                     </motion.div>
 
-                    <div className="grid md:grid-cols-3 gap-12">
+                    <div className="grid md:grid-cols-3 gap-8 md:gap-10">
                         {[
                             {
                                 icon: Search,
-                                title: "Pencarian Cerdas",
-                                description: "Temukan homestay impian dengan mudah. Dari dekat Kraton hingga Malioboro, semua dalam genggaman Anda.",
-                                color: "from-blue-100 to-indigo-100",
-                                iconColor: "text-blue-600"
+                                title: 'Pencarian Cerdas',
+                                desc: 'Temukan homestay impian dengan mudah. Dari dekat Kraton hingga Malioboro, semua dalam genggaman Anda.',
+                                color: 'bg-blue-50 text-blue-600',
                             },
                             {
                                 icon: Shield,
-                                title: "Aman & Terpercaya",
-                                description: "Keamanan transaksi terjamin dengan teknologi modern. Booking mudah, hati tenang seperti di rumah sendiri.",
-                                color: "from-indigo-100 to-purple-100",
-                                iconColor: "text-indigo-600"
+                                title: 'Aman &amp; Terpercaya',
+                                desc: 'Keamanan transaksi terjamin. Booking mudah, hati tenang — semua properti sudah terverifikasi tim kami.',
+                                color: 'bg-indigo-50 text-indigo-600',
                             },
                             {
                                 icon: Award,
-                                title: "Kualitas Istimewa",
-                                description: "Setiap homestay dipilih dengan standar tinggi. Hospitality Jogja yang hangat, fasilitas modern yang lengkap.",
-                                color: "from-purple-100 to-pink-100",
-                                iconColor: "text-purple-600"
-                            }
-                        ].map((feature, index) => (
+                                title: 'Kualitas Istimewa',
+                                desc: 'Setiap homestay dipilih dengan standar tinggi. Hospitality Jogja yang hangat, fasilitas modern yang lengkap.',
+                                color: 'bg-purple-50 text-purple-600',
+                            },
+                        ].map((f, i) => (
                             <motion.div
-                                key={index}
-                                className="text-center space-y-6"
-                                initial={{ opacity: 0, y: 30 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.6, delay: index * 0.2 }}
+                                key={i}
+                                custom={i}
+                                initial="hidden"
+                                whileInView="visible"
                                 viewport={{ once: true }}
+                                variants={fadeUp}
+                                className="text-center space-y-5"
                             >
-                                <div className={`w-20 h-20 bg-gradient-to-br ${feature.color} rounded-2xl flex items-center justify-center mx-auto`}>
-                                    <feature.icon className={`h-10 w-10 ${feature.iconColor}`} />
+                                <div className={`w-18 h-18 w-[72px] h-[72px] ${f.color} rounded-2xl flex items-center justify-center mx-auto`}>
+                                    <f.icon className="h-9 w-9" />
                                 </div>
-                                <h3 className="text-2xl font-bold text-foreground">
-                                    {feature.title}
-                                </h3>
-                                <p className="text-muted-foreground leading-relaxed">
-                                    {feature.description}
-                                </p>
+                                <h3 className="text-xl font-bold text-foreground" dangerouslySetInnerHTML={{ __html: f.title }} />
+                                <p className="text-muted-foreground leading-relaxed">{f.desc}</p>
                             </motion.div>
                         ))}
                     </div>
-                </div>
-            </motion.section>
 
-            {/* Testimonials Section - New */}
-            <motion.section
-                className="py-20 bg-brand-accent-50"
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                transition={{ duration: 0.6 }}
-                viewport={{ once: true }}
-            >
-                <div className="container mx-auto px-6">
+                    {/* Feature checklist — extra SEO content */}
                     <motion.div
-                        className="text-center mb-16"
-                        initial={{ opacity: 0, y: 30 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6 }}
+                        initial="hidden"
+                        whileInView="visible"
                         viewport={{ once: true }}
+                        variants={fadeUp}
+                        className="mt-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-4"
                     >
-                        <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
-                            Apa Kata Mereka?
+                        {[
+                            { icon: CheckCircle, text: 'Foto properti asli & terverifikasi' },
+                            { icon: MapPin,       text: 'Lokasi strategis dekat wisata Jogja' },
+                            { icon: Clock,        text: 'Konfirmasi booking instan' },
+                            { icon: Star,         text: 'Review dari tamu asli' },
+                        ].map((item, i) => (
+                            <div key={i} className="flex items-center gap-3 p-4 rounded-xl bg-muted/40 border border-border">
+                                <item.icon className="h-5 w-5 text-brand-primary flex-shrink-0" />
+                                <span className="text-sm text-foreground font-medium">{item.text}</span>
+                            </div>
+                        ))}
+                    </motion.div>
+                </div>
+            </section>
+
+            {/* ══════════════════════════════════════════════════════════════
+                TESTIMONIALS
+                SEO: Review schema signals, EEAT trust
+            ══════════════════════════════════════════════════════════════ */}
+            <section aria-label="Testimoni Tamu" className="py-16 md:py-24 bg-muted/30">
+                <div className="container mx-auto px-4 sm:px-6">
+                    <motion.div
+                        className="text-center mb-14"
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true }}
+                        variants={fadeUp}
+                    >
+                        <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4">
+                            Apa Kata Tamu Kami?
                         </h2>
-                        <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-light">
-                            Pengalaman nyata dari tamu-tamu kami yang telah merasakan kehangatan hospitality Jogja
+                        <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                            Pengalaman nyata dari ribuan tamu yang telah merasakan kehangatan hospitality Jogja bersama Homsjogja
                         </p>
                     </motion.div>
 
-                    <div className="grid md:grid-cols-3 gap-8">
-                        {testimonials.map((testimonial, index) => (
+                    <div className="grid md:grid-cols-3 gap-6">
+                        {testimonials.map((t, i) => (
                             <motion.div
-                                key={index}
-                                initial={{ opacity: 0, y: 30 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.6, delay: index * 0.2 }}
+                                key={i}
+                                custom={i}
+                                initial="hidden"
+                                whileInView="visible"
                                 viewport={{ once: true }}
+                                variants={fadeUp}
                             >
-                                <Card className="h-full p-6 border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
-                                    <CardContent className="p-0">
-                                        <div className="flex items-center gap-1 mb-4">
-                                            {[...Array(testimonial.rating)].map((_, i) => (
-                                                <Star key={i} className="h-4 w-4 text-yellow-500 fill-current" />
+                                <Card className="h-full border-0 shadow-md hover:shadow-lg transition-shadow duration-300 bg-white">
+                                    <CardContent className="p-6">
+                                        {/* Stars */}
+                                        <div className="flex items-center gap-0.5 mb-4">
+                                            {Array.from({ length: t.rating }).map((_, si) => (
+                                                <Star key={si} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                                             ))}
                                         </div>
-                                        <Quote className="h-8 w-8 text-primary/30 mb-4" />
-                                        <p className="text-muted-foreground mb-6 italic">
-                                            "{testimonial.comment}"
+                                        <Quote className="h-7 w-7 text-brand-primary/25 mb-3" />
+                                        <p className="text-muted-foreground leading-relaxed mb-6 italic text-sm md:text-base">
+                                            "{t.comment}"
                                         </p>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                                                <User className="h-5 w-5 text-primary" />
+                                        <div className="flex items-center gap-3 pt-4 border-t border-border">
+                                            <div className="w-10 h-10 bg-brand-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                                <User className="h-5 w-5 text-brand-primary" />
                                             </div>
                                             <div>
-                                                <div className="font-medium text-foreground">{testimonial.name}</div>
-                                                <div className="text-sm text-muted-foreground">{testimonial.location}</div>
+                                                <div className="font-semibold text-foreground text-sm">{t.name}</div>
+                                                <div className="text-xs text-muted-foreground">{t.location}</div>
                                             </div>
                                         </div>
                                     </CardContent>
@@ -184,75 +206,108 @@ export default function BelowFoldContent({ auth, testimonials }: Props) {
                         ))}
                     </div>
                 </div>
-            </motion.section>
+            </section>
 
-            {/* CTA Section - Enhanced with background illustration */}
-            <motion.section
-                className="py-20 bg-brand-primary text-white relative overflow-hidden"
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                transition={{ duration: 0.6 }}
-                viewport={{ once: true }}
+            {/* ══════════════════════════════════════════════════════════════
+                CTA BANNER
+                SEO: Internal link to /properties and /register
+            ══════════════════════════════════════════════════════════════ */}
+            <section
+                aria-label="Call to Action"
+                className="py-16 md:py-24 bg-brand-primary text-white relative overflow-hidden"
             >
-                {/* Background Pattern */}
-                <div className="absolute inset-0 opacity-10">
-                    <div className="absolute top-10 left-10 w-32 h-32 bg-white rounded-full"></div>
-                    <div className="absolute top-20 right-20 w-24 h-24 bg-white rounded-full"></div>
-                    <div className="absolute bottom-10 left-1/4 w-16 h-16 bg-white rounded-full"></div>
-                    <div className="absolute bottom-20 right-1/3 w-20 h-20 bg-white rounded-full"></div>
+                {/* ── Decorative background ── */}
+                {/* Diagonal stripe overlay */}
+                <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                        backgroundImage: `repeating-linear-gradient(
+                            -45deg,
+                            transparent,
+                            transparent 40px,
+                            rgba(255,255,255,0.03) 40px,
+                            rgba(255,255,255,0.03) 80px
+                        )`,
+                    }}
+                />
+                {/* Top-left accent blob */}
+                <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-brand-accent/20 blur-3xl pointer-events-none" />
+                {/* Bottom-right accent blob */}
+                <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-white/10 blur-3xl pointer-events-none" />
+                {/* Floating icon shapes */}
+                <div className="absolute top-8 right-12 w-14 h-14 rounded-2xl border border-white/15 rotate-12 pointer-events-none" />
+                <div className="absolute top-16 right-32 w-8 h-8 rounded-xl border border-brand-accent/40 -rotate-6 pointer-events-none" />
+                <div className="absolute bottom-10 left-16 w-10 h-10 rounded-full border border-white/20 pointer-events-none" />
+                <div className="absolute bottom-20 left-40 w-6 h-6 rounded-lg border border-white/15 rotate-45 pointer-events-none" />
+                {/* Center glow */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-[600px] h-[300px] bg-brand-accent/10 rounded-full blur-3xl" />
                 </div>
 
-                <div className="container mx-auto px-6 text-center relative z-10">
+                <div className="container mx-auto px-4 sm:px-6 text-center relative z-10">
                     <motion.div
-                        className="max-w-4xl mx-auto"
-                        initial={{ opacity: 0, y: 30 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6 }}
+                        className="max-w-3xl mx-auto"
+                        initial="hidden"
+                        whileInView="visible"
                         viewport={{ once: true }}
+                        variants={fadeUp}
                     >
-                        <Badge className="mb-8 bg-white/20 text-white border-white/30 backdrop-blur-sm">
-                            <Sparkles className="h-4 w-4 mr-2" />
+                        <Badge className="mb-6 bg-white/15 text-white border-white/30 backdrop-blur-sm px-4 py-1.5 gap-1.5">
+                            <Sparkles className="h-3.5 w-3.5" />
                             Temukan Kenyamanan Ala Jogja
                         </Badge>
 
-                        <h2 className="text-4xl md:text-6xl font-bold mb-8">
+                        <h2 className="text-3xl md:text-5xl font-bold mb-6 leading-tight">
                             Dari Homestay hingga Villa Murah Jogja,
-                            <span className="block mt-2">Semua Ada di Homsjogja</span>
+                            <span className="block mt-1 text-brand-accent">Semua Ada di Homsjogja</span>
                         </h2>
 
-                        <p className="text-xl mb-12 opacity-90 leading-relaxed max-w-2xl mx-auto">
+                        <p className="text-lg md:text-xl mb-10 text-white/85 leading-relaxed max-w-2xl mx-auto">
                             Setiap tempat membawa cerita, setiap inap menghadirkan kehangatan.
                             Bersama Homsjogja, rasakan keramahan Jogja di setiap perjalanan Anda.
                         </p>
 
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                            {!auth.user ? (
+                            {!auth?.user ? (
                                 <>
-                                    <Link href="/register">
-                                        <Button size="lg" variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3">
+                                    <Button
+                                        size="lg"
+                                        className="bg-white text-brand-primary hover:bg-white/90 font-semibold px-8 shadow-lg"
+                                        asChild
+                                    >
+                                        <Link href="/register">
                                             Mulai Petualangan Jogja
                                             <ArrowRight className="ml-2 h-5 w-5" />
-                                        </Button>
-                                    </Link>
-                                    <Link href="/properties">
-                                        <Button size="lg" variant="outline" className="border-white bg-brand-secondary text-white hover:bg-brand-primary px-8 py-3">
-                                            Jelajahi Dulu
+                                        </Link>
+                                    </Button>
+                                    <Button
+                                        size="lg"
+                                        variant="outline"
+                                        className="border-white/50 bg-white/10 text-white hover:bg-white/20 px-8"
+                                        asChild
+                                    >
+                                        <Link href="/properties">
+                                            Jelajahi Properti
                                             <Search className="ml-2 h-5 w-5" />
-                                        </Button>
-                                    </Link>
+                                        </Link>
+                                    </Button>
                                 </>
                             ) : (
-                                <Link href="/properties">
-                                    <Button size="lg" variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3">
+                                <Button
+                                    size="lg"
+                                    className="bg-white text-brand-primary hover:bg-white/90 font-semibold px-8 shadow-lg"
+                                    asChild
+                                >
+                                    <Link href="/properties">
                                         Temukan Homestay Impian
                                         <ArrowRight className="ml-2 h-5 w-5" />
-                                    </Button>
-                                </Link>
+                                    </Link>
+                                </Button>
                             )}
                         </div>
                     </motion.div>
                 </div>
-            </motion.section>
+            </section>
         </>
     );
 }

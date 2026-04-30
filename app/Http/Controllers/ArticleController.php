@@ -159,8 +159,9 @@ class ArticleController extends Controller
     public function show(string $slug): Response
     {
         $safeSlug = strlen($slug) > 50 ? substr($slug, 0, 50).'_'.md5($slug) : $slug;
-        $cacheKey = "article_show_{$safeSlug}";
+        $cacheKey = "article_show_v2_{$safeSlug}";
 
+        // Cache only plain arrays — never Eloquent models/collections (causes __PHP_Incomplete_Class on unserialize)
         $data = Cache::remember($cacheKey, 3600, function () use ($slug) {
             $article = Article::where('slug', $slug)
                 ->with(['author', 'properties.media'])
@@ -173,23 +174,26 @@ class ArticleController extends Controller
                 ->get();
 
             return [
-                'article' => $article,
-                'relatedArticles' => $relatedArticles,
+                'article' => $article->toArray(),
+                'relatedArticles' => $relatedArticles->toArray(),
                 'seo' => $this->seoService->forArticle($article),
                 'schema' => $this->seoService->articleSchema($article),
             ];
         });
 
-        $article = $data['article'];
-
+        // Re-fetch minimal data for authorization (not from cache) — id is always in the cached array
+        $article = Article::findOrFail($data['article']['id']);
         $this->authorize('view', $article);
 
         // Increment view count directly in DB to avoid stale cache issues
-        Article::where('id', $article->id)->increment('view_count');
-        $article->view_count++; // Update local memory copy for UI display
+        Article::where('id', $data['article']['id'])->increment('view_count');
+
+        // Merge incremented view count into cached array for display
+        $articleData = $data['article'];
+        $articleData['view_count'] = ($articleData['view_count'] ?? 0) + 1;
 
         return Inertia::render('Articles/Show', [
-            'article' => $article,
+            'article' => $articleData,
             'relatedArticles' => $data['relatedArticles'],
             'seo' => $data['seo'],
             'schema' => $data['schema'],
@@ -437,11 +441,18 @@ class ArticleController extends Controller
             $query->search($request->input('search'));
         }
 
-        $cacheKey = 'articles_index_'.md5(json_encode($request->only(['page', 'language', 'search'])));
+        // Do NOT cache the paginator object — LengthAwarePaginator is not safely serializable.
+        // Cache only the plain array representation to avoid __PHP_Incomplete_Class errors.
+        $cacheKey = 'articles_index_v2_'.md5(json_encode($request->only(['page', 'language', 'search'])));
 
-        $articles = Cache::remember($cacheKey, 3600, function () use ($query) {
-            return $query->paginate(12);
+        $articlesData = Cache::remember($cacheKey, 3600, function () use ($query) {
+            $paginator = $query->paginate(12);
+
+            return $paginator->toArray();
         });
+
+        // Re-wrap as a plain array for Inertia (already paginator-shaped from toArray())
+        $articles = $articlesData;
 
         return Inertia::render('Articles/Index', [
             'articles' => $articles,
@@ -450,7 +461,7 @@ class ArticleController extends Controller
                 'language' => $request->input('language'),
             ],
             'seo' => $this->seoService->forArticlesIndex(),
-            'itemListSchema' => $this->seoService->articlesIndexSchema($articles->getCollection()),
+            'itemListSchema' => $this->seoService->articlesIndexSchema(collect($articles['data'] ?? [])),
             'breadcrumbSchema' => json_encode([
                 '@context' => 'https://schema.org',
                 '@type' => 'BreadcrumbList',

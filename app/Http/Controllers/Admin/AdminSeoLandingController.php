@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\SitemapController;
 use App\Models\SeoLandingPage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -114,6 +115,7 @@ class AdminSeoLandingController extends Controller
         $this->autoFillSeoFields($validated);
 
         SeoLandingPage::create($validated);
+        SitemapController::clearCache();
 
         return redirect()->back()->with('success', 'Halaman SEO berhasil dibuat.');
     }
@@ -124,6 +126,7 @@ class AdminSeoLandingController extends Controller
         $this->autoFillSeoFields($validated);
 
         $seoPage->update($validated);
+        SitemapController::clearCache();
 
         return redirect()->back()->with('success', 'Halaman SEO berhasil diperbarui.');
     }
@@ -131,6 +134,7 @@ class AdminSeoLandingController extends Controller
     public function destroy(SeoLandingPage $seoPage)
     {
         $seoPage->delete();
+        SitemapController::clearCache();
 
         return redirect()->back()->with('success', 'Halaman SEO berhasil dihapus.');
     }

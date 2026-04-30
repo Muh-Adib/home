@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Observers;
 
+use App\Http\Controllers\SitemapController;
 use App\Jobs\NotifyGoogleIndexingJob;
 use App\Models\Property;
 use Illuminate\Support\Facades\Cache;
@@ -31,6 +32,9 @@ class PropertyObserver
         $today = now()->toDateString();
         $endDate = now()->addMonths(3)->toDateString();
         Cache::forget("property_v2_{$property->id}_avail_{$today}_{$endDate}");
+
+        // Invalidate sitemap caches so search engines get fresh URLs
+        SitemapController::clearCache();
     }
 
     /**
@@ -47,9 +51,9 @@ class PropertyObserver
         $url = $this->buildPropertyUrl($property);
 
         Log::info('[PropertyObserver] New active property created, dispatching Google Indexing notification.', [
-            'property_id'   => $property->id,
+            'property_id' => $property->id,
             'property_slug' => $property->slug,
-            'url'           => $url,
+            'url' => $url,
         ]);
 
         NotifyGoogleIndexingJob::dispatch($url, 'URL_UPDATED')->onQueue('indexing');
@@ -63,12 +67,13 @@ class PropertyObserver
         $this->invalidatePropertyCaches($property);
 
         $statusChanged = $property->isDirty('status');
-        $becameActive  = $statusChanged && $property->status === 'active';
+        $becameActive = $statusChanged && $property->status === 'active';
         $becameDeleted = $statusChanged && in_array($property->status, ['inactive', 'deleted'], true);
 
         if ($becameDeleted) {
             $url = $this->buildPropertyUrl($property);
             NotifyGoogleIndexingJob::dispatch($url, 'URL_DELETED')->onQueue('indexing');
+
             return;
         }
 
@@ -84,10 +89,10 @@ class PropertyObserver
             $url = $this->buildPropertyUrl($property);
 
             Log::info('[PropertyObserver] Active property updated, dispatching Google Indexing notification.', [
-                'property_id'    => $property->id,
-                'property_slug'  => $property->slug,
+                'property_id' => $property->id,
+                'property_slug' => $property->slug,
                 'changed_fields' => $property->getDirty(),
-                'url'            => $url,
+                'url' => $url,
             ]);
 
             NotifyGoogleIndexingJob::dispatch($url, 'URL_UPDATED')->onQueue('indexing');
@@ -104,9 +109,9 @@ class PropertyObserver
         $url = $this->buildPropertyUrl($property);
 
         Log::info('[PropertyObserver] Property soft-deleted, notifying Google to deindex.', [
-            'property_id'   => $property->id,
+            'property_id' => $property->id,
             'property_slug' => $property->slug,
-            'url'           => $url,
+            'url' => $url,
         ]);
 
         NotifyGoogleIndexingJob::dispatch($url, 'URL_DELETED')->onQueue('indexing');
@@ -118,6 +123,7 @@ class PropertyObserver
     private function buildPropertyUrl(Property $property): string
     {
         $baseUrl = rtrim(config('app.url'), '/');
+
         return "{$baseUrl}/properties/{$property->slug}";
     }
 }

@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Helpers\LogParser;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\Amenity;
+use App\Models\PaymentMethod;
+use Illuminate\Cache\NullStore;
 use Illuminate\Http\RedirectResponse;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Artisan;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class SettingsController extends Controller
 {
@@ -92,7 +96,7 @@ class SettingsController extends Controller
 
         return Inertia::render('Admin/Settings/Payment', [
             'settings' => $this->getPaymentSettings(),
-            'paymentMethods' => \App\Models\PaymentMethod::orderBy('display_order')->get(),
+            'paymentMethods' => PaymentMethod::orderBy('display_order')->get(),
         ]);
     }
 
@@ -258,7 +262,7 @@ class SettingsController extends Controller
 
         return Inertia::render('Admin/Settings/Property', [
             'settings' => $this->getPropertySettings(),
-            'amenities' => \App\Models\Amenity::orderBy('category', 'asc')->orderBy('name', 'asc')->get(),
+            'amenities' => Amenity::orderBy('category', 'asc')->orderBy('name', 'asc')->get(),
         ]);
     }
 
@@ -309,9 +313,9 @@ class SettingsController extends Controller
                     ->subject('Test Email - Homsjogja');
             });
 
-            return back()->with('success', 'Test email berhasil dikirim ke ' . $validated['test_email']);
+            return back()->with('success', 'Test email berhasil dikirim ke '.$validated['test_email']);
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal mengirim test email: ' . $e->getMessage());
+            return back()->with('error', 'Gagal mengirim test email: '.$e->getMessage());
         }
     }
 
@@ -330,7 +334,7 @@ class SettingsController extends Controller
 
             return back()->with('success', 'Cache berhasil dibersihkan.');
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal membersihkan cache: ' . $e->getMessage());
+            return back()->with('error', 'Gagal membersihkan cache: '.$e->getMessage());
         }
     }
 
@@ -343,9 +347,10 @@ class SettingsController extends Controller
 
         try {
             Artisan::call('backup:run', ['--only-db' => true]);
+
             return back()->with('success', 'Database backup berhasil dibuat.');
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal membuat database backup: ' . $e->getMessage());
+            return back()->with('error', 'Gagal membuat database backup: '.$e->getMessage());
         }
     }
 
@@ -485,7 +490,7 @@ class SettingsController extends Controller
             'laravel_version' => app()->version(),
             'database_size' => $this->getDatabaseSize(),
             'storage_used' => $this->getStorageUsed(),
-            'cache_status' => Cache::getStore() instanceof \Illuminate\Cache\NullStore ? 'Disabled' : 'Enabled',
+            'cache_status' => Cache::getStore() instanceof NullStore ? 'Disabled' : 'Enabled',
             'queue_status' => $this->getQueueStatus(),
             'last_backup' => $this->getLastBackupDate(),
         ];
@@ -498,7 +503,7 @@ class SettingsController extends Controller
     {
         $logFile = storage_path('logs/laravel.log');
 
-        if (!file_exists($logFile)) {
+        if (! file_exists($logFile)) {
             return [];
         }
 
@@ -516,9 +521,6 @@ class SettingsController extends Controller
         foreach ($settings as $key => $value) {
             config(["$category.$key" => $value]);
         }
-
-        // Cache settings for performance
-        Cache::put("settings.$category", $settings, 3600);
     }
 
     /**
@@ -528,7 +530,8 @@ class SettingsController extends Controller
     {
         try {
             $size = \DB::select("SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS 'DB Size in MB' FROM information_schema.tables WHERE table_schema = DATABASE()")[0];
-            return $size->{'DB Size in MB'} . ' MB';
+
+            return $size->{'DB Size in MB'}.' MB';
         } catch (\Exception $e) {
             return 'Unknown';
         }
@@ -562,6 +565,7 @@ class SettingsController extends Controller
     {
         try {
             $failedJobs = \DB::table('failed_jobs')->count();
+
             return $failedJobs > 0 ? "Running ($failedJobs failed)" : 'Running';
         } catch (\Exception $e) {
             return 'Unknown';
@@ -575,16 +579,17 @@ class SettingsController extends Controller
     {
         try {
             $backupPath = storage_path('app/backups');
-            if (!is_dir($backupPath)) {
+            if (! is_dir($backupPath)) {
                 return 'Never';
             }
 
-            $files = glob($backupPath . '/*.sql');
+            $files = glob($backupPath.'/*.sql');
             if (empty($files)) {
                 return 'Never';
             }
 
             $latest = max(array_map('filemtime', $files));
+
             return date('Y-m-d H:i:s', $latest);
         } catch (\Exception $e) {
             return 'Unknown';
@@ -602,7 +607,7 @@ class SettingsController extends Controller
             $bytes /= 1024;
         }
 
-        return round($bytes, $precision) . ' ' . $units[$i];
+        return round($bytes, $precision).' '.$units[$i];
     }
 
     /**
@@ -617,10 +622,10 @@ class SettingsController extends Controller
 
         if ($selectedFile) {
             // User selected a specific file
-            $logFile = storage_path('logs/' . basename($selectedFile));
+            $logFile = storage_path('logs/'.basename($selectedFile));
         } else {
             // Use today's daily log file by default (much smaller than laravel.log)
-            $todayLog = storage_path('logs/laravel-' . date('Y-m-d') . '.log');
+            $todayLog = storage_path('logs/laravel-'.date('Y-m-d').'.log');
             $fallbackLog = storage_path('logs/laravel.log');
 
             // Check which log file to use
@@ -628,9 +633,9 @@ class SettingsController extends Controller
         }
 
         // Verify file exists and is within logs directory (security)
-        if (!file_exists($logFile) || !str_starts_with(realpath($logFile), realpath(storage_path('logs')))) {
+        if (! file_exists($logFile) || ! str_starts_with(realpath($logFile), realpath(storage_path('logs')))) {
             // Fallback to today's log
-            $logFile = storage_path('logs/laravel-' . date('Y-m-d') . '.log');
+            $logFile = storage_path('logs/laravel-'.date('Y-m-d').'.log');
         }
 
         $filters = [
@@ -643,9 +648,9 @@ class SettingsController extends Controller
         $page = (int) $request->input('page', 1);
         $perPage = (int) $request->input('per_page', 50);
 
-        $logs = \App\Helpers\LogParser::parse($logFile, $filters, $page, $perPage);
-        $statistics = \App\Helpers\LogParser::getStatistics($logFile);
-        $availableFiles = \App\Helpers\LogParser::getAvailableLogFiles();
+        $logs = LogParser::parse($logFile, $filters, $page, $perPage);
+        $statistics = LogParser::getStatistics($logFile);
+        $availableFiles = LogParser::getAvailableLogFiles();
 
         return Inertia::render('Admin/Settings/SystemLogs', [
             'logs' => $logs,
@@ -667,9 +672,9 @@ class SettingsController extends Controller
 
         // Sanitize filename to prevent directory traversal
         $fileName = basename($fileName);
-        $logFile = storage_path('logs/' . $fileName);
+        $logFile = storage_path('logs/'.$fileName);
 
-        if (!file_exists($logFile)) {
+        if (! file_exists($logFile)) {
             return back()->with('error', 'Log file tidak ditemukan.');
         }
 
@@ -695,22 +700,22 @@ class SettingsController extends Controller
             $archivePath = storage_path('logs/archive');
 
             // Create archive directory if it doesn't exist
-            if (!is_dir($archivePath)) {
+            if (! is_dir($archivePath)) {
                 mkdir($archivePath, 0755, true);
             }
 
-            if (!empty($validated['file'])) {
+            if (! empty($validated['file'])) {
                 // Clear/Archive specific file
                 $fileName = basename($validated['file']);
-                $logFile = $logPath . '/' . $fileName;
+                $logFile = $logPath.'/'.$fileName;
 
                 if (file_exists($logFile)) {
                     if ($action === 'archive') {
                         // SAFE: Rename file instead of truncating (prevents race conditions)
-                        $archiveFileName = pathinfo($fileName, PATHINFO_FILENAME) .
-                            '_archived_' . date('Y-m-d_His') .
-                            '.' . pathinfo($fileName, PATHINFO_EXTENSION);
-                        $archiveFile = $archivePath . '/' . $archiveFileName;
+                        $archiveFileName = pathinfo($fileName, PATHINFO_FILENAME).
+                            '_archived_'.date('Y-m-d_His').
+                            '.'.pathinfo($fileName, PATHINFO_EXTENSION);
+                        $archiveFile = $archivePath.'/'.$archiveFileName;
 
                         rename($logFile, $archiveFile);
 
@@ -722,14 +727,15 @@ class SettingsController extends Controller
                     } else {
                         // DELETE: Only use this if you're absolutely sure
                         unlink($logFile);
+
                         return back()->with('success', "Log file {$fileName} berhasil dihapus.");
                     }
                 }
-            } elseif (!empty($validated['older_than_days'])) {
+            } elseif (! empty($validated['older_than_days'])) {
                 // Archive/Delete old log files
                 $days = $validated['older_than_days'];
                 $cutoffDate = now()->subDays($days);
-                $files = glob($logPath . '/*.log');
+                $files = glob($logPath.'/*.log');
                 $processed = 0;
 
                 foreach ($files as $file) {
@@ -744,10 +750,10 @@ class SettingsController extends Controller
                     if (filemtime($file) < $cutoffDate->timestamp) {
                         if ($action === 'archive') {
                             $fileName = basename($file);
-                            $archiveFileName = pathinfo($fileName, PATHINFO_FILENAME) .
-                                '_archived_' . date('Y-m-d_His', filemtime($file)) .
-                                '.' . pathinfo($fileName, PATHINFO_EXTENSION);
-                            $archiveFile = $archivePath . '/' . $archiveFileName;
+                            $archiveFileName = pathinfo($fileName, PATHINFO_FILENAME).
+                                '_archived_'.date('Y-m-d_His', filemtime($file)).
+                                '.'.pathinfo($fileName, PATHINFO_EXTENSION);
+                            $archiveFile = $archivePath.'/'.$archiveFileName;
 
                             rename($file, $archiveFile);
                         } else {
@@ -758,15 +764,16 @@ class SettingsController extends Controller
                 }
 
                 $actionText = $action === 'archive' ? 'diarsipkan' : 'dihapus';
+
                 return back()->with('success', "{$processed} log file(s) yang lebih lama dari {$days} hari berhasil {$actionText}.");
             } else {
                 // Archive current day's log (SAFE: won't affect running app)
-                $todayLog = $logPath . '/laravel-' . date('Y-m-d') . '.log';
+                $todayLog = $logPath.'/laravel-'.date('Y-m-d').'.log';
 
                 if (file_exists($todayLog)) {
                     if ($action === 'archive') {
-                        $archiveFileName = 'laravel-' . date('Y-m-d_His') . '_archived.log';
-                        $archiveFile = $archivePath . '/' . $archiveFileName;
+                        $archiveFileName = 'laravel-'.date('Y-m-d_His').'_archived.log';
+                        $archiveFile = $archivePath.'/'.$archiveFileName;
 
                         // Copy instead of rename for today's log (safer)
                         copy($todayLog, $archiveFile);
@@ -774,19 +781,20 @@ class SettingsController extends Controller
                         // Truncate the original file (Laravel will continue writing to it)
                         file_put_contents($todayLog, '');
 
-                        return back()->with('success', "Log hari ini berhasil diarsipkan. File baru akan dibuat otomatis.");
+                        return back()->with('success', 'Log hari ini berhasil diarsipkan. File baru akan dibuat otomatis.');
                     } else {
                         file_put_contents($todayLog, '');
+
                         return back()->with('success', 'Log hari ini berhasil dibersihkan.');
                     }
                 }
 
                 // Fallback to laravel.log if daily logs not found
-                $fallbackLog = $logPath . '/laravel.log';
+                $fallbackLog = $logPath.'/laravel.log';
                 if (file_exists($fallbackLog)) {
                     if ($action === 'archive') {
-                        $archiveFileName = 'laravel_archived_' . date('Y-m-d_His') . '.log';
-                        $archiveFile = $archivePath . '/' . $archiveFileName;
+                        $archiveFileName = 'laravel_archived_'.date('Y-m-d_His').'.log';
+                        $archiveFile = $archivePath.'/'.$archiveFileName;
 
                         copy($fallbackLog, $archiveFile);
                         file_put_contents($fallbackLog, '');
@@ -794,6 +802,7 @@ class SettingsController extends Controller
                         return back()->with('success', "Log file berhasil diarsipkan ke {$archiveFileName}.");
                     } else {
                         file_put_contents($fallbackLog, '');
+
                         return back()->with('success', 'Log file berhasil dibersihkan.');
                     }
                 }
@@ -806,7 +815,7 @@ class SettingsController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return back()->with('error', 'Gagal memproses log: ' . $e->getMessage());
+            return back()->with('error', 'Gagal memproses log: '.$e->getMessage());
         }
     }
 }

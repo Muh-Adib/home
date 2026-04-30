@@ -55,7 +55,7 @@
         }
     </style>
 
-    <title inertia>{{ data_get($page, 'props.seo.title', config('app.name', 'Laravel')) }}</title>
+    <title data-inertia>{{ data_get($page, 'props.seo.title', config('app.name', 'Laravel')) }}</title>
 
     @php
         // Prioritaskan favicon dari settings, jika tidak ada gunakan logo brand

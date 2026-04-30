@@ -11,7 +11,7 @@ class SeoService
      * Default SEO configuration
      */
     private const DEFAULTS = [
-        'title_suffix' => ' | Homsjogja',
+        'title_suffix' => ' | Homestay Villa Jogja',
         'title_separator' => ' - ',
         'description_max_length' => 155,
         'og_image' => 'og-image.jpg',
@@ -24,7 +24,7 @@ class SeoService
     /**
      * Generate SEO data for a page
      *
-     * @param array $config Configuration array with keys: title, description, image, url, type, robots
+     * @param  array  $config  Configuration array with keys: title, description, image, url, type, robots
      * @return array SEO data array with title, description, image, url, type, og, twitter, robots
      */
     public function generate(array $config = []): array
@@ -37,7 +37,7 @@ class SeoService
         $robots = $config['robots'] ?? 'index, follow';
 
         // Auto-append suffix jika belum ada
-        if (!Str::contains($title, 'Homsjogja')) {
+        if (! Str::contains($title, 'Homsjogja')) {
             $title .= self::DEFAULTS['title_suffix'];
         }
 
@@ -74,26 +74,62 @@ class SeoService
      */
     public function forProperty($property, array $extra = []): array
     {
-        // GEO: Conversational, question-based title
-        $title = "Cari Homestay {$property->name} di Yogyakarta? Booking Sekarang";
+        // GEO: Conversational, question-based title — include type for richer context
+        $typeLabel = $this->getPropertyTypeLabel($property->type ?? 'homestay');
+        $title = "Sewa {$typeLabel} {$property->name} Yogyakarta — Harga Mulai Rp "
+            .number_format($property->base_rate, 0, ',', '.').'/Malam';
 
-        // GEO: Natural language, conversational description
-        $baseDescription = $this->stripMarkdown(Str::limit($property->description, 100, ''));
-        $description = "Ingin menyewa {$property->type} {$property->name}? Kami menawarkan {$baseDescription} "
-            . "dengan harga mulai Rp " . number_format($property->base_rate, 0, ',', '.')
-            . "/malam. Fasilitas lengkap, lokasi strategis. Booking mudah & aman!";
+        // GEO: Natural language, conversational description with price + capacity signal
+        $baseDescription = $this->stripMarkdown(Str::limit($property->description, 90, ''));
+        $capacityText = $property->capacity_max ? "Kapasitas {$property->capacity_max} orang. " : '';
+        $description = "{$typeLabel} {$property->name} di Yogyakarta. {$baseDescription} "
+            ."{$capacityText}Harga mulai Rp ".number_format($property->base_rate, 0, ',', '.')
+            .'/malam. Fasilitas lengkap, lokasi strategis. Booking online mudah & aman!';
 
-        $image = $property->media->first()?->url ?? asset('og-image.jpg');
+        // Resolve cover image safely via helper (guards against empty string from url accessor)
+        $image = $this->resolveMediaUrl($property);
+
         $url = route('properties.show', $property->slug);
 
-        return $this->generate([
+        // Build featured items for ItemList schema (GEO: structured list signal)
+        $featuredItems = [];
+        if ($property->relationLoaded('amenities') && $property->amenities->isNotEmpty()) {
+            $featuredItems = $property->amenities->take(5)->map(fn ($a) => [
+                '@type' => 'LocationFeatureSpecification',
+                'name' => is_string($a) ? $a : ($a->name ?? ''),
+                'value' => true,
+            ])->filter(fn ($item) => ! empty($item['name']))->values()->toArray();
+        }
+
+        $seo = $this->generate([
             'title' => $title,
             'description' => $description,
             'image' => $image,
             'url' => $url,
-            'type' => 'product', // or 'website' if schema handles the product part
-            ...$extra
+            'type' => 'product',
+            ...$extra,
         ]);
+
+        // Attach featured items so PropertyController can pass them to SchemaOrg
+        if (! empty($featuredItems)) {
+            $seo['featuredItems'] = $featuredItems;
+        }
+
+        return $seo;
+    }
+
+    /**
+     * Map property type slug to human-readable Indonesian label
+     */
+    private function getPropertyTypeLabel(string $type): string
+    {
+        return match (strtolower($type)) {
+            'villa' => 'Villa',
+            'hotel' => 'Hotel',
+            'apartment' => 'Apartemen',
+            'guesthouse' => 'Guest House',
+            default => 'Homestay',
+        };
     }
 
     /**
@@ -108,18 +144,19 @@ class SeoService
 
         // Map property type to Schema.org @type and additionalType URL
         $typeMap = match (strtolower($property->type ?? 'homestay')) {
-            'hotel'     => ['type' => 'Hotel',         'additionalType' => 'https://schema.org/Hotel'],
-            'villa'     => ['type' => 'VacationRental', 'additionalType' => 'https://schema.org/House'],
+            'hotel' => ['type' => 'Hotel',         'additionalType' => 'https://schema.org/Hotel'],
+            'villa' => ['type' => 'VacationRental', 'additionalType' => 'https://schema.org/House'],
             'apartment' => ['type' => 'Apartment',     'additionalType' => 'https://schema.org/Apartment'],
-            'guesthouse'=> ['type' => 'GuestHouse',    'additionalType' => 'https://schema.org/BedAndBreakfast'],
-            default     => ['type' => 'VacationRental', 'additionalType' => 'https://schema.org/LodgingBusiness'],
+            'guesthouse' => ['type' => 'GuestHouse',    'additionalType' => 'https://schema.org/BedAndBreakfast'],
+            default => ['type' => 'VacationRental', 'additionalType' => 'https://schema.org/LodgingBusiness'],
         };
 
-        // Collect up to 8 images
+        // Collect up to 8 images — filter out empty URLs (url accessor returns '' when file_path is null)
         $imageUrls = collect();
         if ($property->relationLoaded('media') && $property->media->isNotEmpty()) {
-            $imageUrls = $property->media->take(8)->pluck('url');
-        } else {
+            $imageUrls = $property->media->take(8)->pluck('url')->filter(fn ($u) => ! empty($u))->values();
+        }
+        if ($imageUrls->isEmpty()) {
             $imageUrls->push(asset('og-image.jpg'));
         }
 
@@ -127,13 +164,14 @@ class SeoService
         $amenitiesList = collect();
         if ($property->relationLoaded('amenities')) {
             $amenitiesList = $property->getRelation('amenities');
-        } elseif (!empty($property->amenities)) {
+        } elseif (! empty($property->amenities)) {
             $amenitiesList = collect($property->amenities);
         }
 
         // Build amenityFeature list
         $amenityFeatures = $amenitiesList->map(function ($amenity) {
             $name = is_string($amenity) ? $amenity : ($amenity->name ?? null);
+
             return $name ? [
                 '@type' => 'LocationFeatureSpecification',
                 'name' => $name,
@@ -144,6 +182,7 @@ class SeoService
         // Pets allowed check
         $petsAllowed = $amenitiesList->contains(function ($a) {
             $name = is_string($a) ? $a : ($a->name ?? '');
+
             return str_contains(strtolower($name), 'pet') || str_contains(strtolower($name), 'hewan');
         });
 
@@ -187,7 +226,7 @@ class SeoService
             'image' => $imageUrls->toArray(),
             'url' => $url,
             'brand' => ['@type' => 'Brand', 'name' => 'Homsjogja'],
-            'priceRange' => 'IDR ' . number_format($property->base_rate, 0, ',', '.') . ' - IDR ' . number_format($property->base_rate * 2, 0, ',', '.'),
+            'priceRange' => 'IDR '.number_format($property->base_rate, 0, ',', '.').' - IDR '.number_format($property->base_rate * 2, 0, ',', '.'),
             'currenciesAccepted' => 'IDR',
             'paymentAccepted' => 'Cash, Credit Card, Bank Transfer',
             'availableLanguage' => ['id', 'en'],
@@ -217,12 +256,12 @@ class SeoService
         ];
 
         // GSC required: containsPlace
-        if (!empty($containsPlace)) {
+        if (! empty($containsPlace)) {
             $schema['containsPlace'] = $containsPlace;
         }
 
         // Amenity features
-        if (!empty($amenityFeatures)) {
+        if (! empty($amenityFeatures)) {
             $schema['amenityFeature'] = $amenityFeatures;
         }
 
@@ -269,6 +308,7 @@ class SeoService
                         'name' => $property->name,
                     ],
                 ];
+
                 return $reviewSchema;
             })->toArray();
         }
@@ -284,9 +324,9 @@ class SeoService
         $schema = Schema::lodgingBusiness()
             ->name($property->name)
             ->description($this->stripMarkdown($property->description))
-            ->image($property->media->first()?->url ?? asset('og-image.jpg'))
+            ->image($this->resolveMediaUrl($property))
             ->url(route('properties.show', $property->slug))
-            ->priceRange('IDR ' . number_format($property->base_rate, 0, ',', '.'))
+            ->priceRange('IDR '.number_format($property->base_rate, 0, ',', '.'))
             ->address(
                 Schema::postalAddress()
                     ->streetAddress($property->address)
@@ -357,11 +397,11 @@ class SeoService
             ->mentions([
                 Schema::thing()->name('Homestay'),
                 Schema::thing()->name('Villa Murah'),
-                Schema::thing()->name('Penginapan')
+                Schema::thing()->name('Penginapan'),
             ])
             ->potentialAction(
                 Schema::searchAction()
-                    ->target(config('app.url') . '/properties?search={search_term_string}')
+                    ->target(config('app.url').'/properties?search={search_term_string}')
                     ->queryInput('required name=search_term_string')
             );
 
@@ -405,8 +445,8 @@ class SeoService
 
     /**
      * Generate FAQ Schema (GEO: Q&A format for AI)
-     * 
-     * @param array $faqs Array of ['question' => string, 'answer' => string]
+     *
+     * @param  array  $faqs  Array of ['question' => string, 'answer' => string]
      * @return string JSON-LD FAQ schema
      */
     public function faqSchema(array $faqs): string
@@ -477,7 +517,7 @@ class SeoService
      */
     public function reviewSchema($property): string
     {
-        if (!$property->rating_avg || !$property->approved_reviews_count) {
+        if (! $property->rating_avg || ! $property->approved_reviews_count) {
             return '';
         }
 
@@ -498,9 +538,9 @@ class SeoService
         $schema = Schema::lodgingBusiness()
             ->name($property->name)
             ->description($this->stripMarkdown($property->description))
-            ->image($property->media->first()?->url ?? asset('og-image.jpg'))
+            ->image($this->resolveMediaUrl($property))
             ->url(route('properties.show', $property->slug))
-            ->priceRange('IDR ' . number_format($property->base_rate, 0, ',', '.'))
+            ->priceRange('IDR '.number_format($property->base_rate, 0, ',', '.'))
             ->address(
                 Schema::postalAddress()
                     ->streetAddress($property->address)
@@ -540,7 +580,7 @@ class SeoService
         $video = Schema::videoObject()
             ->name("Tour Virtual {$property->name} - Homestay di Yogyakarta")
             ->description($this->stripMarkdown("Video tour lengkap {$property->name}. Lihat fasilitas, kamar, dan suasana homestay kami di Yogyakarta."))
-            ->thumbnailUrl($property->media->first()?->url ?? asset('og-image.jpg'))
+            ->thumbnailUrl($this->resolveMediaUrl($property))
             ->contentUrl($property->tiktok_video_url)
             ->uploadDate($property->created_at->toIso8601String())
             ->duration('PT1M'); // Default 1 minute
@@ -549,32 +589,85 @@ class SeoService
     }
 
     /**
-     * Get common property FAQs (GEO: Pre-defined Q&A)
+     * Get common property FAQs (GEO: Pre-defined Q&A — specific, high-intent questions)
      */
     public function getPropertyFaqs($property): array
     {
-        return [
+        $typeLabel = $this->getPropertyTypeLabel($property->type ?? 'homestay');
+        $price = number_format($property->base_rate, 0, ',', '.');
+        $address = $property->address ?? 'Yogyakarta';
+
+        // Detect amenities for conditional FAQ
+        $amenitiesList = collect();
+        if ($property->relationLoaded('amenities')) {
+            $amenitiesList = $property->getRelation('amenities');
+        }
+        $hasPool = $amenitiesList->contains(fn ($a) => str_contains(strtolower(is_string($a) ? $a : ($a->name ?? '')), 'kolam')
+            || str_contains(strtolower(is_string($a) ? $a : ($a->name ?? '')), 'pool')
+        );
+        $hasKitchen = $amenitiesList->contains(fn ($a) => str_contains(strtolower(is_string($a) ? $a : ($a->name ?? '')), 'dapur')
+            || str_contains(strtolower(is_string($a) ? $a : ($a->name ?? '')), 'kitchen')
+        );
+
+        $faqs = [
             [
                 'question' => "Berapa harga sewa {$property->name} per malam?",
-                'answer' => "Harga sewa {$property->name} mulai dari Rp " . number_format($property->base_rate, 0, ',', '.') . " per malam. Harga dapat bervariasi tergantung musim dan durasi menginap."
+                'answer' => "Harga sewa {$property->name} mulai dari Rp {$price} per malam. "
+                    .'Harga dapat bervariasi tergantung musim, hari (weekday/weekend), dan durasi menginap. '
+                    .'Untuk tanggal peak season seperti libur lebaran atau tahun baru, disarankan booking jauh-jauh hari.',
             ],
             [
                 'question' => "Apa saja fasilitas yang tersedia di {$property->name}?",
-                'answer' => "{$property->name} dilengkapi dengan fasilitas lengkap untuk kenyamanan Anda, termasuk WiFi gratis, AC, kamar mandi dalam, dan area parkir. Kapasitas maksimal {$property->capacity_max} orang."
+                'answer' => "{$property->name} dilengkapi fasilitas lengkap termasuk WiFi gratis, AC di setiap kamar, "
+                    ."kamar mandi dalam, dan area parkir. Kapasitas maksimal {$property->capacity_max} orang "
+                    ."dengan {$property->bedroom_count} kamar tidur dan {$property->bathroom_count} kamar mandi.",
             ],
             [
                 'question' => "Bagaimana cara booking {$property->name}?",
-                'answer' => "Anda bisa booking {$property->name} langsung melalui website Homsjogja. Pilih tanggal check-in dan check-out, masukkan jumlah tamu, lalu ikuti proses pembayaran. Konfirmasi booking akan dikirim via email."
+                'answer' => "Booking {$property->name} bisa dilakukan langsung di website Homsjogja. "
+                    .'Pilih tanggal check-in dan check-out, masukkan jumlah tamu, lalu klik Booking Sekarang. '
+                    .'Pembayaran bisa via transfer bank atau dompet digital. Konfirmasi dikirim otomatis ke email.',
             ],
             [
-                'question' => "Dimana lokasi {$property->name}?",
-                'answer' => "{$property->name} berlokasi di {$property->address}, Yogyakarta. Lokasi strategis dengan akses mudah ke berbagai destinasi wisata populer di Jogja."
+                'question' => "Dimana lokasi {$property->name} dan berapa jarak ke Malioboro?",
+                'answer' => "{$property->name} berlokasi di {$address}, Yogyakarta. "
+                    .'Lokasi strategis dengan akses mudah ke destinasi wisata populer Jogja. '
+                    .'Hubungi kami untuk informasi jarak pasti ke Malioboro, Keraton, atau Prambanan.',
             ],
             [
-                'question' => "Apakah {$property->name} ramah keluarga?",
-                'answer' => "Ya, {$property->name} sangat cocok untuk keluarga dengan kapasitas hingga {$property->capacity_max} orang. Tersedia {$property->bedroom_count} kamar tidur dan {$property->bathroom_count} kamar mandi."
-            ]
+                'question' => "Apakah {$property->name} cocok untuk rombongan keluarga besar?",
+                'answer' => "{$property->name} dapat menampung hingga {$property->capacity_max} orang, "
+                    .'sangat cocok untuk liburan keluarga atau rombongan. '
+                    ."Tersedia {$property->bedroom_count} kamar tidur dengan fasilitas lengkap.",
+            ],
+            [
+                'question' => "Berapa minimal menginap di {$property->name}?",
+                'answer' => "Minimal menginap di {$property->name} adalah {$property->min_stay_weekday} malam "
+                    .'untuk hari biasa (Senin–Kamis). Untuk akhir pekan (Jumat–Minggu) minimal '
+                    ."{$property->min_stay_weekend} malam.",
+            ],
         ];
+
+        // Conditional: pool FAQ
+        if ($hasPool) {
+            $faqs[] = [
+                'question' => "Apakah {$property->name} memiliki kolam renang pribadi (private pool)?",
+                'answer' => "Ya, {$property->name} dilengkapi dengan kolam renang pribadi (private pool) "
+                    .'yang bisa dinikmati eksklusif oleh tamu yang menginap. '
+                    .'Kolam renang tersedia selama 24 jam tanpa berbagi dengan tamu lain.',
+            ];
+        }
+
+        // Conditional: kitchen FAQ
+        if ($hasKitchen) {
+            $faqs[] = [
+                'question' => "Apakah tersedia dapur untuk memasak sendiri di {$property->name}?",
+                'answer' => "Ya, {$property->name} menyediakan dapur lengkap yang bisa digunakan tamu "
+                    .'untuk memasak sendiri. Tersedia peralatan masak dasar, kompor, dan kulkas.',
+            ];
+        }
+
+        return $faqs;
     }
 
     /**
@@ -585,7 +678,7 @@ class SeoService
         $title = $article->meta_title ?? $article->title;
         $description = $this->stripMarkdown($article->meta_description ?? $article->excerpt ?? Str::limit(strip_tags($article->content ?? ''), 155));
         $image = $article->featured_image
-            ? (str_starts_with($article->featured_image, 'http') ? $article->featured_image : asset('storage/' . $article->featured_image))
+            ? (str_starts_with($article->featured_image, 'http') ? $article->featured_image : asset('storage/'.$article->featured_image))
             : asset('og-image.jpg');
         $url = route('articles.show', $article->slug);
 
@@ -595,7 +688,7 @@ class SeoService
             'image' => $image,
             'url' => $url,
             'type' => 'article',
-            ...$extra
+            ...$extra,
         ]);
     }
 
@@ -607,7 +700,7 @@ class SeoService
         $type = ($article->language ?? 'id') === 'id' ? 'BlogPosting' : 'NewsArticle';
         $url = route('articles.show', $article->slug);
         $image = $article->featured_image
-            ? (str_starts_with($article->featured_image, 'http') ? $article->featured_image : asset('storage/' . $article->featured_image))
+            ? (str_starts_with($article->featured_image, 'http') ? $article->featured_image : asset('storage/'.$article->featured_image))
             : asset('og-image.jpg');
 
         $schema = [
@@ -632,7 +725,7 @@ class SeoService
             'inLanguage' => ($article->language ?? 'id') === 'id' ? 'id-ID' : 'en-US',
         ];
 
-        if (!empty($article->view_count)) {
+        if (! empty($article->view_count)) {
             $schema['interactionStatistic'] = [
                 '@type' => 'InteractionCounter',
                 'interactionType' => 'https://schema.org/ReadAction',
@@ -640,7 +733,7 @@ class SeoService
             ];
         }
 
-        if (!empty($article->seo_keywords)) {
+        if (! empty($article->seo_keywords)) {
             $keywords = is_array($article->seo_keywords) ? implode(', ', $article->seo_keywords) : $article->seo_keywords;
             $schema['keywords'] = $keywords;
         }
@@ -660,7 +753,7 @@ class SeoService
                 'url' => route('properties.show', $property->slug),
                 'name' => $property->name,
                 'description' => $this->stripMarkdown(Str::limit($property->description, 100)),
-                'image' => $property->media->first()?->url ?? asset('og-image.jpg'),
+                'image' => $this->resolveMediaUrl($property),
             ];
         })->toArray();
 
@@ -684,7 +777,7 @@ class SeoService
     {
         $items = collect($articles)->take(10)->values()->map(function ($article, $index) {
             $image = $article->featured_image
-                ? (str_starts_with($article->featured_image, 'http') ? $article->featured_image : asset('storage/' . $article->featured_image))
+                ? (str_starts_with($article->featured_image, 'http') ? $article->featured_image : asset('storage/'.$article->featured_image))
                 : asset('og-image.jpg');
 
             return [
@@ -760,33 +853,59 @@ class SeoService
 
     /**
      * Generate FAQPage schema for the /faq route
+     * Questions are specific and high-intent — optimized for AI search (GEO)
      */
     public function faqPageSchema(): string
     {
         $faqs = [
             [
+                'question' => 'Berapa harga termurah homestay di Jogja dekat Malioboro?',
+                'answer' => 'Harga homestay di Jogja dekat Malioboro mulai dari Rp 150.000 per malam. '
+                    .'Homsjogja menyediakan pilihan penginapan mulai dari homestay budget hingga villa premium '
+                    .'dengan jarak 5–30 menit dari Malioboro. Harga bervariasi tergantung tipe kamar, fasilitas, dan musim.',
+            ],
+            [
+                'question' => 'Apakah ada villa di Jogja yang memiliki private pool?',
+                'answer' => 'Ya, Homsjogja memiliki beberapa villa di Yogyakarta dengan kolam renang pribadi (private pool). '
+                    .'Villa dengan private pool tersedia di area Sleman, Bantul, dan sekitar Kaliurang. '
+                    .'Cocok untuk liburan keluarga atau rombongan yang ingin privasi penuh.',
+            ],
+            [
+                'question' => 'Berapa kapasitas maksimal villa atau homestay untuk rombongan besar di Jogja?',
+                'answer' => 'Beberapa properti di Homsjogja dapat menampung hingga 20–30 orang, '
+                    .'cocok untuk gathering keluarga besar, reuni, atau acara perusahaan. '
+                    .'Tersedia villa dengan banyak kamar tidur, dapur lengkap, dan area outdoor.',
+            ],
+            [
                 'question' => 'Bagaimana cara booking penginapan di Homsjogja?',
-                'answer' => 'Pilih properti yang Anda inginkan, tentukan tanggal check-in dan check-out, masukkan jumlah tamu, lalu klik "Booking Sekarang". Ikuti proses pembayaran dan konfirmasi akan dikirim ke email Anda.',
+                'answer' => 'Pilih properti di website Homsjogja, tentukan tanggal check-in dan check-out, '
+                    .'masukkan jumlah tamu, lalu klik Booking Sekarang. '
+                    .'Pembayaran bisa via transfer bank atau dompet digital. '
+                    .'Konfirmasi booking dikirim otomatis ke email Anda.',
             ],
             [
-                'question' => 'Apa metode pembayaran yang tersedia?',
-                'answer' => 'Homsjogja menerima pembayaran melalui transfer bank, kartu kredit/debit, dan dompet digital. Semua transaksi diproses dengan aman.',
+                'question' => 'Apakah bisa cancel atau reschedule booking di Homsjogja?',
+                'answer' => 'Kebijakan pembatalan tergantung pada properti yang dipilih. '
+                    .'Sebagian besar properti mengizinkan reschedule dengan pemberitahuan minimal 3 hari sebelum check-in. '
+                    .'Silakan baca kebijakan refund di halaman detail properti sebelum booking.',
             ],
             [
-                'question' => 'Apakah bisa cancel booking?',
-                'answer' => 'Kebijakan pembatalan tergantung pada properti yang dipilih. Silakan baca kebijakan refund di halaman detail properti sebelum melakukan booking.',
+                'question' => 'Apa metode pembayaran yang tersedia di Homsjogja?',
+                'answer' => 'Homsjogja menerima pembayaran via transfer bank (BCA, Mandiri, BNI, BRI), '
+                    .'dompet digital (GoPay, OVO, DANA), dan kartu kredit/debit. '
+                    .'Semua transaksi diproses dengan aman menggunakan enkripsi SSL.',
             ],
             [
-                'question' => 'Berapa harga rata-rata penginapan di Homsjogja?',
-                'answer' => 'Harga penginapan di Homsjogja mulai dari Rp 150.000 per malam untuk homestay, hingga Rp 1.000.000+ per malam untuk villa premium. Harga bervariasi tergantung tipe properti, fasilitas, dan musim.',
+                'question' => 'Apakah penginapan di Homsjogja cocok untuk bulan madu (honeymoon)?',
+                'answer' => 'Ya, Homsjogja memiliki pilihan villa romantis dan homestay cozy yang cocok untuk bulan madu. '
+                    .'Beberapa properti menyediakan dekorasi kamar khusus, bathtub, dan suasana privat. '
+                    .'Hubungi kami untuk rekomendasi properti honeymoon terbaik di Yogyakarta.',
             ],
             [
-                'question' => 'Apakah penginapan di Homsjogja cocok untuk keluarga?',
-                'answer' => 'Ya, sebagian besar properti di Homsjogja ramah keluarga dengan kapasitas hingga 10-20 orang. Tersedia fasilitas seperti dapur, ruang keluarga, dan area bermain.',
-            ],
-            [
-                'question' => 'Dimana lokasi penginapan Homsjogja?',
-                'answer' => 'Properti Homsjogja tersebar di berbagai lokasi strategis di Yogyakarta, termasuk dekat Malioboro, Prambanan, Kaliurang, dan kawasan wisata lainnya.',
+                'question' => 'Berapa jarak penginapan Homsjogja dari Bandara Yogyakarta International Airport (YIA)?',
+                'answer' => 'Jarak dari Bandara YIA (Kulon Progo) ke pusat kota Yogyakarta sekitar 40–60 km '
+                    .'atau 45–75 menit perjalanan. Homsjogja memiliki properti di berbagai lokasi strategis '
+                    .'yang mudah dijangkau dari YIA maupun Bandara Adisucipto.',
             ],
         ];
 
@@ -798,8 +917,9 @@ class SeoService
      */
     private function stripMarkdown(?string $text): string
     {
-        if (!$text)
+        if (! $text) {
             return '';
+        }
 
         // Remove markdown bold/italic
         $text = preg_replace('/(\*\*|__)(.*?)\1/', '$2', $text);
@@ -829,9 +949,37 @@ class SeoService
         // Check for pagination
         $page = request()->get('page');
         if ($page && is_numeric($page) && $page > 1) {
-            $url .= '?page=' . $page;
+            $url .= '?page='.$page;
         }
 
         return $url;
+    }
+
+    /**
+     * Safely resolve the best available image URL from a property's media collection.
+     *
+     * Priority: cover image → first image → default OG image.
+     * Guards against getUrlAttribute() returning '' when file_path is null.
+     *
+     * @param  mixed  $property  Eloquent Property model (media relation must be loaded)
+     * @return string Always returns a non-empty URL
+     */
+    private function resolveMediaUrl($property): string
+    {
+        $fallback = asset(self::DEFAULTS['og_image']);
+
+        if (! $property->relationLoaded('media') || $property->media->isEmpty()) {
+            return $fallback;
+        }
+
+        // Prefer cover image, then first image; skip empty strings from accessor
+        $coverUrl = $property->media->firstWhere('is_cover', true)?->url;
+        if (! empty($coverUrl)) {
+            return $coverUrl;
+        }
+
+        $firstUrl = $property->media->first()?->url;
+
+        return ! empty($firstUrl) ? $firstUrl : $fallback;
     }
 }
