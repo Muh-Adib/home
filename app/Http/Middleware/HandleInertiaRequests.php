@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Services\SeoService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
 
@@ -46,6 +47,8 @@ class HandleInertiaRequests extends Middleware
 
         $seoService = app(SeoService::class);
 
+        $isPublicRoute = ! $request->is('admin/*', 'staff/*', 'dashboard*', 'settings/*', 'my-bookings*', 'my-payments*');
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
@@ -76,14 +79,16 @@ class HandleInertiaRequests extends Middleware
             ],
             // Broadcast driver info for frontend Echo initialization
             'broadcastDriver' => config('broadcasting.default', 'log'),
-            // ✨ Global SEO data (always available)
+            // ✨ Global SEO data (always available) — organization schema cached for 24h
             'globalSeo' => [
-                'organizationSchema' => $seoService->organizationSchema(),
+                'organizationSchema' => Cache::remember('schema_organization', 86400, fn () => $seoService->organizationSchema()),
                 'siteName' => 'Homsjogja',
                 'defaultImage' => asset('og-image.jpg'),
             ],
-            // WebSite schema — enables Google Sitelinks Search Box
-            'webSiteSchema' => fn (): string => $seoService->webSiteSchema(),
+            // WebSite schema — enables Google Sitelinks Search Box (public pages only)
+            'webSiteSchema' => $isPublicRoute
+                ? fn (): string => Cache::remember('schema_website', 86400, fn () => $seoService->webSiteSchema())
+                : null,
             // Default SEO (bisa di-override per page)
             'seo' => fn () => $seoService->generate(),
         ];
