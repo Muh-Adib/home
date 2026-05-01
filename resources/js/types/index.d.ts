@@ -465,6 +465,7 @@ export type PageProps<T extends Record<string, unknown> = Record<string, unknown
     seo?: SeoData;
     globalSeo: GlobalSeo;
     schema?: string;
+    webSiteSchema?: string | null;
     // GEO: AI-optimized schemas
     faqSchema?: string;
     breadcrumbSchema?: string;

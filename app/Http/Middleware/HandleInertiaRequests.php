@@ -81,13 +81,21 @@ class HandleInertiaRequests extends Middleware
             'broadcastDriver' => config('broadcasting.default', 'log'),
             // ✨ Global SEO data (always available) — organization schema cached for 24h
             'globalSeo' => [
-                'organizationSchema' => Cache::remember('schema_organization', 86400, fn () => $seoService->organizationSchema()),
+                'organizationSchema' => rescue(
+                    fn () => Cache::remember('schema_organization', 86400, fn () => $seoService->organizationSchema()),
+                    fn () => $seoService->organizationSchema(),
+                    false
+                ),
                 'siteName' => 'Homsjogja',
                 'defaultImage' => asset('og-image.jpg'),
             ],
             // WebSite schema — enables Google Sitelinks Search Box (public pages only)
             'webSiteSchema' => $isPublicRoute
-                ? fn (): string => Cache::remember('schema_website', 86400, fn () => $seoService->webSiteSchema())
+                ? fn (): string => rescue(
+                    fn () => Cache::remember('schema_website', 86400, fn () => $seoService->webSiteSchema()),
+                    fn () => $seoService->webSiteSchema(),
+                    false
+                )
                 : null,
             // Default SEO (bisa di-override per page)
             'seo' => fn () => $seoService->generate(),
