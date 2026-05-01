@@ -93,8 +93,11 @@ class SeoService
 
         // Build featured items for ItemList schema (GEO: structured list signal)
         $featuredItems = [];
-        if ($property->relationLoaded('amenities') && $property->amenities->isNotEmpty()) {
-            $featuredItems = $property->amenities->take(5)->map(fn ($a) => [
+        $amenitiesForFeatured = collect(
+            $property->relationLoaded('amenities') ? $property->getRelation('amenities') : ($property->amenities ?? [])
+        );
+        if ($amenitiesForFeatured->isNotEmpty()) {
+            $featuredItems = $amenitiesForFeatured->take(5)->map(fn ($a) => [
                 '@type' => 'LocationFeatureSpecification',
                 'name' => is_string($a) ? $a : ($a->name ?? ''),
                 'value' => true,
@@ -153,8 +156,11 @@ class SeoService
 
         // Collect up to 8 images — filter out empty URLs (url accessor returns '' when file_path is null)
         $imageUrls = collect();
-        if ($property->relationLoaded('media') && $property->media->isNotEmpty()) {
-            $imageUrls = $property->media->take(8)->pluck('url')->filter(fn ($u) => ! empty($u))->values();
+        $mediaCollection = collect(
+            $property->relationLoaded('media') ? $property->getRelation('media') : ($property->media ?? [])
+        );
+        if ($mediaCollection->isNotEmpty()) {
+            $imageUrls = $mediaCollection->take(8)->pluck('url')->filter(fn ($u) => ! empty($u))->values();
         }
         if ($imageUrls->isEmpty()) {
             $imageUrls->push(asset('og-image.jpg'));
@@ -163,7 +169,7 @@ class SeoService
         // Safely resolve amenities
         $amenitiesList = collect();
         if ($property->relationLoaded('amenities')) {
-            $amenitiesList = $property->getRelation('amenities');
+            $amenitiesList = collect($property->getRelation('amenities'));
         } elseif (! empty($property->amenities)) {
             $amenitiesList = collect($property->amenities);
         }
@@ -600,7 +606,9 @@ class SeoService
         // Detect amenities for conditional FAQ
         $amenitiesList = collect();
         if ($property->relationLoaded('amenities')) {
-            $amenitiesList = $property->getRelation('amenities');
+            $amenitiesList = collect($property->getRelation('amenities'));
+        } elseif (! empty($property->amenities)) {
+            $amenitiesList = collect($property->amenities);
         }
         $hasPool = $amenitiesList->contains(fn ($a) => str_contains(strtolower(is_string($a) ? $a : ($a->name ?? '')), 'kolam')
             || str_contains(strtolower(is_string($a) ? $a : ($a->name ?? '')), 'pool')
