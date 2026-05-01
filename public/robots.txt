@@ -1,5 +1,12 @@
 # Homsjogja Robots.txt - AI & Search Engine Crawler Configuration
 
+# === CONTENT SIGNALS (AI Usage Preferences) ===
+# https://contentsignals.org/
+# ai-train: content may NOT be used to train AI/ML models
+# search: content MAY be indexed and shown in search results
+# ai-input: content MAY be used as context/input for AI responses (GEO)
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+
 # === TRADITIONAL SEARCH ENGINES ===
 User-agent: *
 Allow: /
