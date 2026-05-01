@@ -10,7 +10,6 @@ echo "🔧 Generating Laravel Echo Server config..."
 # Get environment variables with defaults
 REDIS_HOST=${REDIS_HOST:-"127.0.0.1"}
 REDIS_PORT=${REDIS_PORT:-6379}
-REDIS_PASSWORD=${REDIS_PASSWORD:-null}
 REDIS_DB=${REDIS_DB:-0}
 
 echo "Using REDIS_HOST: ${REDIS_HOST}"
@@ -22,7 +21,14 @@ if [ ! -d "/app" ]; then
     CONFIG_PATH="laravel-echo-server.json"
 fi
 
-cat > "$CONFIG_PATH" << 'CONFIG_EOF'
+# Build redis config block — only include password if set and non-empty
+if [ -n "${REDIS_PASSWORD}" ]; then
+    REDIS_CONFIG_BLOCK="\"host\": \"${REDIS_HOST}\", \"port\": ${REDIS_PORT}, \"password\": \"${REDIS_PASSWORD}\", \"db\": ${REDIS_DB}"
+else
+    REDIS_CONFIG_BLOCK="\"host\": \"${REDIS_HOST}\", \"port\": ${REDIS_PORT}, \"db\": ${REDIS_DB}"
+fi
+
+cat > "$CONFIG_PATH" << CONFIG_EOF
 {
     "authHost": "http://localhost",
     "authEndpoint": "/broadcasting/auth",
@@ -35,10 +41,7 @@ cat > "$CONFIG_PATH" << 'CONFIG_EOF'
     "database": "redis",
     "databaseConfig": {
         "redis": {
-            "host": "REDIS_HOST_PLACEHOLDER",
-            "port": REDIS_PORT_PLACEHOLDER,
-            "password": "REDIS_PASSWORD_PLACEHOLDER",
-            "db": REDIS_DB_PLACEHOLDER
+            ${REDIS_CONFIG_BLOCK}
         }
     },
     "devMode": false,
@@ -63,16 +66,10 @@ cat > "$CONFIG_PATH" << 'CONFIG_EOF'
 }
 CONFIG_EOF
 
-# Replace placeholders with actual values
-sed -i "s/REDIS_HOST_PLACEHOLDER/${REDIS_HOST}/g" "$CONFIG_PATH"
-sed -i "s/REDIS_PORT_PLACEHOLDER/${REDIS_PORT}/g" "$CONFIG_PATH"
-sed -i "s/REDIS_PASSWORD_PLACEHOLDER/${REDIS_PASSWORD}/g" "$CONFIG_PATH"
-sed -i "s/REDIS_DB_PLACEHOLDER/${REDIS_DB}/g" "$CONFIG_PATH"
-
 echo "✅ Laravel Echo Server config generated!"
 echo "Config file: $CONFIG_PATH"
 
-# Debug: Show config content
-echo "🔍 Debug: Config file content:"
-cat "$CONFIG_PATH" | head -10
+# Debug: Show config (mask password)
+echo "🔍 Debug: Config file content (password masked):"
+sed 's/"password": "[^"]*"/"password": "***"/g' "$CONFIG_PATH" | head -15
 echo "..."

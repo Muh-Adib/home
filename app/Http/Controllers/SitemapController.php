@@ -6,6 +6,7 @@ use App\Models\Article;
 use App\Models\Property;
 use App\Models\SeoLandingPage;
 use Carbon\Carbon;
+use Illuminate\Cache\RedisStore;
 use Illuminate\Support\Facades\Cache;
 
 class SitemapController extends Controller
@@ -225,20 +226,43 @@ class SitemapController extends Controller
      */
     public static function clearCache(): void
     {
-        // Clear v2 keys (current)
-        Cache::forget('sitemap.index.v2.xml');
-        Cache::forget('sitemap.core.v2.xml');
-        Cache::forget('sitemap.articles.v2.xml');
+        $keys = [
+            // v2 keys (current)
+            'sitemap.index.v2.xml',
+            'sitemap.core.v2.xml',
+            'sitemap.articles.v2.xml',
+            // legacy v1 keys
+            'sitemap.index.xml',
+            'sitemap.core.xml',
+            'sitemap.articles.xml',
+        ];
 
-        // Clear legacy v1 keys (old Response-object cache — safe to remove)
-        Cache::forget('sitemap.index.xml');
-        Cache::forget('sitemap.core.xml');
-        Cache::forget('sitemap.articles.xml');
-
-        // Clear PSEO chunks (v2 + legacy), up to 50 chunks = 250k pages
+        // Add PSEO chunk keys (v2 + legacy), up to 50 chunks = 250k pages
         for ($i = 1; $i <= 50; $i++) {
-            Cache::forget("sitemap.pseo.v2.{$i}.xml");
-            Cache::forget("sitemap.pseo.{$i}.xml");
+            $keys[] = "sitemap.pseo.v2.{$i}.xml";
+            $keys[] = "sitemap.pseo.{$i}.xml";
+        }
+
+        // Use Redis pipeline to batch all deletes in a single connection round-trip.
+        // Falls back to individual forget() if pipeline is unavailable (e.g. file/array driver).
+        try {
+            $store = Cache::getStore();
+            if ($store instanceof RedisStore) {
+                $prefix = $store->getPrefix();
+                $store->connection()->pipeline(function ($pipe) use ($keys, $prefix) {
+                    foreach ($keys as $key) {
+                        $pipe->del($prefix.$key);
+                    }
+                });
+
+                return;
+            }
+        } catch (\Throwable) {
+            // Fall through to individual forget() below
+        }
+
+        foreach ($keys as $key) {
+            Cache::forget($key);
         }
     }
 }

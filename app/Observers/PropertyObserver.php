@@ -25,16 +25,20 @@ class PropertyObserver
         Cache::forget('seo_properties_index');
         Cache::forget('schema_properties_index');
 
-        // Invalidate availability caches for this property (pattern-based)
-        // Since we can't do pattern delete on all drivers, we use a versioning approach:
-        // availability cache keys include dates, so they expire naturally within 1h.
-        // For immediate invalidation, flush the known current-day key.
         $today = now()->toDateString();
         $endDate = now()->addMonths(3)->toDateString();
         Cache::forget("property_v2_{$property->id}_avail_{$today}_{$endDate}");
 
-        // Invalidate sitemap caches so search engines get fresh URLs
-        SitemapController::clearCache();
+        // Invalidate sitemap caches — wrapped in try/catch so a Redis hiccup
+        // never bubbles up and breaks the property save operation.
+        try {
+            SitemapController::clearCache();
+        } catch (\Throwable $e) {
+            Log::warning('[PropertyObserver] Failed to clear sitemap cache', [
+                'property_id' => $property->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
