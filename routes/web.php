@@ -11,6 +11,7 @@ use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SeoLandingController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StaticPageController;
+use App\Http\Controllers\WellKnownController;
 use App\Models\Property;
 use App\Models\SeoLandingPage;
 use App\Services\ImageService;
@@ -96,6 +97,12 @@ Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.i
 Route::get('/sitemap-core.xml', [SitemapController::class, 'core'])->name('sitemap.core');
 Route::get('/sitemap-articles.xml', [SitemapController::class, 'articles'])->name('sitemap.articles');
 Route::get('/sitemap-pseo-{chunk}.xml', [SitemapController::class, 'pseo'])->name('sitemap.pseo');
+
+// Agent & API discoverability (RFC 8288 / RFC 9727)
+Route::prefix('.well-known')->name('well-known.')->group(function () {
+    Route::get('/agent.json', [WellKnownController::class, 'agent'])->name('agent');
+    Route::get('/api-catalog', [WellKnownController::class, 'apiCatalog'])->name('api-catalog');
+});
 
 // iCal Export (Public but protected by token)
 Route::get('/property/{slug}/ical/{token}', [ICalController::class, 'export'])->name('ical.export');

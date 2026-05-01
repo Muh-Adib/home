@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Middleware\AddAgentDiscoveryHeaders;
 use App\Http\Middleware\ApiResponseFormatter;
+use App\Http\Middleware\EnsureEmailVerificationSignature;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RoleMiddleware;
@@ -13,8 +15,8 @@ use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__ . '/../routes/web.php',
-        commands: __DIR__ . '/../routes/console.php',
+        web: __DIR__.'/../routes/web.php',
+        commands: __DIR__.'/../routes/console.php',
         health: '/up',
         then: function () {
             Route::middleware('web')
@@ -36,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleAppearance::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+            AddAgentDiscoveryHeaders::class,
             SetLocale::class,
         ]);
 
@@ -48,7 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'locale' => SetLocale::class,
-            'verify.signature.auth' => \App\Http\Middleware\EnsureEmailVerificationSignature::class,
+            'verify.signature.auth' => EnsureEmailVerificationSignature::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
