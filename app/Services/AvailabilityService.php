@@ -2,14 +2,16 @@
 
 namespace App\Services;
 
-use App\Models\Property;
 use App\Models\Booking;
+use App\Models\Property;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 /**
  * AvailabilityService - Service untuk menangani logika availability saja
- * 
+ *
  * REFACTORED:
  * 1. Menghilangkan logic rate calculation (dipindah ke RateCalculationService)
  * 2. Fokus hanya pada availability checking
@@ -27,14 +29,10 @@ class AvailabilityService
 
     /**
      * Check if property is available for given date range
-     * 
-     * @param Property $property
-     * @param string $checkIn
-     * @param string $checkOut
-     * @param int|null $guestCount Total guests to check against capacity
-     * @param int|null $excludeBookingId Booking ID to exclude from check (for edit mode)
-     * @param bool $ignoreOta Ignore OTA bookings (for overriding)
-     * @return array
+     *
+     * @param  int|null  $guestCount  Total guests to check against capacity
+     * @param  int|null  $excludeBookingId  Booking ID to exclude from check (for edit mode)
+     * @param  bool  $ignoreOta  Ignore OTA bookings (for overriding)
      */
     public function checkAvailability(Property $property, string $checkIn, string $checkOut, ?int $guestCount = null, ?int $excludeBookingId = null, bool $ignoreOta = false): array
     {
@@ -66,13 +64,9 @@ class AvailabilityService
 
     /**
      * Get booked periods for frontend (format: [[checkin, checkout], ...])
-     * 
-     * @param Property $property
-     * @param string $checkIn
-     * @param string $checkOut
-     * @param int|null $excludeBookingId Booking ID to exclude from check (for edit mode)
-     * @param bool $ignoreOta Ignore OTA bookings (for overriding)
-     * @return array
+     *
+     * @param  int|null  $excludeBookingId  Booking ID to exclude from check (for edit mode)
+     * @param  bool  $ignoreOta  Ignore OTA bookings (for overriding)
      */
     public function getBookedPeriodsInRange(Property $property, string $checkIn, string $checkOut, ?int $excludeBookingId = null, bool $ignoreOta = false): array
     {
@@ -82,7 +76,7 @@ class AvailabilityService
         foreach ($bookings as $booking) {
             $periods[] = [
                 $booking->check_in,
-                $booking->check_out
+                $booking->check_out,
             ];
         }
 
@@ -91,13 +85,9 @@ class AvailabilityService
 
     /**
      * Get overlapping bookings with proper logic
-     * 
-     * @param Property $property
-     * @param string $checkIn
-     * @param string $checkOut
-     * @param int|null $excludeBookingId Booking ID to exclude from check (for edit mode)
-     * @param bool $ignoreOta Ignore OTA bookings (for overriding)
-     * @return Collection
+     *
+     * @param  int|null  $excludeBookingId  Booking ID to exclude from check (for edit mode)
+     * @param  bool  $ignoreOta  Ignore OTA bookings (for overriding)
      */
     private function getOverlappingBookings(Property $property, string $checkIn, string $checkOut, ?int $excludeBookingId = null, bool $ignoreOta = true): Collection
     {
@@ -106,11 +96,12 @@ class AvailabilityService
             $checkInFormatted = Carbon::parse($checkIn)->format('Y-m-d');
             $checkOutFormatted = Carbon::parse($checkOut)->format('Y-m-d');
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Invalid date format in getOverlappingBookings', [
+            Log::error('Invalid date format in getOverlappingBookings', [
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return collect([]);
         }
 
@@ -138,27 +129,19 @@ class AvailabilityService
 
     /**
      * Get booked dates for property within given date range (FIXED)
-     * 
-     * @param Property $property
-     * @param string $checkIn
-     * @param string $checkOut
-     * @param int|null $excludeBookingId Booking ID to exclude from check (for edit mode)
-     * @param bool $ignoreOta Ignore OTA bookings (for overriding)
-     * @return array
+     *
+     * @param  int|null  $excludeBookingId  Booking ID to exclude from check (for edit mode)
+     * @param  bool  $ignoreOta  Ignore OTA bookings (for overriding)
      */
     public function getBookedDatesInRange(Property $property, string $checkIn, string $checkOut, ?int $excludeBookingId = null, bool $ignoreOta = false): array
     {
         $bookings = $this->getOverlappingBookings($property, $checkIn, $checkOut, $excludeBookingId, $ignoreOta);
+
         return $this->extractDatesFromBookings($bookings, $checkIn, $checkOut);
     }
 
     /**
      * Extract individual dates from booking periods (IMPROVED)
-     * 
-     * @param Collection $bookings
-     * @param string $rangeStart
-     * @param string $rangeEnd
-     * @return array
      */
     private function extractDatesFromBookings(Collection $bookings, ?string $rangeStart = null, ?string $rangeEnd = null): array
     {
@@ -188,11 +171,6 @@ class AvailabilityService
 
     /**
      * Get comprehensive availability and rate data for a property
-     * 
-     * @param Property $property
-     * @param string $startDate
-     * @param string $endDate
-     * @return array
      */
     public function getAvailabilityData(Property $property, string $startDate, string $endDate): array
     {
@@ -206,25 +184,43 @@ class AvailabilityService
         $rates = [];
         for ($currentDate = $startDateObj->copy(); $currentDate->lt($endDateObj); $currentDate->addDay()) {
             $dateString = $currentDate->format('Y-m-d');
+            $isWeekend = $currentDate->isFriday() || $currentDate->isSaturday() || $currentDate->isSunday();
 
-            // Re-use RateCalculationService for single source of truth
-            $calculation = $this->rateCalculationService->calculateRate($property, $dateString, $currentDate->copy()->addDay()->format('Y-m-d'), $property->capacity);
+            try {
+                // Re-use RateCalculationService for single source of truth
+                $calculation = $this->rateCalculationService->calculateRate($property, $dateString, $currentDate->copy()->addDay()->format('Y-m-d'), $property->capacity);
 
-            // Find applied seasonal rate from calculation results
-            $seasonalInfo = !empty($calculation->seasonalRatesApplied) ? $calculation->seasonalRatesApplied[0] : null;
+                // Find applied seasonal rate from calculation results
+                $seasonalInfo = ! empty($calculation->seasonalRatesApplied) ? $calculation->seasonalRatesApplied[0] : null;
 
-            $rates[$dateString] = [
-                'base_rate' => $property->base_rate,
-                'weekend_premium' => $currentDate->isFriday() || $currentDate->isSaturday() || $currentDate->isSunday(),
-                'seasonal_premium' => $calculation->seasonalPremium,
-                'is_weekend' => $currentDate->isFriday() || $currentDate->isSaturday() || $currentDate->isSunday(),
-                'seasonal_rate_applied' => $seasonalInfo ? [
-                    'name' => $seasonalInfo['name'],
-                    'description' => $seasonalInfo['description'],
-                    'min_stay_nights' => $seasonalInfo['min_stay_nights'] ?? 1,
-                ] : null,
-                'total_rate' => $calculation->totalAmount,
-            ];
+                $rates[$dateString] = [
+                    'base_rate' => $property->base_rate,
+                    'weekend_premium' => $isWeekend,
+                    'seasonal_premium' => $calculation->seasonalPremium,
+                    'is_weekend' => $isWeekend,
+                    'seasonal_rate_applied' => $seasonalInfo ? [
+                        'name' => $seasonalInfo['name'],
+                        'description' => $seasonalInfo['description'],
+                        'min_stay_nights' => $seasonalInfo['min_stay_nights'] ?? 1,
+                    ] : null,
+                    'total_rate' => $calculation->totalAmount,
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('Rate calculation failed for date', [
+                    'property_id' => $property->id,
+                    'date' => $dateString,
+                    'error' => $e->getMessage(),
+                ]);
+
+                $rates[$dateString] = [
+                    'base_rate' => $property->base_rate,
+                    'weekend_premium' => $isWeekend,
+                    'seasonal_premium' => 0,
+                    'is_weekend' => $isWeekend,
+                    'seasonal_rate_applied' => null,
+                    'total_rate' => (int) ($property->base_rate ?? 0),
+                ];
+            }
         }
 
         return [
@@ -256,12 +252,7 @@ class AvailabilityService
     /**
      * Calculate rate with formatted response for API
      * Now delegates to RateCalculationService
-     * 
-     * @param Property $property
-     * @param string $checkIn
-     * @param string $checkOut
-     * @param int $guestCount
-     * @return array
+     *
      * @throws \Exception
      */
     public function calculateRateFormatted(Property $property, string $checkIn, string $checkOut, int $guestCount): array
@@ -299,14 +290,14 @@ class AvailabilityService
                     'capacity' => $property->capacity,
                     'capacity_max' => $property->capacity_max,
                     'requested_guests' => $guestCount,
-                ]
+                ],
             ];
         }
 
         // Check availability
         $availability = $this->checkAvailability($property, $checkIn, $checkOut);
 
-        if (!$availability['available']) {
+        if (! $availability['available']) {
             return [
                 'success' => false,
                 'error_type' => 'availability',
@@ -322,7 +313,7 @@ class AvailabilityService
                     'booked_dates' => $availability['booked_dates'],
                     'booked_periods' => $availability['booked_periods'],
                     'alternative_dates' => $this->getNextAvailableDates($property, 3), // Suggest next 3 nights
-                ]
+                ],
             ];
         }
 
@@ -332,11 +323,9 @@ class AvailabilityService
 
     /**
      * Filter properties by availability for given date range (FIXED field names)
-     * 
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @param string $checkIn
-     * @param string $checkOut
-     * @return \Illuminate\Database\Eloquent\Builder
+     *
+     * @param  Builder  $query
+     * @return Builder
      */
     public function filterPropertiesByAvailability($query, string $checkIn, string $checkOut)
     {
@@ -345,11 +334,12 @@ class AvailabilityService
             $checkInFormatted = Carbon::parse($checkIn)->format('Y-m-d');
             $checkOutFormatted = Carbon::parse($checkOut)->format('Y-m-d');
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Invalid date format in filterPropertiesByAvailability', [
+            Log::error('Invalid date format in filterPropertiesByAvailability', [
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return $query; // Return unfiltered query on error
         }
 
@@ -362,9 +352,7 @@ class AvailabilityService
 
     /**
      * Validate date inputs for availability checking (IMPROVED)
-     * 
-     * @param string $checkIn
-     * @param string $checkOut
+     *
      * @return array|null Returns null if valid, array of errors if invalid
      */
     public function validateDates(string $checkIn, string $checkOut): ?array
@@ -406,11 +394,8 @@ class AvailabilityService
 
     /**
      * Get availability calendar for property (for admin/management)
-     * 
-     * @param Property $property
-     * @param string $startMonth (Y-m format)
-     * @param int $monthsCount
-     * @return array
+     *
+     * @param  string  $startMonth  (Y-m format)
      */
     public function getAvailabilityCalendar(Property $property, string $startMonth, int $monthsCount = 6): array
     {
@@ -431,7 +416,7 @@ class AvailabilityService
                 'year' => $currentMonth->year,
                 'month' => $currentMonth->month,
                 'month_name' => $currentMonth->format('F Y'),
-                'days' => []
+                'days' => [],
             ];
 
             $daysInMonth = $currentMonth->daysInMonth;
@@ -465,11 +450,6 @@ class AvailabilityService
 
     /**
      * Get next available dates for property
-     * 
-     * @param Property $property
-     * @param int $nights
-     * @param int $maxDaysToCheck
-     * @return array|null
      */
     public function getNextAvailableDates(Property $property, int $nights = 1, int $maxDaysToCheck = 90): ?array
     {
@@ -501,11 +481,6 @@ class AvailabilityService
 
     /**
      * Debug method untuk troubleshooting
-     * 
-     * @param Property $property
-     * @param string $checkIn
-     * @param string $checkOut
-     * @return array
      */
     public function debugAvailability(Property $property, string $checkIn, string $checkOut): array
     {

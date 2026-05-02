@@ -282,9 +282,14 @@ export default function DashboardLayout({
                                         </Link>
                                     </li>
                                     <li>
-                                        <Link href="/contact" className="text-muted-foreground hover:text-primary transition-colors">
+                                        <a
+                                            href="https://wa.me/628112500082"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-muted-foreground hover:text-primary transition-colors"
+                                        >
                                             Contact Us
-                                        </Link>
+                                        </a>
                                     </li>
                                 </ul>
                             </div>

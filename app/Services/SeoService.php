@@ -784,15 +784,19 @@ class SeoService
     public function articlesIndexSchema($articles): string
     {
         $items = collect($articles)->take(10)->values()->map(function ($article, $index) {
-            $image = $article->featured_image
-                ? (str_starts_with($article->featured_image, 'http') ? $article->featured_image : asset('storage/'.$article->featured_image))
+            $featuredImage = data_get($article, 'featured_image');
+            $slug = data_get($article, 'slug');
+            $title = data_get($article, 'title');
+
+            $image = $featuredImage
+                ? (str_starts_with($featuredImage, 'http') ? $featuredImage : asset('storage/'.$featuredImage))
                 : asset('og-image.jpg');
 
             return [
                 '@type' => 'ListItem',
                 'position' => $index + 1,
-                'url' => route('articles.show', $article->slug),
-                'name' => $article->title,
+                'url' => route('articles.show', $slug),
+                'name' => $title,
                 'image' => $image,
             ];
         })->toArray();

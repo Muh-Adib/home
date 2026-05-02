@@ -16,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -445,11 +446,25 @@ class ArticleController extends Controller
         // Cache only the plain array representation to avoid __PHP_Incomplete_Class errors.
         $cacheKey = 'articles_index_v2_'.md5(json_encode($request->only(['page', 'language', 'search'])));
 
-        $articlesData = Cache::remember($cacheKey, 3600, function () use ($query) {
-            $paginator = $query->paginate(12);
+        try {
+            $articlesData = Cache::remember($cacheKey, 3600, function () use ($query) {
+                $paginator = $query->paginate(12);
 
-            return $paginator->toArray();
-        });
+                return $paginator->toArray();
+            });
+
+            // Guard against stale non-array values (e.g. serialized LengthAwarePaginator
+            // stored before the toArray() guard existed, deserialized as stdClass or
+            // __PHP_Incomplete_Class). Cache::remember() returns the cached value without
+            // throwing, so we must validate the type after retrieval.
+            if (! is_array($articlesData)) {
+                throw new \UnexpectedValueException('Cached articles data is not an array: '.get_debug_type($articlesData));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Articles index cache corrupt, flushing', ['key' => $cacheKey, 'error' => $e->getMessage()]);
+            Cache::forget($cacheKey);
+            $articlesData = $query->paginate(12)->toArray();
+        }
 
         // Re-wrap as a plain array for Inertia (already paginator-shaped from toArray())
         $articles = $articlesData;

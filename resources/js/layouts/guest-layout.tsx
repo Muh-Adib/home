@@ -172,13 +172,15 @@ export default function GuestLayout({
                                 <FileText className="h-4 w-4 mb-0.5" />
                                 <span className="font-medium text-[10px] leading-tight">{t('nav.articles')}</span>
                             </Link>
-                            <Link
-                                href="/contact"
+                            <a
+                                href="https://wa.me/628112500082"
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="flex flex-col items-center py-1 px-2 text-xs text-muted-foreground hover:text-brand-primary transition-colors"
                             >
                                 <Phone className="h-4 w-4 mb-0.5" />
                                 <span className="font-medium text-[10px] leading-tight">{t('nav.contact')}</span>
-                            </Link>
+                            </a>
                         </>
                     )}
                 </div>
