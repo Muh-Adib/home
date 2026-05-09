@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { type PaginatedData } from '@/types';
 import { Link, router } from '@inertiajs/react';
-import { Search, Calendar, Eye, ArrowRight } from 'lucide-react';
+import { Search, Calendar, Eye, ArrowRight, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { SeoHead } from '@/components/seo/SeoHead';
 import { SchemaOrg } from '@/components/seo/SchemaOrg';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 interface Article {
     id: number;
@@ -33,6 +34,7 @@ interface ArticlesIndexProps {
 }
 
 export default function ArticlesPublicIndex({ articles, filters }: ArticlesIndexProps) {
+    const { t } = useTranslation();
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
 
     const handleSearch = () => {
@@ -61,25 +63,43 @@ export default function ArticlesPublicIndex({ articles, filters }: ArticlesIndex
             <SchemaOrg />
             <div className="min-h-screen bg-background">
                 {/* Hero Section */}
-                <div className="bg-gradient-to-br from-brand-primary to-brand-primary/80 text-white">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                        <h1 className="text-4xl md:text-5xl font-bold mb-4">Articles & Guides</h1>
-                        <p className="text-xl text-white/80 mb-8 max-w-2xl">
-                            Discover tips, guides, and stories about finding the perfect place to stay
+                <div className="relative overflow-hidden bg-brand-primary">
+                    {/* Dark overlay gradient for text readability */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-black/20 to-transparent pointer-events-none" />
+                    {/* Decorative blobs */}
+                    <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white/5 blur-3xl pointer-events-none" />
+                    <div className="absolute -bottom-16 -left-16 w-72 h-72 rounded-full bg-white/5 blur-3xl pointer-events-none" />
+
+                    <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-24">
+                        {/* Badge */}
+                        <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/25 rounded-full px-4 py-1.5 mb-6">
+                            <FileText className="h-3.5 w-3.5 text-white" />
+                            <span className="text-xs font-semibold text-white tracking-wide uppercase">{t('nav.articles')}</span>
+                        </div>
+
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 leading-tight drop-shadow-sm">
+                            {t('nav.articles')}
+                        </h1>
+                        <p className="text-lg md:text-xl text-white/90 mb-10 max-w-2xl leading-relaxed">
+                            {t('articles.hero_subtitle', 'Temukan tips, panduan, dan cerita tentang penginapan terbaik di Jogja.')}
                         </p>
 
                         {/* Search */}
                         <div className="max-w-xl">
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-1.5">
                                 <Input
-                                    placeholder="Search articles..."
+                                    placeholder={t('articles.search_placeholder', 'Cari artikel...')}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                    className="bg-white text-foreground"
+                                    className="bg-transparent border-0 text-white placeholder:text-white/60 focus-visible:ring-0 focus-visible:ring-offset-0 text-base"
                                 />
-                                <Button onClick={handleSearch} variant="secondary">
-                                    <Search className="h-4 w-4" />
+                                <Button
+                                    onClick={handleSearch}
+                                    className="bg-white text-brand-primary hover:bg-white/90 rounded-xl shrink-0 font-semibold px-5"
+                                >
+                                    <Search className="h-4 w-4 mr-2" />
+                                    {t('common.search')}
                                 </Button>
                             </div>
                         </div>
@@ -163,7 +183,7 @@ export default function ArticlesPublicIndex({ articles, filters }: ArticlesIndex
                                                             {article.view_count.toLocaleString()} views
                                                         </div>
                                                         <div className="flex items-center gap-1 text-brand-primary font-medium text-sm group-hover:gap-2 transition-all">
-                                                            Read More
+                                                            {t('articles.read_more', 'Baca Selengkapnya')}
                                                             <ArrowRight className="h-4 w-4" />
                                                         </div>
                                                     </div>
@@ -179,15 +199,15 @@ export default function ArticlesPublicIndex({ articles, filters }: ArticlesIndex
                                 <div className="flex items-center justify-center gap-4 mt-12">
                                     {articles.prev_page_url && (
                                         <Link href={articles.prev_page_url}>
-                                            <Button variant="outline">Previous</Button>
+                                            <Button variant="outline">{t('Previous')}</Button>
                                         </Link>
                                     )}
                                     <span className="text-muted-foreground">
-                                        Page {articles.current_page} of {articles.last_page}
+                                        {t('Page')} {articles.current_page} {t('of')} {articles.last_page}
                                     </span>
                                     {articles.next_page_url && (
                                         <Link href={articles.next_page_url}>
-                                            <Button variant="outline">Next</Button>
+                                            <Button variant="outline">{t('Next')}</Button>
                                         </Link>
                                     )}
                                 </div>
@@ -199,12 +219,14 @@ export default function ArticlesPublicIndex({ articles, filters }: ArticlesIndex
                                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                                     <Search className="h-8 w-8 text-muted-foreground" />
                                 </div>
-                                <h3 className="text-xl font-semibold text-foreground mb-2">No articles found</h3>
+                                <h3 className="text-xl font-semibold text-foreground mb-2">{t('articles.no_articles', 'Tidak ada artikel ditemukan')}</h3>
                                 <p className="text-muted-foreground mb-6">
-                                    {filters.search ? `No results for "${filters.search}"` : 'Check back soon for new content'}
+                                    {filters.search
+                                        ? t('articles.no_results_for', 'Tidak ada hasil untuk "{{term}}"', { term: filters.search })
+                                        : t('articles.check_back', 'Nantikan konten terbaru kami')}
                                 </p>
                                 {filters.search && (
-                                    <Button onClick={() => router.get('/articles')}>Clear Search</Button>
+                                    <Button onClick={() => router.get('/articles')}>{t('Clear Filters')}</Button>
                                 )}
                             </div>
                         </div>

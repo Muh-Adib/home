@@ -780,6 +780,21 @@
     "contact_support_desc": "Ada pertanyaan tentang properti ini? Hubungi tim dukungan kami.",
     "no_amenities_info": "Tidak ada informasi fasilitas yang tersedia untuk properti ini"
   },
+  "articles": {
+    "hero_subtitle": "Temukan tips, panduan, dan cerita tentang penginapan terbaik di Jogja.",
+    "search_placeholder": "Cari artikel...",
+    "read_more": "Baca Selengkapnya",
+    "no_articles": "Tidak ada artikel ditemukan",
+    "no_results_for": "Tidak ada hasil untuk \"{{term}}\"",
+    "check_back": "Nantikan konten terbaru kami",
+    "back_to_articles": "Kembali ke Artikel",
+    "views": "views",
+    "related_articles": "Artikel Terkait",
+    "featured_properties": "Properti Terkait",
+    "cta_title": "Cari Penginapan di Jogja",
+    "cta_desc": "Temukan villa, homestay, dan guesthouse terbaik di Jogja.",
+    "cta_button": "Lihat Semua Penginapan"
+  },
   "settings": {
     "profile": "Profil",
     "profile_information": "Informasi Profil",

@@ -815,6 +815,21 @@
     "next": "Next",
     "page_of": "Page {{current}} of {{total}}"
   },
+  "articles": {
+    "hero_subtitle": "Discover tips, guides, and stories about the best places to stay in Jogja.",
+    "search_placeholder": "Search articles...",
+    "read_more": "Read More",
+    "no_articles": "No articles found",
+    "no_results_for": "No results for \"{{term}}\"",
+    "check_back": "Check back soon for new content",
+    "back_to_articles": "Back to Articles",
+    "views": "views",
+    "related_articles": "Related Articles",
+    "featured_properties": "Related Properties",
+    "cta_title": "Find Accommodation in Jogja",
+    "cta_desc": "Discover the best villas, homestays, and guesthouses in Jogja.",
+    "cta_button": "View All Properties"
+  },
   "settings": {
     "profile": "Profile",
     "profile_information": "Profile Information",
