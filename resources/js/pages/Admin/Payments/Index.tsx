@@ -357,12 +357,16 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                                 </Link>
                                             </TableCell>
                                             <TableCell>
-                                                <Link 
-                                                    href={`/admin/bookings/${payment.booking?.booking_number}`}
-                                                    className="text-primary hover:underline"
-                                                >
-                                                    {payment.booking?.booking_number}
-                                                </Link>
+                                                {payment.booking?.booking_number ? (
+                                                    <Link
+                                                        href={`/admin/bookings/${payment.booking.booking_number}`}
+                                                        className="text-primary hover:underline"
+                                                    >
+                                                        {payment.booking.booking_number}
+                                                    </Link>
+                                                ) : (
+                                                    <span className="text-slate-400 italic text-sm">—</span>
+                                                )}
                                             </TableCell>
                                             <TableCell>{payment.booking?.guest_name}</TableCell>
                                             <TableCell className="font-medium">

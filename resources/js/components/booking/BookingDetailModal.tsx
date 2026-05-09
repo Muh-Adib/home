@@ -316,18 +316,36 @@ export default function BookingDetailModal({
                                 </div>
 
                                 <div className="pt-2 space-y-3 border-t border-dashed mt-2">
-                                    <a href={`tel:${booking.guest_phone}`} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-md transition-colors group">
-                                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors flex-shrink-0">
-                                            <Phone className="w-4 h-4" />
+                                    {booking.guest_phone ? (
+                                        <a href={`tel:${booking.guest_phone}`} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-md transition-colors group">
+                                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors flex-shrink-0">
+                                                <Phone className="w-4 h-4" />
+                                            </div>
+                                            <span className="text-xs md:text-sm font-medium text-slate-700 break-all">{booking.guest_phone}</span>
+                                        </a>
+                                    ) : (
+                                        <div className="flex items-center gap-3 p-2">
+                                            <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center flex-shrink-0">
+                                                <Phone className="w-4 h-4" />
+                                            </div>
+                                            <span className="text-xs md:text-sm text-slate-400 italic">No phone</span>
                                         </div>
-                                        <span className="text-xs md:text-sm font-medium text-slate-700 break-all">{booking.guest_phone}</span>
-                                    </a>
-                                    <a href={`mailto:${booking.guest_email}`} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-md transition-colors group">
-                                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors flex-shrink-0">
-                                            <Mail className="w-4 h-4" />
+                                    )}
+                                    {booking.guest_email ? (
+                                        <a href={`mailto:${booking.guest_email}`} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-md transition-colors group">
+                                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors flex-shrink-0">
+                                                <Mail className="w-4 h-4" />
+                                            </div>
+                                            <span className="text-xs md:text-sm font-medium text-slate-700 truncate min-w-0">{booking.guest_email}</span>
+                                        </a>
+                                    ) : (
+                                        <div className="flex items-center gap-3 p-2">
+                                            <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center flex-shrink-0">
+                                                <Mail className="w-4 h-4" />
+                                            </div>
+                                            <span className="text-xs md:text-sm text-slate-400 italic">No email</span>
                                         </div>
-                                        <span className="text-xs md:text-sm font-medium text-slate-700 truncate min-w-0">{booking.guest_email}</span>
-                                    </a>
+                                    )}
                                 </div>
                             </div>
                         </div>

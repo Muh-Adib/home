@@ -52,7 +52,7 @@
     - **EXPECTED OUTCOME**: All tests PASS — confirms the guard works correctly with mocked data
     - _Requirements: 2.1, 2.2, 3.1, 3.2_
 
-  - [~] 3.3 Verify fix on production after deploy
+  - [ ] 3.3 Verify fix on production after deploy
     - **⚠️ This step requires deployment to production first**
     - After deploying, hit each of the 6 affected production URLs and confirm HTTP 200:
       ```

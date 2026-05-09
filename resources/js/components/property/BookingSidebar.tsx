@@ -17,7 +17,8 @@ import {
     Sparkles,
     Clock,
     Tag,
-    ExternalLink
+    ExternalLink,
+    MessageCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Property } from '@/types/property';
@@ -100,6 +101,31 @@ export function BookingSidebar({
     };
 
     const canSubmit = isRateReady && meetsMinimumStay && checkInDate && checkOutDate && guestCount;
+
+    const buildWhatsAppMessage = (
+        propertyName: string,
+        checkIn?: string,
+        checkOut?: string,
+        guests?: number,
+    ): string => {
+        if (checkIn && checkOut && guests) {
+            return encodeURIComponent(
+                `Halo, saya tertarik dengan *${propertyName}*.\n` +
+                    `Check-in: ${checkIn}\nCheck-out: ${checkOut}\nTamu: ${guests} orang.\n` +
+                    `Apakah masih tersedia?`,
+            );
+        }
+        return encodeURIComponent(
+            `Halo, saya tertarik dengan *${propertyName}*. Boleh info ketersediaan dan harga?`,
+        );
+    };
+
+    const waUrl = `https://wa.me/628112500082?text=${buildWhatsAppMessage(
+        property.name,
+        checkInDate || undefined,
+        checkOutDate || undefined,
+        guestCount || undefined,
+    )}`;
 
     return (
         <div className="space-y-4 sm:space-y-6">
@@ -335,7 +361,7 @@ export function BookingSidebar({
                     <div className="space-y-2">
                         <Button
                             size="lg"
-                            className="w-full bg-brand-primary hover:bg-brand-primary-90 disabled:opacity-50 shadow-lg text-white transition-colors"
+                            className="w-full hidden bg-brand-primary hover:bg-brand-primary-90 disabled:opacity-50 shadow-lg text-white transition-colors"
                             disabled={!canSubmit}
                             onClick={() => {
                                 if (canSubmit) {
@@ -377,6 +403,19 @@ export function BookingSidebar({
                                     {t('properties.select_dates_to_book')}
                                 </>
                             )}
+                        </Button>
+
+                        {/* WhatsApp CTA */}
+                        <Button
+                            asChild
+                            variant="outline"
+                            size="lg"
+                            className="w-full border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-colors"
+                        >
+                            <a href={waUrl} target="_blank" rel="noopener noreferrer">
+                                <MessageCircle className="h-4 w-4 mr-2" />
+                                Chat via WhatsApp
+                            </a>
                         </Button>
                     </div>
 

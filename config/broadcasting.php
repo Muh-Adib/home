@@ -41,7 +41,7 @@ return [
                 'scheme' => env('PUSHER_SCHEME', 'http'),
                 'encrypted' => false,
                 'useTLS' => env('PUSHER_SCHEME', 'http') === 'https',
-                'cluster' => env('PUSHER_APP_CLUSTER'),
+                // 'cluster' intentionally omitted — not used by Laravel Echo Server
             ],
             'client_options' => [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html

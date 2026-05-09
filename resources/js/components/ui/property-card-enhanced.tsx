@@ -125,10 +125,10 @@ export default function PropertyCardEnhanced({
       transition={{ duration: 0.25, ease: 'easeOut' }}
     >
       <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-2xl">
-        <article className="rounded-2xl overflow-hidden bg-white border border-slate-100 shadow-sm hover:shadow-xl transition-shadow duration-400 cursor-pointer">
+        <article className="rounded-2xl overflow-hidden bg-card border border-border shadow-sm hover:shadow-xl transition-shadow duration-400 cursor-pointer">
 
           {/* ═══ Image ═══════════════════════════════════════ */}
-          <div className="aspect-[4/3] rounded-2xl relative overflow-hidden bg-slate-100">
+          <div className="aspect-[4/3] rounded-2xl relative overflow-hidden bg-muted">
             {property.media?.length > 0 && property.media[0]?.url && !imageError ? (
               <img
                 src={property.media[0].url}
@@ -141,9 +141,9 @@ export default function PropertyCardEnhanced({
                 onError={() => setImageError(true)}
               />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-                <Building2 className="h-10 w-10 md:h-12 md:w-12 text-slate-400" />
-                <span className="text-xs text-slate-500 mt-2">No Image</span>
+              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-muted to-muted/80">
+                <Building2 className="h-10 w-10 md:h-12 md:w-12 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground mt-2">No Image</span>
               </div>
             )}
 
@@ -181,7 +181,7 @@ export default function PropertyCardEnhanced({
                 }`}
               aria-label={isLiked ? 'Hapus dari favorit' : 'Tambah ke favorit'}
             >
-              <Heart className={`h-3.5 w-3.5 md:h-4 md:w-4 transition-colors ${isLiked ? 'text-rose-500 fill-rose-500' : 'text-slate-600'
+              <Heart className={`h-3.5 w-3.5 md:h-4 md:w-4 transition-colors ${isLiked ? 'text-rose-500 fill-rose-500' : 'text-foreground'
                 }`} />
             </button>
 
@@ -190,22 +190,20 @@ export default function PropertyCardEnhanced({
               <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-white/90 backdrop-blur-sm rounded-full px-2 py-0.5 shadow-sm">
                 <Star className="h-3 w-3 md:h-3.5 md:w-3.5 text-amber-400 fill-amber-400" />
                 <span className="text-[11px] md:text-xs font-semibold text-slate-700">4.5</span>
-              </div>
-            )}
+              </div>            )}
           </div>
 
           {/* ═══ Content ═════════════════════════════════════ */}
           <div className="p-3.5 md:p-5">
 
             {/* Name + Address */}
-            <h3 className="text-sm md:text-lg font-bold text-slate-900 leading-tight line-clamp-1 group-hover:text-blue-600 transition-colors duration-200">
+            <h3 className="text-sm md:text-lg font-bold text-foreground leading-tight line-clamp-1 group-hover:text-brand-primary transition-colors duration-200">
               {property.name}
             </h3>
-            <div className="flex items-center gap-1 mt-1 text-slate-500">
+            <div className="flex items-center gap-1 mt-1 text-muted-foreground">
               <MapPin className="h-3 w-3 md:h-3.5 md:w-3.5 shrink-0" />
               <span className="text-[11px] md:text-xs truncate">{property.address}</span>
             </div>
-
             {/* Description — toggleable, full text always in DOM for SEO */}
             {cleanDescription && (
               <div className="mt-2">
@@ -213,7 +211,7 @@ export default function PropertyCardEnhanced({
                 <span className="sr-only">{cleanDescription}</span>
 
                 {/* Visible: short or full based on toggle */}
-                <p className="text-xs md:text-[13px] text-slate-500 leading-relaxed">
+                <p className="text-xs md:text-[13px] text-muted-foreground leading-relaxed">
                   {showFullDesc ? cleanDescription : shortDescription}
                 </p>
 
@@ -221,7 +219,7 @@ export default function PropertyCardEnhanced({
                   <button
                     type="button"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowFullDesc(!showFullDesc); }}
-                    className="text-[12px] text-blue-600 hover:text-blue-700 font-medium py-2 -my-2 focus:outline-none"
+                    className="text-[12px] text-brand-primary hover:text-brand-primary/80 font-medium py-2 -my-2 focus:outline-none"
                   >
                     {showFullDesc ? 'Sembunyikan' : 'Selengkapnya'}
                   </button>
@@ -257,7 +255,7 @@ export default function PropertyCardEnhanced({
             )}
 
             {/* ── Price section ──────────────────────── */}
-            <div className="mt-3 md:mt-4 pt-3 border-t border-slate-100">
+            <div className="mt-3 md:mt-4 pt-3 border-t border-border">
               <div className="flex items-end justify-between">
                 {/* Left: pricing */}
                 <div>
@@ -265,17 +263,17 @@ export default function PropertyCardEnhanced({
                     {formatCurrency(inflatedRate)}
                   </span>
                   <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className="text-lg md:text-xl font-bold text-slate-900">
+                    <span className="text-lg md:text-xl font-bold text-foreground">
                       {formatCurrency(currentRate)}
                     </span>
-                    <span className="text-[11px] md:text-xs text-slate-500 font-medium">
+                    <span className="text-[11px] md:text-xs text-muted-foreground font-medium">
                       /malam
                     </span>
                   </div>
                 </div>
 
                 {/* Right: CTA hint */}
-                <span className="text-[11px] md:text-xs text-blue-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity duration-200 pb-0.5">
+                <span className="text-[11px] md:text-xs text-brand-primary font-semibold opacity-0 group-hover:opacity-100 transition-opacity duration-200 pb-0.5">
                   Lihat →
                 </span>
               </div>
@@ -291,15 +289,15 @@ export default function PropertyCardEnhanced({
 function StatItem({ icon: Icon, value, label, shortLabel }: { icon: React.ElementType; value: number; label: string; shortLabel: string }) {
   return (
     <div
-      className="flex flex-col items-center justify-center bg-slate-50 rounded-md py-1.5 md:py-2"
+      className="flex flex-col items-center justify-center bg-muted rounded-md py-1.5 md:py-2"
       title={`${value} ${label}`}
     >
       <div className="flex items-center gap-1">
-        <Icon className="h-3 w-3 md:h-3.5 md:w-3.5 text-slate-500" />
-        <span className="text-xs md:text-sm font-bold text-slate-800">{value}</span>
+        <Icon className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
+        <span className="text-xs md:text-sm font-bold text-foreground">{value}</span>
       </div>
-      <span className="text-[8px] md:text-[10px] text-slate-500 font-medium leading-tight mt-0.5 md:hidden">{shortLabel}</span>
-      <span className="text-[10px] text-slate-500 font-medium leading-tight mt-0.5 hidden md:block">{label}</span>
+      <span className="text-[8px] md:text-[10px] text-muted-foreground font-medium leading-tight mt-0.5 md:hidden">{shortLabel}</span>
+      <span className="text-[10px] text-muted-foreground font-medium leading-tight mt-0.5 hidden md:block">{label}</span>
     </div>
   );
 }

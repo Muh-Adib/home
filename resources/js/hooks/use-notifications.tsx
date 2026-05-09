@@ -61,6 +61,8 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
     const fallbackInstanceRef = useRef<any>(null);
     const connectionCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const echoChannelsRef = useRef<any[]>([]);
+    // Ref to track connection mode inside effects without causing re-runs
+    const connectionModeRef = useRef<'websocket' | 'polling' | 'disconnected'>('disconnected');
 
     // Fetch notifications
     const fetchNotifications = useCallback(async () => {
@@ -257,6 +259,7 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
         if (!userId) return;
         
         console.log('📡 Starting polling fallback for notifications');
+        connectionModeRef.current = 'polling';
         setConnectionMode('polling');
         setIsConnected(true);
         
@@ -317,8 +320,9 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
                     channel.subscribed(() => {
                         console.log(`✅ Subscribed to ${channelName}`);
                         if (index === 0) { // User channel
-                    setIsConnected(true);
-                    setConnectionMode('websocket');
+                            setIsConnected(true);
+                            connectionModeRef.current = 'websocket';
+                            setConnectionMode('websocket');
                             websocketConnected = true;
                             
                             // Stop polling if WebSocket is working
@@ -329,7 +333,8 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
                     channel.error((error: any) => {
                         console.warn(`❌ ${channelName} error:`, error);
                         if (index === 0) { // User channel error
-                    setConnectionMode('polling');
+                            connectionModeRef.current = 'polling';
+                            setConnectionMode('polling');
                             setIsConnected(false);
                             websocketConnected = false;
                             
@@ -357,12 +362,14 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
                 
                 if (isPusherConnected && !websocketConnected) {
                     console.log('✅ Pusher reconnected');
+                    connectionModeRef.current = 'websocket';
                     setConnectionMode('websocket');
                     setIsConnected(true);
                     websocketConnected = true;
                     stopPollingFallback();
                 } else if (!isPusherConnected && websocketConnected) {
                     console.log('❌ Pusher disconnected, switching to polling');
+                    connectionModeRef.current = 'polling';
                     setConnectionMode('polling');
                     setIsConnected(false);
                     websocketConnected = false;
@@ -370,8 +377,9 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
                 }
             } else {
                 // WebSocket not available, ensure polling is running
-                if (connectionMode !== 'polling') {
+                if (connectionModeRef.current !== 'polling') {
                     console.log('🔄 WebSocket not available, ensuring polling is active');
+                    connectionModeRef.current = 'polling';
                     setConnectionMode('polling');
                     startPollingFallback();
                 }
@@ -407,7 +415,7 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
                 console.warn('Error leaving WebSocket channels:', error);
             }
         };
-    }, [userId, handleNewNotification, startPollingFallback, stopPollingFallback, connectionMode]);
+    }, [userId, handleNewNotification, startPollingFallback, stopPollingFallback]);
 
     // Request notification permission on mount
     useEffect(() => {

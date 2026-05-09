@@ -118,10 +118,13 @@ export function createNotificationFallback(userId: number): NotificationFallback
             } catch (error) {
                 console.error('📡 Polling error:', error);
                 
-                // If too many consecutive errors, stop polling
+                // If too many consecutive errors, stop polling and restart with longer interval
                 if (retryCount >= maxRetries * 2) {
-                    console.error('📡 Too many consecutive errors, stopping polling');
+                    console.error('📡 Too many consecutive errors, restarting with longer interval');
                     stopPolling();
+                    fallback.pollIntervalMs = Math.min(fallback.pollIntervalMs * 2, 60000);
+                    // Restart with new interval
+                    startPolling(callback);
                 }
             }
         }, fallback.pollIntervalMs);

@@ -21,26 +21,32 @@ let isEchoAvailable = false;
 
 // Get WebSocket URL without using React hooks
 function getWebSocketUrlSafe(): string {
-    // Development environment
+    // Development environment — connect directly to Laravel Echo Server port
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.endsWith('.test')) {
         return `${window.location.protocol}//${window.location.hostname}:6001`;
     }
 
-    // Production - gunakan URL dari window.location dengan port WebSocket
-    const baseUrl = window.location.origin;
-    // Force HTTPS for WebSocket in production
-    const wsUrl = baseUrl.replace(/^http:/, 'https:').replace(/^https:/, 'https:');
-    return wsUrl.replace(/:\d+/, ':6001'); // Replace port with WebSocket port
+    // Production — nginx proxies /socket.io/ to port 6001 internally,
+    // so the browser connects to the same origin (no port needed).
+    // This avoids firewall/port issues on Coolify/Dokploy deployments.
+    return window.location.origin;
 }
 
-// Test WebSocket connection
+// Test WebSocket connection by checking the socket.io endpoint
 async function testWebSocketConnection(url: string): Promise<boolean> {
     try {
-        const response = await fetch(url, {
+        // Use the socket.io info endpoint which returns JSON — reliable indicator
+        const testUrl = `${url}/socket.io/?EIO=4&transport=polling`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(testUrl, {
             method: 'GET',
-            mode: 'no-cors', // Avoid CORS issues
+            signal: controller.signal,
         });
-        return true;
+        clearTimeout(timeoutId);
+
+        return response.ok || response.status === 400; // 400 = server responded (bad handshake is still a response)
     } catch (error) {
         console.warn('WebSocket connection test failed:', error);
         return false;
@@ -68,8 +74,6 @@ function createEchoInstance(): Echo<any> | null {
 
         // Get WebSocket URL dinamis dari utility function (non-hook version)
         const wsUrl = getWebSocketUrlSafe();
-
-        console.log('🔌 Creating Echo instance with URL:', wsUrl);
 
         console.log('🔌 Creating Echo instance with URL:', wsUrl);
 
@@ -170,6 +174,11 @@ function initializeEcho(): Echo<any> | null {
 
 // Export functions untuk use di hooks
 export function getEcho(): { echo: Echo<any> | null; isAvailable: boolean } {
+    // Guard: window tidak tersedia di SSR (Node.js)
+    if (typeof window === 'undefined') {
+        return { echo: null, isAvailable: false };
+    }
+
     const echo = initializeEcho();
 
     // Check if Echo is actually working
@@ -186,7 +195,8 @@ export function getEcho(): { echo: Echo<any> | null; isAvailable: boolean } {
 }
 
 // Export default Echo instance untuk backward compatibility
-export default getEcho().echo;
+// Guard against SSR — only call getEcho() in browser context
+export default typeof window !== 'undefined' ? getEcho().echo : null;
 
 // Export utility functions
 export { createNotificationFallback };

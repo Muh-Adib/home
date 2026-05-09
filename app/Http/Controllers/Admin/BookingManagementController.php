@@ -989,11 +989,13 @@ class BookingManagementController extends Controller
         $message .= "Terima kasih telah memilih properti kami! 🏠\n";
         $message .= "Tim {$property->name}";
 
+        $canSend = ! empty($booking->guest_phone);
+
         return [
-            'phone' => $this->formatPhoneNumber($booking->guest_phone),
+            'phone' => $canSend ? $this->formatPhoneNumber($booking->guest_phone) : null,
             'message' => $message,
-            'whatsapp_url' => "https://wa.me/{$this->formatPhoneNumber($booking->guest_phone)}?text=".urlencode($message),
-            'can_send' => ! empty($booking->guest_phone),
+            'whatsapp_url' => $canSend ? "https://wa.me/{$this->formatPhoneNumber($booking->guest_phone)}?text=".urlencode($message) : null,
+            'can_send' => $canSend,
         ];
     }
 

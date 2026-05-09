@@ -494,12 +494,24 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                         </div>
 
                                         <div className="space-y-3 pt-2">
-                                            <a href={`tel:${booking.guest_phone}`} className="flex items-center gap-3 text-sm text-slate-600 hover:text-blue-600 transition-colors p-2 hover:bg-slate-50 rounded-lg">
-                                                <Phone className="w-4 h-4" /> {booking.guest_phone}
-                                            </a>
-                                            <a href={`mailto:${booking.guest_email}`} className="flex items-center gap-3 text-sm text-slate-600 hover:text-blue-600 transition-colors p-2 hover:bg-slate-50 rounded-lg">
-                                                <Mail className="w-4 h-4" /> {booking.guest_email}
-                                            </a>
+                                            {booking.guest_phone ? (
+                                                <a href={`tel:${booking.guest_phone}`} className="flex items-center gap-3 text-sm text-slate-600 hover:text-blue-600 transition-colors p-2 hover:bg-slate-50 rounded-lg">
+                                                    <Phone className="w-4 h-4" /> {booking.guest_phone}
+                                                </a>
+                                            ) : (
+                                                <div className="flex items-center gap-3 text-sm text-slate-400 p-2">
+                                                    <Phone className="w-4 h-4" /> <span className="italic">No phone</span>
+                                                </div>
+                                            )}
+                                            {booking.guest_email ? (
+                                                <a href={`mailto:${booking.guest_email}`} className="flex items-center gap-3 text-sm text-slate-600 hover:text-blue-600 transition-colors p-2 hover:bg-slate-50 rounded-lg">
+                                                    <Mail className="w-4 h-4" /> {booking.guest_email}
+                                                </a>
+                                            ) : (
+                                                <div className="flex items-center gap-3 text-sm text-slate-400 p-2">
+                                                    <Mail className="w-4 h-4" /> <span className="italic">No email</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

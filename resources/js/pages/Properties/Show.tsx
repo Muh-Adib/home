@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import { Head } from '@inertiajs/react';
 import GuestLayout from '@/layouts/guest-layout';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { SimilarProperties } from '@/components/property/SimilarProperties';
 import { SeoHead } from '@/components/seo/SeoHead';
 import { SchemaOrg } from '@/components/seo/SchemaOrg';
 import { FAQSection } from '@/components/seo/FAQSection';
+import MobileStickyCtaBar from '@/components/property/MobileStickyCtaBar';
 import { usePropertyState } from '@/hooks/use-property-state';
 import { useRateCalculation } from '@/hooks/use-rate-calculation';
 import { usePropertyMinimumStay } from '@/hooks/use-property-minimum-stay';
@@ -62,6 +63,9 @@ export default function PropertyShow({
     checkInDate: state.checkInDate,
     checkOutDate: state.checkOutDate
   });
+
+  // Ref for BookingSidebar — used by MobileStickyCtaBar IntersectionObserver
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   // Derived values
   const maxSelectableDate = getMaxSelectableDate(availabilityData);
@@ -143,28 +147,30 @@ export default function PropertyShow({
             </div>
 
             {/* Booking Sidebar */}
-            <BookingSidebar
-              property={property}
-              availabilityData={availabilityData}
-              searchParams={searchParams}
-              onDateRangeChange={handleDateRangeChange}
-              onGuestCountChange={handleGuestCountChange}
-              checkInDate={state.checkInDate}
-              checkOutDate={state.checkOutDate}
-              guestCount={state.guestCount}
-              maxSelectableDate={maxSelectableDate}
-              effectiveMinStay={effectiveMinStay}
-              meetsMinimumStay={meetsMinimumStay}
-              // Pass calculated rate data from parent
-              rateCalculation={rateCalculation}
-              rateError={rateError}
-              isCalculatingRate={isCalculatingRate}
-              hasSeasonalPremium={hasSeasonalPremium}
-              hasWeekendPremium={hasWeekendPremium}
-              isRateReady={isRateReady}
-              // Pass auth data
-              auth={auth}
-            />
+            <div ref={sidebarRef}>
+              <BookingSidebar
+                property={property}
+                availabilityData={availabilityData}
+                searchParams={searchParams}
+                onDateRangeChange={handleDateRangeChange}
+                onGuestCountChange={handleGuestCountChange}
+                checkInDate={state.checkInDate}
+                checkOutDate={state.checkOutDate}
+                guestCount={state.guestCount}
+                maxSelectableDate={maxSelectableDate}
+                effectiveMinStay={effectiveMinStay}
+                meetsMinimumStay={meetsMinimumStay}
+                // Pass calculated rate data from parent
+                rateCalculation={rateCalculation}
+                rateError={rateError}
+                isCalculatingRate={isCalculatingRate}
+                hasSeasonalPremium={hasSeasonalPremium}
+                hasWeekendPremium={hasWeekendPremium}
+                isRateReady={isRateReady}
+                // Pass auth data
+                auth={auth}
+              />
+            </div>
           </div>
 
           {/* GEO: FAQ Section for AI Optimization */}
@@ -178,6 +184,18 @@ export default function PropertyShow({
           </div>
         </div>
       </div>
+
+      {/* Mobile Sticky CTA Bar */}
+      <MobileStickyCtaBar
+        property={property}
+        checkInDate={state.checkInDate}
+        checkOutDate={state.checkOutDate}
+        guestCount={state.guestCount}
+        sidebarRef={sidebarRef}
+        onBookNow={() => {
+          sidebarRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }}
+      />
     </GuestLayout>
   );
 }
