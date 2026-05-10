@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-
+    <meta name="msvalidate.01" content="B9BB8EBFA882C4F41605AE528EA70F7D" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     {{-- Inline script to detect system dark mode preference and apply it immediately --}}
