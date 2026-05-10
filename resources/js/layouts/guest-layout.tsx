@@ -425,7 +425,14 @@ export default function GuestLayout({
                                 </div>
                             </div>
 
-                            <div className="mt-8 pt-8 border-t border-border">
+                            {/* Microsoft Clarity Site Disclosure */}
+                            <div className="mt-8 pt-6 border-t border-border">
+                                <p className="text-xs text-muted-foreground/70 text-center leading-relaxed max-w-3xl mx-auto mb-4">
+                                    {t('footer.clarity_disclosure')}{' '}
+                                    <Link href="/privacy" className="underline underline-offset-2 hover:text-brand-primary transition-colors">
+                                        {t('nav.privacy')}
+                                    </Link>.
+                                </p>
                                 <p className="text-center text-sm text-muted-foreground">
                                     © 2026 Homsjogja.{' '}
                                     <a href="/copyrightpolicy" className="hover:text-brand-primary transition-colors">

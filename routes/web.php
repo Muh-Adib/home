@@ -37,7 +37,7 @@ use Illuminate\Support\Facades\Route;
 
 
 
-// Legacy prefixes
+/* / Legacy prefixes
 Route::get('/{legacyPrefix}/{any?}', function () {
     abort(410);
 })->whereIn('legacyPrefix', [
@@ -66,7 +66,7 @@ foreach ($legacyStandalone as $url) {
     Route::any("/{$url}", function () {
         abort(410);
     });
-}
+}*/
 
 // CSRF Token endpoint for refreshing token (prevents 419 errors)
 Route::get('/csrf-token', function (Request $request) {

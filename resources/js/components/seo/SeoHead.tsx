@@ -13,8 +13,10 @@ export function SeoHead({ title, description, image, noIndex = false }: SeoHeadP
     const { seo, globalSeo } = usePage<PageProps>().props;
 
     // Merge custom props with page SEO data
-    const metaTitle = title || seo?.title || globalSeo.siteName;
-    const metaDescription = description || seo?.description || '';
+    const rawTitle = title || seo?.title || globalSeo.siteName;
+    // Truncate title to 60 chars to avoid "Title too long" SEO warnings
+    const metaTitle = rawTitle.length > 60 ? rawTitle.substring(0, 57) + '...' : rawTitle;
+    const metaDescription = description || seo?.description || `${globalSeo.siteName} — Temukan homestay, villa, dan penginapan terbaik di Yogyakarta.`;
     const metaImage = image || seo?.image || globalSeo.defaultImage;
     const canonicalUrl = seo?.url || '';
 

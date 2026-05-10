@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Head } from '@inertiajs/react';
 import GuestLayout from '@/layouts/guest-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -220,9 +219,11 @@ export default function FAQ() {
 
     return (
         <GuestLayout>
-            <SeoHead />
+            <SeoHead
+                title="FAQ - Homsjogja"
+                description="Temukan jawaban atas pertanyaan umum tentang pemesanan, pembayaran, check-in, dan layanan Homsjogja di Yogyakarta."
+            />
             <SchemaOrg />
-            <Head title="FAQ - Homsjogja" />
             
             <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
                 <div className="max-w-6xl mx-auto p-4 md:p-8">

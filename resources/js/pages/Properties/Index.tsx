@@ -154,7 +154,10 @@ export default function PropertiesIndex({ properties, amenities, filters }: Prop
 
     return (
         <GuestLayout variant='minimal'>
-            <SeoHead />
+            <SeoHead
+                title="Daftar Homestay & Villa di Yogyakarta"
+                description="Temukan dan bandingkan homestay, villa, dan penginapan terbaik di Yogyakarta. Harga terjangkau, lokasi strategis, booking mudah di Homsjogja."
+            />
             <SchemaOrg />
 
             <div className="min-h-screen bg-brand-background">

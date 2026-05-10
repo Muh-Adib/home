@@ -59,7 +59,10 @@ export default function ArticlesPublicIndex({ articles, filters }: ArticlesIndex
 
     return (
         <GuestLayout variant="minimal">
-            <SeoHead />
+            <SeoHead
+                title="Artikel & Tips Wisata Yogyakarta"
+                description="Baca tips menginap, panduan wisata Jogja, dan cerita inspiratif dari Homsjogja. Temukan rekomendasi homestay dan villa terbaik di Yogyakarta."
+            />
             <SchemaOrg />
             <div className="min-h-screen bg-background">
                 {/* Hero Section */}

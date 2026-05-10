@@ -1,5 +1,4 @@
 import React from 'react';
-import { Head } from '@inertiajs/react';
 import GuestLayout from '@/layouts/guest-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,9 +10,11 @@ import { SchemaOrg } from '@/components/seo/SchemaOrg';
 export default function About() {
     return (
         <GuestLayout>
-            <SeoHead />
+            <SeoHead
+                title="Tentang Kami - Homsjogja"
+                description="Homsjogja menghubungkan Anda dengan homestay, villa, dan penginapan autentik di Yogyakarta. Temukan cerita, misi, dan tim kami."
+            />
             <SchemaOrg />
-            <Head title="Tentang Kami - Homsjogja" />
             
             <div className="min-h-screen bg-brand-background">
                 <div className="max-w-6xl mx-auto p-4 md:p-6">

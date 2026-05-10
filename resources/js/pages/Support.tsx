@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Head } from '@inertiajs/react';
 import GuestLayout from '@/layouts/guest-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -131,9 +130,11 @@ export default function Support() {
 
     return (
         <GuestLayout>
-            <SeoHead />
+            <SeoHead
+                title="Pusat Bantuan - Homsjogja"
+                description="Butuh bantuan? Temukan panduan pemesanan, pembayaran, dan layanan Homsjogja. Tim kami siap membantu 24/7."
+            />
             <SchemaOrg />
-            <Head title="Dukungan - Homsjogja" />
             
             <div className="min-h-screen bg-brand-background">
                 <div className="max-w-6xl mx-auto p-4 md:p-6">
