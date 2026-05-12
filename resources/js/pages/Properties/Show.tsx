@@ -185,7 +185,7 @@ export default function PropertyShow({
         </div>
       </div>
 
-      {/* Mobile Sticky CTA Bar */}
+      {/* Mobile Sticky CTA Bar 
       <MobileStickyCtaBar
         property={property}
         checkInDate={state.checkInDate}
@@ -195,7 +195,7 @@ export default function PropertyShow({
         onBookNow={() => {
           sidebarRef.current?.scrollIntoView({ behavior: 'smooth' });
         }}
-      />
+      />*/}
     </GuestLayout>
   );
 }

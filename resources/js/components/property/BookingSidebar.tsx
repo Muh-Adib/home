@@ -108,15 +108,18 @@ export function BookingSidebar({
         checkOut?: string,
         guests?: number,
     ): string => {
+        const pageUrl = typeof window !== 'undefined' ? window.location.href : '';
         if (checkIn && checkOut && guests) {
             return encodeURIComponent(
                 `Halo, saya tertarik dengan *${propertyName}*.\n` +
                     `Check-in: ${checkIn}\nCheck-out: ${checkOut}\nTamu: ${guests} orang.\n` +
-                    `Apakah masih tersedia?`,
+                    `Apakah masih tersedia?\n\n` +
+                    `Info lengkap: ${pageUrl}`,
             );
         }
         return encodeURIComponent(
-            `Halo, saya tertarik dengan *${propertyName}*. Boleh info ketersediaan dan harga?`,
+            `Halo, saya tertarik dengan *${propertyName}*. Boleh info ketersediaan dan harga?\n\n` +
+                `Info lengkap: ${pageUrl}`,
         );
     };
 
@@ -422,7 +425,7 @@ export function BookingSidebar({
                 </CardContent>
             </Card>
 
-            {/* Quick Contact */}
+            {/* Quick Contact 
             <Card className="card-modern">
                 <CardHeader className="bg-gradient-to-r from-brand-primary/10 to-brand-primary/5 border-b border-brand-primary/20">
                     <CardTitle className="text-lg text-brand-primary">{t('properties.need_help')}</CardTitle>
@@ -436,14 +439,14 @@ export function BookingSidebar({
                         <span className="text-brand-primary">{t('properties.contact_support')}</span>
                     </Button>
                 </CardContent>
-            </Card>
+            </Card>*/}
 
-            {/* Auth Modal */}
+            {/* Auth Modal 
             <AuthModal
                 open={showAuthModal}
                 onOpenChange={setShowAuthModal}
                 returnUrl={`/properties/${property.slug}?check_in=${checkInDate}&check_out=${checkOutDate}&guests=${guestCount}`}
-            />
+            />*/}
         </div>
     );
 } 
