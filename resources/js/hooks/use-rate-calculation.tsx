@@ -94,11 +94,10 @@ export function useRateCalculation({
 
     // Check if dates are available
     const checkAvailability = useCallback((dateArray: string[]): boolean => {
-        if (!availabilityData?.booked_dates) return true;
+        const bookedDates = availabilityData?.booked_dates;
+        if (!Array.isArray(bookedDates) || bookedDates.length === 0) return true;
 
-        return !dateArray.some(date =>
-            availabilityData.booked_dates.includes(date)
-        );
+        return !dateArray.some(date => bookedDates.includes(date));
     }, [availabilityData]);
 
     // Calculate daily rates

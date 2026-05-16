@@ -26,7 +26,7 @@ export const usePropertyMinimumStay = ({
 
     const checkIn = parseISO(checkInDate);
     const checkOut = parseISO(checkOutDate);
-    const bookedDates = availabilityData?.booked_dates || [];
+    const bookedDates = Array.isArray(availabilityData?.booked_dates) ? availabilityData.booked_dates : [];
     
     const isDateBooked = (date: Date): boolean => {
       const dateStr = format(date, 'yyyy-MM-dd');
