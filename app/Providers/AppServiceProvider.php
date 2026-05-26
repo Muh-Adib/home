@@ -2,18 +2,21 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
-use App\Services\BookingService;
-use App\Services\RateCalculationService;
-use App\Services\AvailabilityService;
-use App\Services\RateService;
-use App\Repositories\BookingRepository;
 use App\Models\Article;
 use App\Models\ContentPlan;
 use App\Models\Property;
 use App\Observers\ArticleObserver;
 use App\Observers\ContentPlanObserver;
 use App\Observers\PropertyObserver;
+use App\Repositories\BookingRepository;
+use App\Services\AvailabilityService;
+use App\Services\BookingService;
+use App\Services\RateCalculationService;
+use App\Services\RateService;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -32,7 +35,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(RateCalculationService::class, function ($app) {
-            return new RateCalculationService();
+            return new RateCalculationService;
         });
 
         $this->app->singleton(AvailabilityService::class, function ($app) {
@@ -42,11 +45,11 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(RateService::class, function ($app) {
-            return new RateService();
+            return new RateService;
         });
 
         $this->app->singleton(BookingRepository::class, function ($app) {
-            return new BookingRepository();
+            return new BookingRepository;
         });
     }
 
@@ -64,5 +67,20 @@ class AppServiceProvider extends ServiceProvider
         Article::observe(ArticleObserver::class);
         ContentPlan::observe(ContentPlanObserver::class);
         Property::observe(PropertyObserver::class);
+
+        // Rate limiters for API v1
+        RateLimiter::for('api-v1-read', function (Request $request) {
+            $token = $request->attributes->get('api_token');
+            $key = $token ? "api_read_{$token->id}" : "api_read_{$request->ip()}";
+
+            return Limit::perMinute(120)->by($key);
+        });
+
+        RateLimiter::for('api-v1-write', function (Request $request) {
+            $token = $request->attributes->get('api_token');
+            $key = $token ? "api_write_{$token->id}" : "api_write_{$request->ip()}";
+
+            return Limit::perMinute(30)->by($key);
+        });
     }
 }

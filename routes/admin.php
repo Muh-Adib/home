@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminSeoLandingController;
+use App\Http\Controllers\Admin\AiAgentController;
 use App\Http\Controllers\Admin\Booking\BookingApiController;
 use App\Http\Controllers\Admin\BookingManagementController;
 use App\Http\Controllers\Admin\CheckInOutController;
@@ -388,6 +389,30 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance,property_o
 */
 
 Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')->group(function () {
+    // AI Agent Management (API tokens, leads, escalations, conversations)
+    Route::prefix('ai-agent')->name('ai-agent.')->controller(AiAgentController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+
+        // Tokens
+        Route::get('/tokens', 'tokens')->name('tokens');
+        Route::post('/tokens', 'storeToken')->name('tokens.store');
+        Route::patch('/tokens/{token}/toggle', 'toggleToken')->name('tokens.toggle');
+        Route::delete('/tokens/{token}', 'destroyToken')->name('tokens.destroy');
+
+        // Leads
+        Route::get('/leads', 'leads')->name('leads');
+        Route::patch('/leads/{lead}/status', 'updateLeadStatus')->name('leads.status');
+
+        // Escalations
+        Route::get('/escalations', 'escalations')->name('escalations');
+        Route::patch('/escalations/{escalation}/claim', 'claimEscalation')->name('escalations.claim');
+        Route::patch('/escalations/{escalation}/resolve', 'resolveEscalation')->name('escalations.resolve');
+
+        // Conversations
+        Route::get('/conversations', 'conversations')->name('conversations');
+        Route::get('/conversations/{conversationId}', 'showConversation')->name('conversations.show');
+    });
+
     // User Management
     Route::resource('users', UserController::class)
         ->names([
