@@ -57,9 +57,9 @@ class RateCalculationServiceTest extends TestCase
         $this->assertEquals(1000000, $calculation->baseAmount); // 2 nights * 500k
         $this->assertEquals(0, $calculation->weekendPremium); // No weekend
         $this->assertEquals(0, $calculation->extraBedAmount); // No extra beds
-        $this->assertEquals(100000, $calculation->cleaningFee);
+        $this->assertEquals(0, $calculation->cleaningFee);
 
-        $expectedSubtotal = 1000000 + 100000; // Base + cleaning
+        $expectedSubtotal = 1000000 + 0; // Base + cleaning (removed)
         $expectedTax = 0; // 0% tax - tax removed
         $expectedTotal = $expectedSubtotal + $expectedTax;
 
@@ -160,7 +160,7 @@ class RateCalculationServiceTest extends TestCase
             $guestCount
         );
 
-        $subtotal = 1000000 + 100000; // Base + cleaning
+        $subtotal = 1000000 + 0; // Base + cleaning (removed)
         $expectedTax = 0; // 0% tax - tax removed
 
         $this->assertEquals($expectedTax, $calculation->taxAmount);

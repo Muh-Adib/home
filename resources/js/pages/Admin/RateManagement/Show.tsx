@@ -296,23 +296,7 @@ export default function RateManagementShow({ property, seasonalRates, rateCalend
                                     )}
                                 </div>
 
-                                <div>
-                                    <Label htmlFor="cleaning_fee">Cleaning Fee</Label>
-                                    {isEditing ? (
-                                        <Input
-                                            id="cleaning_fee"
-                                            type="number"
-                                            value={editingBaseRates.cleaning_fee}
-                                            onChange={(e) => setEditingBaseRates(prev => ({
-                                                ...prev,
-                                                cleaning_fee: parseInt(e.target.value) || 0
-                                            }))}
-                                            className="mt-1"
-                                        />
-                                    ) : (
-                                        <div className="text-lg font-semibold mt-1">{formatCurrency(property.cleaning_fee || 0)}</div>
-                                    )}
-                                </div>
+
 
                                 <div>
                                     <Label htmlFor="extra_bed_rate">Extra Bed Rate</Label>

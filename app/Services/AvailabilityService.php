@@ -246,7 +246,7 @@ class AvailabilityService
                 'base_rate' => $property->base_rate,
                 'capacity' => $property->capacity,
                 'capacity_max' => $property->capacity_max,
-                'cleaning_fee' => $property->cleaning_fee,
+                'cleaning_fee' => 0,
                 'extra_bed_rate' => $property->extra_bed_rate,
                 'weekend_premium_percent' => $property->weekend_premium_percent,
                 'weekend_premium_type' => $property->weekend_premium_type ?? 'percentage',

@@ -66,7 +66,7 @@ export default function PropertySettings({ settings, amenities }: PropertySettin
         enable_weekend_pricing: settings.enable_weekend_pricing,
         default_weekend_premium: settings.default_weekend_premium,
         enable_extra_bed_pricing: settings.enable_extra_bed_pricing,
-        enable_cleaning_fee: settings.enable_cleaning_fee,
+        enable_cleaning_fee: false,
         minimum_property_rate: settings.minimum_property_rate,
         maximum_property_rate: settings.maximum_property_rate,
         enable_property_reviews: settings.enable_property_reviews,
@@ -353,18 +353,7 @@ export default function PropertySettings({ settings, amenities }: PropertySettin
                                     />
                                 </div>
 
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <Label>Enable Cleaning Fee</Label>
-                                        <p className="text-sm text-gray-600">
-                                            Allow property owners to charge cleaning fees
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        checked={data.enable_cleaning_fee}
-                                        onCheckedChange={(checked) => setData('enable_cleaning_fee', checked)}
-                                    />
-                                </div>
+
                             </div>
 
                             {data.enable_weekend_pricing && (

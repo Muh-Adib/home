@@ -9,13 +9,13 @@ use Illuminate\Support\Collection;
 
 /**
  * RateService - Service untuk menangani manajemen tarif
- * 
+ *
  * Service ini menangani:
  * - CRUD operations untuk seasonal rates
  * - Base rate management
  * - Rate validation
  * - Rate history
- * 
+ *
  * TIDAK menangani kalkulasi tarif (itu di RateCalculationService)
  */
 class RateService
@@ -98,6 +98,7 @@ class RateService
     public function updateBaseRate(Property $property, float $newBaseRate): Property
     {
         $property->update(['base_rate' => $newBaseRate]);
+
         return $property->fresh();
     }
 
@@ -107,6 +108,7 @@ class RateService
     public function updateWeekendPremium(Property $property, float $weekendPremiumPercent): Property
     {
         $property->update(['weekend_premium_percent' => $weekendPremiumPercent]);
+
         return $property->fresh();
     }
 
@@ -116,6 +118,7 @@ class RateService
     public function updateExtraBedRate(Property $property, float $extraBedRate): Property
     {
         $property->update(['extra_bed_rate' => $extraBedRate]);
+
         return $property->fresh();
     }
 
@@ -124,7 +127,8 @@ class RateService
      */
     public function updateCleaningFee(Property $property, float $cleaningFee): Property
     {
-        $property->update(['cleaning_fee' => $cleaningFee]);
+        $property->update(['cleaning_fee' => 0]);
+
         return $property->fresh();
     }
 
@@ -147,30 +151,30 @@ class RateService
     {
         $startDate = Carbon::createFromFormat('Y-m', $startMonth)->startOfMonth();
         $endDate = $startDate->copy()->addMonths($monthsCount)->endOfMonth();
-        
+
         $effectiveRates = $this->getEffectiveRates(
             $property,
             $startDate->format('Y-m-d'),
             $endDate->format('Y-m-d')
         );
-        
+
         $calendar = [];
         $currentMonth = $startDate->copy();
-        
+
         for ($i = 0; $i < $monthsCount; $i++) {
             $monthData = [
                 'year' => $currentMonth->year,
                 'month' => $currentMonth->month,
                 'month_name' => $currentMonth->format('F Y'),
-                'days' => []
+                'days' => [],
             ];
-            
+
             $daysInMonth = $currentMonth->daysInMonth;
             for ($day = 1; $day <= $daysInMonth; $day++) {
                 $date = $currentMonth->copy()->day($day);
                 $dateString = $date->format('Y-m-d');
                 $seasonalRate = $effectiveRates[$dateString] ?? null;
-                
+
                 $monthData['days'][] = [
                     'date' => $dateString,
                     'day' => $day,
@@ -179,17 +183,17 @@ class RateService
                         'name' => $seasonalRate->name,
                         'type' => $seasonalRate->rate_type,
                         'value' => $seasonalRate->rate_value,
-                        'calculated_rate' => $seasonalRate->calculateRate($property->base_rate)
+                        'calculated_rate' => $seasonalRate->calculateRate($property->base_rate),
                     ] : null,
                     'is_weekend' => $date->isFriday() || $date->isSaturday() || $date->isSunday(), // Weekend: Jumat, Sabtu, Minggu
                     'weekend_premium' => ($date->isFriday() || $date->isSaturday() || $date->isSunday()) ? $property->weekend_premium_percent : 0,
                 ];
             }
-            
+
             $calendar[] = $monthData;
             $currentMonth->addMonth();
         }
-        
+
         return [
             'property_id' => $property->id,
             'period' => [
@@ -202,7 +206,7 @@ class RateService
                 'weekend_premium_percent' => $property->weekend_premium_percent,
                 'extra_bed_rate' => $property->extra_bed_rate,
                 'cleaning_fee' => $property->cleaning_fee,
-            ]
+            ],
         ];
     }
 
@@ -215,7 +219,7 @@ class RateService
             ->where('is_active', true)
             ->where(function ($q) use ($startDate, $endDate) {
                 $q->where('start_date', '<', $endDate)
-                  ->where('end_date', '>', $startDate);
+                    ->where('end_date', '>', $startDate);
             });
 
         if ($excludeId) {
@@ -245,12 +249,12 @@ class RateService
                         $this->updateBaseRate($property, $update['value']);
                         $results[] = ['type' => 'base_rate', 'success' => true];
                         break;
-                    
+
                     case 'weekend_premium':
                         $this->updateWeekendPremium($property, $update['value']);
                         $results[] = ['type' => 'weekend_premium', 'success' => true];
                         break;
-                    
+
                     case 'seasonal_rate':
                         if (isset($update['id'])) {
                             $seasonalRate = PropertySeasonalRate::findOrFail($update['id']);
@@ -260,7 +264,7 @@ class RateService
                         }
                         $results[] = ['type' => 'seasonal_rate', 'success' => true];
                         break;
-                        
+
                     default:
                         $results[] = ['type' => $update['type'], 'success' => false, 'error' => 'Unknown update type'];
                 }

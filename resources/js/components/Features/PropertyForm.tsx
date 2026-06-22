@@ -467,13 +467,7 @@ export default function PropertyForm({
                                         </p>
                                     </div>
                                 )}
-                                <div>
-                                    <Label>Cleaning Fee (IDR)</Label>
-                                    <Input type="number" min={0} value={data.cleaning_fee}
-                                        onChange={e => setData('cleaning_fee', parseInt(e.target.value) || 0)}
-                                        className={inputCls('cleaning_fee')} />
-                                    {fieldError('cleaning_fee')}
-                                </div>
+
                                 <div>
                                     <Label>Extra Bed Rate (IDR/night)</Label>
                                     <Input type="number" min={0} value={data.extra_bed_rate}

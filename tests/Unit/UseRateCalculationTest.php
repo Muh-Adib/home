@@ -168,7 +168,7 @@ class UseRateCalculationTest extends TestCase
 
         $rateCalculation = $response['calculation'];
         $this->assertArrayHasKey('cleaning_fee', $rateCalculation);
-        $this->assertEquals($this->property->cleaning_fee, $rateCalculation['cleaning_fee']);
+        $this->assertEquals(0, $rateCalculation['cleaning_fee']);
     }
 
     #[Test]
