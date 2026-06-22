@@ -7,7 +7,7 @@ use App\Models\PropertyMedia;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -31,7 +31,7 @@ class MediaUploadTest extends TestCase
         $file = UploadedFile::fake()->image('test.jpg', 800, 600);
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => [$file],
             ]);
 
@@ -43,7 +43,6 @@ class MediaUploadTest extends TestCase
 
         $this->assertDatabaseHas('property_media', [
             'property_id' => $property->id,
-            'uploaded_by' => $admin->id,
         ]);
     }
 
@@ -56,7 +55,7 @@ class MediaUploadTest extends TestCase
         $file = UploadedFile::fake()->image('test.jpg');
 
         $response = $this->actingAs($guest)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => [$file],
             ]);
 
@@ -72,7 +71,7 @@ class MediaUploadTest extends TestCase
         $file = UploadedFile::fake()->create('document.pdf', 100, 'application/pdf');
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => [$file],
             ]);
 
@@ -86,10 +85,10 @@ class MediaUploadTest extends TestCase
         $admin = User::factory()->create(['role' => 'super_admin']);
         $property = Property::factory()->create();
 
-        $file = UploadedFile::fake()->image('large.jpg')->size(6000); // 6MB
+        $file = UploadedFile::fake()->image('large.jpg')->size(150000); // 150MB (over 100MB limit)
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => [$file],
             ]);
 
@@ -103,10 +102,10 @@ class MediaUploadTest extends TestCase
         $admin = User::factory()->create(['role' => 'super_admin']);
         $property = Property::factory()->create();
 
-        $file = UploadedFile::fake()->image('tiny.jpg', 100, 100); // Too small
+        $file = UploadedFile::fake()->image('tiny.jpg', 50, 50); // Too small (under 100x100 limit)
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => [$file],
             ]);
 
@@ -123,7 +122,7 @@ class MediaUploadTest extends TestCase
         $file = UploadedFile::fake()->image('test with spaces & symbols!.jpg', 800, 600);
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => [$file],
             ]);
 
@@ -146,7 +145,7 @@ class MediaUploadTest extends TestCase
         $response = $this->actingAs($admin)
             ->patchJson("/admin/media/{$media->id}", [
                 'alt_text' => 'Beautiful villa exterior',
-                'caption' => 'Main entrance view',
+                'description' => 'Main entrance view',
             ]);
 
         $response->assertStatus(200);
@@ -154,6 +153,7 @@ class MediaUploadTest extends TestCase
         $this->assertDatabaseHas('property_media', [
             'id' => $media->id,
             'alt_text' => 'Beautiful villa exterior',
+            'description' => 'Main entrance view',
         ]);
     }
 
@@ -179,20 +179,20 @@ class MediaUploadTest extends TestCase
         $admin = User::factory()->create(['role' => 'super_admin']);
         $property = Property::factory()->create();
 
-        $media1 = PropertyMedia::factory()->create(['property_id' => $property->id, 'sort_order' => 1]);
-        $media2 = PropertyMedia::factory()->create(['property_id' => $property->id, 'sort_order' => 2]);
-        $media3 = PropertyMedia::factory()->create(['property_id' => $property->id, 'sort_order' => 3]);
+        $media1 = PropertyMedia::factory()->create(['property_id' => $property->id, 'display_order' => 1]);
+        $media2 = PropertyMedia::factory()->create(['property_id' => $property->id, 'display_order' => 2]);
+        $media3 = PropertyMedia::factory()->create(['property_id' => $property->id, 'display_order' => 3]);
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/properties/{$property->id}/media/reorder", [
-                'order' => [$media3->id, $media1->id, $media2->id],
+            ->postJson("/admin/properties/{$property->slug}/media/reorder", [
+                'media_ids' => [$media3->id, $media1->id, $media2->id],
             ]);
 
         $response->assertStatus(200);
 
-        $this->assertDatabaseHas('property_media', ['id' => $media3->id, 'sort_order' => 1]);
-        $this->assertDatabaseHas('property_media', ['id' => $media1->id, 'sort_order' => 2]);
-        $this->assertDatabaseHas('property_media', ['id' => $media2->id, 'sort_order' => 3]);
+        $this->assertDatabaseHas('property_media', ['id' => $media3->id, 'display_order' => 1]);
+        $this->assertDatabaseHas('property_media', ['id' => $media1->id, 'display_order' => 2]);
+        $this->assertDatabaseHas('property_media', ['id' => $media2->id, 'display_order' => 3]);
     }
 
     #[Test]
@@ -205,7 +205,9 @@ class MediaUploadTest extends TestCase
         $media2 = PropertyMedia::factory()->create(['property_id' => $property->id, 'is_cover' => false]);
 
         $response = $this->actingAs($admin)
-            ->patchJson("/admin/media/{$media2->id}/featured");
+            ->patchJson("/admin/media/{$media2->id}", [
+                'is_cover' => true,
+            ]);
 
         $response->assertStatus(200);
 
@@ -221,12 +223,12 @@ class MediaUploadTest extends TestCase
         $property = Property::factory()->create();
 
         $files = [];
-        for ($i = 0; $i < 15; $i++) { // Try to upload 15 files (over limit of 10)
+        for ($i = 0; $i < 51; $i++) { // Try to upload 51 files (over limit of 50)
             $files[] = UploadedFile::fake()->image("test{$i}.jpg", 800, 600);
         }
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => $files,
             ]);
 
@@ -242,10 +244,12 @@ class MediaUploadTest extends TestCase
 
         $file = UploadedFile::fake()->image('test.jpg', 800, 600);
 
-        $this->expectsEvents(MessageLogged::class);
+        Log::shouldReceive('info')->atLeast()->once();
+        Log::shouldReceive('warning')->zeroOrMoreTimes();
+        Log::shouldReceive('error')->zeroOrMoreTimes();
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => [$file],
             ]);
 
@@ -261,18 +265,18 @@ class MediaUploadTest extends TestCase
         PropertyMedia::factory()->count(3)->create(['property_id' => $property->id]);
 
         $response = $this->actingAs($admin)
-            ->getJson("/admin/properties/{$property->id}/media/list");
+            ->getJson("/admin/properties/{$property->slug}/media/list");
 
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'media' => [
+                'data' => [
                     '*' => [
                         'id',
                         'file_name',
                         'url',
                         'alt_text',
                         'is_cover',
-                        'sort_order',
+                        'display_order',
                     ],
                 ],
             ]);

@@ -5,18 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\Property;
 use App\Models\PropertyMedia;
 use App\Services\ImageService;
+use App\Services\PropertyMediaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 
 class MediaController extends Controller
 {
     public function __construct(
-        private ImageService $imageService
+        private PropertyMediaService $mediaService
     ) {}
 
     /**
@@ -36,10 +35,10 @@ class MediaController extends Controller
                 function ($attribute, $value, $fail) {
                     // Custom validation for file content security
                     if ($value->getMimeType() && str_starts_with($value->getMimeType(), 'image/')) {
-                        if (! $this->isValidImageFile($value)) {
+                        if (! $this->mediaService->isValidImageFile($value)) {
                             $fail('The '.$attribute.' contains invalid or potentially dangerous content.');
                         }
-                        // Validate image dimensions - lebih fleksibel
+                        // Validate image dimensions
                         $imageInfo = @getimagesize($value->getRealPath());
                         if ($imageInfo) {
                             [$width, $height] = $imageInfo;
@@ -71,55 +70,10 @@ class MediaController extends Controller
         try {
             DB::beginTransaction();
 
+            $uploadedMedia = $this->mediaService->storeMedia($request->file('files'), $property);
+
             $uploadedFiles = [];
-            $storage = Storage::disk('public');
-
-            foreach ($request->file('files') as $file) {
-                // Generate secure filename
-                $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-                $extension = $file->getClientOriginalExtension();
-                $safeName = Str::slug($originalName).'_'.time().'_'.Str::random(8).'.'.$extension;
-
-                // Store file with security checks
-                $path = $this->storeFileSecurely($file, $safeName, $property);
-
-                if (! $path) {
-                    throw new \Exception('Failed to store file securely: '.$file->getClientOriginalName());
-                }
-
-                // Determine media type
-                $mediaType = str_starts_with($file->getMimeType(), 'image/') ? 'image' : 'video';
-
-                // Create media record
-                $media = PropertyMedia::create([
-                    'property_id' => $property->id,
-                    'media_type' => $mediaType,
-                    'file_name' => $safeName,
-                    'file_path' => $path,
-                    'file_size' => $file->getSize(),
-                    'mime_type' => $file->getMimeType(),
-                    'category' => 'exterior', // Default to exterior as per migration default
-                    'title' => pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
-                    'alt_text' => '',
-                    'description' => '',
-                    'display_order' => PropertyMedia::where('property_id', $property->id)->max('display_order') + 1,
-                    'is_featured' => false,
-                    'is_cover' => false,
-                ]);
-
-                // Generate thumbnails immediately for images
-                if ($mediaType === 'image') {
-                    try {
-                        $this->generateThumbnail($media);
-                    } catch (\Exception $thumbnailError) {
-                        // Log thumbnail generation error but don't fail the upload
-                        \Log::warning('Thumbnail generation failed', [
-                            'media_id' => $media->id,
-                            'error' => $thumbnailError->getMessage(),
-                        ]);
-                    }
-                }
-
+            foreach ($uploadedMedia as $media) {
                 $uploadedFiles[] = [
                     'id' => $media->id,
                     'file_name' => $media->file_name,
@@ -130,7 +84,7 @@ class MediaController extends Controller
                 \Log::info('File uploaded successfully', [
                     'media_id' => $media->id,
                     'property_id' => $property->id,
-                    'file_name' => $safeName,
+                    'file_name' => $media->file_name,
                 ]);
             }
 
@@ -156,110 +110,6 @@ class MediaController extends Controller
                 'success' => false,
                 'message' => 'Upload failed: '.$e->getMessage(),
             ], 500);
-        }
-    }
-
-    /**
-     * Validate if uploaded file is a legitimate image file
-     *
-     * @param  UploadedFile  $file
-     * @return bool
-     */
-    private function isValidImageFile($file)
-    {
-        try {
-            // Check file signature (magic bytes)
-            $handle = fopen($file->getRealPath(), 'rb');
-            $header = fread($handle, 16);
-            fclose($handle);
-
-            // Define valid image signatures
-            $signatures = [
-                'jpg' => [0xFF, 0xD8, 0xFF],
-                'png' => [0x89, 0x50, 0x4E, 0x47],
-                'gif' => [0x47, 0x49, 0x46],
-                'webp' => [0x52, 0x49, 0x46, 0x46],
-            ];
-
-            $isValid = false;
-            foreach ($signatures as $format => $signature) {
-                if (substr($header, 0, count($signature)) === implode('', array_map('chr', $signature))) {
-                    $isValid = true;
-                    break;
-                }
-            }
-
-            if (! $isValid) {
-                return false;
-            }
-
-            // Additional validation using GD/Imagick if available
-            if (extension_loaded('gd')) {
-                $imageInfo = @getimagesize($file->getRealPath());
-                if ($imageInfo === false) {
-                    return false;
-                }
-
-                // Check if mime type matches file extension
-                $allowedMimeTypes = [
-                    'image/jpeg',
-                    'image/jpg',
-                    'image/png',
-                    'image/gif',
-                    'image/webp',
-                ];
-
-                if (! in_array($imageInfo['mime'], $allowedMimeTypes)) {
-                    return false;
-                }
-            }
-
-            return true;
-
-        } catch (\Exception $e) {
-            \Log::warning('Image validation failed', [
-                'file' => $file->getClientOriginalName(),
-                'error' => $e->getMessage(),
-            ]);
-
-            return false;
-        }
-    }
-
-    /**
-     * Store file with additional security measures
-     *
-     * @param  UploadedFile  $file
-     * @param  string  $safeName
-     * @param  Property  $property
-     * @return string|false
-     */
-    private function storeFileSecurely($file, $safeName, $property)
-    {
-        try {
-            $directory = "properties/{$property->slug}/media";
-            $path = $file->storeAs($directory, $safeName, 'public');
-
-            if (! $path) {
-                return false;
-            }
-
-            // Set proper file permissions
-            $fullPath = storage_path('app/public/'.$path);
-            if (file_exists($fullPath)) {
-                chmod($fullPath, 0644); // Read/write for owner, read for others
-            }
-
-            return $path;
-
-        } catch (\Exception $e) {
-            \Log::error('Secure file storage failed', [
-                'file' => $safeName,
-                'property_id' => $property->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return false;
         }
     }
 

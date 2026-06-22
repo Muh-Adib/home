@@ -68,7 +68,7 @@ export default function EditProperty({ property, amenities, owners }: EditProper
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Properties', href: '/admin/properties' },
         { title: property.name, href: `/admin/properties/${property.slug}` },
-        { title: 'Edit', href: '' },
+        { title: 'Edit', href: '#' },
     ];
 
     const handleSubmit = (e: React.FormEvent) => {

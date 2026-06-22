@@ -7,6 +7,7 @@ use App\Models\Amenity;
 use App\Models\Property;
 use App\Models\User;
 use App\Services\AvailabilityService;
+use App\Services\PropertyMediaService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +22,10 @@ class PropertyManagementController extends Controller
     /**
      * Constructor dengan dependency injection untuk AvailabilityService
      */
-    public function __construct(private AvailabilityService $availabilityService) {}
+    public function __construct(
+        private AvailabilityService $availabilityService,
+        private PropertyMediaService $mediaService
+    ) {}
 
     /**
      * Display admin properties listing
@@ -173,6 +177,27 @@ class PropertyManagementController extends Controller
             'checkin_instructions.additional_info.*' => 'string|max:300',
             'ical_import_urls' => 'nullable|array',
             'ical_import_urls.*' => 'nullable|url|max:500',
+            'files' => 'nullable|array|max:50',
+            'files.*' => [
+                'required',
+                'file',
+                'mimes:jpg,jpeg,png,webp,gif,mp4,mov,avi,webm',
+                'max:102400',
+                function ($attribute, $value, $fail) {
+                    if ($value->getMimeType() && str_starts_with($value->getMimeType(), 'image/')) {
+                        if (! $this->mediaService->isValidImageFile($value)) {
+                            $fail('The '.$attribute.' contains invalid or potentially dangerous content.');
+                        }
+                        $imageInfo = @getimagesize($value->getRealPath());
+                        if ($imageInfo) {
+                            [$width, $height] = $imageInfo;
+                            if ($width < 100 || $height < 100 || $width > 8192 || $height > 8192) {
+                                $fail('Images must be between 100x100 and 8192x8192 pixels.');
+                            }
+                        }
+                    }
+                },
+            ],
         ];
 
         // Only super_admin can assign owner_id, property_owner creates for themselves
@@ -205,6 +230,21 @@ class PropertyManagementController extends Controller
         // Attach amenities
         if ($request->filled('amenities')) {
             $property->amenities()->attach($request->input('amenities'));
+        }
+
+        // Store media files if uploaded
+        if ($request->hasFile('files')) {
+            try {
+                $this->mediaService->storeMedia($request->file('files'), $property);
+            } catch (\Exception $e) {
+                \Log::error('Failed to upload media during property creation', [
+                    'property_id' => $property->id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return redirect()->route('admin.properties.index')
+                    ->with('success', 'Property created successfully, but some media files failed to upload: '.$e->getMessage());
+            }
         }
 
         // Invalidate map coordinates cache
