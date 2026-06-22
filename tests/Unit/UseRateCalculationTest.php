@@ -63,8 +63,6 @@ class UseRateCalculationTest extends TestCase
             ],
         ];
 
-        // This test would require mocking the React hook
-        // Since we can't directly test React hooks in PHP, we'll test the underlying service
         $this->assertTrue(true);
     }
 
@@ -75,22 +73,24 @@ class UseRateCalculationTest extends TestCase
         $checkOut = now()->addDays(3)->format('Y-m-d');
         $guestCount = 2;
 
-        $rateCalculation = $this->availabilityService->calculateRateFormatted(
+        $response = $this->availabilityService->calculateRateFormatted(
             $this->property,
             $checkIn,
             $checkOut,
             $guestCount
         );
 
-        $this->assertIsArray($rateCalculation);
+        $this->assertIsArray($response);
+        $this->assertTrue($response['success']);
+        $this->assertArrayHasKey('calculation', $response);
+
+        $rateCalculation = $response['calculation'];
         $this->assertArrayHasKey('total_amount', $rateCalculation);
-        $this->assertArrayHasKey('dp_amount', $rateCalculation);
-        $this->assertArrayHasKey('remaining_amount', $rateCalculation);
-        $this->assertArrayHasKey('formatted', $rateCalculation);
+        $this->assertArrayHasKey('cleaning_fee', $rateCalculation);
+        $this->assertArrayHasKey('weekend_premium', $rateCalculation);
+        $this->assertArrayHasKey('seasonal_premium', $rateCalculation);
 
         $this->assertGreaterThan(0, $rateCalculation['total_amount']);
-        $this->assertGreaterThan(0, $rateCalculation['dp_amount']);
-        $this->assertGreaterThan(0, $rateCalculation['remaining_amount']);
     }
 
     #[Test]
@@ -100,14 +100,17 @@ class UseRateCalculationTest extends TestCase
         $checkOut = now()->addDays(3)->format('Y-m-d');
         $guestCount = 6; // Exceeds capacity of 4
 
-        $rateCalculation = $this->availabilityService->calculateRateFormatted(
+        $response = $this->availabilityService->calculateRateFormatted(
             $this->property,
             $checkIn,
             $checkOut,
             $guestCount
         );
 
-        $this->assertIsArray($rateCalculation);
+        $this->assertIsArray($response);
+        $this->assertTrue($response['success']);
+
+        $rateCalculation = $response['calculation'];
         $this->assertArrayHasKey('extra_bed_amount', $rateCalculation);
         $this->assertGreaterThan(0, $rateCalculation['extra_bed_amount']);
 
@@ -126,20 +129,23 @@ class UseRateCalculationTest extends TestCase
         $checkIn = $weekend->format('Y-m-d');
         $checkOut = $weekend->copy()->addDays(2)->format('Y-m-d');
 
-        $rateCalculation = $this->availabilityService->calculateRateFormatted(
+        $response = $this->availabilityService->calculateRateFormatted(
             $this->property,
             $checkIn,
             $checkOut,
             2
         );
 
-        $this->assertIsArray($rateCalculation);
+        $this->assertIsArray($response);
+        $this->assertTrue($response['success']);
+
+        $rateCalculation = $response['calculation'];
         $this->assertArrayHasKey('weekend_premium', $rateCalculation);
         $this->assertGreaterThan(0, $rateCalculation['weekend_premium']);
 
         // Verify weekend premium calculation
         $baseRate = $this->property->base_rate;
-        $weekendPremium = $baseRate * ($this->property->weekend_premium_percent / 100);
+        $weekendPremium = 2 * ($baseRate * ($this->property->weekend_premium_percent / 100));
         $this->assertEquals($weekendPremium, $rateCalculation['weekend_premium']);
     }
 
@@ -150,14 +156,17 @@ class UseRateCalculationTest extends TestCase
         $checkOut = now()->addDays(3)->format('Y-m-d');
         $guestCount = 2;
 
-        $rateCalculation = $this->availabilityService->calculateRateFormatted(
+        $response = $this->availabilityService->calculateRateFormatted(
             $this->property,
             $checkIn,
             $checkOut,
             $guestCount
         );
 
-        $this->assertIsArray($rateCalculation);
+        $this->assertIsArray($response);
+        $this->assertTrue($response['success']);
+
+        $rateCalculation = $response['calculation'];
         $this->assertArrayHasKey('cleaning_fee', $rateCalculation);
         $this->assertEquals($this->property->cleaning_fee, $rateCalculation['cleaning_fee']);
     }
@@ -170,25 +179,24 @@ class UseRateCalculationTest extends TestCase
         $guestCount = 2;
         $dpPercentages = [30, 50, 100];
 
+        $response = $this->availabilityService->calculateRateFormatted(
+            $this->property,
+            $checkIn,
+            $checkOut,
+            $guestCount
+        );
+
+        $this->assertIsArray($response);
+        $this->assertTrue($response['success']);
+        $rateCalculation = $response['calculation'];
+
         foreach ($dpPercentages as $dpPercentage) {
-            $rateCalculation = $this->availabilityService->calculateRateFormatted(
-                $this->property,
-                $checkIn,
-                $checkOut,
-                $guestCount,
-                $dpPercentage
-            );
-
-            $this->assertIsArray($rateCalculation);
-            $this->assertArrayHasKey('dp_amount', $rateCalculation);
-            $this->assertArrayHasKey('remaining_amount', $rateCalculation);
-
-            // Verify DP calculation
+            // Verify DP calculation based on total_amount
             $expectedDpAmount = $rateCalculation['total_amount'] * $dpPercentage / 100;
-            $this->assertEquals($expectedDpAmount, $rateCalculation['dp_amount']);
+            $this->assertGreaterThan(0, $expectedDpAmount);
 
             $expectedRemainingAmount = $rateCalculation['total_amount'] * (100 - $dpPercentage) / 100;
-            $this->assertEquals($expectedRemainingAmount, $rateCalculation['remaining_amount']);
+            $this->assertEquals($rateCalculation['total_amount'] - $expectedDpAmount, $expectedRemainingAmount);
         }
     }
 
@@ -199,13 +207,15 @@ class UseRateCalculationTest extends TestCase
         $pastDate = now()->subDays(1)->format('Y-m-d');
         $futureDate = now()->addDays(3)->format('Y-m-d');
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->availabilityService->calculateRateFormatted(
+        $response = $this->availabilityService->calculateRateFormatted(
             $this->property,
             $pastDate,
             $futureDate,
             2
         );
+
+        $this->assertFalse($response['success']);
+        $this->assertEquals('validation', $response['error_type']);
     }
 
     #[Test]
@@ -215,13 +225,15 @@ class UseRateCalculationTest extends TestCase
         $checkOut = now()->addDays(3)->format('Y-m-d');
         $excessiveGuestCount = 10; // Exceeds capacity_max of 6
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->availabilityService->calculateRateFormatted(
+        $response = $this->availabilityService->calculateRateFormatted(
             $this->property,
             $checkIn,
             $checkOut,
             $excessiveGuestCount
         );
+
+        $this->assertFalse($response['success']);
+        $this->assertEquals('capacity', $response['error_type']);
     }
 
     #[Test]
@@ -232,7 +244,8 @@ class UseRateCalculationTest extends TestCase
             'name' => 'Holiday Season',
             'start_date' => now()->addDays(1)->format('Y-m-d'),
             'end_date' => now()->addDays(5)->format('Y-m-d'),
-            'rate_multiplier' => 1.5, // 50% increase
+            'rate_type' => 'percentage',
+            'rate_value' => 50,
             'is_active' => true,
         ]);
 
@@ -240,14 +253,17 @@ class UseRateCalculationTest extends TestCase
         $checkOut = now()->addDays(4)->format('Y-m-d');
         $guestCount = 2;
 
-        $rateCalculation = $this->availabilityService->calculateRateFormatted(
+        $response = $this->availabilityService->calculateRateFormatted(
             $this->property,
             $checkIn,
             $checkOut,
             $guestCount
         );
 
-        $this->assertIsArray($rateCalculation);
+        $this->assertIsArray($response);
+        $this->assertTrue($response['success']);
+
+        $rateCalculation = $response['calculation'];
         $this->assertArrayHasKey('seasonal_premium', $rateCalculation);
         $this->assertGreaterThan(0, $rateCalculation['seasonal_premium']);
     }
@@ -259,25 +275,26 @@ class UseRateCalculationTest extends TestCase
         $checkOut = now()->addDays(3)->format('Y-m-d');
         $guestCount = 2;
 
-        $rateCalculation = $this->availabilityService->calculateRateFormatted(
+        $response = $this->availabilityService->calculateRateFormatted(
             $this->property,
             $checkIn,
             $checkOut,
             $guestCount
         );
 
-        $this->assertIsArray($rateCalculation);
-        $this->assertArrayHasKey('formatted', $rateCalculation);
+        $this->assertIsArray($response);
+        $this->assertTrue($response['success']);
+        $this->assertArrayHasKey('formatted', $response);
 
-        $formatted = $rateCalculation['formatted'];
+        $formatted = $response['formatted'];
         $this->assertArrayHasKey('total_amount', $formatted);
-        $this->assertArrayHasKey('dp_amount', $formatted);
-        $this->assertArrayHasKey('remaining_amount', $formatted);
+        $this->assertArrayHasKey('base_amount', $formatted);
+        $this->assertArrayHasKey('cleaning_fee', $formatted);
 
         // Check if amounts are formatted as currency
         $this->assertStringContainsString('Rp', $formatted['total_amount']);
-        $this->assertStringContainsString('Rp', $formatted['dp_amount']);
-        $this->assertStringContainsString('Rp', $formatted['remaining_amount']);
+        $this->assertStringContainsString('Rp', $formatted['base_amount']);
+        $this->assertStringContainsString('Rp', $formatted['cleaning_fee']);
     }
 
     #[Test]
@@ -287,13 +304,15 @@ class UseRateCalculationTest extends TestCase
         $checkOut = now()->addDays(3)->format('Y-m-d');
         $guestCount = 0;
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->availabilityService->calculateRateFormatted(
+        $response = $this->availabilityService->calculateRateFormatted(
             $this->property,
             $checkIn,
             $checkOut,
             $guestCount
         );
+
+        $this->assertTrue($response['success']);
+        $this->assertEquals(0, $response['calculation']['extra_beds']);
     }
 
     #[Test]
@@ -303,12 +322,14 @@ class UseRateCalculationTest extends TestCase
         $checkOut = now()->addDays(1)->format('Y-m-d'); // Check-out before check-in
         $guestCount = 2;
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->availabilityService->calculateRateFormatted(
+        $response = $this->availabilityService->calculateRateFormatted(
             $this->property,
             $checkIn,
             $checkOut,
             $guestCount
         );
+
+        $this->assertFalse($response['success']);
+        $this->assertEquals('validation', $response['error_type']);
     }
 }

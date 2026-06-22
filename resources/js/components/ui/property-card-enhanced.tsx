@@ -128,7 +128,7 @@ export default function PropertyCardEnhanced({
         <article className="rounded-2xl overflow-hidden bg-card border border-border shadow-sm hover:shadow-xl transition-shadow duration-400 cursor-pointer">
 
           {/* ═══ Image ═══════════════════════════════════════ */}
-          <div className="aspect-[4/3] rounded-2xl relative overflow-hidden bg-muted">
+          <div className="aspect-[2/3] rounded-2xl relative overflow-hidden bg-muted">
             {property.media?.length > 0 && property.media[0]?.url && !imageError ? (
               <img
                 src={property.media[0].url}

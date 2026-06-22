@@ -481,9 +481,9 @@ export default function MediaUpload({
                             {media
                                 .sort((a, b) => a.display_order - b.display_order)
                                 .map((item) => (
-                                <div key={item.id} className="border rounded-lg p-3 bg-white shadow-sm">
-                                    {/* Media Preview */}
-                                    <div className="aspect-video bg-gray-100 rounded mb-3 overflow-hidden relative group">
+                                <div key={item.id} className="border border-border rounded-xl p-3 bg-card text-card-foreground shadow-xs">
+                                    {/* Media Preview (Portrait 2:3) */}
+                                    <div className="aspect-[2/3] bg-muted rounded-lg mb-3 overflow-hidden relative group">
                                         {item.media_type === 'image' ? (
                                             <img
                                                 src={item.thumbnail_url || item.url}
@@ -491,65 +491,70 @@ export default function MediaUpload({
                                                 className="w-full h-full object-cover"
                                             />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                                                <Video className="w-8 h-8 text-gray-400" />
-                                                <span className="ml-2 text-sm text-gray-600">Video</span>
+                                            <div className="w-full h-full flex items-center justify-center bg-muted">
+                                                <Video className="w-8 h-8 text-muted-foreground" />
+                                                <span className="ml-2 text-sm text-muted-foreground">Video</span>
                                             </div>
                                         )}
-                                        
-                                        {/* Overlay buttons */}
-                                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    onClick={() => window.open(item.url, '_blank')}
-                                                >
-                                                    <Eye className="w-4 h-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    onClick={() => setFeatured(item.id)}
-                                                    className={item.is_featured ? 'bg-yellow-500 text-white' : ''}
-                                                >
-                                                    <Star className="w-4 h-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    onClick={() => toggleEditMode(item.id)}
-                                                    className={editingMedia[item.id] ? 'bg-blue-500 text-white' : ''}
-                                                >
-                                                    <Edit className="w-4 h-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    onClick={() => deleteMedia(item.id)}
-                                                    className="bg-red-500 text-white hover:bg-red-600"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
                                         
                                         {/* Featured badge */}
                                         {item.is_featured && (
                                             <div className="absolute top-2 right-2">
-                                                <Badge className="bg-yellow-500 text-white">
-                                                    <Star className="w-3 h-3 mr-1" />
+                                                <Badge className="bg-amber-500 text-slate-900 font-bold border-amber-500">
+                                                    <Star className="w-3 h-3 mr-1 fill-current" />
                                                     Featured
                                                 </Badge>
                                             </div>
                                         )}
                                     </div>
 
+                                    {/* Action Buttons Toolbar - Always Visible & Mobile Friendly */}
+                                    <div className="flex justify-between items-center gap-1 mt-2 mb-3 border-b border-border pb-2">
+                                        <div className="flex gap-1">
+                                            <Button
+                                                variant="outline"
+                                                size="icon"
+                                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                                onClick={() => window.open(item.url, '_blank')}
+                                                title="View Original"
+                                            >
+                                                <Eye className="w-4 h-4" />
+                                            </Button>
+                                            <Button
+                                                variant={item.is_featured ? "default" : "outline"}
+                                                size="icon"
+                                                className={`h-8 w-8 ${item.is_featured ? 'bg-amber-500 hover:bg-amber-600 text-slate-900 border-amber-500' : 'text-muted-foreground hover:text-foreground'}`}
+                                                onClick={() => setFeatured(item.id)}
+                                                title={item.is_featured ? "Featured" : "Set as Featured"}
+                                            >
+                                                <Star className={`w-4 h-4 ${item.is_featured ? 'fill-current' : ''}`} />
+                                            </Button>
+                                            <Button
+                                                variant={editingMedia[item.id] ? "secondary" : "outline"}
+                                                size="icon"
+                                                className={`h-8 w-8 ${editingMedia[item.id] ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'text-muted-foreground hover:text-foreground'}`}
+                                                onClick={() => toggleEditMode(item.id)}
+                                                title="Edit Details"
+                                            >
+                                                <Edit className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20 hover:border-destructive"
+                                            onClick={() => deleteMedia(item.id)}
+                                            title="Delete Media"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                    
                                     {/* Media Info */}
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between text-sm">
-                                            <span className="font-medium truncate">{item.file_name}</span>
-                                            <div className="flex items-center gap-1 text-gray-500">
+                                            <span className="font-medium truncate text-foreground">{item.file_name}</span>
+                                            <div className="flex items-center gap-1 text-muted-foreground">
                                                 {getMediaIcon(item.media_type)}
                                                 <span>{formatFileSize(item.file_size)}</span>
                                             </div>
@@ -557,51 +562,51 @@ export default function MediaUpload({
                                         
                                         {/* Metadata Form - sesuai dengan PropertyMedia model */}
                                         {editingMedia[item.id] ? (
-                                            <div className="space-y-3 p-3 bg-gray-50 rounded border">
+                                            <div className="space-y-3 p-3 bg-muted/40 rounded-lg border border-border mt-3">
                                                 {/* Title */}
                                                 <div>
-                                                    <Label className="text-xs text-gray-600">Title</Label>
+                                                    <Label className="text-xs text-muted-foreground">Title</Label>
                                                     <Input
                                                         size={1}
                                                         value={item.title || ''}
                                                         onChange={(e) => handleMetadataUpdate(item.id, 'title', e.target.value)}
                                                         placeholder="Media title..."
-                                                        className="text-xs mt-1"
+                                                        className="text-xs mt-1 bg-background text-foreground border-input"
                                                     />
                                                 </div>
                                                 
                                                 {/* Alt Text */}
                                                 <div>
-                                                    <Label className="text-xs text-gray-600">Alt Text</Label>
+                                                    <Label className="text-xs text-muted-foreground">Alt Text</Label>
                                                     <Input
                                                         size={1}
                                                         value={item.alt_text || ''}
                                                         onChange={(e) => handleMetadataUpdate(item.id, 'alt_text', e.target.value)}
                                                         placeholder="Describe this image for accessibility..."
-                                                        className="text-xs mt-1"
+                                                        className="text-xs mt-1 bg-background text-foreground border-input"
                                                     />
                                                 </div>
                                                 
                                                 {/* Description */}
                                                 <div>
-                                                    <Label className="text-xs text-gray-600">Description</Label>
+                                                    <Label className="text-xs text-muted-foreground">Description</Label>
                                                     <Textarea
                                                         rows={2}
                                                         value={item.description || ''}
                                                         onChange={(e) => handleMetadataUpdate(item.id, 'description', e.target.value)}
                                                         placeholder="Detailed description..."
-                                                        className="text-xs mt-1"
+                                                        className="text-xs mt-1 bg-background text-foreground border-input"
                                                     />
                                                 </div>
                                                 
                                                 {/* Category */}
                                                 <div>
-                                                    <Label className="text-xs text-gray-600">Category</Label>
+                                                    <Label className="text-xs text-muted-foreground">Category</Label>
                                                     <Select
                                                         value={item.category || 'exterior'}
                                                         onValueChange={(value) => handleMetadataUpdate(item.id, 'category', value)}
                                                     >
-                                                        <SelectTrigger className="text-xs mt-1 h-8">
+                                                        <SelectTrigger className="text-xs mt-1 h-8 bg-background border-input text-foreground">
                                                             <SelectValue placeholder="Select category..." />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -616,13 +621,13 @@ export default function MediaUpload({
                                                 
                                                 {/* Display Order */}
                                                 <div>
-                                                    <Label className="text-xs text-gray-600">Display Order</Label>
+                                                    <Label className="text-xs text-muted-foreground">Display Order</Label>
                                                     <Input
                                                         type="number"
                                                         size={1}
                                                         value={item.display_order}
                                                         onChange={(e) => handleMetadataUpdate(item.id, 'display_order', parseInt(e.target.value) || 0)}
-                                                        className="text-xs mt-1"
+                                                        className="text-xs mt-1 bg-background text-foreground border-input"
                                                     />
                                                 </div>
                                                 
@@ -647,7 +652,7 @@ export default function MediaUpload({
                                             </div>
                                         ) : (
                                             /* View Mode */
-                                            <div className="space-y-2 text-xs text-gray-600">
+                                            <div className="space-y-2 text-xs text-muted-foreground">
                                                 {item.title && (
                                                     <div>
                                                         <span className="font-medium">Title:</span> {item.title}

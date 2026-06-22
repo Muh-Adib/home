@@ -3,11 +3,15 @@
 namespace App\Providers;
 
 use App\Models\Article;
+use App\Models\Booking;
 use App\Models\ContentPlan;
 use App\Models\Property;
+use App\Models\PropertySeasonalRate;
 use App\Observers\ArticleObserver;
+use App\Observers\BookingObserver;
 use App\Observers\ContentPlanObserver;
 use App\Observers\PropertyObserver;
+use App\Observers\PropertySeasonalRateObserver;
 use App\Repositories\BookingRepository;
 use App\Services\AvailabilityService;
 use App\Services\BookingService;
@@ -67,6 +71,8 @@ class AppServiceProvider extends ServiceProvider
         Article::observe(ArticleObserver::class);
         ContentPlan::observe(ContentPlanObserver::class);
         Property::observe(PropertyObserver::class);
+        Booking::observe(BookingObserver::class);
+        PropertySeasonalRate::observe(PropertySeasonalRateObserver::class);
 
         // Rate limiters for API v1
         RateLimiter::for('api-v1-read', function (Request $request) {
