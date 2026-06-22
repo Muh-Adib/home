@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Map } from '@/components/ui/map';
 import TextFormatMarkdown from '@/components/text-mark-down';
+import MediaUpload from '@/components/MediaUpload';
+import FileUpload from '@/components/ui/file-upload';
 import type { Amenity, Property, PropertyMedia } from '@/types';
 import {
     Building2, Save, Users, DollarSign, Clock, Star, Info,
@@ -70,6 +72,7 @@ export interface PropertyFormData {
     };
     ical_import_urls: string[];
     ical_export_token: string;
+    files?: File[];
 }
 
 export interface PropertyFormProps {
@@ -702,86 +705,52 @@ export default function PropertyForm({
 
                     {/* ── Media Gallery (edit mode) ─────────────────────── */}
                     {isEdit && property && (
+                        <div className="mt-6">
+                            <MediaUpload
+                                propertySlug={property.slug}
+                                initialMedia={property.media || []}
+                            />
+                        </div>
+                    )}
+
+                    {/* ── Media Gallery (create mode) ─────────────────────── */}
+                    {!isEdit && (
                         <Card>
                             <CardHeader className="pb-3">
-                                <CardTitle className="flex items-center justify-between text-base">
-                                    <span className="flex items-center gap-2">
-                                        <ImageIcon className="h-4 w-4" /> Media ({mediaItems.length})
-                                    </span>
-                                    <Button type="button" variant="outline" size="sm" asChild>
-                                        <Link href={`/admin/properties/${property.slug}/media`}>
-                                            <Plus className="h-3 w-3 mr-1" /> Manage Media
-                                        </Link>
-                                    </Button>
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                    <ImageIcon className="h-4 w-4" /> Upload Photos & Videos
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                {mediaItems.length === 0 ? (
-                                    <div className="text-center py-8 text-muted-foreground">
-                                        <ImageIcon className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                                        <p className="text-sm">No media uploaded yet.</p>
-                                        <Button type="button" variant="link" size="sm" asChild className="mt-1">
-                                            <Link href={`/admin/properties/${property.slug}/media`}>Upload Photos →</Link>
-                                        </Button>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                        {mediaItems.map(media => (
-                                            <div key={media.id} className="group relative rounded-lg overflow-hidden border bg-muted/20">
-                                                <div className="aspect-square">
-                                                    <img
-                                                        src={media.thumbnail_url || media.url}
-                                                        alt={media.alt_text || media.file_name}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                </div>
-                                                {media.is_featured && (
-                                                    <span className="absolute top-1.5 left-1.5 bg-yellow-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                                                        <Star className="h-2.5 w-2.5 inline -mt-0.5" /> Cover
-                                                    </span>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    className="absolute top-1.5 right-1.5 bg-black/50 hover:bg-black/70 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition"
-                                                    onClick={() => setEditingMediaId(editingMediaId === media.id ? null : media.id)}
-                                                >
-                                                    <Pencil className="h-3 w-3" />
-                                                </button>
-
-                                                {editingMediaId === media.id && (
-                                                    <div className="p-2 space-y-1.5 border-t bg-background">
-                                                        <div>
-                                                            <label className="text-[10px] font-medium text-muted-foreground">Alt Text</label>
-                                                            <Input
-                                                                defaultValue={media.alt_text || ''}
-                                                                placeholder="Describe image..."
-                                                                className="h-7 text-xs"
-                                                                onBlur={e => {
-                                                                    router.patch(`/admin/media/${media.id}`, {
-                                                                        alt_text: e.target.value,
-                                                                    }, { preserveScroll: true, preserveState: true });
-                                                                }}
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[10px] font-medium text-muted-foreground">Description</label>
-                                                            <Input
-                                                                defaultValue={(media as any).description || ''}
-                                                                placeholder="Photo description..."
-                                                                className="h-7 text-xs"
-                                                                onBlur={e => {
-                                                                    router.patch(`/admin/media/${media.id}`, {
-                                                                        description: e.target.value,
-                                                                    }, { preserveScroll: true, preserveState: true });
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                <FileUpload
+                                    config={{
+                                        maxFiles: 50,
+                                        maxFileSize: 100 * 1024 * 1024, // 100MB
+                                        acceptedFileTypes: [
+                                            'image/jpeg',
+                                            'image/png',
+                                            'image/jpg',
+                                            'image/gif',
+                                            'image/webp',
+                                            'video/mp4',
+                                            'video/mov',
+                                            'video/avi',
+                                            'video/webm'
+                                        ],
+                                        acceptedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.avi', '.webm'],
+                                        showPreview: true,
+                                        allowMultiple: true,
+                                        showProgress: false,
+                                        dragAndDrop: true,
+                                        showFileDetails: true,
+                                        showMetadataForm: false,
+                                        required: false
+                                    }}
+                                    onFilesChange={(files) => {
+                                        setData('files', files.map(f => f.file));
+                                    }}
+                                    error={errors.files}
+                                />
                             </CardContent>
                         </Card>
                     )}

@@ -21,7 +21,7 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                             className="group"
                         >
                             <Link 
-                                href={item.href} 
+                                href={item.href || null} 
                                 prefetch
                                 className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-gray-100 hover:text-gray-900 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:border-r-2 data-[active=true]:border-blue-600"
                             >

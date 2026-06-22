@@ -10,7 +10,7 @@ return [
     | Imagick is recommended for better WebP support and image quality.
     |
     */
-    'driver' => env('IMAGE_DRIVER', 'imagick'),
+    'driver' => env('IMAGE_DRIVER', 'gd'),
 
     /*
     |--------------------------------------------------------------------------

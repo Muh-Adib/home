@@ -18,7 +18,7 @@ interface CreatePropertyProps {
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Properties', href: '/admin/properties' },
-    { title: 'Create', href: '' },
+    { title: 'Create', href: '#' },
 ];
 
 const DEFAULT_FORM: PropertyFormData = {
@@ -63,6 +63,7 @@ const DEFAULT_FORM: PropertyFormData = {
     },
     ical_import_urls: [''],
     ical_export_token: '',
+    files: [],
 };
 
 export default function CreateProperty({ amenities, owners }: CreatePropertyProps) {
