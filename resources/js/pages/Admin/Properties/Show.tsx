@@ -638,7 +638,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="pt-4">
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="text-center p-4 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl text-white">
                                         <label className="text-xs font-medium text-white/80">Harga Dasar</label>
                                         <p className="text-xl sm:text-2xl font-bold mt-1">{formatCurrency(safeProperty.base_rate)}</p>
@@ -659,12 +659,6 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                                     : safeProperty.base_rate * (1 + safeProperty.weekend_premium_percent / 100)
                                             )}
                                         </p>
-                                    </div>
-
-                                    <div className="text-center p-4 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl text-white">
-                                        <label className="text-xs font-medium text-white/80">Biaya Kebersihan</label>
-                                        <p className="text-xl sm:text-2xl font-bold mt-1">{formatCurrency(safeProperty.cleaning_fee)}</p>
-                                        <p className="text-xs text-white/70">sekali bayar</p>
                                     </div>
 
                                     <div className="text-center p-4 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl text-white">

@@ -153,7 +153,7 @@ class PropertyManagementController extends Controller
             'weekend_premium_percent' => 'required|numeric|min:0|max:100',
             'weekend_premium_type' => 'required|in:percentage,fixed',
             'weekend_premium_fixed' => 'nullable|numeric|min:0|required_if:weekend_premium_type,fixed',
-            'cleaning_fee' => 'required|numeric|min:0',
+            'cleaning_fee' => 'nullable|numeric|min:0',
             'extra_bed_rate' => 'required|numeric|min:0',
             'house_rules' => 'nullable|string',
             'check_in_time' => 'required|date_format:H:i',
@@ -206,6 +206,7 @@ class PropertyManagementController extends Controller
         }
 
         $validated = $request->validate($validationRules);
+        $validated['cleaning_fee'] = 0;
 
         // Set owner_id based on user role
         if ($user->hasRole('property_owner')) {
@@ -460,7 +461,7 @@ class PropertyManagementController extends Controller
             'weekend_premium_percent' => 'required|numeric|min:0|max:100',
             'weekend_premium_type' => 'required|in:percentage,fixed',
             'weekend_premium_fixed' => 'nullable|numeric|min:0|required_if:weekend_premium_type,fixed',
-            'cleaning_fee' => 'required|numeric|min:0',
+            'cleaning_fee' => 'nullable|numeric|min:0',
             'extra_bed_rate' => 'required|numeric|min:0',
             'status' => 'required|in:active,inactive,maintenance',
             'house_rules' => 'nullable|string',
@@ -486,6 +487,7 @@ class PropertyManagementController extends Controller
             'ical_import_urls' => 'nullable|array',
             'ical_import_urls.*' => 'nullable|url|max:500',
         ]);
+        $validated['cleaning_fee'] = 0;
 
         // Update slug if name changed
         if ($property->name !== $validated['name']) {
