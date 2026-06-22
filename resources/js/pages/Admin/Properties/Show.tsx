@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import TextFormatMarkdown from '@/components/text-mark-down';
+import MediaUpload from '@/components/MediaUpload';
 
 interface SeasonalRate {
     id: number;
@@ -86,6 +87,8 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
         bathroom_count: property?.bathroom_count || 1,
         base_rate: property?.base_rate || 0,
         weekend_premium_percent: property?.weekend_premium_percent || 0,
+        weekend_premium_type: property?.weekend_premium_type || 'percentage',
+        weekend_premium_fixed: property?.weekend_premium_fixed || 0,
         cleaning_fee: property?.cleaning_fee || 0,
         extra_bed_rate: property?.extra_bed_rate || 0,
         check_in_time: property?.check_in_time || '15:00',
@@ -398,6 +401,14 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                 <span className="sm:hidden">Harga</span>
                             </TabsTrigger>
                             <TabsTrigger
+                                value="media"
+                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/20 data-[state=inactive]:text-gray-600 dark:data-[state=inactive]:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                            >
+                                <ImageIcon className="h-4 w-4 mr-2" />
+                                <span className="hidden sm:inline">Kelola Media</span>
+                                <span className="sm:hidden">Media</span>
+                            </TabsTrigger>
+                            <TabsTrigger
                                 value="booking"
                                 className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/20 data-[state=inactive]:text-gray-600 dark:data-[state=inactive]:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                             >
@@ -560,7 +571,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                 {safeProperty.media && safeProperty.media.length > 0 ? (
                                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                                         {safeProperty.media.slice(0, 8).map((media: any, index: number) => (
-                                            <div key={media.id || index} className="relative aspect-video rounded-lg overflow-hidden border">
+                                            <div key={media.id || index} className="relative aspect-[2/3] rounded-lg overflow-hidden border">
                                                 <img
                                                     src={media.url || '/placeholder-image.jpg'}
                                                     alt={media.alt_text || safeProperty.name}
@@ -570,7 +581,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                             </div>
                                         ))}
                                         {safeProperty.media.length > 8 && (
-                                            <div className="aspect-video rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center">
+                                            <div className="aspect-[2/3] rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center">
                                                 <div className="text-center">
                                                     <ImageIcon className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
                                                     <p className="text-xs text-muted-foreground">+{safeProperty.media.length - 8} more</p>
@@ -636,9 +647,17 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
 
                                     <div className="text-center p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white">
                                         <label className="text-xs font-medium text-white/80">Premium Weekend</label>
-                                        <p className="text-xl sm:text-2xl font-bold mt-1">+{safeProperty.weekend_premium_percent}%</p>
+                                        <p className="text-xl sm:text-2xl font-bold mt-1">
+                                            {safeProperty.weekend_premium_type === 'fixed' 
+                                                ? `+${formatCurrency(safeProperty.weekend_premium_fixed)}` 
+                                                : `+${safeProperty.weekend_premium_percent}%`}
+                                        </p>
                                         <p className="text-xs text-white/70">
-                                            {formatCurrency(safeProperty.base_rate * (1 + safeProperty.weekend_premium_percent / 100))}
+                                            {formatCurrency(
+                                                safeProperty.weekend_premium_type === 'fixed'
+                                                    ? Number(safeProperty.base_rate) + Number(safeProperty.weekend_premium_fixed)
+                                                    : safeProperty.base_rate * (1 + safeProperty.weekend_premium_percent / 100)
+                                            )}
                                         </p>
                                     </div>
 
@@ -804,6 +823,26 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                 )}
                             </CardContent>
                         </Card>
+                    </TabsContent>
+
+                    <TabsContent value="media" className="space-y-6">
+                        <MediaUpload
+                            propertySlug={safeProperty.slug}
+                            initialMedia={safeProperty.media}
+                            maxFiles={50}
+                            maxFileSize={100 * 1024 * 1024}
+                            acceptedFileTypes={[
+                                'image/jpeg',
+                                'image/png',
+                                'image/jpg',
+                                'image/gif',
+                                'image/webp',
+                                'video/mp4',
+                                'video/mov',
+                                'video/avi',
+                                'video/webm'
+                            ]}
+                        />
                     </TabsContent>
                 </Tabs>
             </div>

@@ -91,7 +91,7 @@ export function PropertyGallery({
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
                 >
-                    <div className="aspect-[4/3] sm:aspect-[16/10] bg-gradient-to-br from-muted/50 to-background">
+                    <div className="aspect-[3/4] sm:aspect-[3/4] bg-gradient-to-br from-muted/50 to-background">
                         {currentImage ? (
                             <LazyImage
                                 key={currentImage.url}

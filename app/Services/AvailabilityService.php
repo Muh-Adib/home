@@ -193,16 +193,26 @@ class AvailabilityService
                 // Find applied seasonal rate from calculation results
                 $seasonalInfo = ! empty($calculation->seasonalRatesApplied) ? $calculation->seasonalRatesApplied[0] : null;
 
+                // Get extra bed rate and final rate from daily breakdown
+                $dailyBreakdown = $calculation->breakdown['daily_breakdown'][$dateString] ?? null;
+                $extraBedRate = $dailyBreakdown ? ($dailyBreakdown['extra_bed_rate'] ?? $property->extra_bed_rate) : $property->extra_bed_rate;
+                $finalRate = $dailyBreakdown ? ($dailyBreakdown['final_rate'] ?? $property->base_rate) : $property->base_rate;
+
                 $rates[$dateString] = [
                     'base_rate' => $property->base_rate,
+                    'final_rate' => $finalRate,
                     'weekend_premium' => $isWeekend,
+                    'weekend_premium_amount' => $calculation->weekendPremium,
                     'seasonal_premium' => $calculation->seasonalPremium,
+                    'seasonal_premium_amount' => $calculation->seasonalPremium,
                     'is_weekend' => $isWeekend,
+                    'has_seasonal_rate' => $calculation->seasonalPremium > 0,
                     'seasonal_rate_applied' => $seasonalInfo ? [
                         'name' => $seasonalInfo['name'],
                         'description' => $seasonalInfo['description'],
                         'min_stay_nights' => $seasonalInfo['min_stay_nights'] ?? 1,
                     ] : null,
+                    'extra_bed_rate' => (int) $extraBedRate,
                     'total_rate' => $calculation->totalAmount,
                 ];
             } catch (\Throwable $e) {
@@ -214,10 +224,15 @@ class AvailabilityService
 
                 $rates[$dateString] = [
                     'base_rate' => $property->base_rate,
+                    'final_rate' => (int) ($property->base_rate ?? 0),
                     'weekend_premium' => $isWeekend,
+                    'weekend_premium_amount' => 0,
                     'seasonal_premium' => 0,
+                    'seasonal_premium_amount' => 0,
                     'is_weekend' => $isWeekend,
+                    'has_seasonal_rate' => false,
                     'seasonal_rate_applied' => null,
+                    'extra_bed_rate' => (int) ($property->extra_bed_rate ?? 0),
                     'total_rate' => (int) ($property->base_rate ?? 0),
                 ];
             }
