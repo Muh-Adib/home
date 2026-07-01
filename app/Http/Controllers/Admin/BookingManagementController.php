@@ -1189,39 +1189,15 @@ class BookingManagementController extends Controller
         $paymentStatus = $booking->payment_status;
         $deletionReason = $request->input('deletion_reason', 'No reason provided');
 
-        // Prevent delete if booking has verified payments (require refund first)
-        $hasVerifiedPayments = $booking->payments()
-            ->where('payment_status', 'verified')
-            ->exists();
-
-        if ($hasVerifiedPayments) {
-            return back()->withErrors([
-                'error' => 'Booking tidak dapat dihapus karena memiliki pembayaran yang sudah terverifikasi. Proses refund terlebih dahulu sebelum menghapus booking.',
-            ]);
-        }
-
-        // Extra confirmation for certain statuses
-        $requiresExtraConfirmation = in_array($bookingStatus, ['checked_in', 'confirmed', 'fully_paid']);
-        if ($requiresExtraConfirmation && ! $request->has('confirm_delete')) {
-            return back()->withErrors([
-                'error' => 'Booking dengan status ini memerlukan konfirmasi tambahan. Centang kotak konfirmasi untuk melanjutkan.',
-            ]);
-        }
-
         try {
             DB::beginTransaction();
 
-            // Soft delete related payments (if any)
-            $booking->payments()->each(function (Payment $payment) {
-                $payment->delete();
-            });
-
-            // Keep notifications and workflow for audit trail (they reference booking_id)
-            // Soft delete booking
+            // Soft delete booking. The associated payments and incomes are deleted
+            // automatically via BookingObserver's deleting event hook.
             $booking->delete();
 
             // Log deletion
-            \Log::warning('Booking deleted', [
+            Log::warning('Booking deleted', [
                 'booking_id' => $booking->id,
                 'booking_number' => $bookingNumber,
                 'booking_status' => $bookingStatus,
@@ -1234,13 +1210,13 @@ class BookingManagementController extends Controller
 
             DB::commit();
 
-            return redirect()->route('admin.booking-management.index')
-                ->with('success', "Booking #{$bookingNumber} berhasil dihapus.");
+            return redirect()->route('admin.bookings.index')
+                ->with('success', "Booking #{$bookingNumber} dan pembayaran/income terkait berhasil dihapus.");
 
         } catch (\Exception $e) {
             DB::rollBack();
 
-            \Log::error('Booking deletion failed', [
+            Log::error('Booking deletion failed', [
                 'booking_id' => $booking->id,
                 'booking_number' => $bookingNumber,
                 'error' => $e->getMessage(),

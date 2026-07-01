@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Booking;
+use App\Models\Income;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Property;
@@ -407,5 +408,91 @@ class AdminBookingManagementTest extends TestCase
             'booking_id' => $booking->id,
             'amount' => 1250000,
         ]);
+    }
+
+    #[Test]
+    public function admin_can_update_payment_using_patch()
+    {
+        // Create booking with payment
+        $booking = Booking::factory()->create([
+            'property_id' => $this->property->id,
+            'check_in' => now()->addDays(1)->toDateString(),
+            'check_out' => now()->addDays(3)->toDateString(),
+            'total_amount' => 2500000,
+        ]);
+
+        $payment = Payment::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => 1250000,
+            'payment_status' => 'pending',
+            'payment_type' => 'dp',
+            'payment_date' => now()->toDateString(),
+        ]);
+
+        $updateData = [
+            'payment_status' => 'verified',
+            'keep_existing_attachment' => true,
+        ];
+
+        // Send request using the route name update.patch, but using PATCH method
+        $response = $this->actingAs($this->admin)
+            ->patch(route('admin.payments.update.patch', $payment->payment_number), $updateData);
+
+        $response->assertRedirect();
+
+        $this->assertDatabaseHas('payments', [
+            'id' => $payment->id,
+            'payment_status' => 'verified',
+        ]);
+    }
+
+    #[Test]
+    public function admin_can_delete_booking_and_associated_payments_and_incomes()
+    {
+        // Create booking with payment and income
+        $booking = Booking::factory()->create([
+            'property_id' => $this->property->id,
+            'check_in' => now()->addDays(1)->toDateString(),
+            'check_out' => now()->addDays(3)->toDateString(),
+            'total_amount' => 2500000,
+        ]);
+
+        $payment = Payment::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => 1250000,
+            'payment_status' => 'verified',
+            'payment_type' => 'dp',
+            'payment_date' => now()->toDateString(),
+            'payment_method_id' => $this->paymentMethod->id,
+        ]);
+
+        // Manually create an income associated with this payment/booking
+        $income = Income::create([
+            'booking_id' => $booking->id,
+            'payment_id' => $payment->id,
+            'property_id' => $this->property->id,
+            'amount' => 1250000,
+            'income_date' => now()->toDateString(),
+            'source' => 'booking',
+            'description' => 'DP Payment',
+        ]);
+
+        // Verify the database has the records initially
+        $this->assertDatabaseHas('bookings', ['id' => $booking->id]);
+        $this->assertDatabaseHas('payments', ['id' => $payment->id]);
+        $this->assertDatabaseHas('incomes', ['id' => $income->id]);
+
+        // Send delete request
+        $response = $this->actingAs($this->admin)
+            ->delete(route('admin.bookings.destroy', $booking->booking_number));
+
+        $response->assertRedirect();
+
+        // Booking should be soft-deleted
+        $this->assertSoftDeleted('bookings', ['id' => $booking->id]);
+
+        // Payments and incomes should be deleted completely (hard-deleted)
+        $this->assertDatabaseMissing('payments', ['id' => $payment->id]);
+        $this->assertDatabaseMissing('incomes', ['id' => $income->id]);
     }
 }

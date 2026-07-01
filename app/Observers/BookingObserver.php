@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Observers;
 
 use App\Models\Booking;
+use App\Models\Income;
 use Illuminate\Support\Facades\Cache;
 
 class BookingObserver
@@ -28,6 +29,18 @@ class BookingObserver
                 $this->invalidateAvailabilityCache($booking->getOriginal('property_id'));
             }
         }
+    }
+
+    /**
+     * Handle the Booking "deleting" event.
+     */
+    public function deleting(Booking $booking): void
+    {
+        // Delete all incomes associated with this booking
+        Income::where('booking_id', $booking->id)->delete();
+
+        // Delete all payments associated with this booking
+        $booking->payments()->delete();
     }
 
     /**
