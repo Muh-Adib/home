@@ -87,6 +87,12 @@ class InventoryController extends Controller
 
     public function itemsStore(Request $request)
     {
+        foreach (['sku', 'category', 'min_stock', 'selling_price', 'assigned_user_id'] as $field) {
+            if ($request->has($field) && $request->input($field) === '') {
+                $request->merge([$field => null]);
+            }
+        }
+
         $data = $request->validate([
             'name' => ['required','string','max:150'],
             'sku' => ['nullable','string','max:100',\Illuminate\Validation\Rule::unique('inventory_items')->whereNull('deleted_at')],
@@ -165,6 +171,12 @@ class InventoryController extends Controller
     public function itemsUpdate(Request $request, InventoryItem $item)
     {
         $this->authorize('update', $item);
+
+        foreach (['sku', 'category', 'min_stock', 'selling_price', 'assigned_user_id'] as $field) {
+            if ($request->has($field) && $request->input($field) === '') {
+                $request->merge([$field => null]);
+            }
+        }
 
         $data = $request->validate([
             'name' => ['required','string','max:150'],
@@ -326,6 +338,10 @@ class InventoryController extends Controller
 
     public function purchasesStore(Request $request, InventoryService $service)
     {
+        if ($request->has('property_id') && $request->input('property_id') === '') {
+            $request->merge(['property_id' => null]);
+        }
+
         $data = $request->validate([
             'inventory_item_id' => ['required','exists:inventory_items,id'],
             'property_id' => ['nullable','exists:properties,id'],
@@ -363,6 +379,10 @@ class InventoryController extends Controller
     {
         if ($purchase->type !== 'purchase') {
             abort(403);
+        }
+
+        if ($request->has('property_id') && $request->input('property_id') === '') {
+            $request->merge(['property_id' => null]);
         }
 
         $data = $request->validate([
