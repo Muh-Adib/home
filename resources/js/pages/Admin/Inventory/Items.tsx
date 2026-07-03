@@ -10,13 +10,6 @@ import { Pencil, Trash2, ArrowUpDown, Search, Package, AlertCircle, CheckCircle2
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface Item {
   id: number;
@@ -309,25 +302,21 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
                   {errors.selling_price && <p className="text-xs text-red-500">{errors.selling_price}</p>}
                 </div>
                 
-                {/* Assigned User Selection */}
+                {/* Assigned User Selection - Hydration Safe Native HTML Select */}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-slate-700">Penanggung Jawab</Label>
-                  <Select
-                    value={data.assigned_user_id?.toString() || ''}
-                    onValueChange={(val) => setData('assigned_user_id', val)}
+                  <select
+                    value={data.assigned_user_id || ''}
+                    onChange={(e) => setData('assigned_user_id', e.target.value)}
+                    className="w-full bg-white/50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl h-10 text-xs px-3 outline-none transition-all cursor-pointer appearance-none"
                   >
-                    <SelectTrigger className="bg-white/50 border-slate-200 focus:bg-white transition-all rounded-xl h-10 text-xs">
-                      <SelectValue placeholder="Pilih PJ (Internal)" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="" className="rounded-lg">Tanpa PJ</SelectItem>
-                      {staffUsers.map((u) => (
-                        <SelectItem key={u.id} value={u.id.toString()} className="rounded-lg">
-                          {u.name} ({u.role})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <option value="">Pilih PJ (Internal)</option>
+                    {staffUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.role})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-2">
@@ -504,25 +493,21 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
                               </div>
                             </div>
                             
-                            {/* PJ Input */}
+                            {/* PJ Input - Hydration Safe Native HTML Select */}
                             <div className="space-y-1">
                               <Label className="text-[10px] font-semibold text-slate-600">PJ (Internal)</Label>
-                              <Select
+                              <select
                                 value={editAssignedUserId}
-                                onValueChange={(val) => setEditAssignedUserId(val)}
+                                onChange={(e) => setEditAssignedUserId(e.target.value)}
+                                className="w-full bg-white border border-slate-200 focus:border-primary rounded-lg h-8 text-xs px-2 outline-none transition-all cursor-pointer appearance-none"
                               >
-                                <SelectTrigger className="h-8 text-xs rounded-lg">
-                                  <SelectValue placeholder="Tanpa PJ" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-lg">
-                                  <SelectItem value="" className="rounded-lg">Tanpa PJ</SelectItem>
-                                  {staffUsers.map((u) => (
-                                    <SelectItem key={u.id} value={u.id.toString()} className="rounded-lg">
-                                      {u.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                <option value="">Tanpa PJ</option>
+                                {staffUsers.map((u) => (
+                                  <option key={u.id} value={u.id.toString()}>
+                                    {u.name}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           </div>
 
@@ -760,24 +745,21 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
                                   </div>
                                 </div>
 
+                                {/* PJ Input - Hydration Safe Native HTML Select */}
                                 <div className="space-y-1">
                                   <Label className="text-xs font-semibold text-slate-600">PJ (Internal)</Label>
-                                  <Select
+                                  <select
                                     value={editAssignedUserId}
-                                    onValueChange={(val) => setEditAssignedUserId(val)}
+                                    onChange={(e) => setEditAssignedUserId(e.target.value)}
+                                    className="w-full bg-white border border-slate-200 focus:border-primary rounded-lg h-8 text-xs px-2 outline-none transition-all cursor-pointer appearance-none"
                                   >
-                                    <SelectTrigger className="h-8 text-xs rounded-lg">
-                                      <SelectValue placeholder="Tanpa PJ" />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-lg">
-                                      <SelectItem value="" className="rounded-lg">Tanpa PJ</SelectItem>
-                                      {staffUsers.map((u) => (
-                                        <SelectItem key={u.id} value={u.id.toString()} className="rounded-lg">
-                                          {u.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                                    <option value="">Tanpa PJ</option>
+                                    {staffUsers.map((u) => (
+                                      <option key={u.id} value={u.id.toString()}>
+                                        {u.name}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
                               </div>
 
