@@ -661,10 +661,11 @@ class InventoryController extends Controller
         return back()->with('success', 'Data pemakaian dihapus');
     }
 
-    public function exportItems()
+    public function exportItems(Request $request)
     {
+        $category = $request->input('category');
         return Excel::download(
-            new InventoryItemsExport,
+            new InventoryItemsExport($category),
             'inventory_items_' . now()->format('Y-m-d_His') . '.xlsx'
         );
     }

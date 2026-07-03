@@ -183,8 +183,16 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
     }
   };
 
-  const handleExport = () => {
-    window.location.href = '/admin/inventory/items/export';
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportCategory, setExportCategory] = useState('');
+
+  const handleExportDownload = () => {
+    let url = '/admin/inventory/items/export';
+    if (exportCategory) {
+      url += `?category=${encodeURIComponent(exportCategory)}`;
+    }
+    window.location.href = url;
+    setShowExportModal(false);
   };
 
   // Client-side search filtering
@@ -362,7 +370,7 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleExport}
+                onClick={() => setShowExportModal(true)}
                 className="rounded-xl border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 font-semibold gap-1.5 h-10 px-3.5 shadow-sm"
               >
                 <FileSpreadsheet className="h-4 w-4" /> Export
@@ -942,6 +950,36 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
             </Button>
             <Button variant="destructive" onClick={confirmDelete} className="rounded-xl">
               Hapus Item
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Export Dialog */}
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="rounded-2xl border-none shadow-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-bold text-slate-800 text-lg">Ekspor Katalog Barang</DialogTitle>
+            <DialogDescription className="text-slate-500 text-sm mt-1">
+              Unduh data inventaris barang ke dalam berkas Excel (.xlsx).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-3">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-700">Filter Kategori (Opsional)</Label>
+              <Input
+                placeholder="Contoh: Amenities, Kebersihan, F&B (kosongkan untuk semua)"
+                value={exportCategory}
+                onChange={(e) => setExportCategory(e.target.value)}
+                className="rounded-xl border-slate-200"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0 mt-4">
+            <Button variant="outline" onClick={() => setShowExportModal(false)} className="rounded-xl border-slate-200">
+              Batal
+            </Button>
+            <Button onClick={handleExportDownload} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+              Unduh Excel
             </Button>
           </DialogFooter>
         </DialogContent>

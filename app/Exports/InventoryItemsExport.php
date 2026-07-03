@@ -11,9 +11,22 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class InventoryItemsExport implements FromCollection, WithHeadings, WithStyles, ShouldAutoSize
 {
+    protected $category;
+
+    public function __construct($category = null)
+    {
+        $this->category = $category;
+    }
+
     public function collection()
     {
-        return InventoryItem::with('assignedUser')->get()->map(function ($it) {
+        $query = InventoryItem::with('assignedUser');
+
+        if ($this->category) {
+            $query->where('category', 'like', "%{$this->category}%");
+        }
+
+        return $query->get()->map(function ($it) {
             return [
                 $it->sku,
                 $it->name,

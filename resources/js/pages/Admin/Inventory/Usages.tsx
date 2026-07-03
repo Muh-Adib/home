@@ -95,13 +95,37 @@ export default function Usages({ items, properties, usages, usageStats, filters 
         }
     };
 
-    const handleExport = () => {
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportDateFrom, setExportDateFrom] = useState('');
+    const [exportDateTo, setExportDateTo] = useState('');
+
+    const setExportMonthShortcut = (shortcut: 'this' | 'last' | 'all') => {
+        if (shortcut === 'this') {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+            const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+            setExportDateFrom(start);
+            setExportDateTo(end);
+        } else if (shortcut === 'last') {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+            const end = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+            setExportDateFrom(start);
+            setExportDateTo(end);
+        } else {
+            setExportDateFrom('');
+            setExportDateTo('');
+        }
+    };
+
+    const handleExportDownload = () => {
         let url = '/admin/inventory/usages/export';
         const params = [];
-        if (dateFrom) params.push(`date_from=${dateFrom}`);
-        if (dateTo) params.push(`date_to=${dateTo}`);
+        if (exportDateFrom) params.push(`date_from=${exportDateFrom}`);
+        if (exportDateTo) params.push(`date_to=${exportDateTo}`);
         if (params.length > 0) url += `?${params.join('&')}`;
         window.location.href = url;
+        setShowExportModal(false);
     };
 
     const { data, setData, post, put, delete: destroy, processing, reset, errors, clearErrors } = useForm({
@@ -427,7 +451,11 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={handleExport}
+                                  onClick={() => {
+                                    setExportDateFrom(dateFrom);
+                                    setExportDateTo(dateTo);
+                                    setShowExportModal(true);
+                                  }}
                                   className="rounded-xl border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 font-semibold gap-1.5 h-9 px-3.5 shadow-sm"
                                 >
                                   <FileSpreadsheet className="h-4 w-4" /> Export Excel
@@ -686,6 +714,52 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                     <DialogFooter className="gap-2 sm:gap-0 mt-3">
                         <Button variant="outline" onClick={() => setDeleteId(null)} className="rounded-xl border-slate-200">Batal</Button>
                         <Button variant="destructive" onClick={handleDelete} className="rounded-xl">Hapus</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            {/* Export Dialog */}
+            <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+                <DialogContent className="rounded-2xl border-none shadow-2xl max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="font-bold text-slate-800 text-lg">Ekspor Pemakaian</DialogTitle>
+                        <DialogDescription className="text-slate-500 text-sm mt-1">
+                            Pilih rentang waktu data pemakaian yang ingin diekspor ke Excel.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 gap-4 py-3">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-700">Dari Tanggal</Label>
+                                <Input
+                                    type="date"
+                                    value={exportDateFrom}
+                                    onChange={(e) => setExportDateFrom(e.target.value)}
+                                    className="rounded-xl"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-700">Sampai Tanggal</Label>
+                                <Input
+                                    type="date"
+                                    value={exportDateTo}
+                                    onChange={(e) => setExportDateTo(e.target.value)}
+                                    className="rounded-xl"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button type="button" size="sm" variant="secondary" onClick={() => setExportMonthShortcut('this')} className="flex-1 text-xs rounded-xl h-9">Bulan Ini</Button>
+                            <Button type="button" size="sm" variant="secondary" onClick={() => setExportMonthShortcut('last')} className="flex-1 text-xs rounded-xl h-9">Bulan Lalu</Button>
+                            <Button type="button" size="sm" variant="outline" onClick={() => setExportMonthShortcut('all')} className="text-xs rounded-xl h-9 text-slate-500">Semua</Button>
+                        </div>
+                    </div>
+                    <DialogFooter className="gap-2 sm:gap-0 mt-4">
+                        <Button variant="outline" onClick={() => setShowExportModal(false)} className="rounded-xl border-slate-200">
+                            Batal
+                        </Button>
+                        <Button onClick={handleExportDownload} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+                            Unduh Excel
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

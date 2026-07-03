@@ -41,6 +41,11 @@ class InventoryStockMovement extends Model
     {
         return $this->belongsTo(Property::class);
     }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 }
 
 
