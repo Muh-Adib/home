@@ -321,7 +321,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                         (isWelcome && isScrolled) || !isWelcome ? "text-gray-700 hover:bg-gray-100" : ""
                                     )}>
                                         <Avatar className="size-8 overflow-hidden rounded-full">
-                                            <AvatarImage src={auth.user.avatar} alt={auth.user.name} />
+                                            <AvatarImage src={auth.user.avatar ? (auth.user.avatar.startsWith('http') ? auth.user.avatar : `/storage/${auth.user.avatar}`) : undefined} alt={auth.user.name} />
                                             <AvatarFallback className="rounded-lg bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white">
                                                 {getInitials(auth.user.name)}
                                             </AvatarFallback>

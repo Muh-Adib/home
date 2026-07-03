@@ -195,7 +195,7 @@ export default function UserShow({ user }: UserShowProps) {
                             <CardHeader className="text-center">
                                 <div className="flex justify-center mb-4">
                                     <Avatar className="h-24 w-24">
-                                        <AvatarImage src={user.avatar} alt={user.name} />
+                                        <AvatarImage src={user.avatar ? (user.avatar.startsWith('http') ? user.avatar : `/storage/${user.avatar}`) : undefined} alt={user.name} />
                                         <AvatarFallback className="text-lg">{getInitials(user.name)}</AvatarFallback>
                                     </Avatar>
                                 </div>

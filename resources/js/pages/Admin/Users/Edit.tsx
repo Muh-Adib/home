@@ -192,7 +192,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                 <CardContent>
                                     <div className="flex flex-col items-center space-y-4">
                                         <Avatar className="h-24 w-24">
-                                            <AvatarImage src={previewImage || user.avatar} alt={user.name} />
+                                            <AvatarImage src={previewImage || (user.avatar ? (user.avatar.startsWith('http') ? user.avatar : `/storage/${user.avatar}`) : undefined)} alt={user.name} />
                                             <AvatarFallback className="text-lg">{getInitials(user.name)}</AvatarFallback>
                                         </Avatar>
                                         
