@@ -9,13 +9,30 @@ use App\Models\InventoryUsage;
 use App\Models\Property;
 use App\Models\User;
 use App\Models\PropertyExpense;
+use App\Models\UserActivityLog;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Carbon\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\InventoryItemsExport;
+use App\Exports\InventoryPurchasesExport;
+use App\Exports\InventoryUsagesExport;
 
 class InventoryController extends Controller
 {
+    private function logActivity(Request $request, string $type, ?string $refType, ?int $refId, string $description, ?array $properties = null)
+    {
+        UserActivityLog::create([
+            'user_id' => $request->user()?->id,
+            'activity_type' => $type,
+            'reference_type' => $refType,
+            'reference_id' => $refId,
+            'description' => $description,
+            'properties' => $properties,
+        ]);
+    }
+
     public function itemsIndex(Request $request)
     {
         $sortColumn = $request->input('sort', 'name');
@@ -39,7 +56,6 @@ class InventoryController extends Controller
              $items = $query->orderBy('name')->get();
         }
 
-        // Retrieve staff & housekeeping users to assign responsibilities
         $staffUsers = User::whereIn('role', ['housekeeping', 'property_manager', 'super_admin', 'front_desk', 'finance'])
             ->orderBy('name')
             ->get(['id', 'name', 'role']);
@@ -91,7 +107,6 @@ class InventoryController extends Controller
             $path = $request->file('image')->store('inventory/items', 'public');
         }
 
-        // Check for existing soft-deleted item with same SKU
         $existingDeleted = InventoryItem::withTrashed()
             ->where('sku', $data['sku'])
             ->whereNotNull('deleted_at')
@@ -109,10 +124,12 @@ class InventoryController extends Controller
                 'assigned_user_id' => $data['assigned_user_id'] ?? null,
             ]);
 
-             return back()->with('success', 'Item berhasil dipulihkan dan diperbarui (SKU ditemukan di tong sampah)');
+            $this->logActivity($request, 'create_item', 'item', $existingDeleted->id, "Memulihkan & memperbarui item dari tong sampah: {$existingDeleted->name} (SKU: {$existingDeleted->sku})", $existingDeleted->toArray());
+
+            return back()->with('success', 'Item berhasil dipulihkan dan diperbarui (SKU ditemukan di tong sampah)');
         }
 
-        InventoryItem::create([
+        $item = InventoryItem::create([
             'name' => $data['name'],
             'sku' => $data['sku'],
             'unit' => $data['unit'],
@@ -122,6 +139,8 @@ class InventoryController extends Controller
             'image_path' => $path,
             'assigned_user_id' => $data['assigned_user_id'] ?? null,
         ]);
+
+        $this->logActivity($request, 'create_item', 'item', $item->id, "Menambahkan item baru: {$item->name} (SKU: {$item->sku})", $item->toArray());
 
         return back()->with('success', 'Item berhasil dibuat');
     }
@@ -170,6 +189,8 @@ class InventoryController extends Controller
             $path = $request->file('image')->store('inventory/items', 'public');
         }
 
+        $original = $item->toArray();
+
         $item->update([
             'name' => $data['name'],
             'sku' => $data['sku'],
@@ -180,6 +201,21 @@ class InventoryController extends Controller
             'image_path' => $path,
             'assigned_user_id' => $data['assigned_user_id'] ?? null,
         ]);
+
+        $changes = $item->getChanges();
+        if (!empty($changes)) {
+            $diffs = [];
+            foreach ($changes as $k => $v) {
+                if ($k === 'updated_at') continue;
+                $oldVal = $original[$k] ?? 'NULL';
+                $diffs[] = "{$k}: '{$oldVal}' → '{$v}'";
+            }
+            $description = "Memperbarui item {$item->name}: " . implode(', ', $diffs);
+            $this->logActivity($request, 'update_item', 'item', $item->id, $description, [
+                'old' => $original,
+                'new' => $item->toArray()
+            ]);
+        }
 
         return back()->with('success', 'Item berhasil diperbarui');
     }
@@ -197,10 +233,67 @@ class InventoryController extends Controller
             ]);
         }
 
-        $itemName = $item->name;
+        $this->logActivity($request, 'delete_item', 'item', $item->id, "Menghapus item: {$item->name} (SKU: {$item->sku})", $item->toArray());
+
         $item->delete();
 
         return back()->with('success', 'Item berhasil dihapus');
+    }
+
+    public function itemsShow(InventoryItem $item)
+    {
+        $item->load('assignedUser');
+        
+        $movements = InventoryStockMovement::where('inventory_item_id', $item->id)
+            ->with(['user', 'property'])
+            ->orderBy('movement_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($m) {
+                return [
+                    'id' => $m->id,
+                    'type' => $m->type,
+                    'quantity' => (float) $m->quantity,
+                    'unit_cost' => (float) $m->unit_cost,
+                    'total_cost' => (float) $m->total_cost,
+                    'movement_date' => $m->movement_date,
+                    'notes' => $m->notes,
+                    'user_name' => $m->user?->name ?? 'System',
+                    'property_name' => $m->property?->name ?? 'Global/Gudang',
+                ];
+            });
+
+        $activityLogs = UserActivityLog::where('reference_type', 'item')
+            ->where('reference_id', $item->id)
+            ->with('user')
+            ->latest()
+            ->get()
+            ->map(function ($log) {
+                return [
+                    'id' => $log->id,
+                    'user_name' => $log->user?->name ?? 'System',
+                    'activity_type' => $log->activity_type,
+                    'description' => $log->description,
+                    'created_at' => $log->created_at->format('Y-m-d H:i:s'),
+                ];
+            });
+
+        return Inertia::render('Admin/Inventory/ItemDetail', [
+            'item' => [
+                'id' => $item->id,
+                'name' => $item->name,
+                'sku' => $item->sku,
+                'unit' => $item->unit,
+                'category' => $item->category,
+                'min_stock' => (float) $item->min_stock,
+                'selling_price' => (float) $item->selling_price,
+                'current_stock' => (float) $item->current_stock,
+                'image_path' => $item->image_path,
+                'assigned_user_name' => $item->assignedUser?->name,
+            ],
+            'ledger' => $movements,
+            'activityLogs' => $activityLogs,
+        ]);
     }
 
     public function purchasesIndex(Request $request)
@@ -242,7 +335,8 @@ class InventoryController extends Controller
             'vendor_name' => ['nullable','string','max:100'],
             'notes' => ['nullable','string','max:255'],
         ]);
-        $service->recordPurchase(
+
+        $movement = $service->recordPurchase(
             (int)$data['inventory_item_id'],
             (float)$data['quantity'],
             (float)$data['unit_cost'],
@@ -252,7 +346,104 @@ class InventoryController extends Controller
             $data['notes'] ?? null,
             $data['vendor_name'] ?? null
         );
+
+        $this->logActivity(
+            $request, 
+            'create_purchase', 
+            'item', 
+            $movement->inventory_item_id, 
+            "Mencatat pembelian item: {$movement->item->name} sebanyak {$movement->quantity} {$movement->item->unit}", 
+            $movement->toArray()
+        );
+
         return back()->with('success', 'Pembelian stok dicatat');
+    }
+
+    public function purchasesUpdate(Request $request, InventoryStockMovement $purchase) 
+    {
+        if ($purchase->type !== 'purchase') {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'quantity' => ['required','numeric','min:0.0001'],
+            'unit_cost' => ['required','numeric','min:0'],
+            'movement_date' => ['required','date'],
+            'vendor_name' => ['nullable','string','max:100'],
+            'notes' => ['nullable','string','max:255'],
+            'property_id' => ['nullable','exists:properties,id'],
+        ]);
+
+        \Illuminate\Support\Facades\DB::transaction(function() use ($purchase, $data) {
+            $totalCost = round($data['quantity'] * $data['unit_cost'], 2);
+
+            $purchase->update([
+                'quantity' => $data['quantity'],
+                'unit_cost' => $data['unit_cost'],
+                'total_cost' => $totalCost,
+                'movement_date' => $data['movement_date'],
+                'vendor_name' => $data['vendor_name'] ?? null,
+                'notes' => $data['notes'] ?? null,
+                'property_id' => $data['property_id'] ?? null,
+            ]);
+
+            if ($purchase->reference_type === 'expense' && $purchase->reference_id) {
+                $expense = PropertyExpense::find($purchase->reference_id);
+                if ($expense) {
+                    $item = $purchase->item;
+                    $expense->update([
+                        'amount' => $totalCost,
+                        'expense_date' => $data['movement_date'],
+                        'vendor_name' => $data['vendor_name'] ?? null,
+                        'notes' => $data['notes'] ?? null,
+                        'description' => 'Pembelian ' . $item->name . ' qty ' . $data['quantity'] . ' ' . $item->unit,
+                    ]);
+                }
+            }
+        });
+
+        $this->logActivity(
+            $request, 
+            'update_purchase', 
+            'item', 
+            $purchase->inventory_item_id, 
+            "Mengubah data pembelian item: {$purchase->item->name} (Qty: {$purchase->quantity}, Unit Cost: {$purchase->unit_cost})", 
+            $purchase->toArray()
+        );
+
+        return back()->with('success', 'Data pembelian diperbarui');
+    }
+
+    public function purchasesDestroy(Request $request, InventoryStockMovement $purchase)
+    {
+         if ($purchase->type !== 'purchase') {
+            abort(403);
+        }
+
+        $itemId = $purchase->inventory_item_id;
+        $purchaseDetails = $purchase->toArray();
+        $itemName = $purchase->item?->name;
+
+        \Illuminate\Support\Facades\DB::transaction(function() use ($purchase) {
+            if ($purchase->reference_type === 'expense' && $purchase->reference_id) {
+                $expense = PropertyExpense::find($purchase->reference_id);
+                if ($expense) {
+                    $expense->delete();
+                }
+            }
+            $purchase->delete();
+        });
+
+        $this->logActivity(
+            $request, 
+            'delete_purchase', 
+            'item', 
+            $itemId, 
+            "Menghapus riwayat pembelian item: {$itemName} (Qty: {$purchaseDetails['quantity']})", 
+            $purchaseDetails
+        );
+
+        return back()->with('success', 'Data pembelian dihapus');
     }
 
     public function usagesIndex(Request $request)
@@ -274,7 +465,6 @@ class InventoryController extends Controller
         
         $usages = $query->paginate(20)->withQueryString();
 
-        // Usage Stats Calculation
         $startThisMonth = Carbon::now()->startOfMonth();
         $endThisMonth = Carbon::now()->endOfMonth();
         $startLastMonth = Carbon::now()->subMonth()->startOfMonth();
@@ -349,13 +539,22 @@ class InventoryController extends Controller
 
         \Illuminate\Support\Facades\DB::transaction(function() use ($data, $service, $request) {
             foreach ($data['usages'] as $usageRow) {
-                $service->recordUsage(
+                $usageRecord = $service->recordUsage(
                     (int)$data['inventory_item_id'],
                     (int)$usageRow['property_id'],
                     $data['usage_date'],
                     (float)$usageRow['quantity_used'],
                     $request->user()->id,
                     $data['notes'] ?? null
+                );
+
+                $this->logActivity(
+                    $request, 
+                    'create_usage', 
+                    'item', 
+                    $usageRecord->inventory_item_id, 
+                    "Mencatat pemakaian item: {$usageRecord->item->name} di properti {$usageRecord->property?->name} sebanyak {$usageRecord->quantity_used} {$usageRecord->item->unit}", 
+                    $usageRecord->toArray()
                 );
             }
         });
@@ -373,7 +572,7 @@ class InventoryController extends Controller
         ]);
 
         \Illuminate\Support\Facades\DB::transaction(function() use ($usage, $data) {
-            $item = $usage->item; // Load item (includes trashed)
+            $item = $usage->item;
             $unitCost = $item->selling_price > 0 ? (float) $item->selling_price : (float) $item->average_unit_cost;
             $totalCost = round($unitCost * (float)$data['quantity_used'], 2);
 
@@ -385,7 +584,6 @@ class InventoryController extends Controller
                 'notes' => $data['notes'] ?? null,
             ]);
 
-            // Sync corresponding out stock movement
             $movement = InventoryStockMovement::where('reference_type', 'usage')
                 ->where('reference_id', $usage->id)
                 ->first();
@@ -400,7 +598,6 @@ class InventoryController extends Controller
                 ]);
             }
 
-            // Sync corresponding expense
             if ($usage->expense_id) {
                 $expense = PropertyExpense::find($usage->expense_id);
                 if ($expense) {
@@ -415,20 +612,32 @@ class InventoryController extends Controller
             }
         });
 
+        $this->logActivity(
+            $request, 
+            'update_usage', 
+            'item', 
+            $usage->inventory_item_id, 
+            "Mengubah pemakaian item: {$usage->item->name} di properti {$usage->property?->name} (Qty: {$usage->quantity_used})", 
+            $usage->toArray()
+        );
+
         return back()->with('success', 'Data pemakaian diperbarui');
     }
 
-    public function usagesDestroy(InventoryUsage $usage)
+    public function usagesDestroy(Request $request, InventoryUsage $usage)
     {
+        $itemId = $usage->inventory_item_id;
+        $usageDetails = $usage->toArray();
+        $itemName = $usage->item?->name;
+        $propertyName = $usage->property?->name;
+
         \Illuminate\Support\Facades\DB::transaction(function() use ($usage) {
-            // Delete related out movements
             InventoryStockMovement::where('reference_type', 'usage')
                 ->where('reference_id', $usage->id)
                 ->delete();
 
             $expenseId = $usage->expense_id;
             if ($expenseId) {
-                // Break relationship to prevent foreign key constraint violation during deletion
                 $usage->update(['expense_id' => null]);
 
                 $expense = PropertyExpense::find($expenseId);
@@ -440,74 +649,45 @@ class InventoryController extends Controller
             $usage->delete();
         });
 
+        $this->logActivity(
+            $request, 
+            'delete_usage', 
+            'item', 
+            $itemId, 
+            "Menghapus pemakaian item: {$itemName} di properti {$propertyName} (Qty: {$usageDetails['quantity_used']})", 
+            $usageDetails
+        );
+
         return back()->with('success', 'Data pemakaian dihapus');
     }
 
-    public function purchasesUpdate(Request $request, InventoryStockMovement $purchase) 
+    public function exportItems()
     {
-        if ($purchase->type !== 'purchase') {
-            abort(403);
-        }
-
-        $data = $request->validate([
-            'quantity' => ['required','numeric','min:0.0001'],
-            'unit_cost' => ['required','numeric','min:0'],
-            'movement_date' => ['required','date'],
-            'vendor_name' => ['nullable','string','max:100'],
-            'notes' => ['nullable','string','max:255'],
-            'property_id' => ['nullable','exists:properties,id'],
-        ]);
-
-        \Illuminate\Support\Facades\DB::transaction(function() use ($purchase, $data) {
-            $totalCost = round($data['quantity'] * $data['unit_cost'], 2);
-
-            $purchase->update([
-                'quantity' => $data['quantity'],
-                'unit_cost' => $data['unit_cost'],
-                'total_cost' => $totalCost,
-                'movement_date' => $data['movement_date'],
-                'vendor_name' => $data['vendor_name'] ?? null,
-                'notes' => $data['notes'] ?? null,
-                'property_id' => $data['property_id'] ?? null,
-            ]);
-
-            // Sync corresponding expense
-            if ($purchase->reference_type === 'expense' && $purchase->reference_id) {
-                $expense = PropertyExpense::find($purchase->reference_id);
-                if ($expense) {
-                    $item = $purchase->item; // Load item (includes trashed)
-                    $expense->update([
-                        'amount' => $totalCost,
-                        'expense_date' => $data['movement_date'],
-                        'vendor_name' => $data['vendor_name'] ?? null,
-                        'notes' => $data['notes'] ?? null,
-                        'description' => 'Pembelian ' . $item->name . ' qty ' . $data['quantity'] . ' ' . $item->unit,
-                    ]);
-                }
-            }
-        });
-
-        return back()->with('success', 'Data pembelian diperbarui');
+        return Excel::download(
+            new InventoryItemsExport,
+            'inventory_items_' . now()->format('Y-m-d_His') . '.xlsx'
+        );
     }
 
-    public function purchasesDestroy(InventoryStockMovement $purchase)
+    public function exportPurchases(Request $request)
     {
-         if ($purchase->type !== 'purchase') {
-            abort(403);
-        }
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
 
-        \Illuminate\Support\Facades\DB::transaction(function() use ($purchase) {
-            // Delete corresponding expense
-            if ($purchase->reference_type === 'expense' && $purchase->reference_id) {
-                $expense = PropertyExpense::find($purchase->reference_id);
-                if ($expense) {
-                    $expense->delete();
-                }
-            }
+        return Excel::download(
+            new InventoryPurchasesExport($dateFrom, $dateTo),
+            'inventory_purchases_' . now()->format('Y-m-d_His') . '.xlsx'
+        );
+    }
 
-            $purchase->delete();
-        });
+    public function exportUsages(Request $request)
+    {
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
 
-        return back()->with('success', 'Data pembelian dihapus');
+        return Excel::download(
+            new InventoryUsagesExport($dateFrom, $dateTo),
+            'inventory_usages_' . now()->format('Y-m-d_His') . '.xlsx'
+        );
     }
 }

@@ -350,12 +350,20 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,fin
 // Inventory/Operational Management
 Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,housekeeping,front_desk,finance'])->prefix('admin/inventory')->name('admin.inventory.')->group(function () {
     $controller = InventoryController::class;
+    
+    // Exports
+    Route::get('items/export', [$controller, 'exportItems'])->name('items.export');
+    Route::get('purchases/export', [$controller, 'exportPurchases'])->name('purchases.export');
+    Route::get('usages/export', [$controller, 'exportUsages'])->name('usages.export');
+
     Route::get('items', [$controller, 'itemsIndex'])->name('items.index');
     Route::post('items', [$controller, 'itemsStore'])->name('items.store');
     Route::get('items/{item}/edit', [$controller, 'itemsEdit'])->name('items.edit');
     Route::put('items/{item}', [$controller, 'itemsUpdate'])->name('items.update');
     Route::post('items/{item}', [$controller, 'itemsUpdate'])->name('items.update.post'); // For FormData with _method
     Route::delete('items/{item}', [$controller, 'itemsDestroy'])->name('items.destroy');
+    Route::get('items/{item}', [$controller, 'itemsShow'])->name('items.show');
+
     Route::get('purchases', [$controller, 'purchasesIndex'])->name('purchases.index');
     Route::post('purchases', [$controller, 'purchasesStore'])->name('purchases.store');
     Route::put('purchases/{purchase}', [$controller, 'purchasesUpdate'])->name('purchases.update');

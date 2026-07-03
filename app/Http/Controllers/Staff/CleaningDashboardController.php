@@ -18,19 +18,39 @@ class CleaningDashboardController extends Controller
 
     public function index()
     {
-        // 1. Get Active Inventory Items for the form
+        $user = auth()->user();
+
+        // 1. Get Active Inventory Items for the form shortcuts
         $inventoryItems = InventoryItem::select('id', 'name', 'unit')
             ->orderBy('name')
             ->get();
 
-        // 2. Properties that checked out today and need cleaning
+        // 2. Get all properties for shortcut inputs
+        $properties = Property::orderBy('name')->get(['id', 'name']);
+
+        // 3. Get low stock items assigned to this specific user (PJ)
+        $myLowStockItems = InventoryItem::where('assigned_user_id', $user->id)
+            ->get()
+            ->filter(function ($it) {
+                return (float)$it->current_stock < (float)$it->min_stock;
+            })
+            ->map(function ($it) {
+                return [
+                    'id' => $it->id,
+                    'name' => $it->name,
+                    'unit' => $it->unit,
+                    'current_stock' => (float)$it->current_stock,
+                    'min_stock' => (float)$it->min_stock,
+                ];
+            })->values();
+
+        // 4. Properties that checked out today and need cleaning
         $needsCleaning = Booking::whereDate('check_out', today())
             ->where('booking_status', 'checked_out')
             ->where('is_cleaned', false)
             ->with(['property:id,name,address,current_keybox_code', 'guests'])
             ->get()
             ->map(function ($booking) {
-                // Get usage template for this specific property
                 $stockTemplate = $this->cleaningService->getLastUsageTemplate($booking->property);
 
                 return [
@@ -44,11 +64,11 @@ class CleaningDashboardController extends Controller
                     'current_keybox_code' => $booking->property->current_keybox_code,
                     'next_checkin' => $booking->property->getNextCheckIn(),
                     'priority' => $this->calculateCleaningPriority($booking),
-                    'stock_template' => $stockTemplate, // Pass template to frontend
+                    'stock_template' => $stockTemplate,
                 ];
             });
 
-        // 3. Recently cleaned properties
+        // 5. Recently cleaned properties
         $recentlyCleaned = Booking::whereDate('cleaned_at', today())
             ->where('is_cleaned', true)
             ->with(['property:id,name,current_keybox_code,keybox_updated_at', 'cleanedBy:id,name'])
@@ -58,7 +78,9 @@ class CleaningDashboardController extends Controller
         return Inertia::render('Staff/CleaningDashboard', [
             'needsCleaning' => $needsCleaning,
             'recentlyCleaned' => $recentlyCleaned,
-            'inventoryItems' => $inventoryItems, // Pass full item list for adding extra
+            'inventoryItems' => $inventoryItems,
+            'properties' => $properties,
+            'myLowStockItems' => $myLowStockItems,
             'stats' => [
                 'total_checkout_today' => Booking::whereDate('check_out', today())->count(),
                 'cleaned_today' => Booking::whereDate('cleaned_at', today())->count(),

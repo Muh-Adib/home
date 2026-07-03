@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, router } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import {
     CheckCircle,
@@ -23,7 +23,15 @@ import {
     RefreshCw,
     Plus,
     Trash2,
-    Package
+    Package,
+    ArrowUpRight,
+    ArrowDownRight,
+    Coins,
+    Layers,
+    Tag,
+    X,
+    ClipboardList,
+    AlertCircle
 } from 'lucide-react';
 import { type BreadcrumbItem, type PageProps } from '@/types';
 import { format } from 'date-fns';
@@ -83,59 +91,96 @@ interface CleaningStats {
     high_priority: number;
 }
 
+interface MyLowStockItem {
+    id: number;
+    name: string;
+    unit: string;
+    current_stock: number;
+    min_stock: number;
+}
+
 interface CleaningDashboardProps extends PageProps {
     needsCleaning: CleaningProperty[];
     recentlyCleaned: RecentlyCleaned[];
     stats: CleaningStats;
     inventoryItems: InventoryItem[];
+    properties?: { id: number; name: string }[];
+    myLowStockItems?: MyLowStockItem[];
 }
 
-export default function CleaningDashboard({ needsCleaning, recentlyCleaned, stats, inventoryItems }: CleaningDashboardProps) {
+export default function CleaningDashboard({ 
+    needsCleaning, 
+    recentlyCleaned, 
+    stats, 
+    inventoryItems, 
+    properties = [], 
+    myLowStockItems = [] 
+}: CleaningDashboardProps) {
     const [selectedProperty, setSelectedProperty] = useState<CleaningProperty | null>(null);
     const [showCleaningForm, setShowCleaningForm] = useState(false);
 
-    // Form handling
-    const { data, setData, patch, processing, errors, reset } = useForm({
+    // Shortuct Modal States
+    const [showUsageModal, setShowUsageModal] = useState(false);
+    const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+    const [tempPropertyId, setTempPropertyId] = useState('');
+
+    // Cleaning Form submission
+    const { data: cleaningData, setData: setCleaningData, patch: patchCleaning, processing: cleaningProcessing, errors: cleaningErrors, reset: resetCleaning } = useForm({
         new_keybox_code: '',
         notes: '',
         stock_usage: [] as StockUsageItem[],
     });
 
+    // Quick Usage Input Form
+    const usageForm = useForm({
+        inventory_item_id: '',
+        usage_date: new Date().toISOString().slice(0, 10),
+        notes: '',
+        usages: [] as { property_id: string; quantity_used: string }[],
+    });
+
+    // Quick Purchase Input Form
+    const purchaseForm = useForm({
+        inventory_item_id: '',
+        property_id: '',
+        quantity: '',
+        unit_cost: '',
+        movement_date: new Date().toISOString().slice(0, 10),
+        vendor_name: '',
+        notes: '',
+    });
+
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
-        { title: 'Manajemen Kebersihan', href: '/staff/cleaning' },
+        { title: 'Cleaning & Inventory', href: '/staff/cleaning' },
     ];
 
-    // Open form and pre-fill data
     const openCleaningForm = (property: CleaningProperty) => {
         setSelectedProperty(property);
-
-        // Convert template to form data format
         const initialStockUsage = property.stock_template.map(item => ({
             item_id: item.item_id,
             quantity: item.quantity
         }));
 
-        setData({
+        setCleaningData({
             new_keybox_code: '',
             notes: '',
             stock_usage: initialStockUsage
         });
-
         setShowCleaningForm(true);
     };
 
     const closeCleaningForm = () => {
         setShowCleaningForm(false);
         setSelectedProperty(null);
-        reset();
+        resetCleaning();
     };
 
     const submitCleaning = (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedProperty) return;
 
-        patch(route('staff.cleaning.mark-cleaned', selectedProperty.id), {
+        patchCleaning(route('staff.cleaning.mark-cleaned', selectedProperty.id), {
             onSuccess: () => {
                 closeCleaningForm();
             },
@@ -143,51 +188,52 @@ export default function CleaningDashboard({ needsCleaning, recentlyCleaned, stat
         });
     };
 
-    // Stock management functions
-    const addStockItem = () => {
-        // Find first item not already in usage list
-        const unusedItem = inventoryItems.find(item =>
-            !data.stock_usage.some(usage => usage.item_id === item.id)
-        );
-
-        if (unusedItem) {
-            setData('stock_usage', [
-                ...data.stock_usage,
-                { item_id: unusedItem.id, quantity: 1 }
-            ]);
-        }
+    // Quick Usage Handlers
+    const addPropertyRow = () => {
+        if (!tempPropertyId) return;
+        if (usageForm.data.usages.some(row => row.property_id === tempPropertyId)) return;
+        usageForm.setData('usages', [...usageForm.data.usages, { property_id: tempPropertyId, quantity_used: '' }]);
+        setTempPropertyId('');
     };
 
-    const removeStockItem = (index: number) => {
-        const newStockUsage = [...data.stock_usage];
-        newStockUsage.splice(index, 1);
-        setData('stock_usage', newStockUsage);
+    const removePropertyRow = (index: number) => {
+        const updated = [...usageForm.data.usages];
+        updated.splice(index, 1);
+        usageForm.setData('usages', updated);
     };
 
-    const updateStockItem = (index: number, field: keyof StockUsageItem, value: number) => {
-        const newStockUsage = [...data.stock_usage];
-        newStockUsage[index] = { ...newStockUsage[index], [field]: value };
-        setData('stock_usage', newStockUsage);
+    const updatePropertyQty = (index: number, qty: string) => {
+        const updated = [...usageForm.data.usages];
+        updated[index].quantity_used = qty;
+        usageForm.setData('usages', updated);
     };
 
-    const getPriorityBadge = (priority: string) => {
-        const variants = {
-            high: 'destructive',
-            medium: 'default',
-            low: 'secondary'
-        } as const;
+    const availableProperties = properties?.filter(p => 
+        !usageForm.data.usages.some(row => row.property_id === p.id?.toString())
+    );
 
-        const labels = {
-            high: 'Prioritas Tinggi',
-            medium: 'Menengah',
-            low: 'Rendah'
-        } as const;
+    const submitQuickUsage = (e: React.FormEvent) => {
+        e.preventDefault();
+        usageForm.post('/admin/inventory/usages', {
+            onSuccess: () => {
+                usageForm.reset();
+                setTempPropertyId('');
+                setShowUsageModal(false);
+                router.reload();
+            }
+        });
+    };
 
-        return (
-            <Badge variant={variants[priority as keyof typeof variants]}>
-                {labels[priority as keyof typeof labels]}
-            </Badge>
-        );
+    // Quick Purchase Handler
+    const submitQuickPurchase = (e: React.FormEvent) => {
+      e.preventDefault();
+      purchaseForm.post('/admin/inventory/purchases', {
+          onSuccess: () => {
+              purchaseForm.reset();
+              setShowPurchaseModal(false);
+              router.reload();
+          }
+      });
     };
 
     const formatTime = (dateString: string) => {
@@ -200,156 +246,199 @@ export default function CleaningDashboard({ needsCleaning, recentlyCleaned, stat
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
-            <Head title="Dashboard Kebersihan" />
+            <Head title="Staff Dashboard" />
 
-            <div className="space-y-6 p-4 md:p-6">
+            <div className="space-y-6 p-4 md:p-6 max-w-7xl mx-auto">
+                
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-                            Dashboard Kebersihan
+                        <h1 className="text-2xl font-black text-slate-800 tracking-tight">
+                            Dashboard Kebersihan & Stok
                         </h1>
-                        <p className="text-muted-foreground">
-                            Kelola jadwal pembersihan, stok, dan kode keybox
+                        <p className="text-sm text-slate-500">
+                            Kelola jadwal pembersihan harian, catat pemakaian, dan belanja logistik secara instan.
                         </p>
                     </div>
 
                     <Button
-                        onClick={() => window.location.reload()}
+                        onClick={() => router.reload()}
                         variant="outline"
                         size="sm"
+                        className="rounded-xl border-slate-200 hover:bg-slate-50 text-slate-600 gap-1.5 h-10 px-4 self-start sm:self-auto shadow-sm"
                     >
-                        <RefreshCw className="h-4 w-4 mr-2" />
+                        <RefreshCw className="h-4 w-4" />
                         Refresh Data
                     </Button>
                 </div>
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">
-                                Checkout Hari Ini
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-blue-500" />
-                                <span className="text-2xl font-bold">{stats.total_checkout_today}</span>
-                            </div>
-                        </CardContent>
-                    </Card>
+                {/* PREMIUM INVENTORY SHORTCUTS PANEL */}
+                <Card className="border-none shadow-md bg-gradient-to-br from-primary/10 to-indigo-50/50 backdrop-blur-md rounded-2xl p-5 border border-primary/5">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <span className="text-[10px] tracking-wider uppercase font-bold text-primary">Operasional Harian</span>
+                            <h3 className="text-base font-extrabold text-slate-800">Shortcut Pencatatan Logistik</h3>
+                            <p className="text-xs text-slate-500">Input cepat pemakaian harian villa dan belanja stok tanpa meninggalkan dashboard.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <Button 
+                                type="button" 
+                                onClick={() => setShowUsageModal(true)} 
+                                className="bg-primary hover:bg-primary/95 text-white font-bold px-5 h-11 rounded-xl shadow-md shadow-primary/20 text-xs gap-1.5"
+                            >
+                                <ClipboardList className="h-4 w-4" /> Catat Pemakaian Barang
+                            </Button>
+                            <Button 
+                                type="button" 
+                                onClick={() => setShowPurchaseModal(true)} 
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 h-11 rounded-xl shadow-md shadow-emerald-600/20 text-xs gap-1.5"
+                            >
+                                <Coins className="h-4 w-4" /> Catat Belanja Stok
+                            </Button>
+                        </div>
+                    </div>
+                </Card>
 
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">
-                                Perlu Dibersihkan
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-orange-500" />
-                                <span className="text-2xl font-bold">{stats.pending_cleaning}</span>
+                {/* LOW STOCK ALERTS - PJ SPECIFIC */}
+                {myLowStockItems.length > 0 ? (
+                    <Alert variant="destructive" className="border-red-200 bg-red-50/50 rounded-2xl p-5 shadow-sm">
+                        <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                        <AlertTitle className="font-extrabold text-red-800 text-sm mb-1.5 flex items-center gap-1.5">
+                            Peringatan Reorder Stok Rendah (Tanggung Jawab Anda)
+                        </AlertTitle>
+                        <AlertDescription className="text-red-700 text-xs space-y-2.5">
+                            <p>Terdapat <strong>{myLowStockItems.length} barang</strong> di bawah minimum stock yang menugaskan Anda sebagai penanggung jawab:</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
+                                {myLowStockItems.map((it) => (
+                                    <div key={it.id} className="bg-white/80 border border-red-100 rounded-xl p-3 shadow-sm flex items-center justify-between gap-3">
+                                        <div className="space-y-0.5">
+                                            <p className="font-bold text-slate-800 text-xs truncate max-w-[150px]">{it.name}</p>
+                                            <p className="text-[10px] text-slate-400">Min: {it.min_stock} {it.unit}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <Badge variant="destructive" className="rounded-lg text-[10px] px-2 py-0.5 font-bold">
+                                                {it.current_stock} {it.unit}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        </CardContent>
-                    </Card>
+                        </AlertDescription>
+                    </Alert>
+                ) : (
+                    <Alert className="border-emerald-200 bg-emerald-50/40 rounded-2xl p-4 flex items-center gap-3">
+                        <CheckCircle className="h-5 w-5 text-emerald-600" />
+                        <div>
+                            <AlertTitle className="font-bold text-emerald-800 text-xs">Stok Tanggung Jawab Anda Aman</AlertTitle>
+                            <AlertDescription className="text-emerald-700 text-[11px] mt-0.5">Semua barang inventaris yang Anda kelola dalam kondisi stok mencukupi.</AlertDescription>
+                        </div>
+                    </Alert>
+                )}
 
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">
-                                Prioritas Tinggi
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex items-center gap-2">
-                                <AlertTriangle className="h-4 w-4 text-red-500" />
-                                <span className="text-2xl font-bold">{stats.high_priority}</span>
-                            </div>
-                        </CardContent>
+                {/* COMPACT & FUNCTIONAL TASK SUMMARY ROW */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <Card className="border-none shadow-sm rounded-2xl bg-white/70 backdrop-blur-sm p-4">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Perlu Dibersihkan</div>
+                        <div className="flex items-center gap-2 mt-1.5">
+                            <Clock className="h-4 w-4 text-orange-500" />
+                            <span className="text-2xl font-black text-slate-800">{stats.pending_cleaning}</span>
+                        </div>
                     </Card>
-
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">
-                                Selesai Dibersihkan
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                                <span className="text-2xl font-bold">{stats.cleaned_today}</span>
-                            </div>
-                        </CardContent>
+                    <Card className="border-none shadow-sm rounded-2xl bg-white/70 backdrop-blur-sm p-4">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Prioritas Tinggi</div>
+                        <div className="flex items-center gap-2 mt-1.5">
+                            <AlertTriangle className="h-4 w-4 text-red-500" />
+                            <span className="text-2xl font-black text-red-600">{stats.high_priority}</span>
+                        </div>
+                    </Card>
+                    <Card className="border-none shadow-sm rounded-2xl bg-white/70 backdrop-blur-sm p-4">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Selesai Hari Ini</div>
+                        <div className="flex items-center gap-2 mt-1.5">
+                            <CheckCircle className="h-4 w-4 text-emerald-500" />
+                            <span className="text-2xl font-black text-slate-800">{stats.cleaned_today}</span>
+                        </div>
+                    </Card>
+                    <Card className="border-none shadow-sm rounded-2xl bg-white/70 backdrop-blur-sm p-4">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Checkout</div>
+                        <div className="flex items-center gap-2 mt-1.5">
+                            <Calendar className="h-4 w-4 text-blue-500" />
+                            <span className="text-2xl font-black text-slate-800">{stats.total_checkout_today}</span>
+                        </div>
                     </Card>
                 </div>
 
                 {/* Properties Needing Cleaning */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Sparkles className="h-5 w-5" />
-                            Daftar Pembersihan ({needsCleaning.length})
+                <Card className="border-none shadow-md bg-white/80 backdrop-blur-md rounded-2xl overflow-hidden">
+                    <CardHeader className="pb-3 border-b border-slate-50">
+                        <CardTitle className="flex items-center gap-2 text-slate-800 font-bold">
+                            <Sparkles className="h-5 w-5 text-primary" />
+                            Daftar Pembersihan Vila ({needsCleaning.length})
                         </CardTitle>
-                        <CardDescription>
-                            Unit yang sudah checkout dan perlu dibersihkan/ready
+                        <CardDescription className="text-xs">
+                            Unit yang sudah checkout dan harus segera dibersihkan agar siap ditempati tamu berikutnya.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-5">
                         {needsCleaning.length === 0 ? (
-                            <div className="text-center py-12 bg-muted/20 rounded-lg border border-dashed">
-                                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                                <h3 className="text-lg font-semibold">Semua Bersih!</h3>
-                                <p className="text-muted-foreground">Tidak ada unit yang perlu dibersihkan saat ini.</p>
+                            <div className="text-center py-16 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                                <CheckCircle className="h-12 w-12 text-emerald-500 mx-auto mb-3 stroke-[1.5]" />
+                                <h3 className="text-base font-bold text-slate-700">Semua Unit Bersih!</h3>
+                                <p className="text-xs text-slate-400 mt-1">Tidak ada unit yang perlu dibersihkan saat ini.</p>
                             </div>
                         ) : (
                             <div className="space-y-4">
                                 {needsCleaning.map((property) => (
-                                    <div key={property.id} className="border rounded-lg bg-card text-card-foreground shadow-sm overflow-hidden">
+                                    <div key={property.id} className="border border-slate-100 rounded-2xl bg-white/50 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                                         <div className={`h-1.5 w-full ${property.priority === 'high' ? 'bg-red-500' : property.priority === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'}`} />
                                         <div className="p-4 md:p-6">
                                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                                                 <div className="space-y-3 flex-1">
-                                                    <div className="flex items-start justify-between">
-                                                        <div>
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                <h3 className="text-lg font-bold">{property.property_name}</h3>
-                                                                {getPriorityBadge(property.priority)}
-                                                            </div>
-                                                            <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                                <MapPin className="h-4 w-4" />
-                                                                <span className="text-sm">{property.property_address}</span>
-                                                            </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1.5">
+                                                            <h3 className="text-base font-extrabold text-slate-800">{property.property_name}</h3>
+                                                            {property.priority === 'high' ? (
+                                                                <Badge className="bg-red-50 text-red-700 border-red-100 font-bold text-[10px] uppercase">Prioritas Tinggi</Badge>
+                                                            ) : property.priority === 'medium' ? (
+                                                                <Badge className="bg-yellow-50 text-yellow-700 border-yellow-100 font-bold text-[10px] uppercase">Menengah</Badge>
+                                                            ) : (
+                                                                <Badge className="bg-blue-50 text-blue-700 border-blue-100 font-bold text-[10px] uppercase">Rendah</Badge>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-slate-400">
+                                                            <MapPin className="h-4 w-4" />
+                                                            <span className="text-xs font-semibold">{property.property_address}</span>
                                                         </div>
                                                     </div>
 
-                                                    <div className="grid grid-cols-2 gap-4 text-sm mt-2">
+                                                    <div className="grid grid-cols-2 gap-4 text-xs mt-2">
                                                         <div className="space-y-1">
-                                                            <p className="text-muted-foreground text-xs uppercase tracking-wider">Tamu Checkout</p>
-                                                            <div className="flex items-center gap-2 font-medium">
-                                                                <User className="h-4 w-4" />
+                                                            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">Tamu Checkout</p>
+                                                            <div className="flex items-center gap-1.5 font-bold text-slate-700">
+                                                                <User className="h-4 w-4 text-slate-400" />
                                                                 {property.guest_name}
                                                             </div>
-                                                            <div className="flex items-center gap-2 text-muted-foreground">
-                                                                <Clock className="h-3 w-3" />
+                                                            <div className="flex items-center gap-1.5 text-slate-400">
+                                                                <Clock className="h-3.5 w-3.5" />
                                                                 Checkout: {formatTime(property.check_out)}
                                                             </div>
                                                         </div>
 
                                                         <div className="space-y-1">
-                                                            <p className="text-muted-foreground text-xs uppercase tracking-wider">Info Unit</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <Key className="h-4 w-4" />
-                                                                Kode Lama: <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">{property.current_keybox_code}</code>
+                                                            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">Info Unit</p>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Key className="h-4 w-4 text-slate-400" />
+                                                                <span className="text-slate-500 font-medium">Kode Lama:</span>
+                                                                <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs font-bold font-mono text-slate-700">{property.current_keybox_code || '-'}</code>
                                                             </div>
                                                         </div>
                                                     </div>
 
                                                     {property.next_checkin && (
-                                                        <div className="mt-3 bg-blue-50/50 dark:bg-blue-950/20 p-3 rounded-md border border-blue-100 dark:border-blue-900">
+                                                        <div className="mt-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100/40">
                                                             <div className="flex items-start gap-2">
                                                                 <AlertTriangle className="h-4 w-4 text-blue-500 mt-0.5" />
-                                                                <div className="text-sm">
-                                                                    <p className="font-semibold text-blue-700 dark:text-blue-400">Tamu Berikutnya:</p>
+                                                                <div className="text-xs leading-relaxed text-blue-900">
+                                                                    <p className="font-bold text-blue-800">Tamu Berikutnya:</p>
                                                                     <p>{property.next_checkin.guest_name} • Check-in {formatTime(property.next_checkin.check_in)}</p>
                                                                 </div>
                                                             </div>
@@ -360,11 +449,10 @@ export default function CleaningDashboard({ needsCleaning, recentlyCleaned, stat
                                                 <div className="flex flex-col gap-2 min-w-[180px]">
                                                     <Button
                                                         onClick={() => openCleaningForm(property)}
-                                                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                                                        size="lg"
+                                                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold h-11 shadow-md shadow-emerald-600/10 text-xs"
                                                     >
                                                         <Sparkles className="h-4 w-4 mr-2" />
-                                                        Mulai Pembersihan
+                                                        Mulai Pembersihan & Ready
                                                     </Button>
                                                 </div>
                                             </div>
@@ -378,35 +466,35 @@ export default function CleaningDashboard({ needsCleaning, recentlyCleaned, stat
 
                 {/* Recently Cleaned */}
                 {recentlyCleaned.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <CheckCircle className="h-5 w-5 text-green-500" />
+                    <Card className="border-none shadow-md bg-white/80 backdrop-blur-md rounded-2xl overflow-hidden">
+                        <CardHeader className="pb-3 border-b border-slate-50">
+                            <CardTitle className="flex items-center gap-2 text-slate-800 font-bold">
+                                <CheckCircle className="h-5 w-5 text-emerald-500" />
                                 Riwayat Pembersihan Hari Ini
                             </CardTitle>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="pt-5">
                             <div className="space-y-3">
                                 {recentlyCleaned.map((cleaned) => (
-                                    <div key={cleaned.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                                    <div key={cleaned.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-slate-100 rounded-xl hover:bg-slate-50/50 transition-colors">
                                         <div className="mb-2 sm:mb-0">
-                                            <p className="font-bold text-lg">{cleaned.property.name}</p>
-                                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                                <User className="h-3 w-3" />
+                                            <p className="font-extrabold text-slate-700 text-base">{cleaned.property.name}</p>
+                                            <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-medium">
+                                                <User className="h-3.5 w-3.5" />
                                                 Dibersihkan oleh {cleaned.cleanedBy.name}
-                                                <span className="mx-1">•</span>
-                                                <Clock className="h-3 w-3" />
+                                                <span>•</span>
+                                                <Clock className="h-3.5 w-3.5" />
                                                 Pukul {formatTime(cleaned.cleaned_at)}
                                             </p>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="flex items-center gap-2 text-sm justify-end">
-                                                <span className="text-muted-foreground">Kode Keybox Baru:</span>
-                                                <code className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-2 py-1 rounded font-bold font-mono text-lg">
+                                        <div className="text-left sm:text-right">
+                                            <div className="flex items-center gap-2 text-xs justify-start sm:justify-end font-semibold text-slate-500">
+                                                <span>Kode Keybox Baru:</span>
+                                                <code className="bg-yellow-100 text-yellow-800 px-2.5 py-1 rounded-lg font-bold font-mono text-base border border-yellow-200/50">
                                                     {cleaned.property.current_keybox_code}
                                                 </code>
                                             </div>
-                                            <p className="text-xs text-muted-foreground mt-1">
+                                            <p className="text-[10px] text-slate-400 mt-1">
                                                 Diupdate {formatTime(cleaned.property.keybox_updated_at)}
                                             </p>
                                         </div>
@@ -417,84 +505,299 @@ export default function CleaningDashboard({ needsCleaning, recentlyCleaned, stat
                     </Card>
                 )}
 
-                {/* Cleaning Form Modal */}
-                <Dialog open={showCleaningForm} onOpenChange={setShowCleaningForm}>
-                    <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+                {/* 1. SHORTCUT: QUICK USAGE INPUT MODAL */}
+                <Dialog open={showUsageModal} onOpenChange={setShowUsageModal}>
+                    <DialogContent className="sm:max-w-md rounded-2xl border-none shadow-2xl">
                         <DialogHeader>
-                            <DialogTitle className="text-xl">Konfirmasi Unit Ready</DialogTitle>
-                            <CardDescription>
+                            <DialogTitle className="text-lg font-bold text-slate-800">Catat Pemakaian Harian</DialogTitle>
+                            <DialogDescription className="text-xs">Pilih barang dan laporkan jumlah pemakaian untuk properti.</DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={submitQuickUsage} className="space-y-4">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-700">Pilih Barang</Label>
+                                <select
+                                    value={usageForm.data.inventory_item_id}
+                                    onChange={(e) => usageForm.setData('inventory_item_id', e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 focus:border-primary rounded-xl h-10 text-xs px-3 outline-none"
+                                    required
+                                >
+                                    <option value="">Pilih Item...</option>
+                                    {inventoryItems.map(item => (
+                                        <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-700 font-bold">Pilih Tanggal</Label>
+                                <Input
+                                    type="date"
+                                    value={usageForm.data.usage_date}
+                                    onChange={(e) => usageForm.setData('usage_date', e.target.value)}
+                                    className="rounded-xl bg-slate-50"
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-3 pt-2 border-t border-slate-100">
+                                <Label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                    <Layers className="h-4 w-4 text-primary" /> Distribusi Properti / Unit
+                                </Label>
+                                
+                                <div className="flex gap-2 items-end">
+                                    <div className="flex-1 space-y-1">
+                                        <select
+                                            value={tempPropertyId}
+                                            onChange={(e) => setTempPropertyId(e.target.value)}
+                                            className="w-full bg-slate-50 border border-slate-200 focus:border-primary rounded-xl h-9 text-xs px-2 outline-none"
+                                        >
+                                            <option value="">Pilih Properti...</option>
+                                            {availableProperties.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <Button type="button" size="sm" onClick={addPropertyRow} className="h-9 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold gap-1 text-xs border border-slate-205">
+                                        <Plus className="h-3.5 w-3.5" />
+                                    </Button>
+                                </div>
+
+                                {usageForm.data.usages.length > 0 ? (
+                                    <div className="space-y-2 p-2 bg-slate-50/50 border border-slate-100 rounded-xl max-h-[160px] overflow-y-auto">
+                                        {usageForm.data.usages.map((row, idx) => {
+                                            const prop = properties.find(p => p.id?.toString() === row.property_id);
+                                            return (
+                                                <div key={row.property_id} className="flex items-center justify-between gap-3 p-2 bg-white border border-slate-100 rounded-lg shadow-sm">
+                                                    <span className="text-xs font-semibold text-slate-700 truncate flex-1">{prop?.name}</span>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <Input
+                                                            type="number"
+                                                            placeholder="Qty"
+                                                            min="0.0001"
+                                                            step="any"
+                                                            value={row.quantity_used}
+                                                            onChange={(e) => updatePropertyQty(idx, e.target.value)}
+                                                            className="h-8 w-20 text-xs rounded-lg text-center font-bold"
+                                                            required
+                                                        />
+                                                        <Button type="button" variant="ghost" size="icon" onClick={() => removePropertyRow(idx)} className="h-8 w-8 text-red-500 hover:bg-red-50 rounded-lg">
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl">
+                                        Tambahkan minimal 1 properti.
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-700">Keperluan / Catatan</Label>
+                                <Input
+                                    placeholder="Catatan opsional..."
+                                    value={usageForm.data.notes}
+                                    onChange={(e) => usageForm.setData('notes', e.target.value)}
+                                    className="rounded-xl bg-slate-50"
+                                />
+                            </div>
+
+                            <DialogFooter className="pt-2">
+                                <Button type="button" variant="outline" onClick={() => setShowUsageModal(false)} className="rounded-xl">Batal</Button>
+                                <Button type="submit" disabled={usageForm.processing || usageForm.data.usages.length === 0} className="rounded-xl bg-primary text-white font-bold shadow-md shadow-primary/20">Simpan Pemakaian</Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* 2. SHORTCUT: QUICK PURCHASE INPUT MODAL */}
+                <Dialog open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>
+                    <DialogContent className="sm:max-w-md rounded-2xl border-none shadow-2xl">
+                        <DialogHeader>
+                            <DialogTitle className="text-lg font-bold text-slate-800">Catat Belanja Stok Baru</DialogTitle>
+                            <DialogDescription className="text-xs">Catat pembelian barang atau belanja supplies operasional.</DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={submitQuickPurchase} className="space-y-4">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-700">Pilih Barang</Label>
+                                <select
+                                    value={purchaseForm.data.inventory_item_id}
+                                    onChange={(e) => purchaseForm.setData('inventory_item_id', e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 focus:border-primary rounded-xl h-10 text-xs px-3 outline-none"
+                                    required
+                                >
+                                    <option value="">Pilih Item...</option>
+                                    {inventoryItems.map(item => (
+                                        <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-700 font-bold">Tujuan Lokasi</Label>
+                                <select
+                                    value={purchaseForm.data.property_id}
+                                    onChange={(e) => purchaseForm.setData('property_id', e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 focus:border-primary rounded-xl h-10 text-xs px-3 outline-none"
+                                >
+                                    <option value="">Global / Gudang Umum</option>
+                                    {properties.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-slate-700">Jumlah (Qty)</Label>
+                                    <Input
+                                        type="number"
+                                        placeholder="0"
+                                        value={purchaseForm.data.quantity}
+                                        onChange={(e) => purchaseForm.setData('quantity', e.target.value)}
+                                        className="rounded-xl bg-slate-50"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-slate-700">Harga Satuan (Rp)</Label>
+                                    <Input
+                                        type="number"
+                                        placeholder="0"
+                                        value={purchaseForm.data.unit_cost}
+                                        onChange={(e) => purchaseForm.setData('unit_cost', e.target.value)}
+                                        className="rounded-xl bg-slate-50"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-700">Tanggal Belanja</Label>
+                                <Input
+                                    type="date"
+                                    value={purchaseForm.data.movement_date}
+                                    onChange={(e) => purchaseForm.setData('movement_date', e.target.value)}
+                                    className="rounded-xl bg-slate-50"
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-700">Vendor / Toko</Label>
+                                <Input
+                                    placeholder="Contoh: Lotte Mart / Alfamart"
+                                    value={purchaseForm.data.vendor_name}
+                                    onChange={(e) => purchaseForm.setData('vendor_name', e.target.value)}
+                                    className="rounded-xl bg-slate-50"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-700">Catatan Belanja</Label>
+                                <Input
+                                    placeholder="Keterangan..."
+                                    value={purchaseForm.data.notes}
+                                    onChange={(e) => purchaseForm.setData('notes', e.target.value)}
+                                    className="rounded-xl bg-slate-50"
+                                />
+                            </div>
+
+                            <DialogFooter className="pt-2">
+                                <Button type="button" variant="outline" onClick={() => setShowPurchaseModal(false)} className="rounded-xl">Batal</Button>
+                                <Button type="submit" disabled={purchaseForm.processing} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20">Simpan Belanja</Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* 3. CLEANING FORM MODAL */}
+                <Dialog open={showCleaningForm} onOpenChange={setShowCleaningForm}>
+                    <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border-none shadow-2xl">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-bold text-slate-800">Konfirmasi Unit Ready</DialogTitle>
+                            <CardDescription className="text-xs">
                                 Pastikan unit sudah bersih standar dan siap digunakan tamu.
                             </CardDescription>
                         </DialogHeader>
 
                         {selectedProperty && (
-                            <form onSubmit={submitCleaning} className="space-y-6 mt-2">
-                                {/* Property Info Summary */}
-                                <div className="bg-muted p-3 rounded-lg text-sm space-y-1">
-                                    <p><strong>Property:</strong> {selectedProperty.property_name}</p>
-                                    <p><strong>Kode Lama:</strong> {selectedProperty.current_keybox_code}</p>
+                            <form onSubmit={submitCleaning} className="space-y-5 mt-2">
+                                <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-xs space-y-1.5">
+                                    <p className="text-slate-600"><strong className="text-slate-800">Property:</strong> {selectedProperty.property_name}</p>
+                                    <p className="text-slate-600"><strong className="text-slate-800">Kode Lama:</strong> {selectedProperty.current_keybox_code || '-'}</p>
                                 </div>
 
-                                <Separator />
+                                <Separator className="bg-slate-100" />
 
-                                {/* 1. Keybox Code */}
                                 <div className="space-y-3">
-                                    <Label htmlFor="new_keybox_code" className="text-base">
+                                    <Label htmlFor="new_keybox_code" className="text-sm font-bold text-slate-700">
                                         1. Masukkan Kode Keybox Baru <span className="text-red-500">*</span>
                                     </Label>
                                     <div className="flex gap-2">
                                         <div className="relative flex-1">
-                                            <Key className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                            <Key className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                                             <Input
                                                 id="new_keybox_code"
                                                 type="text"
                                                 maxLength={3}
                                                 pattern="\d{3}"
-                                                value={data.new_keybox_code}
-                                                onChange={(e) => setData('new_keybox_code', e.target.value.replace(/\D/g, '').slice(0, 3))}
+                                                value={cleaningData.new_keybox_code}
+                                                onChange={(e) => setCleaningData('new_keybox_code', e.target.value.replace(/\D/g, '').slice(0, 3))}
                                                 placeholder="Contoh: 123"
-                                                className={`pl-9 text-lg font-mono tracking-widest ${errors.new_keybox_code ? 'border-red-500' : ''}`}
+                                                className={`pl-9 text-lg font-bold font-mono tracking-widest rounded-xl h-10 ${cleaningErrors.new_keybox_code ? 'border-red-500' : 'border-slate-200'}`}
                                                 required
                                             />
                                         </div>
-                                        <Button type="button" variant="outline" onClick={() => setData('new_keybox_code', Math.floor(100 + Math.random() * 900).toString())}>
+                                        <Button type="button" variant="outline" onClick={() => setCleaningData('new_keybox_code', Math.floor(100 + Math.random() * 900).toString())} className="rounded-xl border-slate-200 h-10 px-4 font-semibold text-xs">
                                             Acak
                                         </Button>
                                     </div>
-                                    {errors.new_keybox_code && (
-                                        <p className="text-sm text-red-500">{errors.new_keybox_code}</p>
+                                    {cleaningErrors.new_keybox_code && (
+                                        <p className="text-xs text-red-500">{cleaningErrors.new_keybox_code}</p>
                                     )}
-                                    <p className="text-xs text-muted-foreground">
-                                        Wajib 3 digit angka. Kode ini akan ditampilkan ke tamu.
+                                    <p className="text-[10px] text-slate-400">
+                                        Wajib 3 digit angka. Kode ini akan ditampilkan ke tamu di dashboard.
                                     </p>
                                 </div>
 
-                                <Separator />
+                                <Separator className="bg-slate-100" />
 
-                                {/* 2. Stock Usage */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-base flex items-center gap-2">
-                                            <Package className="h-4 w-4" />
+                                        <Label className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                                            <Package className="h-4 w-4 text-primary" />
                                             2. Pemakaian Stok / Amenities
                                         </Label>
-                                        <Button type="button" size="sm" variant="secondary" onClick={addStockItem}>
-                                            <Plus className="h-3 w-3 mr-1" /> Tambah Item
+                                        <Button type="button" size="sm" variant="secondary" onClick={() => {
+                                            const unusedItem = inventoryItems.find(item => !cleaningData.stock_usage.some(usage => usage.item_id === item.id));
+                                            if (unusedItem) {
+                                                setCleaningData('stock_usage', [...cleaningData.stock_usage, { item_id: unusedItem.id, quantity: 1 }]);
+                                            }
+                                        }} className="rounded-lg text-[10px] h-7 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold gap-0.5">
+                                            <Plus className="h-3 w-3" /> Tambah Item
                                         </Button>
                                     </div>
 
-                                    <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50 dark:bg-slate-900/50">
-                                        {data.stock_usage.length === 0 ? (
-                                            <div className="text-center py-4 text-muted-foreground text-sm">
-                                                Belum ada stok yang dicatat. Klik "Tambah Item" jika ada pemakaian.
+                                    <div className="space-y-2 border border-slate-100 rounded-xl p-3 max-h-48 overflow-y-auto bg-slate-50/50">
+                                        {cleaningData.stock_usage.length === 0 ? (
+                                            <div className="text-center py-4 text-slate-400 text-xs font-semibold">
+                                                Belum ada pemakaian dicatat. Klik "Tambah Item" jika ada pemakaian.
                                             </div>
                                         ) : (
-                                            data.stock_usage.map((usage, index) => (
+                                            cleaningData.stock_usage.map((usage, index) => (
                                                 <div key={index} className="flex gap-2 items-center">
                                                     <select
-                                                        className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                                        className="flex-1 h-9 rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs outline-none focus:border-primary"
                                                         value={usage.item_id}
-                                                        onChange={(e) => updateStockItem(index, 'item_id', parseInt(e.target.value))}
+                                                        onChange={(e) => {
+                                                            const updated = [...cleaningData.stock_usage];
+                                                            updated[index].item_id = parseInt(e.target.value);
+                                                            setCleaningData('stock_usage', updated);
+                                                        }}
                                                     >
                                                         <option value="">Pilih Item</option>
                                                         {inventoryItems.map(item => (
@@ -505,18 +808,26 @@ export default function CleaningDashboard({ needsCleaning, recentlyCleaned, stat
                                                     </select>
                                                     <Input
                                                         type="number"
-                                                        className="w-20 h-9"
+                                                        className="w-20 h-9 rounded-lg text-center"
                                                         value={usage.quantity}
                                                         min={0.1}
                                                         step={0.1}
-                                                        onChange={(e) => updateStockItem(index, 'quantity', parseFloat(e.target.value))}
+                                                        onChange={(e) => {
+                                                            const updated = [...cleaningData.stock_usage];
+                                                            updated[index].quantity = parseFloat(e.target.value);
+                                                            setCleaningData('stock_usage', updated);
+                                                        }}
                                                     />
                                                     <Button
                                                         type="button"
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-9 w-9 text-red-500 hover:text-red-600 hover:bg-red-50"
-                                                        onClick={() => removeStockItem(index)}
+                                                        className="h-9 w-9 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                                        onClick={() => {
+                                                            const updated = [...cleaningData.stock_usage];
+                                                            updated.splice(index, 1);
+                                                            setCleaningData('stock_usage', updated);
+                                                        }}
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
@@ -524,50 +835,40 @@ export default function CleaningDashboard({ needsCleaning, recentlyCleaned, stat
                                             ))
                                         )}
                                     </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        *Daftar terisi otomatis dari pembersihan terakhir. Sesuaikan jika berbeda.
+                                    <p className="text-[10px] text-slate-400 italic">
+                                        *Daftar diisi otomatis dari standar kebutuhan pembersihan unit. Sesuaikan jika berbeda.
                                     </p>
                                 </div>
 
-                                <Separator />
+                                <Separator className="bg-slate-100" />
 
-                                {/* 3. Notes */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="notes">Catatan Tambahan (Opsional)</Label>
+                                    <Label htmlFor="notes" className="text-sm font-bold text-slate-700">3. Catatan Tambahan (Opsional)</Label>
                                     <Textarea
                                         id="notes"
-                                        value={data.notes}
-                                        onChange={(e) => setData('notes', e.target.value)}
-                                        placeholder="Contoh: Ada kerusakan kecil di handle pintu..."
+                                        value={cleaningData.notes}
+                                        onChange={(e) => setCleaningData('notes', e.target.value)}
+                                        placeholder="Contoh: Lampu kamar mandi mati, dll..."
                                         rows={2}
+                                        className="rounded-xl border-slate-200"
                                     />
                                 </div>
 
-                                <div className="flex gap-3 pt-4">
+                                <div className="flex gap-3 pt-3">
                                     <Button
                                         type="button"
                                         onClick={closeCleaningForm}
                                         variant="outline"
-                                        className="flex-1 h-11"
+                                        className="flex-1 h-10 rounded-xl border-slate-200"
                                     >
                                         Batal
                                     </Button>
                                     <Button
                                         type="submit"
-                                        disabled={processing || !data.new_keybox_code}
-                                        className="flex-1 bg-green-600 hover:bg-green-700 h-11 text-base shadow-md"
+                                        disabled={cleaningProcessing || !cleaningData.new_keybox_code}
+                                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 rounded-xl shadow-md shadow-emerald-600/10"
                                     >
-                                        {processing ? (
-                                            <>
-                                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                                Menyimpan...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <CheckCircle className="h-5 w-5 mr-2" />
-                                                Tandai Property Ready
-                                            </>
-                                        )}
+                                        {cleaningProcessing ? 'Menyimpan...' : 'Tandai Property Ready'}
                                     </Button>
                                 </div>
                             </form>

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useForm, Link, router } from '@inertiajs/react';
-import { CheckCircle2, XCircle, MoreVertical, Edit, Trash2, ArrowUpRight, ArrowDownRight, Minus, Search, ArrowUpDown, Calendar, HelpCircle, FileText, Plus, X, Layers, UserCheck } from 'lucide-react';
+import { CheckCircle2, XCircle, MoreVertical, Edit, Trash2, ArrowUpRight, ArrowDownRight, Minus, Search, ArrowUpDown, Calendar, HelpCircle, FileText, Plus, X, Layers, UserCheck, FileSpreadsheet } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import {
     DropdownMenu,
@@ -29,13 +29,6 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
 
@@ -52,28 +45,72 @@ export default function Usages({ items, properties, usages, usageStats, filters 
     const [mounted, setMounted] = useState(false);
     const [tempPropertyId, setTempPropertyId] = useState('');
 
+    // Date Filters
+    const [dateFrom, setDateFrom] = useState(filters?.date_from || '');
+    const [dateTo, setDateTo] = useState(filters?.date_to || '');
+
     // Debounce search
     useEffect(() => {
         const timer = setTimeout(() => {
             if (search !== (filters?.search || '')) {
-                router.get('/admin/inventory/usages', { search, direction: sortDirection }, { preserveState: true, replace: true });
+                applyFilters(search, sortDirection);
             }
         }, 1500);
         return () => clearTimeout(timer);
     }, [search]);
 
+    const applyFilters = (currentSearch = search, direction = sortDirection, from = dateFrom, to = dateTo) => {
+        router.get('/admin/inventory/usages', {
+            search: currentSearch,
+            direction,
+            date_from: from,
+            date_to: to
+        }, { preserveState: true, replace: true });
+    };
+
     const handleSort = (dir: string) => {
         setSortDirection(dir);
-        router.get('/admin/inventory/usages', { search, direction: dir }, { preserveState: true, replace: true });
+        applyFilters(search, dir);
+    };
+
+    const setMonthShortcut = (shortcut: 'this' | 'last' | 'all') => {
+        if (shortcut === 'this') {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+            const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+            setDateFrom(start);
+            setDateTo(end);
+            applyFilters(search, sortDirection, start, end);
+        } else if (shortcut === 'last') {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+            const end = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+            setDateFrom(start);
+            setDateTo(end);
+            applyFilters(search, sortDirection, start, end);
+        } else {
+            setDateFrom('');
+            setDateTo('');
+            applyFilters(search, sortDirection, '', '');
+        }
+    };
+
+    const handleExport = () => {
+        let url = '/admin/inventory/usages/export';
+        const params = [];
+        if (dateFrom) params.push(`date_from=${dateFrom}`);
+        if (dateTo) params.push(`date_to=${dateTo}`);
+        if (params.length > 0) url += `?${params.join('&')}`;
+        window.location.href = url;
     };
 
     const { data, setData, post, put, delete: destroy, processing, reset, errors, clearErrors } = useForm({
         inventory_item_id: '',
-        property_id: '', // Used in single edit mode
+        property_id: '',
         usage_date: '',
-        quantity_used: '', // Used in single edit mode
+        quantity_used: '',
         notes: '',
-        usages: [] as { property_id: string; quantity_used: string }[], // Used in batch add mode
+        usages: [] as { property_id: string; quantity_used: string }[],
     });
 
     useEffect(() => {
@@ -88,7 +125,6 @@ export default function Usages({ items, properties, usages, usageStats, filters 
         return new Date(dateStr).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' });
     };
 
-    // Batch properties modifiers
     const addPropertyRow = () => {
         if (!tempPropertyId) return;
         if (data.usages.some(row => row.property_id === tempPropertyId)) return;
@@ -236,20 +272,18 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                             <form className="space-y-4" onSubmit={submit}>
                                 <div className="space-y-2">
                                     <Label htmlFor="item" className="text-sm font-semibold text-slate-700">Item</Label>
-                                    <Select
-                                        value={data.inventory_item_id?.toString() || ''}
-                                        onValueChange={(val) => setData('inventory_item_id', val)}
+                                    <select
+                                        id="item"
+                                        value={data.inventory_item_id || ''}
+                                        onChange={(e) => setData('inventory_item_id', e.target.value)}
                                         disabled={!!editItem}
+                                        className={cn("w-full bg-white/50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl h-10 text-xs px-3 outline-none transition-all cursor-pointer appearance-none", errors.inventory_item_id && "border-red-500")}
                                     >
-                                        <SelectTrigger id="item" className={cn("bg-white/50 border-slate-200 focus:bg-white rounded-xl h-10 transition-all", errors.inventory_item_id && "border-red-500")}>
-                                            <SelectValue placeholder="Pilih Item" />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-xl">
-                                            {items?.map((it: any) => (
-                                                <SelectItem key={it.id} value={it.id?.toString()} className="rounded-lg">{it.name} ({it.unit})</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                        <option value="">Pilih Item Barang...</option>
+                                        {items?.map((it: any) => (
+                                            <option key={it.id} value={it.id}>{it.name} ({it.unit})</option>
+                                        ))}
+                                    </select>
                                     {errors.inventory_item_id && <p className="text-xs text-red-500">{errors.inventory_item_id}</p>}
                                 </div>
 
@@ -268,21 +302,21 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                     {errors.usage_date && <p className="text-xs text-red-500">{errors.usage_date}</p>}
                                 </div>
 
-                                {/* BATCH PROPERTY USAGES IN ADD MODE vs SINGLE SELECT IN EDIT MODE */}
                                 {editItem ? (
                                     <>
                                         <div className="space-y-2">
                                             <Label htmlFor="property" className="text-sm font-semibold text-slate-700">Properti</Label>
-                                            <Select value={data.property_id?.toString() || ''} onValueChange={(val) => setData('property_id', val)}>
-                                                <SelectTrigger id="property" className={cn("bg-white/50 border-slate-200 focus:bg-white rounded-xl h-10 transition-all", errors.property_id && "border-red-500")}>
-                                                    <SelectValue placeholder="Pilih Properti" />
-                                                </SelectTrigger>
-                                                <SelectContent className="rounded-xl">
-                                                    {properties?.map((p: any) => (
-                                                        <SelectItem key={p.id} value={p.id?.toString()} className="rounded-lg">{p.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <select
+                                                id="property"
+                                                value={data.property_id || ''}
+                                                onChange={(e) => setData('property_id', e.target.value)}
+                                                className={cn("w-full bg-white/50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl h-10 text-xs px-3 outline-none transition-all cursor-pointer appearance-none", errors.property_id && "border-red-500")}
+                                            >
+                                                <option value="">Pilih Properti...</option>
+                                                {properties?.map((p: any) => (
+                                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                                ))}
+                                            </select>
                                             {errors.property_id && <p className="text-xs text-red-500">{errors.property_id}</p>}
                                         </div>
                                         <div className="space-y-2">
@@ -308,16 +342,16 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                         <div className="flex gap-2 items-end">
                                             <div className="flex-1 space-y-1">
                                                 <Label className="text-xs text-slate-500">Pilih Properti</Label>
-                                                <Select value={tempPropertyId} onValueChange={setTempPropertyId}>
-                                                    <SelectTrigger className="bg-white/50 border-slate-200 focus:bg-white rounded-xl h-9 text-xs">
-                                                        <SelectValue placeholder="Pilih Properti Villa..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="rounded-xl">
-                                                        {availableProperties?.map((p: any) => (
-                                                            <SelectItem key={p.id} value={p.id?.toString()} className="rounded-lg">{p.name}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                <select
+                                                    value={tempPropertyId}
+                                                    onChange={(e) => setTempPropertyId(e.target.value)}
+                                                    className="w-full bg-white/50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl h-9 text-xs px-2 outline-none transition-all cursor-pointer appearance-none animate-none"
+                                                >
+                                                    <option value="">Pilih Properti Villa...</option>
+                                                    {availableProperties?.map((p: any) => (
+                                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                                    ))}
+                                                </select>
                                             </div>
                                             <Button type="button" size="sm" onClick={addPropertyRow} className="h-9 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold gap-1 text-xs border border-slate-205">
                                                 <Plus className="h-3.5 w-3.5" /> Tambah
@@ -382,25 +416,70 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                 {/* List Data Section */}
                 <div className="lg:col-span-2 order-2 lg:order-1">
                     <Card className="border-none shadow-lg bg-white/70 backdrop-blur-md rounded-2xl overflow-hidden flex flex-col h-full">
-                        <CardHeader className="pb-3">
+                        <CardHeader className="pb-3 border-b border-slate-50">
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                 <div>
                                     <CardTitle className="text-lg font-bold text-slate-800">Riwayat Pemakaian</CardTitle>
                                     <CardDescription className="text-xs">Daftar pemakaian barang operasional di properti villa.</CardDescription>
                                 </div>
-                                <div className="flex items-center gap-2 w-full sm:w-auto">
-                                    <div className="relative flex-1 sm:w-[220px]">
-                                        <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                                        <Input
-                                            placeholder="Cari item..."
-                                            value={search}
-                                            onChange={(e) => setSearch(e.target.value)}
-                                            className="pl-9 bg-slate-50/50 border-slate-200 focus:bg-white rounded-xl h-10 text-sm"
-                                        />
+
+                                {/* Export Action Button */}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleExport}
+                                  className="rounded-xl border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 font-semibold gap-1.5 h-9 px-3.5 shadow-sm"
+                                >
+                                  <FileSpreadsheet className="h-4 w-4" /> Export Excel
+                                </Button>
+                            </div>
+
+                            {/* Date Filter & Shortcuts Panel */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100/50">
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] uppercase font-bold text-slate-400">Dari Tanggal</Label>
+                                    <Input
+                                        type="date"
+                                        value={dateFrom}
+                                        onChange={(e) => setDateFrom(e.target.value)}
+                                        className="h-9 text-xs rounded-lg bg-slate-50/50"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] uppercase font-bold text-slate-400">Sampai Tanggal</Label>
+                                    <Input
+                                        type="date"
+                                        value={dateTo}
+                                        onChange={(e) => setDateTo(e.target.value)}
+                                        className="h-9 text-xs rounded-lg bg-slate-50/50"
+                                    />
+                                </div>
+                                <div className="space-y-1 flex flex-col justify-end">
+                                    <div className="flex gap-1.5">
+                                        <Button type="button" size="sm" variant="secondary" onClick={() => setMonthShortcut('this')} className="h-9 flex-1 text-xs rounded-lg">Bulan Ini</Button>
+                                        <Button type="button" size="sm" variant="secondary" onClick={() => setMonthShortcut('last')} className="h-9 flex-1 text-xs rounded-lg">Bulan Lalu</Button>
+                                        <Button type="button" size="sm" variant="outline" onClick={() => setMonthShortcut('all')} className="h-9 flex-none px-2 rounded-lg text-red-500 hover:text-red-600">Reset</Button>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 mt-1">
+                                <div className="relative flex-1 w-full sm:w-[260px]">
+                                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                    <Input
+                                        placeholder="Cari item..."
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                        className="pl-9 bg-slate-50/50 border-slate-200 focus:bg-white rounded-xl h-9 text-xs"
+                                    />
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button type="button" size="sm" onClick={() => applyFilters(search, sortDirection)} className="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 h-9 px-3 text-xs gap-1">
+                                        Apply Filter
+                                    </Button>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                            <Button variant="outline" size="icon" className="rounded-xl border-slate-200 hover:bg-slate-50 h-10 w-10">
+                                            <Button variant="outline" size="icon" className="rounded-xl border-slate-200 hover:bg-slate-50 h-9 w-9">
                                                 <ArrowUpDown className="h-4 w-4 text-slate-500" />
                                             </Button>
                                         </DropdownMenuTrigger>

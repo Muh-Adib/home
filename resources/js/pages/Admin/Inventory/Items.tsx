@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useForm, router } from '@inertiajs/react';
+import { useForm, router, Link } from '@inertiajs/react';
 import { useState } from 'react';
-import { Pencil, Trash2, ArrowUpDown, Search, Package, AlertCircle, CheckCircle2, Save, X, Plus, Coins, Tag, UploadCloud, Layers, LayoutGrid, List, UserCheck } from 'lucide-react';
+import { Pencil, Trash2, ArrowUpDown, Search, Package, AlertCircle, CheckCircle2, Save, X, Plus, Coins, Tag, UploadCloud, Layers, LayoutGrid, List, UserCheck, FileSpreadsheet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
@@ -183,6 +183,10 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
     }
   };
 
+  const handleExport = () => {
+    window.location.href = '/admin/inventory/items/export';
+  };
+
   // Client-side search filtering
   const filteredItems = items.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -302,7 +306,7 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
                   {errors.selling_price && <p className="text-xs text-red-500">{errors.selling_price}</p>}
                 </div>
                 
-                {/* Assigned User Selection - Hydration Safe Native HTML Select */}
+                {/* Assigned User Selection */}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-slate-700">Penanggung Jawab</Label>
                   <select
@@ -353,6 +357,17 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
               <p className="text-xs text-slate-500">Menampilkan {filteredItems.length} dari total {items.length} item terdaftar.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              
+              {/* Export Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                className="rounded-xl border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 font-semibold gap-1.5 h-10 px-3.5 shadow-sm"
+              >
+                <FileSpreadsheet className="h-4 w-4" /> Export
+              </Button>
+
               {/* View Mode Switcher */}
               <div className="flex items-center border border-slate-200 rounded-xl p-0.5 bg-slate-50 mr-1 shadow-inner">
                 <Button
@@ -493,7 +508,6 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
                               </div>
                             </div>
                             
-                            {/* PJ Input - Hydration Safe Native HTML Select */}
                             <div className="space-y-1">
                               <Label className="text-[10px] font-semibold text-slate-600">PJ (Internal)</Label>
                               <select
@@ -574,8 +588,11 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
                           )}
                         </div>
 
-                        <h4 className="font-bold text-slate-800 text-base leading-snug group-hover:text-primary transition-colors line-clamp-2" title={item.name}>
-                          {item.name}
+                        {/* Title Linked to detail page */}
+                        <h4 className="font-bold text-slate-800 text-base leading-snug hover:text-primary transition-colors line-clamp-2" title={item.name}>
+                          <Link href={`/admin/inventory/items/${item.id}`} className="hover:underline">
+                            {item.name}
+                          </Link>
                         </h4>
 
                         <div className="flex items-center gap-1 text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md w-max border border-slate-100">
@@ -745,7 +762,6 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
                                   </div>
                                 </div>
 
-                                {/* PJ Input - Hydration Safe Native HTML Select */}
                                 <div className="space-y-1">
                                   <Label className="text-xs font-semibold text-slate-600">PJ (Internal)</Label>
                                   <select
@@ -819,8 +835,10 @@ export default function Items({ items, staffUsers = [] }: ItemsProps) {
                                   <Layers className="h-3 w-3" />
                                   <span>{item.category || 'Tanpa Kategori'}</span>
                                 </div>
-                                <h4 className="font-bold text-slate-800 text-lg leading-snug group-hover:text-primary transition-colors">
-                                  {item.name}
+                                <h4 className="font-bold text-slate-800 text-lg leading-snug hover:text-primary transition-colors">
+                                  <Link href={`/admin/inventory/items/${item.id}`} className="hover:underline">
+                                    {item.name}
+                                  </Link>
                                 </h4>
                                 <div className="flex flex-wrap items-center gap-2">
                                   <div className="flex items-center gap-1 text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md w-max border border-slate-100">
