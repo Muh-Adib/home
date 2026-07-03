@@ -309,7 +309,14 @@ export default function Purchases({ items, properties, purchases, filters }: any
                     <div key={m.id} className="border border-slate-100 rounded-xl p-4 bg-white/50 shadow-sm space-y-3">
                       <div className="flex justify-between items-start">
                         <div>
-                          <div className="font-bold text-slate-800 text-sm">{m.item?.name}</div>
+                          <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5 flex-wrap">
+                            <span>{m.item?.name}</span>
+                            {m.item?.assigned_user && (
+                              <Badge variant="outline" className="text-[9px] font-semibold bg-blue-50/50 text-blue-700 border-blue-100/50 py-0 px-1 h-4">
+                                PJ: {m.item.assigned_user.name}
+                              </Badge>
+                            )}
+                          </div>
                           <div className="text-[11px] text-slate-400 mt-1">
                             {formatDate(m.movement_date)}
                           </div>
@@ -376,7 +383,14 @@ export default function Purchases({ items, properties, purchases, filters }: any
                             {formatDate(m.movement_date)}
                           </TableCell>
                           <TableCell>
-                            <div className="font-semibold text-slate-800 text-sm">{m.item?.name}</div>
+                            <div className="font-semibold text-slate-800 text-sm flex items-center gap-1.5 flex-wrap">
+                              <span>{m.item?.name}</span>
+                              {m.item?.assigned_user && (
+                                <Badge variant="outline" className="text-[9px] font-semibold bg-blue-50/50 text-blue-700 border-blue-100/50 py-0 px-1 h-4">
+                                  PJ: {m.item.assigned_user.name}
+                                </Badge>
+                              )}
+                            </div>
                             {m.notes && <div className="text-[11px] text-slate-400 truncate max-w-[180px] mt-0.5" title={m.notes}>{m.notes}</div>}
                           </TableCell>
                           <TableCell className="text-slate-600 text-sm">

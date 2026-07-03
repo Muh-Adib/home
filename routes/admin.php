@@ -348,7 +348,7 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,fin
 });
 
 // Inventory/Operational Management
-Route::middleware(['auth', 'role:super_admin,property_manager,housekeeping,front_desk,finance'])->prefix('admin/inventory')->name('admin.inventory.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,housekeeping,front_desk,finance'])->prefix('admin/inventory')->name('admin.inventory.')->group(function () {
     $controller = InventoryController::class;
     Route::get('items', [$controller, 'itemsIndex'])->name('items.index');
     Route::post('items', [$controller, 'itemsStore'])->name('items.store');

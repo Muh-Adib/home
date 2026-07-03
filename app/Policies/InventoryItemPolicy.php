@@ -41,11 +41,7 @@ class InventoryItemPolicy
      */
     public function create(User $user): bool
     {
-        return in_array($user->role, [
-            'super_admin',
-            'property_manager',
-            'finance'
-        ]);
+        return $user->role !== 'guest';
     }
 
     /**
@@ -53,11 +49,7 @@ class InventoryItemPolicy
      */
     public function update(User $user, InventoryItem $inventoryItem): bool
     {
-        return in_array($user->role, [
-            'super_admin',
-            'property_manager',
-            'finance'
-        ]);
+        return $user->role !== 'guest';
     }
 
     /**
@@ -65,11 +57,7 @@ class InventoryItemPolicy
      */
     public function delete(User $user, InventoryItem $inventoryItem): bool
     {
-        // Hanya super_admin dan property_manager yang bisa delete
-        return in_array($user->role, [
-            'super_admin',
-            'property_manager'
-        ]);
+        return $user->role !== 'guest';
     }
 }
 

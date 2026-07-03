@@ -13,7 +13,7 @@ class InventoryItem extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'name','sku','unit','min_stock','selling_price','category','average_unit_cost','last_unit_cost','image_path'
+        'name','sku','unit','min_stock','selling_price','category','average_unit_cost','last_unit_cost','image_path','assigned_user_id'
     ];
 
     protected $casts = [
@@ -21,6 +21,7 @@ class InventoryItem extends Model
         'last_unit_cost' => 'integer',
         'selling_price' => 'integer',
         'min_stock' => 'decimal:4',
+        'assigned_user_id' => 'integer',
     ];
 
     public static function generateUniqueSku(): string
@@ -44,6 +45,11 @@ class InventoryItem extends Model
             ->where('type', 'adjustment')
             ->sum('quantity');
         return $in - $out + $adj;
+    }
+
+    public function assignedUser()
+    {
+        return $this->belongsTo(User::class, 'assigned_user_id');
     }
 
     public function movements(): HasMany

@@ -7,6 +7,8 @@ use App\Models\InventoryItem;
 use App\Models\InventoryStockMovement;
 use App\Models\InventoryUsage;
 use App\Models\Property;
+use App\Models\User;
+use App\Models\PropertyExpense;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,17 +21,10 @@ class InventoryController extends Controller
         $sortColumn = $request->input('sort', 'name');
         $sortDirection = $request->input('direction', 'asc');
 
-        $query = InventoryItem::query();
+        $query = InventoryItem::with('assignedUser');
 
         if (in_array($sortColumn, ['name', 'sku', 'unit', 'min_stock', 'category', 'current_stock'])) {
-             // For virtual/accessor columns or standard columns, handle sorting
-             // Note: current_stock is an accessor, so standard database sort might need subquery/join or collection sort.
-             // Given the requirements, let's assume direct column sort for now, or collection sort if dataset is small.
-             // Since we remove pagination, collection sort is safer for accessors if not too many items.
-             // However, for best performance with `get()`, let's try DB sort where possible.
              if ($sortColumn === 'current_stock') {
-                 // Sort by current_stock (accessor) requires loading then sorting, or complex query.
-                 // Let's load first then sort collection since we expected "all items".
                  $items = $query->get();
                  if ($sortDirection === 'asc') {
                      $items = $items->sortBy('current_stock');
@@ -44,6 +39,11 @@ class InventoryController extends Controller
              $items = $query->orderBy('name')->get();
         }
 
+        // Retrieve staff & housekeeping users to assign responsibilities
+        $staffUsers = User::whereIn('role', ['housekeeping', 'property_manager', 'super_admin', 'front_desk', 'finance'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'role']);
+
         return Inertia::render('Admin/Inventory/Items', [
             'items' => $items->map(function ($it) {
                 return [
@@ -57,8 +57,15 @@ class InventoryController extends Controller
                     'selling_price' => (float) $it->selling_price,
                     'current_stock' => (float) $it->current_stock,
                     'is_below_min' => (float) $it->current_stock < (float) $it->min_stock,
+                    'assigned_user_id' => $it->assigned_user_id,
+                    'assigned_user' => $it->assignedUser ? [
+                        'id' => $it->assignedUser->id,
+                        'name' => $it->assignedUser->name,
+                        'role' => $it->assignedUser->role,
+                    ] : null,
                 ];
-            })->values(), // values() to reset keys after sort if any
+            })->values(),
+            'staffUsers' => $staffUsers,
         ]);
     }
 
@@ -72,6 +79,7 @@ class InventoryController extends Controller
             'selling_price' => ['nullable','numeric','min:0'],
             'category' => ['nullable','string','max:50'],
             'image' => ['nullable','image','max:4096'],
+            'assigned_user_id' => ['nullable','exists:users,id'],
         ]);
 
         if (empty($data['sku'])) {
@@ -97,7 +105,8 @@ class InventoryController extends Controller
                 'min_stock' => $data['min_stock'] ?? 0,
                 'selling_price' => $data['selling_price'] ?? 0,
                 'category' => $data['category'] ?? null,
-                'image_path' => $path ?? $existingDeleted->image_path, // Update image only if new one uploaded
+                'image_path' => $path ?? $existingDeleted->image_path,
+                'assigned_user_id' => $data['assigned_user_id'] ?? null,
             ]);
 
              return back()->with('success', 'Item berhasil dipulihkan dan diperbarui (SKU ditemukan di tong sampah)');
@@ -111,15 +120,12 @@ class InventoryController extends Controller
             'selling_price' => $data['selling_price'] ?? 0,
             'category' => $data['category'] ?? null,
             'image_path' => $path,
+            'assigned_user_id' => $data['assigned_user_id'] ?? null,
         ]);
 
         return back()->with('success', 'Item berhasil dibuat');
     }
 
-    /**
-     * Show the form for editing the specified item.
-     * Returns item data for editing (frontend will handle the form)
-     */
     public function itemsEdit(InventoryItem $item)
     {
         $this->authorize('update', $item);
@@ -133,12 +139,10 @@ class InventoryController extends Controller
             'selling_price' => (float) $item->selling_price,
             'category' => $item->category,
             'image_path' => $item->image_path,
+            'assigned_user_id' => $item->assigned_user_id,
         ]);
     }
 
-    /**
-     * Update the specified item.
-     */
     public function itemsUpdate(Request $request, InventoryItem $item)
     {
         $this->authorize('update', $item);
@@ -151,6 +155,7 @@ class InventoryController extends Controller
             'selling_price' => ['nullable','numeric','min:0'],
             'category' => ['nullable','string','max:50'],
             'image' => ['nullable','image','max:4096'],
+            'assigned_user_id' => ['nullable','exists:users,id'],
         ]);
 
         if (empty($data['sku'])) {
@@ -159,7 +164,6 @@ class InventoryController extends Controller
 
         $path = $item->image_path;
         if ($request->hasFile('image')) {
-            // Delete old image if exists
             if ($path && \Storage::disk('public')->exists($path)) {
                 \Storage::disk('public')->delete($path);
             }
@@ -174,25 +178,16 @@ class InventoryController extends Controller
             'selling_price' => $data['selling_price'] ?? 0,
             'category' => $data['category'] ?? null,
             'image_path' => $path,
-        ]);
-
-        \Log::info('Inventory item updated', [
-            'item_id' => $item->id,
-            'item_name' => $item->name,
-            'updated_by' => $request->user()->id,
+            'assigned_user_id' => $data['assigned_user_id'] ?? null,
         ]);
 
         return back()->with('success', 'Item berhasil diperbarui');
     }
 
-    /**
-     * Delete the specified item (soft delete).
-     */
     public function itemsDestroy(Request $request, InventoryItem $item)
     {
         $this->authorize('delete', $item);
 
-        // Check if item has stock movements or usages
         $hasMovements = InventoryStockMovement::where('inventory_item_id', $item->id)->exists();
         $hasUsages = InventoryUsage::where('inventory_item_id', $item->id)->exists();
 
@@ -205,30 +200,15 @@ class InventoryController extends Controller
         $itemName = $item->name;
         $item->delete();
 
-        \Log::info('Inventory item deleted', [
-            'item_id' => $item->id,
-            'item_name' => $itemName,
-            'deleted_by' => $request->user()->id,
-        ]);
-
         return back()->with('success', 'Item berhasil dihapus');
     }
 
-    /**
-     * Item Restore Index
-     */
-
-    /**
-     * Item Restore 
-     */
-
-
     public function purchasesIndex(Request $request)
     {
-        $items = InventoryItem::orderBy('name')->get(['id','name','unit']);
+        $items = InventoryItem::with('assignedUser')->orderBy('name')->get(['id','name','unit','category','assigned_user_id']);
         $properties = Property::orderBy('name')->get(['id','name']);
         
-        $query = InventoryStockMovement::with(['item','property'])
+        $query = InventoryStockMovement::with(['item.assignedUser','property'])
             ->where('type','purchase');
 
         if ($request->has('search')) {
@@ -277,10 +257,10 @@ class InventoryController extends Controller
 
     public function usagesIndex(Request $request)
     {
-        $items = InventoryItem::orderBy('name')->get(['id','name','unit','average_unit_cost']);
+        $items = InventoryItem::with('assignedUser')->orderBy('name')->get(['id','name','unit','average_unit_cost','selling_price','category','assigned_user_id']);
         $properties = Property::orderBy('name')->get(['id','name']);
         
-        $query = InventoryUsage::with(['item','property','expense']);
+        $query = InventoryUsage::with(['item.assignedUser','property','expense']);
 
         if ($request->has('search')) {
             $search = $request->input('search');
@@ -294,7 +274,7 @@ class InventoryController extends Controller
         
         $usages = $query->paginate(20)->withQueryString();
 
-        // Usage Stats Calculation (Property-based This Month vs Last Month)
+        // Usage Stats Calculation
         $startThisMonth = Carbon::now()->startOfMonth();
         $endThisMonth = Carbon::now()->endOfMonth();
         $startLastMonth = Carbon::now()->subMonth()->startOfMonth();
@@ -315,7 +295,6 @@ class InventoryController extends Controller
             $propCurrent = $currentUsages->get($property->id) ?? collect();
             $propLast = $lastUsages->get($property->id) ?? collect();
             
-            // Get all unique item IDs involved in both periods for this property
             $itemIds = $propCurrent->pluck('inventory_item_id')
                 ->merge($propLast->pluck('inventory_item_id'))
                 ->unique();
@@ -361,19 +340,26 @@ class InventoryController extends Controller
     {
         $data = $request->validate([
             'inventory_item_id' => ['required','exists:inventory_items,id'],
-            'property_id' => ['required','exists:properties,id'],
             'usage_date' => ['required','date'],
-            'quantity_used' => ['required','numeric','min:0.0001'],
             'notes' => ['nullable','string','max:255'],
+            'usages' => ['required','array','min:1'],
+            'usages.*.property_id' => ['required','exists:properties,id'],
+            'usages.*.quantity_used' => ['required','numeric','min:0.0001'],
         ]);
-        $service->recordUsage(
-            (int)$data['inventory_item_id'],
-            (int)$data['property_id'],
-            $data['usage_date'],
-            (float)$data['quantity_used'],
-            $request->user()->id,
-            $data['notes'] ?? null
-        );
+
+        \Illuminate\Support\Facades\DB::transaction(function() use ($data, $service, $request) {
+            foreach ($data['usages'] as $usageRow) {
+                $service->recordUsage(
+                    (int)$data['inventory_item_id'],
+                    (int)$usageRow['property_id'],
+                    $data['usage_date'],
+                    (float)$usageRow['quantity_used'],
+                    $request->user()->id,
+                    $data['notes'] ?? null
+                );
+            }
+        });
+
         return back()->with('success', 'Pemakaian dicatat');
     }
 
@@ -387,7 +373,7 @@ class InventoryController extends Controller
         ]);
 
         \Illuminate\Support\Facades\DB::transaction(function() use ($usage, $data) {
-            $item = $usage->item; // Load item
+            $item = $usage->item; // Load item (includes trashed)
             $unitCost = $item->selling_price > 0 ? (float) $item->selling_price : (float) $item->average_unit_cost;
             $totalCost = round($unitCost * (float)$data['quantity_used'], 2);
 
@@ -440,9 +426,12 @@ class InventoryController extends Controller
                 ->where('reference_id', $usage->id)
                 ->delete();
 
-            // Delete related expense
-            if ($usage->expense_id) {
-                $expense = PropertyExpense::find($usage->expense_id);
+            $expenseId = $usage->expense_id;
+            if ($expenseId) {
+                // Break relationship to prevent foreign key constraint violation during deletion
+                $usage->update(['expense_id' => null]);
+
+                $expense = PropertyExpense::find($expenseId);
                 if ($expense) {
                     $expense->delete();
                 }
@@ -456,7 +445,6 @@ class InventoryController extends Controller
 
     public function purchasesUpdate(Request $request, InventoryStockMovement $purchase) 
     {
-        // Only allow updating if it is a purchase
         if ($purchase->type !== 'purchase') {
             abort(403);
         }
@@ -487,7 +475,7 @@ class InventoryController extends Controller
             if ($purchase->reference_type === 'expense' && $purchase->reference_id) {
                 $expense = PropertyExpense::find($purchase->reference_id);
                 if ($expense) {
-                    $item = $purchase->item;
+                    $item = $purchase->item; // Load item (includes trashed)
                     $expense->update([
                         'amount' => $totalCost,
                         'expense_date' => $data['movement_date'],
@@ -523,5 +511,3 @@ class InventoryController extends Controller
         return back()->with('success', 'Data pembelian dihapus');
     }
 }
-
-

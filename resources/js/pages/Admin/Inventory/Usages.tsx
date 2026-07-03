@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useForm, Link, router } from '@inertiajs/react';
-import { CheckCircle2, XCircle, MoreVertical, Edit, Trash2, ArrowUpRight, ArrowDownRight, Minus, Search, ArrowUpDown, Calendar, HelpCircle, FileText } from 'lucide-react';
+import { CheckCircle2, XCircle, MoreVertical, Edit, Trash2, ArrowUpRight, ArrowDownRight, Minus, Search, ArrowUpDown, Calendar, HelpCircle, FileText, Plus, X, Layers, UserCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import {
     DropdownMenu,
@@ -54,6 +54,7 @@ export default function Usages({ items, properties, usages, usageStats, filters 
     const [search, setSearch] = useState(filters?.search || '');
     const [sortDirection, setSortDirection] = useState(filters?.direction || 'desc');
     const [mounted, setMounted] = useState(false);
+    const [tempPropertyId, setTempPropertyId] = useState('');
 
     // Debounce search
     useEffect(() => {
@@ -72,10 +73,11 @@ export default function Usages({ items, properties, usages, usageStats, filters 
 
     const { data, setData, post, put, delete: destroy, processing, reset, errors, clearErrors } = useForm({
         inventory_item_id: '',
-        property_id: '',
+        property_id: '', // Used in single edit mode
         usage_date: '',
-        quantity_used: '',
+        quantity_used: '', // Used in single edit mode
         notes: '',
+        usages: [] as { property_id: string; quantity_used: string }[], // Used in batch add mode
     });
 
     useEffect(() => {
@@ -90,6 +92,30 @@ export default function Usages({ items, properties, usages, usageStats, filters 
         return new Date(dateStr).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' });
     };
 
+    // Batch properties modifiers
+    const addPropertyRow = () => {
+        if (!tempPropertyId) return;
+        if (data.usages.some(row => row.property_id === tempPropertyId)) return;
+        setData('usages', [...data.usages, { property_id: tempPropertyId, quantity_used: '' }]);
+        setTempPropertyId('');
+    };
+
+    const removePropertyRow = (index: number) => {
+        const updated = [...data.usages];
+        updated.splice(index, 1);
+        setData('usages', updated);
+    };
+
+    const updatePropertyQty = (index: number, qty: string) => {
+        const updated = [...data.usages];
+        updated[index].quantity_used = qty;
+        setData('usages', updated);
+    };
+
+    const availableProperties = properties?.filter((p: any) => 
+        !data.usages.some(row => row.property_id === p.id?.toString())
+    );
+
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         if (editItem) {
@@ -101,7 +127,10 @@ export default function Usages({ items, properties, usages, usageStats, filters 
             });
         } else {
             post('/admin/inventory/usages', {
-                onSuccess: () => reset('quantity_used', 'notes')
+                onSuccess: () => {
+                    reset('quantity_used', 'notes', 'usages');
+                    setTempPropertyId('');
+                }
             });
         }
     };
@@ -119,9 +148,10 @@ export default function Usages({ items, properties, usages, usageStats, filters 
         setData({
             inventory_item_id: item.inventory_item_id?.toString() || '',
             property_id: item.property_id?.toString() || '',
-            usage_date: item.usage_date.split('T')[0], // Ensure YYYY-MM-DD
+            usage_date: item.usage_date.split('T')[0],
             quantity_used: String(item.quantity_used),
             notes: item.notes || '',
+            usages: [],
         });
         clearErrors();
     };
@@ -130,6 +160,7 @@ export default function Usages({ items, properties, usages, usageStats, filters 
         setEditItem(null);
         reset();
         clearErrors();
+        setTempPropertyId('');
     };
 
     return (
@@ -201,7 +232,7 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                               </div>
                               <div>
                                 <CardTitle className="text-lg font-bold">{editItem ? 'Edit Pemakaian' : 'Input Pemakaian Baru'}</CardTitle>
-                                <CardDescription className="text-xs">Catat penggunaan barang inventaris di properti.</CardDescription>
+                                <CardDescription className="text-xs">Catat penggunaan barang inventaris.</CardDescription>
                               </div>
                             </div>
                         </CardHeader>
@@ -227,49 +258,111 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="property" className="text-sm font-semibold text-slate-700">Properti</Label>
-                                    <Select value={data.property_id?.toString() || ''} onValueChange={(val) => setData('property_id', val)}>
-                                        <SelectTrigger id="property" className={cn("bg-white/50 border-slate-200 focus:bg-white rounded-xl h-10 transition-all", errors.property_id && "border-red-500")}>
-                                            <SelectValue placeholder="Pilih Properti" />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-xl">
-                                            {properties?.map((p: any) => (
-                                                <SelectItem key={p.id} value={p.id?.toString()} className="rounded-lg">{p.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {errors.property_id && <p className="text-xs text-red-500">{errors.property_id}</p>}
+                                    <Label htmlFor="date" className="text-sm font-semibold text-slate-700">Tanggal Pemakaian</Label>
+                                    <div className="relative">
+                                      <Calendar className="absolute right-3 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                                      <Input
+                                          id="date"
+                                          type="date"
+                                          value={data.usage_date}
+                                          onChange={(e) => setData('usage_date', e.target.value)}
+                                          className={cn("bg-white/50 border-slate-200 focus:bg-white rounded-xl h-10 transition-all", errors.usage_date && "border-red-500")}
+                                      />
+                                    </div>
+                                    {errors.usage_date && <p className="text-xs text-red-500">{errors.usage_date}</p>}
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="date" className="text-sm font-semibold text-slate-700">Tanggal</Label>
-                                        <div className="relative">
-                                          <Calendar className="absolute right-3 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-                                          <Input
-                                              id="date"
-                                              type="date"
-                                              value={data.usage_date}
-                                              onChange={(e) => setData('usage_date', e.target.value)}
-                                              className={cn("bg-white/50 border-slate-200 focus:bg-white rounded-xl h-10 transition-all", errors.usage_date && "border-red-500")}
-                                          />
+                                {/* BATCH PROPERTY USAGES IN ADD MODE vs SINGLE SELECT IN EDIT MODE */}
+                                {editItem ? (
+                                    <>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="property" className="text-sm font-semibold text-slate-700">Properti</Label>
+                                            <Select value={data.property_id?.toString() || ''} onValueChange={(val) => setData('property_id', val)}>
+                                                <SelectTrigger id="property" className={cn("bg-white/50 border-slate-200 focus:bg-white rounded-xl h-10 transition-all", errors.property_id && "border-red-500")}>
+                                                    <SelectValue placeholder="Pilih Properti" />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-xl">
+                                                    {properties?.map((p: any) => (
+                                                        <SelectItem key={p.id} value={p.id?.toString()} className="rounded-lg">{p.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            {errors.property_id && <p className="text-xs text-red-500">{errors.property_id}</p>}
                                         </div>
-                                        {errors.usage_date && <p className="text-xs text-red-500">{errors.usage_date}</p>}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="qty" className="text-sm font-semibold text-slate-700">Jumlah Digunakan</Label>
+                                            <Input
+                                                id="qty"
+                                                type="number"
+                                                step="any"
+                                                placeholder="0"
+                                                value={data.quantity_used}
+                                                onChange={(e) => setData('quantity_used', e.target.value)}
+                                                className={cn("bg-white/50 border-slate-200 focus:bg-white rounded-xl h-10 transition-all", errors.quantity_used && "border-red-500")}
+                                            />
+                                            {errors.quantity_used && <p className="text-xs text-red-500">{errors.quantity_used}</p>}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                                        <Label className="text-sm font-bold text-slate-700 flex items-center gap-1">
+                                            <Layers className="h-4 w-4 text-primary" /> Input Pemakaian Properti
+                                        </Label>
+                                        
+                                        <div className="flex gap-2 items-end">
+                                            <div className="flex-1 space-y-1">
+                                                <Label className="text-xs text-slate-500">Pilih Properti</Label>
+                                                <Select value={tempPropertyId} onValueChange={setTempPropertyId}>
+                                                    <SelectTrigger className="bg-white/50 border-slate-200 focus:bg-white rounded-xl h-9 text-xs">
+                                                        <SelectValue placeholder="Pilih Properti Villa..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="rounded-xl">
+                                                        {availableProperties?.map((p: any) => (
+                                                            <SelectItem key={p.id} value={p.id?.toString()} className="rounded-lg">{p.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <Button type="button" size="sm" onClick={addPropertyRow} className="h-9 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold gap-1 text-xs border border-slate-205">
+                                                <Plus className="h-3.5 w-3.5" /> Tambah
+                                            </Button>
+                                        </div>
+
+                                        {data.usages.length > 0 ? (
+                                            <div className="space-y-2 mt-2 p-2 bg-slate-50/50 border border-slate-100 rounded-xl max-h-[220px] overflow-y-auto">
+                                                {data.usages.map((row, idx) => {
+                                                    const prop = properties.find((p: any) => p.id?.toString() === row.property_id);
+                                                    return (
+                                                        <div key={row.property_id} className="flex items-center justify-between gap-3 p-2 bg-white border border-slate-100 rounded-lg shadow-sm">
+                                                            <span className="text-xs font-semibold text-slate-700 truncate flex-1">{prop?.name}</span>
+                                                            <div className="flex items-center gap-1 shrink-0">
+                                                                <Input
+                                                                    type="number"
+                                                                    placeholder="Jumlah"
+                                                                    min="0.0001"
+                                                                    step="any"
+                                                                    value={row.quantity_used}
+                                                                    onChange={(e) => updatePropertyQty(idx, e.target.value)}
+                                                                    className="h-8 w-20 text-xs rounded-lg text-center font-bold"
+                                                                    required
+                                                                />
+                                                                <Button type="button" variant="ghost" size="icon" onClick={() => removePropertyRow(idx)} className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                                                                    <X className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs flex flex-col items-center gap-1">
+                                                <Layers className="h-6 w-6 stroke-[1.5]" />
+                                                <span>Tambahkan properti untuk menginput jumlah.</span>
+                                            </div>
+                                        )}
+                                        {errors.usages && <p className="text-xs text-red-500 mt-1">{errors.usages}</p>}
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="qty" className="text-sm font-semibold text-slate-700">Jumlah</Label>
-                                        <Input
-                                            id="qty"
-                                            type="number"
-                                            step="1"
-                                            placeholder="0"
-                                            value={data.quantity_used}
-                                            onChange={(e) => setData('quantity_used', e.target.value)}
-                                            className={cn("bg-white/50 border-slate-200 focus:bg-white rounded-xl h-10 transition-all", errors.quantity_used && "border-red-500")}
-                                        />
-                                        {errors.quantity_used && <p className="text-xs text-red-500">{errors.quantity_used}</p>}
-                                    </div>
-                                </div>
+                                )}
 
                                 <div className="space-y-2">
                                     <Label htmlFor="notes" className="text-sm font-semibold text-slate-700">Catatan & Keperluan</Label>
@@ -281,7 +374,7 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                     {editItem && (
                                         <Button type="button" variant="outline" onClick={closeEdit} className="flex-1 rounded-xl border-slate-200">Batal</Button>
                                     )}
-                                    <Button type="submit" className="flex-1 rounded-xl bg-primary hover:bg-primary/90 shadow-md shadow-primary/10" disabled={processing}>
+                                    <Button type="submit" className="flex-1 rounded-xl bg-primary hover:bg-primary/90 shadow-md shadow-primary/10" disabled={processing || (!editItem && data.usages.length === 0)}>
                                         {editItem ? 'Simpan' : 'Simpan Data'}
                                     </Button>
                                 </div>
@@ -338,7 +431,14 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                         <div key={u.id} className="border border-slate-100 rounded-xl p-4 bg-white/50 shadow-sm space-y-3">
                                             <div className="flex justify-between items-start">
                                                 <div>
-                                                    <div className="font-bold text-slate-800 text-sm">{u.item?.name}</div>
+                                                    <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5 flex-wrap">
+                                                        <span>{u.item?.name}</span>
+                                                        {u.item?.assigned_user && (
+                                                            <Badge variant="outline" className="text-[9px] font-semibold bg-blue-50/50 text-blue-700 border-blue-100/50 py-0 px-1 h-4">
+                                                                PJ: {u.item.assigned_user.name}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                     <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-1.5">
                                                         <Badge variant="secondary" className="text-[10px] font-semibold bg-slate-100/80 text-slate-600 border-none px-1.5 py-0 rounded-md">{u.property?.name}</Badge>
                                                         <span>{formatDate(u.usage_date)}</span>
@@ -407,7 +507,14 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                                         {formatDate(u.usage_date)}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <div className="font-semibold text-slate-800 text-sm">{u.item?.name}</div>
+                                                        <div className="font-semibold text-slate-800 text-sm flex items-center gap-1.5 flex-wrap">
+                                                            <span>{u.item?.name}</span>
+                                                            {u.item?.assigned_user && (
+                                                                <Badge variant="outline" className="text-[9px] font-semibold bg-blue-50/50 text-blue-700 border-blue-100/50 py-0 px-1 h-4">
+                                                                    PJ: {u.item.assigned_user.name}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
                                                         {u.notes && <div className="text-[11px] text-slate-400 truncate max-w-[180px] mt-0.5" title={u.notes}>{u.notes}</div>}
                                                     </TableCell>
                                                     <TableCell className="text-slate-600 text-sm">{u.property?.name}</TableCell>

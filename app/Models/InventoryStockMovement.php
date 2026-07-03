@@ -34,7 +34,7 @@ class InventoryStockMovement extends Model
 
     public function item(): BelongsTo
     {
-        return $this->belongsTo(InventoryItem::class, 'inventory_item_id');
+        return $this->belongsTo(InventoryItem::class, 'inventory_item_id')->withTrashed();
     }
 
     public function property(): BelongsTo

@@ -6,10 +6,17 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { Pencil, Trash2, ArrowUpDown, Search, Package, AlertCircle, CheckCircle2, Save, X, Plus, Coins, Tag, UploadCloud, Layers, LayoutGrid, List } from 'lucide-react';
+import { Pencil, Trash2, ArrowUpDown, Search, Package, AlertCircle, CheckCircle2, Save, X, Plus, Coins, Tag, UploadCloud, Layers, LayoutGrid, List, UserCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Item {
   id: number;
@@ -22,10 +29,21 @@ interface Item {
   image_path: string | null;
   current_stock: number;
   is_below_min: boolean;
+  assigned_user_id: number | null;
+  assigned_user: {
+    id: number;
+    name: string;
+    role: string;
+  } | null;
 }
 
 interface ItemsProps {
   items: Item[];
+  staffUsers?: {
+    id: number;
+    name: string;
+    role: string;
+  }[];
 }
 
 function formatRupiah(amount: number) {
@@ -37,7 +55,7 @@ function formatRupiah(amount: number) {
   }).format(amount);
 }
 
-export default function Items({ items }: ItemsProps) {
+export default function Items({ items, staffUsers = [] }: ItemsProps) {
   // Global form for creating new item
   const { data, setData, post, processing, reset, errors } = useForm({
     name: '',
@@ -47,6 +65,7 @@ export default function Items({ items }: ItemsProps) {
     selling_price: '',
     category: '',
     image: null as File | null,
+    assigned_user_id: '',
   });
 
   // Local state for inline card editing
@@ -58,6 +77,7 @@ export default function Items({ items }: ItemsProps) {
   const [editSellingPrice, setEditSellingPrice] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editImage, setEditImage] = useState<File | null>(null);
+  const [editAssignedUserId, setEditAssignedUserId] = useState<string>('');
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -115,6 +135,7 @@ export default function Items({ items }: ItemsProps) {
     setEditMinStock(String(item.min_stock || 0));
     setEditSellingPrice(String(item.selling_price || 0));
     setEditCategory(item.category || '');
+    setEditAssignedUserId(item.assigned_user_id?.toString() || '');
     setEditImage(null);
     setEditErrors({});
   };
@@ -136,6 +157,7 @@ export default function Items({ items }: ItemsProps) {
     formData.append('min_stock', editMinStock);
     formData.append('selling_price', editSellingPrice);
     formData.append('category', editCategory);
+    formData.append('assigned_user_id', editAssignedUserId);
     if (editImage) {
       formData.append('image', editImage);
     }
@@ -179,6 +201,25 @@ export default function Items({ items }: ItemsProps) {
     (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  // Group filteredItems by unit for List view mode
+  const groupedByUnit: Record<string, Item[]> = {};
+  filteredItems.forEach(item => {
+    const unitKey = item.unit.toUpperCase();
+    if (!groupedByUnit[unitKey]) {
+      groupedByUnit[unitKey] = [];
+    }
+    groupedByUnit[unitKey].push(item);
+  });
+
+  // Sort each unit group by stock level (low stock first, then current_stock asc)
+  Object.keys(groupedByUnit).forEach(unitKey => {
+    groupedByUnit[unitKey].sort((a, b) => {
+      if (a.is_below_min && !b.is_below_min) return -1;
+      if (!a.is_below_min && b.is_below_min) return 1;
+      return a.current_stock - b.current_stock;
+    });
+  });
+
   return (
     <AdminLayout title="Inventaris" breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Inventory', href: '/admin/inventory/items' }]}>
       <div className="flex flex-col gap-6 max-w-7xl mx-auto">
@@ -198,8 +239,8 @@ export default function Items({ items }: ItemsProps) {
           </CardHeader>
           <CardContent>
             <form className="grid gap-5" onSubmit={handleCreateSubmit}>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-2 col-span-1 md:col-span-2">
                   <Label className="text-sm font-semibold text-slate-700">Nama Item</Label>
                   <Input
                     placeholder="Contoh: Sabun Mandi Cair"
@@ -232,11 +273,11 @@ export default function Items({ items }: ItemsProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-slate-700">Satuan</Label>
                   <Input
-                    placeholder="Contoh: pcs, botol, pack"
+                    placeholder="Contoh: pcs, botol"
                     value={data.unit}
                     onChange={(e) => setData('unit', e.target.value)}
                     required
@@ -271,6 +312,28 @@ export default function Items({ items }: ItemsProps) {
                   </div>
                   {errors.selling_price && <p className="text-xs text-red-500">{errors.selling_price}</p>}
                 </div>
+                
+                {/* Assigned User Selection */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-slate-700">Penanggung Jawab</Label>
+                  <Select
+                    value={data.assigned_user_id?.toString() || ''}
+                    onValueChange={(val) => setData('assigned_user_id', val)}
+                  >
+                    <SelectTrigger className="bg-white/50 border-slate-200 focus:bg-white transition-all rounded-xl h-10 text-xs">
+                      <SelectValue placeholder="Pilih PJ (Internal)" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="" className="rounded-lg">Tanpa PJ</SelectItem>
+                      {staffUsers.map((u) => (
+                        <SelectItem key={u.id} value={u.id.toString()} className="rounded-lg">
+                          {u.name} ({u.role})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-slate-700">Foto Item</Label>
                   <Input
@@ -368,9 +431,9 @@ export default function Items({ items }: ItemsProps) {
                 if (isEditing) {
                   return (
                     <Card key={item.id} className="relative overflow-hidden bg-white border-2 border-primary shadow-xl rounded-2xl flex flex-col h-full ring-2 ring-primary/20 animate-in fade-in zoom-in-95 duration-200">
-                      <div className="p-4 space-y-4 flex-1 flex flex-col justify-between">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between border-b pb-2">
+                      <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between border-b pb-1.5">
                             <span className="text-xs font-bold text-primary flex items-center gap-1">
                               <Pencil className="h-3 w-3" /> EDIT ITEM INLINE
                             </span>
@@ -379,20 +442,20 @@ export default function Items({ items }: ItemsProps) {
                             </button>
                           </div>
                           
-                          <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-slate-600">Nama Item</Label>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-semibold text-slate-600">Nama Item</Label>
                             <Input
                               value={editName}
                               onChange={(e) => setEditName(e.target.value)}
-                              className="h-8 text-sm rounded-lg"
+                              className="h-8 text-xs rounded-lg"
                               required
                             />
-                            {editErrors.name && <p className="text-[10px] text-red-500">{editErrors.name}</p>}
+                            {editErrors.name && <p className="text-[9px] text-red-500">{editErrors.name}</p>}
                           </div>
 
                           <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
-                              <Label className="text-xs font-semibold text-slate-600">Kategori</Label>
+                              <Label className="text-[10px] font-semibold text-slate-600">Kategori</Label>
                               <Input
                                 value={editCategory}
                                 onChange={(e) => setEditCategory(e.target.value)}
@@ -400,7 +463,7 @@ export default function Items({ items }: ItemsProps) {
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-xs font-semibold text-slate-600">SKU</Label>
+                              <Label className="text-[10px] font-semibold text-slate-600">SKU</Label>
                               <Input
                                 value={editSku}
                                 placeholder="Auto jika kosong"
@@ -412,7 +475,7 @@ export default function Items({ items }: ItemsProps) {
 
                           <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
-                              <Label className="text-xs font-semibold text-slate-600">Satuan</Label>
+                              <Label className="text-[10px] font-semibold text-slate-600">Satuan</Label>
                               <Input
                                 value={editUnit}
                                 onChange={(e) => setEditUnit(e.target.value)}
@@ -421,7 +484,7 @@ export default function Items({ items }: ItemsProps) {
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-xs font-semibold text-slate-600">Min Stok Alert</Label>
+                              <Label className="text-[10px] font-semibold text-slate-600">Min Stok Alert</Label>
                               <Input
                                 type="number"
                                 value={editMinStock}
@@ -431,21 +494,44 @@ export default function Items({ items }: ItemsProps) {
                             </div>
                           </div>
 
-                          <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-slate-600">Harga Jual (Rp)</Label>
-                            <div className="relative">
-                              <span className="absolute left-2.5 top-2 text-xs text-slate-400">Rp</span>
-                              <Input
-                                type="number"
-                                value={editSellingPrice}
-                                onChange={(e) => setEditSellingPrice(e.target.value)}
-                                className="h-8 pl-7 text-xs rounded-lg"
-                              />
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-semibold text-slate-600">Harga Jual (Rp)</Label>
+                              <div className="relative">
+                                <span className="absolute left-2 top-1.5 text-[10px] text-slate-400">Rp</span>
+                                <Input
+                                  type="number"
+                                  value={editSellingPrice}
+                                  onChange={(e) => setEditSellingPrice(e.target.value)}
+                                  className="h-8 pl-6 text-xs rounded-lg"
+                                />
+                              </div>
+                            </div>
+                            
+                            {/* PJ Input */}
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-semibold text-slate-600">PJ (Internal)</Label>
+                              <Select
+                                value={editAssignedUserId}
+                                onValueChange={(val) => setEditAssignedUserId(val)}
+                              >
+                                <SelectTrigger className="h-8 text-xs rounded-lg">
+                                  <SelectValue placeholder="Tanpa PJ" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-lg">
+                                  <SelectItem value="" className="rounded-lg">Tanpa PJ</SelectItem>
+                                  {staffUsers.map((u) => (
+                                    <SelectItem key={u.id} value={u.id.toString()} className="rounded-lg">
+                                      {u.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
 
-                          <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold text-slate-600">Update Foto</Label>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-semibold text-slate-600">Update Foto</Label>
                             <Input
                               type="file"
                               accept="image/*"
@@ -455,11 +541,11 @@ export default function Items({ items }: ItemsProps) {
                           </div>
                         </div>
 
-                        <div className="flex gap-2 pt-4 mt-auto border-t">
-                          <Button size="sm" variant="ghost" onClick={cancelEditing} className="flex-1 rounded-xl hover:bg-slate-50 text-slate-500 text-xs">
+                        <div className="flex gap-2 pt-2 mt-auto border-t">
+                          <Button size="sm" variant="ghost" onClick={cancelEditing} className="flex-1 rounded-xl hover:bg-slate-50 text-slate-500 text-xs h-8">
                             Batal
                           </Button>
-                          <Button size="sm" disabled={isUpdating} onClick={() => handleUpdateSubmit(item.id)} className="flex-1 rounded-xl bg-primary text-white text-xs gap-1">
+                          <Button size="sm" disabled={isUpdating} onClick={() => handleUpdateSubmit(item.id)} className="flex-1 rounded-xl bg-primary text-white text-xs gap-1 h-8">
                             <Save className="h-3.5 w-3.5" /> Simpan
                           </Button>
                         </div>
@@ -491,11 +577,20 @@ export default function Items({ items }: ItemsProps) {
                       )}
                     </div>
 
-                    <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
+                    <div className="p-4 flex-1 flex flex-col justify-between space-y-3.5">
                       <div className="space-y-2">
-                        <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                          <Layers className="h-3 w-3" />
-                          <span>{item.category || 'Tanpa Kategori'}</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            <Layers className="h-3 w-3" />
+                            <span>{item.category || 'Tanpa Kategori'}</span>
+                          </div>
+                          
+                          {/* Display PJ / Assigned User */}
+                          {item.assigned_user && (
+                            <Badge variant="outline" className="text-[9px] font-semibold bg-blue-50/50 text-blue-700 border-blue-100/50 py-0 h-4 flex items-center gap-0.5">
+                              <UserCheck className="w-2.5 h-2.5" /> {item.assigned_user.name}
+                            </Badge>
+                          )}
                         </div>
 
                         <h4 className="font-bold text-slate-800 text-base leading-snug group-hover:text-primary transition-colors line-clamp-2" title={item.name}>
@@ -562,223 +657,267 @@ export default function Items({ items }: ItemsProps) {
               })}
             </div>
           ) : (
-            /* LIST VIEW MODE WITH LARGE IMAGE AND FULL INLINE EDIT */
-            <div className="flex flex-col gap-4">
-              {filteredItems.map((item) => {
-                const isEditing = editingId === item.id;
+            /* LIST VIEW MODE GROUPED BY UNIT & SORTED BY STOCK LEVEL */
+            <div className="flex flex-col gap-8">
+              {Object.entries(groupedByUnit).map(([unit, itemsInUnit]) => (
+                <div key={unit} className="space-y-4">
+                  {/* Group header */}
+                  <div className="flex items-center gap-3 px-1">
+                    <Badge variant="outline" className="bg-slate-50 border-slate-200 text-slate-700 font-bold px-3 py-1 text-xs tracking-wider">
+                      Satuan: {unit} ({itemsInUnit.length} Item)
+                    </Badge>
+                    <div className="h-[1.5px] bg-slate-100/80 flex-1"></div>
+                  </div>
 
-                if (isEditing) {
-                  return (
-                    <Card key={item.id} className="relative overflow-hidden bg-white border-2 border-primary shadow-xl rounded-2xl flex flex-col sm:flex-row h-full ring-2 ring-primary/20 animate-in fade-in slide-in-from-bottom duration-250">
-                      {/* Left: Large Image */}
-                      <div className="relative h-44 sm:h-auto w-full sm:w-48 bg-slate-150 overflow-hidden flex items-center justify-center shrink-0 border-b sm:border-b-0 sm:border-r border-slate-200">
-                        {item.image_path ? (
-                          <img
-                            src={`/storage/${item.image_path}`}
-                            alt={item.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center gap-1.5 text-slate-400">
-                            <Package className="h-10 w-10 stroke-[1.5]" />
-                          </div>
-                        )}
-                      </div>
+                  <div className="flex flex-col gap-4">
+                    {itemsInUnit.map((item) => {
+                      const isEditing = editingId === item.id;
 
-                      {/* Right: Form Inputs */}
-                      <div className="p-5 flex-1 flex flex-col justify-between gap-4">
-                        <div className="flex items-center justify-between border-b pb-2">
-                          <span className="text-xs font-bold text-primary flex items-center gap-1">
-                            <Pencil className="h-3 w-3" /> EDIT ITEM INLINE (LIST)
-                          </span>
-                          <button onClick={cancelEditing} className="text-slate-400 hover:text-slate-600 transition-colors">
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
+                      if (isEditing) {
+                        return (
+                          <Card key={item.id} className="relative overflow-hidden bg-white border-2 border-primary shadow-xl rounded-2xl flex flex-col sm:flex-row h-full ring-2 ring-primary/20 animate-in fade-in slide-in-from-bottom duration-250">
+                            {/* Left: Large Image */}
+                            <div className="relative h-44 sm:h-auto w-full sm:w-48 bg-slate-150 overflow-hidden flex items-center justify-center shrink-0 border-b sm:border-b-0 sm:border-r border-slate-200">
+                              {item.image_path ? (
+                                <img
+                                  src={`/storage/${item.image_path}`}
+                                  alt={item.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center gap-1.5 text-slate-400">
+                                  <Package className="h-10 w-10 stroke-[1.5]" />
+                                </div>
+                              )}
+                            </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <Label className="text-xs font-semibold text-slate-600">Nama Item</Label>
-                            <Input
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                              className="h-8 text-sm rounded-lg"
-                              required
-                            />
-                            {editErrors.name && <p className="text-[10px] text-red-500">{editErrors.name}</p>}
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs font-semibold text-slate-600">Kategori</Label>
-                            <Input
-                              value={editCategory}
-                              onChange={(e) => setEditCategory(e.target.value)}
-                              className="h-8 text-sm rounded-lg"
-                            />
-                          </div>
-                        </div>
+                            {/* Right: Form Inputs */}
+                            <div className="p-5 flex-1 flex flex-col justify-between gap-4">
+                              <div className="flex items-center justify-between border-b pb-2">
+                                <span className="text-xs font-bold text-primary flex items-center gap-1">
+                                  <Pencil className="h-3 w-3" /> EDIT ITEM INLINE (LIST)
+                                </span>
+                                <button onClick={cancelEditing} className="text-slate-400 hover:text-slate-600 transition-colors">
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs font-semibold text-slate-600">SKU</Label>
-                            <Input
-                              value={editSku}
-                              placeholder="Auto jika kosong"
-                              onChange={(e) => setEditSku(e.target.value)}
-                              className="h-8 text-xs rounded-lg font-mono"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs font-semibold text-slate-600">Satuan</Label>
-                            <Input
-                              value={editUnit}
-                              onChange={(e) => setEditUnit(e.target.value)}
-                              className="h-8 text-xs rounded-lg"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs font-semibold text-slate-600">Min Stok Alert</Label>
-                            <Input
-                              type="number"
-                              value={editMinStock}
-                              onChange={(e) => setEditMinStock(e.target.value)}
-                              className="h-8 text-xs rounded-lg"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs font-semibold text-slate-600">Harga Jual (Rp)</Label>
-                            <div className="relative">
-                              <span className="absolute left-2.5 top-2 text-xs text-slate-400">Rp</span>
-                              <Input
-                                type="number"
-                                value={editSellingPrice}
-                                onChange={(e) => setEditSellingPrice(e.target.value)}
-                                className="h-8 pl-7 text-xs rounded-lg"
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-semibold text-slate-600">Nama Item</Label>
+                                  <Input
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                    className="h-8 text-sm rounded-lg"
+                                    required
+                                  />
+                                  {editErrors.name && <p className="text-[10px] text-red-500">{editErrors.name}</p>}
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-semibold text-slate-600">Kategori</Label>
+                                  <Input
+                                    value={editCategory}
+                                    onChange={(e) => setEditCategory(e.target.value)}
+                                    className="h-8 text-sm rounded-lg"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-semibold text-slate-600">SKU</Label>
+                                  <Input
+                                    value={editSku}
+                                    placeholder="Auto jika kosong"
+                                    onChange={(e) => setEditSku(e.target.value)}
+                                    className="h-8 text-xs rounded-lg font-mono"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-semibold text-slate-600">Satuan</Label>
+                                  <Input
+                                    value={editUnit}
+                                    onChange={(e) => setEditUnit(e.target.value)}
+                                    className="h-8 text-xs rounded-lg"
+                                    required
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-semibold text-slate-600">Min Stok Alert</Label>
+                                  <Input
+                                    type="number"
+                                    value={editMinStock}
+                                    onChange={(e) => setEditMinStock(e.target.value)}
+                                    className="h-8 text-xs rounded-lg"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-semibold text-slate-600">Harga Jual (Rp)</Label>
+                                  <div className="relative">
+                                    <span className="absolute left-2.5 top-2 text-xs text-slate-400">Rp</span>
+                                    <Input
+                                      type="number"
+                                      value={editSellingPrice}
+                                      onChange={(e) => setEditSellingPrice(e.target.value)}
+                                      className="h-8 pl-7 text-xs rounded-lg"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-semibold text-slate-600">PJ (Internal)</Label>
+                                  <Select
+                                    value={editAssignedUserId}
+                                    onValueChange={(val) => setEditAssignedUserId(val)}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs rounded-lg">
+                                      <SelectValue placeholder="Tanpa PJ" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-lg">
+                                      <SelectItem value="" className="rounded-lg">Tanpa PJ</SelectItem>
+                                      {staffUsers.map((u) => (
+                                        <SelectItem key={u.id} value={u.id.toString()} className="rounded-lg">
+                                          {u.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end pt-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-semibold text-slate-600">Update Foto</Label>
+                                  <Input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => setEditImage(e.target.files?.[0] || null)}
+                                    className="h-8 text-xs rounded-lg file:mr-2 file:py-0.5 file:px-1.5 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-primary/10 file:text-primary cursor-pointer"
+                                  />
+                                </div>
+                                <div className="flex gap-2 justify-end">
+                                  <Button size="sm" variant="ghost" onClick={cancelEditing} className="rounded-xl hover:bg-slate-50 text-slate-500 text-xs px-4">
+                                    Batal
+                                  </Button>
+                                  <Button size="sm" disabled={isUpdating} onClick={() => handleUpdateSubmit(item.id)} className="rounded-xl bg-primary text-white text-xs gap-1 px-4 h-8">
+                                    <Save className="h-3.5 w-3.5" /> Simpan
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </Card>
+                        );
+                      }
+
+                      return (
+                        <Card key={item.id} className="relative overflow-hidden bg-white/80 hover:bg-white backdrop-blur-sm border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-lg rounded-2xl flex flex-col sm:flex-row group transition-all duration-300 animate-in fade-in slide-in-from-bottom duration-200">
+                          {/* Left: Large Photo */}
+                          <div className="relative h-44 sm:h-auto w-full sm:w-48 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 border-b sm:border-b-0 sm:border-r border-slate-150">
+                            {item.image_path ? (
+                              <img
+                                src={`/storage/${item.image_path}`}
+                                alt={item.name}
+                                className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
                               />
+                            ) : (
+                              <div className="flex flex-col items-center gap-1.5 text-slate-400">
+                                <Package className="h-10 w-10 stroke-[1.5]" />
+                                <span className="text-[10px] uppercase font-semibold tracking-wider">No Image</span>
+                              </div>
+                            )}
+                            
+                            {item.is_below_min && (
+                              <Badge variant="destructive" className="absolute top-3 right-3 shadow-md shadow-red-500/20 text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-full animate-pulse">
+                                Low Stock
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Right: Details */}
+                          <div className="p-5 flex-1 flex flex-col justify-between gap-4">
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                  <Layers className="h-3 w-3" />
+                                  <span>{item.category || 'Tanpa Kategori'}</span>
+                                </div>
+                                <h4 className="font-bold text-slate-800 text-lg leading-snug group-hover:text-primary transition-colors">
+                                  {item.name}
+                                </h4>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <div className="flex items-center gap-1 text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md w-max border border-slate-100">
+                                    <Tag className="h-3 w-3" />
+                                    <span>{item.sku || '-'}</span>
+                                  </div>
+                                  
+                                  {/* Assigned User PJ Label */}
+                                  {item.assigned_user && (
+                                    <div className="flex items-center gap-1 text-xs text-slate-500 bg-blue-50/50 text-blue-700 px-2 py-0.5 rounded-md w-max border border-blue-100/30">
+                                      <span className="font-bold text-blue-500">PJ:</span>
+                                      <span>{item.assigned_user.name}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Actions */}
+                              <div className="flex gap-1.5 self-end sm:self-start">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-xl"
+                                  onClick={() => startEditing(item)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                                  onClick={() => initiateDelete(item)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-6 pt-3 border-t border-slate-100">
+                              <div className="flex flex-col">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stok Aktual</span>
+                                <div className="flex items-baseline gap-1 mt-0.5">
+                                  <span className={cn(
+                                    "text-xl font-black",
+                                    item.is_below_min ? "text-red-500" : "text-green-600"
+                                  )}>
+                                    {Number(item.current_stock)}
+                                  </span>
+                                  <span className="text-xs text-slate-500 font-semibold">{item.unit}</span>
+                                </div>
+                              </div>
+                              
+                              <div className="flex flex-col border-l border-slate-100 pl-6">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-0.5">
+                                  <Coins className="h-3 w-3" /> Harga Jual
+                                </span>
+                                <span className="text-base font-bold text-slate-700 mt-0.5">
+                                  {formatRupiah(item.selling_price)}
+                                </span>
+                              </div>
+
+                              <div className="flex flex-col border-l border-slate-100 pl-6">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Batas Minimal</span>
+                                <span className="text-sm font-semibold text-slate-500 mt-0.5">
+                                  {Number(item.min_stock)} {item.unit}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end pt-2">
-                          <div className="space-y-1">
-                            <Label className="text-xs font-semibold text-slate-600">Update Foto</Label>
-                            <Input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => setEditImage(e.target.files?.[0] || null)}
-                              className="h-8 text-xs rounded-lg file:mr-2 file:py-0.5 file:px-1.5 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-primary/10 file:text-primary cursor-pointer"
-                            />
-                          </div>
-                          <div className="flex gap-2 justify-end">
-                            <Button size="sm" variant="ghost" onClick={cancelEditing} className="rounded-xl hover:bg-slate-50 text-slate-500 text-xs px-4">
-                              Batal
-                            </Button>
-                            <Button size="sm" disabled={isUpdating} onClick={() => handleUpdateSubmit(item.id)} className="rounded-xl bg-primary text-white text-xs gap-1 px-4 h-8">
-                              <Save className="h-3.5 w-3.5" /> Simpan
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                }
-
-                return (
-                  <Card key={item.id} className="relative overflow-hidden bg-white/80 hover:bg-white backdrop-blur-sm border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-lg rounded-2xl flex flex-col sm:flex-row group transition-all duration-300 animate-in fade-in slide-in-from-bottom duration-200">
-                    {/* Left: Large Photo */}
-                    <div className="relative h-44 sm:h-auto w-full sm:w-48 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 border-b sm:border-b-0 sm:border-r border-slate-150">
-                      {item.image_path ? (
-                        <img
-                          src={`/storage/${item.image_path}`}
-                          alt={item.name}
-                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center gap-1.5 text-slate-400">
-                          <Package className="h-10 w-10 stroke-[1.5]" />
-                          <span className="text-[10px] uppercase font-semibold tracking-wider">No Image</span>
-                        </div>
-                      )}
-                      
-                      {item.is_below_min && (
-                        <Badge variant="destructive" className="absolute top-3 right-3 shadow-md shadow-red-500/20 text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-full animate-pulse">
-                          Low Stock
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Right: Details */}
-                    <div className="p-5 flex-1 flex flex-col justify-between gap-4">
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                            <Layers className="h-3 w-3" />
-                            <span>{item.category || 'Tanpa Kategori'}</span>
-                          </div>
-                          <h4 className="font-bold text-slate-800 text-lg leading-snug group-hover:text-primary transition-colors">
-                            {item.name}
-                          </h4>
-                          <div className="flex items-center gap-1 text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md w-max border border-slate-100">
-                            <Tag className="h-3 w-3" />
-                            <span>{item.sku || '-'}</span>
-                          </div>
-                        </div>
-                        
-                        {/* Actions */}
-                        <div className="flex gap-1.5 self-end sm:self-start">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-xl"
-                            onClick={() => startEditing(item)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
-                            onClick={() => initiateDelete(item)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-6 pt-3 border-t border-slate-100">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stok Aktual</span>
-                          <div className="flex items-baseline gap-1 mt-0.5">
-                            <span className={cn(
-                              "text-xl font-black",
-                              item.is_below_min ? "text-red-500" : "text-green-600"
-                            )}>
-                              {Number(item.current_stock)}
-                            </span>
-                            <span className="text-xs text-slate-500 font-semibold">{item.unit}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col border-l border-slate-100 pl-6">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-0.5">
-                            <Coins className="h-3 w-3" /> Harga Jual
-                          </span>
-                          <span className="text-base font-bold text-slate-700 mt-0.5">
-                            {formatRupiah(item.selling_price)}
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col border-l border-slate-100 pl-6">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Batas Minimal</span>
-                          <span className="text-sm font-semibold text-slate-500 mt-0.5">
-                            {Number(item.min_stock)} {item.unit}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
