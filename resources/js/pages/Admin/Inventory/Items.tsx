@@ -47,12 +47,8 @@ interface ItemsProps {
 }
 
 function formatRupiah(amount: number) {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(amount);
+  const val = Math.round(amount || 0);
+  return 'Rp ' + val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 export default function Items({ items, staffUsers = [] }: ItemsProps) {
