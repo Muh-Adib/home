@@ -54,6 +54,7 @@ class InventoryController extends Controller
                     'category' => $it->category,
                     'image_path' => $it->image_path,
                     'min_stock' => (float) $it->min_stock,
+                    'selling_price' => (float) $it->selling_price,
                     'current_stock' => (float) $it->current_stock,
                     'is_below_min' => (float) $it->current_stock < (float) $it->min_stock,
                 ];
@@ -65,14 +66,17 @@ class InventoryController extends Controller
     {
         $data = $request->validate([
             'name' => ['required','string','max:150'],
-            'sku' => ['nullable','string','max:100','unique:inventory_items,sku'],
+            'sku' => ['nullable','string','max:100',\Illuminate\Validation\Rule::unique('inventory_items')->whereNull('deleted_at')],
             'unit' => ['required','string','max:20'],
             'min_stock' => ['nullable','numeric','min:0'],
+            'selling_price' => ['nullable','numeric','min:0'],
             'category' => ['nullable','string','max:50'],
             'image' => ['nullable','image','max:4096'],
         ]);
 
-        // !jika ada item dengan sku yang sama berikan opsi untuk restore item dengan alretdialog
+        if (empty($data['sku'])) {
+            $data['sku'] = InventoryItem::generateUniqueSku();
+        }
 
         $path = null;
         if ($request->hasFile('image')) {
@@ -80,31 +84,31 @@ class InventoryController extends Controller
         }
 
         // Check for existing soft-deleted item with same SKU
-        if (!empty($data['sku'])) {
-            $existingDeleted = InventoryItem::withTrashed()
-                ->where('sku', $data['sku'])
-                ->whereNotNull('deleted_at')
-                ->first();
+        $existingDeleted = InventoryItem::withTrashed()
+            ->where('sku', $data['sku'])
+            ->whereNotNull('deleted_at')
+            ->first();
 
-            if ($existingDeleted) {
-                $existingDeleted->restore();
-                $existingDeleted->update([
-                    'name' => $data['name'],
-                    'unit' => $data['unit'],
-                    'min_stock' => $data['min_stock'] ?? 0,
-                    'category' => $data['category'] ?? null,
-                    'image_path' => $path ?? $existingDeleted->image_path, // Update image only if new one uploaded
-                ]);
+        if ($existingDeleted) {
+            $existingDeleted->restore();
+            $existingDeleted->update([
+                'name' => $data['name'],
+                'unit' => $data['unit'],
+                'min_stock' => $data['min_stock'] ?? 0,
+                'selling_price' => $data['selling_price'] ?? 0,
+                'category' => $data['category'] ?? null,
+                'image_path' => $path ?? $existingDeleted->image_path, // Update image only if new one uploaded
+            ]);
 
-                 return back()->with('success', 'Item berhasil dipulihkan dan diperbarui (SKU ditemukan di tong sampah)');
-            }
+             return back()->with('success', 'Item berhasil dipulihkan dan diperbarui (SKU ditemukan di tong sampah)');
         }
 
         InventoryItem::create([
             'name' => $data['name'],
-            'sku' => $data['sku'] ?? null,
+            'sku' => $data['sku'],
             'unit' => $data['unit'],
             'min_stock' => $data['min_stock'] ?? 0,
+            'selling_price' => $data['selling_price'] ?? 0,
             'category' => $data['category'] ?? null,
             'image_path' => $path,
         ]);
@@ -126,6 +130,7 @@ class InventoryController extends Controller
             'sku' => $item->sku,
             'unit' => $item->unit,
             'min_stock' => (float) $item->min_stock,
+            'selling_price' => (float) $item->selling_price,
             'category' => $item->category,
             'image_path' => $item->image_path,
         ]);
@@ -140,12 +145,17 @@ class InventoryController extends Controller
 
         $data = $request->validate([
             'name' => ['required','string','max:150'],
-            'sku' => ['nullable','string','max:100','unique:inventory_items,sku,' . $item->id],
+            'sku' => ['nullable','string','max:100',\Illuminate\Validation\Rule::unique('inventory_items')->ignore($item->id)->whereNull('deleted_at')],
             'unit' => ['required','string','max:20'],
             'min_stock' => ['nullable','numeric','min:0'],
+            'selling_price' => ['nullable','numeric','min:0'],
             'category' => ['nullable','string','max:50'],
             'image' => ['nullable','image','max:4096'],
         ]);
+
+        if (empty($data['sku'])) {
+            $data['sku'] = InventoryItem::generateUniqueSku();
+        }
 
         $path = $item->image_path;
         if ($request->hasFile('image')) {
@@ -158,9 +168,10 @@ class InventoryController extends Controller
 
         $item->update([
             'name' => $data['name'],
-            'sku' => $data['sku'] ?? null,
+            'sku' => $data['sku'],
             'unit' => $data['unit'],
             'min_stock' => $data['min_stock'] ?? 0,
+            'selling_price' => $data['selling_price'] ?? 0,
             'category' => $data['category'] ?? null,
             'image_path' => $path,
         ]);
@@ -375,22 +386,71 @@ class InventoryController extends Controller
             'notes' => ['nullable','string','max:255'],
         ]);
 
-        // Note: Changing item_id is restricted to simplify logic. Delete and re-create if item is wrong.
-        // We only allow updating details.
-        
-        $usage->update([
-            'property_id' => $data['property_id'],
-            'usage_date' => $data['usage_date'],
-            'quantity_used' => $data['quantity_used'],
-            'notes' => $data['notes'] ?? null,
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function() use ($usage, $data) {
+            $item = $usage->item; // Load item
+            $unitCost = $item->selling_price > 0 ? (float) $item->selling_price : (float) $item->average_unit_cost;
+            $totalCost = round($unitCost * (float)$data['quantity_used'], 2);
+
+            $usage->update([
+                'property_id' => $data['property_id'],
+                'usage_date' => $data['usage_date'],
+                'quantity_used' => $data['quantity_used'],
+                'total_cost' => $totalCost,
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            // Sync corresponding out stock movement
+            $movement = InventoryStockMovement::where('reference_type', 'usage')
+                ->where('reference_id', $usage->id)
+                ->first();
+
+            if ($movement) {
+                $movement->update([
+                    'property_id' => $data['property_id'],
+                    'quantity' => $data['quantity_used'],
+                    'movement_date' => $data['usage_date'],
+                    'total_cost' => $totalCost,
+                    'notes' => $data['notes'] ?? null,
+                ]);
+            }
+
+            // Sync corresponding expense
+            if ($usage->expense_id) {
+                $expense = PropertyExpense::find($usage->expense_id);
+                if ($expense) {
+                    $expense->update([
+                        'property_id' => $data['property_id'],
+                        'amount' => $totalCost,
+                        'expense_date' => $data['usage_date'],
+                        'notes' => $data['notes'] ?? ("Inventory usage: " . $item->name),
+                        'description' => "Penggunaan {$item->name} - {$data['quantity_used']} {$item->unit}",
+                    ]);
+                }
+            }
+        });
 
         return back()->with('success', 'Data pemakaian diperbarui');
     }
 
     public function usagesDestroy(InventoryUsage $usage)
     {
-        $usage->delete();
+        \Illuminate\Support\Facades\DB::transaction(function() use ($usage) {
+            // Delete related out movements
+            InventoryStockMovement::where('reference_type', 'usage')
+                ->where('reference_id', $usage->id)
+                ->delete();
+
+            // Delete related expense
+            if ($usage->expense_id) {
+                $expense = PropertyExpense::find($usage->expense_id);
+                if ($expense) {
+                    $expense->delete();
+                }
+            }
+
+            $usage->delete();
+        });
+
         return back()->with('success', 'Data pemakaian dihapus');
     }
 
@@ -410,14 +470,34 @@ class InventoryController extends Controller
             'property_id' => ['nullable','exists:properties,id'],
         ]);
 
-        $purchase->update([
-            'quantity' => $data['quantity'],
-            'unit_cost' => $data['unit_cost'],
-            'movement_date' => $data['movement_date'],
-            'vendor_name' => $data['vendor_name'] ?? null,
-            'notes' => $data['notes'] ?? null,
-            'property_id' => $data['property_id'] ?? null,
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function() use ($purchase, $data) {
+            $totalCost = round($data['quantity'] * $data['unit_cost'], 2);
+
+            $purchase->update([
+                'quantity' => $data['quantity'],
+                'unit_cost' => $data['unit_cost'],
+                'total_cost' => $totalCost,
+                'movement_date' => $data['movement_date'],
+                'vendor_name' => $data['vendor_name'] ?? null,
+                'notes' => $data['notes'] ?? null,
+                'property_id' => $data['property_id'] ?? null,
+            ]);
+
+            // Sync corresponding expense
+            if ($purchase->reference_type === 'expense' && $purchase->reference_id) {
+                $expense = PropertyExpense::find($purchase->reference_id);
+                if ($expense) {
+                    $item = $purchase->item;
+                    $expense->update([
+                        'amount' => $totalCost,
+                        'expense_date' => $data['movement_date'],
+                        'vendor_name' => $data['vendor_name'] ?? null,
+                        'notes' => $data['notes'] ?? null,
+                        'description' => 'Pembelian ' . $item->name . ' qty ' . $data['quantity'] . ' ' . $item->unit,
+                    ]);
+                }
+            }
+        });
 
         return back()->with('success', 'Data pembelian diperbarui');
     }
@@ -427,7 +507,19 @@ class InventoryController extends Controller
          if ($purchase->type !== 'purchase') {
             abort(403);
         }
-        $purchase->delete();
+
+        \Illuminate\Support\Facades\DB::transaction(function() use ($purchase) {
+            // Delete corresponding expense
+            if ($purchase->reference_type === 'expense' && $purchase->reference_id) {
+                $expense = PropertyExpense::find($purchase->reference_id);
+                if ($expense) {
+                    $expense->delete();
+                }
+            }
+
+            $purchase->delete();
+        });
+
         return back()->with('success', 'Data pembelian dihapus');
     }
 }

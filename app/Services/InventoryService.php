@@ -84,7 +84,7 @@ class InventoryService
     {
         return DB::transaction(function () use ($itemId, $propertyId, $date, $quantity, $userId, $notes) {
             $item = InventoryItem::lockForUpdate()->findOrFail($itemId);
-            $unitCost = (float) $item->average_unit_cost;
+            $unitCost = $item->selling_price > 0 ? (float) $item->selling_price : (float) $item->average_unit_cost;
             $totalCost = round($unitCost * $quantity, 2);
 
             // Movement OUT
