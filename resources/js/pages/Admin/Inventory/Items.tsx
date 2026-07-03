@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { Pencil, Trash2, ArrowUpDown, Search, Package, AlertCircle, CheckCircle2, Save, X, Plus, Coins, Tag, UploadCloud, Layers } from 'lucide-react';
+import { Pencil, Trash2, ArrowUpDown, Search, Package, AlertCircle, CheckCircle2, Save, X, Plus, Coins, Tag, UploadCloud, Layers, LayoutGrid, List } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
@@ -60,6 +60,9 @@ export default function Items({ items }: ItemsProps) {
   const [editImage, setEditImage] = useState<File | null>(null);
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // View mode switcher: 'card' (default) or 'list'
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
 
   // Sorting and searching
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
@@ -293,7 +296,7 @@ export default function Items({ items }: ItemsProps) {
           </CardContent>
         </Card>
 
-        {/* List Section Redesigned to Grid Cards */}
+        {/* List Section with Grid & List View Toggle */}
         <div className="space-y-4">
           {/* Toolbar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/80 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-100">
@@ -302,11 +305,37 @@ export default function Items({ items }: ItemsProps) {
               <p className="text-xs text-slate-500">Menampilkan {filteredItems.length} dari total {items.length} item terdaftar.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              {/* View Mode Switcher */}
+              <div className="flex items-center border border-slate-200 rounded-xl p-0.5 bg-slate-50 mr-1 shadow-inner">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewMode('card')}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 h-8 gap-1.5 text-xs font-semibold transition-all",
+                    viewMode === 'card' ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700 hover:bg-transparent"
+                  )}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" /> Card
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 h-8 gap-1.5 text-xs font-semibold transition-all",
+                    viewMode === 'list' ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700 hover:bg-transparent"
+                  )}
+                >
+                  <List className="h-3.5 w-3.5" /> List
+                </Button>
+              </div>
+
               <div className="relative flex-1 sm:w-64">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                 <Input
                   type="search"
-                  placeholder="Cari berdasarkan nama, SKU, kategori..."
+                  placeholder="Cari item..."
                   className="pl-9 bg-slate-50/50 border-slate-200 focus:bg-white rounded-xl text-sm"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -323,20 +352,20 @@ export default function Items({ items }: ItemsProps) {
             </div>
           </div>
 
-          {/* Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {filteredItems.length === 0 ? (
-              <div className="col-span-full py-16 text-center bg-white/50 backdrop-blur-sm rounded-2xl border border-dashed border-slate-200">
-                <Package className="h-12 w-12 mx-auto text-slate-300 mb-3" />
-                <p className="font-medium text-slate-600">Tidak ada item ditemukan</p>
-                <p className="text-xs text-slate-400 mt-1">Coba sesuaikan kata kunci pencarian Anda.</p>
-              </div>
-            ) : (
-              filteredItems.map((item) => {
+          {/* Cards or List Grid */}
+          {filteredItems.length === 0 ? (
+            <div className="py-16 text-center bg-white/50 backdrop-blur-sm rounded-2xl border border-dashed border-slate-200">
+              <Package className="h-12 w-12 mx-auto text-slate-300 mb-3" />
+              <p className="font-medium text-slate-600">Tidak ada item ditemukan</p>
+              <p className="text-xs text-slate-400 mt-1">Coba sesuaikan kata kunci pencarian Anda.</p>
+            </div>
+          ) : viewMode === 'card' ? (
+            /* CARD GRID VIEW MODE */
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {filteredItems.map((item) => {
                 const isEditing = editingId === item.id;
 
                 if (isEditing) {
-                  // EDIT MODE CARD
                   return (
                     <Card key={item.id} className="relative overflow-hidden bg-white border-2 border-primary shadow-xl rounded-2xl flex flex-col h-full ring-2 ring-primary/20 animate-in fade-in zoom-in-95 duration-200">
                       <div className="p-4 space-y-4 flex-1 flex flex-col justify-between">
@@ -439,11 +468,8 @@ export default function Items({ items }: ItemsProps) {
                   );
                 }
 
-                // VIEW MODE CARD
                 return (
-                  <Card key={item.id} className="relative overflow-hidden bg-white/80 hover:bg-white backdrop-blur-sm border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-xl rounded-2xl flex flex-col h-full group transition-all duration-300">
-                    
-                    {/* Item Image Container */}
+                  <Card key={item.id} className="relative overflow-hidden bg-white/80 hover:bg-white backdrop-blur-sm border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-xl rounded-2xl flex flex-col h-full group transition-all duration-300 animate-in fade-in zoom-in-95 duration-200">
                     <div className="relative h-44 w-full bg-slate-100 overflow-hidden flex items-center justify-center border-b border-slate-150">
                       {item.image_path ? (
                         <img
@@ -458,7 +484,6 @@ export default function Items({ items }: ItemsProps) {
                         </div>
                       )}
                       
-                      {/* Floating Stock alerts */}
                       {item.is_below_min && (
                         <Badge variant="destructive" className="absolute top-3 right-3 shadow-md shadow-red-500/20 text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-full animate-pulse">
                           Low Stock
@@ -466,21 +491,17 @@ export default function Items({ items }: ItemsProps) {
                       )}
                     </div>
 
-                    {/* Card Description */}
                     <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
                       <div className="space-y-2">
-                        {/* Kategori */}
                         <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                           <Layers className="h-3 w-3" />
                           <span>{item.category || 'Tanpa Kategori'}</span>
                         </div>
 
-                        {/* Nama Barang */}
                         <h4 className="font-bold text-slate-800 text-base leading-snug group-hover:text-primary transition-colors line-clamp-2" title={item.name}>
                           {item.name}
                         </h4>
 
-                        {/* SKU */}
                         <div className="flex items-center gap-1 text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md w-max border border-slate-100">
                           <Tag className="h-3 w-3" />
                           <span>{item.sku || '-'}</span>
@@ -489,7 +510,6 @@ export default function Items({ items }: ItemsProps) {
 
                       <Separator className="bg-slate-100" />
 
-                      {/* Stock & Price info grid */}
                       <div className="grid grid-cols-2 gap-2">
                         <div className="flex flex-col">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stok Aktual</span>
@@ -515,7 +535,6 @@ export default function Items({ items }: ItemsProps) {
 
                       <Separator className="bg-slate-100" />
 
-                      {/* Info limit min stock */}
                       <div className="flex justify-between items-center text-[11px] text-slate-400 font-medium">
                         <span>Min. Stok: {Number(item.min_stock)} {item.unit}</span>
                         <div className="flex gap-1.5">
@@ -538,12 +557,230 @@ export default function Items({ items }: ItemsProps) {
                         </div>
                       </div>
                     </div>
-
                   </Card>
                 );
-              })
-            )}
-          </div>
+              })}
+            </div>
+          ) : (
+            /* LIST VIEW MODE WITH LARGE IMAGE AND FULL INLINE EDIT */
+            <div className="flex flex-col gap-4">
+              {filteredItems.map((item) => {
+                const isEditing = editingId === item.id;
+
+                if (isEditing) {
+                  return (
+                    <Card key={item.id} className="relative overflow-hidden bg-white border-2 border-primary shadow-xl rounded-2xl flex flex-col sm:flex-row h-full ring-2 ring-primary/20 animate-in fade-in slide-in-from-bottom duration-250">
+                      {/* Left: Large Image */}
+                      <div className="relative h-44 sm:h-auto w-full sm:w-48 bg-slate-150 overflow-hidden flex items-center justify-center shrink-0 border-b sm:border-b-0 sm:border-r border-slate-200">
+                        {item.image_path ? (
+                          <img
+                            src={`/storage/${item.image_path}`}
+                            alt={item.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center gap-1.5 text-slate-400">
+                            <Package className="h-10 w-10 stroke-[1.5]" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: Form Inputs */}
+                      <div className="p-5 flex-1 flex flex-col justify-between gap-4">
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <span className="text-xs font-bold text-primary flex items-center gap-1">
+                            <Pencil className="h-3 w-3" /> EDIT ITEM INLINE (LIST)
+                          </span>
+                          <button onClick={cancelEditing} className="text-slate-400 hover:text-slate-600 transition-colors">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold text-slate-600">Nama Item</Label>
+                            <Input
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              className="h-8 text-sm rounded-lg"
+                              required
+                            />
+                            {editErrors.name && <p className="text-[10px] text-red-500">{editErrors.name}</p>}
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold text-slate-600">Kategori</Label>
+                            <Input
+                              value={editCategory}
+                              onChange={(e) => setEditCategory(e.target.value)}
+                              className="h-8 text-sm rounded-lg"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold text-slate-600">SKU</Label>
+                            <Input
+                              value={editSku}
+                              placeholder="Auto jika kosong"
+                              onChange={(e) => setEditSku(e.target.value)}
+                              className="h-8 text-xs rounded-lg font-mono"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold text-slate-600">Satuan</Label>
+                            <Input
+                              value={editUnit}
+                              onChange={(e) => setEditUnit(e.target.value)}
+                              className="h-8 text-xs rounded-lg"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold text-slate-600">Min Stok Alert</Label>
+                            <Input
+                              type="number"
+                              value={editMinStock}
+                              onChange={(e) => setEditMinStock(e.target.value)}
+                              className="h-8 text-xs rounded-lg"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold text-slate-600">Harga Jual (Rp)</Label>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-2 text-xs text-slate-400">Rp</span>
+                              <Input
+                                type="number"
+                                value={editSellingPrice}
+                                onChange={(e) => setEditSellingPrice(e.target.value)}
+                                className="h-8 pl-7 text-xs rounded-lg"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end pt-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold text-slate-600">Update Foto</Label>
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => setEditImage(e.target.files?.[0] || null)}
+                              className="h-8 text-xs rounded-lg file:mr-2 file:py-0.5 file:px-1.5 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-primary/10 file:text-primary cursor-pointer"
+                            />
+                          </div>
+                          <div className="flex gap-2 justify-end">
+                            <Button size="sm" variant="ghost" onClick={cancelEditing} className="rounded-xl hover:bg-slate-50 text-slate-500 text-xs px-4">
+                              Batal
+                            </Button>
+                            <Button size="sm" disabled={isUpdating} onClick={() => handleUpdateSubmit(item.id)} className="rounded-xl bg-primary text-white text-xs gap-1 px-4 h-8">
+                              <Save className="h-3.5 w-3.5" /> Simpan
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                }
+
+                return (
+                  <Card key={item.id} className="relative overflow-hidden bg-white/80 hover:bg-white backdrop-blur-sm border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-lg rounded-2xl flex flex-col sm:flex-row group transition-all duration-300 animate-in fade-in slide-in-from-bottom duration-200">
+                    {/* Left: Large Photo */}
+                    <div className="relative h-44 sm:h-auto w-full sm:w-48 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 border-b sm:border-b-0 sm:border-r border-slate-150">
+                      {item.image_path ? (
+                        <img
+                          src={`/storage/${item.image_path}`}
+                          alt={item.name}
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center gap-1.5 text-slate-400">
+                          <Package className="h-10 w-10 stroke-[1.5]" />
+                          <span className="text-[10px] uppercase font-semibold tracking-wider">No Image</span>
+                        </div>
+                      )}
+                      
+                      {item.is_below_min && (
+                        <Badge variant="destructive" className="absolute top-3 right-3 shadow-md shadow-red-500/20 text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-full animate-pulse">
+                          Low Stock
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Right: Details */}
+                    <div className="p-5 flex-1 flex flex-col justify-between gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            <Layers className="h-3 w-3" />
+                            <span>{item.category || 'Tanpa Kategori'}</span>
+                          </div>
+                          <h4 className="font-bold text-slate-800 text-lg leading-snug group-hover:text-primary transition-colors">
+                            {item.name}
+                          </h4>
+                          <div className="flex items-center gap-1 text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md w-max border border-slate-100">
+                            <Tag className="h-3 w-3" />
+                            <span>{item.sku || '-'}</span>
+                          </div>
+                        </div>
+                        
+                        {/* Actions */}
+                        <div className="flex gap-1.5 self-end sm:self-start">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-xl"
+                            onClick={() => startEditing(item)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                            onClick={() => initiateDelete(item)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-6 pt-3 border-t border-slate-100">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stok Aktual</span>
+                          <div className="flex items-baseline gap-1 mt-0.5">
+                            <span className={cn(
+                              "text-xl font-black",
+                              item.is_below_min ? "text-red-500" : "text-green-600"
+                            )}>
+                              {Number(item.current_stock)}
+                            </span>
+                            <span className="text-xs text-slate-500 font-semibold">{item.unit}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-col border-l border-slate-100 pl-6">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-0.5">
+                            <Coins className="h-3 w-3" /> Harga Jual
+                          </span>
+                          <span className="text-base font-bold text-slate-700 mt-0.5">
+                            {formatRupiah(item.selling_price)}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col border-l border-slate-100 pl-6">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Batas Minimal</span>
+                          <span className="text-sm font-semibold text-slate-500 mt-0.5">
+                            {Number(item.min_stock)} {item.unit}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
 
       </div>

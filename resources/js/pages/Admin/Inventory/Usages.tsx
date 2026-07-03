@@ -53,6 +53,7 @@ export default function Usages({ items, properties, usages, usageStats, filters 
     const [deleteId, setDeleteId] = useState<number | null>(null);
     const [search, setSearch] = useState(filters?.search || '');
     const [sortDirection, setSortDirection] = useState(filters?.direction || 'desc');
+    const [mounted, setMounted] = useState(false);
 
     // Debounce search
     useEffect(() => {
@@ -72,10 +73,22 @@ export default function Usages({ items, properties, usages, usageStats, filters 
     const { data, setData, post, put, delete: destroy, processing, reset, errors, clearErrors } = useForm({
         inventory_item_id: '',
         property_id: '',
-        usage_date: new Date().toISOString().slice(0, 10),
+        usage_date: '',
         quantity_used: '',
         notes: '',
     });
+
+    useEffect(() => {
+        setMounted(true);
+        if (!data.usage_date) {
+            setData('usage_date', new Date().toISOString().slice(0, 10));
+        }
+    }, []);
+
+    const formatDate = (dateStr: string) => {
+        if (!mounted || !dateStr) return '';
+        return new Date(dateStr).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' });
+    };
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -104,10 +117,10 @@ export default function Usages({ items, properties, usages, usageStats, filters 
     const openEdit = (item: any) => {
         setEditItem(item);
         setData({
-            inventory_item_id: item.inventory_item_id,
-            property_id: item.property_id,
+            inventory_item_id: item.inventory_item_id?.toString() || '',
+            property_id: item.property_id?.toString() || '',
             usage_date: item.usage_date.split('T')[0], // Ensure YYYY-MM-DD
-            quantity_used: item.quantity_used,
+            quantity_used: String(item.quantity_used),
             notes: item.notes || '',
         });
         clearErrors();
@@ -328,7 +341,7 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                                     <div className="font-bold text-slate-800 text-sm">{u.item?.name}</div>
                                                     <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-1.5">
                                                         <Badge variant="secondary" className="text-[10px] font-semibold bg-slate-100/80 text-slate-600 border-none px-1.5 py-0 rounded-md">{u.property?.name}</Badge>
-                                                        <span suppressHydrationWarning>{new Date(u.usage_date).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                                        <span>{formatDate(u.usage_date)}</span>
                                                     </div>
                                                 </div>
                                                 <DropdownMenu>
@@ -391,7 +404,7 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                             usages?.data?.map((u: any) => (
                                                 <TableRow key={u.id} className="hover:bg-slate-50/50 border-slate-100 transition-colors group">
                                                     <TableCell className="whitespace-nowrap text-slate-600 text-xs">
-                                                        {new Date(u.usage_date).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                        {formatDate(u.usage_date)}
                                                     </TableCell>
                                                     <TableCell>
                                                         <div className="font-semibold text-slate-800 text-sm">{u.item?.name}</div>

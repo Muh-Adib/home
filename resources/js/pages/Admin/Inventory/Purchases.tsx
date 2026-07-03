@@ -50,6 +50,7 @@ function rp(amount: number) {
 export default function Purchases({ items, properties, purchases, filters }: any) {
   const [editItem, setEditItem] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const { data, setData, post, put, delete: destroy, processing, reset, errors, clearErrors } = useForm({
     inventory_item_id: '',
@@ -62,10 +63,16 @@ export default function Purchases({ items, properties, purchases, filters }: any
   });
 
   useEffect(() => {
+    setMounted(true);
     if (!data.movement_date) {
       setData('movement_date', new Date().toISOString().slice(0, 10));
     }
   }, []);
+
+  const formatDate = (dateStr: string) => {
+    if (!mounted || !dateStr) return '';
+    return new Date(dateStr).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' });
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,11 +101,11 @@ export default function Purchases({ items, properties, purchases, filters }: any
   const openEdit = (item: any) => {
     setEditItem(item);
     setData({
-      inventory_item_id: item.inventory_item_id,
+      inventory_item_id: item.inventory_item_id?.toString() || '',
       property_id: item.property_id || '',
       movement_date: item.movement_date.split('T')[0],
-      quantity: item.quantity,
-      unit_cost: item.unit_cost,
+      quantity: String(item.quantity),
+      unit_cost: String(item.unit_cost),
       vendor_name: item.vendor_name || '',
       notes: item.notes || '',
     });
@@ -120,7 +127,7 @@ export default function Purchases({ items, properties, purchases, filters }: any
       if (search !== (filters?.search || '')) {
         router.get('/admin/inventory/purchases', { search, direction: sortDirection }, { preserveState: true, replace: true });
       }
-    }, 1500); // 1.5 seconds is more responsive than 3s
+    }, 1500);
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -303,8 +310,8 @@ export default function Purchases({ items, properties, purchases, filters }: any
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="font-bold text-slate-800 text-sm">{m.item?.name}</div>
-                          <div className="text-[11px] text-slate-400 mt-1" suppressHydrationWarning suppressContentEditableWarning>
-                            {new Date(m.movement_date).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}
+                          <div className="text-[11px] text-slate-400 mt-1">
+                            {formatDate(m.movement_date)}
                           </div>
                         </div>
                         <DropdownMenu>
@@ -330,7 +337,7 @@ export default function Purchases({ items, properties, purchases, filters }: any
                         </div>
                         <div>
                           <div className="text-slate-400 font-medium text-right">Total Biaya</div>
-                          <div className="font-bold text-right text-emerald-600 mt-0.5" suppressHydrationWarning>{rp(Number(m.total_cost))}</div>
+                          <div className="font-bold text-right text-emerald-600 mt-0.5">{rp(Number(m.total_cost))}</div>
                         </div>
                       </div>
                       {m.vendor_name && (
@@ -365,8 +372,8 @@ export default function Purchases({ items, properties, purchases, filters }: any
                     ) : (
                       purchases?.data?.map((m: any) => (
                         <TableRow key={m.id} className="hover:bg-slate-50/50 border-slate-100 transition-colors group">
-                          <TableCell className="whitespace-nowrap text-slate-600 text-xs" suppressHydrationWarning>
-                            {new Date(m.movement_date).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}
+                          <TableCell className="whitespace-nowrap text-slate-600 text-xs">
+                            {formatDate(m.movement_date)}
                           </TableCell>
                           <TableCell>
                             <div className="font-semibold text-slate-800 text-sm">{m.item?.name}</div>
@@ -375,8 +382,8 @@ export default function Purchases({ items, properties, purchases, filters }: any
                           <TableCell className="text-slate-600 text-sm">
                             {Number(m.quantity)} <span className="text-slate-400 text-xs font-medium">{m.item?.unit}</span>
                           </TableCell>
-                          <TableCell className="text-slate-600 text-sm" suppressHydrationWarning>{rp(Number(m.unit_cost))}</TableCell>
-                          <TableCell className="text-right font-bold text-emerald-600 text-sm" suppressHydrationWarning>
+                          <TableCell className="text-slate-600 text-sm">{rp(Number(m.unit_cost))}</TableCell>
+                          <TableCell className="text-right font-bold text-emerald-600 text-sm">
                             {rp(Number(m.total_cost))}
                           </TableCell>
                           <TableCell className="text-slate-500 text-xs">{m.vendor_name || '-'}</TableCell>
