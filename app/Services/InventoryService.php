@@ -83,6 +83,7 @@ class InventoryService
     public function recordUsage(int $itemId, int $propertyId, string $date, float $quantity, ?int $userId, ?string $notes = null): InventoryUsage
     {
         return DB::transaction(function () use ($itemId, $propertyId, $date, $quantity, $userId, $notes) {
+            $formattedDate = \Carbon\Carbon::parse($date)->toDateString();
             $item = InventoryItem::lockForUpdate()->findOrFail($itemId);
             $unitCost = $item->selling_price > 0 ? (float) $item->selling_price : (float) $item->average_unit_cost;
             $totalCost = round($unitCost * $quantity, 2);
@@ -95,7 +96,7 @@ class InventoryService
                 'quantity' => $quantity,
                 'unit_cost' => $unitCost,
                 'total_cost' => $totalCost,
-                'movement_date' => $date,
+                'movement_date' => $formattedDate,
                 'reference_type' => 'usage',
                 'reference_id' => null,
                 'notes' => $notes,
@@ -103,11 +104,11 @@ class InventoryService
             ]);
 
             // Cek apakah usage untuk kombinasi ini sudah ada
-            $usage = InventoryUsage::where([
-                'inventory_item_id' => $itemId,
-                'property_id' => $propertyId,
-                'usage_date' => $date,
-            ])->lockForUpdate()->first();
+            $usage = InventoryUsage::where('inventory_item_id', $itemId)
+                ->where('property_id', $propertyId)
+                ->whereDate('usage_date', $formattedDate)
+                ->lockForUpdate()
+                ->first();
 
             $isNewUsage = !$usage;
             $oldTotalCost = $usage ? (float)$usage->total_cost : 0;
@@ -124,7 +125,7 @@ class InventoryService
                 $usage = InventoryUsage::create([
                     'inventory_item_id' => $itemId,
                     'property_id' => $propertyId,
-                    'usage_date' => $date,
+                    'usage_date' => $formattedDate,
                     'quantity_used' => $quantity,
                     'unit_cost_snapshot' => $unitCost,
                     'total_cost' => $totalCost,
@@ -150,7 +151,7 @@ class InventoryService
     {
         try {
             // Description untuk expense
-            $description = "Penggunaan {$item->name} - {$usage->quantity_used} {$item->unit}";
+            $description = "Penggunaan {$item->name} - " . (float)$usage->quantity_used . " {$item->unit}";
 
             if ($isNewUsage || !$usage->expense_id) {
                 // Buat expense baru

@@ -13,6 +13,8 @@ return new class extends Migration
      */
     public function up(): void
     {
+        Schema::disableForeignKeyConstraints();
+
         // Find a fallback user to act as the owner (usually ID 1 or first admin/user)
         $owner = User::whereIn('role', ['super_admin', 'property_owner'])->first() ?? User::first();
         $ownerId = $owner ? $owner->id : 1;
@@ -52,6 +54,8 @@ return new class extends Migration
                 'status' => 'inactive',
             ]);
         }
+
+        Schema::enableForeignKeyConstraints();
     }
 
     /**
