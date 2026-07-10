@@ -4,9 +4,14 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Amenity;
+use App\Models\BankAccount;
+use App\Models\Income;
+use App\Models\PaymentMethod;
 use App\Models\Property;
+use App\Models\PropertyExpense;
 use App\Models\User;
 use App\Services\AvailabilityService;
+use App\Services\PropertyFinancialService;
 use App\Services\PropertyMediaService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -24,7 +29,8 @@ class PropertyManagementController extends Controller
      */
     public function __construct(
         private AvailabilityService $availabilityService,
-        private PropertyMediaService $mediaService
+        private PropertyMediaService $mediaService,
+        private PropertyFinancialService $financialService
     ) {}
 
     /**
@@ -110,10 +116,24 @@ class PropertyManagementController extends Controller
         }
 
         $amenities = Amenity::active()->ordered()->get();
+        $bankAccounts = BankAccount::all()->map(function ($acc) {
+            return [
+                'id' => $acc->id,
+                'bank_name' => $acc->bank_name,
+                'account_number' => $acc->account_number,
+                'account_holder' => $acc->account_holder,
+                'label' => $acc->label ?? ($acc->bank_name.' - '.$acc->account_number),
+                'payment_method_id' => $acc->payment_method_id,
+            ];
+        });
+
+        $paymentMethods = PaymentMethod::where('type', 'bank_transfer')->active()->get();
 
         return Inertia::render('Admin/Properties/Create', [
             'amenities' => $amenities,
             'owners' => $owners,
+            'bankAccounts' => $bankAccounts,
+            'paymentMethods' => $paymentMethods,
         ]);
     }
 
@@ -162,6 +182,16 @@ class PropertyManagementController extends Controller
             'min_stay_weekend' => 'required|integer|min:1',
             'min_stay_peak' => 'required|integer|min:1',
             'is_featured' => 'boolean',
+            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'ownership_model' => 'required|in:owned,rented,partnership',
+            'initial_build_capital' => 'nullable|numeric|min:0',
+            'lease_capital' => 'nullable|numeric|min:0',
+            'monthly_rent_cost' => 'nullable|numeric|min:0',
+            'monthly_mortgage_cost' => 'nullable|numeric|min:0',
+            'mortgage_interest_monthly' => 'nullable|numeric|min:0',
+            'owner_split_pct' => 'nullable|numeric|min:0|max:100',
+            'investor_split_pct' => 'nullable|numeric|min:0|max:100',
             'seo_title' => 'nullable|string|max:255',
             'seo_description' => 'nullable|string|max:255',
             'amenities' => 'array',
@@ -266,6 +296,7 @@ class PropertyManagementController extends Controller
             $property->load([
                 'owner',
                 'amenities',
+                'bankAccount',
                 'media' => function ($query) {
                     $query->orderBy('display_order');
                 },
@@ -279,6 +310,39 @@ class PropertyManagementController extends Controller
                 },
             ]);
 
+            // Calculate BEP / Cumulative Net Profit
+            $allTimeIncome = Income::where('property_id', $property->id)->sum('amount');
+            $allTimeExpense = PropertyExpense::where('property_id', $property->id)->sum('amount');
+
+            $firstTxDate = Income::where('property_id', $property->id)->min('income_date')
+                ?? (optional($property->created_at)->toDateString() ?? now()->toDateString());
+            $monthsSinceStart = max(1, round(Carbon::parse($firstTxDate)->diffInMonths(now())));
+
+            $allTimeRentOrInterest = 0;
+            if ($property->ownership_model === 'rented') {
+                $allTimeRentOrInterest = $property->monthly_rent_cost * $monthsSinceStart;
+            } elseif ($property->ownership_model === 'owned') {
+                $allTimeRentOrInterest = $property->mortgage_interest_monthly * $monthsSinceStart;
+            }
+
+            $cumulativeProfit = $allTimeIncome - $allTimeExpense - $allTimeRentOrInterest;
+            $capital = $property->initial_build_capital + $property->lease_capital;
+            $bepPct = $capital > 0 ? ($cumulativeProfit / $capital) * 100 : 0;
+            $avgMonthlyProfit = $monthsSinceStart > 0 ? ($cumulativeProfit / $monthsSinceStart) : 0;
+            $remainingMonths = ($avgMonthlyProfit > 0 && $cumulativeProfit < $capital) ? round(($capital - $cumulativeProfit) / $avgMonthlyProfit, 1) : 0;
+
+            $bepData = [
+                'initial_build_capital' => (int) $property->initial_build_capital,
+                'lease_capital' => (int) $property->lease_capital,
+                'total_capital' => (int) $capital,
+                'cumulative_profit' => (float) $cumulativeProfit,
+                'bep_percentage' => round($bepPct, 1),
+                'avg_monthly_profit' => round($avgMonthlyProfit, 1),
+                'remaining_months' => $remainingMonths,
+                'all_time_income' => (float) $allTimeIncome,
+                'all_time_expense' => (float) $allTimeExpense,
+            ];
+
             // Calculate property statistics with error handling
             $stats = [
                 'total_bookings' => $property->bookings()->count() ?? 0,
@@ -286,10 +350,9 @@ class PropertyManagementController extends Controller
                 'total_revenue' => $property->bookings()
                     ->where('booking_status', '!=', 'cancelled')
                     ->sum('total_amount') ?? 0,
-                'average_rating' => $property->bookings()
-                    ->whereNotNull('guest_rating')
-                    ->avg('guest_rating') ?? 0,
+                'average_rating' => $property->reviews()->avg('rating') ?? 0,
                 'occupancy_rate' => $this->calculateOccupancyRate($property),
+                'bep_data' => $bepData,
             ];
 
             // Ensure all required data exists with defaults
@@ -320,10 +383,18 @@ class PropertyManagementController extends Controller
                 'seo_title' => $property->seo_title ?? '',
                 'seo_description' => $property->seo_description ?? '',
                 'owner' => $property->owner ?? null,
-                'amenities' => $property->amenities ?? [],
+                'amenities' => $property->getRelation('amenities') ?? [],
                 'media' => $property->media ?? [],
                 'bookings' => $property->bookings ?? [],
                 'seasonalRates' => $property->seasonalRates ?? [],
+                'initial_build_capital' => (int) $property->initial_build_capital,
+                'lease_capital' => (int) $property->lease_capital,
+                'current_keybox_code' => $property->current_keybox_code ?? '',
+                'checkin_instructions' => $property->checkin_instructions ?? null,
+                'ical_import_urls' => $property->ical_import_urls ?? [],
+                'ical_export_token' => $property->ical_export_token ?? '',
+                'bank_account_id' => $property->bank_account_id,
+                'bank_account' => $property->bankAccount,
             ];
 
             return Inertia::render('Admin/Properties/Show', [
@@ -367,6 +438,11 @@ class PropertyManagementController extends Controller
                     'media' => [],
                     'bookings' => [],
                     'seasonalRates' => [],
+                    'current_keybox_code' => '',
+                    'checkin_instructions' => null,
+                    'ical_import_urls' => [],
+                    'ical_export_token' => '',
+                    'bank_account' => null,
                 ],
                 'stats' => [
                     'total_bookings' => 0,
@@ -380,10 +456,45 @@ class PropertyManagementController extends Controller
     }
 
     /**
+     * Financial Dashboard for a property (ROI, BEP, revenue trends).
+     * Access: super_admin, property_manager, property_owner (own properties).
+     */
+    public function financial(Request $request, Property $property): Response
+    {
+        $this->authorize('viewFinancials', $property);
+
+        $period = $request->input('period', '12m');
+        $financialData = $this->financialService->getFinancialData($property, $period);
+
+        return Inertia::render('Admin/Properties/Financial', [
+            'property' => [
+                'id' => $property->id,
+                'name' => $property->name,
+                'slug' => $property->slug,
+                'address' => $property->address,
+                'status' => $property->status,
+                'base_rate' => (int) $property->base_rate,
+                'ownership_model' => $property->ownership_model,
+                'owner_split_pct' => (float) $property->owner_split_pct,
+                'investor_split_pct' => (float) $property->investor_split_pct,
+                'initial_build_capital' => (int) $property->initial_build_capital,
+                'lease_capital' => (int) $property->lease_capital,
+                'monthly_rent_cost' => (int) $property->monthly_rent_cost,
+                'monthly_mortgage_cost' => (int) $property->monthly_mortgage_cost,
+                'mortgage_interest_monthly' => (int) $property->mortgage_interest_monthly,
+                'owner' => $property->owner,
+            ],
+            'financial' => $financialData,
+            'period' => $period,
+        ]);
+    }
+
+    /**
      * Calculate occupancy rate for property
      */
     private function calculateOccupancyRate(Property $property): float
     {
+
         $startDate = now()->subMonths(12)->startOfMonth();
         $endDate = now()->endOfMonth();
 
@@ -408,6 +519,18 @@ class PropertyManagementController extends Controller
 
         $property->load(['amenities', 'media']);
         $amenities = Amenity::active()->ordered()->get();
+        $bankAccounts = BankAccount::all()->map(function ($acc) {
+            return [
+                'id' => $acc->id,
+                'bank_name' => $acc->bank_name,
+                'account_number' => $acc->account_number,
+                'account_holder' => $acc->account_holder,
+                'label' => $acc->label ?? ($acc->bank_name.' - '.$acc->account_number),
+                'payment_method_id' => $acc->payment_method_id,
+            ];
+        });
+
+        $paymentMethods = PaymentMethod::where('type', 'bank_transfer')->active()->get();
 
         // Pass owners for super_admin (same as create)
         $owners = $request->user()->hasRole('super_admin')
@@ -418,6 +541,8 @@ class PropertyManagementController extends Controller
             'property' => $property,
             'amenities' => $amenities,
             'owners' => $owners,
+            'bankAccounts' => $bankAccounts,
+            'paymentMethods' => $paymentMethods,
             'defaultCheckinTemplate' => Property::getDefaultCheckinInstructionsTemplate(),
             'currentKeyboxInfo' => [
                 'code' => $property->current_keybox_code,
@@ -471,6 +596,16 @@ class PropertyManagementController extends Controller
             'min_stay_weekend' => 'required|integer|min:1',
             'min_stay_peak' => 'required|integer|min:1',
             'is_featured' => 'boolean',
+            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'ownership_model' => 'required|in:owned,rented,partnership',
+            'initial_build_capital' => 'nullable|numeric|min:0',
+            'lease_capital' => 'nullable|numeric|min:0',
+            'monthly_rent_cost' => 'nullable|numeric|min:0',
+            'monthly_mortgage_cost' => 'nullable|numeric|min:0',
+            'mortgage_interest_monthly' => 'nullable|numeric|min:0',
+            'owner_split_pct' => 'nullable|numeric|min:0|max:100',
+            'investor_split_pct' => 'nullable|numeric|min:0|max:100',
             'seo_title' => 'nullable|string|max:255',
             'seo_description' => 'nullable|string',
             'amenities' => 'array',

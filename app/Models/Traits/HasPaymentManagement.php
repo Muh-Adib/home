@@ -8,7 +8,7 @@ use App\Models\Payment;
 
 /**
  * Payment Management Trait for Booking Model
- * 
+ *
  * Handles all payment-related calculations and status management
  */
 trait HasPaymentManagement
@@ -28,8 +28,8 @@ trait HasPaymentManagement
     public function getTotalPaidAmount(): float
     {
         return (float) $this->payments()
-                   ->where('payment_status', 'verified')
-                   ->sum('amount');
+            ->where('payment_status', 'verified')
+            ->sum('amount');
     }
 
     /**
@@ -40,7 +40,7 @@ trait HasPaymentManagement
         $totalPaid = $this->getTotalPaidAmount();
         $dpPercentage = $this->dp_amount > 0 ? ($totalPaid / $this->dp_amount) * 100 : 0;
         $totalPercentage = ($totalPaid / $this->total_amount) * 100;
-        
+
         return [
             'total_paid' => $totalPaid,
             'dp_percentage' => min(100, $dpPercentage),
@@ -50,21 +50,30 @@ trait HasPaymentManagement
         ];
     }
 
-    /**
-     * Update payment status based on payments received
-     */
-    public function updatePaymentStatus(): void
+    public function updatePaymentStatus(bool $save = false): void
     {
-        $progress = $this->getPaymentProgress();
-        
-        if ($progress['is_fully_paid']) {
+        $totalPaid = $this->getTotalPaidAmount();
+
+        $dpAmount = $this->dp_amount ?? 0;
+        $isFullyPaid = $totalPaid >= $this->total_amount;
+        $isDpComplete = $dpAmount > 0 ? $totalPaid >= $dpAmount : $totalPaid > 0;
+
+        if ($isFullyPaid) {
             $this->payment_status = 'fully_paid';
-        } elseif ($progress['is_dp_complete']) {
+        } elseif ($isDpComplete) {
             $this->payment_status = 'dp_received';
         } elseif ($this->is_dp_overdue) {
             $this->payment_status = 'overdue';
         } else {
             $this->payment_status = 'dp_pending';
+        }
+
+        // Update monetary fields — single source of truth
+        $this->dp_paid_amount = (int) $totalPaid;
+        $this->remaining_amount = max(0, (int) ($this->total_amount - $totalPaid));
+
+        if ($save) {
+            $this->save();
         }
     }
 
@@ -74,7 +83,7 @@ trait HasPaymentManagement
     public function generatePaymentToken(): string
     {
         $token = bin2hex(random_bytes(16)); // 32 character token
-        
+
         $this->update([
             'payment_token' => $token,
             'payment_token_expires_at' => now()->addDays(7), // Valid for 7 days
@@ -88,8 +97,8 @@ trait HasPaymentManagement
      */
     public function isPaymentTokenValid(string $token): bool
     {
-        return $this->payment_token === $token && 
-               $this->payment_token_expires_at && 
+        return $this->payment_token === $token &&
+               $this->payment_token_expires_at &&
                $this->payment_token_expires_at->isFuture();
     }
 
@@ -98,13 +107,13 @@ trait HasPaymentManagement
      */
     public function getSecurePaymentUrl(): ?string
     {
-        if (!$this->payment_token) {
+        if (! $this->payment_token) {
             return null;
         }
 
         return route('booking.secure-payment', [
             'booking' => $this->booking_number,
-            'token' => $this->payment_token
+            'token' => $this->payment_token,
         ]);
     }
 

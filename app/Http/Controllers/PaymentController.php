@@ -3,20 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Events\PaymentCreated;
+use App\Models\BankAccount;
+use App\Models\BankMutation;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Services\ImageService;
+use App\Services\MootaService;
 use App\Services\PaymentGatewayService;
+use App\Services\ReconciliationService;
 use Carbon\Carbon;
-use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -34,12 +37,16 @@ class PaymentController extends Controller
 
     protected ImageService $imageService;
 
+    protected MootaService $mootaService;
+
     public function __construct(
         PaymentGatewayService $gatewayService,
-        ImageService $imageService
+        ImageService $imageService,
+        MootaService $mootaService
     ) {
         $this->gatewayService = $gatewayService;
         $this->imageService = $imageService;
+        $this->mootaService = $mootaService;
     }
 
     /**
@@ -85,7 +92,7 @@ class PaymentController extends Controller
     /**
      * Show payment page for guest - langsung redirect ke iPaymu
      */
-    public function create(Booking $booking): Response
+    public function create(Booking $booking): Response|RedirectResponse
     {
         // Check if user has permission to make payment for this booking
         if (Auth::check()) {
@@ -97,8 +104,11 @@ class PaymentController extends Controller
         $pendingAmount = $booking->total_amount - $paidAmount;
 
         if ($pendingAmount <= 0) {
-            return redirect()->route('my-bookings')
-                ->with('info', 'This booking has been fully paid.');
+            if (Auth::check()) {
+                return redirect()->route('my-bookings')
+                    ->with('info', 'This booking has been fully paid.');
+            }
+            // Guest tidak di-redirect agar bisa melihat status lunas di halaman ini
         }
 
         // Determine payment type
@@ -110,8 +120,6 @@ class PaymentController extends Controller
         $nights = $checkIn->diffInDays($checkOut);
 
         // Get available payment methods (iPaymu dan methods yang aktif)
-        // Untuk sekarang, kita ambil semua payment methods yang aktif
-        // Frontend bisa filter untuk hanya show iPaymu atau methods tertentu
         $paymentMethods = PaymentMethod::active()
             ->orderBy('sort_order')
             ->get()
@@ -129,96 +137,201 @@ class PaymentController extends Controller
                     'fee_amount' => $method->calculateFee($pendingAmount),
                     'total_with_fee' => $method->getTotalWithFee($pendingAmount),
                     'is_ipaymu' => $method->isIpaymu(),
+                    'account_number' => $method->account_number,
+                    'account_name' => $method->account_name,
+                    'bank_name' => $method->bank_name,
+                    'instructions' => $method->instructions,
                 ];
             });
 
+        // Retrieve linked bank account details of the property
+        $bankAccount = $booking->property->bankAccount;
+        if (! $bankAccount) {
+            // Fallback: find first bank account with active payment method for bank_transfer
+            $bankAccount = BankAccount::whereHas('paymentMethod', fn ($q) => $q->where('type', 'bank_transfer')->where('is_active', true))->first();
+        }
+
+        // If property has a custom bank account, override matching bank transfer method details
+        // (same logic as securePayment)
+        if ($bankAccount) {
+            $paymentMethods = $paymentMethods->map(function ($method) use ($bankAccount) {
+                if ($method['type'] === 'bank_transfer' && $method['id'] === $bankAccount->payment_method_id) {
+                    $method['account_number'] = $bankAccount->account_number;
+                    $method['account_name'] = $bankAccount->account_holder;
+                    $method['bank_name'] = $bankAccount->bank_name;
+                }
+
+                return $method;
+            });
+
+            // Only show the bank transfer method that matches the property's bank
+            $paymentMethods = $paymentMethods->filter(function ($method) use ($bankAccount) {
+                if ($method['type'] === 'bank_transfer') {
+                    return $method['id'] === $bankAccount->payment_method_id;
+                }
+
+                return true;
+            })->values();
+        }
+
+        // Allocate unique code
+        if ($pendingAmount <= 0) {
+            $uniqueCode = 0;
+            $expectedAmount = 0;
+        } else {
+            $existingPayment = Payment::where('booking_id', $booking->id)
+                ->where('status', 'menunggu')
+                ->where('payment_type', $paymentType)
+                ->first();
+
+            if ($existingPayment) {
+                $uniqueCode = $existingPayment->unique_code;
+                $expectedAmount = $existingPayment->expected_amount;
+            } else {
+                $bankAccountId = $bankAccount ? $bankAccount->id : 1;
+                $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $pendingAmount);
+                $expectedAmount = $pendingAmount + $uniqueCode;
+            }
+        }
+
         return Inertia::render('Payment/Create', [
-            'booking' => $booking->load('property'),
+            'booking' => $booking->load(['property', 'payments' => function ($q) {
+                $q->orderBy('created_at', 'desc');
+            }]),
             'pendingAmount' => $pendingAmount,
             'paidAmount' => $paidAmount,
             'paymentType' => $paymentType,
             'nights' => $nights,
             'paymentMethods' => $paymentMethods,
-            'defaultExpiryHours' => config('ipaymu.expiry_hours', 24),
+            'bankAccount' => $bankAccount,
+            'paymentInfo' => [
+                'paidAmount' => $paidAmount,
+                'dpAmount' => $booking->dp_amount ?? ($booking->total_amount * 0.5), // Fallback if not set
+                'remainingAmount' => $booking->total_amount - $paidAmount - $expectedAmount,
+                'requiredAmount' => $expectedAmount,
+                'uniqueCode' => $uniqueCode,
+                'paymentType' => $paymentType,
+                'isDpComplete' => $paidAmount >= ($booking->dp_amount ?? ($booking->total_amount * 0.5)),
+            ],
         ]);
     }
 
-    /**
-     * Store payment for guest - langsung initiate gateway payment
-     */
     public function store(Request $request, Booking $booking): RedirectResponse
     {
-        try {
-            // Check if user has permission to make payment for this booking
-            if (Auth::check()) {
-                $this->authorize('makePayment', $booking);
-            }
+        // Check if user has permission to make payment for this booking
+        if (Auth::check()) {
+            $this->authorize('makePayment', $booking);
+        }
 
-            $validated = $request->validate([
-                'amount' => 'required|numeric|min:1',
-                'type' => 'nullable|in:dp,remaining,full',
-                'payment_method_id' => 'nullable|exists:payment_methods,id',
-                'expiry_hours' => 'nullable|integer|min:1|max:168', // Max 7 days
+        // Validate request — gunakan pendingAmount sebagai batas maksimal (bukan total_amount)
+        $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+        $pendingAmount = max(0, (int) ($booking->total_amount - $paidAmount));
+
+        $request->validate([
+            'payment_method_id' => 'required|exists:payment_methods,id',
+            'amount' => 'required|integer|min:1|max:'.$pendingAmount,
+            'proof_of_payment' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'payment_notes' => 'nullable|string|max:500',
+            'unique_code' => 'nullable|integer|min:0|max:999',
+        ]);
+
+        if ($pendingAmount <= 0) {
+            return redirect()->route('payments.create', $booking->booking_number)
+                ->with('info', 'Booking ini sudah lunas.');
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Get payment method
+            $paymentMethod = PaymentMethod::findOrFail($request->payment_method_id);
+
+            // Upload proof of payment
+            $proofPath = $this->uploadAndOptimizePaymentProof($request->file('proof_of_payment'));
+
+            // Calculate paid amount
+            $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+            $dpAmount = $booking->dp_amount ?? ($booking->total_amount * 0.3);
+            $paymentType = ($paidAmount >= $dpAmount) ? 'remaining' : 'dp';
+
+            $bankAccount = $booking->property->bankAccount;
+            $bankAccountId = $bankAccount ? $bankAccount->id : (BankAccount::first()->id ?? 1);
+
+            $uniqueCode = $request->input('unique_code');
+            if (! $uniqueCode) {
+                $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $request->amount);
+            }
+            $expectedAmount = $request->amount + $uniqueCode;
+
+            // Create payment record
+            $payment = Payment::create([
+                'booking_id' => $booking->id,
+                'payment_number' => Payment::generatePaymentNumber(),
+                'payment_method_id' => $request->payment_method_id,
+                'amount' => $expectedAmount,
+                'payment_type' => $paymentType,
+                'payment_method' => $paymentMethod->type,
+                'payment_status' => 'pending',
+                'status' => 'menunggu', // set status to menunggu for reconciliation
+                'unique_code' => $uniqueCode,
+                'expected_amount' => $expectedAmount,
+                'attachment_path' => $proofPath,
+                'verification_notes' => $request->payment_notes,
+                'payment_date' => now(),
+                'processed_by' => null, // Guest payment, no processor
             ]);
 
-            // Check if amount is valid
-            $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-            $pendingAmount = $booking->total_amount - $paidAmount;
+            // Update booking payment status
+            $booking->updatePaymentStatus();
 
-            if ($validated['amount'] > $pendingAmount) {
-                return back()->withErrors([
-                    'amount' => 'Payment amount exceeds pending amount.',
+            // Create workflow entry for payment submitted
+            if (method_exists($booking, 'workflow')) {
+                $booking->workflow()->create([
+                    'step' => 'payment_pending',
+                    'status' => 'completed',
+                    'processed_by' => null, // Guest/System
+                    'processed_at' => now(),
+                    'notes' => 'Bukti pembayaran Rp '.number_format($expectedAmount, 0, ',', '.').' diunggah oleh tamu untuk metode transfer bank (Menunggu verifikasi).',
                 ]);
             }
 
-            // Determine payment type
-            $type = $validated['type'] ?? ($paidAmount === 0 ? 'dp' : 'remaining');
+            // Trigger payment created event
+            event(new PaymentCreated($payment, Auth::user()));
 
-            // Initiate gateway payment dengan options
-            $payment = $this->gatewayService->initiateGatewayPayment(
-                $booking,
-                $validated['amount'],
-                $type,
-                [
-                    'user_id' => Auth::id(),
-                    'user' => Auth::user(),
-                    'customer_name' => $booking->guest_name,
-                    'customer_phone' => $booking->guest_phone,
-                    'customer_email' => $booking->guest_email,
-                    'payment_method_id' => $validated['payment_method_id'] ?? null,
-                    'expiry_hours' => $validated['expiry_hours'] ?? null,
-                ]
-            );
+            DB::commit();
 
-            // Redirect ke payment URL
-            if ($payment->ipaymu_payment_url) {
-                return redirect($payment->ipaymu_payment_url);
+            if (! Auth::check()) {
+                return redirect()->route('payments.create', $booking->booking_number)
+                    ->with('success', 'Pembayaran berhasil dikirim. Kami akan memverifikasi pembayaran Anda secara otomatis.');
             }
 
-            return back()->withErrors([
-                'error' => 'Failed to generate payment URL.',
-            ]);
+            return redirect()->route('my-bookings')
+                ->with('success', 'Pembayaran berhasil dikirim. Kami akan memverifikasi pembayaran Anda secara otomatis.');
 
-        } catch (AuthorizationException $e) {
-            Log::error('Authorization failed', ['error' => $e->getMessage()]);
-
-            return back()->withErrors([
-                'error' => 'You are not authorized to make payment for this booking.',
-            ]);
-        } catch (ValidationException $e) {
-            Log::error('Validation failed', ['errors' => $e->errors()]);
-
-            return back()->withErrors($e->errors());
         } catch (\Exception $e) {
-            Log::error('Payment gateway initiation failed', [
-                'error' => $e->getMessage(),
+            DB::rollBack();
+            Log::error('Guest manual payment store failed', [
                 'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
             ]);
 
-            return back()->withErrors([
-                'error' => 'Failed to initiate payment: '.$e->getMessage(),
-            ]);
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'Gagal mengirim pembayaran. Silakan coba lagi.']);
         }
+    }
+
+    /**
+     * Cancel pending direct payment so guest can select a new method
+     */
+    public function cancelPending(Booking $booking): RedirectResponse
+    {
+        $booking->payments()
+            ->where('payment_status', 'pending')
+            ->update(['payment_status' => 'failed']); // Set ke failed/expired agar dianggap tidak aktif
+
+        return redirect()->route('payments.create', $booking->booking_number)
+            ->with('info', 'Metode pembayaran dibatalkan. Silakan pilih metode pembayaran baru.');
     }
 
     /**
@@ -319,12 +432,62 @@ class PaymentController extends Controller
         }
 
         if ($remainingAmount <= 0) {
-            return redirect()->route('my-bookings')
-                ->with('info', 'This booking has been fully paid.');
+            if (Auth::check()) {
+                return redirect()->route('my-bookings')
+                    ->with('info', 'This booking has been fully paid.');
+            }
+
+            return redirect()->route('payments.create', $booking->booking_number);
+        }
+
+        // Retrieve linked bank account details
+        $bankAccount = $booking->property->bankAccount;
+        if (! $bankAccount) {
+            $bankAccount = BankAccount::first();
         }
 
         // Get active payment methods
         $paymentMethods = PaymentMethod::active()->get();
+
+        // If property has a custom bank account, override matching bank transfer method details
+        if ($bankAccount) {
+            $paymentMethods = $paymentMethods->map(function ($method) use ($bankAccount) {
+                if ($method->type === 'bank_transfer') {
+                    // Match exactly using payment_method_id
+                    if ($method->id === $bankAccount->payment_method_id) {
+                        $method->account_number = $bankAccount->account_number;
+                        $method->account_name = $bankAccount->account_holder;
+                        $method->bank_name = $bankAccount->bank_name;
+                    }
+                }
+
+                return $method;
+            });
+
+            // Also filter bank transfer methods to only show the one matching the property's bank
+            $paymentMethods = $paymentMethods->filter(function ($method) use ($bankAccount) {
+                if ($method->type === 'bank_transfer') {
+                    return $method->id === $bankAccount->payment_method_id;
+                }
+
+                return true;
+            })->values();
+        }
+
+        // Allocate unique code
+        $existingPayment = Payment::where('booking_id', $booking->id)
+            ->where('status', 'menunggu')
+            ->where('payment_type', $paymentType)
+            ->first();
+
+        if ($existingPayment) {
+            $uniqueCode = $existingPayment->unique_code;
+            $expectedAmount = $existingPayment->expected_amount;
+        } else {
+            $bankAccountId = $bankAccount ? $bankAccount->id : 1;
+            $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $requiredAmount);
+            $expectedAmount = $requiredAmount + $uniqueCode;
+        }
 
         // Calculate nights
         $checkIn = Carbon::parse($booking->check_in);
@@ -350,15 +513,19 @@ class PaymentController extends Controller
                 'nights' => $nights,
                 'dp_amount' => $dpAmount,
                 'dp_percentage' => $booking->dp_percentage ?? 30,
+                'payments' => $booking->payments()->orderBy('created_at', 'desc')->get(),
             ],
             'paymentMethods' => $paymentMethods,
+            'bankAccount' => $bankAccount,
             'paymentInfo' => [
                 'paidAmount' => $paidAmount,
                 'dpAmount' => $dpAmount,
-                'remainingAmount' => $remainingAmount,
-                'requiredAmount' => $requiredAmount,
+                'remainingAmount' => $remainingAmount - $expectedAmount,
+                'requiredAmount' => $expectedAmount,
                 'paymentType' => $paymentType,
                 'isDpComplete' => $paidAmount >= $dpAmount,
+                'uniqueCode' => $uniqueCode,
+                'expectedAmount' => $expectedAmount,
             ],
             'token' => $token,
         ]);
@@ -381,6 +548,7 @@ class PaymentController extends Controller
             'amount' => 'required|numeric|min:1|max:'.$booking->total_amount,
             'proof_of_payment' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048',
             'payment_notes' => 'nullable|string|max:500',
+            'unique_code' => 'nullable|integer',
         ]);
 
         try {
@@ -392,15 +560,32 @@ class PaymentController extends Controller
             // Upload proof of payment
             $proofPath = $this->uploadAndOptimizePaymentProof($request->file('proof_of_payment'));
 
+            // Calculate paid amount
+            $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+            $dpAmount = $booking->dp_amount ?? ($booking->total_amount * 0.3);
+            $paymentType = ($paidAmount >= $dpAmount) ? 'remaining' : 'dp';
+
+            $bankAccount = $booking->property->bankAccount;
+            $bankAccountId = $bankAccount ? $bankAccount->id : (BankAccount::first()->id ?? 1);
+
+            $uniqueCode = $request->input('unique_code');
+            if (! $uniqueCode) {
+                $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $request->amount);
+            }
+            $expectedAmount = $request->amount + $uniqueCode;
+
             // Create payment record
             $payment = Payment::create([
                 'booking_id' => $booking->id,
                 'payment_number' => Payment::generatePaymentNumber(),
                 'payment_method_id' => $request->payment_method_id,
-                'amount' => $request->amount,
-                'payment_type' => 'dp',
+                'amount' => $expectedAmount,
+                'payment_type' => $paymentType,
                 'payment_method' => $paymentMethod->type,
                 'payment_status' => 'pending',
+                'status' => 'menunggu', // set status to menunggu for reconciliation
+                'unique_code' => $uniqueCode,
+                'expected_amount' => $expectedAmount,
                 'attachment_path' => $proofPath,
                 'verification_notes' => $request->payment_notes,
                 'payment_date' => now(),
@@ -410,16 +595,18 @@ class PaymentController extends Controller
             // Update booking payment status
             $booking->updatePaymentStatus();
 
-            // Clear payment token after successful payment
-            $booking->clearPaymentToken();
-
             // Trigger payment created event
             event(new PaymentCreated($payment, Auth::user()));
 
             DB::commit();
 
+            if (! Auth::check()) {
+                return redirect()->route('booking.secure-payment', [$booking->booking_number, $token])
+                    ->with('success', 'Pembayaran berhasil dikirim. Kami akan memverifikasi pembayaran Anda secara otomatis.');
+            }
+
             return redirect()->route('my-bookings')
-                ->with('success', 'Payment submitted successfully. We will verify your payment within 24 hours.');
+                ->with('success', 'Pembayaran berhasil dikirim. Kami akan memverifikasi pembayaran Anda secara otomatis.');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -430,7 +617,7 @@ class PaymentController extends Controller
 
             return redirect()->back()
                 ->withInput()
-                ->withErrors(['error' => 'Payment submission failed. Please try again.']);
+                ->withErrors(['error' => 'Gagal mengirim pembayaran. Silakan coba lagi.']);
         }
     }
 
@@ -464,5 +651,103 @@ class PaymentController extends Controller
         }
 
         return $result->path;
+    }
+
+    /**
+     * Handle incoming webhooks from Moota API v2
+     */
+    public function mootaWebhook(Request $request): JsonResponse
+    {
+        $payload = $request->getContent();
+        $signature = $request->header('Signature') ?? $request->header('signature');
+
+        if (empty($signature)) {
+            Log::warning('[Moota Webhook] Missing Signature header.');
+
+            return response()->json(['message' => 'Missing Signature header'], 400);
+        }
+
+        // Verify signature
+        if (! $this->mootaService->verifySignature($payload, $signature)) {
+            Log::warning('[Moota Webhook] Signature verification failed.');
+
+            return response()->json(['message' => 'Invalid signature'], 401);
+        }
+
+        $mutations = json_decode($payload, true);
+        if (! is_array($mutations)) {
+            Log::warning('[Moota Webhook] Invalid payload format.');
+
+            return response()->json(['message' => 'Invalid payload format'], 400);
+        }
+
+        Log::info('[Moota Webhook] Webhook received. Processing '.count($mutations).' mutations.');
+
+        $processedCount = 0;
+
+        foreach ($mutations as $mut) {
+            // Only process incoming transfers (Credits)
+            if (($mut['type'] ?? '') !== 'CR') {
+                continue;
+            }
+
+            $accountNumber = $mut['account_number'] ?? null;
+            $amount = (int) ($mut['amount'] ?? 0);
+            $description = $mut['description'] ?? '';
+            $trxAt = $mut['date'] ?? now();
+            $mutationId = $mut['mutation_id'] ?? null;
+
+            // Ambil semua data pengirim yang tersedia dari payload Moota
+            $senderName = $mut['sender_name']
+                ?? $mut['description'] // Moota v2 sering menyertakan nama pengirim di description
+                ?? null;
+
+            if (! $accountNumber || ! $mutationId) {
+                continue;
+            }
+
+            // Find the BankAccount matching the account number
+            $bankAccount = BankAccount::where('account_number', $accountNumber)->first();
+            if (! $bankAccount) {
+                Log::warning("[Moota Webhook] BankAccount not found for account number: {$accountNumber}", [
+                    'mutation_id' => $mutationId,
+                    'amount' => $amount,
+                    'description' => $description,
+                ]);
+
+                continue;
+            }
+
+            // Prevent duplicate processing
+            $exists = BankMutation::where('external_ref', $mutationId)->exists();
+            if ($exists) {
+                Log::debug("[Moota Webhook] Mutation already processed: {$mutationId}");
+
+                continue;
+            }
+
+            // Create mutation record with all available data from Moota
+            $mutation = BankMutation::create([
+                'bank_account_id' => $bankAccount->id,
+                'trx_at' => Carbon::parse($trxAt)->setTimezone(config('app.timezone', 'Asia/Jakarta')),
+                'amount' => $amount,
+                'direction' => 'kredit',
+                'description' => $description,
+                'sender_name' => $senderName,
+                'external_ref' => $mutationId,
+                'source' => 'moota',
+                'status' => 'baru',
+                'imported_at' => now(),
+            ]);
+
+            // Attempt automatic reconciliation
+            ReconciliationService::match($mutation);
+            $processedCount++;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Processed '.$processedCount.' credit mutations.',
+        ]);
     }
 }

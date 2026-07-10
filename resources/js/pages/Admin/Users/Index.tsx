@@ -11,9 +11,9 @@ import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { type User, type BreadcrumbItem, type PaginatedData, type PageProps } from '@/types';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
-import { 
-    Search, 
-    Filter, 
+import {
+    Search,
+    Filter,
     MoreHorizontal,
     Edit,
     Eye,
@@ -102,50 +102,50 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
 
     const getRoleBadge = (role: User['role']) => {
         const roleConfig = {
-            super_admin: { 
-                variant: 'default' as const, 
-                label: 'Super Admin', 
+            super_admin: {
+                variant: 'default' as const,
+                label: 'Super Admin',
                 icon: Crown,
                 color: 'bg-purple-100 text-purple-800'
             },
-            property_owner: { 
-                variant: 'secondary' as const, 
-                label: 'Property Owner', 
+            property_owner: {
+                variant: 'secondary' as const,
+                label: 'Property Owner',
                 icon: Building2,
                 color: 'bg-blue-100 text-blue-800'
             },
-            property_manager: { 
-                variant: 'secondary' as const, 
-                label: 'Property Manager', 
+            property_manager: {
+                variant: 'secondary' as const,
+                label: 'Property Manager',
                 icon: Shield,
                 color: 'bg-green-100 text-green-800'
             },
-            front_desk: { 
-                variant: 'outline' as const, 
-                label: 'Front Desk', 
+            front_desk: {
+                variant: 'outline' as const,
+                label: 'Front Desk',
                 icon: ClipboardList,
                 color: 'bg-orange-100 text-orange-800'
             },
-            finance: { 
-                variant: 'outline' as const, 
-                label: 'Finance', 
+            finance: {
+                variant: 'outline' as const,
+                label: 'Finance',
                 icon: DollarSign,
                 color: 'bg-yellow-100 text-yellow-800'
             },
-            housekeeping: { 
-                variant: 'outline' as const, 
-                label: 'Housekeeping', 
+            housekeeping: {
+                variant: 'outline' as const,
+                label: 'Housekeeping',
                 icon: Home,
                 color: 'bg-gray-100 text-gray-800'
             },
-            guest: { 
-                variant: 'outline' as const, 
-                label: 'Guest', 
+            guest: {
+                variant: 'outline' as const,
+                label: 'Guest',
                 icon: Users,
                 color: 'bg-slate-100 text-slate-800'
             },
         };
-        
+
         const config = roleConfig[role];
         const Icon = config.icon;
         return (
@@ -157,7 +157,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
     };
 
     const getStatusBadge = (status: 'active' | 'inactive') => {
-        return status === 'active' 
+        return status === 'active'
             ? <Badge variant="default" className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Active</Badge>
             : <Badge variant="secondary" className="bg-red-100 text-red-800"><XCircle className="h-3 w-3 mr-1" />Inactive</Badge>;
     };
@@ -184,7 +184,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
-            <div className="space-y-6 p-4 md:p-6">
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
@@ -193,7 +193,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                             Manage system users, roles, and permissions
                         </p>
                     </div>
-                    
+
                     {canManageUsers && (
                         <div className="flex flex-col sm:flex-row gap-2">
                             <Button asChild className="w-full sm:w-auto">
@@ -220,7 +220,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                             </p>
                         </CardContent>
                     </Card>
-                    
+
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Active Users</CardTitle>
@@ -233,7 +233,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                             </p>
                         </CardContent>
                     </Card>
-                    
+
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Admins</CardTitle>
@@ -241,15 +241,15 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">
-                                {(stats.role_breakdown.super_admin || 0) + 
-                                 (stats.role_breakdown.property_manager || 0)}
+                                {(stats.role_breakdown.super_admin || 0) +
+                                    (stats.role_breakdown.property_manager || 0)}
                             </div>
                             <p className="text-xs text-muted-foreground">
                                 Administrative users
                             </p>
                         </CardContent>
                     </Card>
-                    
+
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Property Owners</CardTitle>
@@ -283,7 +283,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                                     />
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <Select value={roleFilter} onValueChange={setRoleFilter}>
                                     <SelectTrigger>
@@ -402,7 +402,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                                                                 View Details
                                                             </Link>
                                                         </DropdownMenuItem>
-                                                        
+
                                                         {canEditUser(user) && (
                                                             <>
                                                                 <DropdownMenuItem asChild>
@@ -411,11 +411,11 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                                                                         Edit User
                                                                     </Link>
                                                                 </DropdownMenuItem>
-                                                                
+
                                                                 {canManageUsers && user.id !== auth.user.id && (
                                                                     <>
                                                                         <DropdownMenuSeparator />
-                                                                        <DropdownMenuItem 
+                                                                        <DropdownMenuItem
                                                                             onClick={() => handleDelete(user)}
                                                                             className="text-red-600"
                                                                         >
@@ -479,16 +479,16 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                         </DialogHeader>
 
                         <DialogFooter>
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 onClick={() => setShowDeleteDialog(false)}
                                 disabled={processing}
                             >
                                 Cancel
                             </Button>
-                            <Button 
+                            <Button
                                 variant="destructive"
-                                onClick={confirmDelete} 
+                                onClick={confirmDelete}
                                 disabled={processing}
                             >
                                 {processing ? 'Deleting...' : 'Delete User'}

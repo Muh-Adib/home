@@ -14,6 +14,7 @@ use App\Http\Requests\Admin\UpdateBookingRequest;
 use App\Http\Requests\Admin\UpdateBookingStatusRequest;
 use App\Http\Requests\Admin\VerifyBookingRequest;
 use App\Imports\BookingsImport;
+use App\Models\BankAccount;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
@@ -29,6 +30,7 @@ use App\Services\GuestCountService;
 use App\Services\PaymentGatewayService;
 use App\Services\RateCalculationService;
 use App\Services\RateOverrideLogService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -97,7 +99,7 @@ class BookingManagementController extends Controller
         $properties = $propertiesQuery->active()->get();
 
         $bookingsQuery = Booking::query()
-            ->with(['property', 'verifiedBy', 'payments']);
+            ->with(['property', 'verifiedBy', 'payments', 'services.serviceMaster']);
 
         // Filter by property if specified
         if ($request->filled('property_id')) {
@@ -211,10 +213,15 @@ class BookingManagementController extends Controller
                 'service_type' => $service->service_type,
                 'service_type_label' => $service->getServiceTypeLabel(),
                 'unit_price' => (float) $service->unit_price,
+                'vendor_unit_price' => (float) $service->vendor_unit_price,
+                'discount_amount' => (float) $service->discount_amount,
+                'discount_limit' => $service->discount_limit,
                 'thumbnail_url' => $service->thumbnail_url,
                 'is_active' => $service->is_active,
             ];
         });
+
+        $staffUsers = User::whereIn('role', ['super_admin', 'property_manager', 'front_desk'])->orderBy('name')->get(['id', 'name', 'role']);
 
         return Inertia::render('Admin/Bookings/Create', [
             'properties' => $properties,
@@ -222,7 +229,9 @@ class BookingManagementController extends Controller
             'prefilledData' => $prefilledData,
             'availabilityData' => $availabilityData,
             'paymentMethods' => $paymentMethods,
+            'bankAccounts' => BankAccount::all(),
             'serviceMasters' => $serviceMasters,
+            'staffUsers' => $staffUsers,
         ]);
     }
 
@@ -400,16 +409,22 @@ class BookingManagementController extends Controller
                 'service_type' => $service->service_type,
                 'service_type_label' => $service->getServiceTypeLabel(),
                 'unit_price' => (float) $service->unit_price,
+                'vendor_unit_price' => (float) $service->vendor_unit_price,
+                'discount_amount' => (float) $service->discount_amount,
+                'discount_limit' => $service->discount_limit,
                 'thumbnail_url' => $service->thumbnail_url,
                 'is_active' => $service->is_active,
             ];
         });
+
+        $staffUsers = User::whereIn('role', ['super_admin', 'property_manager', 'front_desk'])->orderBy('name')->get(['id', 'name', 'role']);
 
         return Inertia::render('Admin/Bookings/Edit', [
             'booking' => $booking,
             'properties' => $properties,
             'paymentMethods' => $paymentMethods,
             'serviceMasters' => $serviceMasters,
+            'staffUsers' => $staffUsers,
         ]);
     }
 
@@ -448,7 +463,8 @@ class BookingManagementController extends Controller
                 $currentCheckIn != $validated['check_in_date'] ||
                 $currentCheckOut != $validated['check_out_date'] ||
                 $booking->guest_count != $guestCount ||
-                $booking->property_id != $validated['property_id']
+                $booking->property_id != $validated['property_id'] ||
+                isset($validated['daily_extra_beds'])
             );
 
             $updateData = [
@@ -473,7 +489,16 @@ class BookingManagementController extends Controller
                 'dp_percentage' => $validated['dp_percentage'],
                 'check_in_time' => $validated['check_in_time'] ?? '15:00',
                 'source' => $validated['source'] ?? 'direct',
+                'followed_up_by' => $validated['followed_up_by'] ?? $booking->followed_up_by,
             ];
+
+            // Calculate lodging amount without services and discount
+            $currentDiscount = $booking->discount_amount ?? 0;
+            $currentServices = $booking->services()->sum('total_price');
+            $lodgingBase = $booking->total_amount - $currentServices + $currentDiscount;
+
+            $discount = (int) ($validated['discount_amount'] ?? 0);
+            $updateData['discount_amount'] = $discount;
 
             if ($needsRecalculation && ! ($validated['rate_override'] ?? false)) {
                 // Recalculate using RateCalculationService
@@ -481,18 +506,20 @@ class BookingManagementController extends Controller
                     $property,
                     $validated['check_in_date'],
                     $validated['check_out_date'],
-                    $guestCount // Use calculated guest count
+                    $guestCount, // Use calculated guest count
+                    $validated['daily_extra_beds'] ?? null
                 );
 
-                $updateData['total_amount'] = $rateCalculation->totalAmount;
+                $lodgingBase = $rateCalculation->totalAmount;
                 $updateData['base_amount'] = $rateCalculation->baseAmount;
                 $updateData['extra_bed_amount'] = $rateCalculation->extraBedAmount;
+                $updateData['extra_bed_count'] = $rateCalculation->extraBeds;
                 $updateData['nights'] = $rateCalculation->nights;
 
                 // Sync BookingDailyRevenue using BookingDailyRevenueService
                 $this->dailyRevenueService->syncFromRateBreakdown($booking, $property, $rateCalculation);
             } elseif ($validated['rate_override'] ?? false) {
-                $updateData['total_amount'] = $validated['override_amount'];
+                $lodgingBase = $validated['override_amount'];
 
                 // Log rate override using RateOverrideLogService
                 $logMessage = $this->rateOverrideLogService->generateLog(
@@ -524,34 +551,15 @@ class BookingManagementController extends Controller
                 $servicesTotal = $this->serviceSyncService->sync($booking, $services, true);
             } else {
                 // If services not in request, keep existing services and calculate their total
-                $servicesTotal = $booking->services()->sum('total_price');
+                $servicesTotal = $currentServices;
             }
 
-            // Update total amount with services
-            if (isset($updateData['total_amount'])) {
-                $updateData['total_amount'] += $servicesTotal;
-            } else {
-                // If total_amount wasn't recalculated (no changes to dates/guests and no override),
-                // we still need to update it if services changed.
-
-                if (! $needsRecalculation && ! $validated['rate_override']) {
-                    // Recalculate base to be safe and ensure consistency
-                    $rateCalculation = $this->rateCalculationService->calculateRate(
-                        $property,
-                        $validated['check_in_date'],
-                        $validated['check_out_date'],
-                        $validated['guest_male'] + $validated['guest_female'] + $validated['guest_children']
-                    );
-                    $updateData['total_amount'] = $rateCalculation->totalAmount + $servicesTotal;
-                } else {
-                    // If we did recalculate or override, we already set total_amount (base), so add services
-                    $updateData['total_amount'] += $servicesTotal;
-                }
-            }
+            // Set final total amount: lodging - discount + services
+            $updateData['total_amount'] = max(0, $lodgingBase - $discount) + $servicesTotal;
+            $updateData['service_amount'] = $servicesTotal;
 
             // Recalculate DP and remaining amount
-            // Use new total_amount if recalculated, otherwise use current booking total_amount
-            $finalTotalAmount = $updateData['total_amount'] ?? $booking->total_amount;
+            $finalTotalAmount = $updateData['total_amount'];
             $updateData['dp_amount'] = ($finalTotalAmount * $validated['dp_percentage']) / 100;
 
             // Calculate remaining amount based on current paid amount
@@ -702,6 +710,7 @@ class BookingManagementController extends Controller
             'services',
             'payments.paymentMethod',
             'workflow.processor',
+            'dailyRevenues',
         ]);
 
         // Generate WhatsApp message template
@@ -853,9 +862,13 @@ class BookingManagementController extends Controller
     {
         $this->authorize('update', $booking);
 
-        if ($booking->booking_status !== 'confirmed' || $booking->payment_status !== 'fully_paid') {
+        // Bisnis villa Indonesia: check-in diizinkan jika booking confirmed
+        // dan minimal DP sudah dibayar (dp_received atau fully_paid)
+        $validPaymentStatuses = ['dp_received', 'fully_paid'];
+
+        if ($booking->booking_status !== 'confirmed' || ! in_array($booking->payment_status, $validPaymentStatuses)) {
             return redirect()->back()
-                ->with('error', 'Only confirmed bookings can be checked in.');
+                ->with('error', 'Check-in hanya bisa dilakukan untuk booking yang sudah confirmed dan minimal DP sudah diterima.');
         }
 
         DB::beginTransaction();
@@ -1034,6 +1047,20 @@ class BookingManagementController extends Controller
     }
 
     /**
+     * Generate and download PDF Invoice for booking
+     */
+    public function invoice(Booking $booking)
+    {
+        $this->authorize('view', $booking);
+
+        $booking->load(['property', 'payments', 'services.serviceMaster']);
+
+        $pdf = Pdf::loadView('admin.bookings.invoice', compact('booking'));
+
+        return $pdf->download("invoice-{$booking->booking_number}.pdf");
+    }
+
+    /**
      * Generate payment link untuk booking
      */
     public function generatePaymentLink(GeneratePaymentLinkRequest $request, Booking $booking): JsonResponse|RedirectResponse
@@ -1120,6 +1147,8 @@ class BookingManagementController extends Controller
                     'payment_method_id' => $validated['payment_method_id'] ?? null,
                     'expiry_hours' => $validated['expiry_hours'] ?? null,
                     'description' => "Payment link for booking {$booking->booking_number}",
+                    'user_id' => Auth::id(),
+                    'user' => Auth::user(),
                 ]
             );
 
@@ -1139,20 +1168,25 @@ class BookingManagementController extends Controller
             $message .= 'Link ini berlaku hingga: '.$result['expired_at']->format('d M Y H:i')."\n\n";
             $message .= 'Terima kasih!';
 
-            // Send via WhatsApp
-            if ($validated['channel'] === 'whatsapp' || $validated['channel'] === 'both') {
-                if ($booking->guest_phone) {
-                    $phone = $this->formatPhoneNumber($booking->guest_phone);
-                    $whatsappUrl = "https://wa.me/{$phone}?text=".urlencode($message);
+            // Kembalikan URL ke frontend untuk dibuka di tab baru
+            // (lebih baik daripada server redirect yang membuang admin keluar dari konteks)
+            if (($validated['channel'] === 'whatsapp' || $validated['channel'] === 'both') && $booking->guest_phone) {
+                $phone = $this->formatPhoneNumber($booking->guest_phone);
+                $whatsappUrl = 'https://wa.me/'.$phone.'?text='.urlencode($message);
 
-                    return redirect($whatsappUrl);
-                }
+                return redirect()->route('admin.bookings.show', $booking->booking_number)
+                    ->with([
+                        'success' => 'Payment link generated. Klik tombol WhatsApp untuk mengirim ke guest.',
+                        'payment_url' => $paymentUrl,
+                        'whatsapp_url' => $whatsappUrl,
+                        'payment_number' => $payment->payment_number,
+                    ]);
             }
 
             // Send via Email (TODO: implement email sending)
             if ($validated['channel'] === 'email' || $validated['channel'] === 'both') {
-                // TODO: Implement email notification
-                Log::info('Email payment link sent', [
+                // TODO: Implement email notification via Mailable
+                Log::info('Email payment link requested (not yet implemented)', [
                     'booking_id' => $booking->id,
                     'email' => $booking->guest_email,
                 ]);
@@ -1162,6 +1196,7 @@ class BookingManagementController extends Controller
                 ->with([
                     'success' => 'Payment link generated successfully.',
                     'payment_url' => $paymentUrl,
+                    'payment_number' => $payment->payment_number,
                 ]);
 
         } catch (\Exception $e) {

@@ -5,11 +5,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { 
-    Upload, 
-    X, 
-    CheckCircle, 
-    Loader2, 
+import {
+    Upload,
+    X,
+    CheckCircle,
+    Loader2,
     Image as ImageIcon,
     Video,
     FileIcon,
@@ -111,10 +111,10 @@ export default function FileUpload({
         if (!isValidType) {
             // Check extension as fallback
             const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-            const isValidExtension = acceptedExtensions.some(ext => 
+            const isValidExtension = acceptedExtensions.some(ext =>
                 ext.toLowerCase() === fileExtension
             );
-            
+
             if (!isValidExtension) {
                 return `Invalid file type. Accepted: ${acceptedExtensions.join(', ')}`;
             }
@@ -154,14 +154,14 @@ export default function FileUpload({
 
         for (const file of filesArray) {
             const validationError = validateFile(file);
-            
+
             if (validationError) {
                 alert(`${file.name}: ${validationError}`);
                 continue;
             }
 
             const preview = await createPreview(file);
-            
+
             newFiles.push({
                 file,
                 preview: preview || undefined,
@@ -206,7 +206,7 @@ export default function FileUpload({
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragActive(false);
-        
+
         if (!dragAndDrop) return;
 
         const droppedFiles = e.dataTransfer.files;
@@ -224,8 +224,8 @@ export default function FileUpload({
 
     // Update file metadata
     const updateFileMetadata = (index: number, metadata: Partial<FileMetadata>) => {
-        const updatedFiles = files.map((file, i) => 
-            i === index 
+        const updatedFiles = files.map((file, i) =>
+            i === index
                 ? { ...file, metadata: { ...file.metadata, ...metadata } }
                 : file
         );
@@ -252,7 +252,7 @@ export default function FileUpload({
         if (!onUpload || files.length === 0) return;
 
         setIsUploading(true);
-        
+
         // Update all files to uploading status
         const uploadingFiles = files.map(file => ({
             ...file,
@@ -263,7 +263,7 @@ export default function FileUpload({
 
         try {
             await onUpload(uploadingFiles);
-            
+
             // Mark all as completed
             const completedFiles = files.map(file => ({
                 ...file,
@@ -318,15 +318,14 @@ export default function FileUpload({
 
             {/* Upload Area */}
             <div
-                className={`relative border-2 border-dashed rounded-lg transition-all duration-200 ${
-                    isDragActive
+                className={`relative border-2 border-dashed rounded-lg transition-all duration-200 ${isDragActive
                         ? 'border-blue-500 bg-blue-50'
                         : files.length > 0
-                        ? 'border-green-500 bg-green-50'
-                        : error
-                        ? 'border-red-500 bg-red-50'
-                        : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
-                }`}
+                            ? 'border-green-500 bg-green-50'
+                            : error
+                                ? 'border-red-500 bg-red-50'
+                                : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
+                    }`}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -343,19 +342,18 @@ export default function FileUpload({
                 {files.length === 0 ? (
                     <label
                         htmlFor="file-upload"
-                        className="flex flex-col items-center justify-center w-full h-32 cursor-pointer p-6"
+                        className="flex flex-col items-center justify-center w-full min-h-0 cursor-pointer p-6"
                         onClick={() => fileInputRef.current?.click()}
                     >
                         <div className="flex flex-col items-center justify-center">
-                            <Upload className={`w-8 h-8 mb-2 transition-colors ${
-                                isDragActive ? 'text-blue-500' : 'text-gray-400'
-                            }`} />
+                            <Upload className={`w-8 h-8 mb-2 transition-colors ${isDragActive ? 'text-blue-500' : 'text-gray-400'
+                                }`} />
                             <p className="mb-1 text-sm text-gray-600">
                                 <span className="font-semibold">Click to upload</span>
                                 {dragAndDrop && ' or drag and drop'}
                             </p>
                             <p className="text-xs text-gray-500">
-                                {acceptedExtensions.join(', ').toUpperCase()} 
+                                {acceptedExtensions.join(', ').toUpperCase()}
                                 {maxFileSize && ` (Max ${(maxFileSize / 1024 / 1024).toFixed(0)}MB each)`}
                             </p>
                             {maxFiles > 1 && (
@@ -437,7 +435,7 @@ export default function FileUpload({
                                                         )}
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div className="flex items-center gap-2 ml-2">
                                                     {showMetadataForm && uploadedFile.file.type.startsWith('image/') && (
                                                         <Button

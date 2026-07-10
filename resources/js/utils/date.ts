@@ -47,7 +47,7 @@ export function formatDateShort(date: string | Date): string {
     const dateObj = new Date(date);
     return dateObj.toLocaleDateString('id-ID', {
         day: '2-digit',
-        month: '2-digit'
+        month: 'short'
     });
 }
 
@@ -74,7 +74,7 @@ export function isToday(date: string | Date): boolean {
 export function isWeekend(date: string | Date): boolean {
     const dateObj = new Date(date);
     const day = dateObj.getDay();
-    return day === 0 || day === 6;
+    return day === 5 || day === 6 || day === 0;
 }
 
 /**

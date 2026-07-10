@@ -1,34 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
-import GuestLayout from '@/layouts/guest-layout';
+import { Head, useForm, Link } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
-    ArrowLeft,
-    CreditCard,
-    Building2,
-    MapPin,
     Calendar,
+    MapPin,
     Users,
-    Clock,
-    Info,
+    CreditCard,
     Shield,
-    Loader2,
     CheckCircle,
-    Smartphone,
-    Banknote,
-    University,
-    Zap,
-    AlertCircle
+    Copy,
+    Check,
+    Upload,
+    ArrowLeft,
+    Clock,
+    Download
 } from 'lucide-react';
-import { type BreadcrumbItem, type PageProps } from '@/types';
-import { useTranslation } from 'react-i18next';
+
+interface BankAccount {
+    id: number;
+    bank_name: string;
+    account_number: string;
+    account_holder: string;
+    label: string;
+}
 
 interface PaymentMethod {
     id: number;
@@ -37,478 +37,718 @@ interface PaymentMethod {
     type: 'bank_transfer' | 'e_wallet' | 'cash' | 'credit_card';
     icon?: string;
     description?: string;
-    fee_percentage?: number;
-    fee_fixed?: number;
-    fee_type?: 'percentage' | 'fixed';
-    fee_amount: number;
-    total_with_fee: number;
-    is_ipaymu: boolean;
+    bank_name?: string;
+    account_number?: string;
+    account_name?: string;
+    instructions?: any;
 }
 
 interface Booking {
     id: number;
     booking_number: string;
+    guest_name: string;
+    check_in_time?: string;
     property: {
-        id: number;
         name: string;
-        slug: string;
         address: string;
         cover_image?: string;
+        check_in_time?: string;
+        check_out_time?: string;
+        checkin_instructions?: any;
+        maps_link?: string;
     };
     check_in: string;
     check_out: string;
     guest_count: number;
-    guest_name: string;
-    guest_email: string;
-    guest_phone: string;
     total_amount: number;
+    booking_status: string;
     payment_status: string;
+    payments?: any[];
+}
+
+interface PaymentInfo {
+    paidAmount: number;
+    dpAmount: number;
+    remainingAmount: number;
+    requiredAmount: number;
+    paymentType: 'dp' | 'remaining';
+    isDpComplete: boolean;
+    uniqueCode: number;
 }
 
 interface PaymentCreateProps {
     booking: Booking;
     paymentMethods: PaymentMethod[];
-    pendingAmount: number;
-    paidAmount: number;
-    paymentType: string;
-    nights: number;
-    defaultExpiryHours: number;
+    paymentInfo: PaymentInfo;
+    bankAccount?: BankAccount | null;
 }
 
-export default function PaymentCreate({
-    booking,
-    paymentMethods,
-    pendingAmount,
-    paidAmount,
-    paymentType,
-    nights,
-    defaultExpiryHours
-}: PaymentCreateProps) {
-    const page = usePage<PageProps>();
-    const { t } = useTranslation();
-    const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
-    const [expiryHours, setExpiryHours] = useState<number>(defaultExpiryHours);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+export default function CreatePayment({ booking, paymentMethods, paymentInfo, bankAccount }: PaymentCreateProps) {
+    const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
+        paymentMethods.find(m => m.type === 'bank_transfer') || paymentMethods[0] || null
+    );
+    const [copiedField, setCopiedField] = useState<string | null>(null);
+    const hasPendingPayment = booking.payments?.some(p => p.payment_status === 'pending');
+    const pendingPayment = booking.payments?.find(p => p.payment_status === 'pending');
 
-    const breadcrumbs: BreadcrumbItem[] = [
-        { title: t('nav.home'), href: route('home') || '/' },
-        { title: t('nav.my_bookings'), href: route('my-bookings') || '/my-bookings' },
-        { title: t('payment.create_payment'), href: route('payments.create', booking.booking_number) }
-    ];
-
-    const { data, setData, post, processing, errors, clearErrors } = useForm({
-        amount: pendingAmount,
-        type: paymentType,
-        payment_method_id: '',
-        expiry_hours: defaultExpiryHours,
+    const { data, setData, post, processing, errors } = useForm({
+        payment_method_id: selectedMethod?.id.toString() || '',
+        amount: paymentInfo.requiredAmount - (paymentInfo.uniqueCode || 0), // Base amount before unique code
+        proof_of_payment: null as File | null,
+        payment_notes: '',
+        unique_code: paymentInfo.uniqueCode || 0,
     });
 
-    // Filter hanya iPaymu payment methods
-    const ipaymuMethods = paymentMethods.filter(m => m.is_ipaymu || m.code === 'ipaymu');
+    const [currentTime, setCurrentTime] = useState(new Date());
+    const [rulesAgreed, setRulesAgreed] = useState(() => {
+        return typeof window !== 'undefined' ? localStorage.getItem(`booking_rules_agreed_${booking.booking_number}`) === 'true' : false;
+    });
 
-    // Auto select first method jika ada
-    useEffect(() => {
-        if (ipaymuMethods.length > 0 && !selectedMethod) {
-            const firstMethod = ipaymuMethods[0];
-            setSelectedMethod(firstMethod);
-            setData('payment_method_id', firstMethod.id.toString());
-        }
-    }, [ipaymuMethods]);
+    const parseCheckInDateTime = () => {
+        try {
+            if (!booking.check_in) return new Date();
+            const dateParts = booking.check_in.split('-');
+            const year = parseInt(dateParts[0], 10);
+            const month = parseInt(dateParts[1], 10) - 1;
+            const day = parseInt(dateParts[2], 10);
 
-    // Update amount dengan fee saat method berubah
-    useEffect(() => {
-        if (selectedMethod) {
-            const baseAmount = pendingAmount;
-            const totalWithFee = selectedMethod.total_with_fee;
-            // Amount yang dikirim adalah base amount, fee akan dihitung di backend
-            setData('amount', baseAmount);
+            const timeParts = (booking.property.check_in_time || booking.check_in_time || '14:00').split(':');
+            const hours = parseInt(timeParts[0], 10);
+            const minutes = parseInt(timeParts[1], 10);
+
+            const parsedDate = new Date(year, month, day, hours, minutes, 0);
+            if (isNaN(parsedDate.getTime())) {
+                return new Date(`${booking.check_in}T14:00:00`);
+            }
+            return parsedDate;
+        } catch (e) {
+            console.error("Error parsing check-in date:", e);
+            return new Date(`${booking.check_in}T14:00:00`);
         }
-    }, [selectedMethod, pendingAmount]);
+    };
+
+    const checkInDateTime = parseCheckInDateTime();
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const timeDiff = checkInDateTime.getTime() - currentTime.getTime();
+    // Buka instruksi check-in 30 menit sebelum waktu check-in (30 * 60 * 1000 ms)
+    const isBeforeCheckIn = timeDiff > 0;
+
+    const getGoogleCalendarUrl = () => {
+        try {
+            if (!checkInDateTime || isNaN(checkInDateTime.getTime())) {
+                return '#';
+            }
+            const start = checkInDateTime.toISOString().replace(/-|:|\.\d\d\d/g, "");
+            
+            const parseCheckOut = () => {
+                if (!booking.check_out) return new Date(checkInDateTime.getTime() + 24 * 60 * 60 * 1000);
+                const parts = booking.check_out.split('-');
+                if (parts.length === 3) {
+                    const y = parseInt(parts[0], 10);
+                    const m = parseInt(parts[1], 10) - 1;
+                    const d = parseInt(parts[2], 10);
+                    const parsed = new Date(y, m, d, 12, 0, 0);
+                    if (!isNaN(parsed.getTime())) return parsed;
+                }
+                const fallback = new Date(`${booking.check_out}T12:00:00`);
+                return isNaN(fallback.getTime()) ? new Date(checkInDateTime.getTime() + 24 * 60 * 60 * 1000) : fallback;
+            };
+
+            const checkOutDateTime = parseCheckOut();
+            if (isNaN(checkOutDateTime.getTime())) {
+                return '#';
+            }
+            const end = checkOutDateTime.toISOString().replace(/-|:|\.\d\d\d/g, "");
+            return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Check-in+Homsjogja+-+${encodeURIComponent(booking.property.name)}&dates=${start}/${end}&details=Nomor+Booking:+${booking.booking_number}%0AProperti:+${encodeURIComponent(booking.property.name)}%0AAlamat:+${encodeURIComponent(booking.property.address)}&sf=true&output=xml`;
+        } catch (e) {
+            console.error("Error creating Google Calendar link:", e);
+            return '#';
+        }
+    };
+
+    const handleAgreeRules = () => {
+        localStorage.setItem(`booking_rules_agreed_${booking.booking_number}`, 'true');
+        setRulesAgreed(true);
+    };
+
+    const formatCountdown = () => {
+        const diffSecs = Math.floor(timeDiff / 1000);
+        if (diffSecs <= 0) return '0 Detik';
+
+        const days = Math.floor(diffSecs / 86400);
+        const hours = Math.floor((diffSecs % 86400) / 3600);
+        const minutes = Math.floor((diffSecs % 3600) / 60);
+        const seconds = diffSecs % 60;
+
+        if (days > 0) {
+            return `${days} Hari, ${hours} Jam, ${minutes} Menit`;
+        }
+        return `${hours} Jam, ${minutes} Menit, ${seconds} Detik`;
+    };
+
+    const checkInDate = new Date(booking.check_in);
+    const checkOutDate = new Date(booking.check_out);
+    const nightsCount = Math.max(1, Math.round((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+    const getCheckinInstructions = () => {
+        const instructions = booking.property.checkin_instructions;
+        if (!instructions || (Array.isArray(instructions) && instructions.length === 0)) {
+            return [
+                `Tunjukkan nomor booking ${booking.booking_number} atau nama Anda (${booking.guest_name}) saat tiba di properti.`,
+                `Kunci kamar atau akses card dapat diambil langsung di resepsionis / kotak kunci sesuai petunjuk hospitality.`,
+                `Hubungi kami jika ada kendala: 0811-3822-6322 (Admin Hospitality).`
+            ];
+        }
+
+        const list = Array.isArray(instructions) ? instructions : Object.values(instructions);
+        return list.map((inst: any) => {
+            if (typeof inst === 'string') {
+                return inst
+                    .replace(/\{\{property_name\}\}/g, booking.property.name)
+                    .replace(/\{\{address\}\}/g, booking.property.address)
+                    .replace(/\{\{keybox_code\}\}/g, (booking as any).property.current_keybox_code || '');
+            }
+            return String(inst);
+        });
+    };
+
+    const formatCurrency = (amount: any) => {
+        const val = typeof amount === 'string' ? parseFloat(amount) : amount;
+        return `Rp ${(val || 0).toLocaleString('id-ID')}`;
+    };
+
+    const formatDate = (dateString: string) => {
+        return new Date(dateString).toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+    };
+
+    const copyToClipboard = async (text: string, field: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedField(field);
+            setTimeout(() => setCopiedField(null), 2000);
+        } catch (err) {
+            console.error('Failed to copy: ', err);
+        }
+    };
 
     const handleMethodSelect = (method: PaymentMethod) => {
         setSelectedMethod(method);
         setData('payment_method_id', method.id.toString());
-        clearErrors('payment_method_id');
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (isSubmitting || processing) {
-            return;
-        }
-
-        if (!selectedMethod) {
-            alert('Harap pilih metode pembayaran');
-            return;
-        }
-
-        if (data.amount < 100000) {
-            alert('Jumlah pembayaran minimum adalah Rp 100.000');
-            return;
-        }
-
-        if (data.amount > pendingAmount) {
-            alert(`Jumlah pembayaran tidak boleh melebihi sisa tagihan: Rp ${pendingAmount.toLocaleString("id-ID")}`);
-            return;
-        }
-
-        setIsSubmitting(true);
-
-        // Submit ke payment gateway initiate
-        post(`/bookings/${booking.booking_number}/payment-gateway/initiate`, {
-            onSuccess: () => {
-                setIsSubmitting(false);
-                // Redirect akan dilakukan oleh backend ke iPaymu
-            },
-            onError: (errors) => {
-                setIsSubmitting(false);
-                if (errors.error) {
-                    alert(`Error: ${errors.error}`);
-                } else {
-                    alert('Terjadi kesalahan saat memproses pembayaran. Silakan coba lagi.');
-                }
-            },
-            onFinish: () => {
-                setIsSubmitting(false);
+    const compressImage = (file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.7): Promise<File> => {
+        return new Promise((resolve) => {
+            if (!file.type.startsWith('image/')) {
+                resolve(file);
+                return;
             }
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target?.result as string;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width = Math.round((width * maxHeight) / height);
+                            height = maxHeight;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0, width, height);
+                        canvas.toBlob(
+                            (blob) => {
+                                if (blob) {
+                                    const compressedFile = new File([blob], file.name, {
+                                        type: 'image/jpeg',
+                                        lastModified: Date.now(),
+                                    });
+                                    resolve(compressedFile);
+                                } else {
+                                    resolve(file);
+                                }
+                            },
+                            'image/jpeg',
+                            quality
+                        );
+                    } else {
+                        resolve(file);
+                    }
+                };
+                img.onerror = () => resolve(file);
+            };
+            reader.onerror = () => resolve(file);
         });
     };
 
-    const getMethodIcon = (type: string) => {
-        switch (type) {
-            case 'bank_transfer':
-                return <University className="h-6 w-6 text-blue-600" />;
-            case 'e_wallet':
-                return <Smartphone className="h-6 w-6 text-green-600" />;
-            case 'credit_card':
-                return <CreditCard className="h-6 w-6 text-purple-600" />;
-            default:
-                return <Banknote className="h-6 w-6 text-gray-600" />;
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            compressImage(file).then(compressedFile => {
+                setData('proof_of_payment', compressedFile);
+            });
         }
     };
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-        }).format(amount);
+    const pendingAmountVal = pendingPayment ? (pendingPayment.expected_amount || pendingPayment.amount) : 0;
+    const waMessage = encodeURIComponent(
+        `Halo Admin Hospitality Homsjogja, saya telah melakukan transfer untuk booking ${booking.booking_number} atas nama ${booking.guest_name} sebesar ${formatCurrency(pendingAmountVal)}. Mohon untuk dicek dan diverifikasi pembayaran saya. Terima kasih.`
+    );
+    const waUrl = `https://wa.me/6281138226322?text=${waMessage}`;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        post(route('payments.store', booking.booking_number));
     };
 
     return (
-        <GuestLayout>
-            <Head title={`${t('payment.create_payment')} - ${booking.booking_number}`} />
+        <>
+            <Head title={`Pembayaran Booking - ${booking.booking_number}`} />
 
-            <div className="space-y-6 p-4 md:p-6">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-                            {t('payment.create_payment')}
-                        </h1>
-                        <p className="text-muted-foreground mt-1">
-                            Pembayaran untuk booking {booking.booking_number}
-                        </p>
+            <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6">
+                <div className="max-w-4xl mx-auto space-y-6">
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b pb-4">
+                        <div className="flex items-center gap-3">
+                            <CreditCard className="h-6 w-6 text-brand-primary text-blue-600" />
+                            <h1 className="text-2xl font-bold text-slate-900">Alur Pembayaran</h1>
+                        </div>
                     </div>
 
-                    <Link href={route('my-bookings') || '/my-bookings'}>
-                        <Button variant="outline" className="flex items-center gap-2">
-                            <ArrowLeft className="h-4 w-4" />
-                            {t('common.back')}
-                        </Button>
-                    </Link>
-                </div>
-
-                <div className="grid lg:grid-cols-3 gap-8">
-                    {/* Payment Form */}
-                    <div className="lg:col-span-2 space-y-6">
-                        {/* Payment Summary Card */}
-                        <Card className="card-modern shadow-lg border-0 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <CreditCard className="h-5 w-5 text-blue-600" />
-                                    Ringkasan Pembayaran
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Booking Summary */}
+                        <Card className="shadow-sm border-slate-100">
+                            <CardHeader className="bg-slate-50/55">
+                                <CardTitle className="flex items-center gap-2 text-slate-800 text-lg">
+                                    <Calendar className="h-5 w-5 text-blue-500" /> Ringkasan Booking
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <div className="space-y-3">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-muted-foreground">Total Booking:</span>
-                                        <span className="font-medium">{formatCurrency(booking.total_amount)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-muted-foreground">Sudah Dibayar:</span>
-                                        <span className="font-medium text-green-600">{formatCurrency(paidAmount)}</span>
-                                    </div>
-                                    <Separator />
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-muted-foreground">Sisa Tagihan:</span>
-                                        <span className="text-2xl font-bold text-blue-600">{formatCurrency(pendingAmount)}</span>
+                            <CardContent className="space-y-4 pt-4">
+                                 <div className="grid grid-cols-2 gap-4">
+                                     <div>
+                                         <p className="text-xs text-muted-foreground">Nomor Booking</p>
+                                         <p className="font-semibold text-slate-800">{booking.booking_number}</p>
+                                     </div>
+                                     <div>
+                                         <p className="text-xs text-muted-foreground">Nama Tamu</p>
+                                         <p className="font-semibold text-slate-800">{booking.guest_name}</p>
+                                     </div>
+                                 </div>
+
+                                <div>
+                                    <p className="text-xs text-muted-foreground">Properti</p>
+                                    <p className="font-semibold text-slate-800">{booking.property.name}</p>
+                                    <div className="flex items-center text-xs text-muted-foreground mt-1">
+                                        <MapPin className="h-3.5 w-3.5 mr-1" />
+                                        <span>{booking.property.address}</span>
                                     </div>
                                 </div>
-                            </CardContent>
-                        </Card>
 
-                        {/* Payment Method Selection Card */}
-                        <Card className="card-modern shadow-lg border-0">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Zap className="h-5 w-5 text-green-600" />
-                                    Pilih Metode Pembayaran
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <form onSubmit={handleSubmit} className="space-y-6">
-                                    {/* Payment Method Selection */}
-                                    <div>
-                                        <Label className="text-base font-medium mb-4 block">
-                                            Metode Pembayaran *
-                                        </Label>
-                                        <RadioGroup
-                                            value={selectedMethod?.id.toString()}
-                                            onValueChange={(value) => {
-                                                const method = ipaymuMethods.find(m => m.id.toString() === value);
-                                                if (method) handleMethodSelect(method);
-                                            }}
-                                            className="space-y-3"
-                                        >
-                                            {ipaymuMethods.map((method) => (
-                                                <div
-                                                    key={method.id}
-                                                    className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover-lift ${selectedMethod?.id === method.id
-                                                            ? 'border-brand-primary bg-brand-primary-20 ring-2 ring-brand-primary-30 shadow-md'
-                                                            : 'border-border hover:border-brand-primary/50 hover:bg-muted/50'
-                                                        }`}
-                                                    onClick={() => handleMethodSelect(method)}
-                                                >
-                                                    <div className="flex items-start justify-between">
-                                                        <div className="flex items-start gap-3 flex-1">
-                                                            <RadioGroupItem
-                                                                value={method.id.toString()}
-                                                                id={`method-${method.id}`}
-                                                                className="mt-1"
-                                                            />
-                                                            <label
-                                                                htmlFor={`method-${method.id}`}
-                                                                className="flex-1 cursor-pointer"
-                                                            >
-                                                                <div className="flex items-center gap-3 mb-2">
-                                                                    {method.icon ? (
-                                                                        <span className="text-2xl">{method.icon}</span>
-                                                                    ) : (
-                                                                        getMethodIcon(method.type)
-                                                                    )}
-                                                                    <div>
-                                                                        <div className="font-medium text-lg">{method.name}</div>
-                                                                        {method.description && (
-                                                                            <div className="text-sm text-muted-foreground">{method.description}</div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
+                                 <div className="grid grid-cols-2 gap-4">
+                                     <div>
+                                         <p className="text-xs text-muted-foreground">Check-in</p>
+                                         <p className="text-sm font-semibold text-slate-800">{formatDate(booking.check_in)}</p>
+                                         <p className="text-xs text-slate-500 font-medium">Jam: {booking.check_in_time || booking.property.check_in_time || '14:00'}</p>
+                                     </div>
+                                     <div>
+                                         <p className="text-xs text-muted-foreground">Check-out</p>
+                                         <p className="text-sm font-semibold text-slate-800">{formatDate(booking.check_out)}</p>
+                                         <p className="text-xs text-slate-500 font-medium">Jam: {booking.property.check_out_time || '11:00'}</p>
+                                     </div>
+                                 </div>
 
-                                                                {/* Fee Information */}
-                                                                {method.fee_amount > 0 && (
-                                                                    <div className="ml-9 mt-2 p-3 bg-muted/50 rounded-lg border border-border">
-                                                                        <div className="flex justify-between items-center text-sm">
-                                                                            <span className="text-muted-foreground">Biaya Transaksi:</span>
-                                                                            <span className="font-medium text-orange-600">
-                                                                                {method.fee_type === 'percentage'
-                                                                                    ? `${method.fee_percentage}%`
-                                                                                    : formatCurrency(method.fee_fixed || 0)}
-                                                                            </span>
-                                                                        </div>
-                                                                        <div className="flex justify-between items-center mt-1">
-                                                                            <span className="text-muted-foreground">Jumlah Pembayaran:</span>
-                                                                            <span className="font-semibold text-lg text-brand-primary">
-                                                                                {formatCurrency(method.total_with_fee)}
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </label>
-                                                        </div>
-                                                        {selectedMethod?.id === method.id && (
-                                                            <CheckCircle className="h-5 w-5 text-brand-primary flex-shrink-0 mt-1" />
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </RadioGroup>
-                                        {errors.payment_method_id && (
-                                            <p className="text-sm text-destructive mt-2">{errors.payment_method_id}</p>
-                                        )}
+                                 <div className="grid grid-cols-2 gap-4">
+                                     <div>
+                                         <p className="text-xs text-muted-foreground">Durasi</p>
+                                         <p className="text-sm font-semibold text-slate-800">{nightsCount} Malam</p>
+                                     </div>
+                                     <div>
+                                         <p className="text-xs text-muted-foreground">Tamu</p>
+                                         <div className="flex items-center gap-1 text-sm font-semibold text-slate-800">
+                                             <Users className="h-4 w-4 text-slate-400" />
+                                             <span>{booking.guest_count} Tamu</span>
+                                         </div>
+                                     </div>
+                                 </div>
+
+                                <div className="border-t border-slate-100 pt-4 space-y-2">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-muted-foreground">Total Tagihan</span>
+                                        <span className="font-semibold text-slate-800">{formatCurrency(booking.total_amount)}</span>
                                     </div>
-
-                                    {/* Expiry Time Setting */}
-                                    <div>
-                                        <Label htmlFor="expiry_hours" className="text-base font-medium">
-                                            Waktu Kedaluwarsa Link Pembayaran
-                                        </Label>
-                                        <div className="mt-2 space-y-2">
-                                            <Input
-                                                id="expiry_hours"
-                                                type="number"
-                                                min={1}
-                                                max={168}
-                                                value={expiryHours}
-                                                onChange={(e) => {
-                                                    const hours = parseInt(e.target.value) || defaultExpiryHours;
-                                                    setExpiryHours(hours);
-                                                    setData('expiry_hours', hours);
-                                                }}
-                                                className="w-full"
-                                            />
-                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                <Clock className="h-4 w-4" />
-                                                <span>
-                                                    Link pembayaran akan berlaku selama {expiryHours} jam ({expiryHours / 24} hari)
-                                                </span>
-                                            </div>
-                                            {errors.expiry_hours && (
-                                                <p className="text-sm text-destructive">{errors.expiry_hours}</p>
-                                            )}
-                                        </div>
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-muted-foreground">Sudah Dibayar</span>
+                                        <span className="font-semibold text-green-600">{formatCurrency(paymentInfo.paidAmount)}</span>
                                     </div>
-
-                                    {/* Payment Amount Info */}
-                                    {selectedMethod && (
-                                        <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800">
-                                            <Info className="h-4 w-4 text-blue-600" />
-                                            <AlertDescription className="text-blue-800 dark:text-blue-200">
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between">
-                                                        <span>Jumlah Tagihan:</span>
-                                                        <span className="font-medium">{formatCurrency(pendingAmount)}</span>
-                                                    </div>
-                                                    {selectedMethod.fee_amount > 0 && (
-                                                        <>
-                                                            <div className="flex justify-between">
-                                                                <span>Biaya Transaksi:</span>
-                                                                <span className="font-medium text-orange-600">
-                                                                    {formatCurrency(selectedMethod.fee_amount)}
-                                                                </span>
-                                                            </div>
-                                                            <Separator className="my-2" />
-                                                            <div className="flex justify-between font-semibold text-lg">
-                                                                <span>Total Pembayaran:</span>
-                                                                <span className="text-brand-primary">
-                                                                    {formatCurrency(selectedMethod.total_with_fee)}
-                                                                </span>
-                                                            </div>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </AlertDescription>
-                                        </Alert>
-                                    )}
-
-                                    {/* Info Alert */}
-                                    <Alert>
-                                        <Shield className="h-4 w-4" />
-                                        <AlertDescription>
-                                            Anda akan diarahkan ke halaman pembayaran iPaymu yang aman.
-                                            Setelah pembayaran berhasil, Anda akan kembali ke halaman ini.
-                                        </AlertDescription>
-                                    </Alert>
-
-                                    {/* Submit Button */}
-                                    <div className="pt-4">
-                                        <Button
-                                            type="submit"
-                                            disabled={processing || isSubmitting || !selectedMethod}
-                                            className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-brand-primary to-brand-primary-dark hover:from-brand-primary-dark hover:to-brand-primary shadow-lg hover:shadow-xl transition-all"
-                                        >
-                                            {(processing || isSubmitting) ? (
-                                                <>
-                                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                                    Memproses...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Zap className="mr-2 h-5 w-5" />
-                                                    Lanjutkan ke Pembayaran
-                                                </>
-                                            )}
+                                    <div className="border-t border-dashed border-slate-100 pt-2 flex items-center justify-between">
+                                        <span className="text-base font-bold text-slate-900">
+                                            {booking.payment_status === 'fully_paid'
+                                                ? 'Sisa Tagihan'
+                                                : (paymentInfo.paymentType === 'dp' ? 'Uang Muka (DP) + Kode Unik' : 'Sisa Tagihan + Kode Unik')}
+                                        </span>
+                                        <span className={`text-xl font-extrabold ${booking.payment_status === 'fully_paid' ? 'text-green-600' : 'text-blue-600'}`}>
+                                            {booking.payment_status === 'fully_paid' ? 'Rp 0' : formatCurrency(paymentInfo.requiredAmount)}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="border-t border-slate-100 pt-4">
+                                        <Button asChild variant="outline" className="w-full border-slate-200 text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold cursor-pointer">
+                                            <a href={`/booking/${booking.booking_number}/invoice`} target="_blank" rel="noopener noreferrer">
+                                                <Download className="h-4 w-4 text-slate-500" /> Unduh Invoice Booking (PDF)
+                                            </a>
                                         </Button>
                                     </div>
-                                </form>
+                                </div>
+
+                                 {booking.payment_status !== 'fully_paid' && (
+                                     <Alert className="bg-blue-50 border-blue-100">
+                                         <Shield className="h-4 w-4 text-blue-600" />
+                                         <AlertDescription className="text-xs text-blue-800 leading-relaxed">
+                                             Harap transfer tepat sesuai nominal di atas (termasuk kode unik) agar sistem dapat memverifikasi pembayaran Anda secara otomatis.
+                                         </AlertDescription>
+                                     </Alert>
+                                 )}
                             </CardContent>
                         </Card>
-                    </div>
 
-                    {/* Booking Summary Sidebar */}
-                    <div className="lg:col-span-1">
-                        <Card className="card-modern sticky top-6 shadow-lg border-0">
-                            <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20">
-                                <CardTitle className="flex items-center gap-2">
-                                    <Building2 className="h-5 w-5 text-blue-600" />
-                                    Detail Booking
+                        {/* Payment Actions */}
+                        <Card className="shadow-sm border-slate-100">
+                            <CardHeader className="bg-slate-50/55">
+                                <CardTitle className="flex items-center gap-2 text-slate-800 text-lg">
+                                    <CreditCard className="h-5 w-5 text-blue-500" /> Metode & Konfirmasi Pembayaran
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="pt-6">
-                                <div className="space-y-4">
-                                    {/* Property Info */}
-                                    <div>
-                                        <h4 className="font-semibold text-lg mb-2">{booking.property.name}</h4>
-                                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                                            <MapPin className="h-4 w-4 mt-0.5 text-gray-400" />
-                                            <span>{booking.property.address}</span>
-                                        </div>
-                                    </div>
+                            <CardContent className="pt-4">
+                                {booking.payment_status === 'fully_paid' ? (
+                                    isBeforeCheckIn ? (
+                                        <div className="text-center py-8 px-4 space-y-5">
+                                            <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-blue-50 text-blue-600 mb-1">
+                                                <CheckCircle className="h-12 w-12 text-blue-500" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <h3 className="text-xl font-bold text-slate-900">Booking Terkonfirmasi</h3>
+                                                <Badge variant="secondary" className="bg-green-100 text-green-700 font-bold border-none text-[10px] uppercase">
+                                                    LUNAS
+                                                </Badge>
+                                            </div>
+                                            <p className="text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
+                                                Halo <strong>{booking.guest_name}</strong>, booking Anda dengan nomor <strong>{booking.booking_number}</strong> telah terkonfirmasi. Silakan menunggu waktu check-in tiba.
+                                            </p>
 
-                                    <Separator />
+                                            {/* Countdown Card */}
+                                            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 max-w-sm mx-auto shadow-sm space-y-2">
+                                                <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                                    <Clock className="h-4 w-4 text-blue-500 animate-pulse" /> Waktu Menuju Check-in
+                                                </div>
+                                                <div className="text-lg sm:text-xl font-black text-slate-905 tracking-tight text-blue-600">
+                                                    {formatCountdown()}
+                                                </div>
+                                                <div className="text-[10px] text-slate-400">
+                                                    Check-in: {formatDate(booking.check_in)} ({booking.check_in_time || '14:00'})
+                                                </div>
+                                            </div>
 
-                                    {/* Booking Details */}
-                                    <div className="space-y-3">
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                                            <span className="font-medium">Check-in:</span>
-                                            <span>{new Date(booking.check_in).toLocaleDateString('id-ID')}</span>
+                                            <div className="pt-2 max-w-sm mx-auto space-y-3">
+                                                <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer">
+                                                    <a href={getGoogleCalendarUrl()} target="_blank" rel="noopener noreferrer">
+                                                        <Calendar className="h-5 w-5" /> Tambah Pengingat ke Kalender
+                                                    </a>
+                                                </Button>
+                                                <Button asChild variant="ghost" className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer">
+                                                     <a href={`https://wa.me/6281138226322?text=${encodeURIComponent(`Halo Admin Hospitality, saya memerlukan bantuan terkait pemesanan ${booking.booking_number} atas nama ${booking.guest_name}.`)}`} target="_blank" rel="noopener noreferrer">
+                                                         Butuh bantuan? Hubungi Hospitality
+                                                     </a>
+                                                 </Button>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                                            <span className="font-medium">Check-out:</span>
-                                            <span>{new Date(booking.check_out).toLocaleDateString('id-ID')}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <Users className="h-4 w-4 text-muted-foreground" />
-                                            <span className="font-medium">Durasi:</span>
-                                            <span>{nights} malam</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <Clock className="h-4 w-4 text-muted-foreground" />
-                                            <span className="font-medium">Booking Number:</span>
-                                            <span className="font-mono">{booking.booking_number}</span>
-                                        </div>
-                                    </div>
+                                    ) : (
+                                        <div className="py-6 px-2 space-y-5">
+                                            <div className="flex items-center gap-3 border-b pb-3 mb-2">
+                                                <div className="h-10 w-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                                                    <Shield className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-slate-900">Waktunya Check-in!</h3>
+                                                    <p className="text-xs text-slate-500">Silakan baca instruksi & setujui peraturan properti</p>
+                                                </div>
+                                            </div>
 
-                                    <Separator />
+                                            {/* Instructions Box */}
+                                            <div className="space-y-3">
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Instruksi Check-in</h4>
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-600 space-y-2.5 leading-relaxed">
+                                                    {getCheckinInstructions().map((instruction, index) => (
+                                                        <div key={index} className="flex gap-2">
+                                                            <span className="font-bold text-blue-600">{index + 1}.</span>
+                                                            <span>{instruction}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
 
-                                    {/* Payment Summary */}
-                                    <div className="space-y-2 pt-2">
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-muted-foreground">Total:</span>
-                                            <span className="font-medium">{formatCurrency(booking.total_amount)}</span>
+                                            {/* Google Maps Directions */}
+                                            {booking.property.maps_link && (
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <MapPin className="h-4 w-4 text-rose-500" />
+                                                        <span className="text-xs font-bold text-slate-700">Petunjuk Arah Properti</span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500 leading-normal">
+                                                        Klik tombol di bawah untuk membuka Google Maps dan melihat rute petunjuk arah menuju <strong>{booking.property.name}</strong>.
+                                                    </p>
+                                                    <Button asChild variant="outline" className="w-full bg-white hover:bg-slate-100 border-slate-200 text-slate-700 text-xs py-2 rounded-lg flex items-center justify-center gap-2 cursor-pointer">
+                                                        <a href={booking.property.maps_link} target="_blank" rel="noopener noreferrer">
+                                                            <MapPin className="h-4 w-4 text-rose-500" /> Buka di Google Maps
+                                                        </a>
+                                                    </Button>
+                                                </div>
+                                            )}
+
+                                            {/* Property Rules */}
+                                            <div className="space-y-3 pt-1">
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Peraturan Properti ({booking.property.name})</h4>
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-600 space-y-2.5">
+                                                    <div className="flex items-start gap-2">
+                                                        <span className="text-blue-500 font-bold">•</span>
+                                                        <span><strong>Waktu Check-out:</strong> Maksimal pukul {booking.property.check_out_time || '11:00'} siang WIB.</span>
+                                                    </div>
+                                                    <div className="flex items-start gap-2">
+                                                        <span className="text-blue-500 font-bold">•</span>
+                                                        <span><strong>Ketenangan & Ketertiban:</strong> Harap menjaga ketenangan dan tidak membuat kegaduhan setelah pukul 21:00 malam.</span>
+                                                    </div>
+                                                    <div className="flex items-start gap-2">
+                                                        <span className="text-blue-500 font-bold">•</span>
+                                                        <span><strong>Larangan Merokok:</strong> Merokok di dalam kamar sangat dilarang. Silakan merokok di area outdoor yang telah disediakan.</span>
+                                                    </div>
+                                                    <div className="flex items-start gap-2">
+                                                        <span className="text-blue-500 font-bold">•</span>
+                                                        <span><strong>Kerusakan Properti:</strong> Setiap kehilangan atau kerusakan fasilitas properti selama masa inap menjadi tanggung jawab tamu sepenuhnya.</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Acceptance Form */}
+                                            {rulesAgreed ? (
+                                                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center space-y-2">
+                                                    <div className="inline-flex items-center gap-1.5 text-green-700 text-xs font-bold uppercase">
+                                                        <CheckCircle className="h-4 w-4 text-green-600" /> Persyaratan Disetujui
+                                                    </div>
+                                                    <p className="text-[11px] text-green-600 leading-relaxed font-medium">
+                                                        Anda telah menyetujui peraturan properti. Selamat menikmati kunjungan Anda!
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div className="pt-2 space-y-3">
+                                                    <div className="flex items-center gap-2 px-1">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="agree_rules_check"
+                                                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    handleAgreeRules();
+                                                                }
+                                                            }}
+                                                        />
+                                                        <Label htmlFor="agree_rules_check" className="text-xs text-slate-700 font-medium cursor-pointer">
+                                                            Saya mengerti dan mematuhi peraturan properti.
+                                                        </Label>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-muted-foreground">Sudah Dibayar:</span>
-                                            <span className="font-medium text-green-600">{formatCurrency(paidAmount)}</span>
+                                    )
+                                ) : hasPendingPayment && pendingPayment ? (
+                                    <div className="text-center py-8 px-4 space-y-4">
+                                        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-yellow-50 text-yellow-500 mb-2">
+                                            <Clock className="h-10 w-10 animate-pulse text-yellow-500" />
                                         </div>
-                                        <Separator />
-                                        <div className="flex justify-between">
-                                            <span className="font-semibold">Sisa Tagihan:</span>
-                                            <span className="text-xl font-bold text-brand-primary">
-                                                {formatCurrency(pendingAmount)}
-                                            </span>
+                                        <h3 className="text-lg font-bold text-slate-900">Pembayaran Menunggu Konfirmasi</h3>
+                                        <p className="text-sm text-slate-600 leading-relaxed max-w-sm mx-auto">
+                                            Bukti transfer Anda sebesar <strong>{formatCurrency(pendingPayment.expected_amount || pendingPayment.amount)}</strong> telah kami terima pada <strong>{formatDate(pendingPayment.created_at)}</strong>.
+                                        </p>
+                                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-left text-xs text-slate-500 space-y-1.5 max-w-sm mx-auto">
+                                            <div className="flex justify-between">
+                                                <span>No. Pembayaran:</span>
+                                                <span className="font-semibold text-slate-700">{pendingPayment.payment_number}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>Metode:</span>
+                                                <span className="font-semibold text-slate-700">{pendingPayment.payment_method?.toUpperCase().replace('_', ' ')}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>Status:</span>
+                                                <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 text-[10px] font-bold border-none">
+                                                    MENUNGGU VERIFIKASI
+                                                </Badge>
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
+                                         <p className="text-xs text-slate-400">
+                                             Kami sedang memverifikasi pembayaran Anda. Halaman ini akan diperbarui secara otomatis setelah pembayaran terverifikasi.
+                                         </p>
+                                         <div className="pt-2 max-w-sm mx-auto">
+                                             <Button asChild className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-2 py-2.5 rounded-xl shadow-sm transition-all">
+                                                 <a href={waUrl} target="_blank" rel="noopener noreferrer">
+                                                     <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                                                         <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.864.002-2.637-1.03-5.115-2.908-6.995-1.878-1.88-4.357-2.912-6.997-2.914-5.443 0-9.865 4.42-9.87 9.865-.002 1.698.443 3.356 1.293 4.806l-.99 3.619 3.708-.973zm12.39-7.37c-.3-.15-1.772-.875-2.046-.975-.276-.1-.476-.15-.676.15-.2.3-.775.975-.95 1.175-.175.2-.35.225-.65.075-.3-.15-1.265-.467-2.41-1.485-.89-.795-1.49-1.77-1.665-2.07-.175-.3-.019-.462.13-.61.135-.133.3-.35.45-.525.15-.175.2-.3.3-.5.1-.2.05-.375-.025-.525-.075-.15-.676-1.625-.926-2.225-.244-.589-.49-.51-.676-.51-.175-.005-.375-.005-.575-.005-.2 0-.525.075-.8.375-.276.3-1.05 1.025-1.05 2.5s1.075 2.9 1.225 3.1c.15.2 2.11 3.224 5.112 4.521.714.309 1.272.493 1.706.63.718.228 1.37.196 1.885.12.574-.085 1.772-.725 2.022-1.425.25-.7.25-1.3 1.75-1.4.075-.1.225-.3.075-.45z"/>
+                                                     </svg>
+                                                     Hubungi Admin Hospitality (WhatsApp)
+                                                 </a>
+                                             </Button>
+                                         </div>
+                                     </div>
+                                ) : (
+                                    <form onSubmit={handleSubmit} className="space-y-5">
+                                        {/* Bank transfer info card */}
+                                        {selectedMethod && (
+                                            <div className="space-y-4">
+                                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                                                    <div className="flex items-center justify-between border-b pb-2">
+                                                        <span className="text-xs font-semibold text-slate-500">TRANSFER KE REKENING</span>
+                                                        <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-[10px]">
+                                                            BANK TRANSFER
+                                                        </Badge>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between text-sm">
+                                                            <span className="text-slate-500">Bank:</span>
+                                                            <span className="font-semibold text-slate-800">
+                                                                {selectedMethod.bank_name || (bankAccount ? bankAccount.bank_name : '')}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between text-sm items-center">
+                                                            <span className="text-slate-500">No. Rekening:</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="font-mono font-bold text-slate-950">
+                                                                    {selectedMethod.account_number || (bankAccount ? bankAccount.account_number : '')}
+                                                                </span>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => copyToClipboard((selectedMethod.account_number || (bankAccount ? bankAccount.account_number : '')) || '', 'account')}
+                                                                    className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600"
+                                                                >
+                                                                    {copiedField === 'account' ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex justify-between text-sm">
+                                                            <span className="text-slate-500">Atas Nama:</span>
+                                                            <span className="font-semibold text-slate-800">
+                                                                {selectedMethod.account_name || (bankAccount ? bankAccount.account_holder : '')}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Instructions */}
+                                                {selectedMethod.instructions && (
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-slate-700 font-semibold">Petunjuk Transfer</Label>
+                                                        <ul className="text-xs text-slate-500 space-y-1 list-decimal pl-4">
+                                                            {selectedMethod.instructions.map((inst: string, idx: number) => (
+                                                                <li key={idx}>{inst}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                <div className="border-t border-slate-100 pt-4 space-y-4">
+                                                    {/* Expected transfer amount */}
+                                                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center justify-between">
+                                                        <div>
+                                                            <p className="text-xs text-slate-400">Total Nominal (+ Kode Unik)</p>
+                                                            <p className="font-extrabold text-blue-600 text-lg">{formatCurrency(paymentInfo.requiredAmount)}</p>
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => copyToClipboard(paymentInfo.requiredAmount.toString(), 'amount')}
+                                                            className="h-8 text-blue-600 hover:text-blue-700"
+                                                        >
+                                                            {copiedField === 'amount' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Proof of payment upload */}
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="proof_of_payment" className="text-slate-700 font-semibold">Upload Bukti Transfer *</Label>
+                                                    <div className="border border-dashed border-slate-200 p-4 rounded-xl text-center space-y-2 hover:bg-slate-50 transition-colors">
+                                                        <Upload className="h-8 w-8 text-slate-400 mx-auto" />
+                                                        <input
+                                                            id="proof_of_payment"
+                                                            type="file"
+                                                            accept="image/*"
+                                                            onChange={handleFileUpload}
+                                                            className="block w-full text-xs text-muted-foreground file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                                        />
+                                                        <p className="text-[10px] text-slate-400">Mendukung format JPG, JPEG, PNG, PDF (Maks. 2MB)</p>
+                                                    </div>
+                                                    {errors.proof_of_payment && (
+                                                        <p className="text-xs text-red-600 mt-1 font-medium">{errors.proof_of_payment}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* Payment notes */}
+                                                <div className="space-y-1.5">
+                                                    <Label htmlFor="payment_notes" className="text-slate-700">Catatan Pembayaran (Opsional)</Label>
+                                                    <Textarea
+                                                        id="payment_notes"
+                                                        value={data.payment_notes}
+                                                        onChange={(e) => setData('payment_notes', e.target.value)}
+                                                        placeholder="Contoh: Transfer dari rekening atas nama Budi"
+                                                        rows={2}
+                                                        className="resize-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Submit Button */}
+                                        <Button
+                                            type="submit"
+                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-11 rounded-lg transition-all duration-200"
+                                            disabled={processing}
+                                        >
+                                            {processing ? 'Memproses...' : 'Kirim Bukti Pembayaran'}
+                                        </Button>
+                                    </form>
+                                )}
                             </CardContent>
                         </Card>
                     </div>
                 </div>
             </div>
-        </GuestLayout>
+        </>
     );
 }

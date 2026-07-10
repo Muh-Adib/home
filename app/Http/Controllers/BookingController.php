@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\AvailabilityService;
 use App\Services\BookingService;
 use App\Services\RateCalculationService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
@@ -51,17 +52,17 @@ class BookingController extends Controller
     {
         $user = auth()->user();
         // Ambil data dari request (GET)
-        $checkIn = $request->query('check_in');
-        $checkOut = $request->query('check_out');
+        // Fallback default jika tidak ada input
+        $today = now()->toDateString();
+        $tomorrow = now()->addDay()->toDateString();
+
+        $checkIn = $request->query('check_in') ?? $today;
+        $checkOut = $request->query('check_out') ?? $tomorrow;
         $guests = (int) $request->query('guests', 2); // Default 2 jika tidak ada
 
         $guestMale = (int) ($guests / 2);
         $guestFemale = (int) ($guests / 2);
         $guestChildren = (int) ($guests % 2);
-
-        // Fallback default jika tidak ada input
-        $today = now()->toDateString();
-        $tomorrow = now()->addDay()->toDateString();
 
         // Get availability data using the same service as show property
         $availabilityService = app(AvailabilityService::class);
@@ -78,8 +79,8 @@ class BookingController extends Controller
         }
 
         $initialFormData = [
-            'check_in' => $checkIn ?? $today,
-            'check_out' => $checkOut ?? $tomorrow,
+            'check_in' => $checkIn,
+            'check_out' => $checkOut,
             'check_in_time' => '15:00',
             'guest_male' => $guestMale,
             'guest_female' => $guestFemale,
@@ -105,6 +106,9 @@ class BookingController extends Controller
                 'service_type' => $service->service_type,
                 'service_type_label' => $service->getServiceTypeLabel(),
                 'unit_price' => (float) $service->unit_price,
+                'vendor_unit_price' => (float) $service->vendor_unit_price,
+                'discount_amount' => (float) $service->discount_amount,
+                'discount_limit' => $service->discount_limit,
                 'thumbnail_url' => $service->thumbnail_url,
                 'is_active' => $service->is_active,
             ];
@@ -527,5 +531,17 @@ class BookingController extends Controller
 
             return back()->withErrors(['error' => 'Gagal membatalkan booking: '.$e->getMessage()]);
         }
+    }
+
+    /**
+     * Generate and download PDF Invoice for booking (public guest route)
+     */
+    public function invoice(Booking $booking)
+    {
+        $booking->load(['property', 'payments', 'services.serviceMaster']);
+
+        $pdf = Pdf::loadView('admin.bookings.invoice', compact('booking'));
+
+        return $pdf->download("invoice-{$booking->booking_number}.pdf");
     }
 }

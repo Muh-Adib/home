@@ -20,6 +20,9 @@ class ServiceMaster extends Model
         'description',
         'service_type',
         'unit_price',
+        'vendor_unit_price',
+        'discount_amount',
+        'discount_limit',
         'thumbnail_path',
         'is_active',
         'sort_order',
@@ -32,6 +35,9 @@ class ServiceMaster extends Model
      */
     protected $casts = [
         'unit_price' => 'decimal:2',
+        'vendor_unit_price' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
+        'discount_limit' => 'integer',
         'is_active' => 'boolean',
         'sort_order' => 'integer',
     ];
@@ -58,11 +64,11 @@ class ServiceMaster extends Model
      */
     public function getThumbnailUrlAttribute(): ?string
     {
-        if (!$this->thumbnail_path) {
+        if (! $this->thumbnail_path) {
             return null;
         }
 
-        return asset('storage/' . $this->thumbnail_path);
+        return asset('storage/'.$this->thumbnail_path);
     }
 
     /**
@@ -94,7 +100,7 @@ class ServiceMaster extends Model
      */
     public function getServiceTypeLabel(): string
     {
-        return match($this->service_type) {
+        return match ($this->service_type) {
             'extra_bed' => 'Tempat Tidur Tambahan',
             'breakfast' => 'Sarapan',
             'airport_transfer' => 'Transfer Bandara',
@@ -116,4 +122,3 @@ class ServiceMaster extends Model
         return $this->is_active;
     }
 }
-

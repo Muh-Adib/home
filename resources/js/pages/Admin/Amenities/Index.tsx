@@ -40,7 +40,7 @@ export default function AmenitiesIndex({ amenities, categories }: AmenitiesIndex
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Amenities Management" />
 
-            <div className="space-y-6 p-4 md:p-6">
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex justify-between items-center">
                     <div>

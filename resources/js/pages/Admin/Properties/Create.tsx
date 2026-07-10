@@ -13,6 +13,8 @@ interface Owner {
 interface CreatePropertyProps {
     amenities: Amenity[];
     owners?: Owner[];
+    bankAccounts: any[];
+    paymentMethods?: any[];
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -64,9 +66,19 @@ const DEFAULT_FORM: PropertyFormData = {
     ical_import_urls: [''],
     ical_export_token: '',
     files: [],
+    ownership_model: 'owned',
+    initial_build_capital: 0,
+    lease_capital: 0,
+    monthly_rent_cost: 0,
+    monthly_mortgage_cost: 0,
+    mortgage_interest_monthly: 0,
+    owner_split_pct: 100,
+    investor_split_pct: 0,
+    bank_account_id: '',
+    payment_method_id: '',
 };
 
-export default function CreateProperty({ amenities, owners }: CreatePropertyProps) {
+export default function CreateProperty({ amenities, owners, bankAccounts = [], paymentMethods = [] }: CreatePropertyProps) {
     const { data, setData, post, processing, errors } = useForm<PropertyFormData>(DEFAULT_FORM);
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -80,7 +92,7 @@ export default function CreateProperty({ amenities, owners }: CreatePropertyProp
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Create Property - Admin Dashboard" />
-            <div className="p-4 md:p-6 space-y-4">
+            <div className="space-y-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Create Property</h1>
                     <p className="text-muted-foreground text-sm">Add a new property to your portfolio</p>
@@ -94,6 +106,8 @@ export default function CreateProperty({ amenities, owners }: CreatePropertyProp
                     onSubmit={handleSubmit}
                     amenities={amenities}
                     owners={owners}
+                    bankAccounts={bankAccounts}
+                    paymentMethods={paymentMethods}
                 />
             </div>
         </AdminLayout>

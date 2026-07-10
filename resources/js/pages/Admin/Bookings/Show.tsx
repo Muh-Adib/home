@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { Head, Link, useForm, router } from '@inertiajs/react';
+import React, { useState, useEffect } from 'react';
+import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import RateBreakdownCard from '@/components/booking/RateBreakdownCard';
+import { getWhatsAppLink } from '@/utils/phone';
 
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -100,6 +102,21 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [showPaymentLinkDialog, setShowPaymentLinkDialog] = useState(false);
     const [paymentLinkUrl, setPaymentLinkUrl] = useState<string | null>(null);
+    const [pendingWhatsappUrl, setPendingWhatsappUrl] = useState<string | null>(null);
+
+    const page = usePage<any>();
+
+    // Auto-buka WhatsApp di tab baru setelah payment link berhasil digenerate
+    useEffect(() => {
+        const flash = page.props.flash as any;
+        if (flash?.whatsapp_url && flash.whatsapp_url !== pendingWhatsappUrl) {
+            setPendingWhatsappUrl(flash.whatsapp_url);
+            window.open(flash.whatsapp_url, '_blank', 'noopener,noreferrer');
+        }
+        if (flash?.payment_url) {
+            setPaymentLinkUrl(flash.payment_url);
+        }
+    }, [page.props.flash]);
 
     const [showVerifyDialog, setShowVerifyDialog] = useState(false);
     const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -161,6 +178,15 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 
     const getStatusBadge = (status: string) => {
+        if (status === 'confirmed') {
+            const checkInDate = new Date(booking.check_in);
+            checkInDate.setHours(0, 0, 0, 0);
+            const todayDate = new Date();
+            todayDate.setHours(0, 0, 0, 0);
+            if (checkInDate > todayDate) {
+                return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200"><Clock className="h-3 w-3 mr-1" />Menunggu Jadwal</Badge>;
+            }
+        }
         switch (status) {
             case 'confirmed':
                 return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Confirmed</Badge>;
@@ -196,9 +222,17 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
         return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
     };
 
+    const checkInDate = new Date(booking.check_in);
+    checkInDate.setHours(0, 0, 0, 0);
+    const todayVal = new Date();
+    todayVal.setHours(0, 0, 0, 0);
+    const yesterdayVal = new Date(todayVal);
+    yesterdayVal.setDate(todayVal.getDate() - 1);
+    const isCheckInTime = checkInDate >= yesterdayVal && checkInDate <= todayVal;
+
     const canVerify = booking.booking_status === 'pending_verification';
     const canCancel = ['pending', 'confirmed'].includes(booking.booking_status);
-    const canCheckIn = booking.payment_status === 'fully_paid' && booking.booking_status === 'confirmed';
+    const canCheckIn = booking.payment_status === 'fully_paid' && booking.booking_status === 'confirmed' && isCheckInTime;
     const canCheckOut = booking.booking_status === 'checked_in';
     const canEdit = auth?.user?.role === 'super_admin';
     const canDelete = auth?.user?.role === 'super_admin';
@@ -220,6 +254,11 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
     const ActionMenuItems = () => (
         <>
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem asChild>
+                <a href={`/admin/bookings/${booking.booking_number}/invoice`} target="_blank" rel="noopener noreferrer" className="flex items-center w-full">
+                    <FileText className="h-4 w-4 mr-2 text-blue-600" /> Invoice PDF
+                </a>
+            </DropdownMenuItem>
             {canEdit && (
                 <DropdownMenuItem onClick={handleEdit}>
                     <Edit className="h-4 w-4 mr-2" /> Edit Booking
@@ -343,6 +382,11 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                     </a>
                                 </Button>
                             )}
+                            <Button asChild variant="outline" size="sm" className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200">
+                                <a href={`/admin/bookings/${booking.booking_number}/invoice`} target="_blank" rel="noopener noreferrer">
+                                    <FileText className="h-3.5 w-3.5 mr-1.5" /> Invoice PDF
+                                </a>
+                            </Button>
                             {/* Primary Workflow Actions shown directly */}
                             {canCheckIn && (
                                 <Button size="sm" onClick={handleCheckIn} className="bg-blue-600 hover:bg-blue-700">
@@ -495,7 +539,7 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
 
                                         <div className="space-y-3 pt-2">
                                             {booking.guest_phone ? (
-                                                <a href={`tel:${booking.guest_phone}`} className="flex items-center gap-3 text-sm text-slate-600 hover:text-blue-600 transition-colors p-2 hover:bg-slate-50 rounded-lg">
+                                                <a href={getWhatsAppLink(booking.guest_phone)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm text-slate-600 hover:text-blue-600 transition-colors p-2 hover:bg-slate-50 rounded-lg">
                                                     <Phone className="w-4 h-4" /> {booking.guest_phone}
                                                 </a>
                                             ) : (
@@ -540,6 +584,44 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                 </div>
                             </div>
 
+                            {/* Extra Services Card */}
+                            {booking.services && booking.services.length > 0 && (
+                                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                    <div className="bg-slate-50 px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+                                        <Sparkles className="w-5 h-5 text-purple-600" />
+                                        <h3 className="font-semibold text-slate-800 text-base">Extra Services</h3>
+                                    </div>
+                                    <div className="divide-y divide-slate-100">
+                                        {booking.services.map((svc, i) => (
+                                            <div key={i} className="flex justify-between items-center p-5 hover:bg-slate-50/50 transition-colors">
+                                                <div className="flex flex-col">
+                                                    <span className="font-semibold text-slate-800 text-sm">
+                                                        {svc.service_name}
+                                                        {svc.service_date && (
+                                                            <span className="text-xs text-slate-500 font-normal ml-2">
+                                                                ({new Date(svc.service_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })})
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    <span className="text-xs text-slate-500 space-x-2 mt-1">
+                                                        <span>Qty: {svc.quantity}</span>
+                                                        <span>•</span>
+                                                        <span>Price: {formatCurrency(svc.unit_price)}</span>
+                                                        {svc.discount_amount && Number(svc.discount_amount) > 0 ? (
+                                                            <>
+                                                                <span>•</span>
+                                                                <span className="text-rose-600 font-medium">Discount: -{formatCurrency(svc.discount_amount)}</span>
+                                                            </>
+                                                        ) : null}
+                                                    </span>
+                                                </div>
+                                                <span className="font-bold text-slate-900">{formatCurrency(svc.total_price)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Workflow History Card - Full Width in Left Col */}
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 md:p-6">
                                 <h3 className="text-lg font-semibold text-slate-800 mb-6 flex items-center gap-2">
@@ -575,7 +657,7 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                         <div className="space-y-6 md:space-y-8">
 
                             {/* Financial Summary Card */}
-                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden sticky top-6">
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                                 <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                                     <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                                         <CreditCard className="w-4 h-4 text-blue-600" /> Payment Summary
@@ -600,18 +682,55 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                             <span>Taxes & Fees</span>
                                             <span>{formatCurrency(booking.tax_amount)}</span>
                                         </div>
+                                        {booking.services && booking.services.length > 0 && (
+                                            <div className="flex justify-between text-purple-600 font-medium">
+                                                <span>Layanan Tambahan</span>
+                                                <span>+{formatCurrency(booking.services.reduce((sum, s) => sum + Number(s.total_price), 0))}</span>
+                                            </div>
+                                        )}
+                                        {booking.discount_amount > 0 && (
+                                            <div className="flex justify-between text-rose-600 font-semibold">
+                                                <span>Diskon</span>
+                                                <span>-{formatCurrency(booking.discount_amount)}</span>
+                                            </div>
+                                        )}
+                                        {(() => {
+                                            const totalUniqueCode = booking.payments
+                                                ? booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + (p.unique_code || 0), 0)
+                                                : 0;
+                                            if (totalUniqueCode <= 0) return null;
+                                            return (
+                                                <div className="flex justify-between text-blue-600 font-semibold">
+                                                    <span>Kode Unik Transfer</span>
+                                                    <span>+{formatCurrency(totalUniqueCode)}</span>
+                                                </div>
+                                            );
+                                        })()}
                                         <div className="border-t border-dashed my-2"></div>
                                         <div className="flex justify-between items-end">
                                             <span className="font-bold text-slate-700">Total Amount</span>
-                                            <span className="text-xl font-bold text-slate-900">{formatCurrency(booking.total_amount)}</span>
+                                            <span className="text-xl font-bold text-slate-900">
+                                                {(() => {
+                                                    const totalUniqueCode = booking.payments
+                                                        ? booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + (p.unique_code || 0), 0)
+                                                        : 0;
+                                                    return formatCurrency(booking.total_amount + totalUniqueCode);
+                                                })()}
+                                            </span>
                                         </div>
                                     </div>
 
                                     {/* Progress */}
                                     {(() => {
-                                        const paid = booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0);
-                                        const remaining = booking.total_amount - paid;
-                                        const percentage = Math.min(100, Math.round((paid / booking.total_amount) * 100));
+                                        const totalUniqueCode = booking.payments
+                                            ? booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + (p.unique_code || 0), 0)
+                                            : 0;
+                                        const paid = booking.payments
+                                            ? booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0)
+                                            : 0;
+                                        const totalBilling = booking.total_amount + totalUniqueCode;
+                                        const remaining = Math.max(0, totalBilling - paid);
+                                        const percentage = Math.min(100, Math.round((paid / totalBilling) * 100));
                                         return (
                                             <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
                                                 <div className="flex justify-between text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
@@ -656,8 +775,8 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                                 </DialogTrigger>
                                                 <DialogContent className="sm:max-w-[500px] bg-white rounded-xl">
                                                     <DialogHeader>
-                                                        <DialogTitle>Generate Payment Link</DialogTitle>
-                                                        <DialogDescription>Create and send an iPaymu payment link.</DialogDescription>
+                                                         <DialogTitle>Generate Payment Link</DialogTitle>
+                                                         <DialogDescription>Buat dan kirim link pembayaran aman (manual transfer dengan kode unik).</DialogDescription>
                                                     </DialogHeader>
                                                     <form onSubmit={(e) => {
                                                         e.preventDefault();
@@ -675,6 +794,10 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                                                 if (flash?.payment_url) {
                                                                     setPaymentLinkUrl(flash.payment_url);
                                                                 }
+                                                                if (flash?.whatsapp_url) {
+                                                                    window.open(flash.whatsapp_url, '_blank');
+                                                                }
+                                                                setShowPaymentLinkDialog(false);
                                                             },
                                                             onError: (errors) => {
                                                                 console.error('Error generating payment link:', errors);
@@ -713,9 +836,9 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                                                     <SelectValue />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    <SelectItem value="dp">Down Payment</SelectItem>
+                                                                    <SelectItem value="dp">Down Payment (DP)</SelectItem>
+                                                                    <SelectItem value="remaining">Pelunasan (Sisa Tagihan)</SelectItem>
                                                                     <SelectItem value="full">Full Payment</SelectItem>
-                                                                    <SelectItem value="pelunasan">Repayment (Pelunasan)</SelectItem>
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
@@ -774,6 +897,17 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Rate Breakdown Card */}
+                            {booking.rate_calculation && (
+                                <RateBreakdownCard
+                                    rateCalculation={booking.rate_calculation}
+                                    checkIn={booking.check_in}
+                                    checkOut={booking.check_out}
+                                    discountAmount={booking.discount_amount}
+                                    services={booking.services}
+                                />
+                            )}
 
                             {/* Payments List (Below Summary) */}
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">

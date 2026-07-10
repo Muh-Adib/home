@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Events\PaymentStatusChanged;
 use App\Http\Controllers\Controller;
+use App\Models\BankAccount;
+use App\Models\BankMutation;
 use App\Models\Booking;
 use App\Models\Income;
 use App\Models\Payment;
@@ -11,6 +13,7 @@ use App\Models\PaymentMethod;
 use App\Models\User;
 use App\Services\PaymentGatewayService;
 use App\Services\PaymentIncomeSyncService;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -90,7 +93,7 @@ class PaymentController extends Controller
         $this->authorize('viewAny', Payment::class);
 
         $query = Payment::query()
-            ->with(['booking.property', 'paymentMethod', 'verifier']);
+            ->with(['booking.property.bankAccount', 'paymentMethod', 'verifier']);
 
         // Filter by status
         if ($request->filled('status')) {
@@ -263,22 +266,20 @@ class PaymentController extends Controller
                 'gateway_transaction_id' => $validated['gateway_transaction_id'],
             ]);
 
-            // Update booking payment status if verified
+            // Update booking payment status (centralized — sets dp_paid_amount & remaining_amount)
+            $booking->updatePaymentStatus(save: true);
+
+            // Auto-confirm booking if requested, verified and fully paid
             if ($validated['payment_status'] === 'verified') {
-                $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-
-                if ($totalPaid >= $booking->total_amount) {
-                    $booking->update(['payment_status' => 'fully_paid']);
-
-                    // Auto-confirm booking if requested and fully paid
-                    if ($validated['auto_confirm'] && $booking->booking_status === 'pending_verification') {
-                        $booking->update(['booking_status' => 'confirmed']);
-                    }
-                } elseif ($validated['payment_type'] === 'dp') {
-                    $booking->update(['payment_status' => 'dp_received']);
+                $totalPaid = $booking->getTotalPaidAmount();
+                if ($totalPaid >= $booking->total_amount && ($validated['auto_confirm'] ?? false) && $booking->booking_status === 'pending_verification') {
+                    $booking->booking_status = 'confirmed';
+                    $booking->save();
                 }
+            }
 
-                // Sinkronkan income saat verified
+            // Sinkronkan income saat verified
+            if ($validated['payment_status'] === 'verified') {
                 $this->incomeSyncService->syncOnVerified($payment);
 
                 // Create workflow entry
@@ -365,6 +366,7 @@ class PaymentController extends Controller
         return Inertia::render('Admin/Payments/CreateForBooking', [
             'booking' => $booking->load('property', 'guests'),
             'paymentMethods' => $paymentMethods,
+            'bankAccounts' => BankAccount::all(),
             'users' => $users,
             'bankOptions' => self::BANK_OPTIONS,
         ]);
@@ -379,12 +381,11 @@ class PaymentController extends Controller
         $this->authorize('create', Payment::class);
 
         $validated = $request->validate([
-            'payment_method_type' => 'required|in:ipaymu,manual',
-            'payment_method_id' => 'required_if:payment_method_type,manual|exists:payment_methods,id',
+            'payment_method_id' => 'required|exists:payment_methods,id',
             'amount' => 'required|numeric|min:1',
             'payment_type' => 'required|in:dp,remaining,full,refund,penalty',
-            'payment_status' => 'required_if:payment_method_type,manual|in:pending,verified',
-            'payment_date' => 'required_if:payment_method_type,manual|date',
+            'payment_status' => 'required|in:pending,verified',
+            'payment_date' => 'required|date',
             'due_date' => 'nullable|date|after_or_equal:payment_date',
             'reference_number' => 'nullable|string|max:100',
             'bank_name' => 'nullable|string|max:100',
@@ -408,101 +409,69 @@ class PaymentController extends Controller
                 return back()->withErrors(['amount' => 'Payment amount exceeds pending amount.']);
             }
 
-            // Handle berdasarkan metode pembayaran
-            if ($validated['payment_method_type'] === 'ipaymu') {
-                // Initiate gateway payment
-                $payment = $this->gatewayService->initiateGatewayPayment(
-                    $booking,
-                    $validated['amount'],
-                    $validated['payment_type'],
-                    [
-                        'user_id' => Auth::id(),
-                        'user' => Auth::user(),
-                        'customer_name' => $booking->guest_name,
-                        'customer_phone' => $booking->guest_phone,
-                        'customer_email' => $booking->guest_email,
-                    ]
-                );
+            // Manual transfer flow
+            DB::beginTransaction();
 
-                // Redirect ke payment URL atau return success dengan link
-                if ($payment->ipaymu_payment_url) {
-                    return redirect()->route('admin.bookings.show', $booking->booking_number)
-                        ->with([
-                            'success' => 'Payment gateway link generated successfully.',
-                            'payment_url' => $payment->ipaymu_payment_url,
-                            'payment_number' => $payment->payment_number,
-                        ]);
-                }
+            $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
 
-                return back()->withErrors(['error' => 'Failed to generate payment gateway URL.']);
-
-            } else {
-                // Manual transfer flow
-                DB::beginTransaction();
-
-                $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
-
-                // Handle file upload
-                $attachmentPath = null;
-                if ($request->hasFile('attachment')) {
-                    $attachmentPath = $request->file('attachment')->store('payments/attachments', 'public');
-                }
-
-                // Create payment record
-                $payment = $booking->payments()->create([
-                    'payment_method_id' => $validated['payment_method_id'],
-                    'payment_number' => Payment::generatePaymentNumber(),
-                    'amount' => $validated['amount'],
-                    'payment_type' => $validated['payment_type'],
-                    'payment_method' => $paymentMethod->type,
-                    'payment_status' => $validated['payment_status'],
-                    'payment_date' => $validated['payment_date'],
-                    'due_date' => $validated['due_date'],
-                    'reference_number' => $validated['reference_number'],
-                    'bank_name' => $validated['bank_name'] ?: $paymentMethod->bank_name,
-                    'account_number' => $validated['account_number'],
-                    'account_name' => $validated['account_name'],
-                    'verification_notes' => $validated['verification_notes'],
-                    'attachment_path' => $attachmentPath,
-                    'processed_by' => $validated['processed_by'] ?: Auth::id(),
-                    'verified_by' => $validated['payment_status'] === 'verified' ? ($validated['verified_by'] ?: Auth::id()) : null,
-                    'verified_at' => $validated['payment_status'] === 'verified' ? now() : null,
-                    'gateway_transaction_id' => $validated['gateway_transaction_id'],
-                ]);
-
-                // Update booking payment status if verified
-                if ($validated['payment_status'] === 'verified') {
-                    $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-
-                    if ($totalPaid >= $booking->total_amount) {
-                        $booking->update(['payment_status' => 'fully_paid']);
-
-                        // Auto-confirm booking if requested and fully paid
-                        if ($validated['auto_confirm'] && $booking->booking_status === 'pending_verification') {
-                            $booking->update(['booking_status' => 'confirmed']);
-                        }
-                    } elseif ($validated['payment_type'] === 'dp') {
-                        $booking->update(['payment_status' => 'dp_received']);
-                    }
-
-                    // Sinkronkan income saat verified
-                    $this->incomeSyncService->syncOnVerified($payment);
-
-                    // Create workflow entry
-                    $booking->workflow()->create([
-                        'step' => 'payment_verified',
-                        'status' => 'completed',
-                        'processed_by' => Auth::id(),
-                        'processed_at' => now(),
-                        'notes' => "Payment created and verified: {$payment->payment_number}",
-                    ]);
-                }
-
-                DB::commit();
-
-                return redirect()->route('admin.bookings.show', $booking->booking_number)
-                    ->with('success', 'Payment created successfully.');
+            // Handle file upload
+            $attachmentPath = null;
+            if ($request->hasFile('attachment')) {
+                $attachmentPath = $request->file('attachment')->store('payments/attachments', 'public');
             }
+
+            // Create payment record
+            $payment = $booking->payments()->create([
+                'payment_method_id' => $validated['payment_method_id'],
+                'payment_number' => Payment::generatePaymentNumber(),
+                'amount' => $validated['amount'],
+                'payment_type' => $validated['payment_type'],
+                'payment_method' => $paymentMethod->type,
+                'payment_status' => $validated['payment_status'],
+                'payment_date' => $validated['payment_date'],
+                'due_date' => $validated['due_date'],
+                'reference_number' => $validated['reference_number'],
+                'bank_name' => $validated['bank_name'] ?: $paymentMethod->bank_name,
+                'account_number' => $validated['account_number'],
+                'account_name' => $validated['account_name'],
+                'verification_notes' => $validated['verification_notes'],
+                'attachment_path' => $attachmentPath,
+                'processed_by' => $validated['processed_by'] ?: Auth::id(),
+                'verified_by' => $validated['payment_status'] === 'verified' ? ($validated['verified_by'] ?: Auth::id()) : null,
+                'verified_at' => $validated['payment_status'] === 'verified' ? now() : null,
+                'gateway_transaction_id' => $validated['gateway_transaction_id'],
+            ]);
+
+            // Update booking payment status (centralized — sets dp_paid_amount & remaining_amount)
+            $booking->updatePaymentStatus(save: true);
+
+            // Auto-confirm booking if requested, verified and fully paid
+            if ($validated['payment_status'] === 'verified') {
+                $totalPaid = $booking->getTotalPaidAmount();
+                if ($totalPaid >= $booking->total_amount && ($validated['auto_confirm'] ?? false) && $booking->booking_status === 'pending_verification') {
+                    $booking->booking_status = 'confirmed';
+                    $booking->save();
+                }
+            }
+
+            // Sinkronkan income saat verified
+            if ($validated['payment_status'] === 'verified') {
+                $this->incomeSyncService->syncOnVerified($payment);
+
+                // Create workflow entry
+                $booking->workflow()->create([
+                    'step' => 'payment_verified',
+                    'status' => 'completed',
+                    'processed_by' => Auth::id(),
+                    'processed_at' => now(),
+                    'notes' => "Payment created and verified: {$payment->payment_number}",
+                ]);
+            }
+
+            DB::commit();
+
+            return redirect()->route('admin.bookings.show', $booking->booking_number)
+                ->with('success', 'Payment created successfully.');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -602,6 +571,9 @@ class PaymentController extends Controller
                 $booking->increment('total_amount', $validated['amount']);
             }
 
+            // Update booking payment status (centralized — sets dp_paid_amount & remaining_amount)
+            $booking->updatePaymentStatus(save: true);
+
             // Sinkronkan income jika payment verified
             if ($validated['payment_status'] === 'verified') {
                 $this->incomeSyncService->syncOnVerified($payment);
@@ -683,22 +655,20 @@ class PaymentController extends Controller
                 'verified_at' => $validated['payment_status'] === 'verified' ? now() : null,
             ]);
 
-            // Update booking payment status if verified
+            // Update booking payment status (centralized — sets dp_paid_amount & remaining_amount)
+            $booking->updatePaymentStatus(save: true);
+
+            // Auto-confirm booking if requested, verified and fully paid
             if ($validated['payment_status'] === 'verified') {
-                $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-
-                if ($totalPaid >= $booking->total_amount) {
-                    $booking->update(['payment_status' => 'fully_paid']);
-
-                    // Auto-confirm booking if requested and fully paid
-                    if ($validated['auto_confirm'] && $booking->booking_status === 'pending_verification') {
-                        $booking->update(['booking_status' => 'confirmed']);
-                    }
-                } elseif ($validated['payment_type'] === 'dp') {
-                    $booking->update(['payment_status' => 'dp_received']);
+                $totalPaid = $booking->getTotalPaidAmount();
+                if ($totalPaid >= $booking->total_amount && ($validated['auto_confirm'] ?? false) && $booking->booking_status === 'pending_verification') {
+                    $booking->booking_status = 'confirmed';
+                    $booking->save();
                 }
+            }
 
-                // Sinkronkan income saat verified
+            // Sinkronkan income saat verified
+            if ($validated['payment_status'] === 'verified') {
                 $this->incomeSyncService->syncOnVerified($payment);
 
                 // Create workflow entry
@@ -919,26 +889,13 @@ class PaymentController extends Controller
             // Update payment record
             $payment->update($updateData);
 
-            // Status berubah menjadi verified
-            $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-            if ($payment->payment_status === 'verified') {
-                $booking->update(['dp_amount' => $totalPaid]);
-                $booking->update(['dp_paid_amount' => $totalPaid]);
-                $remainingPayment = $booking->total_amount - $totalPaid;
-                $booking->update(['remaining_amount' => $remainingPayment]);
-            }
+            // Sync booking status and amounts (centralized — sets dp_paid_amount & remaining_amount)
+            $booking->updatePaymentStatus(save: true);
 
-            // Handle perubahan status payment dan update booking payment status
+            // Handle perubahan status payment
             $newStatus = $validated['payment_status'] ?? $oldStatus;
             if ($oldStatus !== $newStatus) {
                 if ($newStatus === 'verified') {
-
-                    if ($totalPaid >= $booking->total_amount) {
-                        $booking->update(['payment_status' => 'fully_paid']);
-                    } elseif (($validated['payment_type'] ?? $payment->payment_type) === 'dp') {
-                        $booking->update(['payment_status' => 'dp_received']);
-                    }
-
                     // Sinkronkan income saat verified
                     $this->incomeSyncService->syncOnVerified($payment);
 
@@ -956,18 +913,6 @@ class PaymentController extends Controller
                 } elseif (in_array($newStatus, ['pending', 'failed', 'cancelled'])) {
                     // Status berubah menjadi unverified - hapus income
                     $this->incomeSyncService->syncOnUnverified($payment);
-                }
-
-                // Update booking payment status if payment was unverified
-                if (in_array($oldStatus, ['verified']) && in_array($newStatus, ['pending', 'failed', 'cancelled'])) {
-                    $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-                    if ($totalPaid >= $booking->total_amount) {
-                        $booking->update(['payment_status' => 'fully_paid']);
-                    } elseif ($totalPaid > 0) {
-                        $booking->update(['payment_status' => 'dp_received']);
-                    } else {
-                        $booking->update(['payment_status' => 'dp_pending']);
-                    }
                 }
             }
 
@@ -1009,19 +954,19 @@ class PaymentController extends Controller
         try {
             $payment->update([
                 'payment_status' => 'verified',
+                'status' => 'cocok',
                 'verification_notes' => $request->input('verification_notes'),
                 'verified_by' => Auth::id(),
                 'verified_at' => now(),
             ]);
 
-            // Update booking payment status
+            // Update booking payment status (centralized — sets dp_paid_amount & remaining_amount)
             $booking = $payment->booking;
-            $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+            $booking->updatePaymentStatus(save: true);
 
-            if ($totalPaid >= $booking->total_amount) {
-                $booking->update(['payment_status' => 'fully_paid']);
-            } elseif ($payment->payment_type === 'dp') {
-                $booking->update(['payment_status' => 'dp_received']);
+            // Promote booking_status if still pending
+            if ($booking->booking_status === 'pending_verification') {
+                $booking->update(['booking_status' => 'confirmed']);
             }
 
             // Create workflow entry
@@ -1046,8 +991,12 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
+            \Log::error('[PaymentController@verify] Error:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
-            return back()->withErrors(['error' => 'Failed to verify payment.']);
+            return back()->withErrors(['error' => 'Failed to verify payment. Error: '.$e->getMessage()]);
         }
     }
 
@@ -1066,6 +1015,7 @@ class PaymentController extends Controller
         try {
             $payment->update([
                 'payment_status' => 'failed',
+                'status' => 'ditolak',
                 'verification_notes' => $request->input('rejection_reason'),
                 'verified_by' => Auth::id(),
                 'verified_at' => now(),
@@ -1093,8 +1043,12 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
+            \Log::error('[PaymentController@reject] Error:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
-            return back()->withErrors(['error' => 'Failed to reject payment.']);
+            return back()->withErrors(['error' => 'Failed to reject payment. Error: '.$e->getMessage()]);
         }
     }
 
@@ -1124,15 +1078,12 @@ class PaymentController extends Controller
             // Delete payment
             $payment->delete();
 
-            // Update booking payment status
-            $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-            if ($totalPaid >= $booking->total_amount) {
-                $booking->update(['payment_status' => 'fully_paid']);
-            } elseif ($totalPaid > 0) {
-                $booking->update(['payment_status' => 'dp_received']);
-            } else {
-                $booking->update(['payment_status' => 'dp_pending']);
-            }
+            // Update booking payment status and amounts
+            $totalPaid = $booking->getTotalPaidAmount();
+            $booking->dp_paid_amount = $totalPaid;
+            $booking->remaining_amount = max(0, $booking->total_amount - $totalPaid);
+            $booking->updatePaymentStatus();
+            $booking->save();
 
             // Create workflow entry
             $booking->workflow()->create([
@@ -1160,5 +1111,117 @@ class PaymentController extends Controller
             return back()->withErrors(['error' => 'Failed to delete payment: '.$e->getMessage()]);
         }
     }
-    
+
+    /**
+     * Display payment reconciliation dashboard
+     */
+    public function reconciliation(Request $request): Response
+    {
+        $pendingPayments = Payment::where('status', 'menunggu')
+            ->with(['booking.property'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        $unassignedMutations = BankMutation::where('status', 'baru')
+            ->where('direction', 'kredit')
+            ->with(['bankAccount'])
+            ->orderByDesc('trx_at')
+            ->get();
+
+        // Map candidate matching mutations for each pending payment
+        $pendingPayments = $pendingPayments->map(function ($payment) {
+            $trxDate = Carbon::parse($payment->payment_date ?? $payment->created_at);
+            $dateStart = $trxDate->copy()->subDays(1)->startOfDay();
+            $dateEnd = $trxDate->copy()->addDays(14)->endOfDay();
+
+            $candidates = BankMutation::where('status', 'baru')
+                ->where('direction', 'kredit')
+                ->where('amount', $payment->expected_amount)
+                ->whereBetween('trx_at', [$dateStart, $dateEnd])
+                ->get();
+
+            $payment->candidates = $candidates;
+
+            return $payment;
+        });
+
+        return Inertia::render('Admin/Payments/Reconciliation', [
+            'pendingPayments' => $pendingPayments,
+            'unassignedMutations' => $unassignedMutations,
+        ]);
+    }
+
+    /**
+     * Manually match a pending payment to a bank mutation
+     */
+    public function manualMatch(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'payment_id' => 'required|exists:payments,id',
+            'bank_mutation_id' => 'required|exists:bank_mutations,id',
+        ]);
+
+        $payment = Payment::findOrFail($validated['payment_id']);
+        $mutation = BankMutation::findOrFail($validated['bank_mutation_id']);
+
+        try {
+            DB::beginTransaction();
+
+            $payment->update([
+                'status' => 'cocok',
+                'payment_status' => 'verified',
+                'matched_mutation_id' => $mutation->id,
+                'matched_at' => now(),
+                'verified_at' => now(),
+                'verified_by' => Auth::id(),
+                'processed_by' => Auth::id(),
+            ]);
+
+            $mutation->update([
+                'status' => 'cocok',
+                'matched_payment_id' => $payment->id,
+            ]);
+
+            // Update booking payment totals/status
+            $booking = $payment->booking;
+            if ($booking) {
+                $totalPaid = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+                $booking->update([
+                    'dp_paid_amount' => $totalPaid,
+                    'remaining_amount' => max(0, $booking->total_amount - $totalPaid),
+                ]);
+
+                if ($booking->remaining_amount <= 0) {
+                    $booking->update([
+                        'payment_status' => 'fully_paid',
+                        'booking_status' => 'confirmed',
+                    ]);
+                } else {
+                    $booking->update([
+                        'payment_status' => 'dp_received',
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return redirect()->back()->with('success', 'Pembayaran berhasil dicocokkan secara manual.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Manual matching failed', ['error' => $e->getMessage()]);
+
+            return redirect()->back()->withErrors(['error' => 'Gagal mencocokkan pembayaran: '.$e->getMessage()]);
+        }
+    }
+
+    /**
+     * Ignore/dismiss a bank mutation
+     */
+    public function ignoreMutation(Request $request, int $id): RedirectResponse
+    {
+        $mutation = BankMutation::findOrFail($id);
+        $mutation->update(['status' => 'diabaikan']);
+
+        return redirect()->back()->with('success', 'Mutasi bank berhasil diabaikan.');
+    }
 }

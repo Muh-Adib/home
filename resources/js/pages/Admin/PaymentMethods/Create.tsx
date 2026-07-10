@@ -86,43 +86,15 @@ export default function PaymentMethodCreate() {
         switch (data.type) {
             case 'bank_transfer':
                 return (
-                    <>
-                        <div className="grid md:grid-cols-2 gap-4">
-                            <div>
-                                <Label htmlFor="bank_name">Bank Name *</Label>
-                                <Input
-                                    id="bank_name"
-                                    value={data.bank_name}
-                                    onChange={(e) => setData('bank_name', e.target.value)}
-                                    placeholder="e.g., Bank Central Asia"
-                                    className={errors.bank_name ? 'border-red-500' : ''}
-                                />
-                                {errors.bank_name && <p className="text-sm text-red-500 mt-1">{errors.bank_name}</p>}
-                            </div>
-                            <div>
-                                <Label htmlFor="account_number">Account Number *</Label>
-                                <Input
-                                    id="account_number"
-                                    value={data.account_number}
-                                    onChange={(e) => setData('account_number', e.target.value)}
-                                    placeholder="1234567890"
-                                    className={errors.account_number ? 'border-red-500' : ''}
-                                />
-                                {errors.account_number && <p className="text-sm text-red-500 mt-1">{errors.account_number}</p>}
-                            </div>
-                        </div>
-                        <div>
-                            <Label htmlFor="account_name">Account Name *</Label>
-                            <Input
-                                id="account_name"
-                                value={data.account_name}
-                                onChange={(e) => setData('account_name', e.target.value)}
-                                placeholder="Homsjogja Indonesia"
-                                className={errors.account_name ? 'border-red-500' : ''}
-                            />
-                            {errors.account_name && <p className="text-sm text-red-500 mt-1">{errors.account_name}</p>}
-                        </div>
-                    </>
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800 space-y-2">
+                        <p className="font-semibold flex items-center gap-1.5">
+                            ℹ️ Info Rekening Bank Properti
+                        </p>
+                        <p className="text-xs text-blue-700 leading-relaxed">
+                            Nomor rekening, nama pemilik, dan nama bank untuk metode transfer bank tidak diatur di sini.
+                            Sistem akan mengambil data rekening bank secara dinamis dari **Rekening Bank Properti** yang dihubungkan di masing-masing unit properti.
+                        </p>
+                    </div>
                 );
 
             case 'e_wallet':

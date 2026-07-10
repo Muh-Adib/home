@@ -10,9 +10,10 @@ interface BookingEditProps {
     properties: Property[];
     paymentMethods: PaymentMethod[];
     serviceMasters: ServiceMaster[];
+    staffUsers?: any[];
 }
 
-export default function BookingEdit({ booking, properties, paymentMethods, serviceMasters = [] }: BookingEditProps) {
+export default function BookingEdit({ booking, properties, paymentMethods, serviceMasters = [], staffUsers = [] }: BookingEditProps) {
     const { t } = useTranslation();
 
     // Breadcrumbs
@@ -44,6 +45,7 @@ export default function BookingEdit({ booking, properties, paymentMethods, servi
                             paymentMethods={paymentMethods}
                             serviceMasters={serviceMasters}
                             bookingNumber={booking.booking_number}
+                            staffUsers={staffUsers}
                         />
                     </div>
                 </div>

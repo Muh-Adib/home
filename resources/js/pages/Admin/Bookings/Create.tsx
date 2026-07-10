@@ -16,7 +16,9 @@ interface CreateBookingProps {
     };
     availabilityData?: any;
     paymentMethods: PaymentMethod[];
+    bankAccounts?: any[];
     serviceMasters?: ServiceMaster[];
+    staffUsers?: any[];
 }
 
 export default function CreateBooking({
@@ -24,7 +26,9 @@ export default function CreateBooking({
     selectedProperty,
     prefilledData,
     paymentMethods,
-    serviceMasters = []
+    bankAccounts = [],
+    serviceMasters = [],
+    staffUsers = []
 }: CreateBookingProps) {
     const { t } = useTranslation();
 
@@ -59,7 +63,9 @@ export default function CreateBooking({
                     initialData={initialData}
                     properties={properties}
                     paymentMethods={paymentMethods}
+                    bankAccounts={bankAccounts}
                     serviceMasters={serviceMasters}
+                    staffUsers={staffUsers}
                 />
             </div>
         </AdminLayout>

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminSeoLandingController;
 use App\Http\Controllers\Admin\AiAgentController;
+use App\Http\Controllers\Admin\BankAccountController;
 use App\Http\Controllers\Admin\Booking\BookingApiController;
 use App\Http\Controllers\Admin\BookingManagementController;
 use App\Http\Controllers\Admin\CheckInOutController;
@@ -26,7 +27,6 @@ use App\Http\Controllers\ContentPlanController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ICalController;
 use App\Http\Controllers\MediaController;
-use App\Http\Controllers\PaymentGatewayController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -51,6 +51,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
         Route::patch('properties/{property:slug}/toggle-featured', 'toggleFeatured')->name('properties.toggle-featured');
         Route::post('properties/{property:slug}/duplicate', 'duplicate')->name('properties.duplicate');
         Route::get('properties/{property:slug}/analytics', 'analytics')->name('properties.analytics');
+        Route::get('properties/{property:slug}/financial', 'financial')->name('properties.financial');
         Route::post('properties/{property}/sync-ical', [ICalController::class, 'sync'])->name('properties.sync-ical');
     });
 
@@ -88,7 +89,9 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
 
     // Extra Services Management (only for super_admin and property_owner)
     Route::middleware(['role:super_admin,property_owner'])->group(function () {
-        Route::resource('extra-services', ExtraServiceController::class)->names([
+        Route::resource('extra-services', ExtraServiceController::class)->parameters([
+            'extra-services' => 'service',
+        ])->names([
             'index' => 'extra-services.index',
             'create' => 'extra-services.create',
             'store' => 'extra-services.store',
@@ -261,6 +264,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
         Route::patch('bookings/{booking:booking_number}/checkin', 'checkin')->name('bookings.checkin');
         Route::patch('bookings/{booking:booking_number}/checkout', 'checkout')->name('bookings.checkout');
         Route::get('bookings/{booking:booking_number}/whatsapp', 'sendWhatsApp')->name('bookings.whatsapp');
+        Route::get('bookings/{booking:booking_number}/invoice', 'invoice')->name('bookings.invoice');
 
         // Import/Export
         Route::get('bookings/export/download', 'export')->name('bookings.export');
@@ -274,6 +278,9 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
     $controller = BookingApiController::class;
     Route::get('timeline', [$controller, 'timeline']);
     Route::get('timeline-data', [$controller, 'timelineData']); // For infinite scroll lazy loading
+    Route::get('bookings/{booking}', [$controller, 'detail']); // Fetch full booking details for modal
+    Route::post('bookings/{booking}/payments', [$controller, 'storePayment']); // Store payment directly from modal
+    Route::get('payment-methods', [$controller, 'paymentMethods']); // Get active payment methods
     Route::get('search', [$controller, 'search']); // For search bar
     Route::post('check-availability', [$controller, 'checkAvailability']);
     Route::post('calculate-rate', [$controller, 'calculateRate']);
@@ -291,10 +298,6 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
 // Payment Gateway Routes (Admin)
 Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
     Route::post(
-        '/bookings/{booking:booking_number}/payment-gateway/generate-link',
-        [PaymentGatewayController::class, 'generateLink']
-    )->name('payment-gateway.generate-link');
-    Route::post(
         '/bookings/{booking:booking_number}/payment-gateway/send-link',
         [BookingManagementController::class, 'sendPaymentLink']
     )->name('bookings.send-payment-link');
@@ -306,13 +309,19 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix('admin/payments')->name('admin.payments.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,property_manager,finance,front_desk,property_owner'])->prefix('admin/payments')->name('admin.payments.')->group(function () {
     Route::controller(PaymentController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/create', 'create')->name('create');
         Route::post('/', 'store')->name('store');
         Route::get('/manual-payment', 'manualCreate')->name('manual-create');
         Route::post('/manual-payment', 'manualStore')->name('manual-store');
+
+        // Payment Reconciliation
+        Route::get('/reconciliation', 'reconciliation')->name('reconciliation');
+        Route::post('/reconciliation/match', 'manualMatch')->name('reconciliation.match');
+        Route::post('/reconciliation/ignore-mutation/{id}', 'ignoreMutation')->name('reconciliation.ignore-mutation');
+
         Route::get('/{payment:payment_number}', 'show')->name('show');
         Route::get('/{payment:payment_number}/edit', 'edit')->name('edit');
         Route::put('/{payment:payment_number}', 'update')->name('update');
@@ -344,13 +353,18 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,fin
         Route::post('finance/wallets/{wallet}/transactions', 'storeWalletTransaction')->name('finance.wallets.transactions.store');
         Route::get('finance/wallets/{wallet}/report', 'walletReport')->name('finance.wallets.report');
         Route::patch('finance/payment-methods/{paymentMethod}/wallet', 'mapPaymentMethodToWallet')->name('finance.payment-methods.map-wallet');
+
+        // Employee Loans (Casbon)
+        Route::get('finance/loans', 'loans')->name('finance.loans');
+        Route::post('finance/loans', 'storeLoan')->name('finance.loans.store');
+        Route::post('finance/loans/{loan}/payments', 'storeLoanPayment')->name('finance.loans.payments.store');
     });
 });
 
 // Inventory/Operational Management
 Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,housekeeping,front_desk,finance'])->prefix('admin/inventory')->name('admin.inventory.')->group(function () {
     $controller = InventoryController::class;
-    
+
     // Exports
     Route::get('items/export', [$controller, 'exportItems'])->name('items.export');
     Route::get('purchases/export', [$controller, 'exportPurchases'])->name('purchases.export');
@@ -387,6 +401,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance,property_o
         Route::get('/financial', 'financial')->name('financial');
         Route::get('/occupancy', 'occupancy')->name('occupancy');
         Route::get('/property-performance', 'propertyPerformance')->name('property-performance');
+        Route::get('/staff-performance', 'staffPerformance')->name('staff-performance');
         Route::post('/export', 'export')->name('export');
     });
 });
@@ -451,6 +466,19 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
             Route::delete('{paymentMethod}', 'destroy')->name('destroy');
             Route::put('{paymentMethod}/toggle', 'toggle')->name('toggle');
             Route::put('order', 'updateOrder')->name('update-order');
+        });
+
+    // Bank Accounts Management
+    Route::controller(BankAccountController::class)
+        ->prefix('bank-accounts')
+        ->name('bank-accounts.')
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('create', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+            Route::get('{bankAccount}/edit', 'edit')->name('edit');
+            Route::patch('{bankAccount}', 'update')->name('update');
+            Route::delete('{bankAccount}', 'destroy')->name('destroy');
         });
 
     // Settings Management

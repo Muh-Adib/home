@@ -23,13 +23,16 @@ export function formatNumber(value: number): string {
  */
 export function formatCurrencyShort(value: number): string {
     if (value >= 1_000_000_000) {
-        return `Rp ${(value / 1_000_000_000).toFixed(1)}B`;
+        const val = value / 1_000_000_000;
+        return `Rp ${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}M`;
     }
     if (value >= 1_000_000) {
-        return `Rp ${(value / 1_000_000).toFixed(1)}M`;
+        const val = value / 1_000_000;
+        return `Rp ${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}Jt`;
     }
     if (value >= 1_000) {
-        return `Rp ${(value / 1_000).toFixed(1)}K`;
+        const val = value / 1_000;
+        return `Rp ${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}Rb`;
     }
     return `Rp ${value.toLocaleString('id-ID')}`;
 }

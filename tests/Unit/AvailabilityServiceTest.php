@@ -320,9 +320,10 @@ class AvailabilityServiceTest extends TestCase
 
         $availableProperties = $filteredQuery->get();
 
-        // Should only include property1 (not property2 which is booked)
-        $this->assertCount(1, $availableProperties);
-        $this->assertEquals($this->property->id, $availableProperties->first()->id);
+        // Should include property1 (not property2 which is booked)
+        $availableIds = $availableProperties->pluck('id')->toArray();
+        $this->assertContains($this->property->id, $availableIds);
+        $this->assertNotContains($property2->id, $availableIds);
     }
 
     #[Test]

@@ -55,6 +55,14 @@ export default function BookingCard({
         });
     };
 
+    const checkInDate = new Date(booking.check_in);
+    checkInDate.setHours(0, 0, 0, 0);
+    const todayVal = new Date();
+    todayVal.setHours(0, 0, 0, 0);
+    const yesterdayVal = new Date(todayVal);
+    yesterdayVal.setDate(todayVal.getDate() - 1);
+    const isCheckInTime = checkInDate >= yesterdayVal && checkInDate <= todayVal;
+
     return (
         <Card className="overflow-hidden hover:shadow-lg transition-all duration-200 group">
             <CardHeader className="pb-3">
@@ -67,7 +75,7 @@ export default function BookingCard({
                             {booking.booking_number}
                         </p>
                         <div className="flex flex-wrap gap-2">
-                            <BookingStatusBadge status={booking.booking_status} />
+                            <BookingStatusBadge status={booking.booking_status} booking={booking} />
                             <PaymentStatusBadge status={booking.payment_status} />
                         </div>
                     </div>
@@ -170,7 +178,7 @@ export default function BookingCard({
                             </>
                         )}
 
-                        {canCheckIn && booking.payment_status === 'fully_paid' && (
+                        {canCheckIn && booking.booking_status === 'confirmed' && booking.payment_status === 'fully_paid' && isCheckInTime && (
                             <Button
                                 onClick={() => onCheckIn(booking)}
                                 size="sm"
@@ -234,7 +242,7 @@ export default function BookingCard({
                                 </>
                             )}
 
-                            {canCheckIn && booking.booking_status === 'confirmed' && (
+                            {canCheckIn && booking.booking_status === 'confirmed' && booking.payment_status === 'fully_paid' && isCheckInTime && (
                                 <DropdownMenuItem onClick={() => onCheckIn(booking)}>
                                     <UserCheck className="h-4 w-4 mr-2" />
                                     Check In Guest

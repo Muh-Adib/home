@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\BookingDailyRevenue;
 use App\Models\Payment;
 use App\Models\Property;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -886,26 +887,49 @@ class ReportController extends Controller
     // Keep existing methods for backward compatibility
     private function getRevenueAnalysis($startDate, $endDate, $user = null, $propertyId = null): array
     {
-        $query = Payment::where('payment_status', 'verified')
-            ->whereBetween('verified_at', [$startDate, $endDate]);
+        $revenueQuery = BookingDailyRevenue::query()
+            ->inPeriod($startDate, $endDate)
+            ->confirmedBookings();
 
         if ($user && $user->role === 'property_owner') {
-            $query->whereHas('booking.property', function ($q) use ($user) {
-                $q->where('owner_id', $user->id);
-            });
+            $revenueQuery->forOwner($user->id);
         }
 
         if ($propertyId) {
-            $query->whereHas('booking', function ($q) use ($propertyId) {
-                $q->where('property_id', $propertyId);
-            });
+            $revenueQuery->where('property_id', $propertyId);
+        }
+
+        $dailyRevenues = $revenueQuery->with('booking')->get();
+
+        $totalRevenue = 0.0;
+        $dpRevenue = 0.0;
+        $fullPaymentRevenue = 0.0;
+        $remainingPaymentRevenue = 0.0;
+
+        foreach ($dailyRevenues as $rev) {
+            $booking = $rev->booking;
+            $amount = (float) $rev->amount;
+            $totalRevenue += $amount;
+
+            if ($booking) {
+                $dpPct = (float) ($booking->dp_percentage ?? 50);
+                if ($dpPct >= 100) {
+                    $fullPaymentRevenue += $amount;
+                } else {
+                    $dpPortion = $amount * ($dpPct / 100);
+                    $dpRevenue += $dpPortion;
+                    $remainingPaymentRevenue += ($amount - $dpPortion);
+                }
+            } else {
+                $fullPaymentRevenue += $amount;
+            }
         }
 
         return [
-            'total_revenue' => $query->sum('amount'),
-            'dp_revenue' => (clone $query)->where('payment_type', 'dp')->sum('amount'),
-            'full_payment_revenue' => (clone $query)->where('payment_type', 'full_payment')->sum('amount'),
-            'remaining_payment_revenue' => (clone $query)->where('payment_type', 'remaining_payment')->sum('amount'),
+            'total_revenue' => round($totalRevenue, 2),
+            'dp_revenue' => round($dpRevenue, 2),
+            'full_payment_revenue' => round($fullPaymentRevenue, 2),
+            'remaining_payment_revenue' => round($remainingPaymentRevenue, 2),
         ];
     }
 
@@ -1061,5 +1085,78 @@ class ReportController extends Controller
             ],
             'average_party_size' => $bookings->avg('guest_count'),
         ];
+    }
+
+    /**
+     * Display staff performance report
+     */
+    public function staffPerformance(Request $request): Response
+    {
+        $user = $request->user();
+
+        // Only allow admins, property managers, or finance to view this
+        if (! in_array($user->role, ['super_admin', 'property_manager', 'finance'])) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+
+        // Set date range (default: current month)
+        $startDate = $dateFrom ? Carbon::parse($dateFrom)->startOfDay() : now()->startOfMonth()->startOfDay();
+        $endDate = $dateTo ? Carbon::parse($dateTo)->endOfDay() : now()->endOfDay();
+
+        // Get staff list
+        $staff = User::whereIn('role', ['super_admin', 'property_manager', 'front_desk'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'role']);
+
+        $performanceData = [];
+
+        foreach ($staff as $s) {
+            // Count Follow ups
+            $followUpsCount = Booking::where('followed_up_by', $s->id)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->count();
+
+            // Count Creations/Input
+            $createdCount = Booking::where('created_by', $s->id)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->count();
+
+            // Count Closing (DP verified)
+            $closedCount = Booking::where('closed_by', $s->id)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->count();
+
+            // Count Check-ins (Hospitality)
+            $checkedInCount = Booking::where('checked_in_by', $s->id)
+                ->whereBetween('check_in', [$startDate->toDateString(), $endDate->toDateString()])
+                ->count();
+
+            // Get total value of closing deals
+            $totalDealsValue = Booking::where('closed_by', $s->id)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->sum('total_amount');
+
+            $performanceData[] = [
+                'id' => $s->id,
+                'name' => $s->name,
+                'role' => $s->role,
+                'follow_ups' => $followUpsCount,
+                'creations' => $createdCount,
+                'closings' => $closedCount,
+                'check_ins' => $checkedInCount,
+                'deals_value' => (float) $totalDealsValue,
+            ];
+        }
+
+        return Inertia::render('Admin/Reports/StaffPerformance', [
+            'performanceData' => $performanceData,
+            'filters' => [
+                'date_from' => $startDate->toDateString(),
+                'date_to' => $endDate->toDateString(),
+            ],
+        ]);
     }
 }

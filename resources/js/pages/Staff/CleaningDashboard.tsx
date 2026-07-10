@@ -108,13 +108,13 @@ interface CleaningDashboardProps extends PageProps {
     myLowStockItems?: MyLowStockItem[];
 }
 
-export default function CleaningDashboard({ 
-    needsCleaning, 
-    recentlyCleaned, 
-    stats, 
-    inventoryItems, 
-    properties = [], 
-    myLowStockItems = [] 
+export default function CleaningDashboard({
+    needsCleaning,
+    recentlyCleaned,
+    stats,
+    inventoryItems,
+    properties = [],
+    myLowStockItems = []
 }: CleaningDashboardProps) {
     const [selectedProperty, setSelectedProperty] = useState<CleaningProperty | null>(null);
     const [showCleaningForm, setShowCleaningForm] = useState(false);
@@ -208,7 +208,7 @@ export default function CleaningDashboard({
         usageForm.setData('usages', updated);
     };
 
-    const availableProperties = properties?.filter(p => 
+    const availableProperties = properties?.filter(p =>
         !usageForm.data.usages.some(row => row.property_id === p.id?.toString())
     );
 
@@ -226,14 +226,14 @@ export default function CleaningDashboard({
 
     // Quick Purchase Handler
     const submitQuickPurchase = (e: React.FormEvent) => {
-      e.preventDefault();
-      purchaseForm.post('/admin/inventory/purchases', {
-          onSuccess: () => {
-              purchaseForm.reset();
-              setShowPurchaseModal(false);
-              router.reload();
-          }
-      });
+        e.preventDefault();
+        purchaseForm.post('/admin/inventory/purchases', {
+            onSuccess: () => {
+                purchaseForm.reset();
+                setShowPurchaseModal(false);
+                router.reload();
+            }
+        });
     };
 
     const formatTime = (dateString: string) => {
@@ -248,8 +248,8 @@ export default function CleaningDashboard({
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Staff Dashboard" />
 
-            <div className="space-y-6 p-4 md:p-6 max-w-7xl mx-auto">
-                
+            <div className="space-y-6 max-w-7xl mx-auto">
+
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
@@ -281,16 +281,16 @@ export default function CleaningDashboard({
                             <p className="text-xs text-slate-500">Input cepat pemakaian harian villa dan belanja stok tanpa meninggalkan dashboard.</p>
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
-                            <Button 
-                                type="button" 
-                                onClick={() => setShowUsageModal(true)} 
+                            <Button
+                                type="button"
+                                onClick={() => setShowUsageModal(true)}
                                 className="bg-primary hover:bg-primary/95 text-white font-bold px-5 h-11 rounded-xl shadow-md shadow-primary/20 text-xs gap-1.5"
                             >
                                 <ClipboardList className="h-4 w-4" /> Catat Pemakaian Barang
                             </Button>
-                            <Button 
-                                type="button" 
-                                onClick={() => setShowPurchaseModal(true)} 
+                            <Button
+                                type="button"
+                                onClick={() => setShowPurchaseModal(true)}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 h-11 rounded-xl shadow-md shadow-emerald-600/20 text-xs gap-1.5"
                             >
                                 <Coins className="h-4 w-4" /> Catat Belanja Stok
@@ -543,7 +543,7 @@ export default function CleaningDashboard({
                                 <Label className="text-xs font-bold text-slate-700 flex items-center gap-1">
                                     <Layers className="h-4 w-4 text-primary" /> Distribusi Properti / Unit
                                 </Label>
-                                
+
                                 <div className="flex gap-2 items-end">
                                     <div className="flex-1 space-y-1">
                                         <select

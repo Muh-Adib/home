@@ -5,7 +5,6 @@ use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ICalController;
 use App\Http\Controllers\LegalViewController;
 use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\PaymentGatewayController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SeoLandingController;
@@ -34,8 +33,6 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | Instructs search engines to drop these URLs from index.
 */
-
-
 
 /* / Legacy prefixes
 Route::get('/{legacyPrefix}/{any?}', function () {
@@ -149,12 +146,14 @@ Route::controller(BookingController::class)->group(function () {
     Route::get('/properties/{property:slug}/book', 'create')->name('bookings.create');
     Route::post('/properties/{property:slug}/book', 'store')->name('bookings.store');
     Route::get('/booking/{booking:booking_number}/confirmation', 'confirmation')->name('bookings.confirmation');
+    Route::get('/booking/{booking:booking_number}/invoice', 'invoice')->name('bookings.guest-invoice');
 });
 
 // Public Payment Routes
 Route::controller(PaymentController::class)->group(function () {
     Route::get('/booking/{booking:booking_number}/payment', 'create')->name('payments.create');
     Route::post('/booking/{booking:booking_number}/payment', 'store')->name('payments.store');
+    Route::post('/booking/{booking:booking_number}/payment/cancel-pending', 'cancelPending')->name('payments.cancel-pending');
 });
 
 /*
@@ -165,17 +164,9 @@ Route::controller(PaymentController::class)->group(function () {
 |--------------------------------------------------------------------------
 */
 
-// Webhook route (public, no auth required)
-Route::post('/payment-gateway/webhook', [PaymentGatewayController::class, 'webhook'])
-    ->name('payment-gateway.webhook')
-    ->withoutMiddleware(['csrf', 'auth']);
-
-// Payment Gateway Callback (Public - redirect dari iPaymu)
-Route::get(
-    '/payment-gateway/callback',
-    [PaymentGatewayController::class, 'callback']
-)
-    ->name('payment-gateway.callback');
+// Webhook route (public, no auth required) - Moota Webhook Route
+Route::post('/payment-gateway/moota/webhook', [PaymentController::class, 'mootaWebhook'])
+    ->name('payment-gateway.moota.webhook');
 
 // Public API Routes
 Route::prefix('api')->name('api.')->group(function () {

@@ -52,7 +52,8 @@ class PaymentMethodController extends Controller
             $query->where('is_active', $status);
         }
 
-        $paymentMethods = $query->orderBy('sort_order')
+        $paymentMethods = $query->with('bankAccounts')
+            ->orderBy('sort_order')
             ->orderBy('name')
             ->paginate(20);
 

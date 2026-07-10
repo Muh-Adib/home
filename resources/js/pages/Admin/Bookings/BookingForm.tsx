@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useForm, router } from '@inertiajs/react';
+import { useForm, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,10 @@ import {
     Loader2,
     Save,
     UserPlus,
-    Edit
+    Edit,
+    Bed,
+    Minus,
+    Plus
 } from 'lucide-react';
 import { PaymentStatus, type Booking, type BookingStatus, type Property } from '@/types';
 import GuestCountForm from '@/components/booking/GuestCountForm';
@@ -34,6 +37,7 @@ import { apiGet, apiPost } from '@/lib/api';
 export interface PaymentMethod {
     id: number;
     name: string;
+    code: string;
     type: string;
     bank_name?: string;
     account_number?: string;
@@ -87,13 +91,24 @@ interface AvailabilityData {
     error?: string;
 }
 
+interface BankAccount {
+    id: number;
+    bank_name: string;
+    bank_code?: string;
+    account_number: string;
+    account_holder: string;
+    label: string;
+}
+
 interface BookingFormProps {
     mode: 'create' | 'edit';
     initialData?: Partial<Booking>;
     properties: Property[];
     paymentMethods: PaymentMethod[];
+    bankAccounts?: BankAccount[];
     serviceMasters: ServiceMaster[];
     bookingNumber?: string; // Required for edit mode
+    staffUsers?: any[];
 }
 
 export default function BookingForm({
@@ -101,9 +116,15 @@ export default function BookingForm({
     initialData,
     properties,
     paymentMethods,
+    bankAccounts = [],
     serviceMasters = [],
-    bookingNumber
+    bookingNumber,
+    staffUsers = []
 }: BookingFormProps) {
+
+    const page = usePage<any>();
+    const { auth } = page.props;
+    const currentUserId = auth.user.id;
 
     // Determine initial values based on mode
     const defaultValues = {
@@ -116,6 +137,7 @@ export default function BookingForm({
         guest_name: initialData?.guest_name || '',
         guest_email: initialData?.guest_email || '',
         guest_phone: initialData?.guest_phone || '',
+        guest_phone_alternative: initialData?.guest_phone_alternative || '',
         guest_country: initialData?.guest_country || 'Indonesia',
         guest_id_number: initialData?.guest_id_number || '',
         guest_gender: initialData?.guest_gender || 'male',
@@ -127,6 +149,8 @@ export default function BookingForm({
         dp_percentage: initialData?.dp_percentage || (mode === 'create' ? 100 : 50),
         check_in_time: initialData?.check_in_time || '15:00',
         source: initialData?.source || 'direct',
+        discount_amount: initialData?.discount_amount || 0,
+        followed_up_by: initialData?.followed_up_by?.toString() || currentUserId.toString(),
 
         // Payment fields (mostly for create mode or update on edit)
         payment_method_id: null as string | null,
@@ -146,12 +170,28 @@ export default function BookingForm({
 
         // OTA Override
         force_ota_override: false,
+        force_capacity_override: false,
 
         // Services
         services: [] as any[],
+
+        // Extra bed per night
+        daily_extra_beds: (() => {
+            const initialBeds: Record<string, number> = {};
+            const dailyBreakdown = initialData?.rate_calculation?.breakdown?.daily_breakdown || initialData?.rate_calculation?.daily_breakdown;
+            if (dailyBreakdown) {
+                const items = Array.isArray(dailyBreakdown) ? dailyBreakdown : Object.values(dailyBreakdown);
+                items.forEach((day: any) => {
+                    if (day.date) {
+                        initialBeds[day.date] = day.extra_bed_count ?? 0;
+                    }
+                });
+            }
+            return initialBeds;
+        })() as Record<string, number>,
     };
 
-    const { data, setData, post, patch, processing, errors } = useForm<typeof defaultValues & { can_override?: string; error?: string }>(defaultValues);
+    const { data, setData, post, patch, processing, errors } = useForm<any>(defaultValues);
 
     // State management
     const [currentProperty, setCurrentProperty] = useState<Property | null>(
@@ -176,6 +216,8 @@ export default function BookingForm({
     const [overrideReason, setOverrideReason] = useState('');
 
     // Payment state
+    const [addInitialPayment, setAddInitialPayment] = useState(false);
+    const [initialPaymentType, setInitialPaymentType] = useState<'dp' | 'full' | 'custom'>('full');
     const [showPaymentForm, setShowPaymentForm] = useState(false);
     const [paymentData, setPaymentData] = useState({
         payment_method_id: '',
@@ -190,6 +232,66 @@ export default function BookingForm({
     });
     const [paymentProof, setPaymentProof] = useState<File | null>(null);
 
+    const compressImage = (file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.7): Promise<File> => {
+        return new Promise((resolve) => {
+            if (!file.type.startsWith('image/')) {
+                resolve(file);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target?.result as string;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width = Math.round((width * maxHeight) / height);
+                            height = maxHeight;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0, width, height);
+                        canvas.toBlob(
+                            (blob) => {
+                                if (blob) {
+                                    const compressedFile = new File([blob], file.name, {
+                                        type: 'image/jpeg',
+                                        lastModified: Date.now(),
+                                    });
+                                    resolve(compressedFile);
+                                } else {
+                                    resolve(file);
+                                }
+                            },
+                            'image/jpeg',
+                            quality
+                        );
+                    } else {
+                        resolve(file);
+                    }
+                };
+                img.onerror = () => resolve(file);
+            };
+            reader.onerror = () => resolve(file);
+        });
+    };
+
     // Extra services state
     const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
 
@@ -197,12 +299,17 @@ export default function BookingForm({
     useEffect(() => {
         if (initialData?.services && initialData.services.length > 0) {
             const initialServices = initialData.services.map((s: any) => ({
+                id: s.id,
                 service_master_id: s.service_master_id,
                 service_name: s.service_name,
                 service_type: s.service_type,
                 quantity: s.quantity,
                 unit_price: s.unit_price,
+                discount_amount: s.discount_amount || 0,
                 total_price: s.total_price,
+                vendor_unit_price: s.vendor_unit_price || 0,
+                vendor_total_price: s.vendor_total_price || 0,
+                service_date: s.service_date ? s.service_date.split(' ')[0] : null,
             }));
             setSelectedServices(initialServices);
         }
@@ -244,45 +351,112 @@ export default function BookingForm({
     // Calculate total booking amount
     const totalBookingAmount = useMemo(() => {
         const baseTotal = manualRateOverride ? overrideAmount : (rateCalculation?.total_amount || 0);
-        return baseTotal + servicesTotal;
-    }, [rateCalculation, manualRateOverride, overrideAmount, servicesTotal]);
+        return Math.max(0, baseTotal - (data.discount_amount || 0)) + servicesTotal;
+    }, [rateCalculation, manualRateOverride, overrideAmount, servicesTotal, data.discount_amount]);
 
-    // Auto show/hide payment form based on booking status (Create mode logic)
+    // Sync paymentData and statuses automatically based on addInitialPayment toggle (Create mode logic)
     useEffect(() => {
         if (mode === 'create') {
-            if (data.booking_status === 'confirmed' && data.payment_status !== 'dp_pending') {
+            if (addInitialPayment) {
                 setShowPaymentForm(true);
-                // Auto-calculate payment amount
-                if (totalBookingAmount > 0 && (!paymentData.amount || paymentData.amount === 0)) {
-                    let calculatedAmount = 0;
-                    if (data.payment_status === 'fully_paid') {
-                        calculatedAmount = totalBookingAmount;
-                    } else {
-                        calculatedAmount = (totalBookingAmount * data.dp_percentage) / 100;
+                let calculatedAmount = paymentData.amount;
+                let calculatedStatus: PaymentStatus = 'dp_pending';
+
+                if (initialPaymentType === 'full') {
+                    calculatedAmount = totalBookingAmount;
+                    calculatedStatus = 'fully_paid';
+                    if (paymentData.amount !== calculatedAmount) {
+                        setPaymentData(prev => ({ ...prev, amount: calculatedAmount }));
                     }
-                    setPaymentData(prev => ({ ...prev, amount: calculatedAmount }));
-                    setData('payment_amount', calculatedAmount);
+                } else if (initialPaymentType === 'dp') {
+                    const percent = data.dp_percentage === 100 ? 50 : data.dp_percentage;
+                    calculatedAmount = (totalBookingAmount * percent) / 100;
+                    calculatedStatus = 'dp_received';
+                    if (paymentData.amount !== calculatedAmount) {
+                        setPaymentData(prev => ({ ...prev, amount: calculatedAmount }));
+                    }
+                } else if (initialPaymentType === 'custom') {
+                    calculatedAmount = paymentData.amount;
+                    if (calculatedAmount >= totalBookingAmount) {
+                        calculatedStatus = 'fully_paid';
+                    } else if (calculatedAmount > 0) {
+                        calculatedStatus = 'dp_received';
+                    } else {
+                        calculatedStatus = 'dp_pending';
+                    }
                 }
+
+                setData((prev: any) => ({
+                    ...prev,
+                    booking_status: 'confirmed' as BookingStatus,
+                    payment_status: calculatedStatus,
+                    payment_amount: calculatedAmount,
+                    dp_percentage: initialPaymentType === 'full' ? 100 : (prev.dp_percentage === 100 ? 50 : prev.dp_percentage),
+                }));
             } else {
                 setShowPaymentForm(false);
+                setData((prev: any) => ({
+                    ...prev,
+                    booking_status: 'confirmed' as BookingStatus,
+                    payment_status: 'dp_pending' as PaymentStatus,
+                    payment_amount: null,
+                    payment_method_id: null,
+                }));
             }
         }
-    }, [mode, data.booking_status, data.payment_status, data.dp_percentage, totalBookingAmount]);
+    }, [mode, addInitialPayment, initialPaymentType, totalBookingAmount, data.dp_percentage, paymentData.amount]);
 
-    // Sync paymentData to form state
+    // Auto-select property's bank account for initial payment
     useEffect(() => {
-        if (showPaymentForm || (data.booking_status === 'confirmed' && data.payment_status !== 'dp_pending')) {
-            if (paymentData.payment_method_id) setData('payment_method_id', paymentData.payment_method_id);
-            if (paymentData.amount !== undefined) setData('payment_amount', paymentData.amount);
-            if (paymentData.payment_date) setData('payment_date', paymentData.payment_date);
-            if (paymentData.reference_number) setData('reference_number', paymentData.reference_number);
-            if (paymentData.bank_name) setData('bank_name', paymentData.bank_name);
-            if (paymentData.account_number) setData('account_number', paymentData.account_number);
-            if (paymentData.account_name) setData('account_name', paymentData.account_name);
-            if (paymentData.verification_notes) setData('verification_notes', paymentData.verification_notes);
-            if (paymentData.payment_status) setData('payment_status_payment', paymentData.payment_status);
+        if (mode === 'create' && currentProperty && bankAccounts && bankAccounts.length > 0) {
+            if (currentProperty.payment_method_id) {
+                const matchingMethod = paymentMethods.find(m => m.id === currentProperty.payment_method_id);
+                if (matchingMethod) {
+                    const propertyBankAccount = bankAccounts.find(acc => acc.id === currentProperty.bank_account_id);
+                    setPaymentData((prev: any) => ({
+                        ...prev,
+                        payment_method_id: matchingMethod.id.toString(),
+                        bank_name: propertyBankAccount ? propertyBankAccount.bank_name : (matchingMethod.bank_name || ''),
+                        account_number: propertyBankAccount ? propertyBankAccount.account_number : (matchingMethod.account_number || ''),
+                        account_name: propertyBankAccount ? propertyBankAccount.account_holder : (matchingMethod.account_name || ''),
+                    }));
+                    return;
+                }
+            }
+
+            // Fallback to legacy bank_code matching
+            const propertyBankAccount = bankAccounts.find(acc => acc.id === currentProperty.bank_account_id);
+            if (propertyBankAccount) {
+                const matchingMethod = paymentMethods.find(m => m.type === 'bank_transfer' && m.code === propertyBankAccount.bank_code);
+                if (matchingMethod) {
+                    setPaymentData((prev: any) => ({
+                        ...prev,
+                        payment_method_id: matchingMethod.id.toString(),
+                        bank_name: propertyBankAccount.bank_name,
+                        account_number: propertyBankAccount.account_number,
+                        account_name: propertyBankAccount.account_holder,
+                    }));
+                }
+            }
         }
-    }, [paymentData, showPaymentForm, data.booking_status, data.payment_status]);
+    }, [currentProperty, bankAccounts, paymentMethods, mode]);
+
+    // Sync paymentData details to form state (for submission)
+    useEffect(() => {
+        if (mode === 'create' && showPaymentForm) {
+            setData((prev: any) => ({
+                ...prev,
+                payment_method_id: paymentData.payment_method_id || null,
+                payment_date: paymentData.payment_date || null,
+                reference_number: paymentData.reference_number || null,
+                bank_name: paymentData.bank_name || null,
+                account_number: paymentData.account_number || null,
+                account_name: paymentData.account_name || null,
+                payment_status_payment: paymentData.payment_status || 'verified',
+                verification_notes: paymentData.verification_notes || null,
+            }));
+        }
+    }, [paymentData, showPaymentForm, mode]);
 
     // Load property availability data
     const loadPropertyData = async (propertyId: number) => {
@@ -331,7 +505,7 @@ export default function BookingForm({
             loadPropertyData(property.id);
             // Update max capacity defaults if passing max
             if (totalGuests > property.capacity_max) {
-                setData(data => ({
+                setData((data: any) => ({
                     ...data,
                     guest_male: Math.floor(property.capacity_max / 2),
                     guest_female: Math.floor(property.capacity_max / 2),
@@ -341,11 +515,11 @@ export default function BookingForm({
         }
     };
 
-    // Check availability and rate
     const checkAvailabilityAndCalculateRate = useCallback(async (
         propertyId: number,
         checkIn: string,
         checkOut: string,
+        dailyExtraBedsParam?: Record<string, number>
     ) => {
         if (!checkIn || !checkOut) return;
 
@@ -359,19 +533,13 @@ export default function BookingForm({
                 property_id: propertyId,
                 check_in: checkIn,
                 check_out: checkOut,
-                exclude_booking_id: mode === 'edit' && bookingNumber ? initialData?.id : undefined
+                guest_count: totalGuests
             };
-
-            // Note: Using the specific endpoint for check-availability if needed, 
-            // or reusing the service. Create and Edit had slightly different implementations.
-            // We'll use the service method which should handle both if param is supported, 
-            // or fall back to raw fetch if needed for exclude_booking_id support
-
             let isAvailable = false;
 
-            if (mode === 'edit') {
-                // For edit, we need to exclude the current booking
-                const response = await fetch('/api/admin/booking-management/check-availability', {
+            if (mode === 'edit' && initialData?.id) {
+                // For edit mode, exclude current booking
+                const response = await fetch('/api/admin/booking-management/check-availability-exclude', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -379,7 +547,7 @@ export default function BookingForm({
                         'X-Requested-With': 'XMLHttpRequest',
                         'Accept': 'application/json',
                     },
-                    body: JSON.stringify(availabilityPayload),
+                    body: JSON.stringify({ ...availabilityPayload, exclude_booking_id: initialData.id }),
                 });
                 if (response.ok) {
                     const data = await response.json();
@@ -387,12 +555,7 @@ export default function BookingForm({
                 }
             } else {
                 // For create, standard check
-                const result = await apiPost<{ available: boolean }>('/api/admin/booking-management/check-availability', {
-                    property_id: propertyId,
-                    check_in: checkIn,
-                    check_out: checkOut,
-                    guest_count: totalGuests
-                });
+                const result = await apiPost<{ available: boolean }>('/api/admin/booking-management/check-availability', availabilityPayload);
                 isAvailable = result?.available || false;
             }
 
@@ -400,10 +563,6 @@ export default function BookingForm({
 
             if (!isAvailable) {
                 setAvailabilityError('Property tidak tersedia untuk tanggal yang dipilih');
-                if (mode === 'create') {
-                    // Create mode might stop here, but Edit might continue.
-                    // Making it consistent: show error but calculate rate anyway for potential override
-                }
             }
 
             // 2. Calculate Rate
@@ -414,6 +573,7 @@ export default function BookingForm({
                     check_in: checkIn,
                     check_out: checkOut,
                     guest_count: totalGuests,
+                    daily_extra_beds: dailyExtraBedsParam !== undefined ? dailyExtraBedsParam : data.daily_extra_beds,
                 }
             );
 
@@ -452,7 +612,7 @@ export default function BookingForm({
 
     // Handle date changes
     const handleDateRangeChange = useCallback((startDate: string, endDate: string) => {
-        setData(data => ({ ...data, check_in_date: startDate, check_out_date: endDate }));
+        setData((data: any) => ({ ...data, check_in_date: startDate, check_out_date: endDate }));
 
         // Clear previous calculations
         setRateCalculation(null);
@@ -471,31 +631,79 @@ export default function BookingForm({
         }
     }, [currentProperty, checkAvailabilityAndCalculateRate]);
 
+    // Helper to get dates of stay
+    const getDatesOfStay = useCallback(() => {
+        if (!data.check_in_date || !data.check_out_date) return [];
+        const dates = [];
+        const start = new Date(data.check_in_date);
+        const end = new Date(data.check_out_date);
+        for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+            dates.push(d.toISOString().split('T')[0]);
+        }
+        return dates;
+    }, [data.check_in_date, data.check_out_date]);
+
+    // Helper to change individual day extra bed count
+    const handleDailyExtraBedChange = (date: string, count: number) => {
+        setData('daily_extra_beds', {
+            ...data.daily_extra_beds,
+            [date]: count
+        });
+    };
+
     // Initial load for edit mode
     useEffect(() => {
         if (mode === 'edit' && currentProperty && data.check_in_date && data.check_out_date) {
-            // If editing, we verify availability (with exclude) and calculate rate
-            // But usually we trust existing booking unless dates change. 
-            // Only calculate if explicitly needed? 
-            // Edit.tsx does it on mount/prop change if property exists
-            checkAvailabilityAndCalculateRate(currentProperty.id, data.check_in_date, data.check_out_date);
+            checkAvailabilityAndCalculateRate(currentProperty.id, data.check_in_date, data.check_out_date, data.daily_extra_beds);
             loadPropertyData(currentProperty.id);
         }
-    }, []); // Run once on mount if data available? Or depend on initialData? 
-    // Actually better to not auto-trigger on mount for Edit to avoid layout shifts unless necessary, 
-    // BUT we need RateCalculation for the breakdown display.
+    }, []);
 
-    // Trigger rate calc on guest count change
+    // Sync daily extra beds when dates or guest count changes
+    useEffect(() => {
+        if (data.check_in_date && data.check_out_date && currentProperty) {
+            const dates = getDatesOfStay();
+            // Calculate standard default extra bed count
+            const defaultCount = Math.max(0, totalGuests - (currentProperty.capacity || 0));
+            const newDailyExtraBeds = { ...data.daily_extra_beds };
+            let changed = false;
+
+            // Remove dates no longer in the range
+            Object.keys(newDailyExtraBeds).forEach(date => {
+                if (!dates.includes(date)) {
+                    delete newDailyExtraBeds[date];
+                    changed = true;
+                }
+            });
+
+            // Add new dates with default extra beds
+            dates.forEach(date => {
+                if (newDailyExtraBeds[date] === undefined) {
+                    newDailyExtraBeds[date] = defaultCount;
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                setData('daily_extra_beds', newDailyExtraBeds);
+            }
+        }
+    }, [data.check_in_date, data.check_out_date, totalGuests, currentProperty]);
+
+    // Trigger rate calc on guest count, dates, or daily extra beds change
     useEffect(() => {
         if (data.check_in_date && data.check_out_date && currentProperty && totalGuests > 0) {
-            // Only if not initial render? 
-            // We'll trust the callback logic.
             const timer = setTimeout(() => {
-                checkAvailabilityAndCalculateRate(currentProperty.id, data.check_in_date, data.check_out_date);
+                checkAvailabilityAndCalculateRate(
+                    currentProperty.id,
+                    data.check_in_date,
+                    data.check_out_date,
+                    data.daily_extra_beds
+                );
             }, 500);
             return () => clearTimeout(timer);
         }
-    }, [totalGuests, currentProperty]);
+    }, [totalGuests, currentProperty, data.check_in_date, data.check_out_date, data.daily_extra_beds, checkAvailabilityAndCalculateRate]);
 
     // Form validation
     const canSubmit = data.property_id && data.check_in_date && data.check_out_date &&
@@ -575,8 +783,8 @@ export default function BookingForm({
             }
             router.post(route('admin.bookings.store'), formData, submitOptions);
         } else {
-            // Edit mode (Patch)
-            router.patch(route('admin.bookings.update', bookingNumber), formData, submitOptions);
+            // Edit mode (Put)
+            router.put(route('admin.bookings.update', bookingNumber), formData, submitOptions);
         }
     };
 
@@ -664,20 +872,107 @@ export default function BookingForm({
 
                         {/* Guest Count */}
                         {currentProperty && (
-                            <GuestCountForm
-                                guestMale={data.guest_male}
-                                guestFemale={data.guest_female}
-                                guestChildren={data.guest_children}
-                                totalGuests={totalGuests}
-                                extraBeds={extraBeds}
-                                capacity={currentProperty.capacity}
-                                capacityMax={currentProperty.capacity_max}
-                                extraBedRate={currentProperty.extra_bed_rate || 0}
-                                onGuestCountChange={(type, count) => {
-                                    const field = type === 'children' ? 'guest_children' : type === 'male' ? 'guest_male' : 'guest_female';
-                                    setData(field, count);
-                                }}
-                            />
+                            <div className="space-y-4">
+                                <GuestCountForm
+                                    guestMale={data.guest_male}
+                                    guestFemale={data.guest_female}
+                                    guestChildren={data.guest_children}
+                                    totalGuests={totalGuests}
+                                    extraBeds={extraBeds}
+                                    capacity={currentProperty.capacity}
+                                    capacityMax={currentProperty.capacity_max}
+                                    extraBedRate={currentProperty.extra_bed_rate || 0}
+                                    onGuestCountChange={(type, count) => {
+                                        const field = type === 'children' ? 'guest_children' : type === 'male' ? 'guest_male' : 'guest_female';
+                                        setData(field, count);
+                                    }}
+                                />
+                                
+                                {totalGuests > currentProperty.capacity_max && (
+                                    <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg">
+                                        <input
+                                            type="checkbox"
+                                            id="force_capacity_override"
+                                            className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded mt-0.5"
+                                            checked={data.force_capacity_override}
+                                            onChange={(e) => setData('force_capacity_override', e.target.checked)}
+                                        />
+                                        <label htmlFor="force_capacity_override" className="text-xs font-medium text-amber-800 dark:text-amber-300 cursor-pointer">
+                                            Bypass Kapasitas Maksimal (Khusus Admin)
+                                            <span className="block text-[10px] font-normal text-amber-600 dark:text-amber-400 mt-0.5">
+                                                Gunakan opsi ini untuk memaksa pendaftaran booking meskipun melebihi kapasitas maksimal {currentProperty.capacity_max} orang.
+                                            </span>
+                                        </label>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Daily Extra Bed Editor */}
+                        {currentProperty && data.check_in_date && data.check_out_date && getDatesOfStay().length > 0 && (
+                            <Card className="border border-slate-200 shadow-sm gap-0">
+                                <CardHeader className="py-3 bg-slate-50/50">
+                                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                        <Bed className="h-4 w-4 text-blue-600" /> Rincian Extra Bed per Malam (Opsional)
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-4 space-y-3">
+                                    <div className="text-xs text-muted-foreground">
+                                        Sesuaikan jumlah extra bed untuk setiap malam secara spesifik jika diperlukan. Default otomatis dihitung berdasarkan jumlah tamu dan kapasitas properti.
+                                    </div>
+                                    <div className="divide-y divide-slate-100">
+                                        {getDatesOfStay().map((date) => {
+                                            const dayExtraBedsCount = data.daily_extra_beds[date] ?? 0;
+                                            const seasonalRate = availabilityData?.seasonal_rates?.[date];
+                                            const extraBedRate = seasonalRate?.extra_bed_rate !== null && seasonalRate?.extra_bed_rate !== undefined
+                                                ? Number(seasonalRate.extra_bed_rate)
+                                                : Number(currentProperty.extra_bed_rate || 0);
+
+                                            return (
+                                                <div key={date} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                                                    <div>
+                                                        <div className="text-sm font-medium text-slate-800">
+                                                            {new Date(date).toLocaleDateString('id-ID', {
+                                                                weekday: 'short',
+                                                                day: 'numeric',
+                                                                month: 'short',
+                                                                year: 'numeric'
+                                                            })}
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            Tarif extra bed: {formatCurrency(extraBedRate)} / unit
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="icon"
+                                                            className="h-8 w-8 shrink-0 rounded-full"
+                                                            onClick={() => handleDailyExtraBedChange(date, Math.max(0, dayExtraBedsCount - 1))}
+                                                            disabled={dayExtraBedsCount <= 0}
+                                                        >
+                                                            <Minus className="h-3 w-3" />
+                                                        </Button>
+                                                        <div className="w-8 text-center font-semibold tabular-nums text-sm">
+                                                            {dayExtraBedsCount}
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="icon"
+                                                            className="h-8 w-8 shrink-0 rounded-full"
+                                                            onClick={() => handleDailyExtraBedChange(date, dayExtraBedsCount + 1)}
+                                                        >
+                                                            <Plus className="h-3 w-3" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </CardContent>
+                            </Card>
                         )}
 
                         <Separator />
@@ -696,6 +991,10 @@ export default function BookingForm({
                             <div>
                                 <Label htmlFor="guest_phone">Phone *</Label>
                                 <Input id="guest_phone" type="tel" value={data.guest_phone} onChange={e => setData('guest_phone', e.target.value)} />
+                            </div>
+                            <div>
+                                <Label htmlFor="guest_phone_alternative">Alternative Phone</Label>
+                                <Input id="guest_phone_alternative" type="tel" value={data.guest_phone_alternative} onChange={e => setData('guest_phone_alternative', e.target.value)} />
                             </div>
                             <div>
                                 <Label htmlFor="guest_country">Country *</Label>
@@ -763,215 +1062,186 @@ export default function BookingForm({
 
                         <Separator />
 
-                        {/* Booking Status & Payment */}
-                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                                <Label htmlFor="booking_status">Status Booking *</Label>
-                                <Select value={data.booking_status} onValueChange={v => setData('booking_status', v as BookingStatus)}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="pending_verification">Menunggu Verifikasi</SelectItem>
-                                        <SelectItem value="confirmed">Terkonfirmasi</SelectItem>
-                                        <SelectItem value="checked_in">Checked In</SelectItem>
-                                        <SelectItem value="checked_out">Checked Out</SelectItem>
-                                        <SelectItem value="cancelled">Dibatalkan</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                        {/* Booking Status, Payment, & Source Fields */}
+                        {mode === 'create' ? (
+                            <div className="grid md:grid-cols-4 gap-4">
+                                <div>
+                                    <Label htmlFor="source">Sumber Booking</Label>
+                                    <Select value={data.source} onValueChange={v => setData('source', v)}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="direct">Direct</SelectItem>
+                                            <SelectItem value="phone">Telepon</SelectItem>
+                                            <SelectItem value="walk_in">Walk-in</SelectItem>
+                                            <SelectItem value="ota">OTA</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label htmlFor="check_in_time">Waktu Check-in</Label>
+                                    <Input
+                                        id="check_in_time"
+                                        type="time"
+                                        value={data.check_in_time}
+                                        onChange={e => setData('check_in_time', e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <Label htmlFor="dp_percentage">Persentase Ketentuan DP (%)</Label>
+                                    <Select
+                                        value={data.dp_percentage?.toString()}
+                                        onValueChange={(v) => {
+                                            setData('dp_percentage', Number(v));
+                                        }}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Pilih Persentase" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {["30", "50", "70", "100"].map((percent) => (
+                                                <SelectItem key={percent} value={percent}>
+                                                    {percent}%
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label htmlFor="followed_up_by">Follow-Up Awal Oleh *</Label>
+                                    <Select value={data.followed_up_by} onValueChange={v => setData('followed_up_by', v)}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Pilih Staf" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {staffUsers.map((user: any) => (
+                                                <SelectItem key={user.id} value={user.id.toString()}>
+                                                    {user.name} ({user.role.replace('_', ' ')})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
-                            <div>
-                                <Label htmlFor="payment_status">Status Pembayaran *</Label>
-                                <Select
-                                    value={data.payment_status}
-                                    onValueChange={(v) => {
-                                        // 1. Tentukan persentase otomatis berdasarkan status
-                                        let autoPercentage = data.dp_percentage; // default nilai saat ini
-
-                                        if (v === 'fully_paid') {
-                                            autoPercentage = 100;
-                                        } else if (v === 'dp_pending' || v === 'dp_received') {
-                                            // Opsional: Jika status DP, paksa ke 50 jika sebelumnya 100 atau 0
-                                            if (data.dp_percentage === 100 || data.dp_percentage === 0) {
-                                                autoPercentage = 50;
-                                            }
-                                        }
-
-                                        // 2. Update sekaligus status dan persentasenya
-                                        setData({
-                                            ...data,
-                                            payment_status: v as PaymentStatus,
-                                            dp_percentage: autoPercentage
-                                        });
-                                    }}
-                                >
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="dp_pending">DP Pending</SelectItem>
-                                        <SelectItem value="dp_received">DP Diterima</SelectItem>
-                                        <SelectItem value="fully_paid">Lunas</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <Label htmlFor="dp_percentage">Persentase DP (%)</Label>
-                                <Select
-                                    value={data.dp_percentage?.toString()}
-                                    onValueChange={(v) => {
-                                        const newPercent = Number(v);
-                                        let newStatus = data.payment_status;
-
-                                        // Logika sebaliknya: Jika user pilih 100%, status otomatis Lunas
-                                        if (newPercent === 100) {
-                                            newStatus = 'fully_paid';
-                                        } else if (newPercent < 100 && newStatus === 'fully_paid') {
-                                            newStatus = 'dp_received'; // Turunkan status jika persen dikurangi
-                                        }
-
-                                        setData({
-                                            ...data,
-                                            dp_percentage: newPercent,
-                                            payment_status: newStatus
-                                        });
-                                    }}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Pilih Persentase" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {["0", "50", "100"].map((percent) => (
-                                            <SelectItem key={percent} value={percent}>
-                                                {percent}%
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label htmlFor="source">Sumber Booking</Label>
-                                <Select value={data.source} onValueChange={v => setData('source', v)}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="direct">Direct</SelectItem>
-                                        <SelectItem value="phone">Telepon</SelectItem>
-                                        <SelectItem value="walk_in">Walk-in</SelectItem>
-                                        <SelectItem value="ota">OTA</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <div className="grid md:grid-cols-2 gap-4">
-                            <div>
-                                <Label htmlFor="check_in_time">Waktu Check-in</Label>
-                                <Input
-                                    id="check_in_time"
-                                    type="time"
-                                    value={data.check_in_time}
-                                    onChange={e => setData('check_in_time', e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        <Separator />
-
-                        {/* Payment Form - Show when status is confirmed and not DP pending */}
-                        {mode === 'create' && showPaymentForm && (
-                            <Card className="bg-blue-50 border-blue-200">
-                                <CardHeader>
-                                    <CardTitle className="text-lg flex items-center gap-2">
-                                        <CreditCard className="h-5 w-5" />
-                                        Informasi Pembayaran
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="grid md:grid-cols-2 gap-4">
-                                        <div>
-                                            <Label htmlFor="payment_method_id">Metode Pembayaran *</Label>
-                                            <Select
-                                                value={paymentData.payment_method_id}
-                                                onValueChange={v => setPaymentData({ ...paymentData, payment_method_id: v })}
-                                            >
-                                                <SelectTrigger><SelectValue placeholder="Pilih metode pembayaran" /></SelectTrigger>
-                                                <SelectContent>
-                                                    {paymentMethods.map(method => (
-                                                        <SelectItem key={method.id} value={method.id.toString()}>
-                                                            {method.name} {method.bank_name ? `- ${method.bank_name}` : ''}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="payment_amount">Jumlah Pembayaran *</Label>
-                                            <Input
-                                                id="payment_amount"
-                                                type="number"
-                                                step={1000}
-                                                value={paymentData.amount}
-                                                onChange={e => setPaymentData({ ...paymentData, amount: parseFloat(e.target.value) || 0 })}
-                                                placeholder="Jumlah pembayaran"
-                                            />
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                Total: {formatCurrency(totalBookingAmount)}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="payment_date">Tanggal Pembayaran</Label>
-                                            <Input
-                                                id="payment_date"
-                                                type="date"
-                                                value={paymentData.payment_date}
-                                                onChange={e => setPaymentData({ ...paymentData, payment_date: e.target.value })}
-                                            />
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="reference_number">Nomor Referensi</Label>
-                                            <Input
-                                                id="reference_number"
-                                                value={paymentData.reference_number}
-                                                onChange={e => setPaymentData({ ...paymentData, reference_number: e.target.value })}
-                                                placeholder="Nomor referensi transfer"
-                                            />
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="payment_proof">Bukti Pembayaran</Label>
-                                            <Input
-                                                id="payment_proof"
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={e => setPaymentProof(e.target.files?.[0] || null)}
-                                            />
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="payment_status_select">Status Verifikasi</Label>
-                                            <Select
-                                                value={paymentData.payment_status}
-                                                onValueChange={v => setPaymentData({ ...paymentData, payment_status: v as 'pending' | 'verified' })}
-                                            >
-                                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="pending">Pending</SelectItem>
-                                                    <SelectItem value="verified">Verified</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="grid md:grid-cols-4 gap-4">
+                                    <div>
+                                        <Label htmlFor="source">Sumber Booking</Label>
+                                        <Select value={data.source} onValueChange={v => setData('source', v)}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="direct">Direct</SelectItem>
+                                                <SelectItem value="phone">Telepon</SelectItem>
+                                                <SelectItem value="walk_in">Walk-in</SelectItem>
+                                                <SelectItem value="ota">OTA</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                     <div>
-                                        <Label htmlFor="verification_notes">Catatan Verifikasi</Label>
-                                        <Textarea
-                                            id="verification_notes"
-                                            value={paymentData.verification_notes}
-                                            onChange={e => setPaymentData({ ...paymentData, verification_notes: e.target.value })}
-                                            placeholder="Catatan untuk verifikasi pembayaran..."
-                                            rows={2}
+                                        <Label htmlFor="check_in_time">Waktu Check-in</Label>
+                                        <Input
+                                            id="check_in_time"
+                                            type="time"
+                                            value={data.check_in_time}
+                                            onChange={e => setData('check_in_time', e.target.value)}
                                         />
                                     </div>
-                                </CardContent>
-                            </Card>
+                                    <div>
+                                        <Label htmlFor="booking_status">Status Booking *</Label>
+                                        <Select value={data.booking_status} onValueChange={v => setData('booking_status', v as BookingStatus)}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="pending_verification">Menunggu Verifikasi</SelectItem>
+                                                <SelectItem value="confirmed">Terkonfirmasi</SelectItem>
+                                                <SelectItem value="checked_in">Checked In</SelectItem>
+                                                <SelectItem value="checked_out">Checked Out</SelectItem>
+                                                <SelectItem value="cancelled">Dibatalkan</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="followed_up_by">Follow-Up Awal Oleh *</Label>
+                                        <Select value={data.followed_up_by} onValueChange={v => setData('followed_up_by', v)}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Pilih Staf" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {staffUsers.map((user: any) => (
+                                                    <SelectItem key={user.id} value={user.id.toString()}>
+                                                        {user.name} ({user.role.replace('_', ' ')})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label htmlFor="payment_status">Status Pembayaran *</Label>
+                                        <Select
+                                            value={data.payment_status}
+                                            onValueChange={(v) => {
+                                                let autoPercentage = data.dp_percentage;
+                                                if (v === 'fully_paid') {
+                                                    autoPercentage = 100;
+                                                } else if (v === 'dp_pending' || v === 'dp_received') {
+                                                    if (data.dp_percentage === 100 || data.dp_percentage === 0) {
+                                                        autoPercentage = 50;
+                                                    }
+                                                }
+                                                setData({
+                                                    ...data,
+                                                    payment_status: v as PaymentStatus,
+                                                    dp_percentage: autoPercentage
+                                                });
+                                            }}
+                                        >
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="dp_pending">DP Pending</SelectItem>
+                                                <SelectItem value="dp_received">DP Diterima</SelectItem>
+                                                <SelectItem value="fully_paid">Lunas</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="dp_percentage">Persentase DP (%)</Label>
+                                        <Select
+                                            value={data.dp_percentage?.toString()}
+                                            onValueChange={(v) => {
+                                                const newPercent = Number(v);
+                                                let newStatus = data.payment_status;
+                                                if (newPercent === 100) {
+                                                    newStatus = 'fully_paid';
+                                                } else if (newPercent < 100 && newStatus === 'fully_paid') {
+                                                    newStatus = 'dp_received';
+                                                }
+                                                setData({
+                                                    ...data,
+                                                    dp_percentage: newPercent,
+                                                    payment_status: newStatus
+                                                });
+                                            }}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Pilih Persentase" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {["0", "30", "50", "70", "100"].map((percent) => (
+                                                    <SelectItem key={percent} value={percent}>
+                                                        {percent}%
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </div>
                         )}
 
                         <Separator />
-
 
                         {/* Extra Services */}
                         <ExtraServiceSelector
@@ -979,15 +1249,253 @@ export default function BookingForm({
                             selectedServices={selectedServices}
                             onServicesChange={setSelectedServices}
                             nights={rateCalculation?.nights || 1}
+                            checkInDate={data.check_in_date}
+                            checkOutDate={data.check_out_date}
                         />
 
-                        {/* Rate Breakdown (if calculated) */}
+                        <Separator />
+
+                        <Separator />
+
+                        {/* Payment Form (Only for Create Mode) */}
+                        {mode === 'create' && (
+                            <Card className="border-slate-200 shadow-sm">
+                                <CardHeader className="pb-3">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                            <CreditCard className="h-4 w-4 text-blue-600" />
+                                            Input Pembayaran Awal (Opsional)
+                                        </CardTitle>
+                                        <div className="flex items-center space-x-2">
+                                            <input
+                                                type="checkbox"
+                                                id="add_initial_payment"
+                                                checked={addInitialPayment}
+                                                onChange={(e) => setAddInitialPayment(e.target.checked)}
+                                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                                            />
+                                            <Label htmlFor="add_initial_payment" className="text-xs font-medium text-slate-700 cursor-pointer">
+                                                Ada Pembayaran Masuk
+                                            </Label>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+
+                                {addInitialPayment && (
+                                    <CardContent className="space-y-4 pt-0 border-t border-slate-100 mt-3">
+                                        <div className="grid md:grid-cols-2 gap-4 pt-3">
+                                            <div>
+                                                 <Label htmlFor="initial_payment_type">Tipe Pembayaran Awal *</Label>
+                                                 <Select
+                                                     value={initialPaymentType}
+                                                     onValueChange={v => setInitialPaymentType(v as 'dp' | 'full' | 'custom')}
+                                                 >
+                                                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                                                     <SelectContent>
+                                                         <SelectItem value="full">Lunas (100% Pembayaran)</SelectItem>
+                                                         <SelectItem value="dp">DP (Sesuai Ketentuan DP %)</SelectItem>
+                                                         <SelectItem value="custom">Nominal Kustom (Manual)</SelectItem>
+                                                     </SelectContent>
+                                                 </Select>
+                                             </div>
+                                             <div>
+                                                 <Label htmlFor="payment_amount">
+                                                     {initialPaymentType === 'custom' ? 'Jumlah Pembayaran (Manual) *' : 'Jumlah Pembayaran (Otomatis) *'}
+                                                 </Label>
+                                                 {initialPaymentType === 'custom' ? (
+                                                     <div className="relative">
+                                                         <span className="absolute left-3 top-2 text-sm text-slate-500 font-semibold">Rp</span>
+                                                         <Input
+                                                             id="payment_amount"
+                                                             type="number"
+                                                             value={paymentData.amount || ''}
+                                                             onChange={e => setPaymentData({ ...paymentData, amount: parseFloat(e.target.value) || 0 })}
+                                                             className="h-9 pl-9 font-semibold text-slate-700 focus:ring-blue-500"
+                                                             placeholder="Masukkan nominal transfer"
+                                                         />
+                                                     </div>
+                                                 ) : (
+                                                     <Input
+                                                         id="payment_amount"
+                                                         type="text"
+                                                         value={new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(paymentData.amount)}
+                                                         disabled
+                                                         className="h-9 bg-slate-50 font-semibold text-slate-700"
+                                                     />
+                                                 )}
+                                             </div>
+                                             <div>
+                                                 <Label htmlFor="payment_method_id">Metode Pembayaran *</Label>
+                                                 <Select
+                                                     value={paymentData.payment_method_id}
+                                                     onValueChange={v => {
+                                                         const method = paymentMethods.find(m => m.id.toString() === v);
+                                                         if (method && method.type === 'bank_transfer') {
+                                                             const firstMatchingAccount = bankAccounts?.find(acc => acc.bank_code === method.code);
+                                                             setPaymentData({
+                                                                 ...paymentData,
+                                                                 payment_method_id: v,
+                                                                 bank_name: firstMatchingAccount?.bank_name || '',
+                                                                 account_number: firstMatchingAccount?.account_number || '',
+                                                                 account_name: firstMatchingAccount?.account_holder || '',
+                                                             });
+                                                         } else {
+                                                             setPaymentData({
+                                                                 ...paymentData,
+                                                                 payment_method_id: v,
+                                                                 bank_name: '',
+                                                                 account_number: '',
+                                                                 account_name: '',
+                                                             });
+                                                         }
+                                                     }}
+                                                 >
+                                                     <SelectTrigger className="h-9"><SelectValue placeholder="Pilih metode pembayaran" /></SelectTrigger>
+                                                     <SelectContent>
+                                                         {paymentMethods.map(method => (
+                                                             <SelectItem key={method.id} value={method.id.toString()}>
+                                                                 {method.name}
+                                                             </SelectItem>
+                                                         ))}
+                                                     </SelectContent>
+                                                 </Select>
+                                                 {errors.payment_method_id && (
+                                                     <p className="text-xs text-red-500 mt-1">{errors.payment_method_id}</p>
+                                                 )}
+                                             </div>
+
+                                             {paymentMethods.find(m => m.id.toString() === paymentData.payment_method_id)?.type === 'bank_transfer' && (
+                                                 <div>
+                                                     <Label htmlFor="bank_account_select">Rekening Bank Tujuan *</Label>
+                                                     <Select
+                                                         value={bankAccounts?.find(acc => acc.account_number === paymentData.account_number)?.id.toString() || ''}
+                                                         onValueChange={accId => {
+                                                             const acc = bankAccounts?.find(a => a.id.toString() === accId);
+                                                             if (acc) {
+                                                                 setPaymentData(prev => ({
+                                                                     ...prev,
+                                                                     bank_name: acc.bank_name,
+                                                                     account_number: acc.account_number,
+                                                                     account_name: acc.account_holder,
+                                                                 }));
+                                                             }
+                                                         }}
+                                                     >
+                                                         <SelectTrigger className="h-9">
+                                                             <SelectValue placeholder="Pilih rekening bank tujuan" />
+                                                         </SelectTrigger>
+                                                         <SelectContent>
+                                                             {bankAccounts
+                                                                 ?.filter(acc => acc.bank_code === paymentMethods.find(m => m.id.toString() === paymentData.payment_method_id)?.code)
+                                                                 .map(acc => (
+                                                                     <SelectItem key={acc.id} value={acc.id.toString()}>
+                                                                         <span className="font-medium">{acc.label}</span>
+                                                                         <span className="text-muted-foreground ml-2 font-mono text-xs">({acc.account_number})</span>
+                                                                     </SelectItem>
+                                                                 ))
+                                                             }
+                                                         </SelectContent>
+                                                     </Select>
+                                                 </div>
+                                             )}
+                                            <div>
+                                                <Label htmlFor="payment_date">Tanggal Pembayaran</Label>
+                                                <Input
+                                                    id="payment_date"
+                                                    type="date"
+                                                    value={paymentData.payment_date}
+                                                    onChange={e => setPaymentData({ ...paymentData, payment_date: e.target.value })}
+                                                    className="h-9"
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="reference_number">Nomor Referensi</Label>
+                                                <Input
+                                                    id="reference_number"
+                                                    value={paymentData.reference_number}
+                                                    onChange={e => setPaymentData({ ...paymentData, reference_number: e.target.value })}
+                                                    placeholder="Nomor referensi transfer"
+                                                    className="h-9"
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="payment_proof">Bukti Pembayaran</Label>
+                                                <Input
+                                                    id="payment_proof"
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={e => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                            compressImage(file).then(compressedFile => {
+                                                                setPaymentProof(compressedFile);
+                                                            });
+                                                        } else {
+                                                            setPaymentProof(null);
+                                                        }
+                                                    }}
+                                                    className="h-9"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="verification_notes">Catatan Verifikasi</Label>
+                                            <Textarea
+                                                id="verification_notes"
+                                                value={paymentData.verification_notes}
+                                                onChange={e => setPaymentData({ ...paymentData, verification_notes: e.target.value })}
+                                                placeholder="Catatan untuk verifikasi pembayaran..."
+                                                rows={2}
+                                            />
+                                        </div>
+                                    </CardContent>
+                                )}
+                            </Card>
+                        )}
+
+                        <Separator />
+
+                        {/* Rate Breakdown & Discount override */}
                         {rateCalculationFull && (
-                            <RateBreakdownCard
-                                rateCalculation={rateCalculationFull}
-                                checkIn={data.check_in_date}
-                                checkOut={data.check_out_date}
-                            />
+                            <div className="space-y-4">
+                                <Card className="bg-slate-50 border-slate-200">
+                                    <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="discount_amount" className="font-semibold text-slate-800">
+                                                Nominal Diskon Booking (Keseluruhan)
+                                            </Label>
+                                            <p className="text-xs text-slate-500">
+                                                Masukkan nominal diskon langsung untuk memotong harga sewa kamar ini
+                                            </p>
+                                        </div>
+                                        <div className="w-full md:w-72">
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-2.5 text-xs font-semibold text-slate-400">Rp</span>
+                                                <Input
+                                                    id="discount_amount"
+                                                    type="number"
+                                                    min="0"
+                                                    value={data.discount_amount || ''}
+                                                    onChange={e => setData('discount_amount', parseInt(e.target.value) || 0)}
+                                                    placeholder="0"
+                                                    className={`pl-8 ${errors.discount_amount ? 'border-red-500' : ''}`}
+                                                />
+                                            </div>
+                                            {errors.discount_amount && (
+                                                <p className="text-xs text-red-500 mt-1">{errors.discount_amount}</p>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                <RateBreakdownCard
+                                    rateCalculation={rateCalculationFull}
+                                    checkIn={data.check_in_date}
+                                    checkOut={data.check_out_date}
+                                    discountAmount={data.discount_amount}
+                                    services={selectedServices}
+                                />
+                            </div>
                         )}
 
                         <div className="flex justify-end gap-4 mt-8">

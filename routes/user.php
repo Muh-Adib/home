@@ -1,12 +1,13 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\AmenityController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PropertyController;
-use App\Http\Controllers\AmenityController;
-use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Settings\ProfileController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -60,17 +61,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Profile Routes (user area)
     // Gunakan nama berbeda agar tidak bentrok dengan routes di routes/settings.php
-    Route::controller(\App\Http\Controllers\Settings\ProfileController::class)->group(function () {
+    Route::controller(ProfileController::class)->group(function () {
         Route::get('/profile', 'edit')->name('user.profile.edit');
         Route::patch('/profile', 'update')->name('user.profile.update');
         Route::delete('/profile', 'destroy')->name('user.profile.destroy');
     });
-
-    // Payment Gateway Initiate (Authenticated Users)
-    Route::post(
-        '/bookings/{booking:booking_number}/payment-gateway/initiate',
-        [\App\Http\Controllers\PaymentGatewayController::class, 'initiate']
-    )->name('payment-gateway.initiate');
 
     // Booking Resume
     Route::get('/booking/resume', [BookingController::class, 'resumeBooking'])

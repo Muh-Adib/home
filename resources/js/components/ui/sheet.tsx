@@ -21,9 +21,27 @@ function SheetClose({
 }
 
 function SheetPortal({
+  children,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Portal>) {
-  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />
+  const [container, setContainer] = React.useState<HTMLElement | null>(null)
+
+  React.useEffect(() => {
+    const updateContainer = () => {
+      setContainer((document.fullscreenElement as HTMLElement) || null)
+    }
+    updateContainer()
+    document.addEventListener("fullscreenchange", updateContainer)
+    return () => {
+      document.removeEventListener("fullscreenchange", updateContainer)
+    }
+  }, [])
+
+  return (
+    <SheetPrimitive.Portal container={container} data-slot="sheet-portal" {...props}>
+      {children}
+    </SheetPrimitive.Portal>
+  )
 }
 
 function SheetOverlay({

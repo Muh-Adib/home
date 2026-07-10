@@ -9,15 +9,23 @@ use App\Http\Requests\Admin\GetPropertyDateRangeRequest;
 use App\Http\Requests\Admin\TimelineDataRequest;
 use App\Http\Resources\TimelineBookingResource;
 use App\Models\Booking;
+use App\Models\Payment;
+use App\Models\PaymentMethod;
 use App\Models\Property;
 use App\Models\PropertySeasonalRate;
 use App\Services\AvailabilityService;
 use App\Services\BookingQueryService;
+use App\Services\ImageService;
+use App\Services\PaymentIncomeSyncService;
 use App\Services\RateCalculationService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class BookingApiController extends Controller
 {
@@ -53,11 +61,17 @@ class BookingApiController extends Controller
                     'booking_status',
                     'payment_status',
                     'guest_count',
+                    'extra_bed_count',
+                    'remaining_amount',
                     'source',
                     'external_id',
                     'external_reservation_url',
                 ])
-                ->with(['property:id,name,capacity,base_rate']);
+                ->with([
+                    'property:id,name,capacity,base_rate',
+                    'payments.paymentMethod',
+                    'services',
+                ]);
 
             // Filter by property for property owners
             if ($user->role === 'property_owner') {
@@ -187,10 +201,10 @@ class BookingApiController extends Controller
         $excludeBookingId = $request->input('exclude_booking_id');
 
         $availabilityData = $this->availabilityService->checkAvailability(
-            $property,
-            $request->check_in,
-            $request->check_out,
-            $excludeBookingId
+            property: $property,
+            checkIn: $request->check_in,
+            checkOut: $request->check_out,
+            excludeBookingId: $excludeBookingId
         );
 
         return response()->json([
@@ -214,7 +228,8 @@ class BookingApiController extends Controller
                 $property,
                 $validated['check_in'],
                 $validated['check_out'],
-                $validated['guest_count']
+                $validated['guest_count'],
+                $validated['daily_extra_beds'] ?? null
             );
 
             return response()->json([
@@ -258,7 +273,8 @@ class BookingApiController extends Controller
                 $property,
                 $validated['check_in'],
                 $validated['check_out'],
-                (int) $validated['guest_count']
+                (int) $validated['guest_count'],
+                $validated['daily_extra_beds'] ?? null
             );
 
             return response()->json([
@@ -312,7 +328,7 @@ class BookingApiController extends Controller
 
         // Accept both 'start_date'/'end_date' and 'start'/'end' (sent by BookingForm)
         $startDate = $request->input('start_date') ?? $request->input('start', now()->toDateString());
-        $endDate   = $request->input('end_date')   ?? $request->input('end',   now()->addMonths(3)->toDateString());
+        $endDate = $request->input('end_date') ?? $request->input('end', now()->addMonths(3)->toDateString());
 
         try {
             $availability = $this->availabilityService->checkAvailability($property, $startDate, $endDate);
@@ -352,5 +368,169 @@ class BookingApiController extends Controller
                 'error' => 'Failed to get property date range data',
             ], 500);
         }
+    }
+
+    public function detail(Booking $booking): JsonResponse
+    {
+        $booking->load([
+            'property.media',
+            'payments.paymentMethod',
+            'services',
+            'dailyRevenues',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'booking' => $booking,
+        ]);
+    }
+
+    public function storePayment(Request $request, Booking $booking): JsonResponse
+    {
+        $this->authorize('create', Payment::class);
+
+        try {
+            $validated = $request->validate([
+                'payment_method_id' => 'required|exists:payment_methods,id',
+                'amount' => 'required|numeric|min:1',
+                'payment_type' => 'required|in:dp,remaining,full,refund,penalty',
+                'payment_status' => 'required|in:pending,verified',
+                'payment_date' => 'required|date',
+                'reference_number' => 'nullable|string|max:100',
+                'bank_name' => 'nullable|string|max:100',
+                'account_number' => 'nullable|string|max:50',
+                'account_name' => 'nullable|string|max:255',
+                'notes' => 'nullable|string|max:1000',
+                'proof_of_payment' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            ]);
+        } catch (ValidationException $e) {
+            Log::error('Validation failed in storePayment: '.json_encode($e->errors()).' | Payload: '.json_encode($request->all()));
+            throw $e;
+        }
+
+        DB::beginTransaction();
+        try {
+            $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
+
+            // Calculate current paid amount
+            $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+            $pendingAmount = $booking->total_amount - $paidAmount;
+
+            if ($validated['amount'] > $pendingAmount && in_array($validated['payment_type'], ['dp', 'remaining', 'full'])) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Jumlah pembayaran melebihi sisa tagihan booking yang belum dibayar.',
+                ], 422);
+            }
+
+            // Handle proof of payment upload
+            $proofPath = null;
+            if ($request->hasFile('proof_of_payment')) {
+                $file = $request->file('proof_of_payment');
+                $imageService = app(ImageService::class);
+                $result = $imageService->upload($file, [
+                    'directory' => 'payment-proofs',
+                    'max_width' => 1920,
+                    'max_height' => 1920,
+                    'quality' => 85,
+                    'convert_to_webp' => true,
+                    'generate_thumbnail' => true,
+                    'thumbnail_width' => 300,
+                    'thumbnail_height' => 200,
+                ]);
+
+                if ($result->success) {
+                    $proofPath = $result->path;
+                } else {
+                    Log::warning('Image processing failed in storePayment modal upload, using fallback: '.$result->error);
+                    $filename = time().'_'.uniqid().'.'.$file->getClientOriginalExtension();
+                    $file->storeAs('payment-proofs', $filename, 'public');
+                    $proofPath = 'payment-proofs/'.$filename;
+                }
+            }
+
+            // Create payment record
+            $payment = $booking->payments()->create([
+                'payment_method_id' => $validated['payment_method_id'],
+                'payment_number' => Payment::generatePaymentNumber(),
+                'amount' => $validated['amount'],
+                'payment_type' => $validated['payment_type'],
+                'payment_method' => $paymentMethod->type,
+                'payment_status' => $validated['payment_status'],
+                'payment_date' => $validated['payment_date'],
+                'reference_number' => $validated['reference_number'] ?? null,
+                'bank_name' => ($validated['bank_name'] ?? null) ?: $paymentMethod->bank_name,
+                'account_number' => $validated['account_number'] ?? null,
+                'account_name' => $validated['account_name'] ?? null,
+                'verification_notes' => $validated['notes'] ?? null,
+                'proof_of_payment' => $proofPath,
+                'processed_by' => Auth::id(),
+                'verified_by' => $validated['payment_status'] === 'verified' ? Auth::id() : null,
+                'verified_at' => $validated['payment_status'] === 'verified' ? now() : null,
+            ]);
+
+            // Update booking payment status and remaining amount
+            $totalPaid = $booking->getTotalPaidAmount();
+            $booking->dp_paid_amount = $totalPaid;
+            $booking->remaining_amount = max(0, $booking->total_amount - $totalPaid);
+            $booking->updatePaymentStatus();
+            $booking->save();
+
+            // Sync income and wallet if verified
+            if ($validated['payment_status'] === 'verified') {
+                app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
+            }
+
+            DB::commit();
+
+            // Return reloaded detailed booking data
+            $booking->load([
+                'property.media',
+                'payments.paymentMethod',
+                'services',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pembayaran berhasil disimpan.',
+                'booking' => $booking,
+            ]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Error in storePayment: '.$e->getMessage()."\n".$e->getTraceAsString());
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Gagal menyimpan transaksi: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function paymentMethods(Request $request): JsonResponse
+    {
+        $propertyId = $request->query('property_id');
+        $methods = PaymentMethod::active()
+            ->orderBy('sort_order')
+            ->get();
+
+        if ($propertyId) {
+            $property = Property::find($propertyId);
+            if ($property && $property->bankAccount) {
+                $bankAccount = $property->bankAccount;
+                $methods = $methods->filter(function ($method) use ($bankAccount) {
+                    if ($method->type === 'bank_transfer') {
+                        return $method->code === $bankAccount->bank_code;
+                    }
+
+                    return true;
+                })->values();
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'payment_methods' => $methods,
+        ]);
     }
 }

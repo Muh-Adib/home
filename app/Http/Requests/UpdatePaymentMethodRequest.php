@@ -2,8 +2,12 @@
 
 namespace App\Http\Requests;
 
+use App\Models\PaymentMethod;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule; // ← WAJIB ADA
+use Illuminate\Validation\Rule;
+
+// ← WAJIB ADA
 
 class UpdatePaymentMethodRequest extends FormRequest
 {
@@ -12,18 +16,18 @@ class UpdatePaymentMethodRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('managePaymentMethods', \App\Models\PaymentMethod::class);
+        return $this->user()->can('managePaymentMethods', PaymentMethod::class);
     }
 
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         $paymentMethodId = $this->route('paymentMethod')->id ?? $this->route('paymentMethod');
-        
+
         return [
             'name' => 'sometimes|required|string|max:100',
             'code' => [
@@ -34,20 +38,21 @@ class UpdatePaymentMethodRequest extends FormRequest
                 Rule::unique('payment_methods', 'code')->ignore($paymentMethodId),
             ],
             'type' => 'sometimes|required|in:bank_transfer,e_wallet,credit_card,cash',
-    
+
             'icon' => 'nullable|string|max:10',
             'description' => 'nullable|string|max:500',
             'bank_name' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:100',
             'account_name' => 'nullable|string|max:255',
-    
+
             'qr_code' => 'sometimes|nullable|image|mimes:jpeg,png,jpg|max:2048',
-    
+
             'instructions' => 'sometimes|array',
             'instructions.*' => 'string|max:500',
-    
+
             'is_active' => 'sometimes|boolean',
             'sort_order' => 'sometimes|integer',
+            'bank_account_id' => 'nullable|exists:bank_accounts,id',
         ];
     }
 
@@ -86,6 +91,7 @@ class UpdatePaymentMethodRequest extends FormRequest
             'qr_code' => 'QR code',
             'instructions' => 'instructions',
             'is_active' => 'active status',
+            'bank_account_id' => 'bank account',
         ];
     }
 }

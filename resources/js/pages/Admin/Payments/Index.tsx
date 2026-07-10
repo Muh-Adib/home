@@ -11,9 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '@/components/ui/textarea';
 import { type Payment, type PaymentMethod, type BreadcrumbItem, type User, type PaginatedData, type PageProps } from '@/types';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
-import { 
-    Search, 
-    Filter, 
+import {
+    Search,
+    Filter,
     MoreHorizontal,
     Eye,
     CheckCircle,
@@ -27,9 +27,10 @@ import {
     TrendingUp,
     Settings,
     Users,
-    Calendar
+    Calendar,
+    Edit
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 
 interface PaymentsIndexProps {
     payments: PaginatedData<Payment>;
@@ -56,6 +57,14 @@ interface PaymentsIndexProps {
 export default function PaymentsIndex({ payments, paymentMethods, stats, filters }: PaymentsIndexProps) {
     const page = usePage<PageProps>();
     const { auth } = page.props;
+
+    const canEdit = (payment: Payment) => {
+        if (!auth.user) return false;
+        if (auth.user.role === 'super_admin') return true;
+        if (auth.user.role === 'property_manager') return true;
+        if (auth.user.role === 'property_owner' && payment.booking?.property?.owner_id === auth.user.id) return true;
+        return false;
+    };
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [paymentMethodFilter, setPaymentMethodFilter] = useState(filters.payment_method || 'all');
@@ -63,11 +72,11 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
     const [showVerifyDialog, setShowVerifyDialog] = useState(false);
     const [showRejectDialog, setShowRejectDialog] = useState(false);
 
-    const { data: verifyData, setData: setVerifyData, processing: verifyProcessing, patch : verifyPatch, reset: verifyReset } = useForm({
+    const { data: verifyData, setData: setVerifyData, processing: verifyProcessing, patch: verifyPatch, reset: verifyReset } = useForm({
         verification_notes: '',
     });
 
-    const { data: rejectData, setData: setRejectData, processing: rejectProcessing, patch : rejectPatch, reset: rejectReset } = useForm({
+    const { data: rejectData, setData: setRejectData, processing: rejectProcessing, patch: rejectPatch, reset: rejectReset } = useForm({
         rejection_reason: '',
     });
 
@@ -133,9 +142,14 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
             verified: { variant: 'default' as const, label: 'Verified', icon: CheckCircle },
             failed: { variant: 'destructive' as const, label: 'Failed', icon: XCircle },
             refunded: { variant: 'outline' as const, label: 'Refunded', icon: RefreshCw },
+            cancelled: { variant: 'outline' as const, label: 'Cancelled', icon: AlertCircle },
         };
-        
-        const config = statusConfig[status as keyof typeof statusConfig];
+
+        const config = statusConfig[status as keyof typeof statusConfig] || {
+            variant: 'outline' as const,
+            label: status || 'Unknown',
+            icon: AlertCircle
+        };
         const Icon = config.icon;
         return (
             <Badge variant={config.variant} className="inline-flex items-center gap-1">
@@ -143,6 +157,21 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                 {config.label}
             </Badge>
         );
+    };
+
+    const checkIsMissRouted = (payment: Payment) => {
+        const propBankAccount = payment.booking?.property?.bank_account;
+        if (!propBankAccount) return false;
+
+        if (payment.payment_method === 'bank_transfer' || payment.paymentMethod?.type === 'bank_transfer') {
+            const destAcc = (payment.paymentMethod?.account_number || payment.account_number || '').replace(/[^0-9]/g, '');
+            const correctAcc = (propBankAccount.account_number || '').replace(/[^0-9]/g, '');
+
+            if (destAcc && correctAcc && destAcc !== correctAcc) {
+                return true;
+            }
+        }
+        return false;
     };
 
     const getPaymentTypeBadge = (type: Payment['payment_type']) => {
@@ -157,10 +186,10 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
             cleaning: { variant: 'outline' as const, label: 'Cleaning' },
             extra_service: { variant: 'secondary' as const, label: 'Extra Service' },
         };
-        
-        const config = typeConfig[type as keyof typeof typeConfig] || { 
-            variant: 'secondary' as const, 
-            label: type || 'Unknown' 
+
+        const config = typeConfig[type as keyof typeof typeConfig] || {
+            variant: 'secondary' as const,
+            label: type || 'Unknown'
         };
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
@@ -185,12 +214,28 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
         });
     };
 
+    // Group payments by booking code
+    const groupedPayments: { bookingNumber: string; guestName: string; propertyName: string; payments: Payment[] }[] = [];
+
+    payments.data.forEach((payment) => {
+        const bookingNumber = payment.booking?.booking_number || 'Tanpa Booking';
+        const guestName = payment.booking?.guest_name || 'Tamu Umum';
+        const propertyName = payment.booking?.property?.name || 'Properti Umum';
+
+        let group = groupedPayments.find(g => g.bookingNumber === bookingNumber);
+        if (!group) {
+            group = { bookingNumber, guestName, propertyName, payments: [] };
+            groupedPayments.push(group);
+        }
+        group.payments.push(payment);
+    });
+
     // Check permissions
     const canVerify = ['super_admin', 'property_manager', 'finance'].includes(auth.user.role);
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
-            <div className="space-y-6 p-4 md:p-6">
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
@@ -222,7 +267,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                             </p>
                         </CardContent>
                     </Card>
-                    
+
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Verified Payments</CardTitle>
@@ -235,7 +280,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                             </p>
                         </CardContent>
                     </Card>
-                    
+
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
@@ -248,7 +293,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                             </p>
                         </CardContent>
                     </Card>
-                    
+
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
@@ -283,7 +328,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                     />
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                                     <SelectTrigger>
@@ -330,112 +375,259 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Payment Number</TableHead>
-                                        <TableHead>Booking</TableHead>
-                                        <TableHead>Guest</TableHead>
-                                        <TableHead>Amount</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Method</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {payments.data.map((payment) => (
-                                        <TableRow key={payment.id}>
-                                            <TableCell className="font-medium">
-                                                <Link 
-                                                    href={`/admin/payments/${payment.payment_number}`}
-                                                    className="text-primary hover:underline"
-                                                >
-                                                    {payment.payment_number}
-                                                </Link>
-                                            </TableCell>
-                                            <TableCell>
-                                                {payment.booking?.booking_number ? (
-                                                    <Link
-                                                        href={`/admin/bookings/${payment.booking.booking_number}`}
-                                                        className="text-primary hover:underline"
-                                                    >
-                                                        {payment.booking.booking_number}
-                                                    </Link>
-                                                ) : (
-                                                    <span className="text-slate-400 italic text-sm">—</span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>{payment.booking?.guest_name}</TableCell>
-                                            <TableCell className="font-medium">
-                                                {formatCurrency(payment.amount)}
-                                            </TableCell>
-                                            <TableCell>
-                                                {getPaymentTypeBadge(payment.payment_type)}
-                                            </TableCell>
-                                            <TableCell>
+                        <div className="space-y-4">
+                            {groupedPayments.map((group, groupIndex) => {
+                                const isEven = groupIndex % 2 === 0;
+                                return (
+                                    <div
+                                        key={group.bookingNumber}
+                                        className={`border rounded-xl p-4 transition-all ${isEven ? 'bg-white border-slate-200/80 shadow-sm' : 'bg-slate-50/50 border-slate-200 shadow-sm'
+                                            }`}
+                                    >
+                                        {/* Group Header */}
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3 mb-3">
+                                            <div>
                                                 <div className="flex items-center gap-2">
-                                                    <CreditCard className="h-4 w-4" />
-                                                    {payment.paymentMethod?.name}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                {getPaymentStatusBadge(payment.payment_status)}
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="text-sm">
-                                                    <div>{formatDate(payment.payment_date || '')}</div>
-                                                    {payment.verified_at && (
-                                                        <div className="text-muted-foreground">
-                                                            Verified: {formatDate(payment.verified_at)}
-                                                        </div>
+                                                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Booking Code:</span>
+                                                    {group.bookingNumber !== 'Tanpa Booking' ? (
+                                                        <Link
+                                                            href={`/admin/bookings/${group.bookingNumber}`}
+                                                            className="text-sm font-black text-blue-600 hover:underline flex items-center gap-1"
+                                                        >
+                                                            {group.bookingNumber}
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="text-sm font-bold text-slate-500">Tanpa Booking</span>
                                                     )}
                                                 </div>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" className="h-8 w-8 p-0">
-                                                            <MoreHorizontal className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                        <DropdownMenuItem asChild>
-                                                            <Link href={`/admin/payments/${payment.payment_number}`}>
-                                                                <Eye className="mr-2 h-4 w-4" />
-                                                                View Details
-                                                            </Link>
-                                                        </DropdownMenuItem>
-                                                        
-                                                        {canVerify && payment.payment_status === 'pending' && (
-                                                            <>
-                                                                <DropdownMenuSeparator />
-                                                                <DropdownMenuItem 
-                                                                    onClick={() => handleVerify(payment)}
-                                                                    className="text-green-600"
+                                                <div className="text-xs text-slate-500 mt-1 font-medium">
+                                                    Guest: <span className="text-slate-800 font-bold">{group.guestName}</span> • Unit: <span className="text-slate-800 font-bold">{group.propertyName}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="text-xs text-slate-400 font-medium">
+                                                {group.payments.length} Transaksi
+                                            </div>
+                                        </div>
+
+                                        {/* Group Payments Table (Desktop) */}
+                                        <div className="hidden sm:block overflow-x-auto">
+                                            <table className="w-full text-left border-collapse text-xs">
+                                                <thead>
+                                                    <tr className="border-b border-slate-100 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                                                        <th className="py-2">Payment Number</th>
+                                                        <th className="py-2">Nominal</th>
+                                                        <th className="py-2">Tipe</th>
+                                                        <th className="py-2">Rekening Tujuan</th>
+                                                        <th className="py-2">Status</th>
+                                                        <th className="py-2">Tanggal</th>
+                                                        <th className="py-2 text-right">Aksi</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {group.payments.map((payment, index) => {
+                                                        const isMissRouted = checkIsMissRouted(payment);
+                                                        const rowEven = index % 2 === 0;
+                                                        return (
+                                                            <tr
+                                                                key={payment.id}
+                                                                className={`border-b border-slate-100/50 hover:bg-slate-200/20 transition-colors ${rowEven ? 'bg-transparent' : 'bg-slate-200/5'
+                                                                    }`}
+                                                            >
+                                                                <td className="py-2.5 font-semibold text-slate-700">
+                                                                    <Link
+                                                                        href={`/admin/payments/${payment.payment_number}`}
+                                                                        className="hover:underline text-blue-600 font-bold"
+                                                                    >
+                                                                        {payment.payment_number}
+                                                                    </Link>
+                                                                </td>
+                                                                <td className="py-2.5 font-black text-slate-900 text-sm">
+                                                                    {formatCurrency(payment.amount)}
+                                                                </td>
+                                                                <td className="py-2.5">
+                                                                    {getPaymentTypeBadge(payment.payment_type)}
+                                                                </td>
+                                                                <td className="py-2.5 space-y-1">
+                                                                    <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                                                                        <CreditCard className="h-3.5 w-3.5 text-slate-400" />
+                                                                        <span>{payment.paymentMethod?.name || payment.bank_name || 'Transfer'}</span>
+                                                                    </div>
+                                                                    <div className="text-[10px] text-slate-400 font-medium pl-5">
+                                                                        No. Rek: {payment.paymentMethod?.account_number || payment.account_number || '—'}
+                                                                    </div>
+                                                                    {isMissRouted && (
+                                                                        <div className="pl-5 pt-1">
+                                                                            <Badge variant="destructive" className="bg-rose-100 text-rose-700 hover:bg-rose-100 text-[9px] py-0.5 px-2 font-black uppercase tracking-wider border-none rounded">
+                                                                                ⚠️ Miss Route / Salah Rekening
+                                                                            </Badge>
+                                                                            {payment.booking?.property?.bank_account && (
+                                                                                <div className="text-[9px] text-rose-500 font-bold mt-0.5">
+                                                                                    Seharusnya ke: {payment.booking.property.bank_account.bank_name} ({payment.booking.property.bank_account.account_number})
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="py-2.5">
+                                                                    {getPaymentStatusBadge(payment.payment_status)}
+                                                                </td>
+                                                                <td className="py-2.5 text-slate-500 font-medium">
+                                                                    {formatDate(payment.payment_date || '')}
+                                                                </td>
+                                                                <td className="py-2.5 text-right">
+                                                                    <DropdownMenu>
+                                                                        <DropdownMenuTrigger asChild>
+                                                                            <Button variant="ghost" className="h-7 w-7 p-0">
+                                                                                <MoreHorizontal className="h-4 w-4" />
+                                                                            </Button>
+                                                                        </DropdownMenuTrigger>
+                                                                        <DropdownMenuContent align="end">
+                                                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                                            <DropdownMenuItem asChild>
+                                                                                <Link href={`/admin/payments/${payment.payment_number}`}>
+                                                                                    <Eye className="mr-2 h-4 w-4" /> View Details
+                                                                                </Link>
+                                                                            </DropdownMenuItem>
+                                                                            {canEdit(payment) && (
+                                                                                <DropdownMenuItem asChild>
+                                                                                    <Link href={`/admin/payments/${payment.payment_number}/edit`}>
+                                                                                        <Edit className="mr-2 h-4 w-4" /> Edit Payment
+                                                                                    </Link>
+                                                                                </DropdownMenuItem>
+                                                                            )}
+                                                                            {canVerify && payment.payment_status === 'pending' && (
+                                                                                <>
+                                                                                    <DropdownMenuSeparator />
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() => handleVerify(payment)}
+                                                                                        className="text-green-600"
+                                                                                    >
+                                                                                        <CheckCircle className="mr-2 h-4 w-4" /> Verify Payment
+                                                                                    </DropdownMenuItem>
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() => handleReject(payment)}
+                                                                                        className="text-red-600"
+                                                                                    >
+                                                                                        <XCircle className="mr-2 h-4 w-4" /> Reject Payment
+                                                                                    </DropdownMenuItem>
+                                                                                </>
+                                                                            )}
+                                                                        </DropdownMenuContent>
+                                                                    </DropdownMenu>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* Group Payments Card List (Mobile) */}
+                                        <div className="block sm:hidden space-y-3">
+                                            {group.payments.map((payment) => {
+                                                const isMissRouted = checkIsMissRouted(payment);
+                                                return (
+                                                    <div
+                                                        key={payment.id}
+                                                        className="bg-slate-50/50 rounded-lg p-3 border border-slate-100 space-y-2 relative"
+                                                    >
+                                                        <div className="flex justify-between items-start pr-8">
+                                                            <div className="space-y-0.5">
+                                                                <Link
+                                                                    href={`/admin/payments/${payment.payment_number}`}
+                                                                    className="font-bold text-blue-600 hover:underline text-xs"
                                                                 >
-                                                                    <CheckCircle className="mr-2 h-4 w-4" />
-                                                                    Verify Payment
-                                                                </DropdownMenuItem>
-                                                                <DropdownMenuItem 
-                                                                    onClick={() => handleReject(payment)}
-                                                                    className="text-red-600"
-                                                                >
-                                                                    <XCircle className="mr-2 h-4 w-4" />
-                                                                    Reject Payment
-                                                                </DropdownMenuItem>
-                                                            </>
+                                                                    {payment.payment_number}
+                                                                </Link>
+                                                                <div className="text-[10px] text-slate-500 font-medium">
+                                                                    {formatDate(payment.payment_date || '')}
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <div className="font-bold text-slate-900 text-sm">
+                                                                    {formatCurrency(payment.amount)}
+                                                                </div>
+                                                                <div className="mt-0.5 scale-90 origin-right">
+                                                                    {getPaymentTypeBadge(payment.payment_type)}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 border-slate-100 text-[11px]">
+                                                            <div className="flex items-center gap-1 text-slate-600 font-medium">
+                                                                <CreditCard className="h-3 w-3 text-slate-400" />
+                                                                <span>{payment.paymentMethod?.name || payment.bank_name || 'Transfer'}</span>
+                                                                <span className="text-slate-300">•</span>
+                                                                <span className="font-mono text-[10px]">{payment.paymentMethod?.account_number || payment.account_number || '—'}</span>
+                                                            </div>
+                                                            <div>
+                                                                {getPaymentStatusBadge(payment.payment_status)}
+                                                            </div>
+                                                        </div>
+
+                                                        {isMissRouted && (
+                                                            <div className="border-t pt-2 border-slate-100">
+                                                                <Badge variant="destructive" className="bg-rose-100 text-rose-700 hover:bg-rose-100 text-[9px] py-0.5 px-2 font-black uppercase border-none rounded w-full justify-center">
+                                                                    ⚠️ Miss Route
+                                                                </Badge>
+                                                                {payment.booking?.property?.bank_account && (
+                                                                    <div className="text-[9px] text-rose-500 font-bold mt-0.5 text-center">
+                                                                        Seharusnya ke: {payment.booking.property.bank_account.bank_name} ({payment.booking.property.bank_account.account_number})
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         )}
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+
+                                                        {/* Action Dropdown positioned in top-right absolute */}
+                                                        <div className="absolute top-2.5 right-2">
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Button variant="ghost" className="h-7 w-7 p-0 hover:bg-slate-200/50">
+                                                                        <MoreHorizontal className="h-4 w-4" />
+                                                                    </Button>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end">
+                                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                                    <DropdownMenuItem asChild>
+                                                                        <Link href={`/admin/payments/${payment.payment_number}`}>
+                                                                            <Eye className="mr-2 h-4 w-4" /> View Details
+                                                                        </Link>
+                                                                    </DropdownMenuItem>
+                                                                    {canEdit(payment) && (
+                                                                        <DropdownMenuItem asChild>
+                                                                            <Link href={`/admin/payments/${payment.payment_number}/edit`}>
+                                                                                <Edit className="mr-2 h-4 w-4" /> Edit Payment
+                                                                            </Link>
+                                                                        </DropdownMenuItem>
+                                                                    )}
+                                                                    {canVerify && payment.payment_status === 'pending' && (
+                                                                        <>
+                                                                            <DropdownMenuSeparator />
+                                                                            <DropdownMenuItem
+                                                                                onClick={() => handleVerify(payment)}
+                                                                                className="text-green-600"
+                                                                            >
+                                                                                <CheckCircle className="mr-2 h-4 w-4" /> Verify Payment
+                                                                            </DropdownMenuItem>
+                                                                            <DropdownMenuItem
+                                                                                onClick={() => handleReject(payment)}
+                                                                                className="text-red-600"
+                                                                            >
+                                                                                <XCircle className="mr-2 h-4 w-4" /> Reject Payment
+                                                                            </DropdownMenuItem>
+                                                                        </>
+                                                                    )}
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })}
 
                             {payments.data.length === 0 && (
                                 <div className="text-center py-8">
@@ -449,22 +641,40 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                         </div>
 
                         {/* Pagination */}
-                        {payments.data.length > 0 && (
-                            <div className="flex items-center justify-between space-x-2 py-4">
-                                <div className="text-sm text-muted-foreground">
-                                    Showing {payments.from} to {payments.to} of {payments.total} payments
+                        {payments.last_page > 1 && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 border-t border-slate-100/60 mt-4">
+                                <div className="text-xs sm:text-sm text-muted-foreground">
+                                    Showing <span className="font-semibold text-slate-800">{payments.from}</span> to <span className="font-semibold text-slate-800">{payments.to}</span> of <span className="font-semibold text-slate-800">{payments.total}</span> payments
                                 </div>
-                                <div className="flex items-center space-x-2">
-                                    {payments.links.map((link, index) => (
-                                        <Button
-                                            key={index}
-                                            variant={link.active ? "default" : "outline"}
-                                            size="sm"
-                                            onClick={() => link.url && router.visit(link.url)}
-                                            disabled={!link.url}
-                                            dangerouslySetInnerHTML={{ __html: link.label }}
-                                        />
-                                    ))}
+
+                                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                                    {payments.prev_page_url ? (
+                                        <Link href={payments.prev_page_url} className="flex-1 sm:flex-initial">
+                                            <Button variant="outline" size="sm" className="w-full text-xs h-8">
+                                                &laquo; Previous
+                                            </Button>
+                                        </Link>
+                                    ) : (
+                                        <Button variant="outline" size="sm" disabled className="flex-1 sm:flex-initial text-xs h-8">
+                                            &laquo; Previous
+                                        </Button>
+                                    )}
+
+                                    <span className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-md min-w-[90px] text-center">
+                                        Page {payments.current_page} of {payments.last_page}
+                                    </span>
+
+                                    {payments.next_page_url ? (
+                                        <Link href={payments.next_page_url} className="flex-1 sm:flex-initial">
+                                            <Button variant="outline" size="sm" className="w-full text-xs h-8">
+                                                Next &raquo;
+                                            </Button>
+                                        </Link>
+                                    ) : (
+                                        <Button variant="outline" size="sm" disabled className="flex-1 sm:flex-initial text-xs h-8">
+                                            Next &raquo;
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -480,7 +690,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                 Confirm verification of payment {selectedPayment?.payment_number}
                             </DialogDescription>
                         </DialogHeader>
-                        
+
                         <div className="space-y-4">
                             <div>
                                 <label className="text-sm font-medium">Verification Notes (Optional)</label>
@@ -494,15 +704,15 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                         </div>
 
                         <DialogFooter>
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 onClick={() => setShowVerifyDialog(false)}
                                 disabled={verifyProcessing}
                             >
                                 Cancel
                             </Button>
-                            <Button 
-                                onClick={submitVerification} 
+                            <Button
+                                onClick={submitVerification}
                                 disabled={verifyProcessing}
                                 className="bg-green-600 hover:bg-green-700"
                             >
@@ -521,7 +731,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                 Please provide a reason for rejecting payment {selectedPayment?.payment_number}
                             </DialogDescription>
                         </DialogHeader>
-                        
+
                         <div className="space-y-4">
                             <div>
                                 <label className="text-sm font-medium">Rejection Reason *</label>
@@ -536,15 +746,15 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                         </div>
 
                         <DialogFooter>
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 onClick={() => setShowRejectDialog(false)}
                                 disabled={rejectProcessing}
                             >
                                 Cancel
                             </Button>
-                            <Button 
-                                onClick={submitRejection} 
+                            <Button
+                                onClick={submitRejection}
                                 disabled={rejectProcessing || !rejectData.rejection_reason}
                                 variant="destructive"
                             >

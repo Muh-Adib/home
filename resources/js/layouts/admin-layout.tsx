@@ -106,8 +106,11 @@ const getAdminNavItems = (userRole: User['role']) => {
         icon: CreditCard,
         children: [
           { title: 'Payments', href: '/admin/payments', icon: CreditCard },
+          { title: 'Rekonsiliasi Bank', href: '/admin/payments/reconciliation', icon: DollarSign },
           { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
+          { title: 'Rekening Bank', href: '/admin/bank-accounts', icon: Building2 },
           { title: 'Reports', href: '/admin/reports', icon: BarChart3 },
+          { title: 'Staff Performance', href: '/admin/reports/staff-performance', icon: Users },
           { title: 'Finance', href: '/admin/finance', icon: DollarSign },
           { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
           { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
@@ -174,7 +177,9 @@ const getAdminNavItems = (userRole: User['role']) => {
         icon: CreditCard,
         children: [
           { title: 'Payments', href: '/admin/payments', icon: CreditCard },
+          { title: 'Rekonsiliasi Bank', href: '/admin/payments/reconciliation', icon: DollarSign },
           { title: 'Reports', href: '/admin/reports', icon: BarChart3 },
+          { title: 'Staff Performance', href: '/admin/reports/staff-performance', icon: Users },
           { title: 'Finance', href: '/admin/finance', icon: DollarSign },
           { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
           { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
@@ -211,7 +216,9 @@ const getAdminNavItems = (userRole: User['role']) => {
         icon: CreditCard,
         children: [
           { title: 'Payments', href: '/admin/payments', icon: CreditCard },
+          { title: 'Rekonsiliasi Bank', href: '/admin/payments/reconciliation', icon: DollarSign },
           { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
+          { title: 'Rekening Bank', href: '/admin/bank-accounts', icon: Building2 },
           { title: 'Finance', href: '/admin/finance', icon: DollarSign },
           { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
           { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
@@ -270,8 +277,11 @@ const getAdminNavItems = (userRole: User['role']) => {
         icon: CreditCard,
         children: [
           { title: 'Payments', href: '/admin/payments', icon: CreditCard },
+          { title: 'Rekonsiliasi Bank', href: '/admin/payments/reconciliation', icon: DollarSign },
           { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
+          { title: 'Rekening Bank', href: '/admin/bank-accounts', icon: Building2 },
           { title: 'Reports', href: '/admin/reports', icon: BarChart3 },
+          { title: 'Staff Performance', href: '/admin/reports/staff-performance', icon: Users },
           { title: 'Finance', href: '/admin/finance', icon: DollarSign },
           { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
           { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },

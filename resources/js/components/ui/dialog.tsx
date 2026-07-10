@@ -8,7 +8,26 @@ const Dialog = DialogPrimitive.Root
 
 const DialogTrigger = DialogPrimitive.Trigger
 
-const DialogPortal = DialogPrimitive.Portal
+const DialogPortal = ({ children, ...props }: DialogPrimitive.DialogPortalProps) => {
+  const [container, setContainer] = React.useState<HTMLElement | null>(null)
+
+  React.useEffect(() => {
+    const updateContainer = () => {
+      setContainer((document.fullscreenElement as HTMLElement) || null)
+    }
+    updateContainer()
+    document.addEventListener("fullscreenchange", updateContainer)
+    return () => {
+      document.removeEventListener("fullscreenchange", updateContainer)
+    }
+  }, [])
+
+  return (
+    <DialogPrimitive.Portal container={container} {...props}>
+      {children}
+    </DialogPrimitive.Portal>
+  )
+}
 
 const DialogClose = DialogPrimitive.Close
 

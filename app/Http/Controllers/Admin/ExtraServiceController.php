@@ -4,16 +4,16 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ServiceMaster;
-use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
+use Inertia\Response;
+use Intervention\Image\Drivers\Gd\Driver;
+use Intervention\Image\ImageManager;
 
 class ExtraServiceController extends Controller
 {
@@ -31,7 +31,7 @@ class ExtraServiceController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -54,6 +54,9 @@ class ExtraServiceController extends Controller
                 'service_type' => $service->service_type,
                 'service_type_label' => $service->getServiceTypeLabel(),
                 'unit_price' => (float) $service->unit_price,
+                'vendor_unit_price' => (float) $service->vendor_unit_price,
+                'discount_amount' => (float) $service->discount_amount,
+                'discount_limit' => $service->discount_limit,
                 'thumbnail_url' => $service->thumbnail_url,
                 'is_active' => $service->is_active,
                 'sort_order' => $service->sort_order,
@@ -118,13 +121,16 @@ class ExtraServiceController extends Controller
             'description' => 'nullable|string|max:1000',
             'service_type' => ['required', 'in:extra_bed,breakfast,airport_transfer,bbq_package,private_chef,laundry,tour_package,motor_rental,other'],
             'unit_price' => 'required|numeric|min:0',
+            'vendor_unit_price' => 'nullable|numeric|min:0',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'discount_limit' => 'nullable|integer|min:0',
             'is_active' => 'boolean',
             'sort_order' => 'nullable|integer|min:0',
             'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
         // Get max sort_order if not provided
-        if (!isset($validated['sort_order'])) {
+        if (! isset($validated['sort_order'])) {
             $validated['sort_order'] = ServiceMaster::max('sort_order') + 1;
         }
 
@@ -139,6 +145,9 @@ class ExtraServiceController extends Controller
             'description' => $validated['description'] ?? null,
             'service_type' => $validated['service_type'],
             'unit_price' => $validated['unit_price'],
+            'vendor_unit_price' => $validated['vendor_unit_price'] ?? 0,
+            'discount_amount' => $validated['discount_amount'] ?? 0,
+            'discount_limit' => $validated['discount_limit'] ?? null,
             'thumbnail_path' => $thumbnailPath,
             'is_active' => $validated['is_active'] ?? true,
             'sort_order' => $validated['sort_order'],
@@ -200,6 +209,9 @@ class ExtraServiceController extends Controller
                 'description' => $service->description,
                 'service_type' => $service->service_type,
                 'unit_price' => (float) $service->unit_price,
+                'vendor_unit_price' => (float) $service->vendor_unit_price,
+                'discount_amount' => (float) $service->discount_amount,
+                'discount_limit' => $service->discount_limit,
                 'thumbnail_url' => $service->thumbnail_url,
                 'thumbnail_path' => $service->thumbnail_path,
                 'is_active' => $service->is_active,
@@ -221,6 +233,9 @@ class ExtraServiceController extends Controller
             'description' => 'nullable|string|max:1000',
             'service_type' => ['required', 'in:extra_bed,breakfast,airport_transfer,bbq_package,private_chef,laundry,tour_package,motor_rental,other'],
             'unit_price' => 'required|numeric|min:0',
+            'vendor_unit_price' => 'nullable|numeric|min:0',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'discount_limit' => 'nullable|integer|min:0',
             'is_active' => 'boolean',
             'sort_order' => 'nullable|integer|min:0',
             'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
@@ -240,6 +255,9 @@ class ExtraServiceController extends Controller
             'description' => $validated['description'] ?? null,
             'service_type' => $validated['service_type'],
             'unit_price' => $validated['unit_price'],
+            'vendor_unit_price' => $validated['vendor_unit_price'] ?? 0,
+            'discount_amount' => $validated['discount_amount'] ?? 0,
+            'discount_limit' => $validated['discount_limit'] ?? null,
             'is_active' => $validated['is_active'] ?? $service->is_active,
             'sort_order' => $validated['sort_order'] ?? $service->sort_order,
             'thumbnail_path' => $validated['thumbnail_path'] ?? $service->thumbnail_path,
@@ -284,7 +302,7 @@ class ExtraServiceController extends Controller
         $this->authorize('update', $service);
 
         $service->update([
-            'is_active' => !$service->is_active,
+            'is_active' => ! $service->is_active,
         ]);
 
         return response()->json([
@@ -336,7 +354,7 @@ class ExtraServiceController extends Controller
         // Generate secure filename
         $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
         $extension = $file->getClientOriginalExtension();
-        $safeName = Str::slug($originalName) . '_' . time() . '_' . Str::random(8) . '.' . $extension;
+        $safeName = Str::slug($originalName).'_'.time().'_'.Str::random(8).'.'.$extension;
 
         // Store in service-masters directory
         $directory = 'service-masters';
@@ -344,7 +362,7 @@ class ExtraServiceController extends Controller
 
         // Generate thumbnail (300x200px cover crop)
         $fullPath = Storage::disk('public')->path($path);
-        $manager = new ImageManager(new Driver());
+        $manager = new ImageManager(new Driver);
         $image = $manager->read($fullPath);
         $image->cover(300, 200);
         $image->save($fullPath, quality: 85);
@@ -352,4 +370,3 @@ class ExtraServiceController extends Controller
         return $path;
     }
 }
-

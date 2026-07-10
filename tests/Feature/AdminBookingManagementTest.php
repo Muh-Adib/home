@@ -495,4 +495,32 @@ class AdminBookingManagementTest extends TestCase
         $this->assertDatabaseMissing('payments', ['id' => $payment->id]);
         $this->assertDatabaseMissing('incomes', ['id' => $income->id]);
     }
+
+    public function test_can_store_payment_via_api(): void
+    {
+        $booking = Booking::factory()->create([
+            'property_id' => $this->property->id,
+            'total_amount' => 1000000,
+            'remaining_amount' => 1000000,
+            'booking_status' => 'confirmed',
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->post("/api/admin/booking-management/bookings/{$booking->booking_number}/payments", [
+                'payment_method_id' => $this->paymentMethod->id,
+                'amount' => 500000,
+                'payment_type' => 'dp',
+                'payment_status' => 'verified',
+                'payment_date' => now()->toDateString(),
+            ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('success', true);
+
+        $this->assertDatabaseHas('payments', [
+            'booking_id' => $booking->id,
+            'amount' => 500000,
+            'payment_status' => 'verified',
+        ]);
+    }
 }

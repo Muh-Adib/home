@@ -5,11 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Property;
-use Illuminate\Http\Request;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
 use Inertia\Response;
-use Carbon\Carbon;
 
 class CheckInOutController extends Controller
 {
@@ -39,7 +38,7 @@ class CheckInOutController extends Controller
                 ];
             });
 
-        // Get today's check-ins  
+        // Get today's check-ins
         $checkIns = Booking::with(['property', 'primaryGuest'])
             ->where('check_in', $today)
             ->whereIn('booking_status', ['pending_verification', 'confirmed'])
@@ -80,10 +79,10 @@ class CheckInOutController extends Controller
 
         // Get empty units (all active properties that don't have bookings today)
         $bookedPropertyIds = Booking::where(function ($query) use ($today) {
-                $query->where('check_in', '<=', $today)
-                      ->where('check_out', '>', $today)
-                      ->whereIn('booking_status', ['confirmed', 'checked_in', 'pending_verification']);
-            })
+            $query->where('check_in', '<=', $today)
+                ->where('check_out', '>', $today)
+                ->whereIn('booking_status', ['confirmed', 'checked_in', 'pending_verification']);
+        })
             ->pluck('property_id')
             ->unique()
             ->toArray();
@@ -119,7 +118,7 @@ class CheckInOutController extends Controller
 
         $today = now();
         $todayDate = $today->toDateString();
-        
+
         // Indonesian day names
         $dayNames = [
             'Sunday' => 'MINGGU',
@@ -139,7 +138,7 @@ class CheckInOutController extends Controller
             ->orderBy('property_id')
             ->get();
 
-        // Get today's check-ins  
+        // Get today's check-ins
         $checkIns = Booking::with(['property', 'primaryGuest'])
             ->where('check_in', $todayDate)
             ->whereIn('booking_status', ['pending_verification', 'confirmed'])
@@ -155,10 +154,10 @@ class CheckInOutController extends Controller
 
         // Get empty units
         $bookedPropertyIds = Booking::where(function ($query) use ($todayDate) {
-                $query->where('check_in', '<=', $todayDate)
-                      ->where('check_out', '>', $todayDate)
-                      ->whereIn('booking_status', ['confirmed', 'checked_in', 'pending_verification']);
-            })
+            $query->where('check_in', '<=', $todayDate)
+                ->where('check_out', '>', $todayDate)
+                ->whereIn('booking_status', ['confirmed', 'checked_in', 'pending_verification']);
+        })
             ->pluck('property_id')
             ->unique()
             ->toArray();
@@ -175,58 +174,62 @@ class CheckInOutController extends Controller
 
         // CHECK OUT section
         $text .= "CHECK OUT\n";
-        
-        $checkOutsSelatan = $checkOuts->where('property.location', 'selatan');
-        $checkOutsUtara = $checkOuts->where('property.location', 'utara');
-        
+
+        $checkOutsSelatan = $checkOuts->filter(fn ($b) => optional($b->property)->location === 'selatan');
+        $checkOutsUtara = $checkOuts->filter(fn ($b) => optional($b->property)->location === 'utara');
+
         $text .= "🏡 SELATAN\n";
         if ($checkOutsSelatan->isEmpty()) {
             $text .= "-\n";
         } else {
             foreach ($checkOutsSelatan->values() as $index => $booking) {
-                $text .= ($index + 1) . ". {$booking->property->name} - {$booking->primaryGuest->guest_name} - {$booking->primaryGuest->guest_phone} - CO\n";
+                $name = $booking->primaryGuest?->guest_name ?? $booking->guest_name ?? '-';
+                $phone = $booking->primaryGuest?->guest_phone ?? $booking->guest_phone ?? '-';
+                $text .= ($index + 1).". {$booking->property?->name} - {$name} - {$phone} - CO\n";
             }
         }
         $text .= "\n";
-        
+
         $text .= "🏡 UTARA\n";
         if ($checkOutsUtara->isEmpty()) {
             $text .= "-\n";
         } else {
             foreach ($checkOutsUtara->values() as $index => $booking) {
-                $text .= ($index + 1) . ". {$booking->property->name} - {$booking->primaryGuest->guest_name} - {$booking->primaryGuest->guest_phone} - CO\n";
+                $name = $booking->primaryGuest?->guest_name ?? $booking->guest_name ?? '-';
+                $phone = $booking->primaryGuest?->guest_phone ?? $booking->guest_phone ?? '-';
+                $text .= ($index + 1).". {$booking->property?->name} - {$name} - {$phone} - CO\n";
             }
         }
         $text .= "\n";
 
         // CHECK IN section
         $text .= "CHECK IN\n";
-        
-        $checkInsSelatan = $checkIns->where('property.location', 'selatan');
-        $checkInsUtara = $checkIns->where('property.location', 'utara');
-        
+
+        $checkInsSelatan = $checkIns->filter(fn ($b) => optional($b->property)->location === 'selatan');
+        $checkInsUtara = $checkIns->filter(fn ($b) => optional($b->property)->location === 'utara');
+
         $text .= "🏡 SELATAN\n";
         if ($checkInsSelatan->isEmpty()) {
             $text .= "-\n";
         } else {
             foreach ($checkInsSelatan->values() as $index => $booking) {
-                $checkInDate = Carbon::parse($booking->check_in);
-                $checkOutDate = Carbon::parse($booking->check_out);
-                $nights = $checkInDate->diffInDays($checkOutDate);
-                $text .= ($index + 1) . ". {$booking->property->name} {$nights} malam - {$booking->primaryGuest->guest_name} - {$booking->primaryGuest->guest_phone}\n";
+                $nights = Carbon::parse($booking->check_in)->diffInDays(Carbon::parse($booking->check_out));
+                $name = $booking->primaryGuest?->guest_name ?? $booking->guest_name ?? '-';
+                $phone = $booking->primaryGuest?->guest_phone ?? $booking->guest_phone ?? '-';
+                $text .= ($index + 1).". {$booking->property?->name} {$nights} malam - {$name} - {$phone}\n";
             }
         }
         $text .= "\n";
-        
+
         $text .= "🏡 UTARA\n";
         if ($checkInsUtara->isEmpty()) {
             $text .= "-\n";
         } else {
             foreach ($checkInsUtara->values() as $index => $booking) {
-                $checkInDate = Carbon::parse($booking->check_in);
-                $checkOutDate = Carbon::parse($booking->check_out);
-                $nights = $checkInDate->diffInDays($checkOutDate);
-                $text .= ($index + 1) . ". {$booking->property->name} {$nights} malam - {$booking->primaryGuest->guest_name} - {$booking->primaryGuest->guest_phone}\n";
+                $nights = Carbon::parse($booking->check_in)->diffInDays(Carbon::parse($booking->check_out));
+                $name = $booking->primaryGuest?->guest_name ?? $booking->guest_name ?? '-';
+                $phone = $booking->primaryGuest?->guest_phone ?? $booking->guest_phone ?? '-';
+                $text .= ($index + 1).". {$booking->property?->name} {$nights} malam - {$name} - {$phone}\n";
             }
         }
         $text .= "\n";
@@ -237,7 +240,7 @@ class CheckInOutController extends Controller
             $text .= "Semua unit terisi\n";
         } else {
             foreach ($emptyUnits as $index => $property) {
-                $text .= ($index + 1) . ". {$property->name}\n";
+                $text .= ($index + 1).". {$property->name}\n";
             }
         }
         $text .= "\n";
@@ -248,7 +251,7 @@ class CheckInOutController extends Controller
             $text .= "Tidak ada\n";
         } else {
             foreach ($stayingGuests as $index => $booking) {
-                $text .= ($index + 1) . ". {$booking->property->name}\n";
+                $text .= ($index + 1).". {$booking->property->name}\n";
             }
         }
         $text .= "\n";

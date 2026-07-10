@@ -129,7 +129,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
             : null
     );
 
-    const { data, setData, post, patch, delete: deletePayment, processing, errors } = useForm({
+    const { data, setData, post, delete: deletePayment, processing, errors, transform } = useForm({
         payment_method_id: payment.payment_method_id?.toString() || '',
         amount: payment.amount.toString(),
         payment_type: payment.payment_type,
@@ -174,8 +174,14 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        // Inertia v3: use patch() directly — no need for _method spoofing or manual FormData.
-        patch(`/admin/payments/${payment.payment_number}`, {
+        
+        // Spoof PUT method for PHP multipart support
+        transform((data) => ({
+            ...data,
+            _method: 'PUT' as any,
+        }));
+
+        post(`/admin/payments/${payment.payment_number}`, {
             forceFormData: true,
             preserveScroll: true,
             onSuccess: () => {
@@ -185,7 +191,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                 console.error('Update failed:', errors);
             },
         });
-    }
+    };
 
     const handleDelete = () => {
         if (confirm('Are you sure you want to delete this payment? This action cannot be undone.')) {
@@ -242,21 +248,23 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title={`Edit ${payment.payment_number} - Payments`} />
-
-            <div className="space-y-6">
+            <div className="space-y-6 p-4 md:p-6">
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+                    <div className="flex items-center gap-3">
+                        <Link href={`/admin/payments/${payment.payment_number}`}>
+                            <Button size="icon" variant="outline" className="rounded-full h-9 w-9">
+                                <ArrowLeft className="h-4 w-4" />
+                            </Button>
+                        </Link>
                         <div>
-                            <h1 className="text-3xl font-bold text-gray-900">Edit Payment</h1>
-                            <p className="text-gray-600 mt-1">
-                                Update payment transaction details
-                            </p>
+                            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Edit Transaksi Pembayaran</h1>
+                            <p className="text-gray-500 text-sm">{payment.payment_number} — Hubungkan dengan detail pemesanan</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(payment.payment_status)}`}>
-                            {payment.payment_status.charAt(0).toUpperCase() + payment.payment_status.slice(1)}
+                        <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${getStatusColor(payment.payment_status)}`}>
+                            {payment.payment_status}
                         </span>
                     </div>
                 </div>
@@ -491,7 +499,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     {payment.attachment_path && (
-                                        <div className="bg-gray-50 p-4 rounded-lg">
+                                        <div className="bg-gray-50 p-4 rounded-lg space-y-3">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
                                                     <FileText className="h-5 w-5 text-gray-500" />
@@ -523,6 +531,25 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                                     </Button>
                                                 </div>
                                             </div>
+
+                                            {/* Preview Thumbnail like in BookingDetailModal */}
+                                            {payment.attachment_path.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/) && (
+                                                <div className="pt-2 border-t border-slate-200">
+                                                    <div 
+                                                        className="relative rounded-lg border overflow-hidden max-w-[150px] bg-white group cursor-pointer shadow-sm"
+                                                        onClick={() => window.open(`/storage/${payment.attachment_path}`, '_blank')}
+                                                    >
+                                                        <img
+                                                            src={`/storage/${payment.attachment_path}`}
+                                                            alt="Receipt proof"
+                                                            className="w-full h-auto max-h-[100px] object-cover hover:scale-105 transition-transform duration-200"
+                                                        />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200 text-white text-[10px] font-semibold">
+                                                            <Eye className="w-4 h-4 mr-1" /> View Full
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 

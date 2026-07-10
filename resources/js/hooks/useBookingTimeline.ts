@@ -46,6 +46,14 @@ export function useBookingTimeline({
     const [startX, setStartX] = useState(0);
     const [scrollLeft, setScrollLeft] = useState(0);
 
+    const cellWidthRef = useRef(cellWidth);
+    const rowHeightRef = useRef(rowHeight);
+
+    useEffect(() => {
+        cellWidthRef.current = cellWidth;
+        rowHeightRef.current = rowHeight;
+    }, [cellWidth, rowHeight]);
+
     // 1. Initial Fetch
     useEffect(() => {
         if (!autoFetch) {
@@ -111,7 +119,8 @@ export function useBookingTimeline({
         const calculateMinDays = () => {
             if (scrollContainerRef.current) {
                 const containerWidth = scrollContainerRef.current.clientWidth;
-                const availableWidth = containerWidth - 260;
+                const sidebarWidth = typeof window !== 'undefined' && window.innerWidth < 640 ? 96 : 208;
+                const availableWidth = containerWidth - sidebarWidth;
                 const neededDays = Math.ceil(availableWidth / cellWidth);
 
                 setExtraDays(prev => {
@@ -129,6 +138,59 @@ export function useBookingTimeline({
         window.addEventListener('resize', calculateMinDays);
         return () => window.removeEventListener('resize', calculateMinDays);
     }, [cellWidth, days, scrollContainerRef]);
+
+    // 3b. Touch Pinch-to-Zoom Listener (Mobile Gesture Zoom)
+    useEffect(() => {
+        const container = timelineRef.current || scrollContainerRef.current;
+        if (!container) return;
+
+        let startDist: number | null = null;
+        let startCellWidth = cellWidthRef.current;
+        let startRowHeight = rowHeightRef.current;
+
+        const getDistance = (touches: TouchList) => {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        };
+
+        const onTouchStart = (e: TouchEvent) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                startDist = getDistance(e.touches);
+                startCellWidth = cellWidthRef.current;
+                startRowHeight = rowHeightRef.current;
+            }
+        };
+
+        const onTouchMove = (e: TouchEvent) => {
+            if (e.touches.length === 2 && startDist !== null) {
+                e.preventDefault();
+                const dist = getDistance(e.touches);
+                const ratio = dist / startDist;
+                
+                const newCellWidth = Math.max(25, Math.min(200, Math.round(startCellWidth * ratio)));
+                const newRowHeight = Math.max(30, Math.min(150, Math.round(startRowHeight * ratio)));
+                
+                setCellWidth(newCellWidth);
+                setRowHeight(newRowHeight);
+            }
+        };
+
+        const onTouchEnd = () => {
+            startDist = null;
+        };
+
+        container.addEventListener('touchstart', onTouchStart, { passive: false });
+        container.addEventListener('touchmove', onTouchMove, { passive: false });
+        container.addEventListener('touchend', onTouchEnd);
+
+        return () => {
+            container.removeEventListener('touchstart', onTouchStart);
+            container.removeEventListener('touchmove', onTouchMove);
+            container.removeEventListener('touchend', onTouchEnd);
+        };
+    }, [scrollContainerRef, timelineRef]);
 
     // 4. Memoized Data
     const timelineDates = useMemo(
@@ -267,8 +329,8 @@ export function useBookingTimeline({
 
     // 7. Zoom Actions
     const zoomOut = () => {
-        setCellWidth((v) => Math.max(35, v - 10));
-        setRowHeight((v) => Math.max(35, v - 10));
+        setCellWidth((v) => Math.max(25, v - 10));
+        setRowHeight((v) => Math.max(30, v - 10));
     };
     const zoomIn = () => {
         setCellWidth((v) => Math.min(200, v + 10));

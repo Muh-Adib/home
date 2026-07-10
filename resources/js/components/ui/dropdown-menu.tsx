@@ -11,10 +11,26 @@ function DropdownMenu({
 }
 
 function DropdownMenuPortal({
+  children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
+  const [container, setContainer] = React.useState<HTMLElement | null>(null)
+
+  React.useEffect(() => {
+    const updateContainer = () => {
+      setContainer((document.fullscreenElement as HTMLElement) || null)
+    }
+    updateContainer()
+    document.addEventListener("fullscreenchange", updateContainer)
+    return () => {
+      document.removeEventListener("fullscreenchange", updateContainer)
+    }
+  }, [])
+
   return (
-    <DropdownMenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />
+    <DropdownMenuPrimitive.Portal container={container} data-slot="dropdown-menu-portal" {...props}>
+      {children}
+    </DropdownMenuPrimitive.Portal>
   )
 }
 
@@ -35,7 +51,7 @@ function DropdownMenuContent({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
   return (
-    <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPortal>
       <DropdownMenuPrimitive.Content
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
@@ -45,7 +61,7 @@ function DropdownMenuContent({
         )}
         {...props}
       />
-    </DropdownMenuPrimitive.Portal>
+    </DropdownMenuPortal>
   )
 }
 

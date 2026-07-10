@@ -15,11 +15,17 @@ interface ChartRevenueProps {
 
 export function ChartRevenue({ data }: ChartRevenueProps) {
   const formatCurrency = (value: number) => {
+    if (value >= 1000000000) {
+      const val = value / 1000000000;
+      return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}M`;
+    }
     if (value >= 1000000) {
-      return `${(value / 1000000).toFixed(1)}M`;
+      const val = value / 1000000;
+      return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}Jt`;
     }
     if (value >= 1000) {
-      return `${(value / 1000).toFixed(0)}K`;
+      const val = value / 1000;
+      return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}Rb`;
     }
     return value.toString();
   };

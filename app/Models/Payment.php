@@ -40,6 +40,12 @@ class Payment extends Model
         'ipaymu_session_id',
         'ipaymu_payment_url',
         'ipaymu_expired_at',
+        'status',
+        'unique_code',
+        'expected_amount',
+        'matched_mutation_id',
+        'matched_at',
+        'matched_by',
     ];
 
     protected $casts = [
@@ -49,6 +55,11 @@ class Payment extends Model
         'verified_at' => 'datetime',
         'gateway_response' => 'array',
         'ipaymu_expired_at' => 'datetime',
+        'unique_code' => 'integer',
+        'expected_amount' => 'integer',
+        'matched_mutation_id' => 'integer',
+        'matched_at' => 'datetime',
+        'matched_by' => 'integer',
     ];
 
     protected $appends = [
@@ -67,6 +78,30 @@ class Payment extends Model
         static::creating(function ($payment) {
             if (empty($payment->payment_number)) {
                 $payment->payment_number = self::generatePaymentNumber();
+            }
+        });
+
+        static::saving(function ($payment) {
+            // Sinkronkan status berdasarkan payment_status jika status tidak diubah secara manual
+            if ($payment->isDirty('payment_status') && ! $payment->isDirty('status')) {
+                if ($payment->payment_status === 'verified') {
+                    $payment->status = 'cocok';
+                } elseif ($payment->payment_status === 'failed') {
+                    $payment->status = 'ditolak';
+                } elseif ($payment->payment_status === 'pending') {
+                    $payment->status = 'menunggu';
+                }
+            }
+
+            // Sinkronkan payment_status berdasarkan status jika payment_status tidak diubah secara manual
+            if ($payment->isDirty('status') && ! $payment->isDirty('payment_status')) {
+                if ($payment->status === 'cocok' || $payment->status === 'completed') {
+                    $payment->payment_status = 'verified';
+                } elseif ($payment->status === 'ditolak' || $payment->status === 'failed') {
+                    $payment->payment_status = 'failed';
+                } elseif ($payment->status === 'menunggu') {
+                    $payment->payment_status = 'pending';
+                }
             }
         });
     }
@@ -320,5 +355,21 @@ class Payment extends Model
             ->orWhereHas('paymentMethod', function ($q) {
                 $q->where('code', 'ipaymu');
             });
+    }
+
+    /**
+     * Get the bank mutation matched with this payment.
+     */
+    public function matchedMutation(): BelongsTo
+    {
+        return $this->belongsTo(BankMutation::class, 'matched_mutation_id');
+    }
+
+    /**
+     * Get the user who matched/verified this payment.
+     */
+    public function matchedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'matched_by');
     }
 }

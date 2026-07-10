@@ -17,6 +17,9 @@ interface ServiceMaster {
     service_type: string;
     service_type_label: string;
     unit_price: number;
+    vendor_unit_price: number;
+    discount_amount: number;
+    discount_limit: number | null;
     thumbnail_url?: string;
     is_active: boolean;
     sort_order: number;
@@ -82,7 +85,7 @@ export default function ExtraServicesIndex({ services, filters, serviceTypes }: 
 
     const confirmDelete = () => {
         if (selectedService) {
-            deleteService(route('admin.extra-services.destroy', selectedService.id), {
+            deleteService(route('admin.extra-services.destroy', { service: selectedService.id }), {
                 onSuccess: () => {
                     setShowDeleteDialog(false);
                     setSelectedService(null);
@@ -106,7 +109,7 @@ export default function ExtraServicesIndex({ services, filters, serviceTypes }: 
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Extra Services Management" />
 
-            <div className="space-y-6 p-4 md:p-6">
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex justify-between items-center">
                     <div>
@@ -206,81 +209,175 @@ export default function ExtraServicesIndex({ services, filters, serviceTypes }: 
                                 <p className="text-gray-500">Tidak ada service ditemukan</p>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b">
-                                            <th className="text-left py-3 px-4">Thumbnail</th>
-                                            <th className="text-left py-3 px-4">Nama</th>
-                                            <th className="text-left py-3 px-4">Tipe</th>
-                                            <th className="text-left py-3 px-4">Harga</th>
-                                            <th className="text-left py-3 px-4">Status</th>
-                                            <th className="text-left py-3 px-4">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {services.data.map((service) => (
-                                            <tr key={service.id} className="border-b hover:bg-gray-50">
-                                                <td className="py-3 px-4">
-                                                    {service.thumbnail_url ? (
-                                                        <img
-                                                            src={service.thumbnail_url}
-                                                            alt={service.name}
-                                                            className="w-16 h-16 object-cover rounded"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">
-                                                            <ImageIcon className="w-6 h-6 text-gray-400" />
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <div>
-                                                        <div className="font-medium">{service.name}</div>
-                                                        {service.description && (
-                                                            <div className="text-sm text-gray-500">
-                                                                {service.description.substring(0, 50)}
-                                                                {service.description.length > 50 && '...'}
+                            <div>
+                                {/* Desktop Table View */}
+                                <div className="hidden md:block overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b">
+                                                <th className="text-left py-3 px-4">Thumbnail</th>
+                                                <th className="text-left py-3 px-4">Nama</th>
+                                                <th className="text-left py-3 px-4">Tipe</th>
+                                                <th className="text-left py-3 px-4">Harga</th>
+                                                <th className="text-left py-3 px-4">Status</th>
+                                                <th className="text-left py-3 px-4">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {services.data.map((service) => (
+                                                <tr key={service.id} className="border-b hover:bg-gray-50">
+                                                    <td className="py-3 px-4">
+                                                        {service.thumbnail_url ? (
+                                                            <img
+                                                                src={service.thumbnail_url}
+                                                                alt={service.name}
+                                                                className="w-16 h-16 object-cover rounded"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">
+                                                                <ImageIcon className="w-6 h-6 text-gray-400" />
                                                             </div>
                                                         )}
-                                                    </div>
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <Badge variant="outline">
-                                                        {service.service_type_label}
-                                                    </Badge>
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <span className="font-medium">
-                                                        {formatPrice(service.unit_price)}
-                                                    </span>
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <Badge variant={service.is_active ? 'default' : 'secondary'}>
-                                                        {service.is_active ? 'Active' : 'Inactive'}
-                                                    </Badge>
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <div className="flex space-x-2">
-                                                        <Link href={route('admin.extra-services.edit', service.id)}>
-                                                            <Button variant="outline" size="sm">
-                                                                <Edit className="w-4 h-4" />
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <div>
+                                                            <div className="font-medium">{service.name}</div>
+                                                            {service.description && (
+                                                                <div className="text-sm text-gray-500">
+                                                                    {service.description.substring(0, 50)}
+                                                                    {service.description.length > 50 && '...'}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <Badge variant="outline">
+                                                            {service.service_type_label}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <div className="flex flex-col text-xs">
+                                                            <div><span className="text-slate-500 font-medium">Jual:</span> <span className="font-bold text-slate-800">{formatPrice(service.unit_price)}</span></div>
+                                                            <div><span className="text-slate-500 font-medium">Vendor:</span> <span className="text-slate-700 font-semibold">{formatPrice(service.vendor_unit_price)}</span></div>
+                                                            {service.discount_amount > 0 && (
+                                                                <div className="text-rose-600 font-semibold">
+                                                                    Diskon: -{formatPrice(service.discount_amount)}
+                                                                    {service.discount_limit ? ` (Limit: ${service.discount_limit} unit)` : ''}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <Badge variant={service.is_active ? 'default' : 'secondary'}>
+                                                            {service.is_active ? 'Active' : 'Inactive'}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <div className="flex space-x-2">
+                                                            <Link href={route('admin.extra-services.edit', { service: service.id })}>
+                                                                <Button variant="outline" size="sm">
+                                                                    <Edit className="w-4 h-4" />
+                                                                </Button>
+                                                            </Link>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="text-red-600"
+                                                                onClick={() => handleDelete(service)}
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
                                                             </Button>
-                                                        </Link>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="text-red-600"
-                                                            onClick={() => handleDelete(service)}
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Mobile Card View */}
+                                <div className="block md:hidden space-y-4">
+                                    {services.data.map((service) => (
+                                        <div
+                                            key={service.id}
+                                            className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3"
+                                        >
+                                            <div className="flex items-start space-x-3">
+                                                {service.thumbnail_url ? (
+                                                    <img
+                                                        src={service.thumbnail_url}
+                                                        alt={service.name}
+                                                        className="w-16 h-16 object-cover rounded-lg border border-slate-100"
+                                                    />
+                                                ) : (
+                                                    <div className="w-16 h-16 bg-slate-50 rounded-lg border border-slate-200/60 flex items-center justify-center">
+                                                        <ImageIcon className="w-6 h-6 text-slate-400" />
                                                     </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-start justify-between gap-1">
+                                                        <h4 className="font-bold text-sm text-slate-800 truncate">
+                                                            {service.name}
+                                                        </h4>
+                                                        <Badge variant={service.is_active ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
+                                                            {service.is_active ? 'Active' : 'Inactive'}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="mt-1">
+                                                        <Badge variant="outline" className="text-[9px] py-0 px-1 font-normal text-slate-500">
+                                                            {service.service_type_label}
+                                                        </Badge>
+                                                    </div>
+                                                    {service.description && (
+                                                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                                                            {service.description}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Pricing Details */}
+                                            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs space-y-1">
+                                                <div className="flex justify-between">
+                                                    <span className="text-slate-500">Harga Jual Kita:</span>
+                                                    <span className="font-bold text-slate-800">{formatPrice(service.unit_price)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-slate-500">Harga Beli Vendor:</span>
+                                                    <span className="font-semibold text-slate-700">{formatPrice(service.vendor_unit_price)}</span>
+                                                </div>
+                                                {service.discount_amount > 0 && (
+                                                    <div className="flex justify-between text-rose-600 font-semibold pt-0.5 border-t border-slate-200/50 mt-0.5">
+                                                        <span>Diskon:</span>
+                                                        <span>
+                                                            -{formatPrice(service.discount_amount)}
+                                                            {service.discount_limit ? ` (Limit: ${service.discount_limit} unit)` : ''}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Action Buttons */}
+                                            <div className="flex justify-end space-x-2 pt-1">
+                                                <Link href={route('admin.extra-services.edit', { service: service.id })} className="flex-1 max-w-[100px]">
+                                                    <Button variant="outline" size="sm" className="w-full text-xs h-8">
+                                                        <Edit className="w-3.5 h-3.5 mr-1" />
+                                                        Edit
+                                                    </Button>
+                                                </Link>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-red-600 text-xs h-8 flex-1 max-w-[100px]"
+                                                    onClick={() => handleDelete(service)}
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                                                    Hapus
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
 
@@ -322,7 +419,7 @@ export default function ExtraServicesIndex({ services, filters, serviceTypes }: 
                     <DialogHeader>
                         <DialogTitle>Hapus Service</DialogTitle>
                         <DialogDescription>
-                            Apakah Anda yakin ingin menghapus service "{selectedService?.name}"? 
+                            Apakah Anda yakin ingin menghapus service "{selectedService?.name}"?
                             Tindakan ini tidak dapat dibatalkan.
                         </DialogDescription>
                     </DialogHeader>

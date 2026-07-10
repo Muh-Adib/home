@@ -59,7 +59,7 @@ class RateCalculationService
     /**
      * Calculate rate for property and dates - now the single source of truth
      */
-    public function calculateRate(Property $property, string $checkIn, string $checkOut, int $guestCount): RateCalculation
+    public function calculateRate(Property $property, string $checkIn, string $checkOut, int $guestCount, ?array $dailyExtraBeds = null): RateCalculation
     {
         $checkInDate = Carbon::parse($checkIn);
         $checkOutDate = Carbon::parse($checkOut);
@@ -189,8 +189,14 @@ class RateCalculationService
             // Calculate extra bed rate for this day using single source of truth
             $effectiveExtraBedRate = self::calculateEffectiveExtraBedRate($property, $seasonalRate);
 
+            // Determine extra bed count for this day
+            $dayExtraBeds = $extraBeds;
+            if ($dailyExtraBeds !== null && isset($dailyExtraBeds[$dateString])) {
+                $dayExtraBeds = (int) $dailyExtraBeds[$dateString];
+            }
+
             // Add extra bed amount for this day
-            $extraBedAmount += $extraBeds * $effectiveExtraBedRate;
+            $extraBedAmount += $dayExtraBeds * $effectiveExtraBedRate;
 
             $dailyBreakdown[$dateString] = [
                 'date' => $date->format('Y-m-d'),
@@ -206,7 +212,14 @@ class RateCalculationService
                     'min_stay_nights' => $seasonalRate->min_stay_nights,
                 ] : null,
                 'extra_bed_rate' => $effectiveExtraBedRate,
+                'extra_bed_count' => $dayExtraBeds,
             ];
+        }
+
+        // Use check-in day's extra bed count as the check-in display value
+        $checkInKey = $checkInDate->format('Y-m-d');
+        if (isset($dailyBreakdown[$checkInKey])) {
+            $extraBeds = $dailyBreakdown[$checkInKey]['extra_bed_count'];
         }
 
         $cleaningFee = 0;
@@ -255,10 +268,10 @@ class RateCalculationService
     /**
      * Calculate rate with formatted response for API (Frontend compatible)
      */
-    public function calculateRateFormatted(Property $property, string $checkIn, string $checkOut, int $guestCount): array
+    public function calculateRateFormatted(Property $property, string $checkIn, string $checkOut, int $guestCount, ?array $dailyExtraBeds = null): array
     {
         try {
-            $calculation = $this->calculateRate($property, $checkIn, $checkOut, $guestCount);
+            $calculation = $this->calculateRate($property, $checkIn, $checkOut, $guestCount, $dailyExtraBeds);
             $calculationArray = $calculation->toArray();
 
             return [

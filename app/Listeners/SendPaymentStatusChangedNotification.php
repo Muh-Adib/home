@@ -5,8 +5,6 @@ namespace App\Listeners;
 use App\Events\PaymentStatusChanged;
 use App\Models\User;
 use App\Notifications\PaymentStatusChangedNotification;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Notification;
 
 class SendPaymentStatusChangedNotification
@@ -39,10 +37,10 @@ class SendPaymentStatusChangedNotification
 
         // Send notification to admin users (super_admin, property_manager, finance)
         $adminUsers = User::whereIn('role', ['super_admin', 'property_manager', 'finance'])->get();
-        
+
         foreach ($adminUsers as $admin) {
             // Don't send to the user who made the change
-            if ($admin->id !== $user->id) {
+            if (! $user || $admin->id !== $user->id) {
                 $admin->notify(new PaymentStatusChangedNotification($payment, $oldStatus, $newStatus));
             }
         }
@@ -50,9 +48,9 @@ class SendPaymentStatusChangedNotification
         // Also send to property owner if applicable
         if ($payment->booking && $payment->booking->property && $payment->booking->property->owner) {
             $propertyOwner = $payment->booking->property->owner;
-            if ($propertyOwner->role === 'property_owner' && $propertyOwner->id !== $user->id) {
+            if ($propertyOwner->role === 'property_owner' && (! $user || $propertyOwner->id !== $user->id)) {
                 $propertyOwner->notify(new PaymentStatusChangedNotification($payment, $oldStatus, $newStatus));
             }
         }
     }
-} 
+}

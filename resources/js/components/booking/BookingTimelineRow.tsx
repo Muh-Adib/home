@@ -1,9 +1,11 @@
 import React from "react";
 import { type Property, type Booking } from "@/types";
+import { cn } from "@/lib/utils";
 import {
     calculateBookingPosition,
     isBookingInRange,
     isToday,
+    isWeekend,
 } from "@/utils/date";
 import BookingItem from "./BookingItem";
 
@@ -45,16 +47,16 @@ export default function BookingTimelineRow({
             {/* PROPERTY INFO (Sticky + compact + mobile friendly) */}
             <div
                 className="
-                    w-36 sm:w-52 flex-shrink-0 border-r border-gray-200 
-                    p-2 sm:p-3 bg-white sticky left-0 z-30
+                    w-24 sm:w-52 flex-shrink-0 border-r border-gray-200 
+                    p-1.5 sm:p-3 bg-white sticky left-0 z-30
                     shadow-[1px_0_0_0_rgba(209,213,219,0.5)]
                     overflow-hidden flex items-center
                 "
                 style={{ height: rowHeight }}
             >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-3 w-full">
                     {coverImage && (
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden shadow-sm flex-shrink-0">
+                        <div className="hidden sm:block w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden shadow-sm flex-shrink-0">
                             <img
                                 src={coverImage}
                                 alt={property.name}
@@ -65,7 +67,7 @@ export default function BookingTimelineRow({
 
                     {/* Name more visible but truncated */}
                     <div className="flex-1 min-w-0">
-                        <span className="font-semibold text-gray-900 text-sm sm:text-base truncate block">
+                        <span className="font-semibold text-gray-900 text-xs sm:text-sm truncate block">
                             {property.name}
                         </span>
                     </div>
@@ -77,15 +79,18 @@ export default function BookingTimelineRow({
                 {timelineDates.map((date, idx) => (
                     <div
                         key={idx}
-                        className="relative border-r border-gray-200"
+                        className={cn(
+                            "relative border-r",
+                            isWeekend(date) ? "border-emerald-200" : "border-gray-200"
+                        )}
                         style={{
                             width: cellWidth,
                             height: "100%",
                         }}
                     >
-                        {/* Weekend subtle background */}
-                        {(date.getDay() === 0 || date.getDay() === 6) && (
-                            <div className="absolute inset-0 bg-orange-100/20" />
+                        {/* Weekend background */}
+                        {isWeekend(date) && (
+                            <div className="absolute inset-0 bg-emerald-50" />
                         )}
 
                         {/* Today highlight */}

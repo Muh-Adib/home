@@ -9,8 +9,8 @@ use App\Domain\Booking\ValueObjects\BookingRequest;
 use App\Models\Booking;
 use App\Models\Property;
 use App\Models\User;
-use App\Services\BookingService;
 use App\Services\BookingExtraServiceSyncService;
+use App\Services\BookingService;
 use App\Services\RateOverrideLogService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -26,13 +26,12 @@ class CreateBookingAction
         private BookingService $bookingService,
         private BookingExtraServiceSyncService $serviceSyncService,
         private RateOverrideLogService $rateOverrideLogService
-    ) {
-    }
+    ) {}
 
     /**
-     * @param array $data Validated booking data
-     * @param User|null $actor The user creating the booking (Admin/Staff or Guest)
-     * @return Booking
+     * @param  array  $data  Validated booking data
+     * @param  User|null  $actor  The user creating the booking (Admin/Staff or Guest)
+     *
      * @throws \Exception
      */
     public function execute(array $data, ?User $actor = null): Booking
@@ -49,7 +48,7 @@ class CreateBookingAction
             $booking = $this->bookingService->createBooking($bookingRequest, $guestUser);
 
             // 4. Guest-side Auto Login Logic
-            if (!$actor && !Auth::check()) {
+            if (! $actor && ! Auth::check()) {
                 Auth::login($guestUser);
                 Log::info('New guest auto-logged in after booking', ['user_id' => $guestUser->id]);
             }
@@ -58,6 +57,7 @@ class CreateBookingAction
             if ($actor && ($actor->hasRole('super_admin') || $actor->hasRole('property_manager') || $actor->hasRole('front_desk'))) {
                 $booking->update([
                     'created_by' => $actor->id,
+                    'followed_up_by' => $data['followed_up_by'] ?? $actor->id,
                     'source' => $data['source'] ?? 'direct',
                 ]);
 
@@ -67,13 +67,13 @@ class CreateBookingAction
                 }
 
                 // Handle Rate Override
-                if (($data['rate_override'] ?? false) && !empty($data['override_amount'])) {
+                if (($data['rate_override'] ?? false) && ! empty($data['override_amount'])) {
                     $this->applyRateOverride($booking, $data, $actor);
                 }
             }
 
             // 6. Sync Extra Services
-            if (!empty($data['services'])) {
+            if (! empty($data['services'])) {
                 $servicesTotal = $this->serviceSyncService->sync($booking, $data['services'], false);
                 $this->serviceSyncService->updateBookingTotalWithServices($booking, $servicesTotal);
             }

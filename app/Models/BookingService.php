@@ -22,7 +22,11 @@ class BookingService extends Model
         'service_type',
         'quantity',
         'unit_price',
+        'discount_amount',
         'total_price',
+        'vendor_unit_price',
+        'vendor_total_price',
+        'service_date',
         'notes',
         'status',
         'provided_at',
@@ -36,7 +40,11 @@ class BookingService extends Model
     protected $casts = [
         'quantity' => 'integer',
         'unit_price' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'total_price' => 'decimal:2',
+        'vendor_unit_price' => 'decimal:2',
+        'vendor_total_price' => 'decimal:2',
+        'service_date' => 'date',
         'provided_at' => 'datetime',
     ];
 
@@ -61,7 +69,9 @@ class BookingService extends Model
      */
     public function calculateTotal(): float
     {
-        return round($this->quantity * $this->unit_price, 2);
+        $netPrice = max(0, $this->unit_price - ($this->discount_amount ?? 0));
+
+        return round($this->quantity * $netPrice, 2);
     }
 
     /**
@@ -73,7 +83,7 @@ class BookingService extends Model
 
         static::saving(function ($service) {
             // If service_master_id is provided, sync name and unit_price from master
-            if ($service->service_master_id && !$service->exists) {
+            if ($service->service_master_id && ! $service->exists) {
                 $serviceMaster = ServiceMaster::find($service->service_master_id);
                 if ($serviceMaster) {
                     if (empty($service->service_name)) {
@@ -87,8 +97,9 @@ class BookingService extends Model
                     }
                 }
             }
-            
+
             $service->total_price = $service->calculateTotal();
+            $service->vendor_total_price = round($service->quantity * ($service->vendor_unit_price ?? 0), 2);
         });
     }
 
@@ -97,7 +108,7 @@ class BookingService extends Model
      */
     public function getServiceTypeLabel(): string
     {
-        return match($this->service_type) {
+        return match ($this->service_type) {
             'extra_bed' => 'Tempat Tidur Tambahan',
             'breakfast' => 'Sarapan',
             'airport_transfer' => 'Transfer Bandara',
@@ -121,7 +132,7 @@ class BookingService extends Model
      */
     public function getStatusLabel(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'pending' => 'Menunggu',
             'confirmed' => 'Dikonfirmasi',
             'provided' => 'Telah Disediakan',

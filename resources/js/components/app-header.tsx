@@ -51,6 +51,7 @@ const getHeaderNavItemsForRole = (user: User | null): (NavItem & { title: string
             { title: 'properties', href: route('admin.properties.index'), icon: Folder },
             { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
             { title: 'payment_methods', href: route('admin.payment-methods.index'), icon: CreditCard },
+            { title: 'bank_accounts', href: route('admin.bank-accounts.index'), icon: Building2 },
             { title: 'users', href: route('admin.users.index'), icon: Users },
             { title: 'amenities', href: route('admin.amenities.index'), icon: Building2 },
             //{ title: 'cleaning_tasks', href: route('admin.cleaning-tasks.index'), icon: ListChecks },
@@ -69,6 +70,7 @@ const getHeaderNavItemsForRole = (user: User | null): (NavItem & { title: string
             { title: 'properties', href: route('admin.properties.index'), icon: Folder },
             { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
             { title: 'payment_methods', href: route('admin.payment-methods.index'), icon: CreditCard },
+            { title: 'bank_accounts', href: route('admin.bank-accounts.index'), icon: Building2 },
             //{ title: 'cleaning_tasks', href: route('admin.cleaning-tasks.index'), icon: ListChecks },
             //{ title: 'cleaning_staff', href: route('admin.cleaning-staff.index'), icon: Sparkles },
         ],
@@ -83,6 +85,7 @@ const getHeaderNavItemsForRole = (user: User | null): (NavItem & { title: string
             { title: 'bookings', href: route('admin.bookings.index'), icon: BookOpen },
             { title: 'payments', href: route('admin.payments.index'), icon: CreditCard },
             { title: 'payment_methods', href: route('admin.payment-methods.index'), icon: CreditCard },
+            { title: 'bank_accounts', href: route('admin.bank-accounts.index'), icon: Building2 },
         ],
         housekeeping: [
             ...baseItems,

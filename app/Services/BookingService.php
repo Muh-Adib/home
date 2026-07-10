@@ -4,11 +4,14 @@ namespace App\Services;
 
 use App\Domain\Booking\ValueObjects\BookingRequest;
 use App\Domain\Booking\ValueObjects\RateCalculation;
+use App\Events\BookingCreated;
 use App\Models\Booking;
+use App\Models\BookingDailyRevenue;
 use App\Models\Property;
 use App\Models\User;
 use App\Repositories\BookingRepository;
-use App\Events\BookingCreated;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -18,15 +21,11 @@ class BookingService
         private BookingRepository $bookingRepository,
         private RateCalculationService $rateCalculationService,
         private AvailabilityService $availabilityService
-    ) {
-    }
+    ) {}
 
     /**
      * Create a new booking
-     * 
-     * @param BookingRequest $request
-     * @param User|null $user
-     * @return Booking
+     *
      * @throws \Exception
      */
     public function createBooking(BookingRequest $request, ?User $user = null): Booking
@@ -45,17 +44,17 @@ class BookingService
                         ? Property::findOrFail($request->propertyId)
                         : Property::lockForUpdate()->findOrFail($request->propertyId);
 
-                    if (!$this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate)) {
+                    if (! $this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate)) {
                         throw new \Exception('Property tidak tersedia untuk tanggal yang dipilih.');
                     }
 
-                    if (!$this->validateGuestCount($property, $request->guestCount)) {
+                    if (! $request->forceCapacityOverride && ! $this->validateGuestCount($property, $request->guestCount)) {
                         throw new \Exception("Jumlah tamu ({$request->guestCount}) melebihi kapasitas maksimum properti ({$property->capacity_max}).");
                     }
 
                     // ✅ FIX: Handle null user properly
                     $userId = $user?->id;
-                    if (!$userId) {
+                    if (! $userId) {
                         throw new \InvalidArgumentException('User is required for booking creation');
                     }
 
@@ -63,7 +62,8 @@ class BookingService
                         $property,
                         $request->checkInDate,
                         $request->checkOutDate,
-                        $request->getEffectiveGuestCount($property->capacity, $property->capacity_max)
+                        $request->getEffectiveGuestCount($property->capacity, $property->capacity_max),
+                        $request->dailyExtraBeds
                     );
 
                     $booking = $this->bookingRepository->create($request, $property, $userId, $rateCalculation);
@@ -71,14 +71,15 @@ class BookingService
                     // ✅ Always save daily revenue for confirmed/paid bookings
                     // This ensures breakdown is stored for accurate monthly reporting
                     if (in_array($booking->booking_status, ['confirmed', 'checked_in', 'completed']) || $booking->payment_status === 'paid') {
-                        \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+                        BookingDailyRevenue::where('booking_id', $booking->id)->delete();
                         $this->insertDailyRevenueWithBreakdown($booking, $property, $rateCalculation->toArray());
                     }
 
                     event(new BookingCreated($booking, $user));
+
                     return $booking;
                 }, $isSqlite ? 1 : 5); // 5 attempts for non-SQLite, 1 for SQLite
-            } catch (\Illuminate\Database\QueryException $e) {
+            } catch (QueryException $e) {
                 // Check if it's a database lock error
                 if (str_contains($e->getMessage(), 'database is locked') && $attempt < $maxRetries) {
                     Log::warning("Database lock detected, retrying booking creation (attempt {$attempt}/{$maxRetries})", [
@@ -86,13 +87,14 @@ class BookingService
                         'property_id' => $request->propertyId,
                     ]);
                     usleep($retryDelay * $attempt); // Exponential backoff
+
                     continue;
                 }
                 throw $e;
             }
         }
 
-        throw new \Exception('Failed to create booking after ' . $maxRetries . ' attempts due to database lock');
+        throw new \Exception('Failed to create booking after '.$maxRetries.' attempts due to database lock');
     }
 
     public function updateBooking(Booking $booking, BookingRequest $request): Booking
@@ -112,7 +114,7 @@ class BookingService
                         : Property::lockForUpdate()->findOrFail($request->propertyId);
 
                     // Exclude current booking from availability check when updating
-                    if (!$this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate, $booking->id)) {
+                    if (! $this->validatePropertyAvailability($property, $request->checkInDate, $request->checkOutDate, $booking->id)) {
                         throw new \Exception('Property tidak tersedia untuk tanggal yang dipilih.');
                     }
 
@@ -120,20 +122,21 @@ class BookingService
                         $property,
                         $request->checkInDate,
                         $request->checkOutDate,
-                        $request->getEffectiveGuestCount($property->capacity, $property->capacity_max)
+                        $request->getEffectiveGuestCount($property->capacity, $property->capacity_max),
+                        $request->dailyExtraBeds
                     );
 
                     $booking = $this->bookingRepository->update($booking, $request, $property, $rateCalculation);
 
                     // ✅ Save daily revenue for all confirmed bookings with breakdown
                     if (in_array($booking->booking_status, ['confirmed', 'checked_in', 'completed']) || $booking->payment_status === 'paid') {
-                        \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+                        BookingDailyRevenue::where('booking_id', $booking->id)->delete();
                         $this->insertDailyRevenueWithBreakdown($booking, $property, $rateCalculation->toArray());
                     }
 
                     return $booking;
                 }, $isSqlite ? 1 : 5); // 5 attempts for non-SQLite, 1 for SQLite
-            } catch (\Illuminate\Database\QueryException $e) {
+            } catch (QueryException $e) {
                 // Check if it's a database lock error
                 if (str_contains($e->getMessage(), 'database is locked') && $attempt < $maxRetries) {
                     Log::warning("Database lock detected, retrying booking update (attempt {$attempt}/{$maxRetries})", [
@@ -141,13 +144,14 @@ class BookingService
                         'booking_id' => $booking->id,
                     ]);
                     usleep($retryDelay * $attempt); // Exponential backoff
+
                     continue;
                 }
                 throw $e;
             }
         }
 
-        throw new \Exception('Failed to update booking after ' . $maxRetries . ' attempts due to database lock');
+        throw new \Exception('Failed to update booking after '.$maxRetries.' attempts due to database lock');
     }
 
     /**
@@ -157,17 +161,32 @@ class BookingService
     {
         $breakdown = $rateCalculation['breakdown']['daily_breakdown'] ?? null;
 
-        if (!$breakdown || !is_array($breakdown)) {
+        if (! $breakdown || ! is_array($breakdown)) {
             // Fallback to simple insertion if no breakdown
             $this->insertDailyRevenueFromCalculation($booking, $rateCalculation);
+
             return;
         }
 
         // Delete existing daily revenue for this booking
-        \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+        BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+
+        // Calculate nights
+        $nights = 0;
+        foreach ($breakdown as $tanggal => $detail) {
+            if ($tanggal < $booking->check_out->format('Y-m-d')) {
+                $nights++;
+            }
+        }
+
+        // Distribute discount evenly across nights
+        $totalDiscount = (float) ($booking->discount_amount ?? 0);
+        $dailyDiscountBase = $nights > 0 ? (int) floor($totalDiscount / $nights) : 0;
+        $remainderDiscount = $nights > 0 ? (int) ($totalDiscount - ($dailyDiscountBase * $nights)) : 0;
 
         // Insert new daily revenue records with breakdown
         $revenueData = [];
+        $i = 0;
         foreach ($breakdown as $tanggal => $detail) {
             if ($tanggal >= $booking->check_out->format('Y-m-d')) {
                 continue;
@@ -203,32 +222,44 @@ class BookingService
 
             // Get extra bed amount for this day
             $extraBedAmount = $detail['extra_bed_rate'] ?? 0;
-            $extraBeds = \App\Services\RateCalculationService::calculateExtraBedCount($booking->guest_count, $property->capacity);
+            $extraBeds = $detail['extra_bed_count'] ?? RateCalculationService::calculateExtraBedCount($booking->guest_count, $property->capacity);
             $extraBedTotal = $extraBeds * $extraBedAmount;
 
             // Determine if weekend
             $dayName = $detail['day_name'] ?? '';
             $isWeekend = in_array($dayName, ['Friday', 'Saturday', 'Sunday']);
 
+            // Calculate current daily discount
+            $currentDailyDiscount = $dailyDiscountBase;
+            if ($i < $remainderDiscount) {
+                $currentDailyDiscount += 1;
+            }
+
+            // Daily amount is lodging rate + extra beds - distributed discount
+            $dailyAmount = ($finalRate + $extraBedTotal) - $currentDailyDiscount;
+
             $revenueData[] = [
                 'booking_id' => $booking->id,
                 'property_id' => $booking->property_id,
                 'tanggal' => $tanggal,
-                'amount' => $finalRate,
+                'amount' => $dailyAmount,
                 'base_amount' => $baseAmount,
                 'weekend_premium' => $weekendPremium,
                 'seasonal_premium' => $seasonalPremium,
                 'extra_bed_amount' => $extraBedTotal,
+                'extra_bed_count' => $extraBeds,
                 'rate_type' => $rateType,
                 'rate_name' => $rateName,
                 'is_weekend' => $isWeekend,
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
+
+            $i++;
         }
 
-        if (!empty($revenueData)) {
-            \App\Models\BookingDailyRevenue::insert($revenueData);
+        if (! empty($revenueData)) {
+            BookingDailyRevenue::insert($revenueData);
         }
     }
 
@@ -239,15 +270,29 @@ class BookingService
     {
         $breakdown = $rateCalculation['breakdown']['daily_breakdown'] ?? null;
 
-        if (!$breakdown || !is_array($breakdown)) {
+        if (! $breakdown || ! is_array($breakdown)) {
             return;
         }
 
         // Delete existing daily revenue for this booking
-        \App\Models\BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+        BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+
+        // Calculate nights
+        $nights = 0;
+        foreach ($breakdown as $tanggal => $detail) {
+            if ($tanggal < $booking->check_out->format('Y-m-d')) {
+                $nights++;
+            }
+        }
+
+        // Distribute discount evenly across nights
+        $totalDiscount = (float) ($booking->discount_amount ?? 0);
+        $dailyDiscountBase = $nights > 0 ? (int) floor($totalDiscount / $nights) : 0;
+        $remainderDiscount = $nights > 0 ? (int) ($totalDiscount - ($dailyDiscountBase * $nights)) : 0;
 
         // Insert new daily revenue records
         $revenueData = [];
+        $i = 0;
         foreach ($breakdown as $tanggal => $detail) {
             if ($tanggal >= $booking->check_out->format('Y-m-d')) {
                 continue;
@@ -259,11 +304,19 @@ class BookingService
                 $finalRate = (float) str_replace(['.', ','], ['', '.'], $finalRate);
             }
 
+            // Calculate current daily discount
+            $currentDailyDiscount = $dailyDiscountBase;
+            if ($i < $remainderDiscount) {
+                $currentDailyDiscount += 1;
+            }
+
+            $dailyAmount = $finalRate - $currentDailyDiscount;
+
             $revenueData[] = [
                 'booking_id' => $booking->id,
                 'property_id' => $booking->property_id,
                 'tanggal' => $tanggal,
-                'amount' => $finalRate,
+                'amount' => $dailyAmount,
                 'base_amount' => $detail['base_rate'] ?? 0,
                 'weekend_premium' => 0,
                 'seasonal_premium' => 0,
@@ -274,19 +327,17 @@ class BookingService
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
+
+            $i++;
         }
 
-        if (!empty($revenueData)) {
-            \App\Models\BookingDailyRevenue::insert($revenueData);
+        if (! empty($revenueData)) {
+            BookingDailyRevenue::insert($revenueData);
         }
     }
 
     /**
      * Alternative method for backward compatibility
-     * @param Property $property
-     * @param array $data
-     * @param User|null $user
-     * @return Booking
      */
     public function createBookingFromArray(Property $property, array $data, ?User $user = null): Booking
     {
@@ -321,7 +372,8 @@ class BookingService
 
     /**
      * Validate property availability
-     * @param int|null $excludeBookingId Optional booking ID to exclude from availability check (for updates)
+     *
+     * @param  int|null  $excludeBookingId  Optional booking ID to exclude from availability check (for updates)
      */
     private function validatePropertyAvailability(Property $property, string $checkIn, string $checkOut, ?int $excludeBookingId = null): bool
     {
@@ -332,11 +384,11 @@ class BookingService
                 ->where('booking_status', '!=', 'cancelled')
                 ->where('id', '!=', $excludeBookingId)
                 ->where(function ($query) use ($checkIn, $checkOut) {
-                    $query->where(function ($q) use ($checkIn, $checkOut) {
+                    $query->where(function ($q) use ($checkIn) {
                         $q->where('check_in', '<=', $checkIn)
                             ->where('check_out', '>', $checkIn);
                     })
-                        ->orWhere(function ($q) use ($checkIn, $checkOut) {
+                        ->orWhere(function ($q) use ($checkOut) {
                             $q->where('check_in', '<', $checkOut)
                                 ->where('check_out', '>=', $checkOut);
                         })
@@ -359,7 +411,7 @@ class BookingService
     /**
      * Get user bookings
      */
-    public function getUserBookings(User $user): \Illuminate\Support\Collection
+    public function getUserBookings(User $user): Collection
     {
         return $this->bookingRepository->getUserBookings($user);
     }
@@ -397,9 +449,9 @@ class BookingService
     /**
      * Calculate rate using RateCalculationService
      */
-    public function calculateRate(Property $property, string $checkIn, string $checkOut, int $guestCount): RateCalculation
+    public function calculateRate(Property $property, string $checkIn, string $checkOut, int $guestCount, ?array $dailyExtraBeds = null): RateCalculation
     {
-        return $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount);
+        return $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount, $dailyExtraBeds);
     }
 
     /**
@@ -408,7 +460,7 @@ class BookingService
      */
     public function validateMinimumStay(Property $property, string $checkIn, string $checkOut): bool
     {
-        return \App\Services\PropertyBusinessRulesService::validateMinimumStay($property, $checkIn, $checkOut);
+        return PropertyBusinessRulesService::validateMinimumStay($property, $checkIn, $checkOut);
     }
 
     /**

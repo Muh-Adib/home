@@ -9,9 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { type BreadcrumbItem, type PageProps } from '@/types';
-import { 
-    User, 
-    Save, 
+import {
+    User,
+    Save,
     ArrowLeft,
     Shield,
     AlertCircle,
@@ -87,8 +87,8 @@ export default function CreateUser() {
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Create User - Admin Dashboard" />
-            
-            <div className="space-y-6 p-4 md:p-6">
+
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
@@ -97,7 +97,7 @@ export default function CreateUser() {
                             Add a new user to the system
                         </p>
                     </div>
-                    
+
                     <Button variant="outline" asChild>
                         <Link href="/admin/users">
                             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -122,9 +122,9 @@ export default function CreateUser() {
                                 <div className="flex items-center gap-4">
                                     <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
                                         {data.avatar ? (
-                                            <img 
-                                                src={URL.createObjectURL(data.avatar)} 
-                                                alt="Avatar preview" 
+                                            <img
+                                                src={URL.createObjectURL(data.avatar)}
+                                                alt="Avatar preview"
                                                 className="w-full h-full object-cover"
                                             />
                                         ) : (

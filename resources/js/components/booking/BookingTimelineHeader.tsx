@@ -12,8 +12,8 @@ export default function BookingTimelineHeader({ dates, cellWidth = 60 }: Booking
         <div className="bg-white border-b border-gray-200 shadow-sm">
             <div className="flex">
                 {/* Property names column (Sticky Left) */}
-                <div className="w-36 sm:w-52 flex-shrink-0 border-r border-gray-200 bg-gray-50 p-3 sticky left-0 z-30 shadow-[1px_0_0_0_rgba(209,213,219,0.5)]">
-                    <h3 className="text-sm font-semibold text-gray-700">Properties</h3>
+                <div className="w-24 sm:w-52 flex-shrink-0 border-r border-gray-200 bg-gray-50 p-2 sm:p-3 sticky left-0 z-30 shadow-[1px_0_0_0_rgba(209,213,219,0.5)] overflow-hidden">
+                    <h3 className="text-xs sm:text-sm font-semibold text-gray-700">Properties</h3>
                 </div>
 
                 {/* Timeline dates */}
@@ -22,9 +22,8 @@ export default function BookingTimelineHeader({ dates, cellWidth = 60 }: Booking
                         <div
                             key={index}
                             className={cn(
-                                "flex-shrink-0 border-r border-gray-200 p-2 text-center",
-                                isToday(date) && "bg-blue-50 border-blue-200",
-                                isWeekend(date) && "bg-orange-50"
+                                "flex-shrink-0 border-r p-2 text-center",
+                                isToday(date) ? "bg-blue-50 border-blue-200" : (isWeekend(date) ? "bg-emerald-50 border-emerald-200" : "border-gray-200")
                             )}
                             style={{ width: cellWidth }}
                         >

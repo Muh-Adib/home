@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { type User, type BreadcrumbItem, type PageProps } from '@/types';
 import { Link, useForm, usePage } from '@inertiajs/react';
-import { 
+import {
     ArrowLeft,
     Save,
     Upload,
@@ -99,43 +99,43 @@ export default function UserEdit({ user }: UserEditProps) {
 
     const getRoleInfo = (role: User['role']) => {
         const roleConfig = {
-            super_admin: { 
-                label: 'Super Admin', 
+            super_admin: {
+                label: 'Super Admin',
                 icon: Crown,
                 description: 'Full system access and control'
             },
-            property_owner: { 
-                label: 'Property Owner', 
+            property_owner: {
+                label: 'Property Owner',
                 icon: Building2,
                 description: 'Owns and manages properties'
             },
-            property_manager: { 
-                label: 'Property Manager', 
+            property_manager: {
+                label: 'Property Manager',
                 icon: Shield,
                 description: 'Manages multiple properties'
             },
-            front_desk: { 
-                label: 'Front Desk', 
+            front_desk: {
+                label: 'Front Desk',
                 icon: ClipboardList,
                 description: 'Handles check-in/out and guest services'
             },
-            finance: { 
-                label: 'Finance', 
+            finance: {
+                label: 'Finance',
                 icon: DollarSign,
                 description: 'Manages payments and financial operations'
             },
-            housekeeping: { 
-                label: 'Housekeeping', 
+            housekeeping: {
+                label: 'Housekeeping',
                 icon: Home,
                 description: 'Cleaning and maintenance staff'
             },
-            guest: { 
-                label: 'Guest', 
+            guest: {
+                label: 'Guest',
                 icon: Users,
                 description: 'Customer with booking access'
             },
         };
-        
+
         return roleConfig[role];
     };
 
@@ -153,13 +153,13 @@ export default function UserEdit({ user }: UserEditProps) {
     };
 
     const availableRoles = canEditRole() ? [
-        'super_admin', 'property_owner', 'property_manager', 
+        'super_admin', 'property_owner', 'property_manager',
         'front_desk', 'finance', 'housekeeping', 'guest'
     ] : ['guest'];
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
-            <div className="space-y-6 p-4 md:p-6">
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex items-center gap-4">
@@ -195,7 +195,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                             <AvatarImage src={previewImage || (user.avatar ? (user.avatar.startsWith('http') ? user.avatar : `/storage/${user.avatar}`) : undefined)} alt={user.name} />
                                             <AvatarFallback className="text-lg">{getInitials(user.name)}</AvatarFallback>
                                         </Avatar>
-                                        
+
                                         <input
                                             ref={fileInputRef}
                                             type="file"
@@ -203,7 +203,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                             onChange={handleImageUpload}
                                             className="hidden"
                                         />
-                                        
+
                                         <Button
                                             type="button"
                                             variant="outline"
@@ -212,7 +212,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                             <Upload className="h-4 w-4 mr-2" />
                                             Upload Foto
                                         </Button>
-                                        
+
                                         {errors.avatar && (
                                             <p className="text-sm text-red-600">{errors.avatar}</p>
                                         )}
@@ -360,7 +360,7 @@ export default function UserEdit({ user }: UserEditProps) {
                                         {canEditStatus() && (
                                             <div className="space-y-2">
                                                 <Label htmlFor="status">Status</Label>
-                                                <Select value={data.status} onValueChange={(value:User['status']) => setData('status', value)}>
+                                                <Select value={data.status} onValueChange={(value: User['status']) => setData('status', value)}>
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Pilih status" />
                                                     </SelectTrigger>

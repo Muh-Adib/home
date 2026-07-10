@@ -43,6 +43,8 @@ interface Booking {
         id: number;
         name: string;
         address: string;
+        bank_account_id?: number;
+        payment_method_id?: number | null;
     };
     total_amount: number;
     dp_amount: number;
@@ -83,20 +85,31 @@ interface User {
     email: string;
 }
 
+interface BankAccount {
+    id: number;
+    bank_name: string;
+    bank_code?: string;
+    account_number: string;
+    account_holder: string;
+    label: string;
+    payment_method_id?: number | null;
+}
+
 interface CreateForBookingProps {
     booking: Booking;
     paymentMethods: PaymentMethod[];
+    bankAccounts?: BankAccount[];
     users: User[];
 }
 
-export default function CreateForBooking({ booking, paymentMethods, users }: CreateForBookingProps) {
+export default function CreateForBooking({ booking, paymentMethods, bankAccounts = [], users }: CreateForBookingProps) {
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
-    const [paymentMethodType, setPaymentMethodType] = useState<'ipaymu' | 'manual'>('ipaymu');
+    const [paymentMethodType, setPaymentMethodType] = useState<'ipaymu' | 'manual'>('manual');
     const [selectedIpaymuMethod, setSelectedIpaymuMethod] = useState<PaymentMethod | null>(null);
     const [expiryHours, setExpiryHours] = useState<number>(24);
 
     const { data, setData, post, processing, errors } = useForm({
-        payment_method_type: 'ipaymu' as 'ipaymu' | 'manual',
+        payment_method_type: 'manual' as 'ipaymu' | 'manual',
         payment_method_id: '',
         amount: '',
         payment_type: 'dp' as 'dp' | 'remaining' | 'full' | 'refund' | 'penalty',
@@ -140,6 +153,45 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
         }
     }, [booking]);
 
+    // Pre-populate default bank account from booking property configuration
+    useEffect(() => {
+        if (booking.property && bankAccounts.length > 0) {
+            if (booking.property.payment_method_id) {
+                const matchingMethod = paymentMethods.find(m => m.id === booking.property.payment_method_id);
+                if (matchingMethod) {
+                    const propertyBankAccount = bankAccounts.find(acc => acc.id === booking.property.bank_account_id);
+                    setSelectedPaymentMethod(matchingMethod);
+                    setData(prev => ({
+                        ...prev,
+                        payment_method_id: matchingMethod.id.toString(),
+                        bank_name: propertyBankAccount ? propertyBankAccount.bank_name : (matchingMethod.bank_name || ''),
+                        account_number: propertyBankAccount ? propertyBankAccount.account_number : (matchingMethod.account_number || ''),
+                        account_name: propertyBankAccount ? propertyBankAccount.account_holder : (matchingMethod.account_name || ''),
+                    }));
+                    return;
+                }
+            }
+
+            // Fallback
+            if (booking.property.bank_account_id) {
+                const propertyBankAccount = bankAccounts.find(acc => acc.id === booking.property.bank_account_id);
+                if (propertyBankAccount) {
+                    const matchingMethod = paymentMethods.find(m => m.type === 'bank_transfer' && m.code === propertyBankAccount.bank_code);
+                    if (matchingMethod) {
+                        setSelectedPaymentMethod(matchingMethod);
+                        setData(prev => ({
+                            ...prev,
+                            payment_method_id: matchingMethod.id.toString(),
+                            bank_name: propertyBankAccount.bank_name,
+                            account_number: propertyBankAccount.account_number,
+                            account_name: propertyBankAccount.account_holder,
+                        }));
+                    }
+                }
+            }
+        }
+    }, [booking.property, bankAccounts, paymentMethods]);
+
     // Update payment method details when payment method changes (for manual)
     useEffect(() => {
         if (paymentMethodType === 'manual' && data.payment_method_id) {
@@ -147,15 +199,29 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
             setSelectedPaymentMethod(method || null);
 
             if (method) {
-                setData(prev => ({
-                    ...prev,
-                    bank_name: method.bank_name || '',
-                    account_number: method.account_number || '',
-                    account_name: method.account_name || ''
-                }));
+                if (method.type === 'bank_transfer') {
+                    const propertyBankAccount = bankAccounts.find(acc => acc.id === booking.property?.bank_account_id && acc.payment_method_id === method.id);
+                    const matchedAccount = propertyBankAccount || bankAccounts.find(acc => acc.payment_method_id === method.id) || bankAccounts.find(acc => acc.bank_code === method.code);
+                    
+                    if (matchedAccount) {
+                        setData(prev => ({
+                            ...prev,
+                            bank_name: matchedAccount.bank_name,
+                            account_number: matchedAccount.account_number,
+                            account_name: matchedAccount.account_holder
+                        }));
+                    }
+                } else {
+                    setData(prev => ({
+                        ...prev,
+                        bank_name: method.bank_name || '',
+                        account_number: method.account_number || '',
+                        account_name: method.account_name || ''
+                    }));
+                }
             }
         }
-    }, [data.payment_method_id, paymentMethodType]);
+    }, [data.payment_method_id, paymentMethodType, bankAccounts, booking.property]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -331,76 +397,9 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                             </CardHeader>
                             <CardContent>
                                 <form onSubmit={handleSubmit} className="space-y-6">
-                                    {/* Payment Method Type Selection */}
-                                    <div className="space-y-4">
-                                        <Label className="text-base font-semibold">Metode Pembayaran *</Label>
-                                        <RadioGroup
-                                            value={paymentMethodType}
-                                            onValueChange={(value: 'ipaymu' | 'manual') => {
-                                                setPaymentMethodType(value);
-                                                setData('payment_method_type', value);
-                                                if (value === 'ipaymu') {
-                                                    setData('payment_status', 'pending');
-                                                }
-                                            }}
-                                            className="grid grid-cols-2 gap-4"
-                                        >
-                                            <div
-                                                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover-lift ${paymentMethodType === 'ipaymu'
-                                                        ? 'border-brand-primary bg-brand-primary-20 ring-2 ring-brand-primary-30 shadow-md'
-                                                        : 'border-border hover:border-brand-primary/50'
-                                                    }`}
-                                                onClick={() => {
-                                                    setPaymentMethodType('ipaymu');
-                                                    setData('payment_method_type', 'ipaymu');
-                                                    setData('payment_status', 'pending');
-                                                }}
-                                            >
-                                                <RadioGroupItem value="ipaymu" id="method-ipaymu" className="mb-2" />
-                                                <label htmlFor="method-ipaymu" className="cursor-pointer">
-                                                    <div className="flex items-center gap-3">
-                                                        <Zap className="h-6 w-6 text-green-600" />
-                                                        <div>
-                                                            <div className="font-semibold text-lg">iPaymu Payment Gateway</div>
-                                                            <div className="text-sm text-muted-foreground">
-                                                                Bank Transfer, E-Wallet, QRIS
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </label>
-                                            </div>
-
-                                            <div
-                                                className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover-lift ${paymentMethodType === 'manual'
-                                                        ? 'border-brand-primary bg-brand-primary-20 ring-2 ring-brand-primary-30 shadow-md'
-                                                        : 'border-border hover:border-brand-primary/50'
-                                                    }`}
-                                                onClick={() => {
-                                                    setPaymentMethodType('manual');
-                                                    setData('payment_method_type', 'manual');
-                                                }}
-                                            >
-                                                <RadioGroupItem value="manual" id="method-manual" className="mb-2" />
-                                                <label htmlFor="method-manual" className="cursor-pointer">
-                                                    <div className="flex items-center gap-3">
-                                                        <Upload className="h-6 w-6 text-blue-600" />
-                                                        <div>
-                                                            <div className="font-semibold text-lg">Manual Transfer</div>
-                                                            <div className="text-sm text-muted-foreground">
-                                                                Upload bukti transfer
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </label>
-                                            </div>
-                                        </RadioGroup>
-                                        {errors.payment_method_type && (
-                                            <p className="text-sm text-destructive">{errors.payment_method_type}</p>
-                                        )}
-                                    </div>
 
                                     {/* iPaymu Payment Method Selection */}
-                                    {paymentMethodType === 'ipaymu' && (
+                                    {false && (
                                         <>
                                             <div className="space-y-2">
                                                 <Label htmlFor="ipaymu_payment_method">Pilih Channel Pembayaran</Label>
@@ -459,12 +458,35 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                     )}
 
                                     {/* Manual Payment Method Selection */}
-                                    {paymentMethodType === 'manual' && (
+                                    {true && (
                                         <div className="space-y-2">
                                             <Label htmlFor="payment_method_id">Payment Method *</Label>
                                             <Select
                                                 value={data.payment_method_id}
-                                                onValueChange={(value) => setData('payment_method_id', value)}
+                                                onValueChange={(value) => {
+                                                    setData('payment_method_id', value);
+                                                    const method = paymentMethods.find(m => m.id.toString() === value);
+                                                    if (method && method.type === 'bank_transfer') {
+                                                        const firstMatchingAccount = bankAccounts.find(acc => acc.bank_code === method.code);
+                                                        if (firstMatchingAccount) {
+                                                            setData(d => ({
+                                                                ...d,
+                                                                payment_method_id: value,
+                                                                bank_name: firstMatchingAccount.bank_name,
+                                                                account_number: firstMatchingAccount.account_number,
+                                                                account_name: firstMatchingAccount.account_holder
+                                                            }));
+                                                        }
+                                                    } else {
+                                                        setData(d => ({
+                                                            ...d,
+                                                            payment_method_id: value,
+                                                            bank_name: '',
+                                                            account_number: '',
+                                                            account_name: ''
+                                                        }));
+                                                    }
+                                                }}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select payment method" />
@@ -483,6 +505,41 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                             </Select>
                                             {errors.payment_method_id && (
                                                 <p className="text-sm text-destructive">{errors.payment_method_id}</p>
+                                            )}
+
+                                            {selectedPaymentMethod?.type === 'bank_transfer' && (
+                                                <div className="space-y-2 mt-4">
+                                                    <Label htmlFor="bank_account_select">Rekening Bank Tujuan *</Label>
+                                                    <Select
+                                                        value={bankAccounts.find(acc => acc.account_number === data.account_number)?.id.toString() || ''}
+                                                        onValueChange={(accId) => {
+                                                            const acc = bankAccounts.find(a => a.id.toString() === accId);
+                                                            if (acc) {
+                                                                setData(d => ({
+                                                                    ...d,
+                                                                    bank_name: acc.bank_name,
+                                                                    account_number: acc.account_number,
+                                                                    account_name: acc.account_holder
+                                                                }));
+                                                            }
+                                                        }}
+                                                    >
+                                                        <SelectTrigger id="bank_account_select">
+                                                            <SelectValue placeholder="Pilih rekening bank tujuan" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {bankAccounts
+                                                                .filter(acc => acc.bank_code === selectedPaymentMethod.code)
+                                                                .map(acc => (
+                                                                    <SelectItem key={acc.id} value={acc.id.toString()}>
+                                                                        <span className="font-medium">{acc.label}</span>
+                                                                        <span className="text-muted-foreground ml-2 font-mono text-xs">({acc.account_number})</span>
+                                                                    </SelectItem>
+                                                                ))
+                                                            }
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
                                             )}
                                         </div>
                                     )}
@@ -624,39 +681,13 @@ export default function CreateForBooking({ booking, paymentMethods, users }: Cre
                                         )}
                                     </div>
 
-                                    {/* Bank Details (if bank transfer) - Only for Manual */}
-                                    {paymentMethodType === 'manual' && selectedPaymentMethod?.type === 'bank_transfer' && (
-                                        <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
-                                            <h4 className="font-medium">Bank Transfer Details</h4>
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="bank_name">Bank Name</Label>
-                                                    <Input
-                                                        id="bank_name"
-                                                        value={data.bank_name}
-                                                        onChange={(e) => setData('bank_name', e.target.value)}
-                                                        placeholder="Bank name"
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="account_number">Account Number</Label>
-                                                    <Input
-                                                        id="account_number"
-                                                        value={data.account_number}
-                                                        onChange={(e) => setData('account_number', e.target.value)}
-                                                        placeholder="Account number"
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="account_name">Account Name</Label>
-                                                    <Input
-                                                        id="account_name"
-                                                        value={data.account_name}
-                                                        onChange={(e) => setData('account_name', e.target.value)}
-                                                        placeholder="Account holder name"
-                                                    />
-                                                </div>
-                                            </div>
+                                    {/* Bank Transfer destination info — shown as a read-only confirmation strip, no duplication */}
+                                    {paymentMethodType === 'manual' && selectedPaymentMethod?.type === 'bank_transfer' && data.account_number && (
+                                        <div className="flex items-center gap-3 px-4 py-3 border rounded-lg bg-emerald-50 border-emerald-200 text-sm">
+                                            <span className="text-emerald-600 font-medium">✓ Tujuan Transfer:</span>
+                                            <span className="font-semibold">{data.bank_name}</span>
+                                            <span className="font-mono text-emerald-700 font-bold">{data.account_number}</span>
+                                            <span className="text-slate-600">a/n {data.account_name}</span>
                                         </div>
                                     )}
 

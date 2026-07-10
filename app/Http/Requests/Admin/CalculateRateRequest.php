@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CalculateRateRequest extends FormRequest
@@ -19,7 +20,7 @@ class CalculateRateRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -28,6 +29,8 @@ class CalculateRateRequest extends FormRequest
             'check_in' => 'required|date',
             'check_out' => 'required|date|after:check_in',
             'guest_count' => 'required|integer|min:1',
+            'daily_extra_beds' => 'nullable|array',
+            'daily_extra_beds.*' => 'integer|min:0',
         ];
     }
 

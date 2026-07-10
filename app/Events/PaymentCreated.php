@@ -6,7 +6,6 @@ use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -17,12 +16,13 @@ class PaymentCreated implements ShouldBroadcast
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public Payment $payment;
-    public User $user;
+
+    public ?User $user;
 
     /**
      * Create a new event instance.
      */
-    public function __construct(Payment $payment, User $user)
+    public function __construct(Payment $payment, ?User $user = null)
     {
         $this->payment = $payment;
         $this->user = $user;
@@ -31,14 +31,19 @@ class PaymentCreated implements ShouldBroadcast
     /**
      * Get the channels the event should broadcast on.
      *
-     * @return array<int, \Illuminate\Broadcasting\Channel>
+     * @return array<int, Channel>
      */
     public function broadcastOn(): array
     {
-        return [
-            new PrivateChannel('user.' . $this->user->id),
+        $channels = [
             new Channel('admin-notifications'),
         ];
+
+        if ($this->user) {
+            $channels[] = new PrivateChannel('user.'.$this->user->id);
+        }
+
+        return $channels;
     }
 
     /**

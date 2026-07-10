@@ -19,6 +19,9 @@ import {
     Search,
 } from "lucide-react";
 import { useBookingTimeline } from "@/hooks/useBookingTimeline";
+import { apiGet } from "@/lib/api";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface BookingTimelineProps {
     properties: Property[];
@@ -49,7 +52,31 @@ export default function BookingTimeline({
 }: BookingTimelineProps) {
     const timelineRef = useRef<HTMLDivElement | null>(null);
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-    const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+    const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+    const [detailedBooking, setDetailedBooking] = useState<Booking | null>(null);
+    const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+    const handleBookingClick = async (booking: Booking) => {
+        setSelectedBookingId(booking.id);
+        setIsLoadingDetail(true);
+        try {
+            const res = await apiGet<{ success: boolean; booking: Booking }>(
+                `/api/admin/booking-management/bookings/${booking.booking_number}`
+            );
+            if (res && res.success && res.booking) {
+                setDetailedBooking(res.booking);
+            } else {
+                setSelectedBookingId(null);
+                toast.error("Gagal memuat detail booking.");
+            }
+        } catch (err) {
+            console.error("Failed to load booking details:", err);
+            setSelectedBookingId(null);
+            toast.error("Gagal memuat detail booking.");
+        } finally {
+            setIsLoadingDetail(false);
+        }
+    };
 
     const {
         localBookings,
@@ -90,13 +117,12 @@ export default function BookingTimeline({
 
     return (
         <div
-            className={`space-y-4 group ${isFullscreen ? 'bg-white h-screen overflow-hidden flex flex-col' : ''}`}
+            className={`${isFullscreen ? 'bg-white h-screen overflow-hidden flex flex-col' : 'space-y-4 group'}`}
             ref={timelineRef}
-            onMouseLeave={() => isFullscreen && setControlsVisible(false)}
         >
             {/* Header */}
-            <div className={`transition-all duration-300 ease-in-out z-50 ${isFullscreen ? (controlsVisible ? 'opacity-100 translate-y-0 absolute w-full top-0' : 'opacity-0 -translate-y-full absolute w-full top-0 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto') : ''}`}>
-                <Card className={`border-none shadow-md rounded-2xl bg-white/95 backdrop-blur ${isFullscreen ? 'rounded-none' : ''}`}>
+            <div className={`z-50 ${isFullscreen ? 'w-full shrink-0 border-b border-slate-200' : ''}`}>
+                <Card className={`border-none shadow-md rounded-2xl bg-white ${isFullscreen ? 'rounded-none shadow-none' : ''}`}>
                     <CardHeader className="pb-3">
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
@@ -152,8 +178,8 @@ export default function BookingTimeline({
             </div>
 
             {/* Timeline Area */}
-            <Card className={`rounded-2xl shadow-md border-none overflow-hidden bg-white ${isFullscreen ? 'h-full rounded-none flex-1 mt-0' : ''}`}>
-                <CardContent className={`p-0 ${isFullscreen ? 'h-full' : ''}`}>
+            <Card className={`rounded-2xl shadow-md border-none overflow-hidden bg-white ${isFullscreen ? 'h-full rounded-none flex-1 mt-0 flex flex-col' : ''}`}>
+                <CardContent className={`p-0 ${isFullscreen ? 'h-full flex-1 flex flex-col overflow-hidden' : ''}`}>
                     <div
                         ref={scrollContainerRef}
                         onScroll={handleScroll}
@@ -161,32 +187,32 @@ export default function BookingTimeline({
                         onMouseLeave={handleMouseLeave}
                         onMouseUp={handleMouseUp}
                         onMouseMove={handleMouseMove}
-                        className={`overflow-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-500 transition-colors cursor-grab ${isFullscreen ? 'h-full' : 'max-h-[75vh]'}`}
+                        className={`overflow-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-500 transition-colors cursor-grab ${isFullscreen ? 'flex-1 h-full' : 'max-h-[75vh]'}`}
                     >
                         {isInitialLoading ? (
                             <div className="space-y-4 p-4 animate-pulse">
                                 <div className="flex gap-2">
-                                    <div className="w-[260px] h-16 bg-gray-200 rounded"></div>
+                                    <div className="w-24 sm:w-52 h-16 bg-gray-200 rounded flex-shrink-0"></div>
                                     <div className="flex-1 flex gap-2">
                                         {[...Array(10)].map((_, i) => (
-                                            <div key={i} className="w-24 h-16 bg-gray-200 rounded"></div>
+                                            <div key={i} className="w-24 h-16 bg-gray-200 rounded flex-shrink-0"></div>
                                         ))}
                                     </div>
                                 </div>
                                 {[...Array(5)].map((_, i) => (
                                     <div key={i} className="flex gap-2">
-                                        <div className="w-[260px] h-20 bg-gray-100 rounded"></div>
+                                        <div className="w-24 sm:w-52 h-20 bg-gray-100 rounded flex-shrink-0"></div>
                                         <div className="flex-1 flex gap-2">
                                             {[...Array(10)].map((_, j) => (
-                                                <div key={j} className="w-24 h-20 bg-gray-100 rounded"></div>
+                                                <div key={j} className="w-24 h-20 bg-gray-100 rounded flex-shrink-0"></div>
                                             ))}
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div className="min-w-fit transition-all duration-100" style={{ width: timelineWidth + 260 }}>
-                                <div className={`sticky ${isFullscreen ? (controlsVisible ? 'top-[80px]' : 'top-0') : 'top-0'} z-30 bg-white shadow-sm transition-all duration-300`}>
+                            <div className="min-w-max transition-all duration-100">
+                                <div className="sticky top-0 z-30 bg-white shadow-sm transition-all duration-300">
                                     <BookingTimelineHeader dates={timelineDates} cellWidth={cellWidth} />
                                 </div>
                                 <div className="relative divide-y select-none">
@@ -198,7 +224,7 @@ export default function BookingTimeline({
                                             timelineDates={timelineDates}
                                             cellWidth={cellWidth}
                                             rowHeight={rowHeight}
-                                            onBookingClick={setSelectedBooking}
+                                            onBookingClick={handleBookingClick}
                                         />
                                     ))}
                                 </div>
@@ -211,15 +237,28 @@ export default function BookingTimeline({
             <div className={isFullscreen ? "fixed z-[100] top-0 left-0 w-full h-full pointer-events-none flex items-center justify-center p-4" : ""}>
                 <div className="pointer-events-auto">
                     <BookingDetailModal
-                        booking={selectedBooking}
-                        isOpen={!!selectedBooking}
-                        onClose={() => setSelectedBooking(null)}
+                        booking={detailedBooking}
+                        isOpen={!!selectedBookingId}
+                        onClose={() => {
+                            setSelectedBookingId(null);
+                            setDetailedBooking(null);
+                        }}
                         canVerify={canVerify}
                         canCancel={canCancel}
                         canCheckIn={canCheckIn}
+                        onBookingUpdated={(updated) => setDetailedBooking(updated)}
                     />
                 </div>
             </div>
+
+            {isLoadingDetail && (
+                <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center pointer-events-auto">
+                    <div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center gap-3 border border-slate-200">
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                        <span className="text-sm font-semibold text-slate-700">Loading booking details...</span>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

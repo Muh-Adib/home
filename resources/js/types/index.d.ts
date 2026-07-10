@@ -110,6 +110,18 @@ export interface Property {
     checkin_instructions: CheckinInstructions;
     ical_import_urls?: string[];
     ical_export_token?: string;
+    bank_account_id?: number;
+    bank_account?: any;
+    payment_method_id?: number | null;
+    payment_method?: any;
+    ownership_model?: 'owned' | 'rented' | 'partnership';
+    initial_build_capital?: number;
+    lease_capital?: number;
+    monthly_rent_cost?: number;
+    monthly_mortgage_cost?: number;
+    mortgage_interest_monthly?: number;
+    owner_split_pct?: number;
+    investor_split_pct?: number;
 }
 
 export interface CheckinInstructions {
@@ -174,6 +186,7 @@ export interface Booking {
     guest_name: string;
     guest_email: string;
     guest_phone: string;
+    guest_phone_alternative?: string;
     guest_country: string;
     guest_id_number: string;
     guest_gender: string;
@@ -193,6 +206,7 @@ export interface Booking {
     dp_amount: number;
     total_amount: number;
     remaining_amount: number;
+    discount_amount: number;
     booking_status: BookingStatus;
     payment_status: PaymentStatus;
     verification_status: 'pending' | 'approved' | 'rejected';
@@ -225,6 +239,9 @@ export interface Booking {
 
     //ical sync
     external_reservation_url?:string;
+    rate_calculation?: any;
+    daily_extra_beds?: Record<string, number>;
+    followed_up_by?: number | string;
 }
 
 export interface BookingGuest {
@@ -250,6 +267,10 @@ export interface BookingService {
     quantity: number;
     unit_price: number;
     total_price: number;
+    service_date?: string;
+    discount_amount?: number;
+    vendor_unit_price?: number;
+    vendor_total_price?: number;
     description?: string;
     created_at: string;
     updated_at: string;
@@ -290,6 +311,7 @@ export interface Payment {
     verified_at?: string;
     gateway_transaction_id?: string;
     gateway_response?: any;
+    unique_code?: number;
     created_at: string;
     updated_at: string;
     booking?: Booking;

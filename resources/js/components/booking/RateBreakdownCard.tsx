@@ -28,6 +28,8 @@ interface DailyRateBreakdown {
         type: string;
         value: number;
     };
+    extra_bed_rate?: number;
+    extra_bed_count?: number;
 }
 
 interface RateBreakdown {
@@ -55,6 +57,7 @@ interface RateCalculation {
     base_amount?: number;
     total_base_amount?: number;
     total_amount?: number;
+    extra_bed_amount?: number;
     summary?: {
         average_nightly_rate?: number;
         total_nights?: number;
@@ -69,12 +72,16 @@ interface RateBreakdownCardProps {
     rateCalculation?: RateCalculation | null;
     checkIn: string;
     checkOut: string;
+    discountAmount?: number;
+    services?: any[];
 }
 
 export default function RateBreakdownCard({
     rateCalculation,
     checkIn,
     checkOut,
+    discountAmount = 0,
+    services = [],
 }: RateBreakdownCardProps) {
     const formatCurrency = (value: number) =>
         new Intl.NumberFormat('id-ID', {
@@ -153,23 +160,33 @@ export default function RateBreakdownCard({
     // This prevents discrepancies due to floating point precision or calculation differences
     const summary = rateCalculation?.summary || rateCalculation?.breakdown?.summary;
 
+    const totalServices = services ? services.reduce((sum, s) => sum + Number(s.total_price || 0), 0) : 0;
+
     // Use backend-calculated values first, fallback to calculation only if not available
     const totalBaseRate = summary?.base_nights_rate ??
         rateCalculation?.total_base_amount ??
         rateCalculation?.base_amount ??
         sortedBreakdown.reduce((sum, day) => sum + day.base_rate, 0);
 
-    // Always use total_amount from backend as it's the source of truth
-    const totalFinalRate = rateCalculation?.total_amount ??
-        sortedBreakdown.reduce((sum, day) => sum + day.final_rate, 0);
+    const totalExtraBed = rateCalculation?.extra_bed_amount ??
+        sortedBreakdown.reduce((sum, day) => sum + (day.extra_bed_count || 0) * (day.extra_bed_rate || 0), 0);
+
+    // Sum of room rate & extra bed rate (backend source of truth)
+    const totalRoomAndBed = rateCalculation?.total_amount ??
+        (sortedBreakdown.reduce((sum, day) => sum + day.final_rate, 0) + totalExtraBed);
+
+    // Total final rate should be room + beds + services
+    const totalFinalRateRaw = totalRoomAndBed + totalServices;
+
+    const totalFinalRate = Math.max(0, totalFinalRateRaw - discountAmount);
 
     // Use backend-calculated premiums, otherwise calculate from difference
     const totalPremium = summary?.total_premiums ??
-        (totalFinalRate - totalBaseRate);
+        (sortedBreakdown.reduce((sum, day) => sum + day.final_rate, 0) - totalBaseRate);
 
     // Use backend-calculated average, otherwise calculate from final rate
     const averageRate = summary?.average_nightly_rate ??
-        (sortedBreakdown.length > 0 ? totalFinalRate / sortedBreakdown.length : 0);
+        (sortedBreakdown.length > 0 ? totalRoomAndBed / sortedBreakdown.length : 0);
 
     // Get premium badges
     const getPremiumBadges = (day: DailyRateBreakdown) => {
@@ -222,43 +239,48 @@ export default function RateBreakdownCard({
         return badges;
     };
 
+    const getServicesOnDate = (dateStr: string) => {
+        const normalized = dateStr.split(' ')[0].split('T')[0];
+        return services.filter(s => s.service_date && s.service_date.split(' ')[0].split('T')[0] === normalized);
+    };
+
     return (
-        <Card className='gap-0'>
+        <Card className='gap-0 overflow-y-hidden'>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Calendar className="h-5 w-5" />
                     Rate Breakdown Per Malam
                 </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 p-3 sm:p-6">
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 gap-0">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
                     <div className="p-2 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                             <DollarSign className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium text-muted-foreground">
+                            <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                                 Rata-rata per Malam
                             </span>
                         </div>
-                        <p className="text-2xl font-bold">{formatCurrency(averageRate)}</p>
+                        <p className="text-xl sm:text-2xl font-bold">{formatCurrency(averageRate)}</p>
                     </div>
                     <div className="p-2 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                             <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium text-muted-foreground">
+                            <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                                 Total Base Rate
                             </span>
                         </div>
-                        <p className="text-2xl font-bold">{formatCurrency(totalBaseRate)}</p>
+                        <p className="text-xl sm:text-2xl font-bold">{formatCurrency(totalBaseRate)}</p>
                     </div>
                     <div className="p-2 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                             <DollarSign className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium text-muted-foreground">
+                            <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                                 Total Final Rate
                             </span>
                         </div>
-                        <p className="text-2xl font-bold text-primary">
+                        <p className="text-xl sm:text-2xl font-bold text-primary">
                             {formatCurrency(totalFinalRate)}
                         </p>
                     </div>
@@ -267,16 +289,16 @@ export default function RateBreakdownCard({
                 <Separator />
 
                 {/* Daily Breakdown Table */}
-                <div className="rounded-md border overflow-x-auto max-w-full">
-                    <Table>
+                <div className="rounded-md border overflow-x-auto overflow-y-hidden max-w-full">
+                    <Table className="overflow-y-hidden">
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[150px]">Tanggal</TableHead>
-                                <TableHead>Hari</TableHead>
-                                <TableHead className="text-right">Base Rate</TableHead>
-                                <TableHead className="text-right">Final Rate</TableHead>
-                                <TableHead className="text-right">Premium</TableHead>
-                                <TableHead>Keterangan</TableHead>
+                                <TableHead className="py-1.5 px-2 text-xs">Tanggal</TableHead>
+                                <TableHead className="py-1.5 px-2 text-right text-xs">Tarif Kamar</TableHead>
+                                <TableHead className="py-1.5 px-2 text-right text-xs">Premium</TableHead>
+                                <TableHead className="py-1.5 px-2 text-right text-xs">Extra Bed</TableHead>
+                                <TableHead className="py-1.5 px-2 text-right text-xs">Layanan Tambahan</TableHead>
+                                <TableHead className="py-1.5 px-2 text-xs">Keterangan</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -286,41 +308,58 @@ export default function RateBreakdownCard({
                                     day.day_name.toLowerCase().includes('sat') ||
                                     day.day_name.toLowerCase().includes('sun');
 
+                                const servicesOnDate = getServicesOnDate(day.date);
+                                const servicesTotalOnDate = servicesOnDate.reduce((sum, s) => sum + Number(s.total_price || 0), 0);
+
                                 return (
                                     <TableRow
                                         key={day.date || index}
-                                        className={isWeekend ? 'bg-purple-50/50' : ''}
+                                        className={isWeekend ? 'bg-purple-50/20' : ''}
                                     >
-                                        <TableCell className="font-medium">
+                                        <TableCell className="py-1.5 px-2 text-xs font-medium">
                                             {formatDate(day.date)}
                                         </TableCell>
-                                        <TableCell>
-                                            <span
-                                                className={
-                                                    isWeekend
-                                                        ? 'font-semibold text-purple-700'
-                                                        : ''
-                                                }
-                                            >
-                                                {day.day_name}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            {formatCurrency(day.base_rate)}
-                                        </TableCell>
-                                        <TableCell className="text-right font-semibold">
+                                        <TableCell className="py-1.5 px-2 text-right text-xs font-semibold">
                                             {formatCurrency(day.final_rate)}
                                         </TableCell>
-                                        <TableCell className="text-right">
+                                        <TableCell className="py-1.5 px-2 text-right text-xs">
                                             {premium > 0 ? (
                                                 <span className="text-orange-600 font-medium">
                                                     +{formatCurrency(premium)}
                                                 </span>
                                             ) : (
-                                                <span className="text-muted-foreground">-</span>
+                                                <span className="text-muted-foreground text-[10px]">-</span>
                                             )}
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="py-1.5 px-2 text-right text-xs">
+                                            {day.extra_bed_count && day.extra_bed_count > 0 ? (
+                                                <div className="flex flex-col items-end">
+                                                    <span className="font-medium text-slate-800 text-xs">
+                                                        {formatCurrency(day.extra_bed_count * (day.extra_bed_rate || 0))}
+                                                    </span>
+                                                    <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+                                                        {day.extra_bed_count} x {formatCurrency(day.extra_bed_rate || 0)}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted-foreground text-[10px]">-</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="py-1.5 px-2 text-right text-xs">
+                                            {servicesTotalOnDate > 0 ? (
+                                                <div className="flex flex-col items-end">
+                                                    <span className="font-semibold text-blue-600 text-xs">
+                                                        +{formatCurrency(servicesTotalOnDate)}
+                                                    </span>
+                                                    <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+                                                        {servicesOnDate.map(s => `${s.service_name || s.name} (x${s.quantity})`).join(', ')}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted-foreground text-[10px]">-</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="py-1.5 px-2 text-xs">
                                             <div className="flex flex-wrap gap-1">
                                                 {getPremiumBadges(day)}
                                             </div>
@@ -346,6 +385,42 @@ export default function RateBreakdownCard({
                             <span className="font-semibold text-orange-600">
                                 +{formatCurrency(totalPremium)}
                             </span>
+                        </div>
+                    )}
+                    {totalExtraBed > 0 && (
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-slate-600">
+                                Total Extra Bed
+                            </span>
+                            <span className="font-semibold text-slate-800">
+                                +{formatCurrency(totalExtraBed)}
+                            </span>
+                        </div>
+                    )}
+                    {discountAmount > 0 && (
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-rose-600">
+                                Diskon
+                            </span>
+                            <span className="font-semibold text-rose-600">
+                                -{formatCurrency(discountAmount)}
+                            </span>
+                        </div>
+                    )}
+                    {services && services.length > 0 && (
+                        <div className="space-y-1.5 pt-2 border-t border-dashed border-slate-200">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Layanan Tambahan</span>
+                            {services.map((service, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-xs">
+                                    <span className="text-muted-foreground">
+                                        {service.service_name || service.name} (x{service.quantity})
+                                        {service.service_date && ` - ${new Date(service.service_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}`}
+                                    </span>
+                                    <span className="font-semibold text-slate-700">
+                                        +{formatCurrency(Number(service.total_price))}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                     )}
                     <Separator />

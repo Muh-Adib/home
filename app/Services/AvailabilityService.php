@@ -34,10 +34,10 @@ class AvailabilityService
      * @param  int|null  $excludeBookingId  Booking ID to exclude from check (for edit mode)
      * @param  bool  $ignoreOta  Ignore OTA bookings (for overriding)
      */
-    public function checkAvailability(Property $property, string $checkIn, string $checkOut, ?int $guestCount = null, ?int $excludeBookingId = null, bool $ignoreOta = false): array
+    public function checkAvailability(Property $property, string $checkIn, string $checkOut, ?int $guestCount = null, ?int $excludeBookingId = null, bool $ignoreOta = false, bool $ignoreCapacity = false): array
     {
         // 1. Capacity Check
-        if ($guestCount !== null && $guestCount > $property->capacity_max) {
+        if (! $ignoreCapacity && $guestCount !== null && $guestCount > $property->capacity_max) {
             return [
                 'success' => false,
                 'error_type' => 'capacity',

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin;
 
+use App\Models\Booking;
+use App\Models\Property;
+use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CreateBookingRequest extends FormRequest
@@ -13,7 +17,7 @@ class CreateBookingRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('create', \App\Models\Booking::class);
+        return $this->user()->can('create', Booking::class);
     }
 
     /**
@@ -30,7 +34,7 @@ class CreateBookingRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -62,6 +66,9 @@ class CreateBookingRequest extends FormRequest
             'source' => 'nullable|in:direct,phone,walk_in,ota',
             'auto_confirm' => 'boolean',
             'force_ota_override' => 'boolean',
+            'force_capacity_override' => 'boolean',
+            'guest_phone_alternative' => 'nullable|string|max:20',
+            'followed_up_by' => 'nullable|exists:users,id',
 
             // Additional Guests depreciated
             'guests' => 'nullable|array',
@@ -73,8 +80,8 @@ class CreateBookingRequest extends FormRequest
             'guests.*.age_category' => 'nullable|in:adult,child,infant',
 
             // Payment Information
-            'payment_method_id' => 'required_if:booking_status,confirmed|nullable|exists:payment_methods,id',
-            'payment_amount' => 'required_if:booking_status,confirmed|nullable|numeric|min:0',
+            'payment_method_id' => 'required_if:payment_status,dp_received,fully_paid|nullable|exists:payment_methods,id',
+            'payment_amount' => 'required_if:payment_status,dp_received,fully_paid|nullable|numeric|min:0',
             'payment_date' => 'nullable|date',
             'reference_number' => 'nullable|string|max:100',
             'bank_name' => 'nullable|string|max:255',
@@ -88,9 +95,12 @@ class CreateBookingRequest extends FormRequest
             'rate_override' => 'nullable|boolean',
             'override_amount' => 'nullable|numeric|min:0',
             'override_reason' => 'required_if:rate_override,true|nullable|string|min:10|max:500',
+            'discount_amount' => 'nullable|integer|min:0',
 
             // Extra Services
             'services' => 'nullable|array',
+            'daily_extra_beds' => 'nullable|array',
+            'daily_extra_beds.*' => 'integer|min:0',
         ];
 
         // Add services validation only if services exist
@@ -100,7 +110,11 @@ class CreateBookingRequest extends FormRequest
             $rules['services.*.service_type'] = 'required|string';
             $rules['services.*.quantity'] = 'required|integer|min:1';
             $rules['services.*.unit_price'] = 'required|numeric|min:0';
+            $rules['services.*.discount_amount'] = 'nullable|numeric|min:0';
             $rules['services.*.total_price'] = 'required|numeric|min:0';
+            $rules['services.*.vendor_unit_price'] = 'nullable|numeric|min:0';
+            $rules['services.*.vendor_total_price'] = 'nullable|numeric|min:0';
+            $rules['services.*.service_date'] = 'nullable|date';
         }
 
         return $rules;
@@ -155,12 +169,12 @@ class CreateBookingRequest extends FormRequest
     /**
      * Configure the validator instance.
      */
-    public function withValidator(\Illuminate\Contracts\Validation\Validator $validator): void
+    public function withValidator(Validator $validator): void
     {
         $validator->after(function ($validator) {
             // Check property ownership for property owners
             if ($this->user()->role === 'property_owner') {
-                $property = \App\Models\Property::find($this->input('property_id'));
+                $property = Property::find($this->input('property_id'));
                 if ($property && $property->owner_id !== $this->user()->id) {
                     $validator->errors()->add('property_id', 'You can only create bookings for your own properties.');
                 }

@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Builder;
-use Carbon\Carbon;
 
 class BookingDailyRevenue extends Model
 {
@@ -23,6 +23,7 @@ class BookingDailyRevenue extends Model
         'weekend_premium',
         'seasonal_premium',
         'extra_bed_amount',
+        'extra_bed_count',
         'rate_type',
         'rate_name',
         'is_weekend',
@@ -35,6 +36,7 @@ class BookingDailyRevenue extends Model
         'weekend_premium' => 'integer',
         'seasonal_premium' => 'integer',
         'extra_bed_amount' => 'integer',
+        'extra_bed_count' => 'integer',
         'is_weekend' => 'boolean',
     ];
 
@@ -128,7 +130,7 @@ class BookingDailyRevenue extends Model
                 'month' => $month,
                 'month_name' => $startDate->format('M'),
                 'year' => $year,
-                ...$breakdown
+                ...$breakdown,
             ];
         }
 

@@ -41,7 +41,7 @@ interface PropertyMediaProps extends PageProps {
 }
 
 export default function PropertyMedia({ property }: PropertyMediaProps) {
-    const formatCurrency = (value: number) => 
+    const formatCurrency = (value: number) =>
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 
     const getStatusColor = (status: string) => {
@@ -62,8 +62,8 @@ export default function PropertyMedia({ property }: PropertyMediaProps) {
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title={`Media Management - ${property.name}`} />
-            
-            <div className="space-y-6 p-4 md:p-6">
+
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
@@ -170,17 +170,17 @@ export default function PropertyMedia({ property }: PropertyMediaProps) {
                 {/* Media Upload Component */}
                 <MediaUpload
                     propertySlug={property.slug}
-                    initialMedia={property.media} 
+                    initialMedia={property.media}
                     maxFiles={50}
                     maxFileSize={100 * 1024 * 1024} // 100MB (konsisten dengan PHP config)
                     acceptedFileTypes={[
                         'image/jpeg',
-                        'image/png', 
-                        'image/jpg', 
+                        'image/png',
+                        'image/jpg',
                         'image/gif',
                         'image/webp',
-                        'video/mp4', 
-                        'video/mov', 
+                        'video/mp4',
+                        'video/mov',
                         'video/avi',
                         'video/webm'
                     ]}

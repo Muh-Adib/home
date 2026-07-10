@@ -18,6 +18,7 @@ export type BookingStatus =
 
 interface BookingStatusBadgeProps {
     status: BookingStatus | string;
+    booking?: any;
     className?: string;
 }
 
@@ -60,11 +61,26 @@ const statusConfig: Record<string, { label: string; className: string }> = {
     },
 };
 
-export const BookingStatusBadge: React.FC<BookingStatusBadgeProps> = ({ status, className }) => {
-    const config = statusConfig[status] || {
+export const BookingStatusBadge: React.FC<BookingStatusBadgeProps> = ({ status, booking, className }) => {
+    let config = statusConfig[status] || {
         label: status.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
         className: 'bg-slate-100 text-slate-700 border-slate-200',
     };
+
+    // If status is confirmed, check if it's not yet check-in time (i.e. check-in is in the future)
+    if (status === 'confirmed' && booking && booking.check_in) {
+        const checkInDate = new Date(booking.check_in);
+        checkInDate.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (checkInDate > today) {
+            config = {
+                label: 'Menunggu Jadwal',
+                className: 'bg-amber-100 text-amber-700 border-amber-200 shadow-sm',
+            };
+        }
+    }
 
     return (
         <Badge

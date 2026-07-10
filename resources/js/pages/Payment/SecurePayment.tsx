@@ -57,6 +57,7 @@ interface Booking {
     nights?: number;
     dp_amount?: number;
     dp_percentage?: number;
+    payments?: any[];
 }
 
 interface PaymentInfo {
@@ -66,6 +67,16 @@ interface PaymentInfo {
     requiredAmount: number;
     paymentType: 'dp' | 'remaining';
     isDpComplete: boolean;
+    uniqueCode: number;
+    expectedAmount: number;
+}
+
+interface BankAccount {
+    id: number;
+    bank_name: string;
+    account_number: string;
+    account_holder: string;
+    label: string;
 }
 
 interface SecurePaymentProps {
@@ -73,18 +84,22 @@ interface SecurePaymentProps {
     paymentMethods: PaymentMethod[];
     paymentInfo: PaymentInfo;
     token: string;
+    bankAccount?: BankAccount | null;
 }
 
-export default function SecurePayment({ booking, paymentMethods, paymentInfo, token }: SecurePaymentProps) {
+export default function SecurePayment({ booking, paymentMethods, paymentInfo, token, bankAccount }: SecurePaymentProps) {
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
     const [showProofUpload, setShowProofUpload] = useState(false);
     const [copiedField, setCopiedField] = useState<string | null>(null);
+    const hasPendingPayment = booking.payments?.some(p => p.payment_status === 'pending');
+    const pendingPayment = booking.payments?.find(p => p.payment_status === 'pending');
 
     const { data, setData, post, processing, errors } = useForm({
         payment_method_id: '',
-        amount: paymentInfo.requiredAmount,
+        amount: paymentInfo.requiredAmount - (paymentInfo.uniqueCode || 0), // Base amount before unique code
         proof_of_payment: null as File | null,
         payment_notes: '',
+        unique_code: paymentInfo.uniqueCode || 0,
     });
 
     const formatCurrency = (amount: number) => {
@@ -193,10 +208,72 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
         post(route('booking.secure-payment.store', [booking.booking_number, token]));
     };
 
+    const compressImage = (file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.7): Promise<File> => {
+        return new Promise((resolve) => {
+            if (!file.type.startsWith('image/')) {
+                resolve(file);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target?.result as string;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width = Math.round((width * maxHeight) / height);
+                            height = maxHeight;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0, width, height);
+                        canvas.toBlob(
+                            (blob) => {
+                                if (blob) {
+                                    const compressedFile = new File([blob], file.name, {
+                                        type: 'image/jpeg',
+                                        lastModified: Date.now(),
+                                    });
+                                    resolve(compressedFile);
+                                } else {
+                                    resolve(file);
+                                }
+                            },
+                            'image/jpeg',
+                            quality
+                        );
+                    } else {
+                        resolve(file);
+                    }
+                };
+                img.onerror = () => resolve(file);
+            };
+            reader.onerror = () => resolve(file);
+        });
+    };
+
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            setData('proof_of_payment', file);
+            compressImage(file).then(compressedFile => {
+                setData('proof_of_payment', compressedFile);
+            });
         }
     };
 
@@ -325,15 +402,22 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                     </div>
                                     
                                     {/* Required Payment Amount */}
-                                    <div className="border-t border-border pt-3">
+                                    <div className="border-t border-border pt-3 space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <p className="text-lg font-semibold">
-                                                {paymentInfo.paymentType === 'dp' ? 'DP Required' : 'Remaining Payment'}
+                                            <p className="text-lg font-semibold text-slate-800">
+                                                {paymentInfo.paymentType === 'dp' ? 'DP Required + Kode Unik' : 'Remaining Payment + Kode Unik'}
                                             </p>
                                             <p className="text-xl font-bold text-destructive">
                                                 {formatCurrency(paymentInfo.requiredAmount)}
                                             </p>
                                         </div>
+
+                                        <Alert className="bg-blue-50 border-blue-100 p-3">
+                                            <Shield className="h-4 w-4 text-blue-600 shrink-0" />
+                                            <AlertDescription className="text-xs text-blue-800 leading-relaxed">
+                                                Harap transfer tepat sesuai nominal di atas (termasuk kode unik) agar sistem dapat memverifikasi pembayaran Anda secara otomatis.
+                                            </AlertDescription>
+                                        </Alert>
                                     </div>
                                 </div>
 
@@ -357,7 +441,37 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <form onSubmit={handleSubmit} className="space-y-6">
+                                {hasPendingPayment && pendingPayment ? (
+                                    <div className="text-center py-8 px-4 space-y-4">
+                                        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-yellow-50 text-yellow-500 mb-2">
+                                            <Clock className="h-10 w-10 animate-pulse text-yellow-500" />
+                                        </div>
+                                        <h3 className="text-lg font-bold text-foreground">Payment Awaiting Confirmation</h3>
+                                        <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
+                                            We have received your payment proof of <strong>{formatCurrency(pendingPayment.expected_amount || pendingPayment.amount)}</strong> submitted on <strong>{formatDate(pendingPayment.created_at)}</strong>.
+                                        </p>
+                                        <div className="bg-muted border border-border rounded-xl p-4 text-left text-xs text-muted-foreground space-y-1.5 max-w-sm mx-auto">
+                                            <div className="flex justify-between">
+                                                <span>Payment Number:</span>
+                                                <span className="font-semibold text-foreground">{pendingPayment.payment_number}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>Method:</span>
+                                                <span className="font-semibold text-foreground">{pendingPayment.payment_method?.toUpperCase().replace('_', ' ')}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>Status:</span>
+                                                <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 text-[10px] font-bold border-none">
+                                                    AWAITING VERIFICATION
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            We are currently verifying your payment. This page will automatically update once confirmed.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <form onSubmit={handleSubmit} className="space-y-6">
                                     {/* Payment Methods */}
                                     <div className="space-y-3">
                                         <Label>Select Payment Method</Label>
@@ -376,7 +490,7 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                                         <h4 className="font-medium">{method.name}</h4>
                                                         {method.type === 'bank_transfer' && (
                                                             <p className="text-sm text-muted-foreground">
-                                                                {method.bank_name} - {method.account_number}
+                                                                {method.bank_name ? `${method.bank_name} - ${method.account_number}` : (bankAccount ? `${bankAccount.bank_name} - ${bankAccount.account_number}` : '')}
                                                             </p>
                                                         )}
                                                         {method.type === 'e_wallet' && method.qr_code && (
@@ -470,13 +584,13 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                                                 <div className="flex items-center justify-between">
                                                                     <div>
                                                                         <p className="text-sm text-muted-foreground">Bank Name</p>
-                                                                        <p className="font-medium text-foreground">{selectedMethod.bank_name}</p>
+                                                                        <p className="font-medium text-foreground">{selectedMethod.bank_name || (bankAccount ? bankAccount.bank_name : '')}</p>
                                                                     </div>
                                                                     <Button
                                                                         type="button"
                                                                         variant="outline"
                                                                         size="sm"
-                                                                        onClick={() => copyToClipboard(selectedMethod.bank_name || '', 'bank')}
+                                                                        onClick={() => copyToClipboard((selectedMethod.bank_name || (bankAccount ? bankAccount.bank_name : '')) || '', 'bank')}
                                                                         className="flex items-center gap-2"
                                                                     >
                                                                         {copiedField === 'bank' ? (
@@ -498,13 +612,13 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                                                 <div className="flex items-center justify-between">
                                                                     <div>
                                                                         <p className="text-sm text-muted-foreground">Account Number</p>
-                                                                        <p className="font-mono font-medium text-foreground">{selectedMethod.account_number}</p>
+                                                                        <p className="font-mono font-medium text-foreground">{selectedMethod.account_number || (bankAccount ? bankAccount.account_number : '')}</p>
                                                                     </div>
                                                                     <Button
                                                                         type="button"
                                                                         variant="outline"
                                                                         size="sm"
-                                                                        onClick={() => copyToClipboard(selectedMethod.account_number || '', 'account')}
+                                                                        onClick={() => copyToClipboard((selectedMethod.account_number || (bankAccount ? bankAccount.account_number : '')) || '', 'account')}
                                                                         className="flex items-center gap-2"
                                                                     >
                                                                         {copiedField === 'account' ? (
@@ -526,13 +640,13 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                                                 <div className="flex items-center justify-between">
                                                                     <div>
                                                                         <p className="text-sm text-muted-foreground">Account Name</p>
-                                                                        <p className="font-medium text-foreground">{selectedMethod.account_name}</p>
+                                                                        <p className="font-medium text-foreground">{selectedMethod.account_name || (bankAccount ? bankAccount.account_holder : '')}</p>
                                                                     </div>
                                                                     <Button
                                                                         type="button"
                                                                         variant="outline"
                                                                         size="sm"
-                                                                        onClick={() => copyToClipboard(selectedMethod.account_name || '', 'name')}
+                                                                        onClick={() => copyToClipboard((selectedMethod.account_name || (bankAccount ? bankAccount.account_holder : '')) || '', 'name')}
                                                                         className="flex items-center gap-2"
                                                                     >
                                                                         {copiedField === 'name' ? (
@@ -599,7 +713,8 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
                                     >
                                         {processing ? 'Processing...' : 'Submit Payment'}
                                     </Button>
-                                </form>
+                                    </form>
+                                )}
                             </CardContent>
                         </Card>
                     </div>

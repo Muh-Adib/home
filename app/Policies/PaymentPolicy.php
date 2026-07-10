@@ -19,6 +19,7 @@ class PaymentPolicy
             'property_manager',
             'finance',
             'property_owner',
+            'front_desk',
         ]);
     }
 
@@ -57,31 +58,34 @@ class PaymentPolicy
         return true;
     }
 
-    /**
-     * Determine whether the user can update the payment.
-     */
     public function update(User $user, Payment $payment): bool
     {
-        // Hanya finance yang dapat update payment details
-        return in_array($user->role, [
-            'super_admin',
-            'finance',
-        ]);
+        if (in_array($user->role, ['super_admin', 'property_manager'])) {
+            return true;
+        }
+
+        if ($user->role === 'property_owner') {
+            return $payment->booking->property->owner_id === $user->id;
+        }
+
+        return false;
     }
 
     /**
      * Determine whether the user can delete the payment.
+     *
+     * Super admin dan finance bisa delete semua.
+     * Front desk dan property_manager hanya bisa delete payment yang belum verified
+     * (status pending, failed, atau cancelled) untuk mencegah penghapusan data yang sudah tercatat.
      */
     public function delete(User $user, Payment $payment): bool
     {
-        // Super admin dan finance dapat delete payment
-        // Super admin dapat delete semua payment
-        // Finance dapat delete payment yang belum verified atau cancelled
-        if ($user->role === 'super_admin') {
+        if (in_array($user->role, ['super_admin', 'finance'])) {
             return true;
         }
 
-        if ($user->role === 'finance') {
+        if (in_array($user->role, ['front_desk', 'property_manager'])) {
+            // Hanya boleh hapus payment yang belum verified
             return in_array($payment->payment_status, ['pending', 'failed', 'cancelled']);
         }
 
@@ -108,10 +112,9 @@ class PaymentPolicy
             return $payment->booking->property->owner_id === $user->id;
         }
 
-        // Manager dapat verify dengan approval limit
-        if ($user->role === 'property_manager') {
-            // TODO: Implement approval limits
-            return $payment->amount <= 10000000; // 10 juta rupiah limit
+        // Manager dan front desk dapat verify
+        if (in_array($user->role, ['property_manager', 'front_desk'])) {
+            return true;
         }
 
         return false;

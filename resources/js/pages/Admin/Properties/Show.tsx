@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import * as LucideIcons from 'lucide-react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { formatTime } from '@/utils/dateUtils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,7 +40,10 @@ import {
     AlertCircle,
     Plus,
     Filter,
-    Download
+    Download,
+    Copy,
+    ChevronDown,
+    ChevronUp
 } from 'lucide-react';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import TextFormatMarkdown from '@/components/text-mark-down';
@@ -63,6 +67,11 @@ interface PropertyShowProps extends PageProps {
         media: any[];
         bookings: any[];
         seasonalRates?: SeasonalRate[];
+        current_keybox_code?: string;
+        checkin_instructions?: any;
+        ical_import_urls?: string[];
+        ical_export_token?: string;
+        bank_account?: any;
     };
     stats: {
         total_bookings: number;
@@ -70,10 +79,25 @@ interface PropertyShowProps extends PageProps {
         total_revenue: number;
         average_rating: number;
         occupancy_rate: number;
+        bep_data?: {
+            initial_build_capital: number;
+            lease_capital: number;
+            total_capital: number;
+            cumulative_profit: number;
+            bep_percentage: number;
+            avg_monthly_profit: number;
+            remaining_months: number;
+            all_time_income: number;
+            all_time_expense: number;
+        };
     };
 }
 
 export default function PropertyShow({ property, stats }: PropertyShowProps) {
+    const { auth } = usePage<PageProps>().props;
+    const authUser = auth?.user as any;
+    const canViewFinancials = ['super_admin', 'property_owner', 'property_manager'].includes(authUser?.role);
+
     // Ensure property data exists with safe defaults
     const safeProperty = {
         id: property?.id || 0,
@@ -106,6 +130,11 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
         media: property?.media || [],
         bookings: property?.bookings || [],
         seasonalRates: property?.seasonalRates || [],
+        current_keybox_code: property?.current_keybox_code || '',
+        checkin_instructions: property?.checkin_instructions || null,
+        ical_import_urls: property?.ical_import_urls || [],
+        ical_export_token: property?.ical_export_token || '',
+        bank_account: property?.bank_account || null,
     };
 
     // Ensure stats data exists with safe defaults
@@ -122,6 +151,46 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
         { title: 'Properties', href: '/admin/properties' },
         { title: safeProperty.name, href: '' },
     ];
+
+    const [showDescription, setShowDescription] = useState(false);
+    const [showAmenities, setShowAmenities] = useState(false);
+
+    const getAmenityIcon = (iconName: string) => {
+        const map: Record<string, string> = {
+            'wifi': 'Wifi',
+            'snowflake': 'Snowflake',
+            'ac': 'Wind',
+            'car': 'Car',
+            'parking': 'Car',
+            'chef-hat': 'ChefHat',
+            'kitchen': 'ChefHat',
+            'refrigerator': 'Refrigerator',
+            'fridge': 'Refrigerator',
+            'utensils': 'Utensils',
+            'dining': 'Utensils',
+            'droplets': 'Droplets',
+            'water': 'Droplets',
+            'hot-water': 'Flame',
+            'tv': 'Tv',
+            'television': 'Tv',
+            'bed': 'Bed',
+            'bath': 'Bath',
+            'shower': 'ShowerHead',
+            'shirt': 'Shirt',
+            'laundry': 'Shirt',
+            'washing-machine': 'WashingMachine',
+            'pool': 'Waves',
+            'swimming': 'Waves',
+            'key': 'Key',
+            'lock': 'Lock',
+            'shield': 'Shield',
+            'first-aid': 'FirstAidKit',
+            'fire-extinguisher': 'FireExtinguisher',
+        };
+        const componentName = map[(iconName || '').toLowerCase()] || 'CheckCircle';
+        const IconComponent = (LucideIcons as any)[componentName] || LucideIcons.CheckCircle;
+        return <IconComponent className="h-4 w-4 text-blue-600" />;
+    };
 
     const [dateRange, setDateRange] = useState({
         from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -185,17 +254,11 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title={`${property.name} - Admin Dashboard`} />
 
-            <div className="space-y-6 p-4 md:p-6">
+            <div className="space-y-6">
                 {/* Header - Mobile Optimized */}
                 <div className="flex flex-col space-y-4">
                     {/* Back Button - Mobile First */}
                     <div className="flex items-center gap-4">
-                        <Button variant="outline" size="sm" asChild className="mobile-only">
-                            <Link href="/admin/properties">
-                                <ArrowLeft className="h-4 w-4 mr-2" />
-                                Back
-                            </Link>
-                        </Button>
 
                         <div className="flex-1 min-w-0">
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
@@ -237,6 +300,15 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                     <span className="sm:hidden">Rates</span>
                                 </Link>
                             </Button>
+                            {canViewFinancials && (
+                                <Button variant="outline" size="sm" asChild className="flex-1 sm:flex-none border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                                    <Link href={`/admin/properties/${property.slug}/financial`}>
+                                        <BarChart3 className="h-4 w-4 mr-2" />
+                                        <span className="hidden sm:inline">Dashboard Keuangan</span>
+                                        <span className="sm:hidden">Keuangan</span>
+                                    </Link>
+                                </Button>
+                            )}
                         </div>
                         <Button asChild className="flex-1 sm:flex-none">
                             <Link href={`/admin/properties/${property.slug}/edit`}>
@@ -294,6 +366,107 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                         gradient="bg-gradient-to-br from-purple-500 to-pink-600"
                     />
                 </div>
+
+                {/* Proyeksi & Analisis Balik Modal (BEP / ROI) */}
+                {stats?.bep_data && (
+                    <Card className="border-0 shadow-lg bg-white overflow-hidden card-modern">
+                        <CardHeader className="bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border-b border-slate-100 p-4 md:p-6">
+                            <CardTitle className="flex items-center gap-2 text-slate-800 text-base md:text-lg">
+                                <TrendingUp className="h-5 w-5 text-indigo-600 animate-pulse" />
+                                Proyeksi & Analisis Balik Modal (BEP / ROI)
+                            </CardTitle>
+                            <CardDescription>
+                                Perhitungan modal awal (investasi) dibandingkan dengan laba bersih kumulatif unit properti ini.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-4 md:p-6 space-y-6">
+                            {/* ROI Progress Bar */}
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-end">
+                                    <div>
+                                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Persentase Pengembalian Modal (ROI)</span>
+                                        <h3 className="text-2xl font-bold text-slate-900 mt-1">
+                                            {stats.bep_data.bep_percentage}%
+                                        </h3>
+                                    </div>
+                                    <Badge className={stats.bep_data.bep_percentage >= 100 ? "bg-green-100 text-green-800 hover:bg-green-100 border border-green-200" : "bg-blue-100 text-blue-800 hover:bg-blue-100 border border-blue-200"}>
+                                        {stats.bep_data.bep_percentage >= 100 ? "BEP Tercapai (Lunas)" : `Sisa ${Math.max(0, 100 - stats.bep_data.bep_percentage).toFixed(1)}% lagi`}
+                                    </Badge>
+                                </div>
+                                <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden border border-slate-200/50">
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-1000 ${stats.bep_data.bep_percentage >= 100 ? 'bg-gradient-to-r from-green-500 to-emerald-600' : 'bg-gradient-to-r from-blue-500 to-indigo-600'}`}
+                                        style={{ width: `${Math.min(100, Math.max(0, stats.bep_data.bep_percentage))}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {/* Column 1: Modal Awal */}
+                                <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 space-y-3">
+                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Rincian Investasi Awal</h4>
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Modal Bangun Awal:</span>
+                                            <span className="font-semibold">{formatCurrency(stats.bep_data.initial_build_capital)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Modal Sewa Lahan:</span>
+                                            <span className="font-semibold">{formatCurrency(stats.bep_data.lease_capital)}</span>
+                                        </div>
+                                        <Separator className="my-1" />
+                                        <div className="flex justify-between text-base font-bold text-slate-900">
+                                            <span>Total Investasi:</span>
+                                            <span>{formatCurrency(stats.bep_data.total_capital)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Column 2: Performa All-Time */}
+                                <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 space-y-3">
+                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Laba Bersih Kumulatif</h4>
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Pendapatan Kotor:</span>
+                                            <span className="font-semibold text-emerald-600">{formatCurrency(stats.bep_data.all_time_income)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Biaya Operasional:</span>
+                                            <span className="font-semibold text-rose-600">({formatCurrency(stats.bep_data.all_time_expense)})</span>
+                                        </div>
+                                        <Separator className="my-1" />
+                                        <div className={`flex justify-between text-base font-bold ${stats.bep_data.cumulative_profit >= 0 ? 'text-green-700' : 'text-rose-700'}`}>
+                                            <span>Laba Bersih:</span>
+                                            <span>{formatCurrency(stats.bep_data.cumulative_profit)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Column 3: Proyeksi BEP */}
+                                <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 space-y-3">
+                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Estimasi Proyeksi BEP</h4>
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Rerata Laba/Bulan:</span>
+                                            <span className="font-semibold">{formatCurrency(stats.bep_data.avg_monthly_profit)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Status BEP:</span>
+                                            <span className="font-semibold">{stats.bep_data.bep_percentage >= 100 ? 'Sudah Balik Modal' : 'Dalam Proses'}</span>
+                                        </div>
+                                        <Separator className="my-1" />
+                                        <div className="flex justify-between text-base font-bold text-slate-900">
+                                            <span>Sisa Waktu BEP:</span>
+                                            <span className="text-indigo-600 font-bold">
+                                                {stats.bep_data.bep_percentage >= 100 ? '0 Bulan (Selesai)' : `${stats.bep_data.remaining_months} Bulan`}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Performance Chart Section */}
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -382,37 +555,37 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
 
                 {/* Main Content Tabs - Modern Design */}
                 <Tabs defaultValue="details" className="space-y-6">
-                    <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-                        <TabsList className="inline-flex w-full sm:w-auto min-w-full sm:min-w-0 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-xl border shadow-sm">
+                    <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
+                        <TabsList className="inline-flex w-full sm:w-auto min-w-full sm:min-w-0 bg-slate-100/85 p-1 rounded-xl sm:rounded-2xl border border-slate-200/50 shadow-sm gap-1 bg-white dark:bg-slate-900">
                             <TabsTrigger
                                 value="details"
-                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/20 data-[state=inactive]:text-gray-600 dark:data-[state=inactive]:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:text-slate-600 hover:text-slate-900 cursor-pointer"
                             >
-                                <Building2 className="h-4 w-4 mr-2" />
+                                <Building2 className="h-4 w-4 mr-1 sm:mr-2 shrink-0" />
                                 <span className="hidden sm:inline">Detail Properti</span>
                                 <span className="sm:hidden">Detail</span>
                             </TabsTrigger>
                             <TabsTrigger
                                 value="price"
-                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/20 data-[state=inactive]:text-gray-600 dark:data-[state=inactive]:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:text-slate-600 hover:text-slate-900 cursor-pointer"
                             >
-                                <DollarSign className="h-4 w-4 mr-2" />
+                                <DollarSign className="h-4 w-4 mr-1 sm:mr-2 shrink-0" />
                                 <span className="hidden sm:inline">Harga & Tarif</span>
                                 <span className="sm:hidden">Harga</span>
                             </TabsTrigger>
                             <TabsTrigger
                                 value="media"
-                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/20 data-[state=inactive]:text-gray-600 dark:data-[state=inactive]:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:text-slate-600 hover:text-slate-900 cursor-pointer"
                             >
-                                <ImageIcon className="h-4 w-4 mr-2" />
+                                <ImageIcon className="h-4 w-4 mr-1 sm:mr-2 shrink-0" />
                                 <span className="hidden sm:inline">Kelola Media</span>
                                 <span className="sm:hidden">Media</span>
                             </TabsTrigger>
                             <TabsTrigger
                                 value="booking"
-                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/20 data-[state=inactive]:text-gray-600 dark:data-[state=inactive]:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                className="flex-1 sm:flex-none px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:text-slate-600 hover:text-slate-900 cursor-pointer"
                             >
-                                <List className="h-4 w-4 mr-2" />
+                                <List className="h-4 w-4 mr-1 sm:mr-2 shrink-0" />
                                 <span className="hidden sm:inline">Riwayat Booking</span>
                                 <span className="sm:hidden">Booking</span>
                             </TabsTrigger>
@@ -423,19 +596,35 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                     <TabsContent value="details" className="space-y-6">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                             {/* Basic Information */}
-                            <Card className="border-0 shadow-lg">
-                                <CardHeader className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-t-lg">
-                                    <CardTitle className="flex items-center gap-2 text-blue-700">
-                                        <Building2 className="h-5 w-5" />
+                            <Card className="border-0 border-l-4 border-blue-600 shadow-md bg-white rounded-r-2xl">
+                                <CardHeader className="pb-3 border-b border-slate-100">
+                                    <CardTitle className="flex items-center gap-2 text-slate-800 text-base">
+                                        <Building2 className="h-5 w-5 text-blue-600" />
                                         Informasi Properti
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4 pt-4">
                                     <div>
-                                        <label className="text-sm font-medium text-muted-foreground">Deskripsi</label>
-                                        <div className="mt-2 prose prose-sm max-w-none">
-                                            <TextFormatMarkdown text={safeProperty.description || 'Tidak ada deskripsi'} />
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Deskripsi</label>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 text-blue-600 hover:text-blue-700 font-bold gap-1 cursor-pointer text-xs"
+                                                onClick={() => setShowDescription(!showDescription)}
+                                            >
+                                                {showDescription ? (
+                                                    <>Sembunyikan <ChevronUp className="h-3.5 w-3.5" /></>
+                                                ) : (
+                                                    <>Tampilkan <ChevronDown className="h-3.5 w-3.5" /></>
+                                                )}
+                                            </Button>
                                         </div>
+                                        {showDescription && (
+                                            <div className="mt-2 prose prose-sm max-w-none p-3 bg-slate-50 border border-slate-100 rounded-xl transition-all duration-300">
+                                                <TextFormatMarkdown text={safeProperty.description || 'Tidak ada deskripsi'} />
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4 pt-4 border-t">
@@ -465,14 +654,33 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                         <label className="text-sm font-medium text-muted-foreground">Pemilik</label>
                                         <p className="mt-1 text-sm font-medium">{safeProperty.owner?.name || 'Belum ada pemilik'}</p>
                                     </div>
+
+                                    <div className="pt-4 border-t">
+                                        <label className="text-sm font-medium text-muted-foreground">Rekening Bank Properti</label>
+                                        {safeProperty.bank_account ? (
+                                            <div className="mt-2 p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center justify-between">
+                                                <div>
+                                                    <p className="font-bold text-slate-800 text-sm">
+                                                        {safeProperty.bank_account.bank_name} - {safeProperty.bank_account.account_number}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500">
+                                                        a.n. {safeProperty.bank_account.account_holder}
+                                                    </p>
+                                                </div>
+                                                <Badge className="bg-blue-600 hover:bg-blue-600 text-white font-bold text-[10px]">REKENING KHUSUS</Badge>
+                                            </div>
+                                        ) : (
+                                            <p className="mt-1 text-sm text-slate-500 italic">Menggunakan Rekening Sistem (Default)</p>
+                                        )}
+                                    </div>
                                 </CardContent>
                             </Card>
 
                             {/* Check-in/out & Rules */}
-                            <Card className="border-0 shadow-lg">
-                                <CardHeader className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-t-lg">
-                                    <CardTitle className="flex items-center gap-2 text-emerald-700">
-                                        <Clock className="h-5 w-5" />
+                            <Card className="border-0 border-l-4 border-emerald-600 shadow-md bg-white rounded-r-2xl">
+                                <CardHeader className="pb-3 border-b border-slate-100">
+                                    <CardTitle className="flex items-center gap-2 text-slate-800 text-base">
+                                        <Clock className="h-5 w-5 text-emerald-600" />
                                         Jadwal & Peraturan
                                     </CardTitle>
                                 </CardHeader>
@@ -522,35 +730,165 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                     )}
                                 </CardContent>
                             </Card>
+
+                            {/* Setup Operasional & Keybox */}
+                            <Card className="border-0 border-l-4 border-indigo-600 shadow-md bg-white rounded-r-2xl">
+                                <CardHeader className="pb-3 border-b border-slate-100">
+                                    <CardTitle className="flex items-center gap-2 text-slate-800 text-base">
+                                        <Clock className="h-5 w-5 text-indigo-600" />
+                                        Setup Operasional & Keybox
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4 pt-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="p-3 bg-slate-50 rounded-xl text-center border">
+                                            <label className="text-xs font-semibold text-slate-500 block">Kode Keybox</label>
+                                            <p className="mt-1 text-2xl font-black text-slate-800 tracking-wider">
+                                                {safeProperty.current_keybox_code || '---'}
+                                            </p>
+                                        </div>
+                                        <div className="p-3 bg-blue-50/50 rounded-xl text-center border border-blue-100">
+                                            <label className="text-xs font-semibold text-blue-600 block">Emergency Contact</label>
+                                            <p className="mt-1.5 text-sm font-bold text-blue-800">
+                                                {safeProperty.checkin_instructions?.emergency_contact || '---'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {safeProperty.checkin_instructions && (
+                                        <div className="space-y-3 pt-3 border-t">
+                                            <div>
+                                                <label className="text-xs font-medium text-muted-foreground">Welcome Message</label>
+                                                <p className="text-sm font-medium text-slate-800">{safeProperty.checkin_instructions.welcome || '-'}</p>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-medium text-muted-foreground">Lokasi Keybox</label>
+                                                <p className="text-sm font-medium text-slate-800">{safeProperty.checkin_instructions.keybox_location || '-'}</p>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-medium text-muted-foreground">Keybox Code Template</label>
+                                                <p className="text-sm font-medium text-slate-800">{safeProperty.checkin_instructions.keybox_code || '-'}</p>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-medium text-muted-foreground">Info Check-in Time</label>
+                                                <p className="text-sm font-medium text-slate-800">{safeProperty.checkin_instructions.checkin_time || '-'}</p>
+                                            </div>
+                                            {safeProperty.checkin_instructions.additional_info && safeProperty.checkin_instructions.additional_info.length > 0 && (
+                                                <div className="pt-2">
+                                                    <label className="text-xs font-medium text-muted-foreground">Info Tambahan</label>
+                                                    <ul className="list-disc list-inside text-sm text-slate-700 space-y-1 mt-1">
+                                                        {safeProperty.checkin_instructions.additional_info.map((info: string, idx: number) => (
+                                                            <li key={idx}>{info}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* iCal Synchronization */}
+                            <Card className="border-0 border-l-4 border-teal-600 shadow-md bg-white rounded-r-2xl">
+                                <CardHeader className="pb-3 border-b border-slate-100">
+                                    <CardTitle className="flex items-center gap-2 text-slate-800 text-base">
+                                        <Calendar className="h-5 w-5 text-teal-600" />
+                                        iCal Sync & OTA Feed
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4 pt-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Import URLs</label>
+                                        {safeProperty.ical_import_urls && safeProperty.ical_import_urls.filter(url => url && typeof url === 'string').length > 0 ? (
+                                            <div className="mt-2 space-y-2">
+                                                {safeProperty.ical_import_urls
+                                                    .filter(url => url && typeof url === 'string')
+                                                    .map((url: string, idx: number) => (
+                                                        <div key={idx} className="p-2 border rounded-xl bg-slate-50/70 flex items-center justify-between text-xs gap-2">
+                                                            <span className="font-mono truncate text-slate-600 flex-1">{url}</span>
+                                                            {url?.includes('airbnb') && <Badge className="bg-[#FF5A5F] hover:bg-[#FF5A5F] text-white text-[9px] font-bold shrink-0">Airbnb</Badge>}
+                                                            {url?.includes('booking.com') && <Badge className="bg-[#003580] hover:bg-[#003580] text-white text-[9px] font-bold shrink-0">Booking</Badge>}
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        ) : (
+                                            <p className="mt-1 text-sm text-slate-500 italic">Belum ada OTA iCal yang diimport</p>
+                                        )}
+                                    </div>
+
+                                    {safeProperty.ical_export_token && (
+                                        <div className="pt-3 border-t space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Export Feed URL</label>
+                                            <div className="flex items-center gap-2 p-2 bg-white border rounded-xl text-xs">
+                                                <code className="font-mono truncate flex-1 text-slate-600">
+                                                    {window.location.origin}/property/{safeProperty.slug}/ical/{safeProperty.ical_export_token}
+                                                </code>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-7 w-7 p-0 hover:bg-slate-200"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(`${window.location.origin}/property/${safeProperty.slug}/ical/${safeProperty.ical_export_token}`);
+                                                        alert('Link iCal berhasil disalin ke clipboard');
+                                                    }}
+                                                >
+                                                    <Copy className="h-3.5 w-3.5 text-slate-500" />
+                                                </Button>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400">Gunakan URL di atas untuk mensinkronisasi kalender Homs ke Airbnb atau Booking.com</p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
                         </div>
 
                         {/* Amenities Section */}
-                        <Card className="card-modern">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Star className="h-5 w-5" />
-                                    Amenities ({safeProperty.amenities?.length || 0})
+                        <Card className="border-0 border-l-4 border-amber-500 shadow-md bg-white rounded-r-2xl">
+                            <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
+                                <CardTitle className="flex items-center gap-2 text-slate-800 text-base">
+                                    <Star className="h-5 w-5 text-amber-500 fill-amber-400" />
+                                    Fasilitas Akomodasi ({safeProperty.amenities?.length || 0})
                                 </CardTitle>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 text-blue-600 hover:text-blue-700 font-bold gap-1 cursor-pointer text-xs"
+                                    onClick={() => setShowAmenities(!showAmenities)}
+                                >
+                                    {showAmenities ? (
+                                        <>Sembunyikan <ChevronUp className="h-3.5 w-3.5" /></>
+                                    ) : (
+                                        <>Tampilkan <ChevronDown className="h-3.5 w-3.5" /></>
+                                    )}
+                                </Button>
                             </CardHeader>
-                            <CardContent>
-                                {safeProperty.amenities && safeProperty.amenities.length > 0 ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {safeProperty.amenities.map((amenity: any, index: number) => (
-                                            <div key={amenity.id || index} className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/30">
-                                                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                                                <span className="text-sm">{amenity.name || 'Unnamed amenity'}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <Alert>
-                                        <Info className="h-4 w-4" />
-                                        <AlertDescription>
-                                            No amenities have been added to this property yet.
-                                        </AlertDescription>
-                                    </Alert>
-                                )}
-                            </CardContent>
+                            {showAmenities && (
+                                <CardContent className="pt-4">
+                                    {safeProperty.amenities && safeProperty.amenities.length > 0 ? (
+                                        <div className="flex flex-wrap gap-2">
+                                            {safeProperty.amenities.map((amenity: any, index: number) => (
+                                                <Badge
+                                                    key={amenity.id || index}
+                                                    variant="outline"
+                                                    className="flex items-center gap-1.5 py-1.5 px-3 rounded-full bg-slate-50 border-slate-200/60 font-semibold text-slate-700 text-xs shadow-none"
+                                                >
+                                                    {getAmenityIcon(amenity.icon || '')}
+                                                    <span>{amenity.name}</span>
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <Alert className="border-slate-100 rounded-xl bg-slate-50/50">
+                                            <Info className="h-4 w-4 text-blue-600" />
+                                            <AlertDescription className="text-slate-500">
+                                                Belum ada fasilitas yang ditambahkan untuk properti ini.
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+                                </CardContent>
+                            )}
                         </Card>
 
                         {/* Media Section */}
@@ -648,8 +986,8 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                     <div className="text-center p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white">
                                         <label className="text-xs font-medium text-white/80">Premium Weekend</label>
                                         <p className="text-xl sm:text-2xl font-bold mt-1">
-                                            {safeProperty.weekend_premium_type === 'fixed' 
-                                                ? `+${formatCurrency(safeProperty.weekend_premium_fixed)}` 
+                                            {safeProperty.weekend_premium_type === 'fixed'
+                                                ? `+${formatCurrency(safeProperty.weekend_premium_fixed)}`
                                                 : `+${safeProperty.weekend_premium_percent}%`}
                                         </p>
                                         <p className="text-xs text-white/70">

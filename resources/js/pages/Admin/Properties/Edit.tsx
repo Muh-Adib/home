@@ -13,12 +13,14 @@ interface Owner {
 }
 
 interface EditPropertyProps extends PageProps {
-    property: Property & { amenities: Amenity[] };
+    property: Property & { amenities: Amenity[]; bank_account_id?: number | null; payment_method_id?: number | null };
     amenities: Amenity[];
     owners?: Owner[];
+    bankAccounts: any[];
+    paymentMethods?: any[];
 }
 
-export default function EditProperty({ property, amenities, owners }: EditPropertyProps) {
+export default function EditProperty({ property, amenities, owners, bankAccounts = [], paymentMethods = [] }: EditPropertyProps) {
     const { data, setData, put, processing, errors } = useForm<PropertyFormData>({
         name: property.name || '',
         type: property.type || 'homestay',
@@ -62,6 +64,16 @@ export default function EditProperty({ property, amenities, owners }: EditProper
         ical_import_urls: (property.ical_import_urls && property.ical_import_urls.length > 0)
             ? property.ical_import_urls.map(u => u || '') : [''],
         ical_export_token: property.ical_export_token || '',
+        ownership_model: property.ownership_model || 'owned',
+        initial_build_capital: property.initial_build_capital || 0,
+        lease_capital: property.lease_capital || 0,
+        monthly_rent_cost: property.monthly_rent_cost || 0,
+        monthly_mortgage_cost: property.monthly_mortgage_cost || 0,
+        mortgage_interest_monthly: property.mortgage_interest_monthly || 0,
+        owner_split_pct: property.owner_split_pct ?? 100,
+        investor_split_pct: property.investor_split_pct ?? 0,
+        bank_account_id: property.bank_account_id || '',
+        payment_method_id: property.payment_method_id || '',
     });
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -82,7 +94,7 @@ export default function EditProperty({ property, amenities, owners }: EditProper
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title={`Edit ${property.name} - Admin Dashboard`} />
-            <div className="p-4 md:p-6 space-y-4">
+            <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight">Edit Property</h1>
@@ -110,6 +122,8 @@ export default function EditProperty({ property, amenities, owners }: EditProper
                     onSubmit={handleSubmit}
                     amenities={amenities}
                     owners={owners}
+                    bankAccounts={bankAccounts}
+                    paymentMethods={paymentMethods}
                     property={property}
                 />
             </div>

@@ -29,6 +29,7 @@ class BookingQueryService
             ->get()
             ->map(function ($booking) {
                 $booking->status_color = $booking->getStatusColor();
+
                 return $booking;
             });
     }
@@ -50,7 +51,11 @@ class BookingQueryService
         User $user
     ): Builder {
         $query = Booking::query()
-            ->with(['property'])
+            ->with([
+                'property',
+                'payments.paymentMethod',
+                'services',
+            ])
             ->where(function ($query) use ($startDate, $endDate) {
                 $query->whereBetween('check_in', [$startDate, $endDate])
                     ->orWhereBetween('check_out', [$startDate, $endDate])

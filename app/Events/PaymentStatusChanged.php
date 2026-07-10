@@ -6,8 +6,6 @@ use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
-use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -17,14 +15,17 @@ class PaymentStatusChanged implements ShouldBroadcast
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public Payment $payment;
-    public User $user;
+
+    public ?User $user;
+
     public string $oldStatus;
+
     public string $newStatus;
 
     /**
      * Create a new event instance.
      */
-    public function __construct(Payment $payment, User $user, string $oldStatus, string $newStatus)
+    public function __construct(Payment $payment, ?User $user, string $oldStatus, string $newStatus)
     {
         $this->payment = $payment;
         $this->user = $user;
@@ -35,7 +36,7 @@ class PaymentStatusChanged implements ShouldBroadcast
     /**
      * Get the channels the event should broadcast on.
      *
-     * @return array<int, \Illuminate\Broadcasting\Channel>
+     * @return array<int, Channel>
      */
     public function broadcastOn(): array
     {
@@ -67,4 +68,4 @@ class PaymentStatusChanged implements ShouldBroadcast
             'message' => "Payment {$this->payment->payment_number} status changed from {$this->oldStatus} to {$this->newStatus}",
         ];
     }
-} 
+}

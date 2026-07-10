@@ -2,50 +2,94 @@
 
 namespace App\Services;
 
-use App\Models\Payment;
 use App\Models\Income;
+use App\Models\Payment;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class PaymentIncomeSyncService
 {
     /**
-     * Sinkronkan income saat payment status berubah menjadi verified
+     * Sinkronkan income saat payment status berubah menjadi verified.
+     *
+     * Skema income per malam:
+     * - Income dibangun ulang dari scratch untuk seluruh booking setiap kali ada payment baru verified.
+     * - Total verified payments dialokasikan ke malam-malam stay (dari booking_daily_revenue),
+     *   dimulai dari hari pertama check-in ke hari-hari berikutnya.
+     * - Jika DP (partial), hanya hari-hari awal yang terisi sesuai jumlah yang sudah dibayar.
+     * - Jika ada payment tambahan, income di-rebuild ulang sehingga selalu akurat.
      */
     public function syncOnVerified(Payment $payment): bool
     {
         try {
-            if (!$payment->booking) {
+            if (! $payment->booking) {
                 return false;
             }
 
-            // Hapus income lama jika ada (jika sebelumnya status lain)
-            $this->removeIncomeForPayment($payment);
+            $booking = $payment->booking->fresh(['dailyRevenues']);
 
-            // Buat income baru untuk payment verified
-            $income = Income::updateOrCreate(
-                ['payment_id' => $payment->id],
-                [
-                    'property_id' => $payment->booking->property_id,
-                    'booking_id' => $payment->booking_id,
+            // Hapus income lama untuk seluruh booking ini (rebuild dari scratch)
+            Income::where('booking_id', $booking->id)->delete();
+
+            // Total seluruh payment verified untuk booking ini
+            $totalVerified = (int) $booking->getTotalPaidAmount();
+            if ($totalVerified <= 0) {
+                return true;
+            }
+
+            $dailyRevenues = $booking->dailyRevenues->sortBy('tanggal');
+
+            if ($dailyRevenues->isEmpty()) {
+                // Fallback: tidak ada daily revenue, catat satu income di tanggal check-in
+                Income::create([
+                    'property_id' => $booking->property_id,
+                    'booking_id' => $booking->id,
+                    'payment_id' => $payment->id,
                     'source' => $this->determineSource($payment->payment_type),
                     'description' => $this->generateDescription($payment),
-                    'amount' => $payment->amount,
-                    'income_date' => $payment->payment_date?->toDateString() ?? now()->toDateString(),
-                    'notes' => $payment->reference_number ?? $payment->verification_notes,
+                    'amount' => $totalVerified,
+                    'income_date' => $booking->check_in,
+                    'notes' => "Booking {$booking->booking_number}",
                     'wallet_id' => $this->getWalletId($payment),
                     'created_by' => $payment->verified_by ?? $payment->processed_by ?? auth()->id(),
-                ]
-            );
+                ]);
+            } else {
+                // Alokasikan dari malam pertama ke malam terakhir
+                $remaining = $totalVerified;
+
+                foreach ($dailyRevenues as $daily) {
+                    if ($remaining <= 0) {
+                        break;
+                    }
+
+                    // Alokasikan maks sebesar tarif hari tersebut, atau sisa budget
+                    $dayAmount = min((int) $daily->amount, $remaining);
+                    $remaining -= $dayAmount;
+
+                    Income::create([
+                        'property_id' => $booking->property_id,
+                        'booking_id' => $booking->id,
+                        'payment_id' => $payment->id,
+                        'source' => 'booking',
+                        'description' => 'Pendapatan sewa - '.optional($booking->property)->name.' ('.$daily->tanggal->format('d M Y').')',
+                        'amount' => $dayAmount,
+                        'income_date' => $daily->tanggal->format('Y-m-d'),
+                        'notes' => "Booking {$booking->booking_number}",
+                        'wallet_id' => $this->getWalletId($payment),
+                        'created_by' => $payment->verified_by ?? $payment->processed_by ?? auth()->id(),
+                    ]);
+                }
+            }
 
             // Sinkronkan wallet jika ada
             $this->syncWallet($payment, 'verified');
 
-            Log::info("Income synced for verified payment: {$payment->payment_number}", [
+            Log::info("Income synced (per-hari) for verified payment: {$payment->payment_number}", [
                 'payment_id' => $payment->id,
-                'income_id' => $income->id,
+                'booking_id' => $booking->id,
+                'total_verified' => $totalVerified,
+                'nights' => $dailyRevenues->count(),
             ]);
 
             return true;
@@ -54,6 +98,7 @@ class PaymentIncomeSyncService
                 'payment_id' => $payment->id,
                 'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -82,6 +127,7 @@ class PaymentIncomeSyncService
                 'payment_id' => $payment->id,
                 'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -113,6 +159,7 @@ class PaymentIncomeSyncService
                 'payment_id' => $payment->id,
                 'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -130,7 +177,7 @@ class PaymentIncomeSyncService
      */
     private function determineSource(string $paymentType): string
     {
-        return match($paymentType) {
+        return match ($paymentType) {
             'dp', 'remaining', 'full' => 'booking',
             'additional', 'penalty', 'damage', 'cleaning', 'extra_service' => $paymentType,
             default => 'booking'
@@ -162,7 +209,7 @@ class PaymentIncomeSyncService
         ];
 
         $typeLabel = $typeLabels[$payment->payment_type] ?? 'Payment';
-        
+
         return "{$typeLabel} - {$payment->payment_number}";
     }
 
@@ -171,7 +218,7 @@ class PaymentIncomeSyncService
      */
     private function getWalletId(Payment $payment): ?int
     {
-        if (!$payment->paymentMethod || !$payment->paymentMethod->wallet_id) {
+        if (! $payment->paymentMethod || ! $payment->paymentMethod->wallet_id) {
             return null;
         }
 
@@ -184,12 +231,12 @@ class PaymentIncomeSyncService
     private function syncWallet(Payment $payment, string $status): void
     {
         $method = $payment->paymentMethod;
-        if (!$method || !$method->wallet_id) {
+        if (! $method || ! $method->wallet_id) {
             return;
         }
 
         $wallet = Wallet::find($method->wallet_id);
-        if (!$wallet) {
+        if (! $wallet) {
             return;
         }
 
@@ -219,7 +266,7 @@ class PaymentIncomeSyncService
                 'transaction_date' => $payment->payment_date?->toDateString() ?? now()->toDateString(),
                 'reference_type' => 'payment',
                 'reference_id' => $payment->id,
-                'description' => 'Payment verified: ' . $payment->payment_number,
+                'description' => 'Payment verified: '.$payment->payment_number,
                 'created_by' => auth()->id(),
             ]);
 
@@ -236,7 +283,7 @@ class PaymentIncomeSyncService
                         'transaction_date' => now()->toDateString(),
                         'reference_type' => 'payment',
                         'reference_id' => $payment->id,
-                        'description' => 'Payment refunded: ' . $payment->payment_number,
+                        'description' => 'Payment refunded: '.$payment->payment_number,
                         'created_by' => auth()->id(),
                     ]);
                     $wallet->decrement('balance', $payment->amount);
@@ -295,13 +342,3 @@ class PaymentIncomeSyncService
         return $cleaned;
     }
 }
-
-
-
-
-
-
-
-
-
-

@@ -4,22 +4,25 @@ declare(strict_types=1);
 
 namespace App\Models\Traits;
 
+use App\Services\RateCalculationService;
+use Carbon\Carbon;
+
 /**
  * Booking Status Trait
- * 
+ *
  * Handles booking status checks and transitions, including status coloring
  */
 trait HasBookingStatus
 {
     /**
      * Get status color for UI display
-     * 
+     *
      * ✅ CENTRALIZED: This is the single source of truth for status colors
      *    Used by: BookingResource, Listeners, etc via $booking->status_color
      */
     public function getStatusColor(): string
     {
-        return match($this->booking_status) {
+        return match ($this->booking_status) {
             'pending_verification' => 'yellow',
             'confirmed' => 'green',
             'checked_in' => 'blue',
@@ -36,8 +39,8 @@ trait HasBookingStatus
     public function canBeCancelled(): bool
     {
         return in_array($this->booking_status, [
-            'pending_verification', 
-            'confirmed'
+            'pending_verification',
+            'confirmed',
         ]) && $this->check_in > now();
     }
 
@@ -46,10 +49,13 @@ trait HasBookingStatus
      */
     public function canCheckIn(): bool
     {
-        return $this->booking_status === 'confirmed' 
-               && $this->payment_status === 'fully_paid'
-               && $this->check_in <= now()
-               && $this->check_out > now();
+        $checkIn = Carbon::parse($this->check_in)->startOfDay();
+        $today = Carbon::today();
+        $yesterday = Carbon::yesterday();
+
+        return $this->booking_status === 'confirmed'
+               && in_array($this->payment_status, ['fully_paid', 'dp_received'])
+               && $checkIn->between($yesterday, $today);
     }
 
     /**
@@ -75,8 +81,8 @@ trait HasBookingStatus
      */
     public function getExtraBedCount(): int
     {
-        return \App\Services\RateCalculationService::calculateExtraBedCount(
-            $this->guest_count, 
+        return RateCalculationService::calculateExtraBedCount(
+            $this->guest_count,
             $this->property->capacity
         );
     }

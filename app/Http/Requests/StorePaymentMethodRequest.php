@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Models\PaymentMethod;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StorePaymentMethodRequest extends FormRequest
@@ -11,13 +13,13 @@ class StorePaymentMethodRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('managePaymentMethods', \App\Models\PaymentMethod::class);
+        return $this->user()->can('managePaymentMethods', PaymentMethod::class);
     }
 
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -34,6 +36,7 @@ class StorePaymentMethodRequest extends FormRequest
             'instructions' => 'nullable|array',
             'instructions.*' => 'string|max:500',
             'is_active' => 'boolean',
+            'bank_account_id' => 'nullable|exists:bank_accounts,id',
         ];
     }
 
@@ -72,6 +75,7 @@ class StorePaymentMethodRequest extends FormRequest
             'qr_code' => 'QR code',
             'instructions' => 'instructions',
             'is_active' => 'active status',
+            'bank_account_id' => 'bank account',
         ];
     }
 }

@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Models\Booking;
 use App\Models\BookingDailyRevenue;
-use App\Models\Property;
 use App\Models\PropertySeasonalRate;
 use App\Services\RateCalculationService;
 use Carbon\Carbon;
@@ -97,7 +96,7 @@ class SyncBookingDailyRevenue extends Command
     private function syncBookingRevenue(Booking $booking): void
     {
         $property = $booking->property;
-        if (!$property) {
+        if (! $property) {
             throw new \Exception("Property not found for booking {$booking->id}");
         }
 
@@ -116,25 +115,31 @@ class SyncBookingDailyRevenue extends Command
 
         // Get guest count and calculate extra beds using single source of truth
         $guestCount = $booking->guest_count;
-        $extraBeds = \App\Services\RateCalculationService::calculateExtraBedCount($guestCount, $property->capacity);
+        $extraBeds = RateCalculationService::calculateExtraBedCount($guestCount, $property->capacity);
+
+        // Get the booking discount to distribute evenly across nights
+        $totalDiscount = (float) ($booking->discount_amount ?? 0);
+        $dailyDiscountBase = $nights > 0 ? (int) floor($totalDiscount / $nights) : 0;
+        $remainderDiscount = $nights > 0 ? (int) ($totalDiscount - ($dailyDiscountBase * $nights)) : 0;
 
         // Get seasonal ratess day by day
         $revenueData = [];
         $totalCalculated = 0;
+        $i = 0;
 
         for ($date = $checkIn->copy(); $date->lt($checkOut); $date->addDay()) {
             $dateString = $date->format('Y-m-d');
             $isWeekend = $date->isFriday() || $date->isSaturday() || $date->isSunday();
-            
+
             $baseAmount = $property->base_rate;
             $weekendPremium = 0;
             $seasonalPremium = 0;
             $rateType = 'base';
             $rateName = null;
-            
+
             // Check for seasonal rate
             $seasonalRate = $seasonalRates[$dateString] ?? null;
-            
+
             if ($seasonalRate) {
                 // Seasonal rate applies - no weekend premium
                 $calculatedRate = $seasonalRate->calculateRate($property->base_rate);
@@ -150,15 +155,21 @@ class SyncBookingDailyRevenue extends Command
                 }
                 $rateType = 'weekend';
             }
-            
+
             // Calculate extra bed for this day using single source of truth
-            $effectiveExtraBedRate = \App\Services\RateCalculationService::calculateEffectiveExtraBedRate($property, $seasonalRate);
+            $effectiveExtraBedRate = RateCalculationService::calculateEffectiveExtraBedRate($property, $seasonalRate);
             $extraBedAmount = $extraBeds * $effectiveExtraBedRate;
-            
-            // Total amount for the day
-            $dayAmount = $baseAmount + $weekendPremium + $seasonalPremium + $extraBedAmount;
+
+            // Calculate current daily discount
+            $currentDailyDiscount = $dailyDiscountBase;
+            if ($i < $remainderDiscount) {
+                $currentDailyDiscount += 1;
+            }
+
+            // Total amount for the day includes lodging + extra beds - distributed discount
+            $dayAmount = ($baseAmount + $weekendPremium + $seasonalPremium + $extraBedAmount) - $currentDailyDiscount;
             $totalCalculated += $dayAmount;
-            
+
             $revenueData[] = [
                 'booking_id' => $booking->id,
                 'property_id' => $booking->property_id,
@@ -174,15 +185,17 @@ class SyncBookingDailyRevenue extends Command
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
+
+            $i++;
         }
 
         // Use transaction for data integrity
         DB::transaction(function () use ($booking, $revenueData) {
             // Delete existing records
             BookingDailyRevenue::where('booking_id', $booking->id)->delete();
-            
+
             // Insert new records
-            if (!empty($revenueData)) {
+            if (! empty($revenueData)) {
                 BookingDailyRevenue::insert($revenueData);
             }
         });

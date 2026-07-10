@@ -4,24 +4,22 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Actions\Booking\CreateBookingAction;
+use App\Actions\User\EnsureGuestUserAction;
 use App\Domain\Booking\ValueObjects\BookingRequest;
+use App\Jobs\SyncPaymentIncomeJob;
 use App\Models\Booking;
-use App\Models\Property;
-use App\Models\User;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
-use App\Jobs\SyncPaymentIncomeJob;
-use App\Services\AvailabilityService;
+use App\Models\Property;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * AdminBookingService - Centralized service for admin booking operations
- * 
+ *
  * This service handles all admin-specific booking business logic:
  * - Guest user creation/lookup
  * - Auto-confirmation
@@ -29,7 +27,7 @@ use Illuminate\Support\Facades\Storage;
  * - Rate override handling
  * - Payment proof upload
  * - Service synchronization
- * 
+ *
  * Follows single source of truth and separation of concerns principles.
  */
 class AdminBookingService
@@ -39,19 +37,17 @@ class AdminBookingService
         private BookingExtraServiceSyncService $serviceSyncService,
         private RateOverrideLogService $rateOverrideLogService,
         private AvailabilityService $availabilityService,
-        private \App\Actions\Booking\CreateBookingAction $createBookingAction,
-        private \App\Actions\User\EnsureGuestUserAction $ensureUserAction,
+        private CreateBookingAction $createBookingAction,
+        private EnsureGuestUserAction $ensureUserAction,
         private ImageService $imageService
-    ) {
-    }
+    ) {}
 
     /**
      * Create an admin booking with all related entities
-     * 
-     * @param array $validated Validated request data
-     * @param UploadedFile|null $paymentProof Payment proof file
-     * @param User $admin Admin user creating the booking
-     * @return AdminBookingResult
+     *
+     * @param  array  $validated  Validated request data
+     * @param  UploadedFile|null  $paymentProof  Payment proof file
+     * @param  User  $admin  Admin user creating the booking
      */
     public function createAdminBooking(
         array $validated,
@@ -62,7 +58,8 @@ class AdminBookingService
         $property = Property::findOrFail($validated['property_id']);
         $guestCount = $this->guestCountService->calculateFromRequest($property, $validated);
 
-        if ($guestCount > $property->capacity_max) {
+        $forceCapacity = (bool) ($validated['force_capacity_override'] ?? false);
+        if (! $forceCapacity && $guestCount > $property->capacity_max) {
             return AdminBookingResult::failure([
                 'guest_count' => "Total guests ({$guestCount}) exceeds property maximum capacity ({$property->capacity_max}).",
             ]);
@@ -71,30 +68,34 @@ class AdminBookingService
         // 2. Availability check (before transaction)
         $forceOverride = (bool) ($validated['force_ota_override'] ?? false);
         $availability = $this->availabilityService->checkAvailability(
-            $property,
-            $validated['check_in_date'],
-            $validated['check_out_date'],
-            $guestCount,
-            null,
-            $forceOverride
+            property: $property,
+            checkIn: $validated['check_in_date'],
+            checkOut: $validated['check_out_date'],
+            guestCount: $guestCount,
+            excludeBookingId: null,
+            ignoreOta: $forceOverride,
+            ignoreCapacity: $forceCapacity
         );
 
-        if (!$availability['available']) {
-            $overlappingBookings = \App\Models\Booking::where('property_id', $property->id)
+        if (! $availability['available']) {
+            $overlappingBookings = Booking::where('property_id', $property->id)
                 ->whereIn('booking_status', ['pending_verification', 'confirmed', 'checked_in', 'checked_out'])
                 ->where('check_in', '<', $validated['check_out_date'])
                 ->where('check_out', '>', $validated['check_in_date'])
                 ->get(['id', 'source']);
 
             $blockedByOtaOnly = $overlappingBookings->every(
-                fn($b) => in_array($b->source, ['airbnb', 'booking_com', 'ota'])
+                fn ($b) => in_array($b->source, ['airbnb', 'booking_com', 'ota'])
             );
 
-            return AdminBookingResult::failure([
+            $errors = [
                 'error' => 'Property is not available for selected dates.',
-                'booked_periods' => $availability['booked_periods'] ?? [],
-                'can_override' => $blockedByOtaOnly,
-            ]);
+            ];
+            if ($blockedByOtaOnly) {
+                $errors['can_override'] = '1';
+            }
+
+            return AdminBookingResult::failure($errors);
         }
 
         try {
@@ -106,9 +107,9 @@ class AdminBookingService
             // 4. Create booking via CreateBookingAction (Shared logic)
             $booking = $this->createBookingAction->execute($bookingData, $admin);
 
-            // 5. Create payment if provided
+            // 5. Create payment if provided and payment_status is not dp_pending
             $payment = null;
-            if (!empty($validated['payment_method_id']) && !empty($validated['payment_amount'])) {
+            if ($validated['payment_status'] !== 'dp_pending' && ! empty($validated['payment_method_id']) && ! empty($validated['payment_amount'])) {
                 $payment = $this->createPayment($booking, $validated, $paymentProof, $admin);
             }
 
@@ -128,7 +129,8 @@ class AdminBookingService
                 'trace' => $e->getTraceAsString(),
                 'admin_id' => $admin->id,
             ]);
-            return AdminBookingResult::failure(['error' => 'Failed to create booking: ' . $e->getMessage()]);
+
+            return AdminBookingResult::failure(['error' => 'Failed to create booking: '.$e->getMessage()]);
         }
     }
 
@@ -149,6 +151,7 @@ class AdminBookingService
             'guest_name' => $validated['guest_name'],
             'guest_email' => $validated['guest_email'],
             'guest_phone' => $validated['guest_phone'],
+            'guest_phone_alternative' => $validated['guest_phone_alternative'] ?? null,
             'guest_country' => $validated['guest_country'] ?? 'Indonesia',
             'guest_id_number' => $validated['guest_id_number'] ?? null,
             'guest_gender' => $validated['guest_gender'] ?? 'male',
@@ -160,9 +163,14 @@ class AdminBookingService
             'payment_status' => $validated['payment_status'],
             'dp_percentage' => $validated['dp_percentage'],
             'auto_confirm' => $validated['auto_confirm'] ?? false,
+            'force_capacity_override' => $validated['force_capacity_override'] ?? false,
             'rate_override' => $validated['rate_override'] ?? false,
             'override_amount' => $validated['override_amount'] ?? null,
             'override_reason' => $validated['override_reason'] ?? null,
+            'daily_extra_beds' => $validated['daily_extra_beds'] ?? null,
+            'discount_amount' => $validated['discount_amount'] ?? 0,
+            'services' => $validated['services'] ?? [],
+            'followed_up_by' => $validated['followed_up_by'] ?? null,
         ];
     }
 
@@ -197,7 +205,10 @@ class AdminBookingService
         ]);
 
         // Update booking payment status
-        $booking->updatePaymentStatus();
+        if ($paymentStatus === 'verified' && empty($booking->closed_by)) {
+            $booking->closed_by = $admin->id;
+        }
+        $booking->updatePaymentStatus(true);
 
         // Handle payment proof upload
         if ($paymentProof) {
@@ -218,14 +229,14 @@ class AdminBookingService
             // Use centralized ImageService for image processing
             $result = $this->imageService->upload($file, [
                 'directory' => 'payments/proof',
-                'filename' => $bookingNumber . '_' . time(),
+                'filename' => $bookingNumber.'_'.time(),
                 'max_width' => 1920,
                 'max_height' => 1920,
                 'quality' => 85,
                 'convert_to_webp' => true,
             ]);
 
-            if (!$result->success) {
+            if (! $result->success) {
                 // Fallback to original format if conversion fails
                 Log::warning('Image processing failed, using original format', [
                     'error' => $result->error,
@@ -233,7 +244,7 @@ class AdminBookingService
                 ]);
 
                 $extension = strtolower($file->getClientOriginalExtension());
-                $originalFilename = $bookingNumber . '_' . time() . '.' . $extension;
+                $originalFilename = $bookingNumber.'_'.time().'.'.$extension;
                 $finalPath = $file->storeAs('payments/proof', $originalFilename, 'public');
             } else {
                 $finalPath = $result->path;
@@ -241,13 +252,12 @@ class AdminBookingService
         } else {
             // Store PDF as-is
             $extension = strtolower($file->getClientOriginalExtension());
-            $pdfFilename = $bookingNumber . '_' . time() . '.' . $extension;
+            $pdfFilename = $bookingNumber.'_'.time().'.'.$extension;
             $finalPath = $file->storeAs('payments/proof', $pdfFilename, 'public');
         }
 
         $payment->update(['attachment_path' => $finalPath]);
     }
-
 }
 
 /**
@@ -260,8 +270,7 @@ class AdminBookingResult
         private ?Booking $booking = null,
         private ?Payment $payment = null,
         private array $errors = []
-    ) {
-    }
+    ) {}
 
     public static function success(Booking $booking, ?Payment $payment = null): self
     {
@@ -280,7 +289,7 @@ class AdminBookingResult
 
     public function isFailure(): bool
     {
-        return !$this->success;
+        return ! $this->success;
     }
 
     public function getBooking(): ?Booking

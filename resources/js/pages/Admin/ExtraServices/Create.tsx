@@ -28,6 +28,9 @@ export default function CreateExtraService({ serviceTypes }: CreateExtraServiceP
         description: '',
         service_type: '',
         unit_price: 0,
+        vendor_unit_price: 0,
+        discount_amount: 0,
+        discount_limit: '' as string | number,
         is_active: true,
         sort_order: 0,
         thumbnail: null as File | null,
@@ -50,7 +53,7 @@ export default function CreateExtraService({ serviceTypes }: CreateExtraServiceP
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Create Extra Service" />
 
-            <div className="space-y-6 p-4 md:p-6">
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="sm" asChild>
@@ -140,7 +143,7 @@ export default function CreateExtraService({ serviceTypes }: CreateExtraServiceP
                                     {/* Unit Price */}
                                     <div className="space-y-2">
                                         <Label htmlFor="unit_price">
-                                            Harga Satuan <span className="text-red-500">*</span>
+                                            Harga Kita (Harga Jual) <span className="text-red-500">*</span>
                                         </Label>
                                         <Input
                                             id="unit_price"
@@ -155,10 +158,75 @@ export default function CreateExtraService({ serviceTypes }: CreateExtraServiceP
                                             required
                                         />
                                         <p className="text-sm text-muted-foreground">
-                                            Harga per unit service (dalam Rupiah)
+                                            Harga jual ke tamu per unit service (dalam Rupiah)
                                         </p>
                                         {errors.unit_price && (
                                             <p className="text-sm text-red-600">{errors.unit_price}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Vendor Unit Price */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="vendor_unit_price">Harga Vendor (Harga Beli)</Label>
+                                        <Input
+                                            id="vendor_unit_price"
+                                            type="number"
+                                            step="1"
+                                            min="0"
+                                            value={data.vendor_unit_price}
+                                            onChange={(e) =>
+                                                setData('vendor_unit_price', parseFloat(e.target.value) || 0)
+                                            }
+                                            placeholder="0"
+                                        />
+                                        <p className="text-sm text-muted-foreground">
+                                            Harga beli/dasar dari vendor per unit service
+                                        </p>
+                                        {errors.vendor_unit_price && (
+                                            <p className="text-sm text-red-600">{errors.vendor_unit_price}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Discount Amount */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="discount_amount">Nominal Diskon</Label>
+                                        <Input
+                                            id="discount_amount"
+                                            type="number"
+                                            step="1"
+                                            min="0"
+                                            value={data.discount_amount}
+                                            onChange={(e) =>
+                                                setData('discount_amount', parseFloat(e.target.value) || 0)
+                                            }
+                                            placeholder="0"
+                                        />
+                                        <p className="text-sm text-muted-foreground">
+                                            Potongan harga untuk item ini (dalam Rupiah)
+                                        </p>
+                                        {errors.discount_amount && (
+                                            <p className="text-sm text-red-600">{errors.discount_amount}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Discount Limit */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="discount_limit">Batas Jumlah Diskon (Opsional)</Label>
+                                        <Input
+                                            id="discount_limit"
+                                            type="number"
+                                            min="1"
+                                            value={data.discount_limit}
+                                            onChange={(e) =>
+                                                setData('discount_limit', e.target.value ? parseInt(e.target.value) : '')
+                                            }
+                                            placeholder="Misal: 2 (diskon hanya berlaku untuk 2 pesanan awal)"
+                                        />
+                                        <p className="text-sm text-muted-foreground">
+                                            Kosongkan jika diskon berlaku untuk seluruh pesanan tanpa batas
+                                        </p>
+                                        {errors.discount_limit && (
+                                            <p className="text-sm text-red-600">{errors.discount_limit}</p>
                                         )}
                                     </div>
 

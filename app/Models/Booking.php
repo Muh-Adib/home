@@ -2,21 +2,22 @@
 
 namespace App\Models;
 
+use App\Services\RateCalculationService;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Support\Str;
 
 class Booking extends Model
 {
     use HasFactory, SoftDeletes;
-    use Traits\HasPaymentManagement;
-    use Traits\HasCheckinInstructions;
     use Traits\HasBookingStatus;
+    use Traits\HasCheckinInstructions;
+    use Traits\HasPaymentManagement;
 
     protected $fillable = [
         'booking_number',
@@ -47,6 +48,7 @@ class Booking extends Model
         'dp_amount',
         'dp_paid_amount',
         'remaining_amount',
+        'discount_amount',
         'payment_status',
         'booking_status',
         'verification_status',
@@ -68,10 +70,15 @@ class Booking extends Model
         'payment_token',
         'payment_token_expires_at',
         'created_by',
+        'followed_up_by',
+        'closed_by',
+        'checked_in_by',
         'source',
         'external_id',
         'external_reservation_url',
         'external_phone',
+        'guest_phone_alternative',
+        'commission_pct',
     ];
 
     protected $casts = [
@@ -82,16 +89,20 @@ class Booking extends Model
         'extra_bed_count' => 'integer',
         'service_amount' => 'integer',
         'total_amount' => 'integer',
+        'discount_amount' => 'integer',
         'dp_amount' => 'integer',
         'dp_paid_amount' => 'integer',
         'remaining_amount' => 'integer',
         'dp_deadline' => 'datetime',
         'cancelled_at' => 'datetime',
         'verified_at' => 'datetime',
+        'commission_pct' => 'float',
         'cleaned_at' => 'datetime',
         'payment_token_expires_at' => 'datetime',
         'is_cleaned' => 'boolean',
-        // Note: rate_calculation removed from casts - use accessor instead
+        'followed_up_by' => 'integer',
+        'closed_by' => 'integer',
+        'checked_in_by' => 'integer',
     ];
 
     protected $appends = [
@@ -113,12 +124,12 @@ class Booking extends Model
 
             // Auto calculate nights
             if ($booking->check_in && $booking->check_out) {
-                $booking->nights = \Carbon\Carbon::parse($booking->check_in)
-                    ->diffInDays(\Carbon\Carbon::parse($booking->check_out));
+                $booking->nights = Carbon::parse($booking->check_in)
+                    ->diffInDays(Carbon::parse($booking->check_out));
             }
 
             // Auto calculate DP deadline (2 days from creation)
-            if (!$booking->dp_deadline) {
+            if (! $booking->dp_deadline) {
                 $booking->dp_deadline = now()->addDays(2);
             }
         });
@@ -126,8 +137,8 @@ class Booking extends Model
         static::updating(function ($booking) {
             // Recalculate nights if dates change
             if ($booking->isDirty(['check_in', 'check_out'])) {
-                $booking->nights = \Carbon\Carbon::parse($booking->check_in)
-                    ->diffInDays(\Carbon\Carbon::parse($booking->check_out));
+                $booking->nights = Carbon::parse($booking->check_in)
+                    ->diffInDays(Carbon::parse($booking->check_out));
             }
         });
     }
@@ -181,6 +192,21 @@ class Booking extends Model
     public function cleanedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cleaned_by');
+    }
+
+    public function followedUpBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'followed_up_by');
+    }
+
+    public function closedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    public function checkedInBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'checked_in_by');
     }
 
     public function review()
@@ -288,42 +314,42 @@ class Booking extends Model
     protected function formattedTotalAmount(): Attribute
     {
         return Attribute::make(
-            get: fn() => 'Rp ' . number_format((int) $this->total_amount, 0, ',', '.')
+            get: fn () => 'Rp '.number_format((int) $this->total_amount, 0, ',', '.')
         );
     }
 
     protected function formattedDpAmount(): Attribute
     {
         return Attribute::make(
-            get: fn() => 'Rp ' . number_format((int) $this->dp_amount, 0, ',', '.')
+            get: fn () => 'Rp '.number_format((int) $this->dp_amount, 0, ',', '.')
         );
     }
 
     protected function formattedRemainingAmount(): Attribute
     {
         return Attribute::make(
-            get: fn() => 'Rp ' . number_format((int) $this->remaining_amount, 0, ',', '.')
+            get: fn () => 'Rp '.number_format((int) $this->remaining_amount, 0, ',', '.')
         );
     }
 
     protected function isDpOverdue(): Attribute
     {
         return Attribute::make(
-            get: fn() => $this->payment_status === 'dp_pending' && $this->dp_deadline < now()
+            get: fn () => $this->payment_status === 'dp_pending' && $this->dp_deadline < now()
         );
     }
 
     protected function daysUntilCheckIn(): Attribute
     {
         return Attribute::make(
-            get: fn() => now()->diffInDays($this->check_in, false)
+            get: fn () => now()->diffInDays($this->check_in, false)
         );
     }
 
     protected function statusBadgeColor(): Attribute
     {
         return Attribute::make(
-            get: fn() => match ($this->booking_status) {
+            get: fn () => match ($this->booking_status) {
                 'pending_verification' => 'yellow',
                 'confirmed' => 'green',
                 'checked_in' => 'blue',
@@ -340,36 +366,38 @@ class Booking extends Model
     {
         return Attribute::make(
             get: function ($value) {
-                if (!$value)
+                if (! $value) {
                     return null;
+                }
 
                 // Handle different time formats
                 try {
                     if (strlen($value) === 5) { // Already in H:i format
                         return $value;
                     } elseif (strlen($value) === 8) { // H:i:s format
-                        return \Carbon\Carbon::createFromFormat('H:i:s', $value)->format('H:i');
+                        return Carbon::createFromFormat('H:i:s', $value)->format('H:i');
                     } else {
                         // Try to parse as Carbon time
-                        return \Carbon\Carbon::parse($value)->format('H:i');
+                        return Carbon::parse($value)->format('H:i');
                     }
                 } catch (\Exception $e) {
                     return $value; // Return original value if parsing fails
                 }
             },
             set: function ($value) {
-                if (!$value)
+                if (! $value) {
                     return null;
+                }
 
                 try {
                     // Ensure we store in H:i:s format for database
                     if (strlen($value) === 5) { // H:i format
-                        return $value . ':00';
+                        return $value.':00';
                     } elseif (strlen($value) === 8) { // Already H:i:s
                         return $value;
                     } else {
                         // Try to parse and format
-                        return \Carbon\Carbon::parse($value)->format('H:i:s');
+                        return Carbon::parse($value)->format('H:i:s');
                     }
                 } catch (\Exception $e) {
                     // Fallback - assume it's already in correct format
@@ -388,7 +416,7 @@ class Booking extends Model
         // For SQLite (tests), avoid nested transactions and lockForUpdate
         if (config('database.default') === 'sqlite') {
             $lastBooking = self::withTrashed()
-                ->where('booking_number', 'LIKE', $prefix . $date . '%')
+                ->where('booking_number', 'LIKE', $prefix.$date.'%')
                 ->orderBy('booking_number', 'desc')
                 ->first();
 
@@ -398,7 +426,7 @@ class Booking extends Model
                 $sequence = 1;
             }
 
-            return $prefix . $date . sprintf('%04d', $sequence);
+            return $prefix.$date.sprintf('%04d', $sequence);
         }
 
         // Use database transaction with locking to prevent race conditions
@@ -406,7 +434,7 @@ class Booking extends Model
             // Find the highest sequence number for today, including soft-deleted records
             // Use withTrashed() to check ALL records (including soft-deleted) to avoid duplicates
             $lastBooking = self::withTrashed()
-                ->where('booking_number', 'LIKE', $prefix . $date . '%')
+                ->where('booking_number', 'LIKE', $prefix.$date.'%')
                 ->lockForUpdate() // Lock to prevent concurrent access
                 ->orderByRaw('CAST(SUBSTR(booking_number, -4) AS UNSIGNED) DESC')
                 ->first();
@@ -422,10 +450,11 @@ class Booking extends Model
             if ($sequence > 9999) {
                 // If we exceed 9999 bookings in a day, add microsecond suffix
                 $microseconds = substr(str_replace('.', '', (string) microtime(true)), -6);
-                return $prefix . $date . '9999-' . $microseconds;
+
+                return $prefix.$date.'9999-'.$microseconds;
             }
 
-            $bookingNumber = $prefix . $date . sprintf('%04d', $sequence);
+            $bookingNumber = $prefix.$date.sprintf('%04d', $sequence);
 
             // Final safety check - if somehow still exists, add microsecond suffix
             $attempts = 0;
@@ -433,10 +462,10 @@ class Booking extends Model
                 $sequence++;
                 if ($sequence > 9999) {
                     $microseconds = substr(str_replace('.', '', (string) microtime(true)), -6);
-                    $bookingNumber = $prefix . $date . '9999-' . $microseconds;
+                    $bookingNumber = $prefix.$date.'9999-'.$microseconds;
                     break;
                 }
-                $bookingNumber = $prefix . $date . sprintf('%04d', $sequence);
+                $bookingNumber = $prefix.$date.sprintf('%04d', $sequence);
                 $attempts++;
             }
 
@@ -446,7 +475,7 @@ class Booking extends Model
 
     // ✅ Methods moved to Traits:
     // - Payment methods → HasPaymentManagement trait
-    // - Checkin instructions → HasCheckinInstructions trait  
+    // - Checkin instructions → HasCheckinInstructions trait
     // - Status checks → HasBookingStatus trait
 
     /**
@@ -472,7 +501,7 @@ class Booking extends Model
         return Attribute::make(
             get: function () {
                 // Generate payment token if not exists
-                if (!$this->payment_token) {
+                if (! $this->payment_token) {
                     $this->generatePaymentToken();
                 }
 
@@ -511,36 +540,89 @@ class Booking extends Model
     {
         $totalAmount = $dailyRevenues->sum('amount');
         $dailyBreakdown = [];
+        $totalWeekendPremium = 0.0;
+        $totalSeasonalPremium = 0.0;
+        $totalBaseAmount = 0.0;
+        $totalExtraBedAmount = 0.0;
 
         foreach ($dailyRevenues as $revenue) {
             $date = $revenue->tanggal->format('Y-m-d');
-            $carbonDate = \Carbon\Carbon::parse($date);
+            $carbonDate = Carbon::parse($date);
+
+            $premiums = [];
+            if ($revenue->weekend_premium > 0) {
+                $premiums[] = [
+                    'type' => 'weekend',
+                    'amount' => (float) $revenue->weekend_premium,
+                ];
+                $totalWeekendPremium += (float) $revenue->weekend_premium;
+            }
+            if ($revenue->seasonal_premium > 0) {
+                $premiums[] = [
+                    'type' => 'seasonal',
+                    'name' => $revenue->rate_name ?? 'Seasonal Premium',
+                    'amount' => (float) $revenue->seasonal_premium,
+                ];
+                $totalSeasonalPremium += (float) $revenue->seasonal_premium;
+            }
+
+            $seasonalRate = null;
+            if ($revenue->rate_type === 'seasonal') {
+                $seasonalRate = [
+                    'name' => $revenue->rate_name ?? 'Seasonal',
+                ];
+            }
+
+            $extraBedCount = (int) ($revenue->extra_bed_count ?? 0);
+            $extraBedAmount = (float) ($revenue->extra_bed_amount ?? 0);
+
+            // Fallback for older bookings where extra_bed_count is 0 but extra_bed_amount > 0
+            if ($extraBedCount === 0 && $extraBedAmount > 0) {
+                $propertyRate = (float) ($this->property->extra_bed_rate ?? 150000);
+                $extraBedCount = $propertyRate > 0 ? (int) round($extraBedAmount / $propertyRate) : 1;
+                if ($extraBedCount <= 0) {
+                    $extraBedCount = 1;
+                }
+            }
+
+            $extraBedRate = $extraBedCount > 0 ? ($extraBedAmount / $extraBedCount) : 0.0;
+            $totalExtraBedAmount += $extraBedAmount;
+            $totalBaseAmount += (float) $revenue->base_amount;
 
             $dailyBreakdown[$date] = [
                 'date' => $date,
                 'day_name' => $carbonDate->format('l'),
-                'base_rate' => (string) $revenue->amount,
-                'final_rate' => (string) $revenue->amount,
-                'premiums' => [],
-                'seasonal_rate' => null,
-                'extra_bed_rate' => '0.00',
+                'base_rate' => (float) $revenue->base_amount,
+                'final_rate' => (float) $revenue->amount,
+                'premiums' => $premiums,
+                'seasonal_rate' => $seasonalRate,
+                'extra_bed_rate' => $extraBedRate,
+                'extra_bed_count' => $extraBedCount,
             ];
         }
 
         return [
             'nights' => $this->nights,
             'base_amount' => $this->base_amount,
-            'weekend_premium' => $this->extra_bed_amount ?? 0, // Adjust based on your logic
-            'seasonal_premium' => 0,
-            'extra_bed_amount' => $this->extra_bed_amount ?? 0,
+            'weekend_premium' => $totalWeekendPremium,
+            'seasonal_premium' => $totalSeasonalPremium,
+            'extra_bed_amount' => $totalExtraBedAmount,
             'cleaning_fee' => 0,
             'tax_amount' => $this->tax_amount ?? 0,
             'total_amount' => (float) $this->total_amount,
             'extra_beds' => $this->extra_bed_count ?? 0,
             'breakdown' => [
                 'daily_breakdown' => $dailyBreakdown,
-                'total_base_amount' => (float) $this->base_amount,
+                'total_base_amount' => $totalBaseAmount,
                 'subtotal' => (float) $this->total_amount,
+                'summary' => [
+                    'average_nightly_rate' => $this->nights > 0 ? (float) ($totalBaseAmount / $this->nights) : 0.0,
+                    'total_nights' => $this->nights,
+                    'base_nights_rate' => (float) $this->base_amount,
+                    'total_premiums' => $totalWeekendPremium + $totalSeasonalPremium,
+                    'effective_discount' => 0,
+                    'taxes_and_fees' => (float) ($this->tax_amount ?? 0),
+                ],
             ],
             'seasonal_rates_applied' => [],
         ];
@@ -553,7 +635,7 @@ class Booking extends Model
     {
         // Recalculate using RateCalculationService
         try {
-            $rateCalculationService = app(\App\Services\RateCalculationService::class);
+            $rateCalculationService = app(RateCalculationService::class);
             $checkIn = $this->check_in instanceof \DateTimeInterface ? $this->check_in->format('Y-m-d') : $this->check_in;
             $checkOut = $this->check_out instanceof \DateTimeInterface ? $this->check_out->format('Y-m-d') : $this->check_out;
 

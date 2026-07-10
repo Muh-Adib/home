@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/select';
 import { ArrowLeft, Save, AlertCircle, Building2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { BreadcrumbItem, Amenity} from '@/types';
+import { BreadcrumbItem, Amenity } from '@/types';
 import { getAvailableIcons } from '@/lib/lucide-icons';
 import AmenityItem from '@/components/AmenityItem';
 
@@ -36,11 +36,11 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
-        
+
         // Handle icon conversion before submission
         const iconValue = data.icon === 'none' ? '' : data.icon;
         setData('icon', iconValue);
-        
+
         // Submit after state update
         setTimeout(() => {
             post(route('admin.amenities.store'), {
@@ -75,8 +75,8 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Create Amenity" />
-            
-            <div className="space-y-6 p-4 md:p-6">
+
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="sm" asChild>
@@ -85,7 +85,7 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
                             Back
                         </Link>
                     </Button>
-                    
+
                     <div>
                         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Create Amenity</h1>
                         <p className="text-muted-foreground">
@@ -231,33 +231,33 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
                                 <CardContent>
                                     <div className="space-y-3">
                                         {/* Card Preview */}
-                                        <AmenityItem 
+                                        <AmenityItem
                                             amenity={previewAmenity}
                                             variant="card"
                                             showName={true}
                                         />
-                                        
+
                                         {/* Badge Preview */}
                                         <div className="pt-4 border-t">
                                             <Label className="text-sm font-medium mb-2 block">Badge Preview:</Label>
                                             <div className="flex gap-2">
-                                                <AmenityItem 
+                                                <AmenityItem
                                                     amenity={previewAmenity}
                                                     variant="badge"
                                                     showName={false}
                                                 />
-                                                <AmenityItem 
+                                                <AmenityItem
                                                     amenity={previewAmenity}
                                                     variant="badge"
                                                     showName={true}
                                                 />
                                             </div>
                                         </div>
-                                        
+
                                         {/* List Preview */}
                                         <div className="pt-4 border-t">
                                             <Label className="text-sm font-medium mb-2 block">List Preview:</Label>
-                                            <AmenityItem 
+                                            <AmenityItem
                                                 amenity={previewAmenity}
                                                 variant="list"
                                                 showName={true}
@@ -292,7 +292,7 @@ export default function CreateAmenity({ categories }: CreateAmenityProps) {
                         <Button type="button" variant="outline" asChild>
                             <Link href="/admin/amenities">Cancel</Link>
                         </Button>
-                        
+
                         <Button type="submit" disabled={processing}>
                             <Save className="h-4 w-4 mr-2" />
                             {processing ? 'Creating...' : 'Create Amenity'}

@@ -30,7 +30,8 @@ import {
     ExternalLink,
     Image as ImageIcon,
     File,
-    AlertTriangle
+    AlertTriangle,
+    Edit
 } from 'lucide-react';
 
 interface PaymentDetail {
@@ -54,6 +55,9 @@ interface PaymentDetail {
     payment_status: string;
     payment_date: string;
     notes?: string;
+    account_number?: string;
+    account_name?: string;
+    bank_name?: string;
     attachment_path?: string;
     attachment_filename?: string;
     attachment_full_path?: string;
@@ -87,6 +91,7 @@ interface PaymentDetail {
             name: string;
             address: string;
             cover_image?: string;
+            owner_id?: number;
         };
     };
     verifier?: {
@@ -103,6 +108,15 @@ interface PaymentShowProps extends PageProps {
 export default function PaymentShow() {
     const page = usePage<PageProps>();
     const { payment } = page.props as unknown as PaymentShowProps;
+    const methodObj = payment.payment_method || (payment as any).paymentMethod;
+    const { auth } = page.props;
+
+    const canEdit = auth.user && (
+        auth.user.role === 'super_admin' ||
+        auth.user.role === 'property_manager' ||
+        (auth.user.role === 'property_owner' && payment.booking?.property?.owner_id === auth.user.id)
+    );
+
     const [showImagePreview, setShowImagePreview] = useState(false);
 
     const { data: verifyData, setData: setVerifyData, patch: patchVerify, processing: verifyProcessing } = useForm({
@@ -178,30 +192,42 @@ export default function PaymentShow() {
             <div className="min-h-screen bg-slate-50">
                 {/* Header */}
                 <div className="bg-white border-b">
-                    <div className="container mx-auto px-4 py-6">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <Button variant="outline" size="sm" asChild>
+                    <div className="container mx-auto px-4 py-4 sm:py-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <Button variant="outline" size="sm" asChild className="h-8 shrink-0">
                                     <Link href="/admin/payments">
                                         <ArrowLeft className="h-4 w-4 mr-2" />
-                                        Back to Payments
+                                        Back
                                     </Link>
                                 </Button>
-                                <div>
-                                    <h1 className="text-2xl font-bold text-gray-900">Payment Details</h1>
-                                    <p className="text-gray-600">{payment.payment_number}</p>
+                                <div className="min-w-0">
+                                    <h1 className="text-lg sm:text-2xl font-bold text-gray-900 truncate">Payment Details</h1>
+                                    <p className="text-xs sm:text-sm text-gray-600 truncate font-mono">{payment.payment_number}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                                {payment.attachment_path && (
-                                    <Button variant="outline" size="sm" asChild>
-                                        <a href={payment.attachment_path} target="_blank" rel="noopener noreferrer">
-                                            <Download className="h-4 w-4 mr-2" />
-                                            Download Proof
-                                        </a>
-                                    </Button>
-                                )}
-                                {getStatusBadge(payment.payment_status)}
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end border-t pt-3 sm:border-t-0 sm:pt-0 border-slate-100">
+                                <div className="flex items-center gap-2">
+                                    {payment.attachment_path && (
+                                        <Button variant="outline" size="sm" className="h-8 text-xs px-2.5 sm:px-3 sm:py-1.5" asChild>
+                                            <a href={payment.attachment_path} target="_blank" rel="noopener noreferrer">
+                                                <Download className="h-3.5 w-3.5 mr-1.5" />
+                                                <span className="hidden xs:inline">Proof</span>
+                                            </a>
+                                        </Button>
+                                    )}
+                                    {canEdit && (
+                                        <Button variant="outline" size="sm" className="border-blue-200 text-blue-700 hover:bg-blue-50 h-8 text-xs px-2.5 sm:px-3 sm:py-1.5" asChild>
+                                            <Link href={`/admin/payments/${payment.payment_number}/edit`}>
+                                                <Edit className="h-3.5 w-3.5 mr-1.5" />
+                                                <span>Edit</span>
+                                            </Link>
+                                        </Button>
+                                    )}
+                                </div>
+                                <div>
+                                    {getStatusBadge(payment.payment_status)}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -241,7 +267,7 @@ export default function PaymentShow() {
                                             <div className="space-y-3">
                                                 <div>
                                                     <span className="text-sm font-medium text-gray-500">Payment Method</span>
-                                                    <div className="font-medium">{payment.payment_method.name}</div>
+                                                    <div className="font-medium">{methodObj?.name || '—'}</div>
                                                 </div>
                                                 <div>
                                                     <span className="text-sm font-medium text-gray-500">Payment Date</span>
@@ -306,11 +332,11 @@ export default function PaymentShow() {
                                                 <div>
                                                     <span className="text-sm font-medium text-gray-500">Transfer To</span>
                                                     <div className="text-sm text-gray-600">
-                                                        <div className="font-medium">{payment.payment_method.account_name}</div>
-                                                        <div className="font-mono bg-gray-50 px-2 py-1 rounded mt-1">
-                                                            {payment.payment_method.account_number}
+                                                        <div className="font-medium">{payment.account_name || methodObj?.account_name || '—'}</div>
+                                                        <div className="font-mono bg-gray-50 px-2 py-1 rounded mt-1 w-fit">
+                                                            {payment.account_number || methodObj?.account_number || '—'}
                                                         </div>
-                                                        <div className="text-xs text-gray-500 mt-1">{payment.payment_method.bank_name}</div>
+                                                        <div className="text-xs text-slate-500 mt-1">{payment.bank_name || methodObj?.bank_name || '—'}</div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -350,14 +376,14 @@ export default function PaymentShow() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    {payment.attachment_exists && (
+                                                    {payment.attachment_path && (
                                                         <>
                                                             <FilePreviewModal
                                                                 filePath={payment.attachment_full_path || payment.attachment_path}
                                                                 fileName={payment.attachment_filename}
                                                                 fileSize={payment.attachment_size}
                                                                 fileType={payment.attachment_type}
-                                                                fileExists={payment.attachment_exists}
+                                                                fileExists={true}
                                                             >
                                                                 <Button variant="outline" size="sm">
                                                                     <Eye className="h-4 w-4 mr-2" />
@@ -365,7 +391,7 @@ export default function PaymentShow() {
                                                                 </Button>
                                                             </FilePreviewModal>
                                                             <Button variant="outline" size="sm" asChild>
-                                                                <a href={payment.attachment_full_path || payment.attachment_path} download={payment.attachment_filename}>
+                                                                <a href={`/storage/${payment.attachment_path}`} download={payment.attachment_filename}>
                                                                     <Download className="h-4 w-4 mr-2" />
                                                                     Download
                                                                 </a>
@@ -376,21 +402,21 @@ export default function PaymentShow() {
                                             </div>
 
                                             {/* Quick Preview for Images */}
-                                            {payment.attachment_exists && payment.attachment_type === 'image' && (
+                                            {payment.attachment_path && payment.attachment_type === 'image' && (
                                                 <div className="border rounded-lg overflow-hidden">
                                                     <div className="relative group">
                                                         <img
-                                                            src={payment.attachment_full_path || payment.attachment_path}
+                                                            src={`/storage/${payment.attachment_path}`}
                                                             alt="Payment proof preview"
                                                             className="w-full h-auto max-h-96 object-contain bg-gray-50"
                                                         />
                                                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
                                                             <FilePreviewModal
-                                                                filePath={payment.attachment_full_path || payment.attachment_path}
+                                                                filePath={`/storage/${payment.attachment_path}`}
                                                                 fileName={payment.attachment_filename}
                                                                 fileSize={payment.attachment_size}
                                                                 fileType={payment.attachment_type}
-                                                                fileExists={payment.attachment_exists}
+                                                                fileExists={true}
                                                             >
                                                                 <Button
                                                                     variant="secondary"

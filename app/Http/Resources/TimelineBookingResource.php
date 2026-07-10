@@ -26,6 +26,8 @@ class TimelineBookingResource extends JsonResource
             'check_out' => $this->check_out instanceof Carbon ? $this->check_out->toDateString() : $this->check_out,
             'nights' => $this->nights,
             'total_amount' => $this->total_amount,
+            'remaining_amount' => $this->remaining_amount ?? 0,
+            'extra_bed_count' => $this->extra_bed_count ?? 0,
             'booking_status' => $this->booking_status,
             'payment_status' => $this->payment_status,
             'guest_count' => $this->guest_count,
@@ -40,6 +42,8 @@ class TimelineBookingResource extends JsonResource
                     'base_rate' => $this->property->base_rate,
                 ];
             }),
+            'payments' => $this->whenLoaded('payments'),
+            'services' => $this->whenLoaded('services'),
         ];
     }
 }

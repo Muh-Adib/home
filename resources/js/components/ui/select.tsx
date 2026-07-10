@@ -50,8 +50,21 @@ function SelectContent({
   position = "popper",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const [container, setContainer] = React.useState<HTMLElement | null>(null)
+
+  React.useEffect(() => {
+    const updateContainer = () => {
+      setContainer((document.fullscreenElement as HTMLElement) || null)
+    }
+    updateContainer()
+    document.addEventListener("fullscreenchange", updateContainer)
+    return () => {
+      document.removeEventListener("fullscreenchange", updateContainer)
+    }
+  }, [])
+
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container}>
       <SelectPrimitive.Content
         data-slot="select-content"
         className={cn(

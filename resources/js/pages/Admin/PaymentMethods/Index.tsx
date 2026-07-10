@@ -30,6 +30,15 @@ import {
 } from 'lucide-react';
 import { type BreadcrumbItem } from '@/types';
 
+interface BankAccount {
+    id: number;
+    bank_name: string;
+    bank_code?: string;
+    account_number: string;
+    account_holder: string;
+    label?: string;
+}
+
 interface PaymentMethod {
     id: number;
     name: string;
@@ -46,6 +55,7 @@ interface PaymentMethod {
     sort_order: number;
     created_at: string;
     updated_at: string;
+    bank_accounts?: BankAccount[];
 }
 
 interface PaymentMethodsIndexProps {
@@ -279,9 +289,9 @@ export default function PaymentMethodsIndex({ paymentMethods, stats, filters }: 
                         paymentMethods?.data?.map((method) => (
                             <Card key={method.id}>
                                 <CardContent className="p-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gray-100">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div className="flex items-start gap-4 flex-1">
+                                            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gray-100 shrink-0">
                                                 {method.icon ? (
                                                     <span className="text-2xl">{method.icon}</span>
                                                 ) : (
@@ -289,44 +299,63 @@ export default function PaymentMethodsIndex({ paymentMethods, stats, filters }: 
                                                 )}
                                             </div>
                                             
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-3 mb-1">
-                                                    <h3 className="text-lg font-semibold">{method.name}</h3>
-                                                    <Badge className={getTypeColor(method.type)}>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                                    <h3 className="text-base font-bold text-slate-900 leading-tight">{method.name}</h3>
+                                                    <Badge className={`${getTypeColor(method.type)} text-[10px] px-2 py-0.5 font-bold uppercase tracking-wider`}>
                                                         {getTypeLabel(method.type)}
                                                     </Badge>
                                                     {method.is_active ? (
-                                                        <Badge variant="outline" className="text-green-600 border-green-200">
+                                                        <Badge variant="outline" className="text-green-600 border-green-200 text-[10px] px-1.5 py-0">
                                                             <CheckCircle className="h-3 w-3 mr-1" />
                                                             Active
                                                         </Badge>
                                                     ) : (
-                                                        <Badge variant="outline" className="text-red-600 border-red-200">
+                                                        <Badge variant="outline" className="text-red-600 border-red-200 text-[10px] px-1.5 py-0">
                                                             <XCircle className="h-3 w-3 mr-1" />
                                                             Inactive
                                                         </Badge>
                                                     )}
                                                 </div>
                                                 
-                                                <p className="text-sm text-gray-600 mb-2">
+                                                <p className="text-xs text-slate-500 mb-2 font-medium">
                                                     {method.description || 'No description'}
                                                 </p>
                                                 
-                                                {method.account_number && (
-                                                    <div className="text-sm text-gray-500">
-                                                        <span className="font-medium">
-                                                            {method.bank_name && `${method.bank_name}: `}
-                                                        </span>
-                                                        {method.account_number}
-                                                        {method.account_name && ` (${method.account_name})`}
+                                                {/* Render linked bank accounts if present */}
+                                                {method.bank_accounts && method.bank_accounts.length > 0 ? (
+                                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                                        {method.bank_accounts.map((acc) => (
+                                                            <div 
+                                                                key={acc.id} 
+                                                                className="text-[11px] text-slate-700 bg-slate-100/80 border border-slate-200/50 rounded-md py-1 px-2 flex items-center gap-1.5 font-semibold"
+                                                            >
+                                                                <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                                                                <span>{acc.bank_name}</span>
+                                                                <span className="text-slate-300">•</span>
+                                                                <span className="font-mono text-[10px] text-slate-600">{acc.account_number}</span>
+                                                                <span className="text-slate-400 font-medium">({acc.account_holder})</span>
+                                                            </div>
+                                                        ))}
                                                     </div>
+                                                ) : (
+                                                    method.account_number && (
+                                                        <div className="text-xs text-slate-600 flex items-center gap-1 font-semibold">
+                                                            <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                                                            <span>
+                                                                {method.bank_name && `${method.bank_name}: `}
+                                                            </span>
+                                                            <span className="font-mono text-slate-700">{method.account_number}</span>
+                                                            {method.account_name && <span className="text-slate-400 font-medium">({method.account_name})</span>}
+                                                        </div>
+                                                    )
                                                 )}
                                             </div>
                                         </div>
                                         
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-4 pt-3 md:pt-0 border-t border-slate-100 md:border-none shrink-0">
                                             <div className="flex items-center gap-2">
-                                                <Label htmlFor={`toggle-${method.id}`} className="text-sm">
+                                                <Label htmlFor={`toggle-${method.id}`} className="text-xs font-semibold text-slate-500">
                                                     {method.is_active ? 'Active' : 'Inactive'}
                                                 </Label>
                                                 <Switch
@@ -336,29 +365,31 @@ export default function PaymentMethodsIndex({ paymentMethods, stats, filters }: 
                                                 />
                                             </div>
                                             
-                                            <Link href={`/admin/payment-methods/${method.id}`}>
-                                                <Button variant="ghost" size="sm">
-                                                    <Eye className="h-4 w-4" />
+                                            <div className="flex items-center gap-1">
+                                                <Link href={`/admin/payment-methods/${method.id}`}>
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                                        <Eye className="h-4 w-4 text-slate-500" />
+                                                    </Button>
+                                                </Link>
+                                                
+                                                <Link href={`/admin/payment-methods/${method.id}/edit`}>
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                                        <Edit className="h-4 w-4 text-slate-500" />
+                                                    </Button>
+                                                </Link>
+                                                
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setSelectedMethod(method);
+                                                        setShowDeleteDialog(true);
+                                                    }}
+                                                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
                                                 </Button>
-                                            </Link>
-                                            
-                                            <Link href={`/admin/payment-methods/${method.id}/edit`}>
-                                                <Button variant="ghost" size="sm">
-                                                    <Edit className="h-4 w-4" />
-                                                </Button>
-                                            </Link>
-                                            
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setSelectedMethod(method);
-                                                    setShowDeleteDialog(true);
-                                                }}
-                                                className="text-red-600 hover:text-red-700"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 </CardContent>

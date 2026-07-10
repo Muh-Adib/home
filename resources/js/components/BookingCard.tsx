@@ -225,7 +225,7 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                         <div className="flex items-start justify-between mb-4">
                             <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-2">
-                                    <BookingStatusBadge status={booking.booking_status} />
+                                    <BookingStatusBadge status={booking.booking_status} booking={booking} />
                                     <PaymentStatusBadge status={booking.payment_status} />
                                     {booking.can_show_checkin && (
                                         <Badge className="bg-blue-100 text-blue-800 border-blue-300">

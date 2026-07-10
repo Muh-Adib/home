@@ -3,16 +3,19 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Booking;
+use App\Models\EmployeeLoan;
+use App\Models\EmployeeLoanPayment;
 use App\Models\Income;
+use App\Models\PaymentMethod;
+use App\Models\Property;
 use App\Models\PropertyExpense;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Models\Property;
-use App\Models\PaymentMethod;
 use App\Services\WalletService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\DB;
 
 class FinanceController extends Controller
 {
@@ -54,9 +57,9 @@ class FinanceController extends Controller
         // Apply filters
         if ($request->filled('q')) {
             $search = $request->input('q');
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('description', 'like', "%{$search}%")
-                  ->orWhere('vendor_name', 'like', "%{$search}%");
+                    ->orWhere('vendor_name', 'like', "%{$search}%");
             });
         }
 
@@ -105,7 +108,7 @@ class FinanceController extends Controller
         $categories = config('finance.expense_categories');
         $types = config('finance.expense_types');
         $properties = Property::select('id', 'name')->orderBy('name')->get();
-        
+
         // Get wallets untuk dropdown (filtered by user visibility)
         $user = $request->user();
         $wallets = Wallet::visibleToUser($user->id, $user->role)
@@ -128,7 +131,7 @@ class FinanceController extends Controller
     public function wallets(Request $request)
     {
         $user = $request->user();
-        
+
         // Filter wallets berdasarkan created_by untuk user biasa
         // Finance/Super Admin tetap bisa lihat semua
         $wallets = Wallet::visibleToUser($user->id, $user->role)
@@ -165,7 +168,7 @@ class FinanceController extends Controller
         $validated['created_by'] = $request->user()->id;
         $income = Income::create($validated);
 
-        if (!empty($validated['wallet_id'])) {
+        if (! empty($validated['wallet_id'])) {
             $this->recordWallet($validated['wallet_id'], 'in', $validated['amount'], $validated['income_date'], 'income', $income->id, $validated['description'] ?? '');
         }
 
@@ -177,7 +180,7 @@ class FinanceController extends Controller
         // Get configured categories and types
         $expenseCategories = array_keys(config('finance.expense_categories', []));
         $expenseTypes = array_keys(config('finance.expense_types', []));
-        
+
         // Build validation rules
         $validationRules = [
             'property_id' => ['nullable', 'exists:properties,id'],
@@ -192,19 +195,19 @@ class FinanceController extends Controller
         ];
 
         // Add category validation if categories are configured
-        if (!empty($expenseCategories)) {
-            $validationRules['expense_category'] = ['required', 'in:' . implode(',', $expenseCategories)];
+        if (! empty($expenseCategories)) {
+            $validationRules['expense_category'] = ['required', 'in:'.implode(',', $expenseCategories)];
         } else {
             $validationRules['expense_category'] = ['required', 'string', 'max:50'];
         }
 
         // Add type validation if types are configured
-        if (!empty($expenseTypes)) {
-            $validationRules['expense_type'] = ['required', 'in:' . implode(',', $expenseTypes)];
+        if (! empty($expenseTypes)) {
+            $validationRules['expense_type'] = ['required', 'in:'.implode(',', $expenseTypes)];
         } else {
             $validationRules['expense_type'] = ['required', 'string', 'max:50'];
         }
-        
+
         $validated = $request->validate($validationRules);
 
         $expense = PropertyExpense::create([
@@ -223,7 +226,7 @@ class FinanceController extends Controller
             'status' => 'approved',
         ]);
 
-        if (!empty($validated['wallet_id'])) {
+        if (! empty($validated['wallet_id'])) {
             $this->recordWallet($validated['wallet_id'], 'out', $validated['amount'], $validated['expense_date'], 'expense', $expense->id, $validated['description'] ?? '');
         }
 
@@ -246,16 +249,17 @@ class FinanceController extends Controller
 
         // Coalesce nulls ke default agar tidak melanggar NOT NULL (SQLite tidak menerapkan default jika nilai null dikirim)
         $validated['property_id'] = $validated['property_id'] ?? null;
-        $validated['is_savings'] = (bool)($validated['is_savings'] ?? false);
-        $validated['auto_deduct_from_monthly_report'] = (bool)($validated['auto_deduct_from_monthly_report'] ?? false);
+        $validated['is_savings'] = (bool) ($validated['is_savings'] ?? false);
+        $validated['auto_deduct_from_monthly_report'] = (bool) ($validated['auto_deduct_from_monthly_report'] ?? false);
         $validated['savings_monthly_amount'] = $validated['savings_monthly_amount'] ?? 0;
         $validated['target_amount'] = $validated['target_amount'] ?? null;
         $validated['target_date'] = $validated['target_date'] ?? null;
-        
+
         // Set created_by to current user
         $validated['created_by'] = $request->user()->id;
 
         $wallet = Wallet::create($validated);
+
         return redirect()->back()->with('success', 'Wallet berhasil dibuat');
     }
 
@@ -268,6 +272,7 @@ class FinanceController extends Controller
         $paymentMethod->update([
             'wallet_id' => $validated['wallet_id'] ?? null,
         ]);
+
         return back()->with('success', 'Payment method berhasil dihubungkan ke wallet');
     }
 
@@ -275,12 +280,12 @@ class FinanceController extends Controller
     {
         // Authorization: user harus creator wallet atau admin/finance
         $user = $request->user();
-        if ($wallet->created_by !== $user->id && !in_array($user->role, ['super_admin', 'finance'])) {
+        if ($wallet->created_by !== $user->id && ! in_array($user->role, ['super_admin', 'finance'])) {
             abort(403, 'Unauthorized to perform transaction on this wallet');
         }
 
         $walletCategories = array_keys(config('finance.wallet_transaction_categories', []));
-        
+
         // Build validation rules
         $validationRules = [
             'direction' => ['required', 'in:in,out'],
@@ -290,13 +295,13 @@ class FinanceController extends Controller
         ];
 
         // Only add 'in' validation if categories are available
-        if (!empty($walletCategories)) {
-            $validationRules['category'] = ['required', 'in:' . implode(',', $walletCategories)];
+        if (! empty($walletCategories)) {
+            $validationRules['category'] = ['required', 'in:'.implode(',', $walletCategories)];
         } else {
             // If no categories configured, just require category to be a string
             $validationRules['category'] = ['required', 'string', 'max:50'];
         }
-        
+
         $validated = $request->validate($validationRules);
 
         // Check balance untuk transaction OUT
@@ -304,7 +309,7 @@ class FinanceController extends Controller
             $currentBalance = $wallet->fresh()->balance;
             if ($currentBalance < $validated['amount']) {
                 return redirect()->back()->withErrors([
-                    'amount' => 'Saldo tidak cukup. Saldo saat ini: Rp ' . number_format($currentBalance, 0, ',', '.')
+                    'amount' => 'Saldo tidak cukup. Saldo saat ini: Rp '.number_format($currentBalance, 0, ',', '.'),
                 ]);
             }
         }
@@ -332,7 +337,7 @@ class FinanceController extends Controller
             return redirect()->back()->with('success', 'Transaksi wallet berhasil disimpan');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'error' => 'Gagal menyimpan transaksi: ' . $e->getMessage()
+                'error' => 'Gagal menyimpan transaksi: '.$e->getMessage(),
             ]);
         }
     }
@@ -341,7 +346,7 @@ class FinanceController extends Controller
     {
         // Authorization: user harus creator wallet atau admin/finance
         $user = $request->user();
-        if ($wallet->created_by !== $user->id && !in_array($user->role, ['super_admin', 'finance'])) {
+        if ($wallet->created_by !== $user->id && ! in_array($user->role, ['super_admin', 'finance'])) {
             abort(403, 'Unauthorized to view this wallet report');
         }
 
@@ -364,7 +369,7 @@ class FinanceController extends Controller
         $netAmount = $totalIn - $totalOut;
 
         $walletData = $wallet->load(['property', 'creator']);
-        
+
         // Add computed properties for frontend
         $walletData->has_target = $walletData->hasTarget();
         $walletData->progress_percentage = $walletData->getProgressPercentage();
@@ -390,7 +395,7 @@ class FinanceController extends Controller
         $wallet = Wallet::findOrFail($walletId);
 
         // Map reference type to category for consistency with WalletService
-        $category = match($refType) {
+        $category = match ($refType) {
             'income' => 'income',
             'expense' => 'expense',
             'manual' => 'manual',
@@ -443,7 +448,7 @@ class FinanceController extends Controller
             return redirect()->back()->with('success', 'Transfer berhasil dilakukan');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -457,8 +462,14 @@ class FinanceController extends Controller
         $endDate = $request->input('to', now()->endOfMonth()->toDateString());
         $propertyId = $request->input('property_id');
 
-        // Get all properties for filter
-        $properties = Property::select('id', 'name')->orderBy('name')->get();
+        // Calculate days and month factor for scaling sewa/cicilan
+        $days = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+        $monthFactor = max(0.1, round($days / 30.0, 4));
+
+        // Get all properties
+        $properties = Property::select('id', 'name', 'slug', 'type', 'ownership_model', 'owner_split_pct', 'investor_split_pct', 'monthly_rent_cost', 'monthly_mortgage_cost', 'mortgage_interest_monthly', 'initial_build_capital', 'lease_capital', 'capacity_max')
+            ->orderBy('name')
+            ->get();
 
         // Build query for incomes
         $incomesQuery = Income::whereBetween('income_date', [$startDate, $endDate]);
@@ -469,6 +480,7 @@ class FinanceController extends Controller
                 $incomesQuery->where('property_id', $propertyId);
             }
         }
+        $incomes = $incomesQuery->with(['property', 'booking'])->get();
 
         // Build query for expenses
         $expensesQuery = PropertyExpense::whereBetween('expense_date', [$startDate, $endDate]);
@@ -479,48 +491,121 @@ class FinanceController extends Controller
                 $expensesQuery->where('property_id', $propertyId);
             }
         }
-
-        $incomes = $incomesQuery->with(['property', 'booking'])->get();
         $expenses = $expensesQuery->with(['property'])->get();
 
         // Calculate totals
         $totalIncome = $incomes->sum('amount');
         $totalExpense = $expenses->sum('amount');
-        $netProfit = $totalIncome - $totalExpense;
 
-        // Group by property
+        // Calculations by property
         $byProperty = [];
-        
-        // Income by property
-        $incomeByProperty = $incomes->groupBy(function ($item) {
-            return $item->property_id ?? 'global';
-        })->map(function ($group) {
-            return $group->sum('amount');
-        });
+        $totalOwnerShare = 0;
+        $totalInvestorShare = 0;
+        $totalRentCost = 0;
+        $totalInterestCost = 0;
 
-        // Expense by property
-        $expenseByProperty = $expenses->groupBy(function ($item) {
-            return $item->property_id ?? 'global';
-        })->map(function ($group) {
-            return $group->sum('amount');
-        });
+        foreach ($properties as $property) {
+            if ($propertyId && $propertyId !== 'null' && $property->id != $propertyId) {
+                continue;
+            }
 
-        // Combine for each property
-        $propertyIds = $incomeByProperty->keys()->merge($expenseByProperty->keys())->unique();
-        
-        foreach ($propertyIds as $propId) {
-            $property = $propId === 'global' ? null : Property::find($propId);
-            $propIncome = $incomeByProperty->get($propId, 0);
-            $propExpense = $expenseByProperty->get($propId, 0);
-            
+            // Incomes for this property
+            $propIncomes = $incomes->where('property_id', $property->id);
+            $propNetRoomIncome = 0;
+            $propOtherIncome = 0;
+
+            foreach ($propIncomes as $income) {
+                if ($income->booking_id && $income->booking && $income->source === 'booking') {
+                    // Subtract commission
+                    $commPct = $income->booking->commission_pct ?? ($income->booking->source === 'ota' ? 15.00 : 0.00);
+                    $propNetRoomIncome += $income->amount * (1 - ($commPct / 100.0));
+                } else {
+                    $propOtherIncome += $income->amount;
+                }
+            }
+
+            // Direct expenses for this property
+            $propExpenses = $expenses->where('property_id', $property->id);
+            $directCosts = $propExpenses->sum('amount');
+
+            // Operational profit
+            $labaOperasional = ($propNetRoomIncome + $propOtherIncome) - $directCosts;
+
+            // Split calculation
+            $investorShare = 0;
+            $ownerShare = 0;
+
+            if ($property->ownership_model === 'partnership') {
+                $investorShare = $labaOperasional * ($property->investor_split_pct / 100.0);
+                $ownerShare = $labaOperasional * ($property->owner_split_pct / 100.0);
+            } elseif ($property->ownership_model === 'rented') {
+                $rent = $property->monthly_rent_cost * $monthFactor;
+                $ownerShare = $labaOperasional - $rent;
+                $investorShare = 0;
+                $totalRentCost += $rent;
+            } else { // owned
+                $ownerShare = $labaOperasional;
+                $investorShare = 0;
+                $interest = $property->mortgage_interest_monthly * $monthFactor;
+                $totalInterestCost += $interest;
+            }
+
+            $totalOwnerShare += $ownerShare;
+            $totalInvestorShare += $investorShare;
+
+            // Calculate booked nights / occupancy
+            $bookedNights = $this->getBookedNightsForProperty($property->id, $startDate, $endDate);
+            $occupancyRate = ($monthFactor * 30 > 0) ? ($bookedNights / ($monthFactor * 30)) * 100 : 0;
+            $lowOccupancyAlert = $bookedNights < (25 * $monthFactor);
+
+            // Cumulative net profit BEP calculations
+            $allTimeIncome = Income::where('property_id', $property->id)->sum('amount');
+            $allTimeExpense = PropertyExpense::where('property_id', $property->id)->sum('amount');
+
+            $firstTxDate = Income::where('property_id', $property->id)->min('income_date') ?? (optional($property->created_at)->toDateString() ?? now()->toDateString());
+            $monthsSinceStart = max(1, round(Carbon::parse($firstTxDate)->diffInMonths(now())));
+
+            $allTimeRentOrInterest = 0;
+            if ($property->ownership_model === 'rented') {
+                $allTimeRentOrInterest = $property->monthly_rent_cost * $monthsSinceStart;
+            } elseif ($property->ownership_model === 'owned') {
+                $allTimeRentOrInterest = $property->mortgage_interest_monthly * $monthsSinceStart;
+            }
+
+            $cumulativeProfit = $allTimeIncome - $allTimeExpense - $allTimeRentOrInterest;
+            $capital = $property->initial_build_capital + $property->lease_capital;
+            $bepPct = $capital > 0 ? ($cumulativeProfit / $capital) * 100 : 0;
+            $avgMonthlyProfit = $monthsSinceStart > 0 ? ($cumulativeProfit / $monthsSinceStart) : 0;
+            $remainingMonths = ($avgMonthlyProfit > 0 && $cumulativeProfit < $capital) ? round(($capital - $cumulativeProfit) / $avgMonthlyProfit, 1) : 0;
+
             $byProperty[] = [
-                'property_id' => $propId,
-                'property_name' => $property ? $property->name : 'Perusahaan (Global)',
-                'total_income' => $propIncome,
-                'total_expense' => $propExpense,
-                'net_profit' => $propIncome - $propExpense,
+                'property_id' => $property->id,
+                'property_name' => $property->name,
+                'ownership_model' => $property->ownership_model,
+                'total_income' => $propIncomes->sum('amount'),
+                'total_expense' => $directCosts,
+                'laba_operasional' => $labaOperasional,
+                'investor_share' => $investorShare,
+                'owner_share' => $ownerShare,
+                'booked_nights' => $bookedNights,
+                'occupancy_rate' => round($occupancyRate, 1),
+                'low_occupancy_alert' => $lowOccupancyAlert,
+                'bep_percentage' => round($bepPct, 1),
+                'remaining_months' => $remainingMonths,
+                'cumulative_profit' => $cumulativeProfit,
+                'capital' => $capital,
             ];
         }
+
+        // Group overhead
+        // Expenses where property_id is null OR pointing to operational properties
+        $groupOverhead = $expenses->filter(function ($exp) {
+            return is_null($exp->property_id) || ($exp->property && $exp->property->type === 'operational');
+        })->sum('amount');
+
+        // Net profit owner after overhead & mortgage interest
+        $netProfitOwner = $totalOwnerShare - $groupOverhead - $totalInterestCost;
+        $zakat = $netProfitOwner > 0 ? $netProfitOwner * 0.025 : 0;
 
         // Group expenses by category
         $expensesByCategory = $expenses->groupBy('expense_category')->map(function ($group, $category) {
@@ -541,6 +626,11 @@ class FinanceController extends Controller
             ];
         })->values();
 
+        // Employee loans summary
+        $loanDisbursements = EmployeeLoan::whereBetween('disbursed_at', [$startDate, $endDate])->sum('amount');
+        $loanRepayments = EmployeeLoanPayment::whereBetween('paid_at', [$startDate, $endDate])->sum('amount');
+        $outstandingLoans = EmployeeLoan::where('status', 'active')->sum('amount') - EmployeeLoanPayment::sum('amount');
+
         return Inertia::render('Admin/Finance/Report', [
             'startDate' => $startDate,
             'endDate' => $endDate,
@@ -548,14 +638,113 @@ class FinanceController extends Controller
             'properties' => $properties,
             'totalIncome' => $totalIncome,
             'totalExpense' => $totalExpense,
-            'netProfit' => $netProfit,
             'byProperty' => $byProperty,
             'expensesByCategory' => $expensesByCategory,
             'incomesBySource' => $incomesBySource,
             'incomes' => $incomes,
             'expenses' => $expenses,
+            'groupOverhead' => $groupOverhead,
+            'totalRentCost' => $totalRentCost,
+            'totalInterestCost' => $totalInterestCost,
+            'netProfitOwner' => $netProfitOwner,
+            'totalInvestorShare' => $totalInvestorShare,
+            'zakat' => $zakat,
+            'loanDisbursements' => $loanDisbursements,
+            'loanRepayments' => $loanRepayments,
+            'outstandingLoans' => $outstandingLoans,
         ]);
     }
+
+    /**
+     * Helper to calculate nights booked for a property in date range
+     */
+    private function getBookedNightsForProperty($propertyId, $startDate, $endDate): int
+    {
+        $bookings = Booking::where('property_id', $propertyId)
+            ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
+            ->where('check_in', '<', $endDate)
+            ->where('check_out', '>', $startDate)
+            ->get(['check_in', 'check_out']);
+
+        $totalNights = 0;
+        $start = Carbon::parse($startDate);
+        $end = Carbon::parse($endDate);
+
+        foreach ($bookings as $booking) {
+            $checkIn = Carbon::parse($booking->check_in);
+            $checkOut = Carbon::parse($booking->check_out);
+
+            $overlapStart = $checkIn->max($start);
+            $overlapEnd = $checkOut->min($end);
+
+            if ($overlapStart->lt($overlapEnd)) {
+                $totalNights += $overlapStart->diffInDays($overlapEnd);
+            }
+        }
+
+        return $totalNights;
+    }
+
+    /**
+     * Display employee loans (casbon) dashboard
+     */
+    public function loans(Request $request)
+    {
+        $loans = EmployeeLoan::with(['employee', 'creator', 'payments'])
+            ->orderByDesc('disbursed_at')
+            ->get();
+
+        // Get all staff users for dropdown
+        $employees = User::whereIn('role', ['property_manager', 'front_desk', 'housekeeping', 'finance'])->get(['id', 'name', 'role']);
+
+        return Inertia::render('Admin/Finance/Loans', [
+            'loans' => $loans,
+            'employees' => $employees,
+        ]);
+    }
+
+    /**
+     * Store employee loan
+     */
+    public function storeLoan(Request $request)
+    {
+        $validated = $request->validate([
+            'employee_id' => ['required', 'exists:users,id'],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'disbursed_at' => ['required', 'date'],
+            'notes' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $validated['status'] = 'active';
+        $validated['created_by'] = $request->user()->id;
+
+        EmployeeLoan::create($validated);
+
+        return redirect()->back()->with('success', 'Casbon berhasil dicatat');
+    }
+
+    /**
+     * Store loan payment
+     */
+    public function storeLoanPayment(Request $request, EmployeeLoan $loan)
+    {
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0'],
+            'paid_at' => ['required', 'date'],
+            'notes' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $validated['employee_loan_id'] = $loan->id;
+        $validated['created_by'] = $request->user()->id;
+
+        EmployeeLoanPayment::create($validated);
+
+        // Check if fully paid
+        $totalPaid = $loan->payments()->sum('amount');
+        if ($totalPaid >= $loan->amount) {
+            $loan->update(['status' => 'paid']);
+        }
+
+        return redirect()->back()->with('success', 'Cicilan casbon berhasil dicatat');
+    }
 }
-
-

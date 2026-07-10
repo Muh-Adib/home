@@ -21,8 +21,21 @@ function PopoverContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+  const [container, setContainer] = React.useState<HTMLElement | null>(null)
+
+  React.useEffect(() => {
+    const updateContainer = () => {
+      setContainer((document.fullscreenElement as HTMLElement) || null)
+    }
+    updateContainer()
+    document.addEventListener("fullscreenchange", updateContainer)
+    return () => {
+      document.removeEventListener("fullscreenchange", updateContainer)
+    }
+  }, [])
+
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal container={container}>
       <PopoverPrimitive.Content
         data-slot="popover-content"
         align={align}

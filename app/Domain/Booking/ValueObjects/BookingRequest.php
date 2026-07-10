@@ -23,6 +23,7 @@ class BookingRequest
         public readonly string $guestName,
         public readonly string $guestEmail,
         public readonly string $guestPhone,
+        public readonly ?string $guestPhoneAlternative,
         public readonly string $guestCountry,
         public readonly ?string $guestIdNumber,
         public readonly string $guestGender,
@@ -36,6 +37,9 @@ class BookingRequest
         public readonly int $dpPercentage,
         public readonly bool $autoConfirm = false,
         public readonly ?array $guests = [],
+        public readonly bool $forceCapacityOverride = false,
+        public readonly ?array $dailyExtraBeds = null,
+        public readonly int $discountAmount = 0,
     ) {}
 
     public function getNights(): int
@@ -50,8 +54,6 @@ class BookingRequest
 
     public function getEffectiveGuestCount(int $capacity, int $capacityMax): int
     {
-        // If capacity < capacityMax, apply special child logic (floor(children / 2))
-        // Otherwise (capacity == capacityMax), children count as 1
         if ($capacity < $capacityMax) {
             return $this->guestMale + $this->guestFemale + (int) floor($this->guestChildren / 2);
         }
@@ -78,6 +80,7 @@ class BookingRequest
             'guest_name' => $this->guestName,
             'guest_email' => $this->guestEmail,
             'guest_phone' => $this->guestPhone,
+            'guest_phone_alternative' => $this->guestPhoneAlternative,
             'guest_country' => $this->guestCountry,
             'guest_id_number' => $this->guestIdNumber,
             'guest_gender' => $this->guestGender,
@@ -91,12 +94,14 @@ class BookingRequest
             'payment_status' => $this->paymentStatus,
             'dp_percentage' => $this->dpPercentage,
             'auto_confirm' => $this->autoConfirm,
+            'force_capacity_override' => $this->forceCapacityOverride,
+            'daily_extra_beds' => $this->dailyExtraBeds,
+            'discount_amount' => $this->discountAmount,
         ];
     }
 
     public static function fromArray(array $data): self
     {
-        // ✅ FIX: Better field mapping and validation
         $required = ['property_id', 'check_in', 'check_out', 'guest_name', 'guest_email', 'guest_phone'];
         foreach ($required as $field) {
             if (! isset($data[$field]) || (is_string($data[$field]) && trim($data[$field]) === '')) {
@@ -104,7 +109,6 @@ class BookingRequest
             }
         }
 
-        // ✅ FIX: Handle different field name variations
         $checkIn = $data['check_in'] ?? $data['check_in_date'] ?? null;
         $checkOut = $data['check_out'] ?? $data['check_out_date'] ?? null;
         $checkInTime = $data['check_in_time'] ?? '15:00';
@@ -113,7 +117,6 @@ class BookingRequest
             throw new \InvalidArgumentException('Check-in and check-out dates are required');
         }
 
-        // ✅ FIX: Validate dates
         if (! strtotime($checkIn) || ! strtotime($checkOut)) {
             throw new \InvalidArgumentException('Invalid date format in check_in or check_out');
         }
@@ -122,7 +125,6 @@ class BookingRequest
             throw new \InvalidArgumentException('Check-out date must be after check-in date');
         }
 
-        // ✅ FIX: Better guest count handling
         $guestMale = (int) ($data['guest_male'] ?? 0);
         $guestFemale = (int) ($data['guest_female'] ?? 0);
         $guestChildren = (int) ($data['guest_children'] ?? 0);
@@ -132,7 +134,6 @@ class BookingRequest
             throw new \InvalidArgumentException('Total guest count must be greater than 0');
         }
 
-        // ✅ FIX: Use total guests if guest_count not provided
         $guestCount = (int) ($data['guest_count'] ?? $totalGuests);
 
         return new self(
@@ -147,6 +148,7 @@ class BookingRequest
             guestName: trim($data['guest_name']),
             guestEmail: trim($data['guest_email']),
             guestPhone: trim($data['guest_phone']),
+            guestPhoneAlternative: isset($data['guest_phone_alternative']) ? trim($data['guest_phone_alternative']) : null,
             guestCountry: $data['guest_country'] ?? 'Indonesia',
             guestIdNumber: $data['guest_id_number'] ?? null,
             guestGender: $data['guest_gender'] ?? 'male',
@@ -157,7 +159,10 @@ class BookingRequest
             bookingStatus: $data['booking_status'] ?? 'pending_verification',
             paymentStatus: $data['payment_status'] ?? 'dp_pending',
             dpPercentage: (int) ($data['dp_percentage'] ?? 50),
-            autoConfirm: (bool) ($data['auto_confirm'] ?? false)
+            autoConfirm: (bool) ($data['auto_confirm'] ?? false),
+            forceCapacityOverride: (bool) ($data['force_capacity_override'] ?? false),
+            dailyExtraBeds: $data['daily_extra_beds'] ?? null,
+            discountAmount: (int) ($data['discount_amount'] ?? 0)
         );
     }
 }

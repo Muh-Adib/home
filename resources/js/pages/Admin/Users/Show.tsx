@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { type User, type BreadcrumbItem, type PageProps } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
-import { 
+import {
     ArrowLeft,
     Edit,
     Trash2,
@@ -74,50 +74,50 @@ export default function UserShow({ user }: UserShowProps) {
 
     const getRoleInfo = (role: User['role']) => {
         const roleConfig = {
-            super_admin: { 
-                label: 'Super Admin', 
+            super_admin: {
+                label: 'Super Admin',
                 icon: Crown,
                 color: 'bg-purple-100 text-purple-800 border-purple-200',
                 description: 'Full system access and control'
             },
-            property_owner: { 
-                label: 'Property Owner', 
+            property_owner: {
+                label: 'Property Owner',
                 icon: Building2,
                 color: 'bg-blue-100 text-blue-800 border-blue-200',
                 description: 'Owns and manages properties'
             },
-            property_manager: { 
-                label: 'Property Manager', 
+            property_manager: {
+                label: 'Property Manager',
                 icon: Shield,
                 color: 'bg-green-100 text-green-800 border-green-200',
                 description: 'Manages multiple properties'
             },
-            front_desk: { 
-                label: 'Front Desk', 
+            front_desk: {
+                label: 'Front Desk',
                 icon: ClipboardList,
                 color: 'bg-orange-100 text-orange-800 border-orange-200',
                 description: 'Handles check-in/out and guest services'
             },
-            finance: { 
-                label: 'Finance', 
+            finance: {
+                label: 'Finance',
                 icon: DollarSign,
                 color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
                 description: 'Manages payments and financial operations'
             },
-            housekeeping: { 
-                label: 'Housekeeping', 
+            housekeeping: {
+                label: 'Housekeeping',
                 icon: Home,
                 color: 'bg-gray-100 text-gray-800 border-gray-200',
                 description: 'Cleaning and maintenance staff'
             },
-            guest: { 
-                label: 'Guest', 
+            guest: {
+                label: 'Guest',
                 icon: Users,
                 color: 'bg-slate-100 text-slate-800 border-slate-200',
                 description: 'Customer with booking access'
             },
         };
-        
+
         return roleConfig[role];
     };
 
@@ -152,7 +152,7 @@ export default function UserShow({ user }: UserShowProps) {
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
-            <div className="space-y-6 p-4 md:p-6">
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex items-center gap-4">
@@ -169,7 +169,7 @@ export default function UserShow({ user }: UserShowProps) {
                             </p>
                         </div>
                     </div>
-                    
+
                     <div className="flex flex-col sm:flex-row gap-2">
                         {canEditUser() && (
                             <Button asChild variant="outline">
@@ -201,7 +201,7 @@ export default function UserShow({ user }: UserShowProps) {
                                 </div>
                                 <CardTitle className="text-xl">{user.name}</CardTitle>
                                 <CardDescription>{user.email}</CardDescription>
-                                
+
                                 <div className="flex flex-col gap-2 mt-4">
                                     <Badge className={`inline-flex items-center gap-2 ${roleInfo.color}`}>
                                         <RoleIcon className="h-4 w-4" />
@@ -304,7 +304,7 @@ export default function UserShow({ user }: UserShowProps) {
                             <Alert className="border-orange-200 bg-orange-50">
                                 <AlertCircle className="h-4 w-4" />
                                 <AlertDescription>
-                                    Akun user ini saat ini <strong>tidak aktif</strong>. 
+                                    Akun user ini saat ini <strong>tidak aktif</strong>.
                                     User tidak dapat mengakses sistem sampai status diubah menjadi aktif.
                                 </AlertDescription>
                             </Alert>
@@ -318,7 +318,7 @@ export default function UserShow({ user }: UserShowProps) {
                         <DialogHeader>
                             <DialogTitle>Hapus User</DialogTitle>
                             <DialogDescription>
-                                Apakah Anda yakin ingin menghapus user "<strong>{user.name}</strong>"? 
+                                Apakah Anda yakin ingin menghapus user "<strong>{user.name}</strong>"?
                                 Tindakan ini tidak dapat dibatalkan dan akan menghapus semua data user secara permanen.
                             </DialogDescription>
                         </DialogHeader>

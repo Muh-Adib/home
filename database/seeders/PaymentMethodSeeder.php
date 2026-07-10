@@ -2,10 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use App\Models\PaymentMethod;
+use Illuminate\Database\Seeder;
 
 class PaymentMethodSeeder extends Seeder
 {
@@ -29,7 +27,7 @@ class PaymentMethodSeeder extends Seeder
                     'Transfer ke nomor rekening yang tertera',
                     'Gunakan kode booking sebagai berita acara',
                     'Simpan bukti transfer dan upload di form payment',
-                    'Konfirmasi akan diproses maksimal 2x24 jam'
+                    'Konfirmasi akan diproses maksimal 2x24 jam',
                 ],
                 'is_active' => true,
                 'sort_order' => 1,
@@ -47,7 +45,7 @@ class PaymentMethodSeeder extends Seeder
                     'Transfer ke nomor rekening yang tertera',
                     'Gunakan kode booking sebagai berita acara',
                     'Simpan bukti transfer dan upload di form payment',
-                    'Konfirmasi akan diproses maksimal 2x24 jam'
+                    'Konfirmasi akan diproses maksimal 2x24 jam',
                 ],
                 'is_active' => true,
                 'sort_order' => 2,
@@ -65,7 +63,7 @@ class PaymentMethodSeeder extends Seeder
                     'Transfer ke nomor rekening yang tertera',
                     'Gunakan kode booking sebagai berita acara',
                     'Simpan bukti transfer dan upload di form payment',
-                    'Konfirmasi akan diproses maksimal 2x24 jam'
+                    'Konfirmasi akan diproses maksimal 2x24 jam',
                 ],
                 'is_active' => true,
                 'sort_order' => 3,
@@ -84,7 +82,7 @@ class PaymentMethodSeeder extends Seeder
                     'Transfer ke nomor OVO yang tertera',
                     'Gunakan catatan: kode booking',
                     'Screenshot bukti transfer dan upload',
-                    'Konfirmasi otomatis dalam 1 jam'
+                    'Konfirmasi otomatis dalam 1 jam',
                 ],
                 'is_active' => true,
                 'sort_order' => 4,
@@ -101,7 +99,7 @@ class PaymentMethodSeeder extends Seeder
                     'Transfer ke nomor GoPay yang tertera',
                     'Gunakan catatan: kode booking',
                     'Screenshot bukti transfer dan upload',
-                    'Konfirmasi otomatis dalam 1 jam'
+                    'Konfirmasi otomatis dalam 1 jam',
                 ],
                 'is_active' => true,
                 'sort_order' => 5,
@@ -118,7 +116,7 @@ class PaymentMethodSeeder extends Seeder
                     'Transfer ke nomor DANA yang tertera',
                     'Gunakan catatan: kode booking',
                     'Screenshot bukti transfer dan upload',
-                    'Konfirmasi otomatis dalam 1 jam'
+                    'Konfirmasi otomatis dalam 1 jam',
                 ],
                 'is_active' => true,
                 'sort_order' => 6,
@@ -135,7 +133,7 @@ class PaymentMethodSeeder extends Seeder
                     'Hubungi customer service kami',
                     'Atur jadwal pembayaran tunai',
                     'Lokasi: kantor Homsjogja',
-                    'Bawa kode booking untuk verifikasi'
+                    'Bawa kode booking untuk verifikasi',
                 ],
                 'is_active' => true,
                 'sort_order' => 7,
@@ -151,7 +149,7 @@ class PaymentMethodSeeder extends Seeder
                 'instructions' => [
                     'Fitur akan segera tersedia',
                     'Gunakan metode lain sementara',
-                    'Atau hubungi customer service'
+                    'Atau hubungi customer service',
                 ],
                 'is_active' => false,
                 'sort_order' => 8,
@@ -168,9 +166,9 @@ class PaymentMethodSeeder extends Seeder
                     'Pilih metode pembayaran yang tersedia',
                     'Ikuti instruksi di halaman pembayaran',
                     'Pembayaran akan diverifikasi otomatis',
-                    'Link pembayaran berlaku selama 24 jam'
+                    'Link pembayaran berlaku selama 24 jam',
                 ],
-                'is_active' => true,
+                'is_active' => false,
                 'sort_order' => 0, // Set to 0 to appear first
             ],
         ];

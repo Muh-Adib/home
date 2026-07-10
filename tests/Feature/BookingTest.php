@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Booking;
+use App\Models\Payment;
 use App\Models\Property;
 use App\Models\User;
 use App\Services\AvailabilityService;
@@ -373,8 +374,8 @@ class BookingTest extends TestCase
 
         foreach ($dpPercentages as $dpPercentage) {
             $bookingData = [
-                'check_in' => now()->addDays(10)->format('Y-m-d'),
-                'check_out' => now()->addDays(12)->format('Y-m-d'),
+                'check_in' => now()->addDays(10 + $dpPercentage)->format('Y-m-d'),
+                'check_out' => now()->addDays(12 + $dpPercentage)->format('Y-m-d'),
                 'check_in_time' => '15:00',
                 'guest_male' => 1,
                 'guest_female' => 1,
@@ -387,11 +388,6 @@ class BookingTest extends TestCase
                 'relationship_type' => 'keluarga',
                 'dp_percentage' => $dpPercentage,
             ];
-
-            $response = $this->actingAs($this->user)
-                ->post("/properties/{$this->property->slug}/book", $bookingData);
-
-            $response->assertStatus(302);
 
             // Find the created booking with unique email for each test
             $uniqueEmail = "test{$dpPercentage}@example.com";
@@ -539,5 +535,146 @@ class BookingTest extends TestCase
 
         // Should redirect to login or handle guest booking
         $response->assertStatus(302);
+    }
+
+    #[Test]
+    public function fully_paid_booking_payment_url_redirects_to_my_bookings()
+    {
+        $booking = Booking::factory()->create([
+            'property_id' => $this->property->id,
+            'created_by' => $this->user->id,
+            'guest_email' => $this->user->email,
+            'check_in' => now()->addDays(5)->format('Y-m-d'),
+            'check_out' => now()->addDays(7)->format('Y-m-d'),
+            'total_amount' => 1000000,
+            'dp_amount' => 500000,
+            'dp_paid_amount' => 1000000,
+            'remaining_amount' => 0,
+            'payment_status' => 'fully_paid',
+            'payment_token' => 'test-token-fully-paid',
+            'payment_token_expires_at' => now()->addDays(1),
+        ]);
+
+        Payment::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => 1000000,
+            'payment_status' => 'verified',
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->get("/booking/{$booking->booking_number}/payment");
+
+        $response->assertRedirect(route('my-bookings'));
+        $response->assertSessionHas('info', 'This booking has been fully paid.');
+    }
+
+    #[Test]
+    public function booking_creation_handles_variable_daily_extra_beds()
+    {
+        $checkIn = now()->addDays(20)->format('Y-m-d');
+        $checkOut = now()->addDays(23)->format('Y-m-d'); // 3 nights
+
+        // Date strings
+        $date1 = now()->addDays(20)->format('Y-m-d');
+        $date2 = now()->addDays(21)->format('Y-m-d');
+        $date3 = now()->addDays(22)->format('Y-m-d');
+
+        // Let's customize extra beds: Day 1: 1 bed, Day 2: 2 beds, Day 3: 0 beds
+        $dailyExtraBeds = [
+            $date1 => 1,
+            $date2 => 2,
+            $date3 => 0,
+        ];
+
+        $bookingData = [
+            'check_in' => $checkIn,
+            'check_out' => $checkOut,
+            'check_in_time' => '15:00',
+            'guest_male' => 2,
+            'guest_female' => 2,
+            'guest_children' => 0,
+            'guest_name' => 'Variable Extra Bed User',
+            'guest_email' => 'variable-extrabed@example.com',
+            'guest_phone' => '6281234567891',
+            'guest_country' => 'Indonesia',
+            'guest_gender' => 'male',
+            'relationship_type' => 'keluarga',
+            'dp_percentage' => 100,
+            'booking_status' => 'confirmed',
+            'daily_extra_beds' => $dailyExtraBeds,
+        ];
+
+        // Make the property have positive extra_bed_rate
+        $this->property->update([
+            'extra_bed_rate' => 100000,
+            'capacity' => 4, // guest count is 4, so default extra beds would be 0
+            'capacity_max' => 6,
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->post("/properties/{$this->property->slug}/book", $bookingData);
+
+        $response->assertStatus(302);
+
+        $booking = Booking::where('guest_email', 'variable-extrabed@example.com')
+            ->latest()
+            ->first();
+
+        $this->assertNotNull($booking);
+
+        // Verify total extra bed count and amount calculations
+        // Day 1: 1 x 100,000 = 100,000
+        // Day 2: 2 x 100,000 = 200,000
+        // Day 3: 0 x 100,000 = 0
+        // Total expected extra bed amount = 300,000
+        $this->assertEquals(300000, $booking->extra_bed_amount);
+
+        // Check-in day extra bed count should be stored as overall extra_bed_count
+        $this->assertEquals(1, $booking->extra_bed_count);
+
+        // Verify daily revenues
+        $dailyRevenues = $booking->dailyRevenues()->orderBy('tanggal')->get();
+        $this->assertCount(3, $dailyRevenues);
+
+        $this->assertEquals($date1, $dailyRevenues[0]->tanggal->format('Y-m-d'));
+        $this->assertEquals(1, $dailyRevenues[0]->extra_bed_count);
+        $this->assertEquals(100000, $dailyRevenues[0]->extra_bed_amount);
+
+        $this->assertEquals($date2, $dailyRevenues[1]->tanggal->format('Y-m-d'));
+        $this->assertEquals(2, $dailyRevenues[1]->extra_bed_count);
+        $this->assertEquals(200000, $dailyRevenues[1]->extra_bed_amount);
+
+        $this->assertEquals($date3, $dailyRevenues[2]->tanggal->format('Y-m-d'));
+        $this->assertEquals(0, $dailyRevenues[2]->extra_bed_count);
+        $this->assertEquals(0, $dailyRevenues[2]->extra_bed_amount);
+    }
+
+    public function test_booking_check_in_rules()
+    {
+        $booking = Booking::factory()->create([
+            'property_id' => $this->property->id,
+            'booking_status' => 'confirmed',
+            'payment_status' => 'fully_paid',
+            'check_in' => now()->format('Y-m-d'),
+            'check_out' => now()->addDays(2)->format('Y-m-d'),
+        ]);
+
+        // Today check-in should be allowed
+        $this->assertTrue($booking->canCheckIn());
+
+        // Yesterday check-in should be allowed
+        $booking->update(['check_in' => now()->subDay()->format('Y-m-d')]);
+        $this->assertTrue($booking->canCheckIn());
+
+        // Tomorrow check-in should NOT be allowed
+        $booking->update(['check_in' => now()->addDay()->format('Y-m-d')]);
+        $this->assertFalse($booking->canCheckIn());
+
+        // DP paid check-in should be allowed
+        $booking->update([
+            'check_in' => now()->format('Y-m-d'),
+            'payment_status' => 'dp_received',
+        ]);
+        $this->assertTrue($booking->canCheckIn());
     }
 }

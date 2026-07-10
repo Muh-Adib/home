@@ -59,6 +59,16 @@ class Property extends Model
         'checkin_instructions',
         'ical_import_urls',
         'ical_export_token',
+        'bank_account_id',
+        'payment_method_id',
+        'ownership_model',
+        'owner_split_pct',
+        'investor_split_pct',
+        'monthly_rent_cost',
+        'monthly_mortgage_cost',
+        'mortgage_interest_monthly',
+        'initial_build_capital',
+        'lease_capital',
     ];
 
     protected $casts = [
@@ -75,6 +85,15 @@ class Property extends Model
         'checkin_instructions' => 'array',
         'ical_import_urls' => 'array',
         'keybox_updated_at' => 'datetime',
+        'bank_account_id' => 'integer',
+        'payment_method_id' => 'integer',
+        'owner_split_pct' => 'float',
+        'investor_split_pct' => 'float',
+        'monthly_rent_cost' => 'integer',
+        'monthly_mortgage_cost' => 'integer',
+        'mortgage_interest_monthly' => 'integer',
+        'initial_build_capital' => 'integer',
+        'lease_capital' => 'integer',
     ];
 
     // Boot method untuk auto-generate slug
@@ -375,5 +394,21 @@ class Property extends Model
             Carbon::parse($startDate),
             Carbon::parse($endDate)
         );
+    }
+
+    /**
+     * Get the bank account associated with this property.
+     */
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
+    }
+
+    /**
+     * Get the payment method associated with this property.
+     */
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
     }
 }

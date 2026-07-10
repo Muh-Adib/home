@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AddAgentDiscoveryHeaders;
 use App\Http\Middleware\ApiResponseFormatter;
+use App\Http\Middleware\AuthenticateApiToken;
 use App\Http\Middleware\EnsureEmailVerificationSignature;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->validateCsrfTokens(except: [
             'payment/gateway/*',
+            'payment-gateway/*',
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
@@ -55,7 +57,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
             'locale' => SetLocale::class,
             'verify.signature.auth' => EnsureEmailVerificationSignature::class,
-            'auth.api' => \App\Http\Middleware\AuthenticateApiToken::class,
+            'auth.api' => AuthenticateApiToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -2,36 +2,32 @@
 
 namespace App\Services;
 
+use App\Events\PaymentCreated;
+use App\Models\BankAccount;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
-use App\Events\PaymentCreated;
-use App\Events\PaymentStatusChanged;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
 
 class PaymentGatewayService
 {
-    protected IpaymuService $ipaymuService;
     protected PaymentIncomeSyncService $incomeSyncService;
 
     public function __construct(
-        IpaymuService $ipaymuService,
         PaymentIncomeSyncService $incomeSyncService
     ) {
-        $this->ipaymuService = $ipaymuService;
         $this->incomeSyncService = $incomeSyncService;
     }
 
     /**
-     * Initiate gateway payment untuk booking
+     * Initiate gateway payment (manual bank transfer with unique code reconciliation)
      *
-     * @param Booking $booking
-     * @param float $amount Base amount (sebelum fee)
-     * @param string $type 'dp' atau 'remaining'
-     * @param array $options Additional options (payment_method_id, expiry_hours, etc)
-     * @return Payment
+     * @param  float  $amount  Base amount (before fee/unique code)
+     * @param  string  $type  'dp' atau 'remaining'
+     * @param  array  $options  Additional options (payment_method_id, expiry_hours, user_id, user, etc)
+     *
      * @throws \Exception
      */
     public function initiateGatewayPayment(
@@ -41,87 +37,73 @@ class PaymentGatewayService
         array $options = []
     ): Payment {
         return DB::transaction(function () use ($booking, $amount, $type, $options) {
-            // Get payment method (bisa iPaymu atau sub-method seperti bank_transfer, qris, etc)
-            $paymentMethodId = $options['payment_method_id'] ?? null;
-            $ipaymuMethod = PaymentMethod::where('code', 'ipaymu')->first();
-
-            if (!$ipaymuMethod) {
-                throw new \Exception('iPaymu payment method not found');
+            // Generate payment token if not exists
+            if (! $booking->payment_token) {
+                $booking->generatePaymentToken();
             }
 
-            // Jika ada payment_method_id spesifik, gunakan itu untuk calculate fee
-            $selectedMethod = $ipaymuMethod; // Default ke iPaymu
-            if ($paymentMethodId) {
-                $selectedMethod = PaymentMethod::find($paymentMethodId);
-                if (!$selectedMethod || !$selectedMethod->isIpaymu()) {
-                    // Jika bukan iPaymu method, tetap gunakan iPaymu sebagai gateway
-                    $selectedMethod = $ipaymuMethod;
+            // Retrieve linked bank account details of the property
+            $bankAccount = $booking->property->bankAccount;
+            if (! $bankAccount) {
+                $bankAccount = BankAccount::first();
+            }
+
+            $bankAccountId = $bankAccount ? $bankAccount->id : 1;
+
+            // Generate unique code for amount reconciliation
+            $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $amount);
+            $expectedAmount = $amount + $uniqueCode;
+
+            // Expiry settings (max 2 hours, or check-in time minus 4 hours, whichever is earlier)
+            $expiredAt = Carbon::now()->addHours(2);
+            $checkInTimeStr = $booking->check_in.' '.($booking->check_in_time ?? '14:00:00');
+            try {
+                $checkInDateTime = Carbon::parse($checkInTimeStr);
+                $limitCheckInMinus4Hours = $checkInDateTime->copy()->subHours(4);
+                if ($limitCheckInMinus4Hours->isFuture()) {
+                    if ($limitCheckInMinus4Hours->lessThan($expiredAt)) {
+                        $expiredAt = $limitCheckInMinus4Hours;
+                    }
+                } else {
+                    $minExpiry = Carbon::now()->addMinutes(30);
+                    if ($checkInDateTime->isFuture() && $checkInDateTime->lessThan($minExpiry)) {
+                        $expiredAt = $checkInDateTime;
+                    } else {
+                        $expiredAt = $minExpiry;
+                    }
                 }
+            } catch (\Exception $e) {
+                // Fallback to 2 hours
             }
 
-            // Calculate fee berdasarkan payment method yang dipilih
-            $fee = $selectedMethod->calculateFee($amount);
-            $totalAmount = $amount + $fee;
+            // Update booking payment token expiry time
+            $booking->update([
+                'payment_token_expires_at' => $expiredAt,
+            ]);
 
-            // Validasi total amount (dengan fee)
-            $paidAmount = $booking->payments()
-                ->where('payment_status', 'verified')
-                ->sum('amount');
-            $pendingAmount = $booking->total_amount - $paidAmount;
-
-            if ($totalAmount > $pendingAmount) {
-                throw new \Exception('Payment amount (including fee) exceeds pending amount');
+            // Find bank transfer payment method
+            $paymentMethodId = $options['payment_method_id'] ?? null;
+            if (! $paymentMethodId) {
+                $paymentMethod = PaymentMethod::where('type', 'bank_transfer')->active()->first()
+                    ?? PaymentMethod::active()->first();
+                $paymentMethodId = $paymentMethod ? $paymentMethod->id : null;
             }
-
-            // Get expiry hours dari options atau config
-            $expiryHours = $options['expiry_hours'] ?? config('ipaymu.expiry_hours', 24);
-
-            // Prepare payment data untuk iPaymu
-            $paymentData = $this->preparePaymentData(
-                $booking,
-                $totalAmount, // Send total amount dengan fee ke iPaymu
-                $type,
-                array_merge($options, [
-                    'expiry_hours' => $expiryHours,
-                    'payment_method_id' => $selectedMethod->id,
-                ])
-            );
-
-            // Create payment request ke iPaymu
-            $ipaymuResponse = $this->ipaymuService->createPayment($paymentData);
-
-            if (!$ipaymuResponse['success']) {
-                throw new \Exception('Failed to create payment gateway request');
-            }
-
-            // Calculate expiry time
-            $expiredAt = $ipaymuResponse['expired']
-                ? Carbon::parse($ipaymuResponse['expired'])
-                : Carbon::now()->addHours((int) $expiryHours);
 
             // Create payment record
             $payment = $booking->payments()->create([
-                'payment_method_id' => $selectedMethod->id,
+                'payment_method_id' => $paymentMethodId,
                 'payment_number' => Payment::generatePaymentNumber(),
-                'amount' => $totalAmount, // Total dengan fee
+                'amount' => $expectedAmount,
                 'payment_type' => $type,
-                'payment_method' => 'e_wallet',
+                'payment_method' => 'bank_transfer',
                 'payment_status' => 'pending',
-                'payment_date' => now(),
-                'gateway_transaction_id' => $ipaymuResponse['session_id'],
-                'ipaymu_session_id' => $ipaymuResponse['session_id'],
-                'ipaymu_payment_url' => $ipaymuResponse['payment_url'],
+                'status' => 'menunggu', // set status to menunggu for reconciliation
+                'unique_code' => $uniqueCode,
+                'expected_amount' => $expectedAmount,
+                'ipaymu_payment_url' => $booking->getSecurePaymentUrl(),
                 'ipaymu_expired_at' => $expiredAt,
-                'gateway_response' => array_merge(
-                    $ipaymuResponse['raw_response'] ?? [],
-                    [
-                        'base_amount' => $amount,
-                        'fee_amount' => $fee,
-                        'total_amount' => $totalAmount,
-                        'expiry_hours' => $expiryHours,
-                    ]
-                ),
-                'description' => $options['description'] ?? "Payment via iPaymu for booking {$booking->booking_number}",
+                'processed_by' => $options['user_id'] ?? null,
+                'description' => $options['description'] ?? "Pembayaran manual transfer bank untuk booking {$booking->booking_number}",
             ]);
 
             // Create workflow entry
@@ -131,317 +113,23 @@ class PaymentGatewayService
                     'status' => 'in_progress',
                     'processed_by' => $options['user_id'] ?? null,
                     'processed_at' => now(),
-                    'notes' => "Gateway payment initiated: {$payment->payment_number}",
+                    'notes' => "Link pembayaran manual transfer bank diterbitkan: {$payment->payment_number} (Jumlah: Rp ".number_format($expectedAmount).') oleh '.($options['user']->name ?? 'System/Guest'),
                 ]);
             }
 
             // Dispatch event
-            if (isset($options['user'])) {
-                event(new PaymentCreated($payment->load('booking.property'), $options['user']));
-            }
+            event(new PaymentCreated($payment->load('booking.property'), $options['user'] ?? null));
 
-            Log::info('Gateway payment initiated', [
+            Log::info('Manual transfer payment initiated successfully', [
                 'payment_id' => $payment->id,
                 'payment_number' => $payment->payment_number,
-                'session_id' => $ipaymuResponse['session_id'],
                 'booking_number' => $booking->booking_number,
+                'expected_amount' => $expectedAmount,
+                'unique_code' => $uniqueCode,
+                'processed_by' => $options['user_id'] ?? null,
             ]);
 
             return $payment;
-        });
-    }
-
-    /**
-     * Process callback dari payment gateway
-     *
-     * @param array $callbackData
-     * @return Payment|null
-     */
-    public function processCallback(array $callbackData): ?Payment
-    {
-        $sessionId = $callbackData['session_id'] ?? $callbackData['sid'] ?? null;
-
-        if (!$sessionId) {
-            Log::warning('Payment gateway callback missing session_id', [
-                'data' => $callbackData,
-            ]);
-            return null;
-        }
-
-        $payment = Payment::where('ipaymu_session_id', $sessionId)->first();
-
-        if (!$payment) {
-            Log::warning('Payment not found for callback', [
-                'session_id' => $sessionId,
-                'data' => $callbackData,
-            ]);
-            return null;
-        }
-
-        // Check payment status dari iPaymu
-        try {
-            $statusResponse = $this->ipaymuService->checkPaymentStatus($sessionId);
-
-            if ($statusResponse['success']) {
-                $this->updatePaymentFromGateway($payment, $statusResponse);
-            }
-        } catch (\Exception $e) {
-            Log::error('Failed to check payment status in callback', [
-                'payment_id' => $payment->id,
-                'session_id' => $sessionId,
-                'error' => $e->getMessage(),
-            ]);
-        }
-
-        return $payment;
-    }
-
-    /**
-     * Process webhook dari payment gateway
-     *
-     * @param array $webhookData
-     * @return Payment|null
-     */
-    public function processWebhook(array $webhookData): ?Payment
-    {
-        try {
-            // Handle webhook melalui iPaymuService
-            $webhookResponse = $this->ipaymuService->handleWebhook($webhookData);
-
-            if (!$webhookResponse['success']) {
-                return null;
-            }
-
-            // Find payment by reference_id atau transaction_id
-            $payment = Payment::where(function ($query) use ($webhookResponse) {
-                $query->where('ipaymu_session_id', $webhookResponse['transaction_id'])
-                    ->orWhere('gateway_transaction_id', $webhookResponse['transaction_id'])
-                    ->orWhere('payment_number', $webhookResponse['reference_id']);
-            })->first();
-
-            if (!$payment) {
-                Log::warning('Payment not found for webhook', [
-                    'webhook_data' => $webhookResponse,
-                ]);
-                return null;
-            }
-
-            // Update payment status
-            $this->updatePaymentFromWebhook($payment, $webhookResponse);
-
-            return $payment;
-
-        } catch (\Exception $e) {
-            Log::error('Failed to process webhook', [
-                'error' => $e->getMessage(),
-                'webhook_data' => $webhookData,
-            ]);
-            return null;
-        }
-    }
-
-    /**
-     * Generate payment link untuk booking
-     *
-     * @param Booking $booking
-     * @param float $amount
-     * @param string $type
-     * @return array
-     * @throws \Exception
-     */
-    public function generatePaymentLink(
-        Booking $booking,
-        float $amount,
-        string $type = 'dp'
-    ): array {
-        $payment = $this->initiateGatewayPayment($booking, $amount, $type, [
-            'description' => "Payment link for booking {$booking->booking_number}",
-        ]);
-
-        return [
-            'success' => true,
-            'payment' => $payment,
-            'payment_url' => $payment->ipaymu_payment_url,
-            'expired_at' => $payment->ipaymu_expired_at,
-        ];
-    }
-
-    /**
-     * Prepare payment data untuk iPaymu API
-     *
-     * @param Booking $booking
-     * @param float $amount
-     * @param string $type
-     * @param array $options
-     * @return array
-     */
-    protected function preparePaymentData(
-        Booking $booking,
-        float $amount,
-        string $type,
-        array $options
-    ): array {
-        $productName = "Booking {$booking->booking_number}";
-        if ($type === 'dp') {
-            $productName .= " - Down Payment";
-        } else {
-            $productName .= " - Remaining Payment";
-        }
-
-        // Get payment method untuk channel selection
-        $paymentMethodId = $options['payment_method_id'] ?? null;
-        $paymentChannel = 'all';
-        $paymentMethod = 'all';
-
-        if ($paymentMethodId) {
-            $method = PaymentMethod::find($paymentMethodId);
-            if ($method) {
-                // Map payment method type ke iPaymu channel
-                $paymentChannel = match ($method->type) {
-                    'bank_transfer' => 'bank_transfer',
-                    'e_wallet' => 'qris', // iPaymu e-wallet biasanya via QRIS
-                    default => 'all',
-                };
-
-                // Get channel dari ipaymu_settings jika ada
-                if ($method->getIpaymuChannel()) {
-                    $paymentChannel = $method->getIpaymuChannel();
-                }
-            }
-        }
-
-        // Override dengan options jika ada
-        $paymentChannel = $options['payment_channel'] ?? $paymentChannel;
-        $paymentMethod = $options['payment_method'] ?? $paymentMethod;
-
-        // Calculate expiry time
-        // iPaymu menerima expired dalam format:
-        // - Integer (hours): 24 berarti 24 jam dari sekarang
-        // - String datetime: "2024-12-31 23:59:59" format Y-m-d H:i:s
-        $expiryHours = $options['expiry_hours'] ?? config('ipaymu.expiry_hours', 24);
-
-        // Gunakan format hours (integer) sesuai dokumentasi iPaymu
-        // Jika ingin menggunakan datetime, bisa diubah ke format string
-        $expired = $options['expired'] ?? $expiryHours; // Default: hours (integer)
-
-        return [
-            'product' => [$productName],
-            'qty' => [1],
-            'price' => [$amount],
-            'amount' => $amount,
-            'reference_id' => $booking->booking_number . '-' . time(),
-            'name' => $booking->guest_name ?? $options['customer_name'] ?? 'Guest',
-            'phone' => $booking->guest_phone ?? $options['customer_phone'] ?? '',
-            'email' => $booking->guest_email ?? $options['customer_email'] ?? '',
-            'payment_method' => $paymentMethod,
-            'payment_channel' => $paymentChannel,
-            'expired' => $expired, // Integer (hours) atau string datetime
-            'return_url' => $options['return_url'] ?? route('payment-gateway.callback'),
-            'cancel_url' => $options['cancel_url'] ?? route('payment-gateway.callback'),
-            'notify_url' => $options['notify_url'] ?? route('payment-gateway.webhook'),
-        ];
-    }
-
-    /**
-     * Update payment dari gateway status response
-     *
-     * @param Payment $payment
-     * @param array $statusResponse
-     * @return void
-     */
-    protected function updatePaymentFromGateway(Payment $payment, array $statusResponse): void
-    {
-        $oldStatus = $payment->payment_status;
-        $newStatus = $this->ipaymuService->mapStatus($statusResponse['status'] ?? 'pending');
-
-        if ($oldStatus === $newStatus) {
-            return; // No change
-        }
-
-        DB::transaction(function () use ($payment, $newStatus, $statusResponse, $oldStatus) {
-            $payment->update([
-                'payment_status' => $newStatus,
-                'gateway_response' => array_merge(
-                    $payment->gateway_response ?? [],
-                    ['status_check' => $statusResponse['raw_response'] ?? []]
-                ),
-            ]);
-
-            // Auto verify jika status berhasil
-            if ($newStatus === 'verified') {
-                $payment->update([
-                    'verified_at' => now(),
-                    'verified_by' => null, // Auto verified by gateway
-                ]);
-
-                // Update booking payment status
-                $payment->booking->updatePaymentStatus();
-
-                // Sync income
-                $this->incomeSyncService->syncOnVerified($payment);
-            }
-
-            // Dispatch event jika status berubah
-            if ($oldStatus !== $newStatus) {
-                event(new PaymentStatusChanged($payment, $oldStatus, $newStatus));
-            }
-        });
-    }
-
-    /**
-     * Update payment dari webhook
-     *
-     * @param Payment $payment
-     * @param array $webhookResponse
-     * @return void
-     */
-    protected function updatePaymentFromWebhook(Payment $payment, array $webhookResponse): void
-    {
-        $oldStatus = $payment->payment_status;
-        $newStatus = $this->ipaymuService->mapStatus($webhookResponse['status'] ?? 'pending');
-
-        DB::transaction(function () use ($payment, $newStatus, $webhookResponse, $oldStatus) {
-            $updateData = [
-                'payment_status' => $newStatus,
-                'gateway_response' => array_merge(
-                    $payment->gateway_response ?? [],
-                    ['webhook' => $webhookResponse['raw_data'] ?? []]
-                ),
-            ];
-
-            // Update transaction ID jika ada
-            if (isset($webhookResponse['transaction_id'])) {
-                $updateData['gateway_transaction_id'] = $webhookResponse['transaction_id'];
-            }
-
-            $payment->update($updateData);
-
-            // Auto verify jika status berhasil
-            if ($newStatus === 'verified') {
-                $payment->update([
-                    'verified_at' => now(),
-                    'verified_by' => null, // Auto verified by gateway
-                ]);
-
-                // Update booking payment status
-                $payment->booking->updatePaymentStatus();
-
-                // Sync income
-                $this->incomeSyncService->syncOnVerified($payment);
-            }
-
-            // Dispatch event jika status berubah
-            if ($oldStatus !== $newStatus) {
-                event(new PaymentStatusChanged($payment, $oldStatus, $newStatus));
-            }
-
-            Log::info('Payment updated from webhook', [
-                'payment_id' => $payment->id,
-                'payment_number' => $payment->payment_number,
-                'old_status' => $oldStatus,
-                'new_status' => $newStatus,
-            ]);
         });
     }
 }
-

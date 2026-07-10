@@ -2,9 +2,10 @@
 
 namespace App\Http\Requests\Booking;
 
-use Illuminate\Foundation\Http\FormRequest;
 use App\Models\Property;
-use Carbon\Carbon;
+use App\Services\AvailabilityService;
+use App\Services\PropertyBusinessRulesService;
+use Illuminate\Foundation\Http\FormRequest;
 
 class CreateBookingRequest extends FormRequest
 {
@@ -23,7 +24,7 @@ class CreateBookingRequest extends FormRequest
             'check_in_date' => 'nullable|date|after_or_equal:today', // Alternative field name
             'check_out_date' => 'nullable|date|after:check_in_date', // Alternative field name
             'check_in_time' => 'required|date_format:H:i',
-            
+
             // Guest Information
             'guest_male' => 'required|integer|min:0',
             'guest_female' => 'required|integer|min:0',
@@ -38,8 +39,8 @@ class CreateBookingRequest extends FormRequest
             'relationship_type' => 'required|in:keluarga,teman,kolega,pasangan,campuran',
             'special_requests' => 'nullable|string|max:1000',
             'internal_notes' => 'nullable|string|max:1000',
-            'booking_status' => 'nullable|in:pending_verification,confirmed|default:pending_verification',
-            'payment_status' => 'nullable|in:dp_pending,dp_received,fully_paid|default:dp_pending',
+            'booking_status' => 'nullable|in:pending_verification,confirmed',
+            'payment_status' => 'nullable|in:dp_pending,dp_received,fully_paid',
             'dp_percentage' => 'required|integer|min:0|max:100',
             'auto_confirm' => 'boolean',
             'guests' => 'nullable|array',
@@ -47,7 +48,7 @@ class CreateBookingRequest extends FormRequest
             'guests.*.gender' => 'nullable|in:male,female',
             'guests.*.age_category' => 'nullable|in:adult,child,infant',
             'guests.*.relationship_to_primary' => 'nullable|string|max:255',
-            
+
             // Extra services
             'services' => 'nullable|array',
             'services.*.service_master_id' => 'nullable|exists:service_masters,id',
@@ -55,7 +56,14 @@ class CreateBookingRequest extends FormRequest
             'services.*.service_type' => 'required_with:services|string',
             'services.*.quantity' => 'required_with:services|integer|min:1',
             'services.*.unit_price' => 'required_with:services|numeric|min:0',
+            'services.*.discount_amount' => 'nullable|numeric|min:0',
             'services.*.total_price' => 'required_with:services|numeric|min:0',
+            'services.*.vendor_unit_price' => 'nullable|numeric|min:0',
+            'services.*.vendor_total_price' => 'nullable|numeric|min:0',
+            'services.*.service_date' => 'nullable|date',
+
+            'daily_extra_beds' => 'nullable|array',
+            'daily_extra_beds.*' => 'integer|min:0',
         ];
     }
 
@@ -66,8 +74,8 @@ class CreateBookingRequest extends FormRequest
             $this->validatePropertyAvailability($validator);
             $this->normalizePhoneNumber($validator);
             $this->normalizeDateFields($validator);
-            //dimatikan sementara karena sudah ada di booking controller
-            //$this->validateMinimumStay($validator);
+            // dimatikan sementara karena sudah ada di booking controller
+            // $this->validateMinimumStay($validator);
         });
     }
 
@@ -76,7 +84,7 @@ class CreateBookingRequest extends FormRequest
         // ✅ FIX: Handle different date field names
         $checkIn = $this->input('check_in') ?? $this->input('check_in_date');
         $checkOut = $this->input('check_out') ?? $this->input('check_out_date');
-        
+
         if ($checkIn && $checkOut) {
             // Normalize to standard field names
             $this->merge([
@@ -89,23 +97,22 @@ class CreateBookingRequest extends FormRequest
     private function validateGuestCount($validator)
     {
         // ✅ FIX: Handle different field names and calculate total
-        $guestMale = (int)$this->input('guest_male', 0);
-        $guestFemale = (int)$this->input('guest_female', 0);
-        $guestChildren = (int)$this->input('guest_children', 0);
-        
-        
+        $guestMale = (int) $this->input('guest_male', 0);
+        $guestFemale = (int) $this->input('guest_female', 0);
+        $guestChildren = (int) $this->input('guest_children', 0);
 
         // Get property from route model binding
         $property = $this->route('property');
 
         if ($property->capacity < $property->capacity_max) {
-            $effectiveGuestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
+            $effectiveGuestCount = $guestMale + $guestFemale + (int) floor($guestChildren / 2);
         } else {
             $effectiveGuestCount = $guestMale + $guestFemale + $guestChildren;
         }
-        
+
         if ($effectiveGuestCount <= 0) {
             $validator->errors()->add('guest_count', 'Total tamu harus lebih dari 0.');
+
             return;
         }
 
@@ -114,7 +121,7 @@ class CreateBookingRequest extends FormRequest
         }
 
         // ✅ FIX: Set calculated guest_count if not provided
-        if (!$this->input('guest_count')) {
+        if (! $this->input('guest_count')) {
             $this->merge(['guest_count' => $effectiveGuestCount]);
         }
     }
@@ -123,7 +130,7 @@ class CreateBookingRequest extends FormRequest
     {
         // Get property from route model binding
         $property = $this->route('property');
-        if (!$property) {
+        if (! $property) {
             return;
         }
 
@@ -131,21 +138,21 @@ class CreateBookingRequest extends FormRequest
         $checkOut = $this->input('check_out');
 
         // Skip validation if dates are not provided
-        if (!$checkIn || !$checkOut) {
+        if (! $checkIn || ! $checkOut) {
             return;
         }
 
         // Check if property is available for these dates
         try {
-            $availabilityService = app(\App\Services\AvailabilityService::class);
+            $availabilityService = app(AvailabilityService::class);
             $availability = $availabilityService->checkAvailability($property, $checkIn, $checkOut);
 
-            if (!$availability['available']) {
+            if (! $availability['available']) {
                 $validator->errors()->add('dates', 'Property tidak tersedia untuk tanggal yang dipilih.');
             }
         } catch (\Exception $e) {
             // Log error but don't fail validation
-            \Log::warning('Availability check failed: ' . $e->getMessage());
+            \Log::warning('Availability check failed: '.$e->getMessage());
         }
     }
 
@@ -153,55 +160,55 @@ class CreateBookingRequest extends FormRequest
     {
         // Get property from route model binding
         $property = $this->route('property');
-        if (!$property) {
+        if (! $property) {
             return;
         }
 
         $checkInDate = $this->input('check_in');
         $checkOutDate = $this->input('check_out');
-        
-        if (!$checkInDate || !$checkOutDate) {
+
+        if (! $checkInDate || ! $checkOutDate) {
             return;
         }
 
         try {
             // ✅ Use PropertyBusinessRulesService for complete validation
-            if (!\App\Services\PropertyBusinessRulesService::validateMinimumStay($property, $checkInDate, $checkOutDate)) {
-                $minStayInfo = \App\Services\PropertyBusinessRulesService::getMinimumStayInfo($property, $checkInDate, $checkOutDate);
+            if (! PropertyBusinessRulesService::validateMinimumStay($property, $checkInDate, $checkOutDate)) {
+                $minStayInfo = PropertyBusinessRulesService::getMinimumStayInfo($property, $checkInDate, $checkOutDate);
                 $validator->errors()->add('dates', "Minimum stay adalah {$minStayInfo['required_nights']} malam.");
             }
         } catch (\Exception $e) {
             // Log error but don't fail validation
-            \Log::warning('Minimum stay validation failed: ' . $e->getMessage());
+            \Log::warning('Minimum stay validation failed: '.$e->getMessage());
         }
     }
 
     private function normalizePhoneNumber($validator)
     {
         $phone = $this->input('guest_phone');
-        if (!$phone) {
+        if (! $phone) {
             return;
         }
 
         // Remove any spaces, dashes, or other separators
         $phone = preg_replace('/[\s\-\(\)]/', '', $phone);
-        
+
         // Convert to international format
         $normalized = null;
         if (preg_match('/^0(\d{9,12})$/', $phone, $matches)) {
             // Convert 08123456789 to 628123456789
-            $normalized = '62' . $matches[1];
+            $normalized = '62'.$matches[1];
         } elseif (preg_match('/^62(\d{9,12})$/', $phone, $matches)) {
             // Already in 62 format
-            $normalized = '62' . $matches[1];
+            $normalized = '62'.$matches[1];
         } elseif (preg_match('/^\+62(\d{9,12})$/', $phone, $matches)) {
             // Convert +628123456789 to 628123456789
-            $normalized = '62' . $matches[1];
+            $normalized = '62'.$matches[1];
         } elseif (preg_match('/^\+(\d{9,12})$/', $phone, $matches)) {
             // Other country code, keep as is but remove +
             $normalized = $matches[1];
         }
-        
+
         // Apply normalized value back to request
         if ($normalized) {
             $this->merge(['guest_phone' => $normalized]);
@@ -232,4 +239,4 @@ class CreateBookingRequest extends FormRequest
             'dp_percentage.max' => 'Persentase DP maksimal 100%.',
         ];
     }
-} 
+}
