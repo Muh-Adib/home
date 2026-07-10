@@ -19,7 +19,8 @@ import {
     Upload,
     ArrowLeft,
     Clock,
-    Download
+    Download,
+    Wifi
 } from 'lucide-react';
 
 interface BankAccount {
@@ -56,6 +57,7 @@ interface Booking {
         check_out_time?: string;
         checkin_instructions?: any;
         maps_link?: string;
+        current_keybox_code?: string;
     };
     check_in: string;
     check_out: string;
@@ -446,144 +448,154 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
                             </CardHeader>
                             <CardContent className="pt-4">
                                 {booking.payment_status === 'fully_paid' ? (
-                                    isBeforeCheckIn ? (
-                                        <div className="text-center py-8 px-4 space-y-5">
-                                            <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-blue-50 text-blue-600 mb-1">
-                                                <CheckCircle className="h-12 w-12 text-blue-500" />
+                                    <div className="py-6 px-2 space-y-6">
+                                        <div className="text-center pb-4 border-b border-dashed">
+                                            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-50 text-green-600 mb-2">
+                                                <CheckCircle className="h-10 w-10 text-green-500" />
                                             </div>
-                                            <div className="space-y-1">
-                                                <h3 className="text-xl font-bold text-slate-900">Booking Terkonfirmasi</h3>
-                                                <Badge variant="secondary" className="bg-green-100 text-green-700 font-bold border-none text-[10px] uppercase">
-                                                    LUNAS
-                                                </Badge>
-                                            </div>
-                                            <p className="text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
-                                                Halo <strong>{booking.guest_name}</strong>, booking Anda dengan nomor <strong>{booking.booking_number}</strong> telah terkonfirmasi. Silakan menunggu waktu check-in tiba.
+                                            <h3 className="text-xl font-bold text-slate-900">Booking Terkonfirmasi</h3>
+                                            <Badge variant="secondary" className="bg-green-100 text-green-700 font-bold border-none text-[10px] uppercase mt-1">
+                                                LUNAS
+                                            </Badge>
+                                            <p className="text-xs text-slate-500 mt-2 max-w-sm mx-auto">
+                                                Halo <strong>{booking.guest_name}</strong>, booking Anda <strong>{booking.booking_number}</strong> telah lunas. Berikut adalah panduan akses masuk properti Anda.
                                             </p>
-
-                                            {/* Countdown Card */}
-                                            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 max-w-sm mx-auto shadow-sm space-y-2">
-                                                <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                                    <Clock className="h-4 w-4 text-blue-500 animate-pulse" /> Waktu Menuju Check-in
-                                                </div>
-                                                <div className="text-lg sm:text-xl font-black text-slate-905 tracking-tight text-blue-600">
-                                                    {formatCountdown()}
-                                                </div>
-                                                <div className="text-[10px] text-slate-400">
-                                                    Check-in: {formatDate(booking.check_in)} ({booking.check_in_time || '14:00'})
-                                                </div>
-                                            </div>
-
-                                            <div className="pt-2 max-w-sm mx-auto space-y-3">
-                                                <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer">
-                                                    <a href={getGoogleCalendarUrl()} target="_blank" rel="noopener noreferrer">
-                                                        <Calendar className="h-5 w-5" /> Tambah Pengingat ke Kalender
-                                                    </a>
-                                                </Button>
-                                                <Button asChild variant="ghost" className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer">
-                                                     <a href={`https://wa.me/6281138226322?text=${encodeURIComponent(`Halo Admin Hospitality, saya memerlukan bantuan terkait pemesanan ${booking.booking_number} atas nama ${booking.guest_name}.`)}`} target="_blank" rel="noopener noreferrer">
-                                                         Butuh bantuan? Hubungi Hospitality
-                                                     </a>
-                                                 </Button>
-                                            </div>
                                         </div>
-                                    ) : (
-                                        <div className="py-6 px-2 space-y-5">
-                                            <div className="flex items-center gap-3 border-b pb-3 mb-2">
-                                                <div className="h-10 w-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
-                                                    <Shield className="h-5 w-5" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="text-lg font-bold text-slate-900">Waktunya Check-in!</h3>
-                                                    <p className="text-xs text-slate-500">Silakan baca instruksi & setujui peraturan properti</p>
-                                                </div>
-                                            </div>
 
-                                            {/* Instructions Box */}
-                                            <div className="space-y-3">
-                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Instruksi Check-in</h4>
-                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-600 space-y-2.5 leading-relaxed">
-                                                    {getCheckinInstructions().map((instruction, index) => (
-                                                        <div key={index} className="flex gap-2">
-                                                            <span className="font-bold text-blue-600">{index + 1}.</span>
-                                                            <span>{instruction}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* Google Maps Directions */}
-                                            {booking.property.maps_link && (
-                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2.5">
+                                        {/* WiFi Access Card */}
+                                        {booking.property.checkin_instructions?.wifi_name && (
+                                            <Card className="bg-slate-900 text-white border-0 shadow-md overflow-hidden relative rounded-2xl">
+                                                <div className="absolute top-0 right-0 p-24 bg-blue-500/10 rounded-full blur-2xl -mr-12 -mt-12 pointer-events-none" />
+                                                <CardHeader className="p-4 pb-2 relative z-10">
                                                     <div className="flex items-center gap-2">
-                                                        <MapPin className="h-4 w-4 text-rose-500" />
-                                                        <span className="text-xs font-bold text-slate-700">Petunjuk Arah Properti</span>
+                                                        <Wifi className="h-5 w-5 text-blue-400 animate-pulse" />
+                                                        <CardTitle className="text-sm font-bold text-white">Akses WiFi Properti</CardTitle>
                                                     </div>
-                                                    <p className="text-xs text-slate-500 leading-normal">
-                                                        Klik tombol di bawah untuk membuka Google Maps dan melihat rute petunjuk arah menuju <strong>{booking.property.name}</strong>.
-                                                    </p>
-                                                    <Button asChild variant="outline" className="w-full bg-white hover:bg-slate-100 border-slate-200 text-slate-700 text-xs py-2 rounded-lg flex items-center justify-center gap-2 cursor-pointer">
-                                                        <a href={booking.property.maps_link} target="_blank" rel="noopener noreferrer">
-                                                            <MapPin className="h-4 w-4 text-rose-500" /> Buka di Google Maps
-                                                        </a>
+                                                </CardHeader>
+                                                <CardContent className="p-4 pt-1 relative z-10 space-y-3">
+                                                    <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/10 backdrop-blur-sm">
+                                                        <div className="space-y-0.5">
+                                                            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">WiFi Name / SSID</div>
+                                                            <div className="font-mono text-sm tracking-wide text-white">{booking.property.checkin_instructions.wifi_name}</div>
+                                                        </div>
+                                                        <Button size="icon" variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/10 h-8 w-8" onClick={() => copyToClipboard(booking.property.checkin_instructions.wifi_name || '', 'wifi_name')}>
+                                                            {copiedField === 'wifi_name' ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                                                        </Button>
+                                                    </div>
+                                                    <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/10 backdrop-blur-sm">
+                                                        <div className="space-y-0.5">
+                                                            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Password</div>
+                                                            <div className="font-mono text-sm tracking-wide text-white">{booking.property.checkin_instructions.wifi_password}</div>
+                                                        </div>
+                                                        <Button size="icon" variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/10 h-8 w-8" onClick={() => copyToClipboard(booking.property.checkin_instructions.wifi_password || '', 'wifi_password')}>
+                                                            {copiedField === 'wifi_password' ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                                                        </Button>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        )}
+
+                                        {/* Keybox & Access Guide */}
+                                        <div className="space-y-3.5">
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Instruksi Masuk & Kunci</h4>
+                                            
+                                            {/* Keybox Code */}
+                                            {booking.property.current_keybox_code && (
+                                                <div className="bg-amber-50/60 border border-amber-100/70 rounded-xl p-4 flex items-center justify-between">
+                                                    <div className="space-y-1">
+                                                        <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">KODE KOTAK KUNCI (KEYBOX)</span>
+                                                        <span className="font-mono text-2xl font-black tracking-widest text-amber-900">{booking.property.current_keybox_code}</span>
+                                                    </div>
+                                                    <Button variant="outline" className="border-amber-200 text-amber-900 hover:bg-amber-100/50 rounded-xl px-4 py-2 font-bold text-xs" onClick={() => copyToClipboard(booking.property.current_keybox_code || '', 'keybox_code')}>
+                                                        {copiedField === 'keybox_code' ? 'Tersalin!' : 'Salin Kode'}
                                                     </Button>
                                                 </div>
                                             )}
 
-                                            {/* Property Rules */}
-                                            <div className="space-y-3 pt-1">
-                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Peraturan Properti ({booking.property.name})</h4>
-                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-600 space-y-2.5">
-                                                    <div className="flex items-start gap-2">
-                                                        <span className="text-blue-500 font-bold">•</span>
-                                                        <span><strong>Waktu Check-out:</strong> Maksimal pukul {booking.property.check_out_time || '11:00'} siang WIB.</span>
+                                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-600 space-y-3 leading-relaxed">
+                                                {booking.property.checkin_instructions?.welcome && (
+                                                    <p className="font-medium text-slate-850 border-b pb-2 mb-2">{booking.property.checkin_instructions.welcome.replace(/\{\{property_name\}\}/g, booking.property.name)}</p>
+                                                )}
+                                                {booking.property.checkin_instructions?.keybox_location && (
+                                                    <div className="flex gap-2">
+                                                        <span className="font-bold text-blue-600">1.</span>
+                                                        <span><strong>Lokasi Kotak Kunci:</strong> {booking.property.checkin_instructions.keybox_location}</span>
                                                     </div>
-                                                    <div className="flex items-start gap-2">
-                                                        <span className="text-blue-500 font-bold">•</span>
-                                                        <span><strong>Ketenangan & Ketertiban:</strong> Harap menjaga ketenangan dan tidak membuat kegaduhan setelah pukul 21:00 malam.</span>
+                                                )}
+                                                {booking.property.checkin_instructions?.keybox_code && booking.property.current_keybox_code && (
+                                                    <div className="flex gap-2">
+                                                        <span className="font-bold text-blue-600">2.</span>
+                                                        <span><strong>Cara Membuka:</strong> {booking.property.checkin_instructions.keybox_code.replace(/\{\{keybox_code\}\}/g, booking.property.current_keybox_code)}</span>
                                                     </div>
-                                                    <div className="flex items-start gap-2">
-                                                        <span className="text-blue-500 font-bold">•</span>
-                                                        <span><strong>Larangan Merokok:</strong> Merokok di dalam kamar sangat dilarang. Silakan merokok di area outdoor yang telah disediakan.</span>
+                                                )}
+                                                {booking.property.checkin_instructions?.checkin_time && (
+                                                    <div className="flex gap-2">
+                                                        <span className="font-bold text-blue-600">3.</span>
+                                                        <span><strong>Waktu Check-in:</strong> {booking.property.checkin_instructions.checkin_time}</span>
                                                     </div>
-                                                    <div className="flex items-start gap-2">
-                                                        <span className="text-blue-500 font-bold">•</span>
-                                                        <span><strong>Kerusakan Properti:</strong> Setiap kehilangan atau kerusakan fasilitas properti selama masa inap menjadi tanggung jawab tamu sepenuhnya.</span>
+                                                )}
+                                                {booking.property.checkin_instructions?.emergency_contact && (
+                                                    <div className="flex gap-2">
+                                                        <span className="font-bold text-blue-600">4.</span>
+                                                        <span><strong>Kontak Bantuan:</strong> {booking.property.checkin_instructions.emergency_contact}</span>
                                                     </div>
+                                                )}
+
+                                                {booking.property.checkin_instructions?.additional_info && booking.property.checkin_instructions.additional_info.length > 0 && (
+                                                    <div className="border-t border-slate-200/60 pt-2.5 mt-2 space-y-1.5">
+                                                        <span className="font-bold text-slate-700 block mb-1">Informasi Tambahan:</span>
+                                                        {booking.property.checkin_instructions.additional_info.map((info: string, idx: number) => (
+                                                            <div key={idx} className="flex items-start gap-2 text-slate-500 pl-1">
+                                                                <span className="text-blue-500 font-bold">•</span>
+                                                                <span>{info}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Google Maps Directions */}
+                                        {booking.property.maps_link && (
+                                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2.5">
+                                                <div className="flex items-center gap-2">
+                                                    <MapPin className="h-4 w-4 text-rose-500" />
+                                                    <span className="text-xs font-bold text-slate-700">Petunjuk Arah Properti</span>
+                                                </div>
+                                                <p className="text-xs text-slate-500 leading-normal">
+                                                    Klik tombol di bawah untuk membuka Google Maps dan melihat rute petunjuk arah menuju <strong>{booking.property.name}</strong>.
+                                                </p>
+                                                <Button asChild variant="outline" className="w-full bg-white hover:bg-slate-100 border-slate-200 text-slate-700 text-xs py-2 rounded-lg flex items-center justify-center gap-2 cursor-pointer">
+                                                    <a href={booking.property.maps_link} target="_blank" rel="noopener noreferrer">
+                                                        <MapPin className="h-4 w-4 text-rose-500" /> Buka di Google Maps
+                                                    </a>
+                                                </Button>
+                                            </div>
+                                        )}
+
+                                        {/* Property Rules */}
+                                        <div className="space-y-3 pt-1">
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Peraturan Properti ({booking.property.name})</h4>
+                                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-600 space-y-2.5">
+                                                <div className="flex items-start gap-2">
+                                                    <span className="text-blue-500 font-bold">•</span>
+                                                    <span><strong>Waktu Check-out:</strong> Maksimal pukul {booking.property.check_out_time || '11:00'} siang WIB.</span>
+                                                </div>
+                                                <div className="flex items-start gap-2">
+                                                    <span className="text-blue-500 font-bold">•</span>
+                                                    <span><strong>Ketenangan & Ketertiban:</strong> Harap menjaga ketenangan dan tidak membuat kegaduhan setelah pukul 21:00 malam.</span>
+                                                </div>
+                                                <div className="flex items-start gap-2">
+                                                    <span className="text-blue-500 font-bold">•</span>
+                                                    <span><strong>Larangan Merokok:</strong> Merokok di dalam kamar sangat dilarang. Silakan merokok di area outdoor yang telah disediakan.</span>
+                                                </div>
+                                                <div className="flex items-start gap-2">
+                                                    <span className="text-blue-500 font-bold">•</span>
+                                                    <span><strong>Kerusakan Properti:</strong> Setiap kehilangan atau kerusakan fasilitas properti selama masa inap menjadi tanggung jawab tamu sepenuhnya.</span>
                                                 </div>
                                             </div>
-
-                                            {/* Acceptance Form */}
-                                            {rulesAgreed ? (
-                                                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center space-y-2">
-                                                    <div className="inline-flex items-center gap-1.5 text-green-700 text-xs font-bold uppercase">
-                                                        <CheckCircle className="h-4 w-4 text-green-600" /> Persyaratan Disetujui
-                                                    </div>
-                                                    <p className="text-[11px] text-green-600 leading-relaxed font-medium">
-                                                        Anda telah menyetujui peraturan properti. Selamat menikmati kunjungan Anda!
-                                                    </p>
-                                                </div>
-                                            ) : (
-                                                <div className="pt-2 space-y-3">
-                                                    <div className="flex items-center gap-2 px-1">
-                                                        <input
-                                                            type="checkbox"
-                                                            id="agree_rules_check"
-                                                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                                                            onChange={(e) => {
-                                                                if (e.target.checked) {
-                                                                    handleAgreeRules();
-                                                                }
-                                                            }}
-                                                        />
-                                                        <Label htmlFor="agree_rules_check" className="text-xs text-slate-700 font-medium cursor-pointer">
-                                                            Saya mengerti dan mematuhi peraturan properti.
-                                                        </Label>
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
-                                    )
+                                    </div>
                                 ) : hasPendingPayment && pendingPayment ? (
                                     <div className="text-center py-8 px-4 space-y-4">
                                         <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-yellow-50 text-yellow-500 mb-2">
