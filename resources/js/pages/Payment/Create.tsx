@@ -20,8 +20,10 @@ import {
     ArrowLeft,
     Clock,
     Download,
-    Wifi
+    Wifi,
+    ExternalLink
 } from 'lucide-react';
+import { Map } from '@/components/ui/map';
 
 interface BankAccount {
     id: number;
@@ -58,6 +60,8 @@ interface Booking {
         checkin_instructions?: any;
         maps_link?: string;
         current_keybox_code?: string;
+        lat?: string | number;
+        lng?: string | number;
     };
     check_in: string;
     check_out: string;
@@ -462,85 +466,70 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
                                             </p>
                                         </div>
 
-                                        {/* WiFi Access Card */}
-                                        {booking.property.checkin_instructions?.wifi_name && (
-                                            <Card className="bg-slate-900 text-white border-0 shadow-md overflow-hidden relative rounded-2xl">
-                                                <div className="absolute top-0 right-0 p-24 bg-blue-500/10 rounded-full blur-2xl -mr-12 -mt-12 pointer-events-none" />
-                                                <CardHeader className="p-4 pb-2 relative z-10">
-                                                    <div className="flex items-center gap-2">
-                                                        <Wifi className="h-5 w-5 text-blue-400 animate-pulse" />
-                                                        <CardTitle className="text-sm font-bold text-white">Akses WiFi Properti</CardTitle>
-                                                    </div>
-                                                </CardHeader>
-                                                <CardContent className="p-4 pt-1 relative z-10 space-y-3">
-                                                    <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/10 backdrop-blur-sm">
-                                                        <div className="space-y-0.5">
-                                                            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">WiFi Name / SSID</div>
-                                                            <div className="font-mono text-sm tracking-wide text-white">{booking.property.checkin_instructions.wifi_name}</div>
+                                        {/* 1. Petunjuk Arah Properti */}
+                                        {booking.property.maps_link && (
+                                            <div className="space-y-3">
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">1. Petunjuk Arah Properti</h4>
+                                                
+                                                {/* Map Component */}
+                                                {booking.property.lat && booking.property.lng && (
+                                                    <Card className="border-slate-200 shadow-sm overflow-hidden rounded-xl">
+                                                        <CardContent className="p-0 h-64 relative">
+                                                            <Map 
+                                                                lat={Number(booking.property.lat)} 
+                                                                lng={Number(booking.property.lng)} 
+                                                                height="105%" 
+                                                                zoom={18}
+                                                                propertyName={booking.property.name}
+                                                                address={booking.property.address}
+                                                            />
+                                                            <div className="absolute bottom-4 right-4 z-[1000]">
+                                                                <Button variant="secondary" size="sm" className="bg-white/90 backdrop-blur shadow-md text-xs font-bold flex items-center gap-1.5" onClick={() => window.open(booking.property.maps_link, '_blank')}>
+                                                                    Buka di Google Maps <ExternalLink className="h-3 w-3" />
+                                                                </Button>
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                )}
+
+                                                {!booking.property.lat && (
+                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <MapPin className="h-4 w-4 text-rose-500" />
+                                                            <span className="text-xs font-bold text-slate-700">Rute Petunjuk Arah</span>
                                                         </div>
-                                                        <Button size="icon" variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/10 h-8 w-8" onClick={() => copyToClipboard(booking.property.checkin_instructions.wifi_name || '', 'wifi_name')}>
-                                                            {copiedField === 'wifi_name' ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                                                        <p className="text-xs text-slate-500 leading-normal">
+                                                            Klik tombol di bawah untuk membuka Google Maps dan melihat rute petunjuk arah menuju <strong>{booking.property.name}</strong>.
+                                                        </p>
+                                                        <Button asChild variant="outline" className="w-full bg-white hover:bg-slate-100 border-slate-200 text-slate-700 text-xs py-2 rounded-lg flex items-center justify-center gap-2 cursor-pointer font-bold">
+                                                            <a href={booking.property.maps_link} target="_blank" rel="noopener noreferrer">
+                                                                <MapPin className="h-4 w-4 text-rose-500" /> Buka di Google Maps
+                                                            </a>
                                                         </Button>
                                                     </div>
-                                                    <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/10 backdrop-blur-sm">
-                                                        <div className="space-y-0.5">
-                                                            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Password</div>
-                                                            <div className="font-mono text-sm tracking-wide text-white">{booking.property.checkin_instructions.wifi_password}</div>
-                                                        </div>
-                                                        <Button size="icon" variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/10 h-8 w-8" onClick={() => copyToClipboard(booking.property.checkin_instructions.wifi_password || '', 'wifi_password')}>
-                                                            {copiedField === 'wifi_password' ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
-                                                        </Button>
-                                                    </div>
-                                                </CardContent>
-                                            </Card>
+                                                )}
+                                            </div>
                                         )}
 
-                                        {/* Keybox & Access Guide */}
-                                        <div className="space-y-3.5">
-                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Instruksi Masuk & Kunci</h4>
-                                            
-                                            {/* Keybox Code */}
-                                            {booking.property.current_keybox_code && (
-                                                <div className="bg-amber-50/60 border border-amber-100/70 rounded-xl p-4 flex items-center justify-between">
-                                                    <div className="space-y-1">
-                                                        <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">KODE KOTAK KUNCI (KEYBOX)</span>
-                                                        <span className="font-mono text-2xl font-black tracking-widest text-amber-900">{booking.property.current_keybox_code}</span>
-                                                    </div>
-                                                    <Button variant="outline" className="border-amber-200 text-amber-900 hover:bg-amber-100/50 rounded-xl px-4 py-2 font-bold text-xs" onClick={() => copyToClipboard(booking.property.current_keybox_code || '', 'keybox_code')}>
-                                                        {copiedField === 'keybox_code' ? 'Tersalin!' : 'Salin Kode'}
-                                                    </Button>
-                                                </div>
-                                            )}
-
+                                        {/* 2. Panduan & Instruksi Check-in */}
+                                        <div className="space-y-3">
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">2. Panduan & Instruksi Check-in</h4>
                                             <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-600 space-y-3 leading-relaxed">
                                                 {booking.property.checkin_instructions?.welcome && (
                                                     <p className="font-medium text-slate-850 border-b pb-2 mb-2">{booking.property.checkin_instructions.welcome.replace(/\{\{property_name\}\}/g, booking.property.name)}</p>
                                                 )}
-                                                {booking.property.checkin_instructions?.keybox_location && (
-                                                    <div className="flex gap-2">
-                                                        <span className="font-bold text-blue-600">1.</span>
-                                                        <span><strong>Lokasi Kotak Kunci:</strong> {booking.property.checkin_instructions.keybox_location}</span>
-                                                    </div>
-                                                )}
-                                                {booking.property.checkin_instructions?.keybox_code && booking.property.current_keybox_code && (
-                                                    <div className="flex gap-2">
-                                                        <span className="font-bold text-blue-600">2.</span>
-                                                        <span><strong>Cara Membuka:</strong> {booking.property.checkin_instructions.keybox_code.replace(/\{\{keybox_code\}\}/g, booking.property.current_keybox_code)}</span>
-                                                    </div>
-                                                )}
                                                 {booking.property.checkin_instructions?.checkin_time && (
                                                     <div className="flex gap-2">
-                                                        <span className="font-bold text-blue-600">3.</span>
-                                                        <span><strong>Waktu Check-in:</strong> {booking.property.checkin_instructions.checkin_time}</span>
+                                                        <span className="font-bold text-blue-600">Info Jam:</span>
+                                                        <span>{booking.property.checkin_instructions.checkin_time}</span>
                                                     </div>
                                                 )}
                                                 {booking.property.checkin_instructions?.emergency_contact && (
                                                     <div className="flex gap-2">
-                                                        <span className="font-bold text-blue-600">4.</span>
-                                                        <span><strong>Kontak Bantuan:</strong> {booking.property.checkin_instructions.emergency_contact}</span>
+                                                        <span className="font-bold text-blue-600">Bantuan:</span>
+                                                        <span>{booking.property.checkin_instructions.emergency_contact}</span>
                                                     </div>
                                                 )}
-
                                                 {booking.property.checkin_instructions?.additional_info && booking.property.checkin_instructions.additional_info.length > 0 && (
                                                     <div className="border-t border-slate-200/60 pt-2.5 mt-2 space-y-1.5">
                                                         <span className="font-bold text-slate-700 block mb-1">Informasi Tambahan:</span>
@@ -555,27 +544,39 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
                                             </div>
                                         </div>
 
-                                        {/* Google Maps Directions */}
-                                        {booking.property.maps_link && (
-                                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2.5">
-                                                <div className="flex items-center gap-2">
-                                                    <MapPin className="h-4 w-4 text-rose-500" />
-                                                    <span className="text-xs font-bold text-slate-700">Petunjuk Arah Properti</span>
+                                        {/* 3. Pengambilan Kunci (Key Box) */}
+                                        <div className="space-y-3">
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">3. Pengambilan Kunci (Key Box)</h4>
+                                            {booking.property.checkin_instructions?.keybox_location && (
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-600 space-y-2 leading-relaxed">
+                                                    <span className="font-bold text-slate-700 block">Petunjuk Lokasi Keybox:</span>
+                                                    <p className="text-slate-500">{booking.property.checkin_instructions.keybox_location}</p>
                                                 </div>
-                                                <p className="text-xs text-slate-500 leading-normal">
-                                                    Klik tombol di bawah untuk membuka Google Maps dan melihat rute petunjuk arah menuju <strong>{booking.property.name}</strong>.
-                                                </p>
-                                                <Button asChild variant="outline" className="w-full bg-white hover:bg-slate-100 border-slate-200 text-slate-700 text-xs py-2 rounded-lg flex items-center justify-center gap-2 cursor-pointer">
-                                                    <a href={booking.property.maps_link} target="_blank" rel="noopener noreferrer">
-                                                        <MapPin className="h-4 w-4 text-rose-500" /> Buka di Google Maps
-                                                    </a>
-                                                </Button>
-                                            </div>
-                                        )}
+                                            )}
+                                            
+                                            {booking.property.current_keybox_code && (
+                                                <div className="bg-amber-50/60 border border-amber-100/70 rounded-xl p-4 flex items-center justify-between">
+                                                    <div className="space-y-1">
+                                                        <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">KODE KOTAK KUNCI (KEYBOX)</span>
+                                                        <span className="font-mono text-2xl font-black tracking-widest text-amber-900">{booking.property.current_keybox_code}</span>
+                                                    </div>
+                                                    <Button variant="outline" className="border-amber-200 text-amber-900 hover:bg-amber-100/50 rounded-xl px-4 py-2 font-bold text-xs" onClick={() => copyToClipboard(booking.property.current_keybox_code || '', 'keybox_code')}>
+                                                        {copiedField === 'keybox_code' ? 'Tersalin!' : 'Salin Kode'}
+                                                    </Button>
+                                                </div>
+                                            )}
+                                            
+                                            {booking.property.checkin_instructions?.keybox_code && booking.property.current_keybox_code && (
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-600 leading-relaxed">
+                                                    <span className="font-bold text-slate-700 block">Petunjuk Membuka:</span>
+                                                    <p className="text-slate-500 mt-1">{booking.property.checkin_instructions.keybox_code.replace(/\{\{keybox_code\}\}/g, booking.property.current_keybox_code)}</p>
+                                                </div>
+                                            )}
+                                        </div>
 
-                                        {/* Property Rules */}
-                                        <div className="space-y-3 pt-1">
-                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Peraturan Properti ({booking.property.name})</h4>
+                                        {/* 4. Peraturan Properti */}
+                                        <div className="space-y-3">
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">4. Peraturan Properti ({booking.property.name})</h4>
                                             <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-600 space-y-2.5">
                                                 <div className="flex items-start gap-2">
                                                     <span className="text-blue-500 font-bold">•</span>
@@ -595,6 +596,42 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {/* 5. Akses WiFi Properti */}
+                                        {booking.property.checkin_instructions?.wifi_name && (
+                                            <div className="space-y-3">
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">5. Akses WiFi Properti</h4>
+                                                <Card className="bg-slate-900 text-white border-0 shadow-md overflow-hidden relative rounded-2xl">
+                                                    <div className="absolute top-0 right-0 p-24 bg-blue-500/10 rounded-full blur-2xl -mr-12 -mt-12 pointer-events-none" />
+                                                    <CardHeader className="p-4 pb-2 relative z-10">
+                                                        <div className="flex items-center gap-2">
+                                                            <Wifi className="h-5 w-5 text-blue-400 animate-pulse" />
+                                                            <CardTitle className="text-sm font-bold text-white">WiFi & Internet</CardTitle>
+                                                        </div>
+                                                    </CardHeader>
+                                                    <CardContent className="p-4 pt-1 relative z-10 space-y-3">
+                                                        <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/10 backdrop-blur-sm">
+                                                            <div className="space-y-0.5">
+                                                                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">WiFi Name / SSID</div>
+                                                                <div className="font-mono text-sm tracking-wide text-white">{booking.property.checkin_instructions.wifi_name}</div>
+                                                            </div>
+                                                            <Button size="icon" variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/10 h-8 w-8" onClick={() => copyToClipboard(booking.property.checkin_instructions.wifi_name || '', 'wifi_name')}>
+                                                                {copiedField === 'wifi_name' ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                                                            </Button>
+                                                        </div>
+                                                        <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/10 backdrop-blur-sm">
+                                                            <div className="space-y-0.5">
+                                                                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Password</div>
+                                                                <div className="font-mono text-sm tracking-wide text-white">{booking.property.checkin_instructions.wifi_password}</div>
+                                                            </div>
+                                                            <Button size="icon" variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/10 h-8 w-8" onClick={() => copyToClipboard(booking.property.checkin_instructions.wifi_password || '', 'wifi_password')}>
+                                                                {copiedField === 'wifi_password' ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                                                            </Button>
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            </div>
+                                        )}
                                     </div>
                                 ) : hasPendingPayment && pendingPayment ? (
                                     <div className="text-center py-8 px-4 space-y-4">
