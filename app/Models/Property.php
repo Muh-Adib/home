@@ -248,6 +248,13 @@ class Property extends Model
         );
     }
 
+    protected function wifiPassword(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->checkin_instructions['wifi_password'] ?? null
+        );
+    }
+
     /**
      * Check if booking meets minimum stay requirements
      */

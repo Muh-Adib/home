@@ -61,6 +61,8 @@ const DEFAULT_FORM: PropertyFormData = {
         keybox_code: 'Kode keybox: {{keybox_code}}',
         checkin_time: 'Check-in time: 14:00 - 22:00',
         emergency_contact: 'Hubungi kami jika ada kendala: 0811-2500-082',
+        wifi_name: '',
+        wifi_password: '',
         additional_info: ['WiFi password tersedia di dalam rumah', 'Harap menjaga kebersihan selama menginap'],
     },
     ical_import_urls: [''],

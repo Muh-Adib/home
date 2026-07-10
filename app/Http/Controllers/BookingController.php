@@ -277,6 +277,7 @@ class BookingController extends Controller
                 'checkin_instructions_formatted' => $canShowInstructions ? $booking->getFormattedCheckinInstructions() : null,
             ]),
             'show_wifi' => $showWifi,
+            'wifi_name' => $showWifi ? ($booking->property->checkin_instructions['wifi_name'] ?? null) : null,
             'wifi_password' => $showWifi ? $booking->property->wifi_password : null,
         ]);
     }

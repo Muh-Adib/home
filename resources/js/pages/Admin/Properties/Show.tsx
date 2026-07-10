@@ -770,6 +770,14 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                                                 <p className="text-sm font-medium text-slate-800">{safeProperty.checkin_instructions.keybox_code || '-'}</p>
                                             </div>
                                             <div>
+                                                <label className="text-xs font-medium text-muted-foreground">WiFi Name / SSID</label>
+                                                <p className="text-sm font-medium text-slate-800">{safeProperty.checkin_instructions.wifi_name || '-'}</p>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-medium text-muted-foreground">WiFi Password</label>
+                                                <p className="text-sm font-medium text-slate-800">{safeProperty.checkin_instructions.wifi_password || '-'}</p>
+                                            </div>
+                                            <div>
                                                 <label className="text-xs font-medium text-muted-foreground">Info Check-in Time</label>
                                                 <p className="text-sm font-medium text-slate-800">{safeProperty.checkin_instructions.checkin_time || '-'}</p>
                                             </div>

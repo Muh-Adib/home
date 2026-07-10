@@ -20,7 +20,7 @@ import type { Amenity, Property, PropertyMedia } from '@/types';
 import {
     Building2, Save, Users, DollarSign, Clock, Star, Info,
     MapPin, Calendar, Plus, Trash2, RefreshCcw, ExternalLink,
-    AlertCircle, ImageIcon, CreditCard
+    AlertCircle, ImageIcon, CreditCard, Wifi, Key
 } from 'lucide-react';
 
 interface Owner {
@@ -68,6 +68,8 @@ export interface PropertyFormData {
         keybox_code: string;
         checkin_time: string;
         emergency_contact: string;
+        wifi_name?: string;
+        wifi_password?: string;
         additional_info: string[];
     };
     ical_import_urls: string[];
@@ -243,9 +245,15 @@ export default function PropertyForm({
         },
         { 
             value: 'operations', 
-            label: 'Operasional', 
+            label: 'Aturan & OTA', 
             icon: Clock, 
-            fields: ['check_in_time', 'check_out_time', 'min_stay_weekday', 'min_stay_weekend', 'min_stay_peak', 'seo_title', 'seo_description', 'current_keybox_code', 'ical_import_urls'] 
+            fields: ['check_in_time', 'check_out_time', 'min_stay_weekday', 'min_stay_weekend', 'min_stay_peak', 'seo_title', 'seo_description', 'ical_import_urls'] 
+        },
+        { 
+            value: 'checkin', 
+            label: 'Check-in & WiFi', 
+            icon: Key, 
+            fields: ['current_keybox_code', 'checkin_instructions'] 
         }
     ];
 
@@ -884,82 +892,6 @@ export default function PropertyForm({
                                     {fieldError('house_rules')}
                                 </div>
 
-                                <div className="grid sm:grid-cols-2 gap-4 border-t pt-4 border-dashed border-slate-100">
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="current_keybox_code">Keybox Code (3 digits)</Label>
-                                        <Input id="current_keybox_code" maxLength={3} value={data.current_keybox_code}
-                                            onChange={e => setData('current_keybox_code', e.target.value.replace(/\D/g, '').slice(0, 3))}
-                                            placeholder="123" className={inputCls('current_keybox_code')} />
-                                        {fieldError('current_keybox_code')}
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="welcome">Welcome Message</Label>
-                                        <Input id="welcome" value={data.checkin_instructions.welcome}
-                                            onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, welcome: e.target.value })}
-                                            placeholder="Selamat datang di Homs!" />
-                                    </div>
-                                </div>
-
-                                <div className="grid sm:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="keybox_location">Lokasi Keybox</Label>
-                                        <Input id="keybox_location" value={data.checkin_instructions.keybox_location}
-                                            onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, keybox_location: e.target.value })}
-                                            placeholder="Keybox terletak di pilar depan pintu" />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="keybox_code_tpl">Keybox Code Template</Label>
-                                        <Input id="keybox_code_tpl" value={data.checkin_instructions.keybox_code}
-                                            onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, keybox_code: e.target.value })}
-                                            placeholder="Kode keybox: {{keybox_code}}" />
-                                    </div>
-                                </div>
-
-                                <div className="grid sm:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="checkin_time_info">Info Check-in Time</Label>
-                                        <Input id="checkin_time_info" value={data.checkin_instructions.checkin_time}
-                                            onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, checkin_time: e.target.value })}
-                                            placeholder="Check-in: 14:00 - 22:00" />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="emergency_contact">Kontak Darurat (Emergency)</Label>
-                                        <Input id="emergency_contact" value={data.checkin_instructions.emergency_contact}
-                                            onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, emergency_contact: e.target.value })}
-                                            placeholder="0811-2500-082" />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2 border-t pt-4 border-dashed border-slate-100">
-                                    <Label>Informasi Tambahan Check-in</Label>
-                                    {(data.checkin_instructions.additional_info || []).map((info, i) => (
-                                        <div key={i} className="flex gap-2 mt-1.5">
-                                            <Input value={info} placeholder={`Informasi Tambahan ${i + 1}`}
-                                                onChange={e => {
-                                                    const arr = [...data.checkin_instructions.additional_info];
-                                                    arr[i] = e.target.value;
-                                                    setData('checkin_instructions', { ...data.checkin_instructions, additional_info: arr });
-                                                }} />
-                                            <Button type="button" variant="ghost" size="icon"
-                                                className="shrink-0 text-red-500 hover:text-red-700"
-                                                onClick={() => {
-                                                    const arr = data.checkin_instructions.additional_info.filter((_, idx) => idx !== i);
-                                                    setData('checkin_instructions', { ...data.checkin_instructions, additional_info: arr });
-                                                }}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                    <div className="flex gap-2 mt-2">
-                                        <Button type="button" variant="outline" size="sm" className="font-bold border-slate-200"
-                                            onClick={() => setData('checkin_instructions', {
-                                                ...data.checkin_instructions,
-                                                additional_info: [...(data.checkin_instructions.additional_info || []), '']
-                                            })}>
-                                            <Plus className="h-3 w-3 mr-1" /> Tambah Info
-                                        </Button>
-                                    </div>
-                                </div>
                             </CardContent>
                         </Card>
 
@@ -1060,6 +992,152 @@ export default function PropertyForm({
                                     <Textarea id="seo_description" value={data.seo_description} onChange={e => setData('seo_description', e.target.value)}
                                         rows={2} placeholder="Menginap nyaman bersama keluarga..." className={inputCls('seo_description')} />
                                     {fieldError('seo_description')}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+                {/* ── 7. Tab: Instruksi Check-in & WiFi ─────────────────────── */}
+                {activeTab === 'checkin' && (
+                    <div className="space-y-6">
+                        {/* Welcome & Time Info */}
+                        <Card className="border-slate-100 shadow-sm bg-white rounded-2xl">
+                            <CardHeader className="pb-3 border-b border-slate-50">
+                                <CardTitle className="flex items-center gap-2 text-slate-800 text-base font-bold">
+                                    <Info className="h-5 w-5 text-blue-600" /> Informasi Dasar Penyambutan
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4 pt-5">
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="welcome" className="font-bold text-slate-700">Pesan Selamat Datang (Welcome Message)</Label>
+                                        <Input id="welcome" value={data.checkin_instructions.welcome}
+                                            onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, welcome: e.target.value })}
+                                            placeholder="Selamat datang di Homs!" />
+                                        <span className="text-[11px] text-slate-400">Pesan penyambutan pertama yang dibaca tamu di panduan.</span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="checkin_time_info" className="font-bold text-slate-700">Info Jam Check-in</Label>
+                                        <Input id="checkin_time_info" value={data.checkin_instructions.checkin_time}
+                                            onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, checkin_time: e.target.value })}
+                                            placeholder="Check-in: 14:00 - 22:00" />
+                                        <span className="text-[11px] text-slate-400">Informasi jam check-in yang akan tertera bagi tamu.</span>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Keybox Setup */}
+                        <Card className="border-slate-100 shadow-sm bg-white rounded-2xl">
+                            <CardHeader className="pb-3 border-b border-slate-50">
+                                <CardTitle className="flex items-center gap-2 text-slate-800 text-base font-bold">
+                                    <Key className="h-5 w-5 text-amber-500" /> Pengaturan Keybox & Kode Akses
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-5 pt-5">
+                                <div className="grid sm:grid-cols-3 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="current_keybox_code" className="font-bold text-slate-700">Kode Keybox Utama (3 digit angka)</Label>
+                                        <Input id="current_keybox_code" maxLength={3} value={data.current_keybox_code}
+                                            onChange={e => setData('current_keybox_code', e.target.value.replace(/\D/g, '').slice(0, 3))}
+                                            placeholder="123" className={inputCls('current_keybox_code') + " font-mono font-bold tracking-widest text-base"} />
+                                        {fieldError('current_keybox_code')}
+                                        <span className="text-[11px] text-slate-400">Kode fisik yang sedang aktif saat ini.</span>
+                                    </div>
+                                    <div className="space-y-1.5 sm:col-span-2">
+                                        <Label htmlFor="keybox_location" className="font-bold text-slate-700">Lokasi & Petunjuk Keybox</Label>
+                                        <Input id="keybox_location" value={data.checkin_instructions.keybox_location}
+                                            onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, keybox_location: e.target.value })}
+                                            placeholder="Keybox terletak di pilar depan pintu masuk utama" />
+                                        <span className="text-[11px] text-slate-400">Beri tahu tamu di mana mereka bisa menemukan kotak kunci.</span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5 border-t pt-4 border-dashed border-slate-100">
+                                    <Label htmlFor="keybox_code_tpl" className="font-bold text-slate-700">Template Teks Kode Keybox</Label>
+                                    <Input id="keybox_code_tpl" value={data.checkin_instructions.keybox_code}
+                                        onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, keybox_code: e.target.value })}
+                                        placeholder="Kode keybox: {{keybox_code}}" />
+                                    <span className="text-[11px] text-slate-400">Gunakan tag <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-[10px] text-slate-700 font-bold">{"{{keybox_code}}"}</code> untuk menyisipkan Kode Keybox Utama secara dinamis ke tamu.</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* WiFi Setup */}
+                        <Card className="border-slate-100 shadow-sm bg-white rounded-2xl">
+                            <CardHeader className="pb-3 border-b border-slate-50">
+                                <CardTitle className="flex items-center gap-2 text-slate-800 text-base font-bold">
+                                    <Wifi className="h-5 w-5 text-blue-500" /> Informasi WiFi & Akses Internet
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4 pt-5">
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="wifi_name" className="font-bold text-slate-700">Nama WiFi (SSID)</Label>
+                                        <Input id="wifi_name" value={data.checkin_instructions.wifi_name || ''}
+                                            onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, wifi_name: e.target.value })}
+                                            placeholder="Nama Jaringan WiFi Properti" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="wifi_password" className="font-bold text-slate-700">Password WiFi</Label>
+                                        <Input id="wifi_password" value={data.checkin_instructions.wifi_password || ''}
+                                            onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, wifi_password: e.target.value })}
+                                            placeholder="Password WiFi Properti" />
+                                    </div>
+                                </div>
+                                <div className="bg-blue-50/50 p-3.5 rounded-xl border border-blue-100/50 flex items-start gap-2.5 mt-2">
+                                    <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                                    <p className="text-[11px] leading-normal text-blue-800">
+                                        Informasi WiFi ini akan ditampilkan secara aman pada dashboard tamu <strong>setelah tamu sukses melakukan check-in</strong> dan diverifikasi oleh sistem. Tamu dapat menyalin nama wifi & password dengan sekali klik.
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Contact & Extra Info */}
+                        <Card className="border-slate-100 shadow-sm bg-white rounded-2xl">
+                            <CardHeader className="pb-3 border-b border-slate-50">
+                                <CardTitle className="flex items-center gap-2 text-slate-800 text-base font-bold">
+                                    <ExternalLink className="h-5 w-5 text-green-600" /> Kontak Darurat & Info Tambahan
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-5 pt-5">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="emergency_contact" className="font-bold text-slate-700">Kontak Darurat (WhatsApp / Phone)</Label>
+                                    <Input id="emergency_contact" value={data.checkin_instructions.emergency_contact}
+                                        onChange={e => setData('checkin_instructions', { ...data.checkin_instructions, emergency_contact: e.target.value })}
+                                        placeholder="Hubungi kami jika ada kendala: 0811-2500-082" />
+                                </div>
+
+                                <div className="space-y-2 border-t pt-4 border-dashed border-slate-100">
+                                    <Label className="font-bold text-slate-700">Informasi Tambahan Panduan Check-in (Poin/Bullet Points)</Label>
+                                    {(data.checkin_instructions.additional_info || []).map((info, i) => (
+                                        <div key={i} className="flex gap-2 mt-1.5">
+                                            <Input value={info} placeholder={`Langkah Tambahan ${i + 1}`}
+                                                onChange={e => {
+                                                    const arr = [...data.checkin_instructions.additional_info];
+                                                    arr[i] = e.target.value;
+                                                    setData('checkin_instructions', { ...data.checkin_instructions, additional_info: arr });
+                                                }} />
+                                            <Button type="button" variant="ghost" size="icon"
+                                                className="shrink-0 text-red-500 hover:text-red-700"
+                                                onClick={() => {
+                                                    const arr = data.checkin_instructions.additional_info.filter((_, idx) => idx !== i);
+                                                    setData('checkin_instructions', { ...data.checkin_instructions, additional_info: arr });
+                                                }}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                    <div className="flex gap-2 mt-2">
+                                        <Button type="button" variant="outline" size="sm" className="font-bold border-slate-200"
+                                            onClick={() => setData('checkin_instructions', {
+                                                ...data.checkin_instructions,
+                                                additional_info: [...(data.checkin_instructions.additional_info || []), '']
+                                            })}>
+                                            <Plus className="h-3 w-3 mr-1" /> Tambah Poin Informasi
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>

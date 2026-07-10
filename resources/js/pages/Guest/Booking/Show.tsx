@@ -34,11 +34,12 @@ import { id } from 'date-fns/locale';
 interface ShowBookingProps {
     booking: any;
     show_wifi: boolean;
+    wifi_name?: string;
     wifi_password?: string;
     auth: any;
 }
 
-export default function Show({ booking, show_wifi, wifi_password }: ShowBookingProps) {
+export default function Show({ booking, show_wifi, wifi_name, wifi_password }: ShowBookingProps) {
     const { property, payments } = booking;
     const [activeTab, setActiveTab] = useState('overview');
 
@@ -280,11 +281,20 @@ export default function Show({ booking, show_wifi, wifi_password }: ShowBookingP
                                         </div>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="relative z-10 pb-8">
+                                <CardContent className="relative z-10 space-y-4 pb-8">
+                                    <div className="flex items-center justify-between bg-white/5 p-4 rounded-xl border border-white/10 backdrop-blur-sm">
+                                        <div className="space-y-1">
+                                            <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">WiFi Name / SSID</div>
+                                            <div className="font-mono text-lg tracking-wide text-white">{wifi_name || 'Homs WiFi'}</div>
+                                        </div>
+                                        <Button size="icon" variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/10" onClick={() => copyToClipboard(wifi_name || '')}>
+                                            <Copy className="h-5 w-5" />
+                                        </Button>
+                                    </div>
                                     <div className="flex items-center justify-between bg-white/5 p-4 rounded-xl border border-white/10 backdrop-blur-sm">
                                         <div className="space-y-1">
                                             <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Password</div>
-                                            <div className="font-mono text-xl tracking-wider text-white">{wifi_password || 'Ask Host'}</div>
+                                            <div className="font-mono text-lg tracking-wide text-white">{wifi_password || 'Ask Host'}</div>
                                         </div>
                                         <Button size="icon" variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/10" onClick={() => copyToClipboard(wifi_password || '')}>
                                             <Copy className="h-5 w-5" />

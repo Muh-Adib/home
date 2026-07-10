@@ -130,6 +130,8 @@ export interface CheckinInstructions {
     keybox_code: string;
     checkin_time: string;
     emergency_contact: string;
+    wifi_name?: string;
+    wifi_password?: string;
     additional_info: string[];
 }
 

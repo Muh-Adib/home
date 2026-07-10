@@ -59,6 +59,8 @@ export default function EditProperty({ property, amenities, owners, bankAccounts
             keybox_code: property.checkin_instructions?.keybox_code ?? 'Kode keybox: {{keybox_code}}',
             checkin_time: property.checkin_instructions?.checkin_time ?? 'Check-in time: 14:00 - 22:00',
             emergency_contact: property.checkin_instructions?.emergency_contact ?? 'Hubungi kami jika ada kendala: 0811-2500-082',
+            wifi_name: property.checkin_instructions?.wifi_name ?? '',
+            wifi_password: property.checkin_instructions?.wifi_password ?? '',
             additional_info: property.checkin_instructions?.additional_info ?? ['WiFi password tersedia di dalam rumah', 'Harap menjaga kebersihan selama menginap'],
         },
         ical_import_urls: (property.ical_import_urls && property.ical_import_urls.length > 0)
