@@ -1561,8 +1561,8 @@ class BookingManagementController extends Controller
         }
 
         $paymentStatus = strtolower($row[28] ?? '');
-        if (in_array($paymentStatus, ['fully_paid', 'dp_received', 'dp_paid']) && empty($row[29])) {
-            $missing[] = 'Payment Method (Required for paid status)';
+        if (in_array($paymentStatus, ['fully_paid', 'dp_received', 'dp_paid']) && empty($row[29]) && empty($row[33])) {
+            $missing[] = 'At least one Payment Amount (Payment 1 or Payment 2) is required for paid status';
         }
 
         return $missing;
@@ -1647,14 +1647,6 @@ class BookingManagementController extends Controller
      */
     private function mapImportRowToRawData(array $row, ?Property $property = null): array
     {
-        $paymentMethodName = $row[29] ?? null;
-        $paymentMethodId = null;
-
-        if ($paymentMethodName) {
-            $paymentMethod = PaymentMethod::where('name', $paymentMethodName)->first();
-            $paymentMethodId = $paymentMethod ? $paymentMethod->id : null;
-        }
-
         return [
             'booking_number' => $row[0] ? trim($row[0]) : null,
             'property_id' => $property ? $property->id : null,
@@ -1683,9 +1675,15 @@ class BookingManagementController extends Controller
             'remaining_amount' => (float) ($row[26] ?? 0),
             'booking_status' => $row[27] ? trim($row[27]) : null,
             'payment_status' => $row[28] ? trim($row[28]) : null,
-            'payment_method_name' => $paymentMethodName ? trim($paymentMethodName) : null,
-            'payment_method_id' => $paymentMethodId,
-            'internal_notes' => $row[30] ? trim($row[30]) : null,
+            'payment_1_amount' => ! empty($row[29]) ? (float) $row[29] : null,
+            'payment_1_date' => $row[30] ? trim($row[30]) : null,
+            'payment_1_method' => $row[31] ? trim($row[31]) : null,
+            'payment_1_status' => $row[32] ? trim($row[32]) : null,
+            'payment_2_amount' => ! empty($row[33]) ? (float) $row[33] : null,
+            'payment_2_date' => $row[34] ? trim($row[34]) : null,
+            'payment_2_method' => $row[35] ? trim($row[35]) : null,
+            'payment_2_status' => $row[36] ? trim($row[36]) : null,
+            'internal_notes' => $row[37] ? trim($row[37]) : null,
         ];
     }
 
@@ -1694,7 +1692,9 @@ class BookingManagementController extends Controller
      */
     private function extractImportBookingData(Booking $booking): array
     {
-        $paymentMethodName = $booking->payments->sortByDesc('created_at')->first()?->paymentMethod?->name ?? null;
+        $verifiedPayments = $booking->payments->sortBy('created_at')->values();
+        $p1 = $verifiedPayments[0] ?? null;
+        $p2 = $verifiedPayments[1] ?? null;
 
         return [
             'booking_number' => $booking->booking_number,
@@ -1724,7 +1724,14 @@ class BookingManagementController extends Controller
             'remaining_amount' => (float) $booking->remaining_amount,
             'booking_status' => $booking->booking_status,
             'payment_status' => $booking->payment_status,
-            'payment_method_name' => $paymentMethodName,
+            'payment_1_amount' => $p1 ? (float) $p1->amount : null,
+            'payment_1_date' => $p1 ? $p1->payment_date->format('Y-m-d') : null,
+            'payment_1_method' => $p1 ? $p1->paymentMethod?->name : null,
+            'payment_1_status' => $p1 ? $p1->payment_status : null,
+            'payment_2_amount' => $p2 ? (float) $p2->amount : null,
+            'payment_2_date' => $p2 ? $p2->payment_date->format('Y-m-d') : null,
+            'payment_2_method' => $p2 ? $p2->paymentMethod?->name : null,
+            'payment_2_status' => $p2 ? $p2->payment_status : null,
             'special_requests' => $booking->special_requests,
             'internal_notes' => $booking->internal_notes,
         ];
@@ -1744,7 +1751,10 @@ class BookingManagementController extends Controller
             'guest_children', 'relationship_type', 'check_in', 'check_in_time',
             'check_out', 'nights', 'base_amount', 'extra_bed_amount',
             'service_amount', 'tax_amount', 'total_amount', 'dp_percentage',
-            'booking_status', 'payment_status', 'payment_method_name', 'special_requests', 'internal_notes',
+            'booking_status', 'payment_status',
+            'payment_1_amount', 'payment_1_date', 'payment_1_method', 'payment_1_status',
+            'payment_2_amount', 'payment_2_date', 'payment_2_method', 'payment_2_status',
+            'special_requests', 'internal_notes',
         ];
 
         foreach ($fieldsToCompare as $field) {

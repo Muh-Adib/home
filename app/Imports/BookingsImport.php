@@ -210,66 +210,32 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
             // Recreate daily revenues with imported amounts
             $this->syncDailyRevenues($booking, $rowArray);
 
-            // Handle Payment Creation
-            $paymentMethodName = $rowArray['payment_method'] ?? null;
-            if ($paymentMethodName) {
-                $paymentMethod = PaymentMethod::where('name', $paymentMethodName)->first();
+            // Handle Payment Creation & Sync (for real multiple transactions)
+            $existingPayments = $booking->payments()->orderBy('created_at')->get();
 
-                if ($paymentMethod) {
-                    $targetVerifiedAmount = 0;
-                    if ($booking->payment_status === 'fully_paid') {
-                        $targetVerifiedAmount = (int) $booking->total_amount;
-                    } elseif ($booking->payment_status === 'dp_received' || $booking->payment_status === 'dp_paid') {
-                        $targetVerifiedAmount = (int) $booking->dp_amount;
-                    }
+            // Sync Payment 1
+            $this->syncImportedPayment(
+                $booking,
+                $existingPayments->get(0),
+                ! empty($rowArray['payment_1_amount']) ? (float) $rowArray['payment_1_amount'] : null,
+                $rowArray['payment_1_date'] ?? null,
+                $rowArray['payment_1_method'] ?? null,
+                $rowArray['payment_1_status'] ?? null,
+                'dp',
+                $currentUser
+            );
 
-                    $existingVerifiedAmount = (int) $booking->payments()
-                        ->where('payment_status', 'verified')
-                        ->sum('amount');
-
-                    $deficit = $targetVerifiedAmount - $existingVerifiedAmount;
-
-                    // Determine bank account details from property bank account or payment method fallback
-                    $bankAccount = $booking->property->bankAccount;
-                    $bankName = $bankAccount ? $bankAccount->bank_name : $paymentMethod->bank_name;
-                    $accountNumber = $bankAccount ? $bankAccount->account_number : $paymentMethod->account_number;
-                    $accountName = $bankAccount ? $bankAccount->account_holder : $paymentMethod->account_name;
-
-                    if ($deficit > 0) {
-                        $payment = $booking->payments()->create([
-                            'payment_number' => Payment::generatePaymentNumber(),
-                            'payment_method_id' => $paymentMethod->id,
-                            'amount' => $deficit,
-                            'payment_type' => $existingVerifiedAmount > 0 ? 'remaining' : ($booking->payment_status === 'fully_paid' ? 'full' : 'dp'),
-                            'payment_method' => $paymentMethod->type,
-                            'payment_status' => 'verified',
-                            'payment_date' => now(),
-                            'bank_name' => $bankName,
-                            'account_number' => $accountNumber,
-                            'account_name' => $accountName,
-                            'processed_by' => $currentUser->id,
-                            'verified_by' => $currentUser->id,
-                            'verified_at' => now(),
-                        ]);
-
-                        app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
-                    } elseif ($booking->payment_status === 'dp_pending' && $booking->payments()->count() === 0) {
-                        $booking->payments()->create([
-                            'payment_number' => Payment::generatePaymentNumber(),
-                            'payment_method_id' => $paymentMethod->id,
-                            'amount' => (int) $booking->dp_amount,
-                            'payment_type' => 'dp',
-                            'payment_method' => $paymentMethod->type,
-                            'payment_status' => 'pending',
-                            'payment_date' => now(),
-                            'bank_name' => $bankName,
-                            'account_number' => $accountNumber,
-                            'account_name' => $accountName,
-                            'processed_by' => $currentUser->id,
-                        ]);
-                    }
-                }
-            }
+            // Sync Payment 2
+            $this->syncImportedPayment(
+                $booking,
+                $existingPayments->get(1),
+                ! empty($rowArray['payment_2_amount']) ? (float) $rowArray['payment_2_amount'] : null,
+                $rowArray['payment_2_date'] ?? null,
+                $rowArray['payment_2_method'] ?? null,
+                $rowArray['payment_2_status'] ?? null,
+                'remaining',
+                $currentUser
+            );
 
             // Always update payment status to recalculate paid/remaining fields
             $booking->updatePaymentStatus(true);
@@ -406,5 +372,99 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
             'check_in' => 'required',
             'check_out' => 'required',
         ];
+    }
+
+    /**
+     * Sync imported payment details with DB
+     */
+    protected function syncImportedPayment(
+        Booking $booking,
+        ?Payment $existingPayment,
+        ?float $amount,
+        ?string $dateStr,
+        ?string $methodName,
+        ?string $status,
+        string $defaultType,
+        User $currentUser
+    ): void {
+        if (empty($amount) || $amount <= 0) {
+            return;
+        }
+
+        // Find payment method by name
+        $paymentMethod = null;
+        if ($methodName) {
+            $paymentMethod = PaymentMethod::where('name', $methodName)->first();
+        }
+
+        // Fallback payment method if missing
+        if (! $paymentMethod) {
+            $paymentMethod = PaymentMethod::active()->first();
+        }
+
+        if (! $paymentMethod) {
+            return; // No payment method available
+        }
+
+        // Parse date
+        $paymentDate = now();
+        if ($dateStr) {
+            try {
+                $paymentDate = $this->parseDate($dateStr);
+            } catch (\Exception $e) {
+                $paymentDate = now();
+            }
+        }
+
+        // Determine bank account details
+        $bankAccount = $booking->property->bankAccount;
+        $bankName = $bankAccount ? $bankAccount->bank_name : $paymentMethod->bank_name;
+        $accountNumber = $bankAccount ? $bankAccount->account_number : $paymentMethod->account_number;
+        $accountName = $bankAccount ? $bankAccount->account_holder : $paymentMethod->account_name;
+
+        $paymentStatus = $status ? strtolower($status) : 'verified';
+
+        if ($existingPayment) {
+            // Update existing payment
+            $existingPayment->update([
+                'amount' => $amount,
+                'payment_method_id' => $paymentMethod->id,
+                'payment_method' => $paymentMethod->type,
+                'payment_status' => $paymentStatus,
+                'payment_date' => $paymentDate,
+                'bank_name' => $bankName,
+                'account_number' => $accountNumber,
+                'account_name' => $accountName,
+            ]);
+
+            // Sync incomes for this payment if verified
+            if ($paymentStatus === 'verified') {
+                $existingPayment->verified_by = $currentUser->id;
+                $existingPayment->verified_at = $existingPayment->verified_at ?? now();
+                $existingPayment->save();
+                app(PaymentIncomeSyncService::class)->syncOnVerified($existingPayment);
+            }
+        } else {
+            // Create new payment
+            $payment = $booking->payments()->create([
+                'payment_number' => Payment::generatePaymentNumber(),
+                'payment_method_id' => $paymentMethod->id,
+                'amount' => $amount,
+                'payment_type' => $defaultType,
+                'payment_method' => $paymentMethod->type,
+                'payment_status' => $paymentStatus,
+                'payment_date' => $paymentDate,
+                'bank_name' => $bankName,
+                'account_number' => $accountNumber,
+                'account_name' => $accountName,
+                'processed_by' => $currentUser->id,
+                'verified_by' => $paymentStatus === 'verified' ? $currentUser->id : null,
+                'verified_at' => $paymentStatus === 'verified' ? now() : null,
+            ]);
+
+            if ($paymentStatus === 'verified') {
+                app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
+            }
+        }
     }
 }

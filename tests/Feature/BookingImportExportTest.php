@@ -65,7 +65,9 @@ class BookingImportExportTest extends TestCase
             'Guest Gender', 'Guest Male', 'Guest Female', 'Guest Children', 'Effective Guest Count',
             'Relationship Type', 'Check In', 'Check In Time', 'Check Out', 'Nights', 'Base Amount',
             'Extra Bed Amount', 'Service Amount', 'Tax Amount', 'Total Amount', 'DP Percentage',
-            'DP Amount', 'Remaining Amount', 'Booking Status', 'Payment Status', 'Payment Method',
+            'DP Amount', 'Remaining Amount', 'Booking Status', 'Payment Status',
+            'Payment 1 Amount', 'Payment 1 Date', 'Payment 1 Method', 'Payment 1 Status',
+            'Payment 2 Amount', 'Payment 2 Date', 'Payment 2 Method', 'Payment 2 Status',
             'Internal Notes', 'Created At', 'Created By', 'Verified By',
         ];
 
@@ -75,7 +77,9 @@ class BookingImportExportTest extends TestCase
             'male', 2, 0, 0, 2,
             'keluarga', '12/07/2026', '14:00', '15/07/2026', 3, 1500000,
             300000, 0, 0, 1800000, 50,
-            900000, 900000, 'confirmed', 'fully_paid', 'Manual Transfer',
+            900000, 900000, 'confirmed', 'fully_paid',
+            1000000, '12/07/2026', 'Manual Transfer', 'verified',
+            800000, '13/07/2026', 'Manual Transfer', 'verified',
             'notes', '2026-07-11 12:00:00', 'Admin Name', 'Admin Name',
         ];
 
@@ -146,13 +150,19 @@ class BookingImportExportTest extends TestCase
         $this->assertEquals(100000, $dailyRevenues[2]->extra_bed_amount);
         $this->assertEquals(0, $dailyRevenues[2]->extra_bed_count);
 
-        // Assert Payment was created and verified
-        $payment = Payment::where('booking_id', $booking->id)->first();
-        $this->assertNotNull($payment);
-        $this->assertEquals('verified', $payment->payment_status);
-        $this->assertEquals(1800000, $payment->amount);
+        // Assert two payments were created and verified
+        $payments = Payment::where('booking_id', $booking->id)->orderBy('created_at')->get();
+        $this->assertCount(2, $payments);
 
-        // Assert Income records were synced per day (3 nights of 600k each)
+        $this->assertEquals('verified', $payments[0]->payment_status);
+        $this->assertEquals(1000000, $payments[0]->amount);
+        $this->assertEquals('12/07/2026', $payments[0]->payment_date->format('d/m/Y'));
+
+        $this->assertEquals('verified', $payments[1]->payment_status);
+        $this->assertEquals(800000, $payments[1]->amount);
+        $this->assertEquals('13/07/2026', $payments[1]->payment_date->format('d/m/Y'));
+
+        // Assert Income records were synced per day (3 nights of 600k each = 1.8M total synced incomes)
         $incomes = Income::where('booking_id', $booking->id)->orderBy('income_date')->get();
         $this->assertCount(3, $incomes);
         foreach ($incomes as $income) {
