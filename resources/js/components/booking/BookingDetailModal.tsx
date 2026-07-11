@@ -144,31 +144,6 @@ export default function BookingDetailModal({
     const [paymentNotes, setPaymentNotes] = useState<string>('');
     const [proofOfPayment, setProofOfPayment] = useState<File | null>(null);
     const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
-    const [selectedTemplate, setSelectedTemplate] = useState<string>('billing_dp');
-
-    useEffect(() => {
-        if (booking) {
-            if (booking.booking_status === 'checked_out') {
-                setSelectedTemplate('review');
-            } else if (booking.booking_status === 'checked_in') {
-                const todayStr = new Date().toISOString().split('T')[0];
-                if (booking.check_out === todayStr) {
-                    setSelectedTemplate('check_out');
-                } else {
-                    setSelectedTemplate('during_stay');
-                }
-            } else {
-                const todayStr = new Date().toISOString().split('T')[0];
-                if (booking.check_in === todayStr) {
-                    setSelectedTemplate('check_in');
-                } else if (verifiedPaymentsSum === 0) {
-                    setSelectedTemplate('billing_dp');
-                } else {
-                    setSelectedTemplate('billing_remaining');
-                }
-            }
-        }
-    }, [booking, verifiedPaymentsSum, remainingAmount]);
 
     // --- Review state (admin) ---
     const [showReviewEdit, setShowReviewEdit] = useState(false);
@@ -349,6 +324,32 @@ export default function BookingDetailModal({
         }
     }, [booking, verifiedPaymentsSum, remainingAmount]);
 
+    const [selectedTemplate, setSelectedTemplate] = useState<string>('billing_dp');
+
+    useEffect(() => {
+        if (booking) {
+            if (booking.booking_status === 'checked_out') {
+                setSelectedTemplate('review');
+            } else if (booking.booking_status === 'checked_in') {
+                const todayStr = new Date().toISOString().split('T')[0];
+                if (booking.check_out === todayStr) {
+                    setSelectedTemplate('check_out');
+                } else {
+                    setSelectedTemplate('during_stay');
+                }
+            } else {
+                const todayStr = new Date().toISOString().split('T')[0];
+                if (booking.check_in === todayStr) {
+                    setSelectedTemplate('check_in');
+                } else if (verifiedPaymentsSum === 0) {
+                    setSelectedTemplate('billing_dp');
+                } else {
+                    setSelectedTemplate('billing_remaining');
+                }
+            }
+        }
+    }, [booking, verifiedPaymentsSum, remainingAmount]);
+
     const handleAction = (action: string) => {
         const routes: Record<string, string> = {
             verify: `/admin/bookings/${booking.booking_number}/verify`,
@@ -378,17 +379,31 @@ export default function BookingDetailModal({
         return timeStr;
     };
 
+    const formatDateHelper = (dateStr?: string) => {
+        if (!dateStr) return '';
+        try {
+            return new Date(dateStr).toLocaleDateString('id-ID', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+        } catch {
+            return dateStr;
+        }
+    };
+
     const getWhatsAppTemplateMessage = (templateKey: string): string => {
         const link = `${window.location.origin}/booking/${booking.booking_number}/payment`;
         const reviewLink = `${window.location.origin}/booking/${booking.booking_number}/payment?payment_token=${booking.payment_token}`;
+        const guestsDetail = `${booking.guest_count} Orang${booking.extra_bed_count ? ` + ${booking.extra_bed_count} Extra Bed` : ''}`;
 
         switch (templateKey) {
             case 'billing_dp':
                 const dpAmt = booking.dp_amount || (booking.total_amount * 0.5);
-                return `Halo ${booking.guest_name},\n\nTerima kasih telah memesan di homsjogja.com untuk unit *${booking.property?.name}*.\n\nSilakan selesaikan pembayaran DP Anda sebesar *${formatCurrency(dpAmt)}* melalui link pembayaran berikut:\n${link}\n\nTerima kasih!`;
+                return `Halo ${booking.guest_name},\n\nTerima kasih telah memesan di homsjogja.com untuk unit *${booking.property?.name}*.\n\n*Rincian Pemesanan:*\n- Tanggal Check-in: ${formatDateHelper(booking.check_in)}\n- Tanggal Check-out: ${formatDateHelper(booking.check_out)}\n- Durasi Menginap: ${nights} Malam\n- Jumlah Tamu: ${guestsDetail}\n\nSilakan selesaikan pembayaran DP Anda sebesar *${formatCurrency(dpAmt)}* melalui link pembayaran berikut:\n${link}\n\nTerima kasih!`;
             
             case 'billing_remaining':
-                return `Halo ${booking.guest_name},\n\nBerikut tagihan pelunasan untuk pemesanan unit *${booking.property?.name}* sebesar *${formatCurrency(remainingAmount)}* melalui link pembayaran berikut:\n${link}\n\nTerima kasih!`;
+                return `Halo ${booking.guest_name},\n\nBerikut tagihan pelunasan untuk pemesanan unit *${booking.property?.name}*.\n\n*Rincian Pemesanan:*\n- Tanggal Check-in: ${formatDateHelper(booking.check_in)}\n- Tanggal Check-out: ${formatDateHelper(booking.check_out)}\n- Durasi Menginap: ${nights} Malam\n- Jumlah Tamu: ${guestsDetail}\n\nNominal yang perlu dilunasi sebesar *${formatCurrency(remainingAmount)}* melalui link pembayaran berikut:\n${link}\n\nTerima kasih!`;
             
             case 'check_in':
                 return `Halo ${booking.guest_name},\n\nKami menanti kedatangan Anda hari ini di *${booking.property?.name}*.\n\nBerikut petunjuk check-in Anda:\n- Waktu Check-in: Mulai pukul ${formatTimeHelper(booking.property?.check_in_time || '14:00')}\n- Lokasi Maps: ${booking.property?.maps_link || '-'}\n\nJika ada pertanyaan atau kendala selama check-in, silakan hubungi kami di nomor ini. Sampai jumpa!`;
