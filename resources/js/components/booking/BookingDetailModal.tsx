@@ -498,6 +498,16 @@ export default function BookingDetailModal({
                                         <Building2 className="w-3.5 h-3.5 shrink-0" />
                                         <span className="truncate">{booking.property?.name}</span>
                                     </span>
+                                    <span className="hidden md:inline">•</span>
+                                    <span className="flex items-center gap-1 truncate text-slate-400 md:text-slate-300" title="Di-input oleh">
+                                        <span className="text-[10px] text-slate-400 uppercase font-semibold shrink-0">Input:</span>
+                                        <span className="truncate">{typeof booking.created_by === 'object' && booking.created_by ? (booking.created_by as any).name : (booking.created_by_user?.name || '-')}</span>
+                                    </span>
+                                    <span className="hidden md:inline">•</span>
+                                    <span className="flex items-center gap-1 truncate text-slate-400 md:text-slate-300" title="Follow up oleh">
+                                        <span className="text-[10px] text-slate-400 uppercase font-semibold shrink-0">Follow Up:</span>
+                                        <span className="truncate">{typeof booking.followed_up_by === 'object' && booking.followed_up_by ? (booking.followed_up_by as any).name : (booking.followed_up_by_user?.name || '-')}</span>
+                                    </span>
                                 </div>
                             </div>
                         </div>

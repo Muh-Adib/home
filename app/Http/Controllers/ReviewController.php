@@ -82,7 +82,7 @@ class ReviewController extends Controller
     /**
      * Admin: toggle is_approved on a review.
      */
-    public function adminApprove(Review $review): RedirectResponse
+    public function adminApprove(Request $request, Review $review)
     {
         $review->update([
             'is_approved' => ! $review->is_approved,
@@ -91,13 +91,21 @@ class ReviewController extends Controller
             'responded_at' => now(),
         ]);
 
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $review->is_approved ? 'Ulasan telah dipublikasikan.' : 'Ulasan disembunyikan.',
+                'review' => $review,
+            ]);
+        }
+
         return back()->with('success', $review->is_approved ? 'Ulasan telah dipublikasikan.' : 'Ulasan disembunyikan.');
     }
 
     /**
      * Admin: edit review content and/or admin response, then optionally approve.
      */
-    public function adminUpdate(Request $request, Review $review): RedirectResponse
+    public function adminUpdate(Request $request, Review $review)
     {
         $request->validate([
             'rating' => 'nullable|integer|between:1,5',
@@ -117,6 +125,14 @@ class ReviewController extends Controller
         ], fn ($v) => ! is_null($v));
 
         $review->update($data);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Ulasan berhasil diperbarui.',
+                'review' => $review,
+            ]);
+        }
 
         return back()->with('success', 'Ulasan berhasil diperbarui.');
     }

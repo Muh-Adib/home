@@ -244,7 +244,10 @@ export interface Booking {
     external_reservation_url?:string;
     rate_calculation?: any;
     daily_extra_beds?: Record<string, number>;
-    followed_up_by?: number | string;
+    followed_up_by?: number | string | User;
+    created_by?: number | User;
+    created_by_user?: User;
+    followed_up_by_user?: User;
     review?: Review | null;
     payment_token?: string;
 }

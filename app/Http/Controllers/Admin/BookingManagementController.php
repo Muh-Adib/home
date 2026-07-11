@@ -99,7 +99,7 @@ class BookingManagementController extends Controller
         $properties = $propertiesQuery->active()->get();
 
         $bookingsQuery = Booking::query()
-            ->with(['property', 'verifiedBy', 'payments', 'services.serviceMaster', 'review']);
+            ->with(['property', 'verifiedBy', 'payments', 'services.serviceMaster', 'review', 'createdBy', 'followedUpBy']);
 
         // Filter by property if specified
         if ($request->filled('property_id')) {

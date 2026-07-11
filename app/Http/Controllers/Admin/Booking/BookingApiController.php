@@ -73,6 +73,8 @@ class BookingApiController extends Controller
                     'payments.paymentMethod',
                     'services',
                     'review',
+                    'createdBy',
+                    'followedUpBy',
                 ]);
 
             // Filter by property for property owners
@@ -380,6 +382,8 @@ class BookingApiController extends Controller
             'services',
             'dailyRevenues',
             'review',
+            'createdBy',
+            'followedUpBy',
         ]);
 
         return response()->json([
