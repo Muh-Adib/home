@@ -229,6 +229,12 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
 
                     $deficit = $targetVerifiedAmount - $existingVerifiedAmount;
 
+                    // Determine bank account details from property bank account or payment method fallback
+                    $bankAccount = $booking->property->bankAccount;
+                    $bankName = $bankAccount ? $bankAccount->bank_name : $paymentMethod->bank_name;
+                    $accountNumber = $bankAccount ? $bankAccount->account_number : $paymentMethod->account_number;
+                    $accountName = $bankAccount ? $bankAccount->account_holder : $paymentMethod->account_name;
+
                     if ($deficit > 0) {
                         $payment = $booking->payments()->create([
                             'payment_number' => Payment::generatePaymentNumber(),
@@ -238,7 +244,9 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
                             'payment_method' => $paymentMethod->type,
                             'payment_status' => 'verified',
                             'payment_date' => now(),
-                            'bank_name' => $paymentMethod->bank_name,
+                            'bank_name' => $bankName,
+                            'account_number' => $accountNumber,
+                            'account_name' => $accountName,
                             'processed_by' => $currentUser->id,
                             'verified_by' => $currentUser->id,
                             'verified_at' => now(),
@@ -254,7 +262,9 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
                             'payment_method' => $paymentMethod->type,
                             'payment_status' => 'pending',
                             'payment_date' => now(),
-                            'bank_name' => $paymentMethod->bank_name,
+                            'bank_name' => $bankName,
+                            'account_number' => $accountNumber,
+                            'account_name' => $accountName,
                             'processed_by' => $currentUser->id,
                         ]);
                     }
