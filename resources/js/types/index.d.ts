@@ -222,6 +222,7 @@ export interface Booking {
     cancelled_by?: number;
     cancelled_at?: string;
     source: string;
+    payment_method_id?: number | null;
     created_at: string;
     updated_at: string;
     // Rate calculation - updated for refactored services
