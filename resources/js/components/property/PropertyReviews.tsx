@@ -27,6 +27,8 @@ export const PropertyReviews: React.FC<PropertyReviewsProps> = ({
   const { t } = useTranslation();
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
+  const numericRatingAvg = Number(ratingAvg) || 0;
+
   const renderStars = (rating: number, size = 4) => {
     return (
       <div className="flex items-center gap-0.5">
@@ -68,10 +70,10 @@ export const PropertyReviews: React.FC<PropertyReviewsProps> = ({
             </h3>
             <div className="flex flex-col sm:flex-row items-center gap-3 mt-2">
               <span className="text-4xl sm:text-5xl font-black text-slate-800">
-                {ratingAvg > 0 ? ratingAvg.toFixed(1) : '-'}
+                {numericRatingAvg > 0 ? numericRatingAvg.toFixed(1) : '-'}
               </span>
               <div className="space-y-1 text-center sm:text-left">
-                {renderStars(Math.round(ratingAvg), 5)}
+                {renderStars(Math.round(numericRatingAvg), 5)}
                 <p className="text-xs text-slate-500 font-medium">
                   Rata-rata dari {reviewsCount} ulasan terverifikasi
                 </p>
