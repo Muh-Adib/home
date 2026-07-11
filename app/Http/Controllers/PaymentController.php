@@ -197,7 +197,7 @@ class PaymentController extends Controller
         return Inertia::render('Payment/Create', [
             'booking' => $booking->load(['property', 'payments' => function ($q) {
                 $q->orderBy('created_at', 'desc');
-            }]),
+            }, 'review']),
             'pendingAmount' => $pendingAmount,
             'paidAmount' => $paidAmount,
             'paymentType' => $paymentType,
@@ -213,6 +213,8 @@ class PaymentController extends Controller
                 'paymentType' => $paymentType,
                 'isDpComplete' => $paidAmount >= ($booking->dp_amount ?? ($booking->total_amount * 0.5)),
             ],
+            'review' => $booking->review,
+            'canReview' => $booking->booking_status === 'checked_out' && ! $booking->review,
         ]);
     }
 

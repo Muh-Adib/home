@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Head, useForm, Link } from '@inertiajs/react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Head, useForm, Link, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,11 @@ import {
     Clock,
     Download,
     Wifi,
-    ExternalLink
+    ExternalLink,
+    Star,
+    ImageIcon,
+    X,
+    Send
 } from 'lucide-react';
 import { Map } from '@/components/ui/map';
 
@@ -46,10 +50,20 @@ interface PaymentMethod {
     instructions?: any;
 }
 
+interface Review {
+    id: number;
+    rating: number;
+    comment?: string;
+    photo_path?: string;
+    is_approved: boolean;
+    created_at: string;
+}
+
 interface Booking {
     id: number;
     booking_number: string;
     guest_name: string;
+    payment_token?: string;
     check_in_time?: string;
     property: {
         name: string;
@@ -70,6 +84,7 @@ interface Booking {
     booking_status: string;
     payment_status: string;
     payments?: any[];
+    review?: Review | null;
 }
 
 interface PaymentInfo {
@@ -87,15 +102,97 @@ interface PaymentCreateProps {
     paymentMethods: PaymentMethod[];
     paymentInfo: PaymentInfo;
     bankAccount?: BankAccount | null;
+    review?: Review | null;
+    canReview?: boolean;
 }
 
-export default function CreatePayment({ booking, paymentMethods, paymentInfo, bankAccount }: PaymentCreateProps) {
+export default function CreatePayment({ booking, paymentMethods, paymentInfo, bankAccount, review, canReview }: PaymentCreateProps) {
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
         paymentMethods.find(m => m.type === 'bank_transfer') || paymentMethods[0] || null
     );
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const hasPendingPayment = booking.payments?.some(p => p.payment_status === 'pending');
     const pendingPayment = booking.payments?.find(p => p.payment_status === 'pending');
+
+    // --- Review state ---
+    const [reviewRating, setReviewRating] = useState(0);
+    const [reviewHovered, setReviewHovered] = useState(0);
+    const [reviewComment, setReviewComment] = useState('');
+    const [reviewPhoto, setReviewPhoto] = useState<File | null>(null);
+    const [reviewPhotoPreview, setReviewPhotoPreview] = useState<string | null>(null);
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
+    const [reviewSubmitted, setReviewSubmitted] = useState(false);
+    const reviewFileRef = useRef<HTMLInputElement>(null);
+
+    const compressPhoto = (file: File): Promise<File> => {
+        return new Promise((resolve) => {
+            if (!file.type.startsWith('image/')) { resolve(file); return; }
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target?.result as string;
+                img.onload = () => {
+                    const maxDim = 1000;
+                    let w = img.width; let h = img.height;
+                    if (w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; }
+                    if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
+                    canvas.toBlob((blob) => {
+                        if (blob) resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+                        else resolve(file);
+                    }, 'image/jpeg', 0.72);
+                };
+                img.onerror = () => resolve(file);
+            };
+            reader.onerror = () => resolve(file);
+        });
+    };
+
+    const handleReviewPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        // Block non-image types
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return;
+        const compressed = await compressPhoto(file);
+        setReviewPhoto(compressed);
+        setReviewPhotoPreview(URL.createObjectURL(compressed));
+    };
+
+    const handleSubmitReview = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (reviewRating === 0) return;
+        setReviewSubmitting(true);
+        const fd = new FormData();
+        fd.append('payment_token', booking.payment_token || '');
+        fd.append('rating', reviewRating.toString());
+        if (reviewComment) fd.append('comment', reviewComment);
+        if (reviewPhoto) fd.append('photo', reviewPhoto);
+        try {
+            const resp = await fetch(route('bookings.review.store', booking.booking_number), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '' },
+                body: fd,
+            });
+            if (resp.redirected) {
+                // Laravel redirect → go to home
+                window.location.href = resp.url;
+                return;
+            }
+            if (resp.ok) {
+                setReviewSubmitted(true);
+                setTimeout(() => { window.location.href = '/'; }, 2500);
+            }
+        } catch {
+            // silent
+        } finally {
+            setReviewSubmitting(false);
+        }
+    };
+    // --- End review state ---
 
     const { data, setData, post, processing, errors } = useForm({
         payment_method_id: selectedMethod?.id.toString() || '',
@@ -447,11 +544,129 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
                         <Card className="shadow-sm border-slate-100">
                             <CardHeader className="bg-slate-50/55">
                                 <CardTitle className="flex items-center gap-2 text-slate-800 text-lg">
-                                    <CreditCard className="h-5 w-5 text-blue-500" /> Metode & Konfirmasi Pembayaran
+                                    {booking.booking_status === 'checked_out'
+                                        ? <><Star className="h-5 w-5 text-amber-400" /> Berikan Ulasan Anda</>
+                                        : <><CreditCard className="h-5 w-5 text-blue-500" /> Metode &amp; Konfirmasi Pembayaran</>}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="pt-4">
-                                {booking.payment_status === 'fully_paid' ? (
+                                {/* === CHECKED OUT → REVIEW === */}
+                                {booking.booking_status === 'checked_out' ? (
+                                    reviewSubmitted ? (
+                                        <div className="py-10 text-center space-y-3">
+                                            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-amber-50 mb-2">
+                                                <Star className="h-8 w-8 text-amber-400 fill-amber-400" />
+                                            </div>
+                                            <h3 className="text-xl font-bold text-slate-900">Terima kasih! 🙏</h3>
+                                            <p className="text-sm text-slate-500">Ulasan Anda telah kami terima.<br/>Anda akan diarahkan ke halaman utama...</p>
+                                        </div>
+                                    ) : booking.review ? (
+                                        <div className="py-8 px-2 text-center space-y-3">
+                                            <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-green-50 mb-1">
+                                                <CheckCircle className="h-8 w-8 text-green-500" />
+                                            </div>
+                                            <h3 className="text-lg font-bold text-slate-900">Ulasan Sudah Dikirim</h3>
+                                            <div className="flex items-center justify-center gap-1">
+                                                {[1,2,3,4,5].map(s => (
+                                                    <Star key={s} className={`h-5 w-5 ${ s <= booking.review!.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} />
+                                                ))}
+                                            </div>
+                                            {booking.review.comment && (
+                                                <p className="text-sm text-slate-600 italic max-w-xs mx-auto">&ldquo;{booking.review.comment}&rdquo;</p>
+                                            )}
+                                            <p className="text-xs text-slate-400">Status: {booking.review.is_approved ? 'Dipublikasikan ✓' : 'Menunggu persetujuan admin'}</p>
+                                        </div>
+                                    ) : (
+                                        <form onSubmit={handleSubmitReview} className="space-y-5 py-2">
+                                            {/* Star Rating */}
+                                            <div className="space-y-2">
+                                                <Label className="text-slate-700 font-semibold text-sm">Rating Pengalaman Anda *</Label>
+                                                <div className="flex items-center gap-1.5">
+                                                    {[1,2,3,4,5].map(star => (
+                                                        <button
+                                                            key={star}
+                                                            type="button"
+                                                            onClick={() => setReviewRating(star)}
+                                                            onMouseEnter={() => setReviewHovered(star)}
+                                                            onMouseLeave={() => setReviewHovered(0)}
+                                                            className="focus:outline-none transition-transform hover:scale-110"
+                                                        >
+                                                            <Star className={`h-9 w-9 transition-colors ${
+                                                                star <= (reviewHovered || reviewRating)
+                                                                    ? 'fill-amber-400 text-amber-400'
+                                                                    : 'text-slate-200 hover:text-amber-200'
+                                                            }`} />
+                                                        </button>
+                                                    ))}
+                                                    {reviewRating > 0 && (
+                                                        <span className="text-sm text-slate-500 ml-1">
+                                                            {['','Buruk','Cukup','Baik','Sangat Baik','Luar Biasa'][reviewRating]}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Comment */}
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="review_comment" className="text-slate-700 font-semibold text-sm">Ceritakan Pengalaman Anda (Opsional)</Label>
+                                                <Textarea
+                                                    id="review_comment"
+                                                    value={reviewComment}
+                                                    onChange={e => setReviewComment(e.target.value)}
+                                                    placeholder="Bagaimana pengalaman menginap Anda? Fasilitas, kebersihan, pelayanan..."
+                                                    rows={4}
+                                                    className="resize-none text-sm"
+                                                    maxLength={1000}
+                                                />
+                                                <p className="text-xs text-slate-400 text-right">{reviewComment.length}/1000</p>
+                                            </div>
+
+                                            {/* Photo Upload */}
+                                            <div className="space-y-1.5">
+                                                <Label className="text-slate-700 font-semibold text-sm">Tambah Foto (Opsional)</Label>
+                                                {reviewPhotoPreview ? (
+                                                    <div className="relative rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
+                                                        <img src={reviewPhotoPreview} alt="Preview" className="w-full h-48 object-cover" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setReviewPhoto(null); setReviewPhotoPreview(null); if(reviewFileRef.current) reviewFileRef.current.value=''; }}
+                                                            className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </button>
+                                                        <div className="absolute bottom-2 left-2 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded-full">
+                                                            {reviewPhoto ? (reviewPhoto.size / 1024 / 1024).toFixed(2) + ' MB' : ''}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        className="border border-dashed border-slate-200 rounded-xl p-5 text-center space-y-2 cursor-pointer hover:bg-slate-50 transition-colors"
+                                                        onClick={() => reviewFileRef.current?.click()}
+                                                    >
+                                                        <ImageIcon className="h-8 w-8 text-slate-300 mx-auto" />
+                                                        <p className="text-xs text-slate-400">Klik untuk unggah foto<br/><span className="font-medium">JPG, PNG, WebP · Maks 3MB</span></p>
+                                                    </div>
+                                                )}
+                                                <input
+                                                    ref={reviewFileRef}
+                                                    type="file"
+                                                    accept="image/jpeg,image/png,image/webp"
+                                                    className="hidden"
+                                                    onChange={handleReviewPhoto}
+                                                />
+                                            </div>
+
+                                            <Button
+                                                type="submit"
+                                                disabled={reviewRating === 0 || reviewSubmitting}
+                                                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold h-11 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                                            >
+                                                <Send className="h-4 w-4" />
+                                                {reviewSubmitting ? 'Mengirim...' : 'Kirim Ulasan'}
+                                            </Button>
+                                        </form>
+                                    )
+                                ) : booking.payment_status === 'fully_paid' ? (
                                     <div className="py-6 px-2 space-y-6">
                                         <div className="text-center pb-4 border-b border-dashed">
                                             <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-50 text-green-600 mb-2">

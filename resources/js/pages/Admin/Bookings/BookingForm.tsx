@@ -129,8 +129,8 @@ export default function BookingForm({
     // Determine initial values based on mode
     const defaultValues = {
         property_id: initialData?.property_id?.toString() || '',
-        check_in_date: initialData?.check_in ? new Date(initialData.check_in).toISOString().split('T')[0] : '',
-        check_out_date: initialData?.check_out ? new Date(initialData.check_out).toISOString().split('T')[0] : '',
+        check_in_date: initialData?.check_in ? initialData.check_in.split(' ')[0].split('T')[0] : '',
+        check_out_date: initialData?.check_out ? initialData.check_out.split(' ')[0].split('T')[0] : '',
         guest_male: initialData?.guest_male ?? 1,
         guest_female: initialData?.guest_female ?? 1,
         guest_children: initialData?.guest_children ?? 0,

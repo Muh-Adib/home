@@ -152,7 +152,7 @@ export default function PropertyForm({
         lng: data.lng || 106.8456,
     });
     const [syncing, setSyncing] = useState(false);
-    const [activeTab, setActiveTab] = useState<'basic' | 'location' | 'rooms' | 'pricing' | 'media_amenities' | 'operations'>('basic');
+    const [activeTab, setActiveTab] = useState<'basic' | 'location' | 'rooms' | 'pricing' | 'media_amenities' | 'operations' | 'checkin'>('basic');
 
     // Auto-sync capacity_max >= capacity
     useEffect(() => {

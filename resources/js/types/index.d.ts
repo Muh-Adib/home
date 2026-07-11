@@ -245,6 +245,26 @@ export interface Booking {
     rate_calculation?: any;
     daily_extra_beds?: Record<string, number>;
     followed_up_by?: number | string;
+    review?: Review | null;
+    payment_token?: string;
+}
+
+export interface Review {
+    id: number;
+    booking_id: number;
+    property_id: number;
+    guest_name: string;
+    guest_email?: string;
+    rating: number;
+    comment?: string;
+    photo_path?: string;
+    is_verified: boolean;
+    is_approved: boolean;
+    admin_response?: string;
+    responded_by?: number;
+    responded_at?: string;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface BookingGuest {

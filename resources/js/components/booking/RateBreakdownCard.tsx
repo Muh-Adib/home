@@ -253,7 +253,7 @@ export default function RateBreakdownCard({
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 p-3 sm:p-6">
-                {/* Summary Cards */}
+                {/* Summary Cards 
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
                     <div className="p-2 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
@@ -284,7 +284,7 @@ export default function RateBreakdownCard({
                             {formatCurrency(totalFinalRate)}
                         </p>
                     </div>
-                </div>
+                </div>*/}
 
                 <Separator />
 
@@ -295,7 +295,7 @@ export default function RateBreakdownCard({
                             <TableRow>
                                 <TableHead className="py-1.5 px-2 text-xs">Tanggal</TableHead>
                                 <TableHead className="py-1.5 px-2 text-right text-xs">Tarif Kamar</TableHead>
-                                <TableHead className="py-1.5 px-2 text-right text-xs">Premium</TableHead>
+                               {/*} <TableHead className="py-1.5 px-2 text-right text-xs">Premium</TableHead>*/}
                                 <TableHead className="py-1.5 px-2 text-right text-xs">Extra Bed</TableHead>
                                 <TableHead className="py-1.5 px-2 text-right text-xs">Layanan Tambahan</TableHead>
                                 <TableHead className="py-1.5 px-2 text-xs">Keterangan</TableHead>
@@ -322,7 +322,7 @@ export default function RateBreakdownCard({
                                         <TableCell className="py-1.5 px-2 text-right text-xs font-semibold">
                                             {formatCurrency(day.final_rate)}
                                         </TableCell>
-                                        <TableCell className="py-1.5 px-2 text-right text-xs">
+                                        {/*<TableCell className="py-1.5 px-2 text-right text-xs">
                                             {premium > 0 ? (
                                                 <span className="text-orange-600 font-medium">
                                                     +{formatCurrency(premium)}
@@ -330,7 +330,7 @@ export default function RateBreakdownCard({
                                             ) : (
                                                 <span className="text-muted-foreground text-[10px]">-</span>
                                             )}
-                                        </TableCell>
+                                        </TableCell>*/}
                                         <TableCell className="py-1.5 px-2 text-right text-xs">
                                             {day.extra_bed_count && day.extra_bed_count > 0 ? (
                                                 <div className="flex flex-col items-end">

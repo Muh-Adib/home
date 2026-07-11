@@ -4,11 +4,13 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
     Select,
     SelectContent,
@@ -43,7 +45,9 @@ import {
     AlertCircle,
     Plus,
     ChevronDown,
-    FileDown
+    FileDown,
+    Star,
+    ThumbsUp
 } from "lucide-react";
 import { Link, router } from "@inertiajs/react";
 import { differenceInDays } from "date-fns";
@@ -140,6 +144,45 @@ export default function BookingDetailModal({
     const [paymentNotes, setPaymentNotes] = useState<string>('');
     const [proofOfPayment, setProofOfPayment] = useState<File | null>(null);
     const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
+
+    // --- Review state (admin) ---
+    const [showReviewEdit, setShowReviewEdit] = useState(false);
+    const [reviewEditComment, setReviewEditComment] = useState('');
+    const [reviewEditAdminResponse, setReviewEditAdminResponse] = useState('');
+    const [isApprovingReview, setIsApprovingReview] = useState(false);
+    const [isSavingReview, setIsSavingReview] = useState(false);
+
+    const handleApproveReview = async (reviewId: number) => {
+        setIsApprovingReview(true);
+        try {
+            await apiPost(`/admin/reviews/${reviewId}/approve`, {});
+            toast.success('Status ulasan berhasil diperbarui.');
+            onBookingUpdated?.({ ...booking, review: { ...booking.review, is_approved: !booking.review?.is_approved } } as any);
+        } catch {
+            toast.error('Gagal memperbarui ulasan.');
+        } finally {
+            setIsApprovingReview(false);
+        }
+    };
+
+    const handleSaveReview = async (reviewId: number) => {
+        setIsSavingReview(true);
+        try {
+            await apiPost(`/admin/reviews/${reviewId}`, {
+                _method: 'PUT',
+                comment: reviewEditComment,
+                admin_response: reviewEditAdminResponse,
+                is_approved: true,
+            });
+            toast.success('Ulasan berhasil diperbarui dan dipublikasikan.');
+            setShowReviewEdit(false);
+            onBookingUpdated?.({ ...booking, review: { ...booking.review, comment: reviewEditComment, admin_response: reviewEditAdminResponse, is_approved: true } } as any);
+        } catch {
+            toast.error('Gagal menyimpan ulasan.');
+        } finally {
+            setIsSavingReview(false);
+        }
+    };
 
     const compressImage = (file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.7): Promise<File> => {
         return new Promise((resolve) => {
@@ -416,6 +459,8 @@ export default function BookingDetailModal({
         <Dialog open={isOpen} onOpenChange={onClose}>
             {/* z-[150] to ensure it's above fullscreen elements if possible */}
             <DialogContent className="max-w-4xl w-[95vw] md:w-full max-h-[90vh] md:max-h-[85vh] p-0 overflow-hidden gap-0 border-none shadow-2xl z-[150] flex flex-col rounded-xl">
+                <DialogTitle className="sr-only">Detail Booking {booking.booking_number}</DialogTitle>
+                <DialogDescription className="sr-only">Informasi lengkap tentang detail booking tamu dan pembayaran</DialogDescription>
 
                 {/* 1. Header Section */}
                 <div className="bg-slate-900 text-white p-4 md:p-6 relative">
@@ -997,6 +1042,125 @@ export default function BookingDetailModal({
                         )}
                     </div>
                 </div>
+
+                {/* === Guest Review Section (checked_out only) === */}
+                {booking.booking_status === 'checked_out' && (
+                    <div className="border-t border-slate-100 px-4 md:px-6 py-4 bg-amber-50/30">
+                        <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <Star className="h-3.5 w-3.5 text-amber-400" /> Ulasan Tamu
+                            </h4>
+                            {(booking as any).review && !showReviewEdit && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
+                                    onClick={() => {
+                                        setReviewEditComment((booking as any).review.comment || '');
+                                        setReviewEditAdminResponse((booking as any).review.admin_response || '');
+                                        setShowReviewEdit(true);
+                                    }}
+                                >
+                                    Edit & Publish
+                                </Button>
+                            )}
+                            {showReviewEdit && (
+                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowReviewEdit(false)}>
+                                    Batal
+                                </Button>
+                            )}
+                        </div>
+
+                        {!(booking as any).review ? (
+                            <p className="text-xs text-slate-400 italic">Tamu belum memberikan ulasan.</p>
+                        ) : showReviewEdit ? (
+                            <div className="space-y-3">
+                                <div>
+                                    <Label className="text-xs text-slate-600 font-semibold">Komentar Tamu</Label>
+                                    <Textarea
+                                        value={reviewEditComment}
+                                        onChange={e => setReviewEditComment(e.target.value)}
+                                        rows={3}
+                                        className="mt-1 text-xs resize-none"
+                                        placeholder="Edit komentar tamu..."
+                                    />
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-slate-600 font-semibold">Respons Admin (opsional)</Label>
+                                    <Textarea
+                                        value={reviewEditAdminResponse}
+                                        onChange={e => setReviewEditAdminResponse(e.target.value)}
+                                        rows={2}
+                                        className="mt-1 text-xs resize-none"
+                                        placeholder="Tambahkan respons dari admin..."
+                                    />
+                                </div>
+                                <Button
+                                    size="sm"
+                                    className="w-full bg-amber-500 hover:bg-amber-600 text-white h-8 text-xs font-bold"
+                                    disabled={isSavingReview}
+                                    onClick={() => handleSaveReview((booking as any).review.id)}
+                                >
+                                    <ThumbsUp className="h-3.5 w-3.5 mr-1.5" />
+                                    {isSavingReview ? 'Menyimpan...' : 'Simpan & Publikasikan'}
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {/* Star rating display */}
+                                <div className="flex items-center gap-1.5">
+                                    <div className="flex gap-0.5">
+                                        {[1,2,3,4,5].map(s => (
+                                            <Star key={s} className={`h-4 w-4 ${s <= (booking as any).review.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} />
+                                        ))}
+                                    </div>
+                                    <span className="text-xs font-semibold text-slate-700">{(booking as any).review.rating}/5</span>
+                                    <Badge className={`ml-2 text-[10px] font-bold border-none ${(booking as any).review.is_approved ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                        {(booking as any).review.is_approved ? 'Dipublikasikan' : 'Menunggu Approval'}
+                                    </Badge>
+                                </div>
+
+                                {/* Photo preview */}
+                                {(booking as any).review.photo_path && (
+                                    <div className="rounded-lg overflow-hidden border border-slate-100 w-24 h-24">
+                                        <img
+                                            src={`/storage/${(booking as any).review.photo_path}`}
+                                            alt="Review photo"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Comment */}
+                                {(booking as any).review.comment && (
+                                    <p className="text-xs text-slate-600 bg-white border border-slate-100 rounded-lg p-3 leading-relaxed italic">
+                                        &ldquo;{(booking as any).review.comment}&rdquo;
+                                    </p>
+                                )}
+
+                                {/* Admin response */}
+                                {(booking as any).review.admin_response && (
+                                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                                        <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">Respons Admin</p>
+                                        <p className="text-xs text-blue-800 leading-relaxed">{(booking as any).review.admin_response}</p>
+                                    </div>
+                                )}
+
+                                {/* Approve/hide button */}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className={`h-7 text-xs font-semibold w-full ${(booking as any).review.is_approved ? 'border-slate-200 text-slate-600 hover:bg-slate-50' : 'border-green-200 text-green-700 hover:bg-green-50'}`}
+                                    disabled={isApprovingReview}
+                                    onClick={() => handleApproveReview((booking as any).review.id)}
+                                >
+                                    <ThumbsUp className="h-3.5 w-3.5 mr-1.5" />
+                                    {isApprovingReview ? 'Memproses...' : (booking as any).review.is_approved ? 'Sembunyikan Ulasan' : 'Approve & Publikasikan'}
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* 3. Footer Actions */}
                 <div className="bg-white p-3 md:p-4 border-t flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4 shrink-0">

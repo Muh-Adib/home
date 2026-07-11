@@ -27,6 +27,7 @@ use App\Http\Controllers\ContentPlanController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ICalController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\ReviewController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -555,5 +556,15 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         // Delete actions
         Route::delete('/archived/{id}/force', 'forceDelete')->name('archived.force-delete');
         Route::delete('/{slug}/destroy-all', 'destroyAll')->name('destroy-all');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Review Management
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('reviews')->as('reviews.')->group(function () {
+        Route::match(['post', 'patch'], '/{review}/approve', [ReviewController::class, 'adminApprove'])->name('approve');
+        Route::match(['post', 'put'], '/{review}', [ReviewController::class, 'adminUpdate'])->name('update');
     });
 });

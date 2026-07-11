@@ -156,6 +156,9 @@ Route::controller(PaymentController::class)->group(function () {
     Route::post('/booking/{booking:booking_number}/payment/cancel-pending', 'cancelPending')->name('payments.cancel-pending');
 });
 
+// Public Review Routes
+Route::post('/booking/{booking:booking_number}/review', [ReviewController::class, 'store'])->name('bookings.review.store');
+
 /*
 |--------------------------------------------------------------------------
 | PAYMENT GATEWAY ROUTES

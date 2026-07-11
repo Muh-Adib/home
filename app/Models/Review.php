@@ -18,11 +18,12 @@ class Review extends Model
         'guest_email',
         'rating',
         'comment',
+        'photo_path',
         'is_verified',
         'is_approved',
         'admin_response',
         'responded_by',
-        'responded_at'
+        'responded_at',
     ];
 
     protected $casts = [

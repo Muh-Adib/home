@@ -143,6 +143,15 @@ class Booking extends Model
         });
     }
 
+    /**
+     * Prepare a date for array / JSON serialization.
+     * Preserves local timezone representation (Asia/Jakarta) instead of converting to UTC.
+     */
+    protected function serializeDate(\DateTimeInterface $date): string
+    {
+        return $date->format('Y-m-d H:i:s');
+    }
+
     // Relationships
     public function property(): BelongsTo
     {
