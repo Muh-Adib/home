@@ -47,7 +47,12 @@ class BookingImportExportTest extends TestCase
     public function test_admin_can_preview_and_confirm_import_bookings_with_payment_and_income_sync()
     {
         $admin = User::factory()->create(['role' => 'super_admin', 'name' => 'Admin Name']);
-        $property = Property::factory()->create(['name' => 'Test Property', 'capacity' => 2, 'capacity_max' => 4]);
+        $property = Property::factory()->create([
+            'name' => 'Test Property',
+            'capacity' => 2,
+            'capacity_max' => 4,
+            'extra_bed_rate' => 150000,
+        ]);
         $paymentMethod = PaymentMethod::factory()->create(['name' => 'Manual Transfer', 'type' => 'transfer', 'is_active' => true]);
 
         // Create a valid Excel file using PhpSpreadsheet
@@ -69,8 +74,8 @@ class BookingImportExportTest extends TestCase
             'John Doe', 'john@example.com', '6281234567890', 'Indonesia', '1234567890',
             'male', 2, 0, 0, 2,
             'keluarga', '12/07/2026', '14:00', '15/07/2026', 3, 1500000,
-            0, 0, 0, 1500000, 50,
-            750000, 750000, 'confirmed', 'fully_paid', 'Manual Transfer',
+            300000, 0, 0, 1800000, 50,
+            900000, 900000, 'confirmed', 'fully_paid', 'Manual Transfer',
             'notes', '2026-07-11 12:00:00', 'Admin Name', 'Admin Name',
         ];
 
@@ -114,28 +119,44 @@ class BookingImportExportTest extends TestCase
         $this->assertNotNull($booking);
         $this->assertEquals('confirmed', $booking->booking_status);
         $this->assertEquals('fully_paid', $booking->payment_status);
-        $this->assertEquals(1500000, $booking->total_amount);
+        $this->assertEquals(1800000, $booking->total_amount);
         $this->assertEquals(1500000, $booking->base_amount);
+        $this->assertEquals(300000, $booking->extra_bed_amount);
+        $this->assertEquals(2, $booking->extra_bed_count);
 
         // Assert BookingDailyRevenue records were created (3 nights)
-        $dailyRevenues = BookingDailyRevenue::where('booking_id', $booking->id)->get();
+        // daily base: 1500k/3 = 500k
+        // daily extra: 300k/3 = 100k
+        // daily count: 2 extra beds/3 nights = 0, remainder 2 -> first 2 nights should have 1, last night 0
+        $dailyRevenues = BookingDailyRevenue::where('booking_id', $booking->id)->orderBy('tanggal')->get();
         $this->assertCount(3, $dailyRevenues);
-        foreach ($dailyRevenues as $revenue) {
-            $this->assertEquals(500000, $revenue->amount);
-            $this->assertEquals(500000, $revenue->base_amount);
-        }
+
+        $this->assertEquals(600000, $dailyRevenues[0]->amount);
+        $this->assertEquals(500000, $dailyRevenues[0]->base_amount);
+        $this->assertEquals(100000, $dailyRevenues[0]->extra_bed_amount);
+        $this->assertEquals(1, $dailyRevenues[0]->extra_bed_count);
+
+        $this->assertEquals(600000, $dailyRevenues[1]->amount);
+        $this->assertEquals(500000, $dailyRevenues[1]->base_amount);
+        $this->assertEquals(100000, $dailyRevenues[1]->extra_bed_amount);
+        $this->assertEquals(1, $dailyRevenues[1]->extra_bed_count);
+
+        $this->assertEquals(600000, $dailyRevenues[2]->amount);
+        $this->assertEquals(500000, $dailyRevenues[2]->base_amount);
+        $this->assertEquals(100000, $dailyRevenues[2]->extra_bed_amount);
+        $this->assertEquals(0, $dailyRevenues[2]->extra_bed_count);
 
         // Assert Payment was created and verified
         $payment = Payment::where('booking_id', $booking->id)->first();
         $this->assertNotNull($payment);
         $this->assertEquals('verified', $payment->payment_status);
-        $this->assertEquals(1500000, $payment->amount);
+        $this->assertEquals(1800000, $payment->amount);
 
-        // Assert Income records were synced per day (3 nights of 500k each)
-        $incomes = Income::where('booking_id', $booking->id)->get();
+        // Assert Income records were synced per day (3 nights of 600k each)
+        $incomes = Income::where('booking_id', $booking->id)->orderBy('income_date')->get();
         $this->assertCount(3, $incomes);
         foreach ($incomes as $income) {
-            $this->assertEquals(500000, $income->amount);
+            $this->assertEquals(600000, $income->amount);
         }
 
         @unlink($tempFile);

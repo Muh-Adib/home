@@ -157,6 +157,13 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
             }
             if (isset($rowArray['extra_bed_amount'])) {
                 $booking->extra_bed_amount = (int) $rowArray['extra_bed_amount'];
+                // Calculate and set extra_bed_count based on extra_bed_amount and property extra_bed_rate
+                $extraBedRate = (float) ($property->extra_bed_rate ?? 150000);
+                if ($booking->extra_bed_amount > 0 && $extraBedRate > 0) {
+                    $booking->extra_bed_count = (int) round($booking->extra_bed_amount / $extraBedRate);
+                } else {
+                    $booking->extra_bed_count = 0;
+                }
             }
             if (isset($rowArray['service_amount'])) {
                 $booking->service_amount = (int) $rowArray['service_amount'];
@@ -284,14 +291,17 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
         $baseAmount = (int) ($rowArray['base_amount'] ?? $booking->base_amount ?? 0);
         $extraBedAmount = (int) ($rowArray['extra_bed_amount'] ?? $booking->extra_bed_amount ?? 0);
         $discountAmount = (int) ($rowArray['discount_amount'] ?? $booking->discount_amount ?? 0);
+        $extraBedCount = (int) ($booking->extra_bed_count ?? 0);
 
         $dailyBase = (int) floor($baseAmount / $nights);
         $dailyExtra = (int) floor($extraBedAmount / $nights);
         $dailyDiscount = (int) floor($discountAmount / $nights);
+        $dailyExtraCount = (int) floor($extraBedCount / $nights);
 
         $remainderBase = $baseAmount % $nights;
         $remainderExtra = $extraBedAmount % $nights;
         $remainderDiscount = $discountAmount % $nights;
+        $remainderExtraCount = $extraBedCount % $nights;
 
         $revenueData = [];
 
@@ -300,6 +310,7 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
             $curBase = $dailyBase + ($i < $remainderBase ? 1 : 0);
             $curExtra = $dailyExtra + ($i < $remainderExtra ? 1 : 0);
             $curDiscount = $dailyDiscount + ($i < $remainderDiscount ? 1 : 0);
+            $curExtraCount = $dailyExtraCount + ($i < $remainderExtraCount ? 1 : 0);
             $curAmount = $curBase + $curExtra - $curDiscount;
 
             $revenueData[] = [
@@ -309,7 +320,7 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
                 'amount' => $curAmount,
                 'base_amount' => $curBase,
                 'extra_bed_amount' => $curExtra,
-                'extra_bed_count' => (int) (($booking->extra_bed_count ?? 0) / $nights),
+                'extra_bed_count' => $curExtraCount,
                 'weekend_premium' => 0,
                 'seasonal_premium' => 0,
                 'rate_type' => 'imported',
