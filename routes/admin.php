@@ -281,6 +281,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
     Route::get('bookings/{booking}', [$controller, 'detail']); // Fetch full booking details for modal
     Route::post('bookings/{booking}/payments', [$controller, 'storePayment']); // Store payment directly from modal
     Route::get('payment-methods', [$controller, 'paymentMethods']); // Get active payment methods
+    Route::get('bank-accounts', [$controller, 'bankAccounts']);
     Route::get('search', [$controller, 'search']); // For search bar
     Route::post('check-availability', [$controller, 'checkAvailability']);
     Route::post('calculate-rate', [$controller, 'calculateRate']);

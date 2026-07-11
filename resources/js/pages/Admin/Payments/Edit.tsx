@@ -110,6 +110,15 @@ interface PaymentMethod {
     is_active: boolean;
 }
 
+interface BankAccount {
+    id: number;
+    bank_name: string;
+    bank_code?: string;
+    account_number: string;
+    account_holder: string;
+    label: string;
+}
+
 interface User {
     id: number;
     name: string;
@@ -128,6 +137,8 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
             ? { ...payment.paymentMethod, type: payment.paymentMethod.type as 'bank_transfer' | 'e_wallet' | 'credit_card' | 'cash' }
             : null
     );
+    const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+    const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
 
     const { data, setData, post, delete: deletePayment, processing, errors, transform } = useForm({
         payment_method_id: payment.payment_method_id?.toString() || '',
@@ -161,13 +172,36 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
             const method = paymentMethods.find(m => m.id.toString() === data.payment_method_id.toString());
             setSelectedPaymentMethod(method || null);
 
-            if (method && !data.bank_name) {
-                setData(prev => ({
-                    ...prev,
-                    bank_name: method.bank_name || '',
-                    account_number: method.account_number || '',
-                    account_name: method.account_name || ''
-                }));
+            if (method?.type === 'bank_transfer') {
+                // Fetch bank accounts for this payment method
+                fetch(`/api/admin/booking-management/bank-accounts?payment_method_id=${data.payment_method_id}`, {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            setBankAccounts(res.bank_accounts);
+                            // Pre-select by matching existing account_number if not already set
+                            const existing = res.bank_accounts.find((a: BankAccount) => a.account_number === data.account_number);
+                            if (existing) {
+                                setSelectedBankAccountId(existing.id.toString());
+                            } else if (res.bank_accounts.length > 0 && !data.bank_name) {
+                                const first = res.bank_accounts[0];
+                                setSelectedBankAccountId(first.id.toString());
+                                setData(prev => ({
+                                    ...prev,
+                                    bank_name: first.bank_name,
+                                    account_number: first.account_number,
+                                    account_name: first.account_holder,
+                                }));
+                            }
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                setBankAccounts([]);
+                setSelectedBankAccountId('');
             }
         }
     }, [data.payment_method_id]);
@@ -447,17 +481,50 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                                 {errors.reference_number && <p className="text-sm text-red-500 mt-1">{errors.reference_number}</p>}
                                             </div>
 
-                                            <div>
-                                                <Label htmlFor="bank_name">Bank Name</Label>
-                                                <Input
-                                                    id="bank_name"
-                                                    value={data.bank_name}
-                                                    onChange={(e) => setData('bank_name', e.target.value)}
-                                                    placeholder="Bank name"
-                                                    className={errors.bank_name ? 'border-red-500' : ''}
-                                                />
-                                                {errors.bank_name && <p className="text-sm text-red-500 mt-1">{errors.bank_name}</p>}
-                                            </div>
+                                            {bankAccounts.length > 0 ? (
+                                                <div>
+                                                    <Label htmlFor="bank_account_select">Rekening Bank Tujuan</Label>
+                                                    <Select
+                                                        value={selectedBankAccountId}
+                                                        onValueChange={(accId) => {
+                                                            const acc = bankAccounts.find(a => a.id.toString() === accId);
+                                                            if (acc) {
+                                                                setSelectedBankAccountId(acc.id.toString());
+                                                                setData(prev => ({
+                                                                    ...prev,
+                                                                    bank_name: acc.bank_name,
+                                                                    account_number: acc.account_number,
+                                                                    account_name: acc.account_holder,
+                                                                }));
+                                                            }
+                                                        }}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Pilih rekening" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {bankAccounts.map(acc => (
+                                                                <SelectItem key={acc.id} value={acc.id.toString()}>
+                                                                    <span className="font-medium">{acc.label}</span>
+                                                                    <span className="text-muted-foreground ml-2 font-mono text-xs">({acc.account_number})</span>
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <Label htmlFor="bank_name">Bank Name</Label>
+                                                    <Input
+                                                        id="bank_name"
+                                                        value={data.bank_name}
+                                                        onChange={(e) => setData('bank_name', e.target.value)}
+                                                        placeholder="Bank name"
+                                                        className={errors.bank_name ? 'border-red-500' : ''}
+                                                    />
+                                                    {errors.bank_name && <p className="text-sm text-red-500 mt-1">{errors.bank_name}</p>}
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="grid md:grid-cols-2 gap-4">

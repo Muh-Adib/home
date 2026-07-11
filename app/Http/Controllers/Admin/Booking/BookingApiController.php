@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\CheckAvailabilityRequest;
 use App\Http\Requests\Admin\GetPropertyDateRangeRequest;
 use App\Http\Requests\Admin\TimelineDataRequest;
 use App\Http\Resources\TimelineBookingResource;
+use App\Models\BankAccount;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
@@ -531,6 +532,31 @@ class BookingApiController extends Controller
         return response()->json([
             'success' => true,
             'payment_methods' => $methods,
+        ]);
+    }
+
+    public function bankAccounts(Request $request): JsonResponse
+    {
+        $paymentMethodId = $request->query('payment_method_id');
+
+        $query = BankAccount::query();
+
+        if ($paymentMethodId) {
+            $query->where('payment_method_id', $paymentMethodId);
+        }
+
+        $accounts = $query->orderBy('bank_name')->orderBy('label')->get()->map(fn ($acc) => [
+            'id' => $acc->id,
+            'bank_name' => $acc->bank_name,
+            'bank_code' => $acc->bank_code,
+            'account_number' => $acc->account_number,
+            'account_holder' => $acc->account_holder,
+            'label' => $acc->label ?: $acc->bank_name,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'bank_accounts' => $accounts,
         ]);
     }
 }

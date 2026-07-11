@@ -126,8 +126,13 @@ export default function BookingDetailModal({
     if (!booking) return null;
 
     const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+    const [bankAccounts, setBankAccounts] = useState<any[]>([]);
     const [paymentAmount, setPaymentAmount] = useState<number>(0);
     const [paymentMethodId, setPaymentMethodId] = useState<string>('');
+    const [bankAccountId, setBankAccountId] = useState<string>('');
+    const [paymentBankName, setPaymentBankName] = useState<string>('');
+    const [paymentAccountNumber, setPaymentAccountNumber] = useState<string>('');
+    const [paymentAccountName, setPaymentAccountName] = useState<string>('');
     const [paymentType, setPaymentType] = useState<string>('remaining');
     const [paymentStatus, setPaymentStatus] = useState<string>('verified');
     const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -215,6 +220,40 @@ export default function BookingDetailModal({
         }
     }, [isOpen, booking]);
 
+    // Fetch bank accounts when payment method changes
+    useEffect(() => {
+        if (paymentMethodId) {
+            const selectedMethod = paymentMethods.find(m => m.id.toString() === paymentMethodId);
+            if (selectedMethod?.type === 'bank_transfer') {
+                apiGet<{ success: boolean; bank_accounts: any[] }>(`/api/admin/booking-management/bank-accounts?payment_method_id=${paymentMethodId}`)
+                    .then(res => {
+                        if (res && res.success) {
+                            setBankAccounts(res.bank_accounts);
+                            if (res.bank_accounts.length > 0) {
+                                const first = res.bank_accounts[0];
+                                setBankAccountId(first.id.toString());
+                                setPaymentBankName(first.bank_name);
+                                setPaymentAccountNumber(first.account_number);
+                                setPaymentAccountName(first.account_holder);
+                            } else {
+                                setBankAccountId('');
+                                setPaymentBankName('');
+                                setPaymentAccountNumber('');
+                                setPaymentAccountName('');
+                            }
+                        }
+                    })
+                    .catch(err => console.error("Gagal memuat rekening:", err));
+            } else {
+                setBankAccounts([]);
+                setBankAccountId('');
+                setPaymentBankName('');
+                setPaymentAccountNumber('');
+                setPaymentAccountName('');
+            }
+        }
+    }, [paymentMethodId, paymentMethods]);
+
     const nights = differenceInDays(new Date(booking.check_out), new Date(booking.check_in)) || 1;
 
     // Calculate internals from actual payments relation dynamically
@@ -287,6 +326,9 @@ export default function BookingDetailModal({
             formData.append('payment_type', paymentType);
             formData.append('payment_status', paymentStatus);
             formData.append('payment_date', paymentDate);
+            if (paymentBankName) formData.append('bank_name', paymentBankName);
+            if (paymentAccountNumber) formData.append('account_number', paymentAccountNumber);
+            if (paymentAccountName) formData.append('account_name', paymentAccountName);
             if (referenceNumber) formData.append('reference_number', referenceNumber);
             if (paymentNotes) formData.append('notes', paymentNotes);
             if (proofOfPayment) formData.append('proof_of_payment', proofOfPayment);
@@ -668,10 +710,41 @@ export default function BookingDetailModal({
                                             <Label className="text-xs text-slate-600 font-semibold">Metode Pembayaran *</Label>
                                             <CustomSelect
                                                 value={paymentMethodId}
-                                                onChange={setPaymentMethodId}
-                                                options={paymentMethods.map((m) => ({ value: m.id.toString(), label: `${m.name} (${m.type})` }))}
+                                                onChange={(v) => {
+                                                    setPaymentMethodId(v);
+                                                    // reset rekening ketika metode berubah
+                                                    setBankAccountId('');
+                                                    setPaymentBankName('');
+                                                    setPaymentAccountNumber('');
+                                                    setPaymentAccountName('');
+                                                }}
+                                                options={paymentMethods.map((m) => ({ value: m.id.toString(), label: m.name }))}
                                                 placeholder="Pilih Metode"
                                             />
+
+                                        {/* Pilihan Rekening Bank — tampil jika metode bank_transfer */}
+                                        {paymentMethods.find(m => m.id.toString() === paymentMethodId)?.type === 'bank_transfer' && (
+                                            <div className="space-y-1 mt-3">
+                                                <Label className="text-xs text-slate-600 font-semibold">Rekening Bank Tujuan *</Label>
+                                                <CustomSelect
+                                                    value={bankAccountId}
+                                                    onChange={(accId) => {
+                                                        const acc = bankAccounts.find(a => a.id.toString() === accId);
+                                                        if (acc) {
+                                                            setBankAccountId(acc.id.toString());
+                                                            setPaymentBankName(acc.bank_name);
+                                                            setPaymentAccountNumber(acc.account_number);
+                                                            setPaymentAccountName(acc.account_holder);
+                                                        }
+                                                    }}
+                                                    options={bankAccounts.map(acc => ({
+                                                        value: acc.id.toString(),
+                                                        label: `${acc.label} — ${acc.account_number}`
+                                                    }))}
+                                                    placeholder="Pilih Rekening"
+                                                />
+                                            </div>
+                                        )}
                                         </div>
 
                                         <div className="space-y-1">
