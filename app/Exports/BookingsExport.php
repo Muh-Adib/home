@@ -154,6 +154,8 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
             'Created At',
             'Created By',
             'Verified By',
+            'Followed Up By',
+            'Closed By',
         ];
     }
 
@@ -224,6 +226,8 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
             $booking->created_at ? $booking->created_at->format('Y-m-d H:i:s') : '',
             $booking->createdBy ? $booking->createdBy->name : 'N/A',
             $booking->verifiedBy ? $booking->verifiedBy->name : 'N/A',
+            $booking->followedUpBy ? $booking->followedUpBy->name : 'N/A',
+            $booking->closedBy ? $booking->closedBy->name : 'N/A',
         ];
     }
 
@@ -280,8 +284,8 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
 
     public function styles(Worksheet $sheet)
     {
-        // Style header row (columns A to AO)
-        $sheet->getStyle('A1:AO1')->applyFromArray([
+        // Style header row (columns A to AQ)
+        $sheet->getStyle('A1:AQ1')->applyFromArray([
             'font' => [
                 'bold' => true,
                 'size' => 11,
@@ -460,22 +464,24 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
             $validation->setFormula1('"'.implode(',', $this->relationshipTypes).'"');
         }
 
-        // Add data validation for Created By column (AN)
+        // Add data validation for Created By / Verified By / Followed Up By / Closed By columns
         $userCount = count($this->users);
         $userLookupRange = '$BD$2:$BD$'.($userCount + 1);
         for ($row = 2; $row <= $highestRow; $row++) {
-            $validation = $sheet->getCell("AN{$row}")->getDataValidation();
-            $validation->setType(DataValidation::TYPE_LIST);
-            $validation->setErrorStyle(DataValidation::STYLE_INFORMATION);
-            $validation->setAllowBlank(true);
-            $validation->setShowInputMessage(true);
-            $validation->setShowErrorMessage(true);
-            $validation->setShowDropDown(true);
-            $validation->setErrorTitle('Invalid User');
-            $validation->setError('Please select a user from the list');
-            $validation->setPromptTitle('Select User');
-            $validation->setPrompt('Choose a user from the dropdown');
-            $validation->setFormula1($userLookupRange);
+            foreach (['AN', 'AO', 'AP', 'AQ'] as $col) {
+                $validation = $sheet->getCell("{$col}{$row}")->getDataValidation();
+                $validation->setType(DataValidation::TYPE_LIST);
+                $validation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+                $validation->setAllowBlank(true);
+                $validation->setShowInputMessage(true);
+                $validation->setShowErrorMessage(true);
+                $validation->setShowDropDown(true);
+                $validation->setErrorTitle('Invalid User');
+                $validation->setError('Please select a user from the list');
+                $validation->setPromptTitle('Select User');
+                $validation->setPrompt('Choose a user from the dropdown');
+                $validation->setFormula1($userLookupRange);
+            }
         }
 
         // Add data validation for DP Percentage column (Y)
@@ -543,6 +549,8 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
             'AM' => 20, // Created At
             'AN' => 25, // Created By
             'AO' => 25, // Verified By
+            'AP' => 25, // Followed Up By
+            'AQ' => 25, // Closed By
         ];
     }
 }

@@ -205,6 +205,48 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
                 }
             }
             $booking->created_by = $creatorId;
+
+            // Enforce verifier
+            $verifiedByName = $rowArray['verified_by'] ?? null;
+            if ($verifiedByName) {
+                $verifier = User::where('name', $verifiedByName)
+                    ->where('role', '!=', 'guest')
+                    ->first();
+                if ($verifier) {
+                    $booking->verified_by = $verifier->id;
+                }
+            }
+
+            // Enforce followed_up_by
+            $followedUpByName = $rowArray['followed_up_by'] ?? null;
+            if ($followedUpByName) {
+                $follower = User::where('name', $followedUpByName)
+                    ->where('role', '!=', 'guest')
+                    ->first();
+                if ($follower) {
+                    $booking->followed_up_by = $follower->id;
+                } else {
+                    $booking->followed_up_by = null;
+                }
+            } else {
+                $booking->followed_up_by = null;
+            }
+
+            // Enforce closed_by
+            $closedByName = $rowArray['closed_by'] ?? null;
+            if ($closedByName) {
+                $closer = User::where('name', $closedByName)
+                    ->where('role', '!=', 'guest')
+                    ->first();
+                if ($closer) {
+                    $booking->closed_by = $closer->id;
+                } else {
+                    $booking->closed_by = null;
+                }
+            } else {
+                $booking->closed_by = null;
+            }
+
             $booking->save();
 
             // Recreate daily revenues with imported amounts

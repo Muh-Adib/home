@@ -47,6 +47,7 @@ class BookingImportExportTest extends TestCase
     public function test_admin_can_preview_and_confirm_import_bookings_with_payment_and_income_sync()
     {
         $admin = User::factory()->create(['role' => 'super_admin', 'name' => 'Admin Name']);
+        $staff = User::factory()->create(['role' => 'property_manager', 'name' => 'Staff Name']);
         $property = Property::factory()->create([
             'name' => 'Test Property',
             'capacity' => 2,
@@ -68,7 +69,7 @@ class BookingImportExportTest extends TestCase
             'DP Amount', 'Remaining Amount', 'Booking Status', 'Payment Status',
             'Payment 1 Amount', 'Payment 1 Date', 'Payment 1 Method', 'Payment 1 Status',
             'Payment 2 Amount', 'Payment 2 Date', 'Payment 2 Method', 'Payment 2 Status',
-            'Internal Notes', 'Created At', 'Created By', 'Verified By',
+            'Internal Notes', 'Created At', 'Created By', 'Verified By', 'Followed Up By', 'Closed By',
         ];
 
         $rowData = [
@@ -80,7 +81,7 @@ class BookingImportExportTest extends TestCase
             900000, 900000, 'confirmed', 'fully_paid',
             1000000, '12/07/2026', 'Manual Transfer', 'verified',
             800000, '13/07/2026', 'Manual Transfer', 'verified',
-            'notes', '2026-07-11 12:00:00', 'Admin Name', 'Admin Name',
+            'notes', '2026-07-11 12:00:00', 'Admin Name', 'Admin Name', 'Staff Name', 'Staff Name',
         ];
 
         $sheet->fromArray([$headers, $rowData]);
@@ -127,6 +128,10 @@ class BookingImportExportTest extends TestCase
         $this->assertEquals(1500000, $booking->base_amount);
         $this->assertEquals(300000, $booking->extra_bed_amount);
         $this->assertEquals(2, $booking->extra_bed_count);
+        $this->assertEquals($admin->id, $booking->created_by);
+        $this->assertEquals($admin->id, $booking->verified_by);
+        $this->assertEquals($staff->id, $booking->followed_up_by);
+        $this->assertEquals($staff->id, $booking->closed_by);
 
         // Assert BookingDailyRevenue records were created (3 nights)
         // daily base: 1500k/3 = 500k
