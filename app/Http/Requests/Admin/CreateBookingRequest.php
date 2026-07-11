@@ -63,7 +63,7 @@ class CreateBookingRequest extends FormRequest
             'booking_status' => 'required|in:pending_verification,confirmed',
             'payment_status' => 'nullable|in:dp_pending,dp_received,fully_paid',
             'dp_percentage' => 'required|integer|in:30,50,70,100',
-            'source' => 'nullable|in:direct,phone,walk_in,ota',
+            'source' => 'nullable|in:direct,phone,walk_in,ota,yogyes,tiktok,instagram,web,airbnb',
             'auto_confirm' => 'boolean',
             'force_ota_override' => 'boolean',
             'force_capacity_override' => 'boolean',

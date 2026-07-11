@@ -146,9 +146,9 @@ export default function BookingForm({
         internal_notes: initialData?.internal_notes || '',
         booking_status: initialData?.booking_status || (mode === 'create' ? 'confirmed' : 'pending_verification'),
         payment_status: initialData?.payment_status || (mode === 'create' ? 'fully_paid' : 'dp_pending'),
-        dp_percentage: initialData?.dp_percentage || (mode === 'create' ? 100 : 50),
+        dp_percentage: initialData?.dp_percentage || 50,
         check_in_time: initialData?.check_in_time || '15:00',
-        source: initialData?.source || 'direct',
+        source: initialData?.source || 'web',
         discount_amount: initialData?.discount_amount || 0,
         followed_up_by: initialData?.followed_up_by?.toString() || currentUserId.toString(),
 
@@ -1070,10 +1070,11 @@ export default function BookingForm({
                                     <Select value={data.source} onValueChange={v => setData('source', v)}>
                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="direct">Direct</SelectItem>
-                                            <SelectItem value="phone">Telepon</SelectItem>
-                                            <SelectItem value="walk_in">Walk-in</SelectItem>
-                                            <SelectItem value="ota">OTA</SelectItem>
+                                            <SelectItem value="yogyes">Yogyes</SelectItem>
+                                            <SelectItem value="tiktok">Tiktok</SelectItem>
+                                            <SelectItem value="instagram">Instagram</SelectItem>
+                                            <SelectItem value="web">Web</SelectItem>
+                                            <SelectItem value="airbnb">Airbnb (OTA)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -1108,7 +1109,7 @@ export default function BookingForm({
                                 </div>
                                 <div>
                                     <Label htmlFor="followed_up_by">Follow-Up Awal Oleh *</Label>
-                                    <Select value={data.followed_up_by} onValueChange={v => setData('followed_up_by', v)} disabled={auth?.user?.role === 'front_desk'}>
+                                    <Select value={data.followed_up_by} onValueChange={v => setData('followed_up_by', v)}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Pilih Staf" />
                                         </SelectTrigger>
@@ -1130,10 +1131,11 @@ export default function BookingForm({
                                         <Select value={data.source} onValueChange={v => setData('source', v)}>
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="direct">Direct</SelectItem>
-                                                <SelectItem value="phone">Telepon</SelectItem>
-                                                <SelectItem value="walk_in">Walk-in</SelectItem>
-                                                <SelectItem value="ota">OTA</SelectItem>
+                                                <SelectItem value="yogyes">Yogyes</SelectItem>
+                                                <SelectItem value="tiktok">Tiktok</SelectItem>
+                                                <SelectItem value="instagram">Instagram</SelectItem>
+                                                <SelectItem value="web">Web</SelectItem>
+                                                <SelectItem value="airbnb">Airbnb (OTA)</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>

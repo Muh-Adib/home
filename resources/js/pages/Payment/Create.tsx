@@ -420,8 +420,9 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
     };
 
     const pendingAmountVal = pendingPayment ? (pendingPayment.expected_amount || pendingPayment.amount) : 0;
+    const waAdminName = paymentInfo.paymentType === 'dp' ? 'Admin Sales Homsjogja' : 'Admin Hospitality';
     const waMessage = encodeURIComponent(
-        `Halo Admin Hospitality Homsjogja, saya telah melakukan transfer untuk booking ${booking.booking_number} atas nama ${booking.guest_name} sebesar ${formatCurrency(pendingAmountVal)}. Mohon untuk dicek dan diverifikasi pembayaran saya. Terima kasih.`
+        `Halo ${waAdminName}, saya telah melakukan transfer untuk booking ${booking.booking_number} atas nama ${booking.guest_name} sebesar ${formatCurrency(pendingAmountVal)}. Mohon untuk dicek dan diverifikasi pembayaran saya. Terima kasih.`
     );
     const waNumber = paymentInfo.paymentType === 'dp' ? '628112500082' : '6281138226322';
     const waUrl = `https://wa.me/${waNumber}?text=${waMessage}`;
@@ -668,7 +669,49 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
                                         </form>
                                     )
                                 ) : booking.payment_status === 'fully_paid' ? (
-                                    <div className="py-6 px-2 space-y-6">
+                                    isBeforeCheckIn ? (
+                                        <div className="text-center py-8 px-4 space-y-5">
+                                            <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-blue-50 text-blue-600 mb-1">
+                                                <CheckCircle className="h-12 w-12 text-blue-500" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <h3 className="text-xl font-bold text-slate-900">Booking Terkonfirmasi</h3>
+                                                <Badge variant="secondary" className="bg-green-100 text-green-700 font-bold border-none text-[10px] uppercase">
+                                                    LUNAS
+                                                </Badge>
+                                            </div>
+                                            <p className="text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
+                                                Halo <strong>{booking.guest_name}</strong>, booking Anda dengan nomor <strong>{booking.booking_number}</strong> telah terkonfirmasi. Silakan menunggu waktu check-in tiba.
+                                            </p>
+
+                                            {/* Countdown Card */}
+                                            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 max-w-sm mx-auto shadow-sm space-y-2">
+                                                <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                                    <Clock className="h-4 w-4 text-blue-500 animate-pulse" /> Waktu Menuju Check-in
+                                                </div>
+                                                <div className="text-lg sm:text-xl font-black text-slate-905 tracking-tight text-blue-600">
+                                                    {formatCountdown()}
+                                                </div>
+                                                <div className="text-[10px] text-slate-400">
+                                                    Check-in: {formatDate(booking.check_in)} ({booking.property.check_in_time || booking.check_in_time || '14:00'})
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-2 max-w-sm mx-auto space-y-3">
+                                                <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer">
+                                                    <a href={getGoogleCalendarUrl()} target="_blank" rel="noopener noreferrer">
+                                                        <Calendar className="h-5 w-5" /> Tambah Pengingat ke Kalender
+                                                    </a>
+                                                </Button>
+                                                <Button asChild variant="ghost" className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer">
+                                                     <a href={`https://wa.me/6281138226322?text=${encodeURIComponent(`Halo Admin Hospitality, saya memerlukan bantuan terkait pemesanan ${booking.booking_number} atas nama ${booking.guest_name}.`)}`} target="_blank" rel="noopener noreferrer">
+                                                         Butuh bantuan? Hubungi Hospitality
+                                                     </a>
+                                                 </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="py-6 px-2 space-y-6">
                                         <div className="text-center pb-4 border-b border-dashed">
                                             <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-50 text-green-600 mb-2">
                                                 <CheckCircle className="h-10 w-10 text-green-500" />
@@ -849,6 +892,7 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
                                             </div>
                                         )}
                                     </div>
+                                    )
                                 ) : hasPendingPayment && pendingPayment ? (
                                     <div className="text-center py-8 px-4 space-y-4">
                                         <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-yellow-50 text-yellow-500 mb-2">
@@ -883,7 +927,7 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
                                                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
                                                          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.864.002-2.637-1.03-5.115-2.908-6.995-1.878-1.88-4.357-2.912-6.997-2.914-5.443 0-9.865 4.42-9.87 9.865-.002 1.698.443 3.356 1.293 4.806l-.99 3.619 3.708-.973zm12.39-7.37c-.3-.15-1.772-.875-2.046-.975-.276-.1-.476-.15-.676.15-.2.3-.775.975-.95 1.175-.175.2-.35.225-.65.075-.3-.15-1.265-.467-2.41-1.485-.89-.795-1.49-1.77-1.665-2.07-.175-.3-.019-.462.13-.61.135-.133.3-.35.45-.525.15-.175.2-.3.3-.5.1-.2.05-.375-.025-.525-.075-.15-.676-1.625-.926-2.225-.244-.589-.49-.51-.676-.51-.175-.005-.375-.005-.575-.005-.2 0-.525.075-.8.375-.276.3-1.05 1.025-1.05 2.5s1.075 2.9 1.225 3.1c.15.2 2.11 3.224 5.112 4.521.714.309 1.272.493 1.706.63.718.228 1.37.196 1.885.12.574-.085 1.772-.725 2.022-1.425.25-.7.25-1.3 1.75-1.4.075-.1.225-.3.075-.45z"/>
                                                      </svg>
-                                                     Hubungi Admin Hospitality (WhatsApp)
+                                                     Hubungi {waAdminName} (WhatsApp)
                                                  </a>
                                              </Button>
                                          </div>

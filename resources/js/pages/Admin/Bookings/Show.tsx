@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import RateBreakdownCard from '@/components/booking/RateBreakdownCard';
 import { getWhatsAppLink } from '@/utils/phone';
+import { apiGet, apiPost, apiPostForm } from "@/lib/api";
+import { toast } from "sonner";
 
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -54,7 +56,140 @@ import {
     MoreVertical,
     MoreHorizontal,
     Menu,
+    ChevronDown,
 } from 'lucide-react';
+import { differenceInDays } from 'date-fns';
+
+interface Option {
+    value: string;
+    label: string;
+}
+
+function CustomSelect({
+    value,
+    onChange,
+    options,
+    placeholder = "Pilih opsi"
+}: {
+    value: string;
+    onChange: (val: string) => void;
+    options: Option[];
+    placeholder?: string;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const selectedOption = options.find(o => o.value === value);
+
+    return (
+        <div className="relative w-full">
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm sm:text-base text-slate-900 ring-offset-white focus:outline-none focus:ring-2 focus:ring-blue-500 flex justify-between items-center shadow-sm"
+            >
+                <span className="truncate pr-2 font-medium">{selectedOption ? selectedOption.label : placeholder}</span>
+                <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+            </button>
+
+            {isOpen && (
+                <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+                    <div className="absolute left-0 mt-1 w-full max-h-60 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-lg z-50 animate-in fade-in-50 slide-in-from-top-1 duration-100">
+                        {options.map((opt) => (
+                            <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => {
+                                    onChange(opt.value);
+                                    setIsOpen(false);
+                                }}
+                                className={`w-full text-left rounded-md px-2.5 py-2 text-sm sm:text-base transition-colors duration-150 hover:bg-slate-50 flex items-center justify-between ${value === opt.value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700'}`}
+                            >
+                                <span className="block text-left break-words pr-2 max-w-[90%] leading-snug">{opt.label}</span>
+                                {value === opt.value && <CheckCircle className="h-4 w-4 text-blue-600 shrink-0 ml-auto" />}
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+function PaymentVerificationActions({
+    payment,
+    onVerify,
+    onReject
+}: {
+    payment: any;
+    onVerify: (paymentNumber: string, notes: string) => void;
+    onReject: (paymentNumber: string, reason: string) => void;
+}) {
+    const [showRejectForm, setShowRejectForm] = useState(false);
+    const [notes, setNotes] = useState('');
+    const [reason, setReason] = useState('');
+
+    return (
+        <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+            {!showRejectForm ? (
+                <div className="space-y-2">
+                    <Label className="text-[10px] text-slate-500 font-semibold">Catatan Verifikasi (Opsional)</Label>
+                    <Input
+                        placeholder="Catatan verifikasi..."
+                        value={notes}
+                        onChange={e => setNotes(e.target.value)}
+                        className="h-8 text-xs bg-white"
+                    />
+                    <div className="flex gap-2">
+                        <Button
+                            size="sm"
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs h-8"
+                            onClick={() => onVerify(payment.payment_number, notes)}
+                        >
+                            <CheckCircle className="w-3.5 h-3.5 mr-1" /> Setujui
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="destructive"
+                            className="flex-1 text-xs h-8"
+                            onClick={() => setShowRejectForm(true)}
+                        >
+                            <XCircle className="w-3.5 h-3.5 mr-1" /> Tolak
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    <Label className="text-[10px] text-red-500 font-semibold">Alasan Penolakan *</Label>
+                    <Input
+                        placeholder="Alasan ditolak..."
+                        value={reason}
+                        onChange={e => setReason(e.target.value)}
+                        className="h-8 text-xs bg-white border-red-200 focus:ring-red-500"
+                    />
+                    <div className="flex gap-2">
+                        <Button
+                            size="sm"
+                            variant="destructive"
+                            className="flex-1 text-xs h-8"
+                            onClick={() => onReject(payment.payment_number, reason)}
+                            disabled={!reason.trim()}
+                        >
+                            Konfirmasi Tolak
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 text-xs h-8 bg-white"
+                            onClick={() => setShowRejectForm(false)}
+                        >
+                            Batal
+                        </Button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 
 interface WhatsAppData {
     phone: string;
@@ -141,6 +276,235 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
         expiry_hours: 24,
         channel: 'whatsapp' as 'whatsapp' | 'email' | 'both',
     });
+
+    // States for recording payment inline (copied from BookingDetailModal)
+    const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+    const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+    const [paymentAmount, setPaymentAmount] = useState<number>(0);
+    const [paymentMethodId, setPaymentMethodId] = useState<string>('');
+    const [bankAccountId, setBankAccountId] = useState<string>('');
+    const [paymentBankName, setPaymentBankName] = useState<string>('');
+    const [paymentAccountNumber, setPaymentAccountNumber] = useState<string>('');
+    const [paymentAccountName, setPaymentAccountName] = useState<string>('');
+    const [paymentType, setPaymentType] = useState<string>('remaining');
+    const [paymentStatus, setPaymentStatus] = useState<string>('verified');
+    const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [referenceNumber, setReferenceNumber] = useState<string>('');
+    const [paymentNotes, setPaymentNotes] = useState<string>('');
+    const [proofOfPayment, setProofOfPayment] = useState<File | null>(null);
+    const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
+
+    // Fetch active payment methods
+    useEffect(() => {
+        if (booking) {
+            const propId = booking.property_id || booking.property?.id || '';
+            apiGet<{ success: boolean; payment_methods: any[] }>(`/api/admin/booking-management/payment-methods?property_id=${propId}`)
+                .then(res => {
+                    if (res && res.success) {
+                        setPaymentMethods(res.payment_methods);
+                        if (res.payment_methods.length > 0) {
+                            const preselectedId = booking.property?.payment_method_id || booking.payment_method_id;
+                            const hasPreselected = preselectedId && res.payment_methods.some(m => m.id.toString() === preselectedId.toString());
+                            setPaymentMethodId(hasPreselected ? preselectedId.toString() : res.payment_methods[0].id.toString());
+                        }
+                    }
+                })
+                .catch(err => console.error("Gagal memuat metode pembayaran:", err));
+        }
+    }, [booking]);
+
+    // Fetch bank accounts when payment method changes
+    useEffect(() => {
+        if (paymentMethodId) {
+            const selectedMethod = paymentMethods.find(m => m.id.toString() === paymentMethodId);
+            if (selectedMethod?.type === 'bank_transfer') {
+                apiGet<{ success: boolean; bank_accounts: any[] }>(`/api/admin/booking-management/bank-accounts?payment_method_id=${paymentMethodId}`)
+                    .then(res => {
+                        if (res && res.success) {
+                            setBankAccounts(res.bank_accounts);
+                            if (res.bank_accounts.length > 0) {
+                                const first = res.bank_accounts[0];
+                                setBankAccountId(first.id.toString());
+                                setPaymentBankName(first.bank_name);
+                                setPaymentAccountNumber(first.account_number);
+                                setPaymentAccountName(first.account_holder);
+                            } else {
+                                setBankAccountId('');
+                                setPaymentBankName('');
+                                setPaymentAccountNumber('');
+                                setPaymentAccountName('');
+                            }
+                        }
+                    })
+                    .catch(err => console.error("Gagal memuat rekening:", err));
+            } else {
+                setBankAccounts([]);
+                setBankAccountId('');
+                setPaymentBankName('');
+                setPaymentAccountNumber('');
+                setPaymentAccountName('');
+            }
+        }
+    }, [paymentMethodId, paymentMethods]);
+
+    // Computations (from actual payments relation dynamically)
+    const nightsVal = differenceInDays(new Date(booking.check_out), new Date(booking.check_in)) || 1;
+    const totalUniqueCode = booking.payments
+        ? booking.payments.filter((p: any) => p.payment_status === 'verified').reduce((sum: number, p: any) => sum + (p.unique_code || 0), 0)
+        : 0;
+    const verifiedPaymentsSum = booking.payments?.filter((p: any) => p.payment_status === 'verified').reduce((sum: number, p: any) => sum + Number(p.amount), 0) || 0;
+    const totalBilling = booking.total_amount + totalUniqueCode;
+    const remainingAmount = Math.max(0, totalBilling - verifiedPaymentsSum);
+    const isPaidOff = remainingAmount <= 0;
+
+    // Reset default payment amount when booking changes
+    useEffect(() => {
+        if (booking) {
+            setPaymentAmount(remainingAmount > 0 ? remainingAmount : 0);
+            setPaymentType(verifiedPaymentsSum === 0 ? 'dp' : 'remaining');
+        }
+    }, [booking, verifiedPaymentsSum, remainingAmount]);
+
+    const compressImage = (file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.7): Promise<File> => {
+        return new Promise((resolve) => {
+            if (!file.type.startsWith('image/')) {
+                resolve(file);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target?.result as string;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width = Math.round((width * maxHeight) / height);
+                            height = maxHeight;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0, width, height);
+                        canvas.toBlob(
+                            (blob) => {
+                                if (blob) {
+                                    const compressedFile = new File([blob], file.name, {
+                                        type: 'image/jpeg',
+                                        lastModified: Date.now(),
+                                    });
+                                    resolve(compressedFile);
+                                } else {
+                                    resolve(file);
+                                }
+                            },
+                            'image/jpeg',
+                            quality
+                        );
+                    } else {
+                        resolve(file);
+                    }
+                };
+                img.onerror = () => resolve(file);
+            };
+            reader.onerror = () => resolve(file);
+        });
+    };
+
+    const handleSubmitPayment = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!paymentMethodId) {
+            toast.error("Silakan pilih metode pembayaran");
+            return;
+        }
+        if (paymentAmount <= 0) {
+            toast.error("Jumlah pembayaran harus lebih dari 0");
+            return;
+        }
+        setIsSubmittingPayment(true);
+        try {
+            const formData = new FormData();
+            formData.append('payment_method_id', paymentMethodId);
+            formData.append('amount', paymentAmount.toString());
+            formData.append('payment_type', paymentType);
+            formData.append('payment_status', paymentStatus);
+            formData.append('payment_date', paymentDate);
+            if (paymentBankName) formData.append('bank_name', paymentBankName);
+            if (paymentAccountNumber) formData.append('account_number', paymentAccountNumber);
+            if (paymentAccountName) formData.append('account_name', paymentAccountName);
+            if (referenceNumber) formData.append('reference_number', referenceNumber);
+            if (paymentNotes) formData.append('notes', paymentNotes);
+            if (proofOfPayment) formData.append('proof_of_payment', proofOfPayment);
+
+            const res = await apiPostForm<{ success: boolean; message: string; booking: Booking; error?: string }>(
+                `/api/admin/booking-management/bookings/${booking.booking_number}/payments`,
+                formData
+            );
+            if (res && res.success) {
+                toast.success(res.message || "Pembayaran berhasil disimpan!");
+                router.reload();
+                setReferenceNumber('');
+                setPaymentNotes('');
+                setProofOfPayment(null);
+            } else {
+                toast.error(res.error || "Gagal menyimpan pembayaran");
+            }
+        } catch (err: any) {
+            toast.error(err.error || err.message || "Gagal menyimpan pembayaran");
+        } finally {
+            setIsSubmittingPayment(false);
+        }
+    };
+
+    const handleVerifyPayment = (paymentNumber: string, notes: string = '') => {
+        router.patch(`/admin/payments/${paymentNumber}/verify`, {
+            verification_notes: notes
+        }, {
+            preserveScroll: true,
+            onSuccess: async () => {
+                toast.success('Pembayaran berhasil disetujui');
+                router.reload();
+            },
+            onError: (errors) => {
+                const errMsg = errors.error || Object.values(errors).join(', ') || 'Gagal menyetujui pembayaran';
+                toast.error(errMsg);
+            }
+        });
+    };
+
+    const handleRejectPayment = (paymentNumber: string, reason: string) => {
+        if (!reason) {
+            toast.error('Alasan penolakan harus diisi');
+            return;
+        }
+        router.patch(`/admin/payments/${paymentNumber}/reject`, {
+            rejection_reason: reason
+        }, {
+            preserveScroll: true,
+            onSuccess: async () => {
+                toast.success('Pembayaran berhasil ditolak');
+                router.reload();
+            },
+            onError: (errors) => {
+                const errMsg = errors.error || Object.values(errors).join(', ') || 'Gagal menolak pembayaran';
+                toast.error(errMsg);
+            }
+        });
+    };
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -234,7 +598,7 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
     const canCancel = ['pending', 'confirmed'].includes(booking.booking_status);
     const canCheckIn = booking.payment_status === 'fully_paid' && booking.booking_status === 'confirmed' && isCheckInTime;
     const canCheckOut = booking.booking_status === 'checked_in';
-    const canEdit = auth?.user?.role === 'super_admin';
+    const canEdit = ['super_admin', 'property_manager', 'front_desk'].includes(auth?.user?.role);
     const canDelete = auth?.user?.role === 'super_admin';
     const requiresExtraConfirmation = ['checked_in', 'confirmed', 'fully_paid'].includes(booking.booking_status) || booking.payment_status === 'fully_paid';
 
@@ -694,65 +1058,44 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                                 <span>-{formatCurrency(booking.discount_amount)}</span>
                                             </div>
                                         )}
-                                        {(() => {
-                                            const totalUniqueCode = booking.payments
-                                                ? booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + (p.unique_code || 0), 0)
-                                                : 0;
-                                            if (totalUniqueCode <= 0) return null;
-                                            return (
-                                                <div className="flex justify-between text-blue-600 font-semibold">
-                                                    <span>Kode Unik Transfer</span>
-                                                    <span>+{formatCurrency(totalUniqueCode)}</span>
-                                                </div>
-                                            );
-                                        })()}
+                                        {totalUniqueCode > 0 && (
+                                            <div className="flex justify-between text-blue-600 font-semibold">
+                                                <span>Kode Unik Transfer</span>
+                                                <span>+{formatCurrency(totalUniqueCode)}</span>
+                                            </div>
+                                        )}
                                         <div className="border-t border-dashed my-2"></div>
                                         <div className="flex justify-between items-end">
                                             <span className="font-bold text-slate-700">Total Amount</span>
                                             <span className="text-xl font-bold text-slate-900">
-                                                {(() => {
-                                                    const totalUniqueCode = booking.payments
-                                                        ? booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + (p.unique_code || 0), 0)
-                                                        : 0;
-                                                    return formatCurrency(booking.total_amount + totalUniqueCode);
-                                                })()}
+                                                {formatCurrency(totalBilling)}
                                             </span>
                                         </div>
                                     </div>
 
                                     {/* Progress */}
-                                    {(() => {
-                                        const totalUniqueCode = booking.payments
-                                            ? booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + (p.unique_code || 0), 0)
-                                            : 0;
-                                        const paid = booking.payments
-                                            ? booking.payments.filter(p => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0)
-                                            : 0;
-                                        const totalBilling = booking.total_amount + totalUniqueCode;
-                                        const remaining = Math.max(0, totalBilling - paid);
-                                        const percentage = Math.min(100, Math.round((paid / totalBilling) * 100));
-                                        return (
-                                            <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                                                <div className="flex justify-between text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
-                                                    <span>Payment Progress</span>
-                                                    <span>{percentage}%</span>
-                                                </div>
-                                                <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden mb-3">
-                                                    <div className={`h-full rounded-full transition-all duration-500 ${remaining <= 0 ? 'bg-green-500' : 'bg-blue-600'}`} style={{ width: `${percentage}%` }}></div>
-                                                </div>
-                                                <div className="flex justify-between items-center text-sm">
-                                                    <div>
-                                                        <div className="text-xs text-slate-500">Paid</div>
-                                                        <div className="font-bold text-green-700">{formatCurrency(paid)}</div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <div className="text-xs text-slate-500">Remaining</div>
-                                                        <div className={`font-bold ${remaining <= 0 ? 'text-slate-400' : 'text-red-700'}`}>{formatCurrency(remaining)}</div>
-                                                    </div>
-                                                </div>
+                                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                                        <div className="flex justify-between text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                                            <span>Payment Progress</span>
+                                            <span>{isPaidOff ? 'Paid Off' : `${Math.round((verifiedPaymentsSum / totalBilling) * 100)}% Paid`}</span>
+                                        </div>
+                                        <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden mb-3">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-500 ${isPaidOff ? 'bg-green-500' : 'bg-blue-600'}`}
+                                                style={{ width: `${Math.min(100, (verifiedPaymentsSum / totalBilling) * 100)}%` }}
+                                            ></div>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <div>
+                                                <div className="text-xs text-slate-500">Paid</div>
+                                                <div className="font-bold text-green-700">{formatCurrency(verifiedPaymentsSum)}</div>
                                             </div>
-                                        );
-                                    })()}
+                                            <div className="text-right">
+                                                <div className="text-xs text-slate-500">Remaining</div>
+                                                <div className={`font-bold ${isPaidOff ? 'text-slate-400' : 'text-red-700'}`}>{formatCurrency(remainingAmount)}</div>
+                                            </div>
+                                        </div>
+                                    </div>
 
                                     {/* Actions */}
                                     <div className="grid grid-cols-2 gap-3 pt-2">
@@ -896,6 +1239,157 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                         </div>
                                     </div>
                                 </div>
+                                {/* Tambah Transaksi Form (inline) */}
+                                {!isPaidOff && (
+                                    <div className="border-t border-slate-100 bg-slate-50/50 p-5">
+                                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                            <Plus className="w-4 h-4 text-blue-600 animate-bounce" /> Input Transaksi Pembayaran Baru
+                                        </h4>
+                                        <form onSubmit={handleSubmitPayment} className="space-y-4">
+                                            <div className="space-y-3">
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-slate-600 font-semibold">Jumlah Pembayaran (IDR) *</Label>
+                                                    <Input
+                                                        type="number"
+                                                        min={1}
+                                                        value={paymentAmount}
+                                                        onChange={e => setPaymentAmount(parseInt(e.target.value) || 0)}
+                                                        className="h-10 bg-white text-base"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-slate-600 font-semibold">Metode Pembayaran *</Label>
+                                                    <CustomSelect
+                                                        value={paymentMethodId}
+                                                        onChange={(v) => {
+                                                            setPaymentMethodId(v);
+                                                            // reset rekening ketika metode berubah
+                                                            setBankAccountId('');
+                                                            setPaymentBankName('');
+                                                            setPaymentAccountNumber('');
+                                                            setPaymentAccountName('');
+                                                        }}
+                                                        options={paymentMethods.map((m) => ({ value: m.id.toString(), label: m.name }))}
+                                                        placeholder="Pilih Metode"
+                                                    />
+
+                                                    {/* Pilihan Rekening Bank — tampil jika metode bank_transfer */}
+                                                    {paymentMethods.find(m => m.id.toString() === paymentMethodId)?.type === 'bank_transfer' && (
+                                                        <div className="space-y-1 mt-3">
+                                                            <Label className="text-xs text-slate-600 font-semibold">Rekening Bank Tujuan *</Label>
+                                                            <CustomSelect
+                                                                value={bankAccountId}
+                                                                onChange={(accId) => {
+                                                                    const acc = bankAccounts.find(a => a.id.toString() === accId);
+                                                                    if (acc) {
+                                                                        setBankAccountId(acc.id.toString());
+                                                                        setPaymentBankName(acc.bank_name);
+                                                                        setPaymentAccountNumber(acc.account_number);
+                                                                        setPaymentAccountName(acc.account_holder);
+                                                                    }
+                                                                }}
+                                                                options={bankAccounts.map(acc => ({
+                                                                    value: acc.id.toString(),
+                                                                    label: `${acc.label} — ${acc.account_number}`
+                                                                }))}
+                                                                placeholder="Pilih Rekening"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-slate-600 font-semibold">Tipe Pembayaran *</Label>
+                                                    <CustomSelect
+                                                        value={paymentType}
+                                                        onChange={setPaymentType}
+                                                        options={[
+                                                            { value: 'dp', label: 'DP (Down Payment)' },
+                                                            { value: 'remaining', label: 'Pelunasan (Remaining)' },
+                                                            { value: 'full', label: 'Bayar Penuh (Full Payment)' },
+                                                            { value: 'refund', label: 'Refund' },
+                                                            { value: 'penalty', label: 'Denda (Penalty)' }
+                                                        ]}
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-slate-600 font-semibold">Status Pembayaran *</Label>
+                                                    <CustomSelect
+                                                        value={paymentStatus}
+                                                        onChange={setPaymentStatus}
+                                                        options={[
+                                                            { value: 'verified', label: 'Verified (Lunas/Diterima)' },
+                                                            { value: 'pending', label: 'Pending (Perlu Verifikasi)' }
+                                                        ]}
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-slate-600 font-semibold">Tanggal Pembayaran *</Label>
+                                                    <Input
+                                                        type="date"
+                                                        value={paymentDate}
+                                                        onChange={e => setPaymentDate(e.target.value)}
+                                                        className="h-10 bg-white text-base"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-slate-600 font-semibold">No. Referensi (Opsional)</Label>
+                                                    <Input
+                                                        type="text"
+                                                        value={referenceNumber}
+                                                        onChange={e => setReferenceNumber(e.target.value)}
+                                                        placeholder="Ref transfer / cash"
+                                                        className="h-10 bg-white text-base"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-slate-600 font-semibold">Catatan Pembayaran</Label>
+                                                    <Input
+                                                        type="text"
+                                                        value={paymentNotes}
+                                                        onChange={e => setPaymentNotes(e.target.value)}
+                                                        placeholder="Keterangan tambahan transaksi"
+                                                        className="h-10 bg-white text-base"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-slate-600 font-semibold">Bukti Pembayaran (Opsional)</Label>
+                                                    <Input
+                                                        type="file"
+                                                        accept="image/*,application/pdf"
+                                                        onChange={e => {
+                                                            const file = e.target.files?.[0] || null;
+                                                            if (file) {
+                                                                compressImage(file).then(compressedFile => {
+                                                                    setProofOfPayment(compressedFile);
+                                                                });
+                                                            } else {
+                                                                setProofOfPayment(null);
+                                                            }
+                                                        }}
+                                                        className="h-10 bg-white cursor-pointer"
+                                                    />
+                                                </div>
+
+                                                <div className="pt-2">
+                                                    <Button
+                                                        type="submit"
+                                                        disabled={isSubmittingPayment}
+                                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white h-10 font-semibold text-sm"
+                                                    >
+                                                        {isSubmittingPayment ? 'Menyimpan...' : 'Simpan Pembayaran'}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Rate Breakdown Card */}
@@ -946,6 +1440,14 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
                                                         <Link href={`/admin/payments/${payment.payment_number}/edit`} className="text-xs text-slate-500 hover:text-blue-600">Edit</Link>
                                                     </div>
                                                 </div>
+
+                                                {payment.payment_status === 'pending' && (
+                                                    <PaymentVerificationActions
+                                                        payment={payment}
+                                                        onVerify={handleVerifyPayment}
+                                                        onReject={handleRejectPayment}
+                                                    />
+                                                )}
                                             </div>
                                         ))
                                     ) : (

@@ -3,10 +3,12 @@
 namespace App\Listeners;
 
 use App\Events\BookingCreated;
-use App\Notifications\BookingCreatedNotification;
 use App\Models\User;
+use App\Notifications\BookingCreatedNotification;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
 
 class SendBookingNotification implements ShouldQueue
@@ -47,7 +49,7 @@ class SendBookingNotification implements ShouldQueue
             $booking->workflow()->create([
                 'step' => 'submitted',
                 'status' => 'completed',
-                'processed_by' => $user?->id,
+                'processed_by' => Auth::check() ? Auth::id() : $user?->id,
                 'processed_at' => now(),
                 'notes' => 'Booking created successfully',
             ]);
@@ -63,18 +65,18 @@ class SendBookingNotification implements ShouldQueue
      * Get users who should receive booking notifications
      * Mengirim notifikasi ke semua admin dan staff yang aktif
      */
-    private function getNotifiableUsers($booking): \Illuminate\Database\Eloquent\Collection
+    private function getNotifiableUsers($booking): Collection
     {
         // Get all admin and staff users who should receive booking notifications
         return User::whereIn('role', [
             'super_admin',
-            'property_manager', 
+            'property_manager',
             'front_desk',
             'finance',
-            'housekeeping'
+            'housekeeping',
         ])
-        ->where('status', 'active')
-        ->get();
+            ->where('status', 'active')
+            ->get();
     }
 
     /**
