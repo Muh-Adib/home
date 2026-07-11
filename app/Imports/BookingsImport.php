@@ -49,7 +49,6 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
         // If acceptedRows is specified, only process those rows
         if (! empty($this->acceptedRows)) {
             // We rely on the Excel row index which matches the preview logic ($index + 2)
-            // We cast to int to ensure type matching
             if (! in_array((int) $rowIndex, array_map('intval', $this->acceptedRows))) {
                 \Log::info("Skipping row $rowIndex (not in acceptedRows)");
 
@@ -71,11 +70,6 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
 
             $bookingNumber = $rowArray['booking_number'] ?? null;
 
-            // User requested to NOT generate booking number locally if missing, let BookingService handle it.
-            // if (!$bookingNumber) {
-            //    $bookingNumber = $this->generateBookingNumber();
-            // }
-
             // Ensure guest user exists
             $guestUser = User::where('email', $rowArray['guest_email'])->first();
             if (! $guestUser) {
@@ -93,25 +87,74 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
             // Parse dates
             $checkIn = $this->parseDate($rowArray['check_in']);
             $checkOut = $this->parseDate($rowArray['check_out']);
+            $nights = $checkIn->diffInDays($checkOut);
+
+            if ($nights <= 0) {
+                $nights = 1;
+            }
 
             $guestMale = (int) ($rowArray['guest_male'] ?? 1);
             $guestFemale = (int) ($rowArray['guest_female'] ?? 0);
             $guestChildren = (int) ($rowArray['guest_children'] ?? 0);
-            // Apply conditional logic: if capacity < capacity_max, children count as floor(children/2)
+
+            // Apply capacity-based guest count check
             if ($property->capacity < $property->capacity_max) {
                 $guestCount = $guestMale + $guestFemale + (int) floor($guestChildren / 2);
             } else {
                 $guestCount = $guestMale + $guestFemale + $guestChildren;
             }
 
-            // Prepare BookingRequest data
-            // We map the Excel row data to the BookingRequest fields
+            // Parse daily extra bed counts (can be pipe-separated e.g. "2|3")
+            $extraBedInput = trim((string) ($rowArray['jumlah_extra_bed'] ?? '0'));
+            $extraBedsPerNight = [];
+            if (str_contains($extraBedInput, '|')) {
+                $extraBedsPerNight = array_map('intval', explode('|', $extraBedInput));
+            } else {
+                $singleVal = (int) $extraBedInput;
+                $extraBedsPerNight = array_fill(0, max(1, $nights), $singleVal);
+            }
+
+            // Calculate total extra bed count and amount
+            $totalExtraBedCount = array_sum($extraBedsPerNight);
+            $extraBedRate = (float) ($property->extra_bed_rate ?? 150000);
+            $totalExtraBedAmount = 0;
+            foreach ($extraBedsPerNight as $count) {
+                $totalExtraBedAmount += $count * $extraBedRate;
+            }
+
+            $totalAmount = ! empty($rowArray['total_amount']) ? (float) $rowArray['total_amount'] : 0;
+            $baseAmount = max(0.0, $totalAmount - $totalExtraBedAmount);
+
+            // Parse payments & calculate payment status
+            $p1Amount = ! empty($rowArray['pembayaran_1_nominal']) ? (float) $rowArray['pembayaran_1_nominal'] : 0;
+            $p2Amount = ! empty($rowArray['pembayaran_2_nominal']) ? (float) $rowArray['pembayaran_2_nominal'] : 0;
+            $totalPaid = $p1Amount + $p2Amount;
+
+            if ($totalPaid >= $totalAmount && $totalAmount > 0) {
+                $paymentStatus = 'fully_paid';
+            } elseif ($totalPaid > 0) {
+                $paymentStatus = 'dp_received';
+            } else {
+                $paymentStatus = 'dp_pending';
+            }
+
+            $dpPercentage = $totalAmount > 0 ? (int) round(($p1Amount / $totalAmount) * 100) : 50;
+
+            // Resolve booking status
+            $bookingStatusInput = strtolower(trim((string) ($rowArray['booking_status'] ?? '')));
+            if ($bookingStatusInput === 'cancelled' || $bookingStatusInput === 'cancel') {
+                $bookingStatus = 'cancelled';
+            } else {
+                $bookingStatus = 'confirmed';
+            }
+
+            // Prepare BookingRequest
             $bookingRequest = new BookingRequest(
                 propertyId: $property->id,
                 checkInDate: $checkIn->format('Y-m-d'),
                 checkOutDate: $checkOut->format('Y-m-d'),
-                checkInTime: $rowArray['check_in_time'] ?? '15:00',
-                guestCount: $guestCount, // BookingService calculates effective count, but we need a base count
+                checkInTime: $property->check_in_time ?? '15:00', // default to property check-in time
+                guestCount: $guestCount,
                 guestMale: $guestMale,
                 guestFemale: $guestFemale,
                 guestChildren: $guestChildren,
@@ -120,19 +163,19 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
                 guestPhone: $rowArray['guest_phone'] ?? '6281234567890',
                 guestPhoneAlternative: null,
                 guestCountry: $rowArray['guest_country'] ?? 'Indonesia',
-                guestIdNumber: $rowArray['guest_id_number'] ?? null,
+                guestIdNumber: null, // skipped
                 guestGender: $rowArray['guest_gender'] ?? 'male',
-                relationshipType: $rowArray['relationship_type'] ?? 'keluarga',
-                guests: [], // Detailed guests list not typically in simple import
-                specialRequests: $rowArray['special_requests'] ?? null,
+                relationshipType: 'keluarga', // skipped, default keluarga
+                guests: [],
+                specialRequests: null,
                 internalNotes: $rowArray['internal_notes'] ?? null,
-                bookingStatus: $rowArray['booking_status'] ?? 'pending_verification',
-                paymentStatus: $rowArray['payment_status'] ?? 'dp_pending',
-                dpPercentage: (int) ($rowArray['dp_percentage'] ?? 50),
-                autoConfirm: false // Don't auto confirm via service unless specified
+                bookingStatus: $bookingStatus,
+                paymentStatus: $paymentStatus,
+                dpPercentage: $dpPercentage,
+                autoConfirm: false
             );
 
-            // Resolve BookingService
+            // Resolve BookingService and current user
             $bookingService = app(BookingService::class);
             $currentUser = auth()->user();
 
@@ -140,84 +183,43 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
             $existingBooking = Booking::where('booking_number', $bookingNumber)->first();
 
             if ($existingBooking) {
-                // Update existing booking
                 $bookingService->updateBooking($existingBooking, $bookingRequest);
                 $booking = $existingBooking->refresh();
             } else {
-                // Create new booking
                 $booking = $bookingService->createBooking($bookingRequest, $guestUser);
             }
 
-            // Force override specific attributes from Excel
+            // Force overrides
             if ($bookingNumber) {
                 $booking->booking_number = $bookingNumber;
             }
-            if (isset($rowArray['base_amount'])) {
-                $booking->base_amount = (int) $rowArray['base_amount'];
-            }
-            if (isset($rowArray['extra_bed_amount'])) {
-                $booking->extra_bed_amount = (int) $rowArray['extra_bed_amount'];
-                // Calculate and set extra_bed_count based on extra_bed_amount and property extra_bed_rate
-                $extraBedRate = (float) ($property->extra_bed_rate ?? 150000);
-                if ($booking->extra_bed_amount > 0 && $extraBedRate > 0) {
-                    $booking->extra_bed_count = (int) round($booking->extra_bed_amount / $extraBedRate);
-                } else {
-                    $booking->extra_bed_count = 0;
-                }
-            }
-            if (isset($rowArray['service_amount'])) {
-                $booking->service_amount = (int) $rowArray['service_amount'];
-            }
-            if (isset($rowArray['tax_amount'])) {
-                $booking->tax_amount = (int) $rowArray['tax_amount'];
-            }
-            if (isset($rowArray['total_amount'])) {
-                $booking->total_amount = (int) $rowArray['total_amount'];
-            }
-            if (isset($rowArray['dp_percentage'])) {
-                $booking->dp_percentage = (int) $rowArray['dp_percentage'];
-            }
-            if (isset($rowArray['dp_amount'])) {
-                $booking->dp_amount = (int) $rowArray['dp_amount'];
-            }
-            if (isset($rowArray['remaining_amount'])) {
-                $booking->remaining_amount = (int) $rowArray['remaining_amount'];
-            }
-            if (isset($rowArray['booking_status'])) {
-                $booking->booking_status = $rowArray['booking_status'];
-            }
-            if (isset($rowArray['payment_status'])) {
-                $booking->payment_status = $rowArray['payment_status'];
-            }
-            if (isset($rowArray['internal_notes'])) {
-                $booking->internal_notes = $rowArray['internal_notes'];
-            }
+            $booking->base_amount = $baseAmount;
+            $booking->extra_bed_amount = $totalExtraBedAmount;
+            $booking->extra_bed_count = $totalExtraBedCount;
+            $booking->service_amount = 0;
+            $booking->tax_amount = 0;
+            $booking->total_amount = $totalAmount;
+            $booking->dp_amount = $p1Amount;
+            $booking->remaining_amount = max(0.0, $totalAmount - $p1Amount);
+            $booking->booking_status = $bookingStatus;
+            $booking->payment_status = $paymentStatus;
+            $booking->internal_notes = $rowArray['internal_notes'] ?? null;
 
-            // Enforce creator
-            $createdByName = $rowArray['created_by'] ?? null;
-            $creatorId = $currentUser->id;
-            if ($createdByName) {
-                $creator = User::where('name', $createdByName)
+            // Resolve closed_by staff name for created_by and closed_by fields
+            $closedByName = $rowArray['closed_by'] ?? null;
+            $closedById = $currentUser->id;
+            if ($closedByName) {
+                $closedUser = User::where('name', $closedByName)
                     ->where('role', '!=', 'guest')
                     ->first();
-                if ($creator) {
-                    $creatorId = $creator->id;
+                if ($closedUser) {
+                    $closedById = $closedUser->id;
                 }
             }
-            $booking->created_by = $creatorId;
+            $booking->created_by = $closedById;
+            $booking->closed_by = $closedById;
 
-            // Enforce verifier
-            $verifiedByName = $rowArray['verified_by'] ?? null;
-            if ($verifiedByName) {
-                $verifier = User::where('name', $verifiedByName)
-                    ->where('role', '!=', 'guest')
-                    ->first();
-                if ($verifier) {
-                    $booking->verified_by = $verifier->id;
-                }
-            }
-
-            // Enforce followed_up_by
+            // Resolve followed_up_by
             $followedUpByName = $rowArray['followed_up_by'] ?? null;
             if ($followedUpByName) {
                 $follower = User::where('name', $followedUpByName)
@@ -232,54 +234,41 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
                 $booking->followed_up_by = null;
             }
 
-            // Enforce closed_by
-            $closedByName = $rowArray['closed_by'] ?? null;
-            if ($closedByName) {
-                $closer = User::where('name', $closedByName)
-                    ->where('role', '!=', 'guest')
-                    ->first();
-                if ($closer) {
-                    $booking->closed_by = $closer->id;
-                } else {
-                    $booking->closed_by = null;
-                }
-            } else {
-                $booking->closed_by = null;
-            }
-
             $booking->save();
 
-            // Recreate daily revenues with imported amounts
-            $this->syncDailyRevenues($booking, $rowArray);
+            // Recreate daily revenues
+            $this->syncDailyRevenues($booking, $rowArray, $extraBedsPerNight);
 
-            // Handle Payment Creation & Sync (for real multiple transactions)
+            // Handle Payment Sync
             $existingPayments = $booking->payments()->orderBy('created_at')->get();
 
-            // Sync Payment 1
+            // Sync Payment 1 (DP)
             $this->syncImportedPayment(
                 $booking,
                 $existingPayments->get(0),
-                ! empty($rowArray['payment_1_amount']) ? (float) $rowArray['payment_1_amount'] : null,
-                $rowArray['payment_1_date'] ?? null,
-                $rowArray['payment_1_method'] ?? null,
-                $rowArray['payment_1_status'] ?? null,
+                $p1Amount,
+                $rowArray['pembayaran_1_tanggal'] ?? null,
+                $rowArray['pembayaran_1_bank'] ?? null,
+                $rowArray['pembayaran_1_no_rekening'] ?? null,
+                'verified',
                 'dp',
-                $currentUser
+                $closedById
             );
 
-            // Sync Payment 2
+            // Sync Payment 2 (Pelunasan)
             $this->syncImportedPayment(
                 $booking,
                 $existingPayments->get(1),
-                ! empty($rowArray['payment_2_amount']) ? (float) $rowArray['payment_2_amount'] : null,
-                $rowArray['payment_2_date'] ?? null,
-                $rowArray['payment_2_method'] ?? null,
-                $rowArray['payment_2_status'] ?? null,
+                $p2Amount,
+                $rowArray['pembayaran_2_tanggal'] ?? null,
+                $rowArray['pembayaran_2_bank'] ?? null,
+                $rowArray['pembayaran_2_no_rekening'] ?? null,
+                'verified',
                 'remaining',
-                $currentUser
+                $closedById
             );
 
-            // Always update payment status to recalculate paid/remaining fields
+            // Re-update payment status to sync balances/flags
             $booking->updatePaymentStatus(true);
 
             $this->importedCount++;
@@ -292,9 +281,9 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
     }
 
     /**
-     * Recreate daily revenues for imported bookings
+     * Recreate daily revenues with explicit daily extra bed counts
      */
-    protected function syncDailyRevenues(Booking $booking, array $rowArray): void
+    protected function syncDailyRevenues(Booking $booking, array $rowArray, array $extraBedsPerNight): void
     {
         BookingDailyRevenue::where('booking_id', $booking->id)->delete();
 
@@ -303,33 +292,32 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
         $nights = $checkIn->diffInDays($checkOut);
 
         if ($nights <= 0) {
-            return;
+            $nights = 1;
         }
 
-        $baseAmount = (int) ($rowArray['base_amount'] ?? $booking->base_amount ?? 0);
-        $extraBedAmount = (int) ($rowArray['extra_bed_amount'] ?? $booking->extra_bed_amount ?? 0);
-        $discountAmount = (int) ($rowArray['discount_amount'] ?? $booking->discount_amount ?? 0);
-        $extraBedCount = (int) ($booking->extra_bed_count ?? 0);
+        $totalAmount = (int) ($rowArray['total_amount'] ?? $booking->total_amount ?? 0);
+        $extraBedRate = (float) ($booking->property->extra_bed_rate ?? 150000);
+
+        $totalExtraBedAmount = 0;
+        foreach ($extraBedsPerNight as $count) {
+            $totalExtraBedAmount += $count * $extraBedRate;
+        }
+
+        $baseAmount = max(0, $totalAmount - $totalExtraBedAmount);
 
         $dailyBase = (int) floor($baseAmount / $nights);
-        $dailyExtra = (int) floor($extraBedAmount / $nights);
-        $dailyDiscount = (int) floor($discountAmount / $nights);
-        $dailyExtraCount = (int) floor($extraBedCount / $nights);
-
         $remainderBase = $baseAmount % $nights;
-        $remainderExtra = $extraBedAmount % $nights;
-        $remainderDiscount = $discountAmount % $nights;
-        $remainderExtraCount = $extraBedCount % $nights;
 
         $revenueData = [];
 
         for ($i = 0; $i < $nights; $i++) {
             $date = $checkIn->copy()->addDays($i);
             $curBase = $dailyBase + ($i < $remainderBase ? 1 : 0);
-            $curExtra = $dailyExtra + ($i < $remainderExtra ? 1 : 0);
-            $curDiscount = $dailyDiscount + ($i < $remainderDiscount ? 1 : 0);
-            $curExtraCount = $dailyExtraCount + ($i < $remainderExtraCount ? 1 : 0);
-            $curAmount = $curBase + $curExtra - $curDiscount;
+
+            // Allocate extra beds day-by-day
+            $curExtraCount = $extraBedsPerNight[$i] ?? 0;
+            $curExtraAmount = $curExtraCount * $extraBedRate;
+            $curAmount = $curBase + $curExtraAmount;
 
             $revenueData[] = [
                 'booking_id' => $booking->id,
@@ -337,7 +325,7 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
                 'tanggal' => $date->format('Y-m-d'),
                 'amount' => $curAmount,
                 'base_amount' => $curBase,
-                'extra_bed_amount' => $curExtra,
+                'extra_bed_amount' => $curExtraAmount,
                 'extra_bed_count' => $curExtraCount,
                 'weekend_premium' => 0,
                 'seasonal_premium' => 0,
@@ -424,28 +412,14 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
         ?Payment $existingPayment,
         ?float $amount,
         ?string $dateStr,
-        ?string $methodName,
-        ?string $status,
-        string $defaultType,
-        User $currentUser
+        ?string $bankName,
+        ?string $accountNumber,
+        string $status,
+        string $type,
+        int $closedById
     ): void {
         if (empty($amount) || $amount <= 0) {
             return;
-        }
-
-        // Find payment method by name
-        $paymentMethod = null;
-        if ($methodName) {
-            $paymentMethod = PaymentMethod::where('name', $methodName)->first();
-        }
-
-        // Fallback payment method if missing
-        if (! $paymentMethod) {
-            $paymentMethod = PaymentMethod::active()->first();
-        }
-
-        if (! $paymentMethod) {
-            return; // No payment method available
         }
 
         // Parse date
@@ -458,49 +432,51 @@ class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithVal
             }
         }
 
-        // Determine bank account details
-        $bankAccount = $booking->property->bankAccount;
-        $bankName = $bankAccount ? $bankAccount->bank_name : $paymentMethod->bank_name;
-        $accountNumber = $bankAccount ? $bankAccount->account_number : $paymentMethod->account_number;
-        $accountName = $bankAccount ? $bankAccount->account_holder : $paymentMethod->account_name;
+        // Resolve payment method by type bank_transfer
+        $paymentMethod = PaymentMethod::where('type', 'transfer')->first()
+            ?? PaymentMethod::active()->first();
+        $paymentMethodId = $paymentMethod ? $paymentMethod->id : null;
+        $paymentMethodType = $paymentMethod ? $paymentMethod->type : 'bank_transfer';
 
-        $paymentStatus = $status ? strtolower($status) : 'verified';
+        // Fallback bank details from property bank account
+        if (empty($bankName)) {
+            $bankAccount = $booking->property->bankAccount;
+            $bankName = $bankAccount ? $bankAccount->bank_name : ($paymentMethod ? $paymentMethod->bank_name : 'BCA');
+            $accountNumber = $bankAccount ? $bankAccount->account_number : ($paymentMethod ? $paymentMethod->account_number : '');
+        }
+
+        $paymentStatus = strtolower($status);
 
         if ($existingPayment) {
-            // Update existing payment
             $existingPayment->update([
                 'amount' => $amount,
-                'payment_method_id' => $paymentMethod->id,
-                'payment_method' => $paymentMethod->type,
+                'payment_method_id' => $paymentMethodId,
+                'payment_method' => $paymentMethodType,
                 'payment_status' => $paymentStatus,
                 'payment_date' => $paymentDate,
                 'bank_name' => $bankName,
                 'account_number' => $accountNumber,
-                'account_name' => $accountName,
             ]);
 
-            // Sync incomes for this payment if verified
             if ($paymentStatus === 'verified') {
-                $existingPayment->verified_by = $currentUser->id;
+                $existingPayment->verified_by = $closedById;
                 $existingPayment->verified_at = $existingPayment->verified_at ?? now();
                 $existingPayment->save();
                 app(PaymentIncomeSyncService::class)->syncOnVerified($existingPayment);
             }
         } else {
-            // Create new payment
             $payment = $booking->payments()->create([
                 'payment_number' => Payment::generatePaymentNumber(),
-                'payment_method_id' => $paymentMethod->id,
+                'payment_method_id' => $paymentMethodId,
                 'amount' => $amount,
-                'payment_type' => $defaultType,
-                'payment_method' => $paymentMethod->type,
+                'payment_type' => $type,
+                'payment_method' => $paymentMethodType,
                 'payment_status' => $paymentStatus,
                 'payment_date' => $paymentDate,
                 'bank_name' => $bankName,
                 'account_number' => $accountNumber,
-                'account_name' => $accountName,
-                'processed_by' => $currentUser->id,
-                'verified_by' => $paymentStatus === 'verified' ? $currentUser->id : null,
+                'processed_by' => $closedById,
+                'verified_by' => $paymentStatus === 'verified' ? $closedById : null,
                 'verified_at' => $paymentStatus === 'verified' ? now() : null,
             ]);
 

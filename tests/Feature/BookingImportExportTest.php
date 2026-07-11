@@ -61,27 +61,44 @@ class BookingImportExportTest extends TestCase
         $sheet = $spreadsheet->getActiveSheet();
 
         $headers = [
-            'Booking Number', 'Property Name', 'Property Capacity', 'Property Max Capacity',
-            'Guest Name', 'Guest Email', 'Guest Phone', 'Guest Country', 'Guest ID Number',
-            'Guest Gender', 'Guest Male', 'Guest Female', 'Guest Children', 'Effective Guest Count',
-            'Relationship Type', 'Check In', 'Check In Time', 'Check Out', 'Nights', 'Base Amount',
-            'Extra Bed Amount', 'Service Amount', 'Tax Amount', 'Total Amount', 'DP Percentage',
-            'DP Amount', 'Remaining Amount', 'Booking Status', 'Payment Status',
-            'Payment 1 Amount', 'Payment 1 Date', 'Payment 1 Method', 'Payment 1 Status',
-            'Payment 2 Amount', 'Payment 2 Date', 'Payment 2 Method', 'Payment 2 Status',
-            'Internal Notes', 'Created At', 'Created By', 'Verified By', 'Followed Up By', 'Closed By',
+            'Booking Number',
+            'Property Name',
+            'Guest Name',
+            'Guest Email',
+            'Guest Phone',
+            'Guest Country',
+            'Guest Gender',
+            'Guest Male',
+            'Guest Female',
+            'Guest Children',
+            'Check In',
+            'Check Out',
+            'Jumlah Extra Bed',
+            'Total Amount',
+            'Pembayaran 1 Nominal',
+            'Pembayaran 1 Tanggal',
+            'Pembayaran 1 Bank',
+            'Pembayaran 1 No Rekening',
+            'Pembayaran 2 Nominal',
+            'Pembayaran 2 Tanggal',
+            'Pembayaran 2 Bank',
+            'Pembayaran 2 No Rekening',
+            'Booking Status',
+            'Internal Notes',
+            'Closed By',
+            'Followed Up By',
         ];
 
         $rowData = [
-            'BK-IMPORT-99', 'Test Property', 2, 4,
-            'John Doe', 'john@example.com', '6281234567890', 'Indonesia', '1234567890',
-            'male', 2, 0, 0, 2,
-            'keluarga', '12/07/2026', '14:00', '15/07/2026', 3, 1500000,
-            300000, 0, 0, 1800000, 50,
-            900000, 900000, 'confirmed', 'fully_paid',
-            1000000, '12/07/2026', 'Manual Transfer', 'verified',
-            800000, '13/07/2026', 'Manual Transfer', 'verified',
-            'notes', '2026-07-11 12:00:00', 'Admin Name', 'Admin Name', 'Staff Name', 'Staff Name',
+            'BK-IMPORT-99', 'Test Property',
+            'John Doe', 'john@example.com', '6281234567890', 'Indonesia',
+            'male', 2, 0, 0,
+            '12/07/2026', '15/07/2026',
+            '2|1|3',
+            1800000,
+            1000000, '12/07/2026', 'Manual Transfer', '1234567890',
+            800000, '13/07/2026', 'Manual Transfer', '1234567890',
+            'confirmed', 'notes', 'Staff Name', 'Staff Name',
         ];
 
         $sheet->fromArray([$headers, $rowData]);
@@ -125,35 +142,31 @@ class BookingImportExportTest extends TestCase
         $this->assertEquals('confirmed', $booking->booking_status);
         $this->assertEquals('fully_paid', $booking->payment_status);
         $this->assertEquals(1800000, $booking->total_amount);
-        $this->assertEquals(1500000, $booking->base_amount);
-        $this->assertEquals(300000, $booking->extra_bed_amount);
-        $this->assertEquals(2, $booking->extra_bed_count);
-        $this->assertEquals($admin->id, $booking->created_by);
-        $this->assertEquals($admin->id, $booking->verified_by);
-        $this->assertEquals($staff->id, $booking->followed_up_by);
+        $this->assertEquals(900000, $booking->base_amount);
+        $this->assertEquals(900000, $booking->extra_bed_amount);
+        $this->assertEquals(6, $booking->extra_bed_count);
+        $this->assertEquals($staff->id, $booking->created_by);
         $this->assertEquals($staff->id, $booking->closed_by);
+        $this->assertEquals($staff->id, $booking->followed_up_by);
 
         // Assert BookingDailyRevenue records were created (3 nights)
-        // daily base: 1500k/3 = 500k
-        // daily extra: 300k/3 = 100k
-        // daily count: 2 extra beds/3 nights = 0, remainder 2 -> first 2 nights should have 1, last night 0
         $dailyRevenues = BookingDailyRevenue::where('booking_id', $booking->id)->orderBy('tanggal')->get();
         $this->assertCount(3, $dailyRevenues);
 
         $this->assertEquals(600000, $dailyRevenues[0]->amount);
-        $this->assertEquals(500000, $dailyRevenues[0]->base_amount);
-        $this->assertEquals(100000, $dailyRevenues[0]->extra_bed_amount);
-        $this->assertEquals(1, $dailyRevenues[0]->extra_bed_count);
+        $this->assertEquals(300000, $dailyRevenues[0]->base_amount);
+        $this->assertEquals(300000, $dailyRevenues[0]->extra_bed_amount);
+        $this->assertEquals(2, $dailyRevenues[0]->extra_bed_count);
 
-        $this->assertEquals(600000, $dailyRevenues[1]->amount);
-        $this->assertEquals(500000, $dailyRevenues[1]->base_amount);
-        $this->assertEquals(100000, $dailyRevenues[1]->extra_bed_amount);
+        $this->assertEquals(450000, $dailyRevenues[1]->amount);
+        $this->assertEquals(300000, $dailyRevenues[1]->base_amount);
+        $this->assertEquals(150000, $dailyRevenues[1]->extra_bed_amount);
         $this->assertEquals(1, $dailyRevenues[1]->extra_bed_count);
 
-        $this->assertEquals(600000, $dailyRevenues[2]->amount);
-        $this->assertEquals(500000, $dailyRevenues[2]->base_amount);
-        $this->assertEquals(100000, $dailyRevenues[2]->extra_bed_amount);
-        $this->assertEquals(0, $dailyRevenues[2]->extra_bed_count);
+        $this->assertEquals(750000, $dailyRevenues[2]->amount);
+        $this->assertEquals(300000, $dailyRevenues[2]->base_amount);
+        $this->assertEquals(450000, $dailyRevenues[2]->extra_bed_amount);
+        $this->assertEquals(3, $dailyRevenues[2]->extra_bed_count);
 
         // Assert two payments were created and verified
         $payments = Payment::where('booking_id', $booking->id)->orderBy('created_at')->get();
@@ -167,12 +180,12 @@ class BookingImportExportTest extends TestCase
         $this->assertEquals(800000, $payments[1]->amount);
         $this->assertEquals('13/07/2026', $payments[1]->payment_date->format('d/m/Y'));
 
-        // Assert Income records were synced per day (3 nights of 600k each = 1.8M total synced incomes)
+        // Assert Income records were synced per day
         $incomes = Income::where('booking_id', $booking->id)->orderBy('income_date')->get();
         $this->assertCount(3, $incomes);
-        foreach ($incomes as $income) {
-            $this->assertEquals(600000, $income->amount);
-        }
+        $this->assertEquals(600000, $incomes[0]->amount);
+        $this->assertEquals(450000, $incomes[1]->amount);
+        $this->assertEquals(750000, $incomes[2]->amount);
 
         @unlink($tempFile);
     }

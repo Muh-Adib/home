@@ -1366,12 +1366,12 @@ class BookingManagementController extends Controller
                             continue;
                         }
 
-                        $checkIn = $this->parseImportDate($row[15]);
-                        $checkOut = $this->parseImportDate($row[17]);
+                        $checkIn = $this->parseImportDate($row[10] ?? null);
+                        $checkOut = $this->parseImportDate($row[11] ?? null);
 
-                        $guestMale = (int) ($row[10] ?? 1);
-                        $guestFemale = (int) ($row[11] ?? 0);
-                        $guestChildren = (int) ($row[12] ?? 0);
+                        $guestMale = (int) ($row[7] ?? 1);
+                        $guestFemale = (int) ($row[8] ?? 0);
+                        $guestChildren = (int) ($row[9] ?? 0);
                         if ($property->capacity < $property->capacity_max) {
                             $guestCount = $guestMale + $guestFemale + (int) floor($guestChildren / 2);
                         } else {
@@ -1406,12 +1406,12 @@ class BookingManagementController extends Controller
                     $newData = $this->mapImportRowToRawData($row, $property);
 
                     if (! $existingBooking) {
-                        $checkIn = $this->parseImportDate($row[15]);
-                        $checkOut = $this->parseImportDate($row[17]);
+                        $checkIn = $this->parseImportDate($row[10] ?? null);
+                        $checkOut = $this->parseImportDate($row[11] ?? null);
 
-                        $guestMale = (int) ($row[10] ?? 1);
-                        $guestFemale = (int) ($row[11] ?? 0);
-                        $guestChildren = (int) ($row[12] ?? 0);
+                        $guestMale = (int) ($row[7] ?? 1);
+                        $guestFemale = (int) ($row[8] ?? 0);
+                        $guestChildren = (int) ($row[9] ?? 0);
                         if ($property->capacity < $property->capacity_max) {
                             $guestCount = $guestMale + $guestFemale + (int) floor($guestChildren / 2);
                         } else {
@@ -1443,9 +1443,9 @@ class BookingManagementController extends Controller
                                 $checkIn = $newData['check_in'];
                                 $checkOut = $newData['check_out'];
 
-                                $guestMale = (int) ($row[10] ?? 1);
-                                $guestFemale = (int) ($row[11] ?? 0);
-                                $guestChildren = (int) ($row[12] ?? 0);
+                                $guestMale = (int) ($row[7] ?? 1);
+                                $guestFemale = (int) ($row[8] ?? 0);
+                                $guestChildren = (int) ($row[9] ?? 0);
                                 if ($property->capacity < $property->capacity_max) {
                                     $guestCount = $guestMale + $guestFemale + (int) floor($guestChildren / 2);
                                 } else {
@@ -1541,28 +1541,20 @@ class BookingManagementController extends Controller
         $missing = [];
         $requiredFields = [
             1 => 'Property Name',
-            4 => 'Guest Name',
-            5 => 'Guest Email',
-            6 => 'Guest Phone',
-            9 => 'Guest Gender',
-            7 => 'Guest Country',
-            10 => 'Guest Male Count',
-            11 => 'Guest Female Count',
-            14 => 'Relationship Type',
-            15 => 'Check-in Date',
-            17 => 'Check-out Date',
-            27 => 'Booking Status',
+            2 => 'Guest Name',
+            3 => 'Guest Email',
+            4 => 'Guest Phone',
+            6 => 'Guest Gender',
+            10 => 'Check-in Date',
+            11 => 'Check-out Date',
+            13 => 'Total Amount',
+            22 => 'Booking Status',
         ];
 
         foreach ($requiredFields as $index => $fieldName) {
             if (empty($row[$index]) && $row[$index] !== 0) {
                 $missing[] = $fieldName;
             }
-        }
-
-        $paymentStatus = strtolower($row[28] ?? '');
-        if (in_array($paymentStatus, ['fully_paid', 'dp_received', 'dp_paid']) && empty($row[29]) && empty($row[33])) {
-            $missing[] = 'At least one Payment Amount (Payment 1 or Payment 2) is required for paid status';
         }
 
         return $missing;
@@ -1647,43 +1639,97 @@ class BookingManagementController extends Controller
      */
     private function mapImportRowToRawData(array $row, ?Property $property = null): array
     {
+        $checkIn = $this->parseImportDate($row[10] ?? null);
+        $checkOut = $this->parseImportDate($row[11] ?? null);
+
+        $nights = 0;
+        if ($checkIn && $checkOut) {
+            try {
+                $ci = Carbon::parse($checkIn);
+                $co = Carbon::parse($checkOut);
+                $nights = $ci->diffInDays($co);
+            } catch (\Exception $e) {
+            }
+        }
+        if ($nights <= 0) {
+            $nights = 1;
+        }
+
+        // Parse daily extra bed count
+        $extraBedInput = trim((string) ($row[12] ?? '0'));
+        $extraBedsPerNight = [];
+        if (str_contains($extraBedInput, '|')) {
+            $extraBedsPerNight = array_map('intval', explode('|', $extraBedInput));
+        } else {
+            $singleVal = (int) $extraBedInput;
+            $extraBedsPerNight = array_fill(0, max(1, $nights), $singleVal);
+        }
+        $totalExtraBedCount = array_sum($extraBedsPerNight);
+        $extraBedRate = (float) ($property->extra_bed_rate ?? 150000);
+        $totalExtraBedAmount = 0;
+        foreach ($extraBedsPerNight as $count) {
+            $totalExtraBedAmount += $count * $extraBedRate;
+        }
+
+        $totalAmount = ! empty($row[13]) ? (float) $row[13] : 0;
+        $baseAmount = max(0.0, $totalAmount - $totalExtraBedAmount);
+
+        $p1Amount = ! empty($row[14]) ? (float) $row[14] : 0;
+        $p2Amount = ! empty($row[18]) ? (float) $row[18] : 0;
+        $totalPaid = $p1Amount + $p2Amount;
+
+        if ($totalPaid >= $totalAmount && $totalAmount > 0) {
+            $paymentStatus = 'fully_paid';
+        } elseif ($totalPaid > 0) {
+            $paymentStatus = 'dp_received';
+        } else {
+            $paymentStatus = 'dp_pending';
+        }
+
+        $dpPercentage = $totalAmount > 0 ? (int) round(($p1Amount / $totalAmount) * 100) : 50;
+
+        $bookingStatusInput = strtolower(trim((string) ($row[22] ?? '')));
+        if ($bookingStatusInput === 'cancelled' || $bookingStatusInput === 'cancel') {
+            $bookingStatus = 'cancelled';
+        } else {
+            $bookingStatus = 'confirmed';
+        }
+
         return [
             'booking_number' => $row[0] ? trim($row[0]) : null,
             'property_id' => $property ? $property->id : null,
             'property_name' => $row[1] ? trim($row[1]) : null,
-            'guest_name' => $row[4] ? trim($row[4]) : null,
-            'guest_email' => $row[5] ? trim($row[5]) : null,
-            'guest_phone' => $row[6] ? trim($row[6]) : null,
-            'guest_country' => $row[7] ? trim($row[7]) : null,
-            'guest_id_number' => $row[8] ? trim($row[8]) : null,
-            'guest_gender' => $row[9] ? trim($row[9]) : null,
-            'guest_male' => ! empty($row[10]) ? (int) $row[10] : 0,
-            'guest_female' => ! empty($row[11]) ? (int) $row[11] : 0,
-            'guest_children' => ! empty($row[12]) ? (int) $row[12] : 0,
-            'relationship_type' => $row[14] ? trim($row[14]) : null,
-            'check_in' => $this->parseImportDate($row[15] ?? null),
-            'check_in_time' => $row[16] ? trim($row[16]) : '15:00',
-            'check_out' => $this->parseImportDate($row[17] ?? null),
-            'nights' => (int) ($row[18] ?? 0),
-            'base_amount' => (float) ($row[19] ?? 0),
-            'extra_bed_amount' => (float) ($row[20] ?? 0),
-            'service_amount' => (float) ($row[21] ?? 0),
-            'tax_amount' => (float) ($row[22] ?? 0),
-            'total_amount' => (float) ($row[23] ?? 0),
-            'dp_percentage' => (int) ($row[24] ?? 30),
-            'dp_amount' => (float) ($row[25] ?? 0),
-            'remaining_amount' => (float) ($row[26] ?? 0),
-            'booking_status' => $row[27] ? trim($row[27]) : null,
-            'payment_status' => $row[28] ? trim($row[28]) : null,
-            'payment_1_amount' => ! empty($row[29]) ? (float) $row[29] : null,
-            'payment_1_date' => $row[30] ? trim($row[30]) : null,
-            'payment_1_method' => $row[31] ? trim($row[31]) : null,
-            'payment_1_status' => $row[32] ? trim($row[32]) : null,
-            'payment_2_amount' => ! empty($row[33]) ? (float) $row[33] : null,
-            'payment_2_date' => $row[34] ? trim($row[34]) : null,
-            'payment_2_method' => $row[35] ? trim($row[35]) : null,
-            'payment_2_status' => $row[36] ? trim($row[36]) : null,
-            'internal_notes' => $row[37] ? trim($row[37]) : null,
+            'guest_name' => $row[2] ? trim($row[2]) : null,
+            'guest_email' => $row[3] ? trim($row[3]) : null,
+            'guest_phone' => $row[4] ? trim($row[4]) : null,
+            'guest_country' => $row[5] ? trim($row[5]) : null,
+            'guest_gender' => $row[6] ? trim($row[6]) : null,
+            'guest_male' => ! empty($row[7]) ? (int) $row[7] : 0,
+            'guest_female' => ! empty($row[8]) ? (int) $row[8] : 0,
+            'guest_children' => ! empty($row[9]) ? (int) $row[9] : 0,
+            'check_in' => $checkIn,
+            'check_out' => $checkOut,
+            'jumlah_extra_bed' => $extraBedInput,
+            'extra_bed_count' => $totalExtraBedCount,
+            'extra_bed_amount' => $totalExtraBedAmount,
+            'base_amount' => $baseAmount,
+            'total_amount' => $totalAmount,
+            'dp_percentage' => $dpPercentage,
+            'dp_amount' => $p1Amount,
+            'remaining_amount' => max(0.0, $totalAmount - $p1Amount),
+            'booking_status' => $bookingStatus,
+            'payment_status' => $paymentStatus,
+            'payment_1_amount' => $p1Amount ?: null,
+            'payment_1_date' => $row[15] ? trim($row[15]) : null,
+            'payment_1_bank' => $row[16] ? trim($row[16]) : null,
+            'payment_1_no_rekening' => $row[17] ? trim($row[17]) : null,
+            'payment_2_amount' => $p2Amount ?: null,
+            'payment_2_date' => $row[19] ? trim($row[19]) : null,
+            'payment_2_bank' => $row[20] ? trim($row[20]) : null,
+            'payment_2_no_rekening' => $row[21] ? trim($row[21]) : null,
+            'internal_notes' => $row[23] ? trim($row[23]) : null,
+            'closed_by' => $row[24] ? trim($row[24]) : null,
+            'followed_up_by' => $row[25] ? trim($row[25]) : null,
         ];
     }
 
@@ -1696,6 +1742,16 @@ class BookingManagementController extends Controller
         $p1 = $verifiedPayments[0] ?? null;
         $p2 = $verifiedPayments[1] ?? null;
 
+        $dailyExtraBeds = $booking->dailyRevenues->sortBy('tanggal')->pluck('extra_bed_count')->toArray();
+        $uniqueCounts = array_unique($dailyExtraBeds);
+        if (count($uniqueCounts) === 1) {
+            $jumlahExtraBed = (string) reset($uniqueCounts);
+        } elseif (count($dailyExtraBeds) > 0) {
+            $jumlahExtraBed = implode('|', $dailyExtraBeds);
+        } else {
+            $jumlahExtraBed = '0';
+        }
+
         return [
             'booking_number' => $booking->booking_number,
             'property_id' => $booking->property_id,
@@ -1704,20 +1760,16 @@ class BookingManagementController extends Controller
             'guest_email' => $booking->guest_email,
             'guest_phone' => $booking->guest_phone,
             'guest_country' => $booking->guest_country,
-            'guest_id_number' => $booking->guest_id_number,
             'guest_gender' => $booking->guest_gender,
             'guest_male' => $booking->guest_male,
             'guest_female' => $booking->guest_female,
             'guest_children' => $booking->guest_children,
-            'relationship_type' => $booking->relationship_type,
             'check_in' => $booking->check_in instanceof \DateTimeInterface ? $booking->check_in->format('Y-m-d') : $booking->check_in,
-            'check_in_time' => $booking->check_in_time,
             'check_out' => $booking->check_out instanceof \DateTimeInterface ? $booking->check_out->format('Y-m-d') : $booking->check_out,
-            'nights' => $booking->nights,
-            'base_amount' => (float) $booking->base_amount,
+            'jumlah_extra_bed' => $jumlahExtraBed,
+            'extra_bed_count' => $booking->extra_bed_count,
             'extra_bed_amount' => (float) $booking->extra_bed_amount,
-            'service_amount' => (float) ($booking->service_amount ?? 0),
-            'tax_amount' => (float) ($booking->tax_amount ?? 0),
+            'base_amount' => (float) $booking->base_amount,
             'total_amount' => (float) $booking->total_amount,
             'dp_percentage' => $booking->dp_percentage,
             'dp_amount' => (float) $booking->dp_amount,
@@ -1726,14 +1778,15 @@ class BookingManagementController extends Controller
             'payment_status' => $booking->payment_status,
             'payment_1_amount' => $p1 ? (float) $p1->amount : null,
             'payment_1_date' => $p1 ? $p1->payment_date->format('Y-m-d') : null,
-            'payment_1_method' => $p1 ? $p1->paymentMethod?->name : null,
-            'payment_1_status' => $p1 ? $p1->payment_status : null,
+            'payment_1_bank' => $p1 ? $p1->bank_name : null,
+            'payment_1_no_rekening' => $p1 ? $p1->account_number : null,
             'payment_2_amount' => $p2 ? (float) $p2->amount : null,
             'payment_2_date' => $p2 ? $p2->payment_date->format('Y-m-d') : null,
-            'payment_2_method' => $p2 ? $p2->paymentMethod?->name : null,
-            'payment_2_status' => $p2 ? $p2->payment_status : null,
-            'special_requests' => $booking->special_requests,
+            'payment_2_bank' => $p2 ? $p2->bank_name : null,
+            'payment_2_no_rekening' => $p2 ? $p2->account_number : null,
             'internal_notes' => $booking->internal_notes,
+            'closed_by' => $booking->closedBy ? $booking->closedBy->name : null,
+            'followed_up_by' => $booking->followedUpBy ? $booking->followedUpBy->name : null,
         ];
     }
 
@@ -1747,14 +1800,12 @@ class BookingManagementController extends Controller
 
         $fieldsToCompare = [
             'guest_name', 'guest_email', 'guest_phone', 'guest_country',
-            'guest_id_number', 'guest_gender', 'guest_male', 'guest_female',
-            'guest_children', 'relationship_type', 'check_in', 'check_in_time',
-            'check_out', 'nights', 'base_amount', 'extra_bed_amount',
-            'service_amount', 'tax_amount', 'total_amount', 'dp_percentage',
+            'guest_gender', 'guest_male', 'guest_female', 'guest_children',
+            'check_in', 'check_out', 'jumlah_extra_bed', 'total_amount',
             'booking_status', 'payment_status',
-            'payment_1_amount', 'payment_1_date', 'payment_1_method', 'payment_1_status',
-            'payment_2_amount', 'payment_2_date', 'payment_2_method', 'payment_2_status',
-            'special_requests', 'internal_notes',
+            'payment_1_amount', 'payment_1_date', 'payment_1_bank', 'payment_1_no_rekening',
+            'payment_2_amount', 'payment_2_date', 'payment_2_bank', 'payment_2_no_rekening',
+            'internal_notes', 'closed_by', 'followed_up_by',
         ];
 
         foreach ($fieldsToCompare as $field) {
