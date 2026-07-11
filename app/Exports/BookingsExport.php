@@ -37,6 +37,8 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
 
     protected $paymentMethods;
 
+    protected $paymentMethodsDetails;
+
     protected $users; // Added users for Created By dropdown
 
     protected $dpPercentages; // Added DP percentages
@@ -63,7 +65,8 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
         $this->paymentStatuses = ['dp_pending', 'dp_received', 'fully_paid'];
 
         // Get active payment methods
-        $this->paymentMethods = PaymentMethod::active()->pluck('name')->toArray();
+        $this->paymentMethodsDetails = PaymentMethod::active()->get();
+        $this->paymentMethods = $this->paymentMethodsDetails->pluck('name')->toArray();
 
         // Get all users except guests for Created By dropdown
         $this->users = User::where('role', '!=', 'guest')->pluck('name')->toArray();
@@ -161,6 +164,12 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
         $p1 = $verifiedPayments[0] ?? null;
         $p2 = $verifiedPayments[1] ?? null;
 
+        $pmCount = count($this->paymentMethods);
+        $pmLookupRange = '$BC$2:$BF$'.($pmCount + 1);
+
+        $p1AccountFormula = "=IFERROR(VLOOKUP(INDIRECT(\"Q\"&ROW()), $pmLookupRange, 4, FALSE), \"\")";
+        $p2AccountFormula = "=IFERROR(VLOOKUP(INDIRECT(\"U\"&ROW()), $pmLookupRange, 4, FALSE), \"\")";
+
         return [
             $booking->booking_number,
             $property ? $property->name : 'N/A',
@@ -179,11 +188,11 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
             $p1 ? (float) $p1->amount : '',
             $p1 ? $p1->payment_date->format('d/m/Y') : '',
             $p1 ? $p1->bank_name : '',
-            $p1 ? $p1->account_number : '',
+            $p1AccountFormula,
             $p2 ? (float) $p2->amount : '',
             $p2 ? $p2->payment_date->format('d/m/Y') : '',
             $p2 ? $p2->bank_name : '',
-            $p2 ? $p2->account_number : '',
+            $p2AccountFormula,
             $booking->booking_status ?? '',
             $booking->internal_notes ?? '',
             $booking->closedBy ? $booking->closedBy->name : 'N/A',
@@ -208,10 +217,11 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
                 }
 
                 // Populate hidden payment methods for dropdown
-                // Column: BC
+                // Column: BC (Name), BF (Account Number)
                 $row = 2;
-                foreach ($this->paymentMethods as $method) {
-                    $sheet->setCellValue("BC{$row}", $method);
+                foreach ($this->paymentMethodsDetails as $method) {
+                    $sheet->setCellValue("BC{$row}", $method->name);
+                    $sheet->setCellValue("BF{$row}", $method->account_number ?? '');
                     $row++;
                 }
 
@@ -238,6 +248,7 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
                 $sheet->getDelegate()->getColumnDimension('BC')->setVisible(false);
                 $sheet->getDelegate()->getColumnDimension('BD')->setVisible(false);
                 $sheet->getDelegate()->getColumnDimension('BE')->setVisible(false);
+                $sheet->getDelegate()->getColumnDimension('BF')->setVisible(false);
             },
         ];
     }
