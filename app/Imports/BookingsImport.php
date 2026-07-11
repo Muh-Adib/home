@@ -2,27 +2,32 @@
 
 namespace App\Imports;
 
+use App\Domain\Booking\ValueObjects\BookingRequest;
 use App\Models\Booking;
+use App\Models\BookingDailyRevenue;
+use App\Models\Payment;
+use App\Models\PaymentMethod;
 use App\Models\Property;
 use App\Models\User;
 use App\Services\BookingService;
-use App\Domain\Booking\ValueObjects\BookingRequest;
-use Maatwebsite\Excel\Concerns\OnEachRow;
-use Maatwebsite\Excel\Row;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Maatwebsite\Excel\Concerns\WithValidation;
-use Maatwebsite\Excel\Concerns\SkipsOnError;
-use Maatwebsite\Excel\Concerns\SkipsErrors;
+use App\Services\PaymentIncomeSyncService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
+use Maatwebsite\Excel\Concerns\OnEachRow;
+use Maatwebsite\Excel\Concerns\SkipsErrors;
+use Maatwebsite\Excel\Concerns\SkipsOnError;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\WithValidation;
+use Maatwebsite\Excel\Row;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 
-class BookingsImport implements OnEachRow, WithHeadingRow, WithValidation, SkipsOnError
+class BookingsImport implements OnEachRow, SkipsOnError, WithHeadingRow, WithValidation
 {
     use SkipsErrors;
 
     protected $acceptedRows;
+
     protected $importedCount = 0;
 
     public function __construct(array $acceptedRows = [])
@@ -42,23 +47,25 @@ class BookingsImport implements OnEachRow, WithHeadingRow, WithValidation, Skips
         $rowArray = $row->toArray();
 
         // If acceptedRows is specified, only process those rows
-        if (!empty($this->acceptedRows)) {
+        if (! empty($this->acceptedRows)) {
             // We rely on the Excel row index which matches the preview logic ($index + 2)
             // We cast to int to ensure type matching
-            if (!in_array((int)$rowIndex, array_map('intval', $this->acceptedRows))) {
+            if (! in_array((int) $rowIndex, array_map('intval', $this->acceptedRows))) {
                 \Log::info("Skipping row $rowIndex (not in acceptedRows)");
+
                 return;
             }
         }
-        
+
         \Log::info("Processing row $rowIndex");
 
         try {
             // Find property by name
             $property = Property::where('name', $rowArray['property_name'])->first();
-            
-            if (!$property) {
-                \Log::warning("Row $rowIndex: Property not found: " . ($rowArray['property_name'] ?? 'null'));
+
+            if (! $property) {
+                \Log::warning("Row $rowIndex: Property not found: ".($rowArray['property_name'] ?? 'null'));
+
                 return;
             }
 
@@ -71,7 +78,7 @@ class BookingsImport implements OnEachRow, WithHeadingRow, WithValidation, Skips
 
             // Ensure guest user exists
             $guestUser = User::where('email', $rowArray['guest_email'])->first();
-            if (!$guestUser) {
+            if (! $guestUser) {
                 $guestUser = User::create([
                     'name' => $rowArray['guest_name'],
                     'email' => $rowArray['guest_email'],
@@ -92,7 +99,7 @@ class BookingsImport implements OnEachRow, WithHeadingRow, WithValidation, Skips
             $guestChildren = (int) ($rowArray['guest_children'] ?? 0);
             // Apply conditional logic: if capacity < capacity_max, children count as floor(children/2)
             if ($property->capacity < $property->capacity_max) {
-                $guestCount = $guestMale + $guestFemale + (int)floor($guestChildren / 2);
+                $guestCount = $guestMale + $guestFemale + (int) floor($guestChildren / 2);
             } else {
                 $guestCount = $guestMale + $guestFemale + $guestChildren;
             }
@@ -111,6 +118,7 @@ class BookingsImport implements OnEachRow, WithHeadingRow, WithValidation, Skips
                 guestName: $rowArray['guest_name'],
                 guestEmail: $rowArray['guest_email'],
                 guestPhone: $rowArray['guest_phone'] ?? '6281234567890',
+                guestPhoneAlternative: null,
                 guestCountry: $rowArray['guest_country'] ?? 'Indonesia',
                 guestIdNumber: $rowArray['guest_id_number'] ?? null,
                 guestGender: $rowArray['guest_gender'] ?? 'male',
@@ -137,31 +145,54 @@ class BookingsImport implements OnEachRow, WithHeadingRow, WithValidation, Skips
                 $booking = $existingBooking->refresh();
             } else {
                 // Create new booking
-                // Use guestUser as the creator context for the service if needed, or currentUser.
-                // User corrected this to use guestUser in previous step, but let's stick to what works.
-                // Actually, createBooking 2nd arg is 'user' (creator/guest context).
-                // Usually it's the guest user for the booking.
                 $booking = $bookingService->createBooking($bookingRequest, $guestUser);
-                
-                // If we have a specific booking number from import, enforce it
-                //if ($bookingNumber && $booking->booking_number !== $bookingNumber) {
-                //    $booking->booking_number = $bookingNumber;
-                //    $booking->save();
-                //}
             }
 
-            // Ensure created_by is set correctly
-            // Logic: Find user by name from 'created_by' column (excluding guests).
-            // If found, use that ID. If not, use current user ID.
-            // Force rewrite created_by
+            // Force override specific attributes from Excel
+            if ($bookingNumber) {
+                $booking->booking_number = $bookingNumber;
+            }
+            if (isset($rowArray['base_amount'])) {
+                $booking->base_amount = (int) $rowArray['base_amount'];
+            }
+            if (isset($rowArray['extra_bed_amount'])) {
+                $booking->extra_bed_amount = (int) $rowArray['extra_bed_amount'];
+            }
+            if (isset($rowArray['service_amount'])) {
+                $booking->service_amount = (int) $rowArray['service_amount'];
+            }
+            if (isset($rowArray['tax_amount'])) {
+                $booking->tax_amount = (int) $rowArray['tax_amount'];
+            }
+            if (isset($rowArray['total_amount'])) {
+                $booking->total_amount = (int) $rowArray['total_amount'];
+            }
+            if (isset($rowArray['dp_percentage'])) {
+                $booking->dp_percentage = (int) $rowArray['dp_percentage'];
+            }
+            if (isset($rowArray['dp_amount'])) {
+                $booking->dp_amount = (int) $rowArray['dp_amount'];
+            }
+            if (isset($rowArray['remaining_amount'])) {
+                $booking->remaining_amount = (int) $rowArray['remaining_amount'];
+            }
+            if (isset($rowArray['booking_status'])) {
+                $booking->booking_status = $rowArray['booking_status'];
+            }
+            if (isset($rowArray['payment_status'])) {
+                $booking->payment_status = $rowArray['payment_status'];
+            }
+            if (isset($rowArray['internal_notes'])) {
+                $booking->internal_notes = $rowArray['internal_notes'];
+            }
 
+            // Enforce creator
             $createdByName = $rowArray['created_by'] ?? null;
             $creatorId = $currentUser->id;
             if ($createdByName) {
                 $creator = User::where('name', $createdByName)
                     ->where('role', '!=', 'guest')
                     ->first();
-                
                 if ($creator) {
                     $creatorId = $creator->id;
                 }
@@ -169,65 +200,127 @@ class BookingsImport implements OnEachRow, WithHeadingRow, WithValidation, Skips
             $booking->created_by = $creatorId;
             $booking->save();
 
+            // Recreate daily revenues with imported amounts
+            $this->syncDailyRevenues($booking, $rowArray);
 
-            // Handle Payment Creation hanya buat payment jika tidak ada [payment]
+            // Handle Payment Creation
             $paymentMethodName = $rowArray['payment_method'] ?? null;
             if ($paymentMethodName) {
-                $paymentMethod = \App\Models\PaymentMethod::where('name', $paymentMethodName)->first();
-                
-                if ($paymentMethod) {
-                    // Determine amount and status based on booking payment status
-                    $amount = 0;
-                    $paymentStatus = 'pending';
-                    $paymentType = 'dp'; // Default
+                $paymentMethod = PaymentMethod::where('name', $paymentMethodName)->first();
 
+                if ($paymentMethod) {
+                    $targetVerifiedAmount = 0;
                     if ($booking->payment_status === 'fully_paid') {
-                        $amount = $booking->total_amount;
-                        $paymentStatus = 'verified';
-                        $paymentType = 'full';
+                        $targetVerifiedAmount = (int) $booking->total_amount;
                     } elseif ($booking->payment_status === 'dp_received' || $booking->payment_status === 'dp_paid') {
-                        $amount = $booking->dp_amount;
-                        $paymentStatus = 'verified';
-                        $paymentType = 'dp';
-                    } elseif ($booking->payment_status === 'dp_pending') {
-                         $amount = $booking->dp_amount;
-                         $paymentStatus = 'pending';
-                         $paymentType = 'dp';
+                        $targetVerifiedAmount = (int) $booking->dp_amount;
                     }
-                    
-                    // Only create payment if amount > 0 and no existing payments (to avoid duplicates on re-import)
-                    // Or if it's a new booking
-                    if ($amount > 0 && $booking->payments()->count() === 0) {
-                         $payment = $booking->payments()->create([
-                            'payment_number' => \App\Models\Payment::generatePaymentNumber(),
+
+                    $existingVerifiedAmount = (int) $booking->payments()
+                        ->where('payment_status', 'verified')
+                        ->sum('amount');
+
+                    $deficit = $targetVerifiedAmount - $existingVerifiedAmount;
+
+                    if ($deficit > 0) {
+                        $payment = $booking->payments()->create([
+                            'payment_number' => Payment::generatePaymentNumber(),
                             'payment_method_id' => $paymentMethod->id,
-                            'amount' => $amount,
-                            'payment_type' => $paymentType,
-                            'payment_method' => $paymentMethod->type, // 'transfer', 'cash', etc.
-                            'payment_status' => $paymentStatus,
+                            'amount' => $deficit,
+                            'payment_type' => $existingVerifiedAmount > 0 ? 'remaining' : ($booking->payment_status === 'fully_paid' ? 'full' : 'dp'),
+                            'payment_method' => $paymentMethod->type,
+                            'payment_status' => 'verified',
                             'payment_date' => now(),
                             'bank_name' => $paymentMethod->bank_name,
                             'processed_by' => $currentUser->id,
-                            'verified_by' => $paymentStatus === 'verified' ? $currentUser->id : null,
-                            'verified_at' => $paymentStatus === 'verified' ? now() : null,
+                            'verified_by' => $currentUser->id,
+                            'verified_at' => now(),
                         ]);
-                        
-                        // Sync income if verified
-                        if ($paymentStatus === 'verified') {
-                            // Use fully qualified class name or import it
-                            app(\App\Services\PaymentIncomeSyncService::class)->syncOnVerified($payment);
-                        }
+
+                        app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
+                    } elseif ($booking->payment_status === 'dp_pending' && $booking->payments()->count() === 0) {
+                        $booking->payments()->create([
+                            'payment_number' => Payment::generatePaymentNumber(),
+                            'payment_method_id' => $paymentMethod->id,
+                            'amount' => (int) $booking->dp_amount,
+                            'payment_type' => 'dp',
+                            'payment_method' => $paymentMethod->type,
+                            'payment_status' => 'pending',
+                            'payment_date' => now(),
+                            'bank_name' => $paymentMethod->bank_name,
+                            'processed_by' => $currentUser->id,
+                        ]);
                     }
                 }
             }
 
+            // Always update payment status to recalculate paid/remaining fields
+            $booking->updatePaymentStatus(true);
+
             $this->importedCount++;
-        } catch (\Exception $e) {
-            \Log::error("Error importing row $rowIndex: " . $e->getMessage(), [
+        } catch (\Throwable $e) {
+            \Log::error("Error importing row $rowIndex: ".$e->getMessage(), [
                 'row_data' => $rowArray,
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
         }
+    }
+
+    /**
+     * Recreate daily revenues for imported bookings
+     */
+    protected function syncDailyRevenues(Booking $booking, array $rowArray): void
+    {
+        BookingDailyRevenue::where('booking_id', $booking->id)->delete();
+
+        $checkIn = Carbon::parse($booking->check_in);
+        $checkOut = Carbon::parse($booking->check_out);
+        $nights = $checkIn->diffInDays($checkOut);
+
+        if ($nights <= 0) {
+            return;
+        }
+
+        $baseAmount = (int) ($rowArray['base_amount'] ?? $booking->base_amount ?? 0);
+        $extraBedAmount = (int) ($rowArray['extra_bed_amount'] ?? $booking->extra_bed_amount ?? 0);
+        $discountAmount = (int) ($rowArray['discount_amount'] ?? $booking->discount_amount ?? 0);
+
+        $dailyBase = (int) floor($baseAmount / $nights);
+        $dailyExtra = (int) floor($extraBedAmount / $nights);
+        $dailyDiscount = (int) floor($discountAmount / $nights);
+
+        $remainderBase = $baseAmount % $nights;
+        $remainderExtra = $extraBedAmount % $nights;
+        $remainderDiscount = $discountAmount % $nights;
+
+        $revenueData = [];
+
+        for ($i = 0; $i < $nights; $i++) {
+            $date = $checkIn->copy()->addDays($i);
+            $curBase = $dailyBase + ($i < $remainderBase ? 1 : 0);
+            $curExtra = $dailyExtra + ($i < $remainderExtra ? 1 : 0);
+            $curDiscount = $dailyDiscount + ($i < $remainderDiscount ? 1 : 0);
+            $curAmount = $curBase + $curExtra - $curDiscount;
+
+            $revenueData[] = [
+                'booking_id' => $booking->id,
+                'property_id' => $booking->property_id,
+                'tanggal' => $date->format('Y-m-d'),
+                'amount' => $curAmount,
+                'base_amount' => $curBase,
+                'extra_bed_amount' => $curExtra,
+                'extra_bed_count' => (int) (($booking->extra_bed_count ?? 0) / $nights),
+                'weekend_premium' => 0,
+                'seasonal_premium' => 0,
+                'rate_type' => 'imported',
+                'rate_name' => 'Imported Rate',
+                'is_weekend' => $date->isWeekend(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        BookingDailyRevenue::insert($revenueData);
     }
 
     /**
@@ -237,7 +330,7 @@ class BookingsImport implements OnEachRow, WithHeadingRow, WithValidation, Skips
     {
         $prefix = 'BK';
         $date = now()->format('Ymd');
-        
+
         // Get last booking number for today
         $lastBooking = Booking::where('booking_number', 'LIKE', "{$prefix}-{$date}-%")
             ->orderBy('booking_number', 'desc')
@@ -267,6 +360,7 @@ class BookingsImport implements OnEachRow, WithHeadingRow, WithValidation, Skips
         if (is_numeric($dateValue)) {
             try {
                 $date = Date::excelToDateTimeObject($dateValue);
+
                 return Carbon::instance($date);
             } catch (\Exception $e) {
                 \Log::warning("Failed to parse Excel date serial: $dateValue");
