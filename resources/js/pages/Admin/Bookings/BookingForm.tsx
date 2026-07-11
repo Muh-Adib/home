@@ -1108,7 +1108,7 @@ export default function BookingForm({
                                 </div>
                                 <div>
                                     <Label htmlFor="followed_up_by">Follow-Up Awal Oleh *</Label>
-                                    <Select value={data.followed_up_by} onValueChange={v => setData('followed_up_by', v)}>
+                                    <Select value={data.followed_up_by} onValueChange={v => setData('followed_up_by', v)} disabled={auth?.user?.role === 'front_desk'}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Pilih Staf" />
                                         </SelectTrigger>
@@ -1161,7 +1161,7 @@ export default function BookingForm({
                                     </div>
                                     <div>
                                         <Label htmlFor="followed_up_by">Follow-Up Awal Oleh *</Label>
-                                        <Select value={data.followed_up_by} onValueChange={v => setData('followed_up_by', v)}>
+                                        <Select value={data.followed_up_by} onValueChange={v => setData('followed_up_by', v)} disabled={auth?.user?.role === 'front_desk'}>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Pilih Staf" />
                                             </SelectTrigger>

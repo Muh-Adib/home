@@ -44,12 +44,13 @@ import {
     Eye,
     AlertCircle,
     Plus,
+    Edit,
     ChevronDown,
     FileDown,
     Star,
     ThumbsUp
 } from "lucide-react";
-import { Link, router } from "@inertiajs/react";
+import { Link, router, usePage } from "@inertiajs/react";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPostForm } from "@/lib/api";
@@ -128,6 +129,9 @@ export default function BookingDetailModal({
     onBookingUpdated?: (booking: Booking) => void;
 }) {
     if (!booking) return null;
+
+    const { auth } = usePage().props as any;
+    const userRole = auth?.user?.role;
 
     const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
     const [bankAccounts, setBankAccounts] = useState<any[]>([]);
@@ -395,7 +399,11 @@ export default function BookingDetailModal({
     const getWhatsAppTemplateMessage = (templateKey: string): string => {
         const link = `${window.location.origin}/booking/${booking.booking_number}/payment`;
         const reviewLink = `${window.location.origin}/booking/${booking.booking_number}/payment?payment_token=${booking.payment_token}`;
-        const guestsDetail = `${booking.guest_count} Orang${booking.extra_bed_count ? ` + ${booking.extra_bed_count} Extra Bed` : ''}`;
+        const guestsDetail = `${booking.guest_count} Orang${
+            (booking.guest_male || booking.guest_female || booking.guest_children)
+                ? ` (Pria: ${booking.guest_male || 0}, Wanita: ${booking.guest_female || 0}, Anak <10th: ${booking.guest_children || 0})`
+                : ''
+        }${booking.extra_bed_count ? ` + ${booking.extra_bed_count} Extra Bed` : ''}`;
 
         switch (templateKey) {
             case 'billing_dp':
@@ -1298,6 +1306,14 @@ export default function BookingDetailModal({
                                 <Eye className="w-4 h-4 mr-2" /> Full Details
                             </a>
                         </Button>
+
+                        {['super_admin', 'property_manager', 'front_desk'].includes(userRole) && (
+                            <Button variant="outline" asChild size="sm" className="w-full sm:w-auto">
+                                <Link href={`/admin/bookings/${booking.booking_number}/edit`} className="justify-center text-blue-600 hover:text-blue-700">
+                                    <Edit className="w-4 h-4 mr-2" /> Edit Booking
+                                </Link>
+                            </Button>
+                        )}
 
                         <div className="flex gap-0 w-full sm:w-auto">
                             <Button variant="outline" size="sm" onClick={copyPaymentLink} className="flex-1 justify-center rounded-r-none border-r-0">
