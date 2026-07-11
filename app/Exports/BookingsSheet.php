@@ -132,15 +132,6 @@ class BookingsSheet implements FromQuery, WithColumnWidths, WithEvents, WithHead
         $p1 = $verifiedPayments[0] ?? null;
         $p2 = $verifiedPayments[1] ?? null;
 
-        $this->currentRow++;
-        $rowNum = $this->currentRow;
-
-        // Lookup range refers to Lookups sheet (Columns D and E are payment method and account number)
-        $pmLookupRange = 'Lookups!$D$2:$E$'.($this->paymentMethodsCount + 1);
-
-        $p1AccountFormula = "=IFERROR(VLOOKUP(Q{$rowNum}, {$pmLookupRange}, 2, FALSE), \"\")";
-        $p2AccountFormula = "=IFERROR(VLOOKUP(U{$rowNum}, {$pmLookupRange}, 2, FALSE), \"\")";
-
         return [
             $booking->booking_number,
             $property ? $property->name : 'N/A',
@@ -159,11 +150,11 @@ class BookingsSheet implements FromQuery, WithColumnWidths, WithEvents, WithHead
             $p1 ? (float) $p1->amount : '',
             $p1 ? $p1->payment_date->format('d/m/Y') : '',
             $p1 ? $p1->bank_name : '',
-            $p1AccountFormula,
+            $p1 ? $p1->account_number : '',
             $p2 ? (float) $p2->amount : '',
             $p2 ? $p2->payment_date->format('d/m/Y') : '',
             $p2 ? $p2->bank_name : '',
-            $p2AccountFormula,
+            $p2 ? $p2->account_number : '',
             $booking->booking_status ?? '',
             $booking->internal_notes ?? '',
             $booking->closedBy ? $booking->closedBy->name : 'N/A',
@@ -275,6 +266,23 @@ class BookingsSheet implements FromQuery, WithColumnWidths, WithEvents, WithHead
                 $validation->setErrorTitle('Invalid Bank');
                 $validation->setError('Please select a bank from the list');
                 $validation->setFormula1($pmLookup);
+            }
+        }
+
+        // Add data validation for Payment 1 No Rekening column (R) and Payment 2 No Rekening column (V) from Lookups sheet
+        $accLookup = '=Lookups!$E$2:$E$'.($this->paymentMethodsCount + 1);
+        for ($row = 2; $row <= $highestRow; $row++) {
+            foreach (['R', 'V'] as $col) {
+                $validation = $sheet->getCell("{$col}{$row}")->getDataValidation();
+                $validation->setType(DataValidation::TYPE_LIST);
+                $validation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+                $validation->setAllowBlank(true);
+                $validation->setShowInputMessage(true);
+                $validation->setShowErrorMessage(true);
+                $validation->setShowDropDown(true);
+                $validation->setErrorTitle('Invalid Account Number');
+                $validation->setError('Please select an account number from the list');
+                $validation->setFormula1($accLookup);
             }
         }
 
