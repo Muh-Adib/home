@@ -144,6 +144,31 @@ export default function BookingDetailModal({
     const [paymentNotes, setPaymentNotes] = useState<string>('');
     const [proofOfPayment, setProofOfPayment] = useState<File | null>(null);
     const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
+    const [selectedTemplate, setSelectedTemplate] = useState<string>('billing_dp');
+
+    useEffect(() => {
+        if (booking) {
+            if (booking.booking_status === 'checked_out') {
+                setSelectedTemplate('review');
+            } else if (booking.booking_status === 'checked_in') {
+                const todayStr = new Date().toISOString().split('T')[0];
+                if (booking.check_out === todayStr) {
+                    setSelectedTemplate('check_out');
+                } else {
+                    setSelectedTemplate('during_stay');
+                }
+            } else {
+                const todayStr = new Date().toISOString().split('T')[0];
+                if (booking.check_in === todayStr) {
+                    setSelectedTemplate('check_in');
+                } else if (verifiedPaymentsSum === 0) {
+                    setSelectedTemplate('billing_dp');
+                } else {
+                    setSelectedTemplate('billing_remaining');
+                }
+            }
+        }
+    }, [booking, verifiedPaymentsSum, remainingAmount]);
 
     // --- Review state (admin) ---
     const [showReviewEdit, setShowReviewEdit] = useState(false);
@@ -344,11 +369,56 @@ export default function BookingDetailModal({
         toast.success('Link pembayaran disalin ke clipboard!');
     };
 
-    const copyWhatsAppMessage = () => {
+    const formatTimeHelper = (timeStr?: string) => {
+        if (!timeStr) return '';
+        const parts = timeStr.split(':');
+        if (parts.length >= 2) {
+            return `${parts[0]}:${parts[1]}`;
+        }
+        return timeStr;
+    };
+
+    const getWhatsAppTemplateMessage = (templateKey: string): string => {
         const link = `${window.location.origin}/booking/${booking.booking_number}/payment`;
-        const message = `Halo ${booking.guest_name},\n\nTerima kasih telah memesan di homsjogja.com untuk unit *${booking.property?.name}*.\n\nSilakan selesaikan pembayaran Anda sebesar *${formatCurrency(remainingAmount)}* melalui link pembayaran berikut:\n${link}\n\nTerima kasih!`;
+        const reviewLink = `${window.location.origin}/booking/${booking.booking_number}/payment?payment_token=${booking.payment_token}`;
+
+        switch (templateKey) {
+            case 'billing_dp':
+                const dpAmt = booking.dp_amount || (booking.total_amount * 0.5);
+                return `Halo ${booking.guest_name},\n\nTerima kasih telah memesan di homsjogja.com untuk unit *${booking.property?.name}*.\n\nSilakan selesaikan pembayaran DP Anda sebesar *${formatCurrency(dpAmt)}* melalui link pembayaran berikut:\n${link}\n\nTerima kasih!`;
+            
+            case 'billing_remaining':
+                return `Halo ${booking.guest_name},\n\nBerikut tagihan pelunasan untuk pemesanan unit *${booking.property?.name}* sebesar *${formatCurrency(remainingAmount)}* melalui link pembayaran berikut:\n${link}\n\nTerima kasih!`;
+            
+            case 'check_in':
+                return `Halo ${booking.guest_name},\n\nKami menanti kedatangan Anda hari ini di *${booking.property?.name}*.\n\nBerikut petunjuk check-in Anda:\n- Waktu Check-in: Mulai pukul ${formatTimeHelper(booking.property?.check_in_time || '14:00')}\n- Lokasi Maps: ${booking.property?.maps_link || '-'}\n\nJika ada pertanyaan atau kendala selama check-in, silakan hubungi kami di nomor ini. Sampai jumpa!`;
+            
+            case 'during_stay':
+                return `Halo ${booking.guest_name},\n\nBagaimana kenyamanan menginap Anda di *${booking.property?.name}* sejauh ini? Semoga semuanya menyenangkan.\n\nJika ada hal yang memerlukan bantuan kami (kebersihan, amenities, dll.), jangan ragu untuk mengabari kami ya. Selamat menikmati liburan Anda!`;
+            
+            case 'check_out':
+                return `Halo ${booking.guest_name},\n\nMengingatkan kembali bahwa waktu check-out hari ini maksimal pukul ${formatTimeHelper(booking.property?.check_out_time || '12:00')}.\n\nSebelum check-out, mohon kesediaannya untuk mematikan AC & lampu, serta meletakkan kunci di tempat semula. Terima kasih banyak telah menginap bersama kami dan semoga perjalanan Anda menyenangkan!`;
+            
+            case 'review':
+                return `Halo ${booking.guest_name},\n\nTerima kasih banyak telah menginap di *${booking.property?.name}*.\n\nBagaimana pengalaman menginap Anda bersama kami? Kami sangat menghargai jika Anda bersedia memberikan ulasan singkat melalui link berikut:\n${reviewLink}\n\nSemoga kita bisa berjumpa kembali di lain kesempatan!`;
+            
+            default:
+                return '';
+        }
+    };
+
+    const copyWhatsAppMessage = () => {
+        const message = getWhatsAppTemplateMessage(selectedTemplate);
         navigator.clipboard.writeText(message);
         toast.success('Pesan WhatsApp disalin ke clipboard!');
+    };
+
+    const sendWhatsAppMessage = () => {
+        const message = getWhatsAppTemplateMessage(selectedTemplate);
+        navigator.clipboard.writeText(message);
+        toast.success('Pesan disalin & membuka WhatsApp...');
+        const waLink = getWhatsAppLink(booking.guest_phone, message);
+        window.open(waLink, '_blank', 'noopener,noreferrer');
     };
 
     const handleSubmitPayment = async (e: React.FormEvent) => {
@@ -1172,9 +1242,42 @@ export default function BookingDetailModal({
                     </div>
                 )}
 
+                {/* 2.5 WhatsApp Template Utility Panel */}
+                <div className="bg-slate-50 p-3 md:p-4 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">
+                        <MessageSquare className="w-4 h-4 text-green-600" />
+                        <span>Template WhatsApp</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 max-w-2xl justify-end">
+                        <div className="w-full sm:w-64">
+                            <CustomSelect
+                                value={selectedTemplate}
+                                onChange={(val) => setSelectedTemplate(val)}
+                                options={[
+                                    { value: 'billing_dp', label: 'Penagihan DP' },
+                                    { value: 'billing_remaining', label: 'Penagihan Pelunasan' },
+                                    { value: 'check_in', label: 'Petunjuk Check-in' },
+                                    { value: 'during_stay', label: 'Menyapa Tamu (Stay)' },
+                                    { value: 'check_out', label: 'Petunjuk Check-out' },
+                                    { value: 'review', label: 'Permintaan Ulasan (Review)' },
+                                ]}
+                                placeholder="Pilih Template WhatsApp"
+                            />
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                            <Button variant="outline" size="sm" onClick={copyWhatsAppMessage} className="flex-1 sm:flex-none justify-center">
+                                Copy Message
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={sendWhatsAppMessage} className="flex-1 sm:flex-none justify-center bg-emerald-600 hover:bg-emerald-700 text-white hover:text-white border-0 shadow-sm">
+                                Kirim WhatsApp
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
                 {/* 3. Footer Actions */}
                 <div className="bg-white p-3 md:p-4 border-t flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4 shrink-0">
-                    <div className="grid grid-cols-1 xs:grid-cols-3 sm:flex sm:flex-wrap gap-2">
+                    <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:flex-wrap gap-2">
                         <Button variant="outline" asChild size="sm" className="w-full sm:w-auto">
                             <a href={detailLink} target="_blank" rel="noopener noreferrer" className="justify-center">
                                 <Eye className="w-4 h-4 mr-2" /> Full Details
@@ -1191,10 +1294,6 @@ export default function BookingDetailModal({
                                 </a>
                             </Button>
                         </div>
-
-                        <Button variant="outline" size="sm" onClick={copyWhatsAppMessage} className="w-full sm:w-auto justify-center">
-                            <MessageSquare className="w-4 h-4 mr-2 text-green-600" /> Copy WA Message
-                        </Button>
                     </div>
 
                     <div className="grid grid-cols-2 sm:flex gap-2">
