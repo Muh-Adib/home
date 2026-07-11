@@ -5,6 +5,7 @@ import { PropertyOverview } from './PropertyOverview';
 import { PropertyAmenities } from './PropertyAmenities';
 import { PropertyPolicies } from './PropertyPolicies';
 import { PropertyLocation } from './PropertyLocation';
+import { PropertyReviews } from './PropertyReviews';
 import { PropertyWithDetails } from '@/types/property';
 
 interface PropertyTabsProps {
@@ -18,11 +19,12 @@ export const PropertyTabs: React.FC<PropertyTabsProps> = ({ property, formatTime
   return (
     <Tabs defaultValue="overview" className="w-full">
       <div className="overflow-x-auto">
-        <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 rounded-lg min-w-max">
+        <TabsList className="grid w-full grid-cols-5 bg-muted/50 p-1 rounded-lg min-w-max">
           <TabsTrigger value="overview" className="data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-md text-xs sm:text-sm">{t('properties.overview')}</TabsTrigger>
           <TabsTrigger value="amenities" className="data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-md text-xs sm:text-sm">{t('properties.amenities')}</TabsTrigger>
           <TabsTrigger value="policies" className="data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-md text-xs sm:text-sm">{t('properties.policies')}</TabsTrigger>
           <TabsTrigger value="location" className="data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-md text-xs sm:text-sm">{t('properties.location')}</TabsTrigger>
+          <TabsTrigger value="reviews" className="data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-md text-xs sm:text-sm">Ulasan ({property.approved_reviews_count || 0})</TabsTrigger>
         </TabsList>
       </div>
       
@@ -40,6 +42,14 @@ export const PropertyTabs: React.FC<PropertyTabsProps> = ({ property, formatTime
 
       <TabsContent value="location">
         <PropertyLocation property={property} />
+      </TabsContent>
+
+      <TabsContent value="reviews">
+        <PropertyReviews
+          reviews={property.approved_reviews}
+          ratingAvg={property.rating_avg}
+          reviewsCount={property.approved_reviews_count}
+        />
       </TabsContent>
     </Tabs>
   );

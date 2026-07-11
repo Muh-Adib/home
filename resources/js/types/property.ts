@@ -60,6 +60,7 @@ export interface Property {
   formatted_current_rate?: string;
   approved_reviews_count?: number;
   rating_avg?: number;
+  approved_reviews?: any[];
   has_seasonal_rate?: boolean;
   seasonal_rate_info?: Array<{
     name: string;
