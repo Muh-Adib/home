@@ -43,6 +43,8 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
 
     protected $dpPercentages; // Added DP percentages
 
+    protected $currentRow = 1;
+
     public function __construct(array $filters = [])
     {
         $this->filters = $filters;
@@ -164,11 +166,14 @@ class BookingsExport implements FromQuery, WithColumnWidths, WithEvents, WithHea
         $p1 = $verifiedPayments[0] ?? null;
         $p2 = $verifiedPayments[1] ?? null;
 
+        $this->currentRow++;
+        $rowNum = $this->currentRow;
+
         $pmCount = count($this->paymentMethods);
         $pmLookupRange = '$BC$2:$BF$'.($pmCount + 1);
 
-        $p1AccountFormula = "=IFERROR(VLOOKUP(INDIRECT(\"Q\"&ROW()), $pmLookupRange, 4, FALSE), \"\")";
-        $p2AccountFormula = "=IFERROR(VLOOKUP(INDIRECT(\"U\"&ROW()), $pmLookupRange, 4, FALSE), \"\")";
+        $p1AccountFormula = "=IFERROR(VLOOKUP(Q{$rowNum}, $pmLookupRange, 4, FALSE), \"\")";
+        $p2AccountFormula = "=IFERROR(VLOOKUP(U{$rowNum}, $pmLookupRange, 4, FALSE), \"\")";
 
         return [
             $booking->booking_number,
