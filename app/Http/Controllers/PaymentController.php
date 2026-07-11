@@ -99,19 +99,27 @@ class PaymentController extends Controller
             $this->authorize('makePayment', $booking);
         }
 
-        // Calculate pending amount
         $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-        $pendingAmount = $booking->total_amount - $paidAmount;
+        $actualRemaining = $booking->total_amount - $paidAmount;
 
-        if ($pendingAmount <= 0) {
+        if ($actualRemaining <= 0) {
             if (Auth::check()) {
                 return redirect()->route('my-bookings')
                     ->with('info', 'This booking has been fully paid.');
             }
-            // Guest tidak di-redirect agar bisa melihat status lunas di halaman ini
+            $pendingAmount = 0;
+        } else {
+            // Determine payment type
+            $paymentType = $paidAmount === 0 ? 'dp' : 'remaining';
+
+            if ($paymentType === 'dp') {
+                $pendingAmount = $booking->dp_amount ?: (int) ($booking->total_amount * (($booking->dp_percentage ?: 50) / 100));
+            } else {
+                $pendingAmount = $actualRemaining;
+            }
         }
 
-        // Determine payment type
+        // Determine payment type (in case it wasn't set because actualRemaining was <= 0)
         $paymentType = $paidAmount === 0 ? 'dp' : 'remaining';
 
         // Calculate nights
@@ -253,7 +261,7 @@ class PaymentController extends Controller
 
             // Calculate paid amount
             $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-            $dpAmount = $booking->dp_amount ?? ($booking->total_amount * 0.3);
+            $dpAmount = $booking->dp_amount ?: (int) ($booking->total_amount * (($booking->dp_percentage ?: 50) / 100));
             $paymentType = ($paidAmount >= $dpAmount) ? 'remaining' : 'dp';
 
             $bankAccount = $booking->property->bankAccount;

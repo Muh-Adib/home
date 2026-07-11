@@ -470,7 +470,7 @@ class BookingApiController extends Controller
                 'account_number' => $validated['account_number'] ?? null,
                 'account_name' => $validated['account_name'] ?? null,
                 'verification_notes' => $validated['notes'] ?? null,
-                'proof_of_payment' => $proofPath,
+                'attachment_path' => $proofPath,
                 'processed_by' => Auth::id(),
                 'verified_by' => $validated['payment_status'] === 'verified' ? Auth::id() : null,
                 'verified_at' => $validated['payment_status'] === 'verified' ? now() : null,

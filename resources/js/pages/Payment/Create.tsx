@@ -423,7 +423,8 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
     const waMessage = encodeURIComponent(
         `Halo Admin Hospitality Homsjogja, saya telah melakukan transfer untuk booking ${booking.booking_number} atas nama ${booking.guest_name} sebesar ${formatCurrency(pendingAmountVal)}. Mohon untuk dicek dan diverifikasi pembayaran saya. Terima kasih.`
     );
-    const waUrl = `https://wa.me/6281138226322?text=${waMessage}`;
+    const waNumber = paymentInfo.paymentType === 'dp' ? '628112500082' : '6281138226322';
+    const waUrl = `https://wa.me/${waNumber}?text=${waMessage}`;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
