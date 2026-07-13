@@ -298,12 +298,13 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
     useEffect(() => {
         if (booking) {
             const propId = booking.property_id || booking.property?.id || '';
-            apiGet<{ success: boolean; payment_methods: any[] }>(`/api/admin/booking-management/payment-methods?property_id=${propId}`)
+            apiGet<{ success: boolean; payment_methods: any[]; preferred_payment_method_id?: string | number }>(`/api/admin/booking-management/payment-methods?property_id=${propId}`)
                 .then(res => {
                     if (res && res.success) {
                         setPaymentMethods(res.payment_methods);
                         if (res.payment_methods.length > 0) {
-                            const preselectedId = booking.property?.payment_method_id || booking.payment_method_id;
+                            const preferredId = res.preferred_payment_method_id;
+                            const preselectedId = preferredId || booking.property?.payment_method_id || booking.payment_method_id;
                             const hasPreselected = preselectedId && res.payment_methods.some(m => m.id.toString() === preselectedId.toString());
                             setPaymentMethodId(hasPreselected ? preselectedId.toString() : res.payment_methods[0].id.toString());
                         }

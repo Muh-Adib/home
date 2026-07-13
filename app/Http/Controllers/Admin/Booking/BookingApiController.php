@@ -527,23 +527,25 @@ class BookingApiController extends Controller
             ->orderBy('sort_order')
             ->get();
 
+        $preferredPaymentMethodId = null;
+
         if ($propertyId) {
             $property = Property::find($propertyId);
             if ($property && $property->bankAccount) {
                 $bankAccount = $property->bankAccount;
-                $methods = $methods->filter(function ($method) use ($bankAccount) {
-                    if ($method->type === 'bank_transfer') {
-                        return $method->code === $bankAccount->bank_code;
+                foreach ($methods as $method) {
+                    if ($method->type === 'bank_transfer' && strtolower((string) $method->code) === strtolower((string) $bankAccount->bank_code)) {
+                        $preferredPaymentMethodId = $method->id;
+                        break;
                     }
-
-                    return true;
-                })->values();
+                }
             }
         }
 
         return response()->json([
             'success' => true,
             'payment_methods' => $methods,
+            'preferred_payment_method_id' => $preferredPaymentMethodId,
         ]);
     }
 
