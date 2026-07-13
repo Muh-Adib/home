@@ -40,6 +40,8 @@ class TimelineBookingResource extends JsonResource
                     'name' => $this->property->name,
                     'capacity' => $this->property->capacity,
                     'base_rate' => $this->property->base_rate,
+                    'payment_method_id' => $this->property->payment_method_id,
+                    'bank_account_id' => $this->property->bank_account_id,
                 ];
             }),
             'payments' => $this->whenLoaded('payments'),

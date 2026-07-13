@@ -99,7 +99,7 @@ class BookingManagementController extends Controller
         $properties = $propertiesQuery->active()->get();
 
         $bookingsQuery = Booking::query()
-            ->with(['property', 'verifiedBy', 'payments', 'services.serviceMaster', 'review', 'createdBy', 'followedUpBy']);
+            ->with(['property:id,name,capacity,base_rate,payment_method_id,bank_account_id', 'verifiedBy', 'payments', 'services.serviceMaster', 'review', 'createdBy', 'followedUpBy']);
 
         // Filter by property if specified
         if ($request->filled('property_id')) {
@@ -291,7 +291,7 @@ class BookingManagementController extends Controller
                 'updated_at',
             ])
             ->with([
-                'property:id,name,capacity,base_rate',
+                'property:id,name,capacity,base_rate,payment_method_id,bank_account_id',
                 'payments:id,booking_id,amount,payment_status,payment_method_id',
             ]);
 

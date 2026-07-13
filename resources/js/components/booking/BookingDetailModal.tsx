@@ -40,14 +40,19 @@ import {
     UserX,
     X,
     XCircle,
+    Upload,
+    Loader2
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-interface Option {
+type Option = {
     value: string;
     label: string;
+    subtitle?: string;
 }
+
+
 
 function CustomSelect({
     value,
@@ -68,9 +73,27 @@ function CustomSelect({
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-900 shadow-sm ring-offset-white focus:ring-2 focus:ring-blue-500 focus:outline-none sm:text-base"
+                className="flex min-h-[52px] w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
-                <span className="truncate pr-2 font-medium">{selectedOption ? selectedOption.label : placeholder}</span>
+                <div className="min-w-0 flex-1 pr-2">
+                    {selectedOption ? (
+                        <div className="flex flex-col text-left">
+                            <span className="truncate font-medium text-slate-900">
+                                {selectedOption.label}
+                            </span>
+
+                            {selectedOption.subtitle && (
+                                <span className="truncate text-xs text-slate-500">
+                                    {selectedOption.subtitle}
+                                </span>
+                            )}
+                        </div>
+                    ) : (
+                        <span className="text-slate-400">
+                            {placeholder}
+                        </span>
+                    )}
+                </div>
                 <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
             </button>
 
@@ -88,7 +111,17 @@ function CustomSelect({
                                 }}
                                 className={`flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm transition-colors duration-150 hover:bg-slate-50 sm:text-base ${value === opt.value ? 'bg-blue-50 font-semibold text-blue-700' : 'text-slate-700'}`}
                             >
-                                <span className="block max-w-[90%] pr-2 text-left leading-snug break-words">{opt.label}</span>
+                                <div className="max-w-[90%] flex-1 pr-2 text-left">
+                                    <div className="font-medium text-slate-900">
+                                        {opt.label}
+                                    </div>
+
+                                    {opt.subtitle && (
+                                        <div className="text-xs text-slate-500">
+                                            {opt.subtitle}
+                                        </div>
+                                    )}
+                                </div>
                                 {value === opt.value && <CheckCircle className="ml-auto h-4 w-4 shrink-0 text-blue-600" />}
                             </button>
                         ))}
@@ -136,6 +169,32 @@ export default function BookingDetailModal({
     const [paymentNotes, setPaymentNotes] = useState<string>('');
     const [proofOfPayment, setProofOfPayment] = useState<File | null>(null);
     const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
+
+    const [showPaymentForm, setShowPaymentForm] = useState(false);
+    const [isCompressing, setIsCompressing] = useState(false);
+
+
+    const formatRupiah = (n: number) =>
+        new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+        }).format(Number(n) || 0);
+
+
+    const resetPaymentForm = () => {
+        setPaymentAmount(0);
+        setPaymentMethodId('');
+        setBankAccountId('');
+        setPaymentBankName('');
+        setPaymentAccountNumber('');
+        setPaymentAccountName('');
+        setPaymentType('dp');
+        setPaymentStatus('verified');
+        setReferenceNumber('');
+        setPaymentNotes('');
+        setProofOfPayment(null);
+    };
 
     // --- Review state (admin) ---
     const [showReviewEdit, setShowReviewEdit] = useState(false);
@@ -268,11 +327,16 @@ export default function BookingDetailModal({
                         if (res && res.success) {
                             setBankAccounts(res.bank_accounts);
                             if (res.bank_accounts.length > 0) {
-                                const first = res.bank_accounts[0];
-                                setBankAccountId(first.id.toString());
-                                setPaymentBankName(first.bank_name);
-                                setPaymentAccountNumber(first.account_number);
-                                setPaymentAccountName(first.account_holder);
+                                // Try to pre-select the property's default bank account
+                                const propertyBankAccountId = booking.property?.bank_account_id;
+                                const defaultAccount = propertyBankAccountId
+                                    ? res.bank_accounts.find((a) => a.id.toString() === propertyBankAccountId.toString())
+                                    : null;
+                                const selected = defaultAccount || res.bank_accounts[0];
+                                setBankAccountId(selected.id.toString());
+                                setPaymentBankName(selected.bank_name);
+                                setPaymentAccountNumber(selected.account_number);
+                                setPaymentAccountName(selected.account_holder);
                             } else {
                                 setBankAccountId('');
                                 setPaymentBankName('');
@@ -824,7 +888,7 @@ export default function BookingDetailModal({
                             <div className="border-t border-slate-100 pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-6">
                                 <h4 className="mb-3 text-xs font-bold tracking-wider text-slate-400 uppercase">Transactions History</h4>
                                 {booking.payments && booking.payments.length > 0 ? (
-                                    <div className="max-h-[300px] space-y-3 overflow-y-auto pr-1">
+                                    <div className="md:max-h-[300px] space-y-3 md:overflow-y-auto pr-1">
                                         {booking.payments.map((payment: any) => {
                                             const isPending = payment.payment_status === 'pending';
                                             return (
@@ -887,155 +951,285 @@ export default function BookingDetailModal({
                             </div>
                         </div>
 
-                        {/* Tambah Transaksi Form */}
+                        {/* Tambah Transaksi */}
                         {!isPaidOff && (
-                            <div className="border-t border-slate-100 bg-slate-50/50 p-4 md:p-5">
-                                <h4 className="mb-3 flex items-center gap-1.5 text-xs font-bold tracking-wider text-slate-700 uppercase">
-                                    <Plus className="h-4 w-4 animate-bounce text-blue-600" /> Input Transaksi Pembayaran Baru
-                                </h4>
-                                <form onSubmit={handleSubmitPayment} className="space-y-4">
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-                                        <div className="space-y-1">
-                                            <Label className="text-xs font-semibold text-slate-600">Jumlah Pembayaran (IDR) *</Label>
-                                            <Input
-                                                type="number"
-                                                min={1}
-                                                value={paymentAmount}
-                                                onChange={(e) => setPaymentAmount(parseInt(e.target.value) || 0)}
-                                                className="h-10 bg-white text-base"
-                                            />
-                                        </div>
+                            <div className="border-t border-slate-100 overflow-visible">
+                                {/* ---------- Header / Toggle ---------- */}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPaymentForm((v) => !v)}
+                                    aria-expanded={showPaymentForm}
+                                    aria-controls="payment-form-panel"
+                                    className="flex w-full items-center justify-between gap-3 bg-white px-4 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset md:px-5"
+                                >
+                                    <span className="flex items-center gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+                                            <Plus className="h-3.5 w-3.5" />
+                                        </span>
+                                        <span className="text-xs font-bold tracking-wider text-slate-700 uppercase">
+                                            Input Transaksi Pembayaran Baru
+                                        </span>
+                                    </span>
 
-                                        <div className="space-y-1">
-                                            <Label className="text-xs font-semibold text-slate-600">Metode Pembayaran *</Label>
-                                            <CustomSelect
-                                                value={paymentMethodId}
-                                                onChange={(v) => {
-                                                    setPaymentMethodId(v);
-                                                    // reset rekening ketika metode berubah
-                                                    setBankAccountId('');
-                                                    setPaymentBankName('');
-                                                    setPaymentAccountNumber('');
-                                                    setPaymentAccountName('');
-                                                }}
-                                                options={paymentMethods.map((m) => ({ value: m.id.toString(), label: m.name }))}
-                                                placeholder="Pilih Metode"
-                                            />
+                                    <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-slate-500">
+                                        <span className="hidden sm:inline">{showPaymentForm ? 'Sembunyikan' : 'Tampilkan'}</span>
+                                        <ChevronDown
+                                            className={`h-4 w-4 transition-transform duration-200 ${showPaymentForm ? 'rotate-180' : ''}`}
+                                        />
+                                    </span>
+                                </button>
 
-                                            {/* Pilihan Rekening Bank — tampil jika metode bank_transfer */}
-                                            {paymentMethods.find((m) => m.id.toString() === paymentMethodId)?.type === 'bank_transfer' && (
-                                                <div className="mt-3 space-y-1">
-                                                    <Label className="text-xs font-semibold text-slate-600">Rekening Bank Tujuan *</Label>
-                                                    <CustomSelect
-                                                        value={bankAccountId}
-                                                        onChange={(accId) => {
-                                                            const acc = bankAccounts.find((a) => a.id.toString() === accId);
-                                                            if (acc) {
-                                                                setBankAccountId(acc.id.toString());
-                                                                setPaymentBankName(acc.bank_name);
-                                                                setPaymentAccountNumber(acc.account_number);
-                                                                setPaymentAccountName(acc.account_holder);
-                                                            }
-                                                        }}
-                                                        options={bankAccounts.map((acc) => ({
-                                                            value: acc.id.toString(),
-                                                            label: `${acc.label} — ${acc.account_number}`,
-                                                        }))}
-                                                        placeholder="Pilih Rekening"
-                                                    />
+                                {/* ---------- Panel Form (animasi buka/tutup) ---------- */}
+                                <div
+                                    id="payment-form-panel"
+                                    className={`grid transition-all duration-300 ease-in-out ${showPaymentForm ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                                        }`}
+                                >
+                                    <div className="overflow-hidden">
+                                        <div className="border-t border-slate-100 bg-slate-50/60 p-4 md:p-5">
+                                            <form onSubmit={handleSubmitPayment} className="space-y-5">
+                                                {/* ===== Bagian 1: Detail Pembayaran ===== */}
+                                                <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                                                    {/* Jumlah */}
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-600">
+                                                            Jumlah Pembayaran <span className="text-red-500">*</span>
+                                                        </Label>
+                                                        <div className="relative">
+                                                            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm font-medium text-slate-400">
+                                                                Rp
+                                                            </span>
+                                                            <Input
+                                                                type="number"
+                                                                min={1}
+                                                                inputMode="numeric"
+                                                                value={paymentAmount || ''}
+                                                                onChange={(e) => setPaymentAmount(parseInt(e.target.value) || 0)}
+                                                                placeholder="0"
+                                                                className="h-10 bg-white pl-9 text-base font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                                            />
+                                                        </div>
+                                                        <p className="h-4 text-[11px] font-medium text-blue-600">
+                                                            {paymentAmount > 0 ? formatRupiah(paymentAmount) : ''}
+                                                        </p>
+                                                    </div>
+
+                                                    {/* Metode */}
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-600">
+                                                            Metode Pembayaran <span className="text-red-500">*</span>
+                                                        </Label>
+                                                        <CustomSelect
+                                                            value={paymentMethodId}
+                                                            onChange={(v) => {
+                                                                setPaymentMethodId(v);
+                                                                // reset rekening ketika metode berubah
+                                                                setBankAccountId('');
+                                                                setPaymentBankName('');
+                                                                setPaymentAccountNumber('');
+                                                                setPaymentAccountName('');
+                                                            }}
+                                                            options={paymentMethods.map((m) => ({ value: m.id.toString(), label: m.name }))}
+                                                            placeholder="Pilih Metode"
+                                                        />
+                                                    </div>
+
+                                                    {/* Rekening — muncul hanya jika bank_transfer, tetap sejajar grid */}
+                                                    {paymentMethods.find((m) => m.id.toString() === paymentMethodId)?.type === 'bank_transfer' && (
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-slate-600">
+                                                                Rekening Bank Tujuan <span className="text-red-500">*</span>
+                                                            </Label>
+                                                            <CustomSelect
+                                                                value={bankAccountId}
+                                                                onChange={(accId) => {
+                                                                    const acc = bankAccounts.find((a) => a.id.toString() === accId);
+                                                                    if (acc) {
+                                                                        setBankAccountId(acc.id.toString());
+                                                                        setPaymentBankName(acc.bank_name);
+                                                                        setPaymentAccountNumber(acc.account_number);
+                                                                        setPaymentAccountName(acc.account_holder);
+                                                                    }
+                                                                }}
+                                                                options={bankAccounts.map((acc) => ({
+                                                                    value: acc.id.toString(),
+                                                                    label: acc.label,
+                                                                    subtitle: `${acc.bank_name} • ${acc.account_number} • a.n. ${acc.account_holder}`,
+                                                                }))}
+                                                                placeholder="Pilih Rekening"
+                                                            />
+
+                                                        </div>
+                                                    )}
+
+                                                    {/* Tipe */}
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-600">
+                                                            Tipe Pembayaran <span className="text-red-500">*</span>
+                                                        </Label>
+                                                        <CustomSelect
+                                                            value={paymentType}
+                                                            onChange={setPaymentType}
+                                                            options={[
+                                                                { value: 'dp', label: 'DP (Down Payment)' },
+                                                                { value: 'remaining', label: 'Pelunasan (Remaining)' },
+                                                                { value: 'full', label: 'Bayar Penuh (Full Payment)' },
+                                                                { value: 'refund', label: 'Refund' },
+                                                                { value: 'penalty', label: 'Denda (Penalty)' },
+                                                            ]}
+                                                        />
+                                                    </div>
+
+                                                    {/* Status */}
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-600">
+                                                            Status Pembayaran <span className="text-red-500">*</span>
+                                                        </Label>
+                                                        <CustomSelect
+                                                            value={paymentStatus}
+                                                            onChange={setPaymentStatus}
+                                                            options={[
+                                                                { value: 'verified', label: 'Verified (Lunas/Diterima)' },
+                                                                { value: 'pending', label: 'Pending (Perlu Verifikasi)' },
+                                                            ]}
+                                                        />
+                                                    </div>
+
+                                                    {/* Tanggal */}
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-600">
+                                                            Tanggal Pembayaran <span className="text-red-500">*</span>
+                                                        </Label>
+                                                        <Input
+                                                            type="date"
+                                                            value={paymentDate}
+                                                            onChange={(e) => setPaymentDate(e.target.value)}
+                                                            className="h-10 bg-white text-base"
+                                                        />
+                                                    </div>
+
+                                                    {/* Referensi */}
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-600">No. Referensi</Label>
+                                                        <Input
+                                                            type="text"
+                                                            value={referenceNumber}
+                                                            onChange={(e) => setReferenceNumber(e.target.value)}
+                                                            placeholder="Ref transfer / cash"
+                                                            className="h-10 bg-white text-base"
+                                                        />
+                                                    </div>
                                                 </div>
-                                            )}
-                                        </div>
 
-                                        <div className="space-y-1">
-                                            <Label className="text-xs font-semibold text-slate-600">Tipe Pembayaran *</Label>
-                                            <CustomSelect
-                                                value={paymentType}
-                                                onChange={setPaymentType}
-                                                options={[
-                                                    { value: 'dp', label: 'DP (Down Payment)' },
-                                                    { value: 'remaining', label: 'Pelunasan (Remaining)' },
-                                                    { value: 'full', label: 'Bayar Penuh (Full Payment)' },
-                                                    { value: 'refund', label: 'Refund' },
-                                                    { value: 'penalty', label: 'Denda (Penalty)' },
-                                                ]}
-                                            />
-                                        </div>
+                                                {/* ===== Bagian 2: Lampiran & Catatan ===== */}
+                                                <div className="border-t border-dashed border-slate-200 pt-4">
+                                                    <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+                                                        {/* Catatan */}
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-slate-600">Catatan Pembayaran</Label>
+                                                            <Input
+                                                                type="text"
+                                                                value={paymentNotes}
+                                                                onChange={(e) => setPaymentNotes(e.target.value)}
+                                                                placeholder="Keterangan tambahan transaksi"
+                                                                className="h-10 bg-white text-base"
+                                                            />
+                                                        </div>
 
-                                        <div className="space-y-1">
-                                            <Label className="text-xs font-semibold text-slate-600">Status Pembayaran *</Label>
-                                            <CustomSelect
-                                                value={paymentStatus}
-                                                onChange={setPaymentStatus}
-                                                options={[
-                                                    { value: 'verified', label: 'Verified (Lunas/Diterima)' },
-                                                    { value: 'pending', label: 'Pending (Perlu Verifikasi)' },
-                                                ]}
-                                            />
-                                        </div>
+                                                        {/* Bukti Pembayaran */}
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-slate-600">Bukti Pembayaran</Label>
 
-                                        <div className="space-y-1">
-                                            <Label className="text-xs font-semibold text-slate-600">Tanggal Pembayaran *</Label>
-                                            <Input
-                                                type="date"
-                                                value={paymentDate}
-                                                onChange={(e) => setPaymentDate(e.target.value)}
-                                                className="h-10 bg-white text-base"
-                                            />
-                                        </div>
+                                                            {proofOfPayment ? (
+                                                                <div className="flex h-10 items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3">
+                                                                    <Upload className="h-4 w-4 shrink-0 text-blue-600" />
+                                                                    <span className="flex-1 truncate text-sm text-slate-700">
+                                                                        {proofOfPayment.name}
+                                                                    </span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setProofOfPayment(null)}
+                                                                        className="shrink-0 rounded p-0.5 text-slate-400 hover:bg-white hover:text-red-600"
+                                                                        aria-label="Hapus file bukti pembayaran"
+                                                                    >
+                                                                        <X className="h-4 w-4" />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-3 text-sm text-slate-500 transition-colors hover:border-blue-400 hover:bg-blue-50/40 hover:text-blue-600">
+                                                                    {isCompressing ? (
+                                                                        <>
+                                                                            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                                                                            <span>Mengompres gambar…</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Upload className="h-4 w-4 shrink-0" />
+                                                                            <span className="truncate">Pilih gambar atau PDF bukti transfer</span>
+                                                                        </>
+                                                                    )}
+                                                                    <input
+                                                                        type="file"
+                                                                        accept="image/*,application/pdf"
+                                                                        className="hidden"
+                                                                        onChange={(e) => {
+                                                                            const file = e.target.files?.[0] || null;
+                                                                            if (!file) {
+                                                                                setProofOfPayment(null);
+                                                                                return;
+                                                                            }
+                                                                            if (file.type === 'application/pdf') {
+                                                                                setProofOfPayment(file);
+                                                                                return;
+                                                                            }
+                                                                            setIsCompressing(true);
+                                                                            compressImage(file)
+                                                                                .then((compressedFile) => setProofOfPayment(compressedFile))
+                                                                                .finally(() => setIsCompressing(false));
+                                                                        }}
+                                                                    />
+                                                                </label>
+                                                            )}
+                                                            <p className="text-[11px] text-slate-400">Opsional. Gambar otomatis dikompres.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
 
-                                        <div className="space-y-1">
-                                            <Label className="text-xs font-semibold text-slate-600">No. Referensi (Opsional)</Label>
-                                            <Input
-                                                type="text"
-                                                value={referenceNumber}
-                                                onChange={(e) => setReferenceNumber(e.target.value)}
-                                                placeholder="Ref transfer / cash"
-                                                className="h-10 bg-white text-base"
-                                            />
-                                        </div>
+                                                {/* ===== Footer Aksi ===== */}
+                                                <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                                                    <p className="text-xs text-slate-500">
+                                                        Kolom bertanda <span className="text-red-500">*</span> wajib diisi.
+                                                    </p>
 
-                                        <div className="space-y-1 md:col-span-2">
-                                            <Label className="text-xs font-semibold text-slate-600">Catatan Pembayaran</Label>
-                                            <Input
-                                                type="text"
-                                                value={paymentNotes}
-                                                onChange={(e) => setPaymentNotes(e.target.value)}
-                                                placeholder="Keterangan tambahan transaksi"
-                                                className="h-10 bg-white text-base"
-                                            />
-                                        </div>
-
-                                        <div className="space-y-1 md:col-span-2">
-                                            <Label className="text-xs font-semibold text-slate-600">Bukti Pembayaran (Opsional)</Label>
-                                            <Input
-                                                type="file"
-                                                accept="image/*,application/pdf"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0] || null;
-                                                    if (file) {
-                                                        compressImage(file).then((compressedFile) => {
-                                                            setProofOfPayment(compressedFile);
-                                                        });
-                                                    } else {
-                                                        setProofOfPayment(null);
-                                                    }
-                                                }}
-                                                className="h-10 cursor-pointer bg-white"
-                                            />
-                                        </div>
-
-                                        <div className="flex items-end">
-                                            <Button
-                                                type="submit"
-                                                disabled={isSubmittingPayment}
-                                                className="h-10 w-full bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
-                                            >
-                                                {isSubmittingPayment ? 'Menyimpan...' : 'Simpan Pembayaran'}
-                                            </Button>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            onClick={resetPaymentForm}
+                                                            disabled={isSubmittingPayment}
+                                                            className="h-10 flex-1 text-sm font-semibold sm:flex-none"
+                                                        >
+                                                            Reset
+                                                        </Button>
+                                                        <Button
+                                                            type="submit"
+                                                            disabled={isSubmittingPayment || !paymentAmount || !paymentMethodId}
+                                                            className="h-10 flex-1 bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:flex-none sm:px-6"
+                                                        >
+                                                            {isSubmittingPayment ? (
+                                                                <span className="flex items-center gap-2">
+                                                                    <Loader2 className="h-4 w-4 animate-spin" /> Menyimpan…
+                                                                </span>
+                                                            ) : (
+                                                                'Simpan Pembayaran'
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </form>
                                         </div>
                                     </div>
-                                </form>
+                                </div>
                             </div>
                         )}
                     </div>
