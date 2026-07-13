@@ -137,6 +137,35 @@ class UpdateBookingRequest extends FormRequest
                     }
                 }
             }
+
+            // Validate booking status transitions
+            $booking = $this->route('booking');
+            if ($booking) {
+                $oldStatus = $booking->booking_status;
+                $newStatus = $this->input('booking_status');
+
+                if ($oldStatus !== $newStatus) {
+                    if ($oldStatus === 'confirmed' && $newStatus === 'checked_out') {
+                        $validator->errors()->add('booking_status', 'Status booking tidak bisa diubah langsung dari Confirmed ke Checked Out. Silakan ubah menjadi Checked In terlebih dahulu sesuai dengan alur check-in / check-out.');
+                    }
+
+                    if ($oldStatus === 'pending_verification' && in_array($newStatus, ['checked_in', 'checked_out'])) {
+                        $validator->errors()->add('booking_status', 'Status booking tidak bisa diubah langsung dari Pending Verification ke '.ucfirst(str_replace('_', ' ', $newStatus)).'. Booking harus dikonfirmasi (Confirmed) terlebih dahulu.');
+                    }
+
+                    if ($oldStatus === 'checked_out' && in_array($newStatus, ['pending_verification', 'confirmed', 'checked_in'])) {
+                        $validator->errors()->add('booking_status', 'Booking yang sudah Checked Out tidak dapat diubah kembali ke status sebelumnya ('.ucfirst(str_replace('_', ' ', $newStatus)).').');
+                    }
+
+                    if (in_array($oldStatus, ['cancelled', 'no_show']) && in_array($newStatus, ['checked_in', 'checked_out'])) {
+                        $validator->errors()->add('booking_status', 'Booking yang sudah dibatalkan atau No Show tidak dapat langsung di-check-in atau di-check-out.');
+                    }
+
+                    if ($newStatus === 'checked_in' && ! in_array($this->input('payment_status', $booking->payment_status), ['dp_received', 'fully_paid'])) {
+                        $validator->errors()->add('booking_status', 'Check-in hanya diperbolehkan jika minimal DP sudah diterima (DP Received) atau sudah Lunas (Fully Paid).');
+                    }
+                }
+            }
         });
     }
 

@@ -356,14 +356,18 @@ class BookingManagementController extends Controller
             $propertiesQuery->where('owner_id', $user->id);
         }
 
-        $properties = $propertiesQuery->active()->get([
-            'id',
-            'name',
-            'capacity',
-            'capacity_max',
-            'base_rate',
-            'extra_bed_rate',
-        ]);
+        $properties = $propertiesQuery->active()
+            ->with('media')
+            ->get([
+                'id',
+                'name',
+                'capacity',
+                'capacity_max',
+                'base_rate',
+                'extra_bed_rate',
+                'color',
+                'short_name',
+            ]);
 
         return Inertia::render('Admin/Bookings/Index', [
             'bookings' => $bookings,

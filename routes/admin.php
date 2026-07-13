@@ -295,6 +295,8 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
 Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk'])->prefix('api/admin/properties')->name('api.admin.properties.')->group(function () {
     $controller = PropertyManagementController::class;
     Route::get('{property:id}/stats', [$controller, 'stats'])->name('stats');
+    Route::patch('{property:id}/color', [$controller, 'updateColor'])->name('update-color');
+    Route::patch('{property:id}/short-name', [$controller, 'updateShortName'])->name('update-short-name');
 });
 
 // Payment Gateway Routes (Admin)

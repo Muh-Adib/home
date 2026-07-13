@@ -54,8 +54,13 @@ class BookingObserver
     /**
      * Invalidate the cached availability data for a property.
      */
-    private function invalidateAvailabilityCache(int $propertyId): void
+    private function invalidateAvailabilityCache(int|string|null $propertyId): void
     {
+        if ($propertyId === null) {
+            return;
+        }
+
+        $propertyId = (int) $propertyId;
         $today = now()->toDateString();
         $endDate = now()->addMonths(3)->toDateString();
         Cache::forget("property_v2_{$propertyId}_avail_{$today}_{$endDate}");

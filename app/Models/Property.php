@@ -69,6 +69,8 @@ class Property extends Model
         'mortgage_interest_monthly',
         'initial_build_capital',
         'lease_capital',
+        'color',
+        'short_name',
     ];
 
     protected $casts = [

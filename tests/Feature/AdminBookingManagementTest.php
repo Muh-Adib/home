@@ -523,4 +523,42 @@ class AdminBookingManagementTest extends TestCase
             'payment_status' => 'verified',
         ]);
     }
+
+    #[Test]
+    public function it_blocks_invalid_status_transition_from_confirmed_to_checked_out_directly(): void
+    {
+        $booking = Booking::factory()->create([
+            'property_id' => $this->property->id,
+            'check_in' => now()->addDays(1)->toDateString(),
+            'check_out' => now()->addDays(3)->toDateString(),
+            'booking_status' => 'confirmed',
+        ]);
+
+        $updateData = [
+            'property_id' => $this->property->id,
+            'check_in_date' => now()->addDays(1)->toDateString(),
+            'check_out_date' => now()->addDays(3)->toDateString(),
+            'guest_male' => 1,
+            'guest_female' => 1,
+            'guest_children' => 0,
+            'guest_name' => $booking->guest_name,
+            'guest_email' => $booking->guest_email,
+            'guest_phone' => $booking->guest_phone,
+            'guest_country' => 'Indonesia',
+            'guest_gender' => 'male',
+            'relationship_type' => 'keluarga',
+            'booking_status' => 'checked_out', // Invalid transition!
+            'payment_status' => 'dp_pending',
+            'dp_percentage' => 50,
+            'check_in_time' => '15:00',
+            'source' => 'direct',
+        ];
+
+        $response = $this->actingAs($this->admin)
+            ->from(route('admin.bookings.edit', $booking->booking_number))
+            ->put(route('admin.bookings.update', $booking->booking_number), $updateData);
+
+        $response->assertRedirect(route('admin.bookings.edit', $booking->booking_number));
+        $response->assertSessionHasErrors(['booking_status']);
+    }
 }

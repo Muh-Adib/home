@@ -100,6 +100,15 @@ export function apiPut<T = any>(url: string, body?: unknown): Promise<T> {
     }).then(handleResponse<T>);
 }
 
+/** PATCH (JSON body) */
+export function apiPatch<T = any>(url: string, body?: unknown): Promise<T> {
+    return fetch(url, {
+        method: 'PATCH',
+        headers: buildHeaders({ 'Content-Type': 'application/json' }),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+    }).then(handleResponse<T>);
+}
+
 /** DELETE */
 export function apiDelete<T = any>(url: string, body?: unknown): Promise<T> {
     return fetch(url, {

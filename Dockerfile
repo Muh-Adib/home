@@ -1,8 +1,20 @@
 # Multi-stage Dockerfile untuk Nixpacks Deployment
 # Property Management System website Homsjogja - Laravel 12 + React + WebSocket
 # Optimized untuk Dokploy dengan Redis dan DB terpisah
+#
+# CHANGELOG (perbaikan dari versi sebelumnya):
+# 1. HAPUS `chown -R www:www /app` di akhir — perintah ini menduplikasi seluruh
+#    /app (vendor + node_modules, ~1.5-2.5 GB) ke layer baru dan menyebabkan
+#    build gagal (exit 255 / disk penuh). Diganti chown hanya pada folder
+#    yang benar-benar ditulis saat runtime.
+# 2. TAMBAH `npm prune --omit=dev` setelah build frontend — SSR runtime hanya
+#    butuh production deps, node_modules mengecil 50-70%.
+# 3. Hilangkan chown/chmod redundan (storage, bootstrap/cache, database sudah
+#    di-chown sekali saja, tidak diulang dua kali).
 
-# 1) Build stage for frontend assets
+# ============================================================
+# 1) Build stage untuk frontend assets
+# ============================================================
 FROM node:20-alpine AS node-builder
 
 WORKDIR /app
@@ -30,7 +42,14 @@ COPY public/ ./public/
 RUN NODE_OPTIONS="--max-old-space-size=2048" npm run build && \
     ls -la public/build/
 
-# Production PHP stage dengan Nixpacks compatibility
+# ✅ Buang devDependencies (vite, typescript, tailwind, dll.)
+# SSR runtime hanya butuh production deps → node_modules jauh lebih kecil,
+# image final lebih ringan, dan COPY antar-stage lebih cepat.
+RUN npm prune --omit=dev
+
+# ============================================================
+# 2) Production PHP stage dengan Nixpacks compatibility
+# ============================================================
 FROM php:8.4-fpm-alpine AS php-stage
 
 # Install system dependencies (including ImageMagick + WebP support for image processing)
@@ -115,18 +134,21 @@ COPY . .
 COPY --from=node-builder /app/public/build ./public/build
 COPY --from=node-builder /app/bootstrap/ssr ./bootstrap/ssr
 
-# ✅ FIX: Copy node_modules for SSR runtime (React and dependencies)
-# SSR needs access to node_modules at runtime to resolve imports
+# Copy node_modules for SSR runtime (sudah di-prune, hanya production deps)
 COPY --from=node-builder /app/node_modules ./node_modules
 
 # Generate optimized autoloader (skip artisan scripts that require DB during build)
 RUN composer dump-autoload --optimize --no-scripts
 
-# Create application user first
+# Create application user
 RUN addgroup -g 1000 www && \
     adduser -u 1000 -G www -s /bin/sh -D www
 
-# Ensure required directories and permissions
+# Ensure required directories exist + set permissions HANYA pada folder
+# yang ditulis saat runtime. File hasil COPY lainnya milik root dengan
+# permission read — cukup untuk PHP-FPM/nginx yang jalan sebagai www.
+# ⚠️ JANGAN pernah `chown -R www:www /app` — itu menduplikasi seluruh
+# vendor + node_modules ke layer baru (penyebab build gagal sebelumnya).
 RUN mkdir -p \
     storage/logs \
     storage/framework/cache \
@@ -140,8 +162,9 @@ RUN mkdir -p \
     /var/run/php \
     /var/run/laravel-echo-server \
     database/echo-server && \
-    chown -R www:www storage bootstrap/cache database && \
-    chmod -R 755 storage bootstrap/cache database
+    chown -R www:www storage bootstrap/cache database public && \
+    chmod -R 755 storage bootstrap/cache database && \
+    chmod +x artisan
 
 # Copy configuration files
 COPY dokploy/config/nginx.conf /etc/nginx/nginx.conf
@@ -154,22 +177,6 @@ COPY dokploy/config/php-fpm.conf /etc/php-fpm.conf
 COPY dokploy/scripts/safe-startup.sh /usr/local/bin/safe-startup.sh
 COPY dokploy/scripts/generate-echo-config-simple.sh /usr/local/bin/generate-echo-config-simple.sh
 RUN chmod +x /usr/local/bin/safe-startup.sh /usr/local/bin/generate-echo-config-simple.sh
-
-# Setup environment template
-#RUN if [ ! -f .env ]; then cp .env.example .env; fi
-
-# Generate application key (only if vendor exists)
-#RUN if [ -d "vendor" ]; then php artisan key:generate --force || echo "Key generation skipped"; else echo "Vendor directory not found, skipping key generation"; fi
-
-# Create storage link (only if vendor exists)
-# RUN if [ -d "vendor" ]; then php artisan storage:link || echo "Storage link failed, continuing..."; else echo "Vendor directory not found, skipping storage link"; fi
-
-# Set final permissions
-RUN chown -R www:www /app && \
-    chmod -R 755 /app/storage && \
-    chmod -R 755 /app/bootstrap/cache && \
-    chmod -R 755 /app/database && \
-    chmod +x /app/artisan
 
 # Expose HTTP dan WebSocket ports
 EXPOSE 80 3000 6001

@@ -94,6 +94,8 @@ export interface Property {
     min_stay_weekend: number;
     min_stay_peak: number;
     is_featured: boolean;
+    color?: string;
+    short_name?: string;
     sort_order: number;
     seo_title?: string;
     seo_description?: string;

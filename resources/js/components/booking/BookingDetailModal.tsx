@@ -310,7 +310,9 @@ export default function BookingDetailModal({
     todayVal.setHours(0, 0, 0, 0);
     const yesterdayVal = new Date(todayVal);
     yesterdayVal.setDate(todayVal.getDate() - 1);
-    const isCheckInTime = checkInDate >= yesterdayVal && checkInDate <= todayVal;
+    //sementara allow check in untuk tanggal setelahnya hari ini
+    //const isCheckInTime = checkInDate >= yesterdayVal && checkInDate <= todayVal;
+    const isCheckInTime = checkInDate >= todayVal;
 
     // Reset default payment amount when booking changes
     useEffect(() => {
@@ -392,8 +394,8 @@ export default function BookingDetailModal({
         const link = `${window.location.origin}/booking/${booking.booking_number}/payment`;
         const reviewLink = `${window.location.origin}/booking/${booking.booking_number}/payment?payment_token=${booking.payment_token}`;
         const guestsDetail = `${booking.guest_count} Orang${booking.guest_male || booking.guest_female || booking.guest_children
-                ? ` (Pria: ${booking.guest_male || 0}, Wanita: ${booking.guest_female || 0}, Anak <10th: ${booking.guest_children || 0})`
-                : ''
+            ? ` (Pria: ${booking.guest_male || 0}, Wanita: ${booking.guest_female || 0}, Anak <10th: ${booking.guest_children || 0})`
+            : ''
             }${booking.extra_bed_count ? ` + ${booking.extra_bed_count} Extra Bed` : ''}`;
 
         switch (templateKey) {
@@ -1385,93 +1387,95 @@ export default function BookingDetailModal({
                 </div>
 
                 {/* 3. Footer Actions */}
-                <div className="flex shrink-0 flex-wrap items-center justify-between gap-1.5 border-t bg-white px-3 py-2 md:gap-4 md:p-4">
-                    <div className="flex flex-wrap gap-1.5 md:gap-2">
-                        <Button variant="outline" size="sm" asChild className="h-9 px-2.5 md:px-3">
-                            <a href={detailLink} target="_blank" rel="noopener noreferrer" className="justify-center">
+                <div className="flex flex-wrap items-center gap-2 border-t bg-white px-3 py-2 md:px-4 md:py-3">
+
+                    {/* Left Actions */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" asChild className="h-9 px-3">
+                            <a
+                                href={detailLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="justify-center"
+                            >
                                 <Eye className="h-4 w-4" />
-                                <span className="ml-1.5 text-xs md:text-sm">Detail</span>
+                                <span className="ml-1.5 hidden md:inline">Detail</span>
                             </a>
                         </Button>
 
                         {['super_admin', 'property_manager', 'front_desk'].includes(userRole) && (
-                            <Button variant="outline" size="sm" asChild className="h-9 px-2.5 md:px-3">
+                            <Button variant="outline" size="sm" asChild className="h-9 px-3">
                                 <Link
                                     href={`/admin/bookings/${booking.booking_number}/edit`}
                                     className="justify-center text-blue-600 hover:text-blue-700"
                                 >
                                     <Edit className="h-4 w-4" />
-                                    <span className="ml-1.5 text-xs md:text-sm">Edit</span>
+                                    <span className="ml-1.5 hidden md:inline">Edit</span>
                                 </Link>
                             </Button>
                         )}
 
-                        <div className="flex gap-0">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={copyPaymentLink}
-                                className="h-9 justify-center rounded-r-none border-r-0 px-2.5 md:px-3"
-                            >
-                                <LinkIcon className="h-4 w-4 text-blue-600" />
-                                <span className="ml-1.5 text-xs md:text-sm">Link</span>
-                            </Button>
-                            <Button variant="outline" size="sm" asChild className="h-9 justify-center rounded-l-none border-l-slate-200 px-2.5">
-                                <a
-                                    href={`${window.location.origin}/booking/${booking.booking_number}/payment`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    <Eye className="h-4 w-4 text-slate-600" />
-                                </a>
-                            </Button>
-                        </div>
-                    </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={copyPaymentLink}
+                            className="h-9 px-3"
+                        >
+                            <LinkIcon className="h-4 w-4 text-blue-600" />
+                            <span className="ml-1.5">Link</span>
+                        </Button>
 
-                    <div className="ml-auto flex gap-1.5 md:gap-2">
-                        {canVerify && booking.booking_status === 'pending_verification' && (
-                            <>
+                        {canVerify && booking.booking_status === "pending_verification" && (
+                            <div className="flex overflow-hidden rounded-md border">
                                 <Button
                                     variant="destructive"
                                     size="sm"
-                                    onClick={() => handleAction('reject')}
-                                    className="h-9 justify-center px-2.5 md:px-3"
+                                    onClick={() => handleAction("reject")}
+                                    className="rounded-none border-0"
                                 >
                                     <XCircle className="h-4 w-4" />
-                                    <span className="ml-1.5 text-xs md:text-sm">Reject</span>
+                                    <span className="ml-1.5 hidden md:inline">Reject</span>
                                 </Button>
+
                                 <Button
-                                    className="h-9 justify-center bg-green-600 px-2.5 text-white hover:bg-green-700 md:px-3"
                                     size="sm"
-                                    onClick={() => handleAction('verify')}
+                                    onClick={() => handleAction("verify")}
+                                    className="rounded-none bg-green-600 hover:bg-green-700"
                                 >
                                     <CheckCircle className="h-4 w-4" />
-                                    <span className="ml-1.5 text-xs md:text-sm">Verify</span>
+                                    <span className="ml-1.5 hidden md:inline">Verify</span>
                                 </Button>
-                            </>
+                            </div>
                         )}
+                    </div>
 
-                        {canCheckIn && booking.booking_status === 'confirmed' && isPaidOff && isCheckInTime && (
-                            <Button
-                                className="h-9 justify-center bg-blue-600 px-3 text-white hover:bg-blue-700"
-                                size="sm"
-                                onClick={() => handleAction('checkin')}
-                            >
-                                <UserCheck className="h-4 w-4" />
-                                <span className="ml-1.5 text-xs md:text-sm">Check In</span>
-                            </Button>
-                        )}
+                    {/* Right Actions */}
+                    <div className="ml-auto flex items-center">
+                        {canCheckIn &&
+                            booking.booking_status === "confirmed" &&
+                            isPaidOff && isCheckInTime &&
+                            (
+                                <Button
+                                    size="sm"
+                                    onClick={() => handleAction("checkin")}
+                                    className="h-9 bg-blue-600 px-4 text-white hover:bg-blue-700"
+                                >
+                                    <UserCheck className="h-4 w-4" />
+                                    <span className="ml-1.5">Check In</span>
+                                </Button>
+                            )}
 
-                        {canCheckIn && booking.booking_status === 'checked_in' && (
-                            <Button
-                                className="h-9 justify-center bg-purple-600 px-3 text-white hover:bg-purple-700"
-                                size="sm"
-                                onClick={() => handleAction('checkout')}
-                            >
-                                <UserX className="h-4 w-4" />
-                                <span className="ml-1.5 text-xs md:text-sm">Check Out</span>
-                            </Button>
-                        )}
+                        {canCheckIn &&
+                            booking.booking_status === "checked_in" && (
+                                <Button
+                                    size="sm"
+                                    onClick={() => handleAction("checkout")}
+                                    className="h-9 bg-purple-600 px-4 text-white hover:bg-purple-700"
+                                >
+                                    <UserX className="h-4 w-4" />
+                                    <span className="ml-1.5">Check Out</span>
+                                </Button>
+                            )}
                     </div>
                 </div>
             </DialogContent>

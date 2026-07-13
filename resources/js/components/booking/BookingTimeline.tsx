@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import BookingTimelineHeader from "./BookingTimelineHeader";
 import BookingTimelineRow from "./BookingTimelineRow";
 import BookingDetailModal from "./BookingDetailModal";
@@ -19,7 +19,7 @@ import {
     Search,
 } from "lucide-react";
 import { useBookingTimeline } from "@/hooks/useBookingTimeline";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPatch } from "@/lib/api";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,6 +55,53 @@ export default function BookingTimeline({
     const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
     const [detailedBooking, setDetailedBooking] = useState<Booking | null>(null);
     const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+    const [localProperties, setLocalProperties] = useState<Property[]>(properties);
+
+    useEffect(() => {
+        setLocalProperties(properties);
+    }, [properties]);
+
+    const handleColorChange = async (propertyId: number, color: string) => {
+        setLocalProperties((prev) =>
+            prev.map((p) => (p.id === propertyId ? { ...p, color } : p))
+        );
+
+        try {
+            const res = await apiPatch<{ success: boolean; color: string }>(
+                `/api/admin/properties/${propertyId}/color`,
+                { color }
+            );
+            if (res && res.success) {
+                toast.success("Warna properti berhasil diperbarui.");
+            } else {
+                toast.error("Gagal memperbarui warna properti.");
+            }
+        } catch (err) {
+            console.error("Failed to update property color:", err);
+            toast.error("Gagal menyimpan warna properti.");
+        }
+    };
+
+    const handleShortNameChange = async (propertyId: number, shortName: string) => {
+        setLocalProperties((prev) =>
+            prev.map((p) => (p.id === propertyId ? { ...p, short_name: shortName } : p))
+        );
+
+        try {
+            const res = await apiPatch<{ success: boolean; short_name: string }>(
+                `/api/admin/properties/${propertyId}/short-name`,
+                { short_name: shortName }
+            );
+            if (res && res.success) {
+                toast.success("Nama singkat properti berhasil diperbarui.");
+            } else {
+                toast.error("Gagal memperbarui nama singkat properti.");
+            }
+        } catch (err) {
+            console.error("Failed to update property short name:", err);
+            toast.error("Gagal menyimpan nama singkat properti.");
+        }
+    };
 
     const handleBookingClick = async (booking: Booking) => {
         setSelectedBookingId(booking.id);
@@ -104,7 +151,7 @@ export default function BookingTimeline({
         handleMouseMove,
         formatDateRange
     } = useBookingTimeline({
-        properties,
+        properties: localProperties,
         initialBookings,
         startDate,
         days,
@@ -212,11 +259,11 @@ export default function BookingTimeline({
                             </div>
                         ) : (
                             <div className="min-w-max transition-all duration-100">
-                                <div className="sticky top-0 z-30 bg-white shadow-sm transition-all duration-300">
+                                <div className="sticky top-0 z-40 bg-white shadow-sm transition-all duration-300">
                                     <BookingTimelineHeader dates={timelineDates} cellWidth={cellWidth} />
                                 </div>
                                 <div className="relative divide-y select-none">
-                                    {properties.map((property) => (
+                                    {localProperties.map((property) => (
                                         <BookingTimelineRow
                                             key={property.id}
                                             property={property}
@@ -225,6 +272,8 @@ export default function BookingTimeline({
                                             cellWidth={cellWidth}
                                             rowHeight={rowHeight}
                                             onBookingClick={handleBookingClick}
+                                            onColorChange={handleColorChange}
+                                            onShortNameChange={handleShortNameChange}
                                         />
                                     ))}
                                 </div>

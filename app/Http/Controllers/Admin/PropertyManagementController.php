@@ -1016,4 +1016,46 @@ class PropertyManagementController extends Controller
 
         return $monthlyData;
     }
+
+    /**
+     * Update the color of a property
+     */
+    public function updateColor(Request $request, Property $property): JsonResponse
+    {
+        $this->authorize('update', $property);
+
+        $validated = $request->validate([
+            'color' => 'required|string|regex:/^#[a-fA-F0-9]{6}$/',
+        ]);
+
+        $property->update([
+            'color' => $validated['color'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'color' => $property->color,
+        ]);
+    }
+
+    /**
+     * Update the short name of a property
+     */
+    public function updateShortName(Request $request, Property $property): JsonResponse
+    {
+        $this->authorize('update', $property);
+
+        $validated = $request->validate([
+            'short_name' => 'nullable|string|max:50',
+        ]);
+
+        $property->update([
+            'short_name' => $validated['short_name'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'short_name' => $property->short_name,
+        ]);
+    }
 }
