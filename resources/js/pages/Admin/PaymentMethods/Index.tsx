@@ -55,6 +55,7 @@ interface PaymentMethod {
     sort_order: number;
     created_at: string;
     updated_at: string;
+    payments_count?: number;
     bank_accounts?: BankAccount[];
 }
 
@@ -88,7 +89,9 @@ export default function PaymentMethodsIndex({ paymentMethods, stats, filters }: 
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-    const { processing, delete: deleteMethod } = useForm();
+    const deleteForm = useForm({
+        replacement_method_id: '',
+    });
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -123,10 +126,11 @@ export default function PaymentMethodsIndex({ paymentMethods, stats, filters }: 
 
     const handleDelete = () => {
         if (selectedMethod) {
-            deleteMethod(`/admin/payment-methods/${selectedMethod.id}`, {
+            deleteForm.delete(`/admin/payment-methods/${selectedMethod.id}`, {
                 onSuccess: () => {
                     setShowDeleteDialog(false);
                     setSelectedMethod(null);
+                    deleteForm.reset();
                 }
             });
         }
@@ -448,21 +452,61 @@ export default function PaymentMethodsIndex({ paymentMethods, stats, filters }: 
                         <div className="space-y-4">
                             <p>Are you sure you want to delete this payment method?</p>
                             {selectedMethod && (
-                                <div className="p-4 bg-gray-50 rounded-lg">
-                                    <p className="font-medium">{selectedMethod.name}</p>
-                                    <p className="text-sm text-gray-600">{selectedMethod.description}</p>
+                                <div className="p-4 bg-gray-50 rounded-lg space-y-3">
+                                    <div>
+                                        <p className="font-semibold text-slate-800">{selectedMethod.name}</p>
+                                        <p className="text-xs text-gray-500">{selectedMethod.description || 'Tidak ada deskripsi'}</p>
+                                    </div>
+
+                                    {(selectedMethod.payments_count ?? 0) > 0 && (
+                                        <div className="space-y-3 pt-2 border-t border-slate-200">
+                                            <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-xs text-rose-700 font-medium">
+                                                ⚠️ Metode pembayaran ini memiliki <strong>{selectedMethod.payments_count} transaksi</strong>.
+                                                Silakan pilih metode pengganti untuk mengalihkan transaksi tersebut sebelum menghapusnya.
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs font-bold text-slate-700">Metode Pembayaran Pengganti *</Label>
+                                                <Select
+                                                    value={deleteForm.data.replacement_method_id}
+                                                    onValueChange={(val) => deleteForm.setData('replacement_method_id', val)}
+                                                >
+                                                    <SelectTrigger className="w-full h-9 text-xs">
+                                                        <SelectValue placeholder="Pilih Metode Pengganti" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {paymentMethods.data
+                                                            .filter((m) => m.id !== selectedMethod.id)
+                                                            .map((m) => (
+                                                                <SelectItem key={m.id} value={m.id.toString()} className="text-xs">
+                                                                    {m.name} {m.account_number ? `(${m.account_number})` : ''}
+                                                                </SelectItem>
+                                                            ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                {deleteForm.errors.replacement_method_id && (
+                                                    <p className="text-[10px] text-red-500 font-bold">
+                                                        {deleteForm.errors.replacement_method_id}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             <div className="flex justify-end gap-2">
-                                <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                                <Button variant="outline" onClick={() => {
+                                    setShowDeleteDialog(false);
+                                    deleteForm.reset();
+                                }}>
                                     Cancel
                                 </Button>
                                 <Button 
                                     variant="destructive" 
                                     onClick={handleDelete}
-                                    disabled={processing}
+                                    disabled={deleteForm.processing || (selectedMethod && (selectedMethod.payments_count ?? 0) > 0 && !deleteForm.data.replacement_method_id)}
                                 >
-                                    {processing ? 'Deleting...' : 'Delete'}
+                                    {deleteForm.processing ? 'Deleting...' : 'Delete'}
                                 </Button>
                             </div>
                         </div>

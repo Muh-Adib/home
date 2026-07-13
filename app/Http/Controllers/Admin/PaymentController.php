@@ -93,7 +93,7 @@ class PaymentController extends Controller
         $this->authorize('viewAny', Payment::class);
 
         $query = Payment::query()
-            ->with(['booking.property.bankAccount', 'paymentMethod', 'verifier']);
+            ->with(['booking.property.bankAccount', 'paymentMethod', 'verifier', 'reverifier']);
 
         // Filter by status
         if ($request->filled('status')) {
@@ -118,7 +118,19 @@ class PaymentController extends Controller
             });
         }
 
-        $payments = $query->latest()->paginate(20);
+        // Sorting
+        $sortBy = $request->input('sort_by', 'date');
+        $sortDir = $request->input('sort_dir', 'desc');
+
+        if ($sortBy === 'bank_account') {
+            $query->leftJoin('payment_methods', 'payments.payment_method_id', '=', 'payment_methods.id')
+                ->select('payments.*')
+                ->orderBy('payment_methods.name', $sortDir);
+        } else {
+            $query->orderBy('payment_date', $sortDir)->orderBy('payments.created_at', $sortDir);
+        }
+
+        $payments = $query->paginate(20)->withQueryString();
         $paymentMethods = PaymentMethod::active()->get();
 
         // Statistics
@@ -141,6 +153,9 @@ class PaymentController extends Controller
                 'search' => $request->input('search'),
                 'status' => $request->input('status'),
                 'payment_method' => $request->input('payment_method'),
+                'sort_by' => $sortBy,
+                'sort_dir' => $sortDir,
+                'grouped' => $request->input('grouped', 'true'),
             ],
         ]);
     }
@@ -804,7 +819,7 @@ class PaymentController extends Controller
                     Storage::disk('public')->delete($payment->attachment_path);
                 }
                 $attachmentPath = $request->file('attachment')->store('payments/attachments', 'public');
-            } elseif (! $validated['keep_existing_attachment']) {
+            } elseif ($request->has('keep_existing_attachment') && ! $validated['keep_existing_attachment']) {
                 // Remove attachment if not keeping existing
                 if ($payment->attachment_path && Storage::disk('public')->exists($payment->attachment_path)) {
                     Storage::disk('public')->delete($payment->attachment_path);
@@ -1223,5 +1238,136 @@ class PaymentController extends Controller
         $mutation->update(['status' => 'diabaikan']);
 
         return redirect()->back()->with('success', 'Mutasi bank berhasil diabaikan.');
+    }
+
+    /**
+     * Authorize re-verification action
+     */
+    private function authorizeReverification(Payment $payment): void
+    {
+        $user = Auth::user();
+        if (! $user) {
+            abort(403, 'Unauthorized');
+        }
+
+        // Roles allowed: super_admin, finance, property_owner
+        if ($user->role === 'super_admin' || $user->role === 'finance') {
+            return;
+        }
+
+        if ($user->role === 'property_owner') {
+            $ownerId = $payment->booking?->property?->owner_id;
+            if ($ownerId && $ownerId === $user->id) {
+                return;
+            }
+        }
+
+        abort(403, 'Anda tidak memiliki hak akses untuk melakukan verifikasi ulang pada pembayaran ini.');
+    }
+
+    /**
+     * Accept reverification of a payment (manual check confirmed correct)
+     */
+    public function reverifyAccept(Request $request, Payment $payment): RedirectResponse
+    {
+        $this->authorizeReverification($payment);
+
+        $request->validate([
+            'reverification_notes' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $payment->update([
+                'reverification_status' => 'accepted',
+                'reverified_by' => Auth::id(),
+                'reverified_at' => now(),
+                'reverification_notes' => $request->input('reverification_notes'),
+            ]);
+
+            // Create workflow entry for booking
+            $booking = $payment->booking;
+            if ($booking) {
+                $booking->workflow()->create([
+                    'step' => 'payment_verified_recheck',
+                    'status' => 'completed',
+                    'processed_by' => Auth::id(),
+                    'processed_at' => now(),
+                    'notes' => "Payment re-verified & accepted: {$payment->payment_number}. Notes: ".($request->input('reverification_notes') ?? '-'),
+                ]);
+            }
+
+            DB::commit();
+
+            return redirect()->back()->with('success', 'Pembayaran berhasil diverifikasi ulang dan disetujui.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Reverification accept failed', ['error' => $e->getMessage()]);
+
+            return redirect()->back()->withErrors(['error' => 'Gagal verifikasi ulang: '.$e->getMessage()]);
+        }
+    }
+
+    /**
+     * Reject reverification of a payment (manual check confirmed incorrect)
+     */
+    public function reverifyReject(Request $request, Payment $payment): RedirectResponse
+    {
+        $this->authorizeReverification($payment);
+
+        $request->validate([
+            'reverification_notes' => 'required|string|max:1000',
+            'reverification_action' => 'required|string|max:255',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $payment->update([
+                'reverification_status' => 'rejected',
+                'reverified_by' => Auth::id(),
+                'reverified_at' => now(),
+                'reverification_notes' => $request->input('reverification_notes'),
+                'reverification_action' => $request->input('reverification_action'),
+                // When rejected, mark the payment itself as failed/ditolak
+                'payment_status' => 'failed',
+                'status' => 'ditolak',
+            ]);
+
+            // Sync income as unverified (which deletes/reverts the associated income)
+            $this->incomeSyncService->syncOnUnverified($payment);
+
+            // Re-update booking amounts and statuses
+            $booking = $payment->booking;
+            if ($booking) {
+                $totalPaid = $booking->getTotalPaidAmount();
+                $booking->dp_paid_amount = $totalPaid;
+                $booking->remaining_amount = max(0, $booking->total_amount - $totalPaid);
+                $booking->updatePaymentStatus();
+                $booking->save();
+
+                // Create workflow entry for booking
+                $booking->workflow()->create([
+                    'step' => 'payment_rejected_recheck',
+                    'status' => 'failed',
+                    'processed_by' => Auth::id(),
+                    'processed_at' => now(),
+                    'notes' => "Payment re-verified & REJECTED: {$payment->payment_number}. Reason: {$request->input('reverification_notes')}. Follow-up Action: {$request->input('reverification_action')}",
+                ]);
+
+                // Send notification for status change
+                event(new PaymentStatusChanged($payment, Auth::user(), 'verified', 'failed'));
+            }
+
+            DB::commit();
+
+            return redirect()->back()->with('success', 'Pembayaran ditolak pada verifikasi ulang. Status pembayaran dan income telah diperbarui.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Reverification reject failed', ['error' => $e->getMessage()]);
+
+            return redirect()->back()->withErrors(['error' => 'Gagal penolakan verifikasi ulang: '.$e->getMessage()]);
+        }
     }
 }

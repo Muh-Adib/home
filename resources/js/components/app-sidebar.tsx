@@ -68,11 +68,14 @@ const getNavItemsForRole = (userRole: User['role']): {
             ],
             operations: [
                 { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+                { title: 'occupancy_report', href: '/admin/reports/occupancy', icon: BarChart3 },
                 { title: 'payments', href: '/admin/payments', icon: CreditCard },
                 { title: 'finance', href: '/admin/finance', icon: DollarSign },
                 { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
                 { title: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
                 { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
+                { title: 'unit_damages', href: '/admin/unit-damages', icon: Wrench },
+                { title: 'lost_and_founds', href: '/admin/lost-and-founds', icon: ClipboardList },
             ],
             analytics: [
                 { title: 'rate_management', href: '/admin/rate-management', icon: DollarSign },
@@ -90,10 +93,13 @@ const getNavItemsForRole = (userRole: User['role']): {
             ],
             operations: [
                 { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+                { title: 'occupancy_report', href: '/admin/reports/occupancy', icon: BarChart3 },
                 { title: 'payments', href: '/admin/payments', icon: CreditCard },
                 { title: 'finance', href: '/admin/finance', icon: DollarSign },
                 { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
                 { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
+                { title: 'unit_damages', href: '/admin/unit-damages', icon: Wrench },
+                { title: 'lost_and_founds', href: '/admin/lost-and-founds', icon: ClipboardList },
             ],
             analytics: [
                 { title: 'rate_management', href: '/admin/rate-management', icon: DollarSign },
@@ -109,10 +115,13 @@ const getNavItemsForRole = (userRole: User['role']): {
             ],
             operations: [
                 { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+                { title: 'occupancy_report', href: '/admin/reports/occupancy', icon: BarChart3 },
                 { title: 'payments', href: '/admin/payments', icon: CreditCard },
                 { title: 'finance', href: '/admin/finance', icon: DollarSign },
                 { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
                 { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
+                { title: 'unit_damages', href: '/admin/unit-damages', icon: Wrench },
+                { title: 'lost_and_founds', href: '/admin/lost-and-founds', icon: ClipboardList },
             ],
             analytics: [
                 { title: 'rate_management', href: '/admin/rate-management', icon: DollarSign },
@@ -126,8 +135,11 @@ const getNavItemsForRole = (userRole: User['role']): {
             management: [],
             operations: [
                 { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+                { title: 'occupancy_report', href: '/admin/reports/occupancy', icon: BarChart3 },
                 { title: 'check_in_out', href: '/admin/checkin', icon: Shield },
                 { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
+                { title: 'unit_damages', href: '/admin/unit-damages', icon: Wrench },
+                { title: 'lost_and_founds', href: '/admin/lost-and-founds', icon: ClipboardList },
             ],
             analytics: []
         },
@@ -155,6 +167,8 @@ const getNavItemsForRole = (userRole: User['role']): {
                 { title: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
                 { title: 'room_status', href: '/admin/rooms', icon: Wrench },
                 { title: 'maintenance', href: '/admin/maintenance', icon: Settings },
+                { title: 'unit_damages', href: '/admin/unit-damages', icon: Wrench },
+                { title: 'lost_and_founds', href: '/admin/lost-and-founds', icon: ClipboardList },
             ],
             analytics: []
         },

@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\FinanceController;
 use App\Http\Controllers\Admin\GowaAdminController;
 use App\Http\Controllers\Admin\InventoryController;
 use App\Http\Controllers\Admin\LegalPageController;
+use App\Http\Controllers\Admin\LostAndFoundController;
 use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\PaymentMethodController;
 use App\Http\Controllers\Admin\PropertyManagementController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Admin\PropertySeasonalRateController;
 use App\Http\Controllers\Admin\RateManagementController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\UnitDamageController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AIProviderKeyController;
 use App\Http\Controllers\AmenityController;
@@ -333,6 +335,8 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance,front_desk
         Route::delete('/{payment:payment_number}', 'destroy')->name('destroy');
         Route::patch('/{payment:payment_number}/verify', 'verify')->name('verify');
         Route::patch('/{payment:payment_number}/reject', 'reject')->name('reject');
+        Route::patch('/{payment:payment_number}/reverify-accept', 'reverifyAccept')->name('reverify-accept');
+        Route::patch('/{payment:payment_number}/reverify-reject', 'reverifyReject')->name('reverify-reject');
 
         // Booking-specific payment routes
         Route::get('/booking/{booking:booking_number}/create', 'createForBooking')->name('create-for-booking');
@@ -399,7 +403,7 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,hou
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:super_admin,property_manager,finance,property_owner'])->prefix('admin/reports')->name('admin.reports.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,property_manager,finance,front_desk,property_owner'])->prefix('admin/reports')->name('admin.reports.')->group(function () {
     Route::controller(ReportController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/financial', 'financial')->name('financial');
@@ -570,3 +574,29 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         Route::match(['post', 'put'], '/{review}', [ReviewController::class, 'adminUpdate'])->name('update');
     });
 });
+
+// Unit Damages Routes
+Route::middleware(['auth', 'role:super_admin,property_manager,front_desk,housekeeping,property_owner'])
+    ->prefix('admin/unit-damages')
+    ->name('admin.unit-damages.')
+    ->controller(UnitDamageController::class)
+    ->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::patch('/{unitDamage}/assign', 'assign')->name('assign');
+        Route::patch('/{unitDamage}/resolve', 'resolve')->name('resolve');
+        Route::delete('/{unitDamage}', 'destroy')->name('destroy');
+    });
+
+// Lost and Found Routes
+Route::middleware(['auth', 'role:super_admin,property_manager,front_desk,housekeeping,property_owner'])
+    ->prefix('admin/lost-and-founds')
+    ->name('admin.lost-and-founds.')
+    ->controller(LostAndFoundController::class)
+    ->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::patch('/{lostAndFound}/claim', 'claim')->name('claim');
+        Route::get('/suggest-bookings', 'suggestBookings')->name('suggest-bookings');
+        Route::delete('/{lostAndFound}', 'destroy')->name('destroy');
+    });

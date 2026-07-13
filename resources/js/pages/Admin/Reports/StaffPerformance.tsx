@@ -32,6 +32,9 @@ interface StaffPerformanceItem {
     closings: number;
     check_ins: number;
     deals_value: number;
+    resolved_damages: number;
+    assigned_damages: number;
+    damage_points: number;
 }
 
 interface StaffPerformanceProps extends PageProps {
@@ -68,6 +71,7 @@ export default function StaffPerformance({ performanceData, filters }: StaffPerf
         closingRate: 15000,   // Rp 15.000 / closing (DP received)
         checkInRate: 10000,   // Rp 10.000 / check-in
         commissionPercent: 0.5, // 0.5% of total deal value
+        damagePointRate: 1000, // Rp 1.000 / point kerusakan
     });
 
     const handleRateChange = (key: keyof typeof rates, val: number) => {
@@ -81,7 +85,8 @@ export default function StaffPerformance({ performanceData, filters }: StaffPerf
         const closingBonus = item.closings * rates.closingRate;
         const checkInBonus = item.check_ins * rates.checkInRate;
         const commissionBonus = (item.deals_value * rates.commissionPercent) / 100;
-        const total = followUpBonus + creationBonus + closingBonus + checkInBonus + commissionBonus;
+        const damageBonus = (item.damage_points || 0) * rates.damagePointRate;
+        const total = followUpBonus + creationBonus + closingBonus + checkInBonus + commissionBonus + damageBonus;
 
         return {
             followUpBonus,
@@ -89,6 +94,7 @@ export default function StaffPerformance({ performanceData, filters }: StaffPerf
             closingBonus,
             checkInBonus,
             commissionBonus,
+            damageBonus,
             total,
         };
     };
@@ -102,6 +108,8 @@ export default function StaffPerformance({ performanceData, filters }: StaffPerf
             closings: acc.closings + curr.closings,
             check_ins: acc.check_ins + curr.check_ins,
             deals_value: acc.deals_value + curr.deals_value,
+            resolved_damages: acc.resolved_damages + (curr.resolved_damages || 0),
+            damage_points: acc.damage_points + (curr.damage_points || 0),
             total_bonus: acc.total_bonus + bonus.total,
         };
     }, {
@@ -110,12 +118,14 @@ export default function StaffPerformance({ performanceData, filters }: StaffPerf
         closings: 0,
         check_ins: 0,
         deals_value: 0,
+        resolved_damages: 0,
+        damage_points: 0,
         total_bonus: 0,
     });
 
     // CSV Export
     const handleExportCSV = () => {
-        const headers = ['Nama Staf', 'Role', 'Follow-up (Chat & DP Req)', 'Input Form', 'Closing (DP Masuk)', 'Check-in (Hospitality)', 'Total Nilai Deal (Rp)', 'Total Bonus Kinerja (Rp)'];
+        const headers = ['Nama Staf', 'Role', 'Follow-up (Chat & DP Req)', 'Input Form', 'Closing (DP Masuk)', 'Check-in (Hospitality)', 'Tindakan Kerusakan', 'Poin Kerusakan', 'Total Nilai Deal (Rp)', 'Total Bonus Kinerja (Rp)'];
         const rows = performanceData.map(item => {
             const bonus = calculateStaffBonus(item);
             return [
@@ -125,6 +135,8 @@ export default function StaffPerformance({ performanceData, filters }: StaffPerf
                 item.creations,
                 item.closings,
                 item.check_ins,
+                item.resolved_damages || 0,
+                item.damage_points || 0,
                 item.deals_value,
                 bonus.total
             ];
@@ -338,6 +350,19 @@ export default function StaffPerformance({ performanceData, filters }: StaffPerf
                                         />
                                     </div>
                                 </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-semibold text-slate-600">Bonus per Poin Perbaikan Kerusakan</Label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-semibold">Rp</span>
+                                        <Input
+                                            type="number"
+                                            value={rates.damagePointRate}
+                                            onChange={e => handleRateChange('damagePointRate', Number(e.target.value))}
+                                            className="pl-9 h-10"
+                                        />
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
                     </div>
@@ -375,6 +400,14 @@ export default function StaffPerformance({ performanceData, filters }: StaffPerf
                                                     <span className="text-slate-400 block text-[10px]">Check-In</span>
                                                     <span className="font-semibold text-slate-700">{item.check_ins} tamu</span>
                                                 </div>
+                                                <div>
+                                                    <span className="text-slate-400 block text-[10px]">Perbaikan Unit</span>
+                                                    <span className="font-semibold text-slate-700">{item.resolved_damages || 0} tindakan</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-400 block text-[10px]">Poin Perbaikan</span>
+                                                    <span className="font-semibold text-emerald-600">{item.damage_points || 0} pts</span>
+                                                </div>
                                             </div>
                                             <div className="pt-2 border-t flex justify-between items-center">
                                                 <span className="text-xs text-slate-500">Estimasi Bonus</span>
@@ -403,6 +436,7 @@ export default function StaffPerformance({ performanceData, filters }: StaffPerf
                                             <th className="p-4 text-right">Input Form</th>
                                             <th className="p-4 text-right">Closing</th>
                                             <th className="p-4 text-right">Check-In</th>
+                                            <th className="p-4 text-right">Poin Perbaikan</th>
                                             <th className="p-4 text-right">Komisi Deal</th>
                                             <th className="p-4 text-right font-bold text-indigo-700">Total Bonus</th>
                                         </tr>
@@ -431,6 +465,10 @@ export default function StaffPerformance({ performanceData, filters }: StaffPerf
                                                     <td className="p-4 text-right">
                                                         <div>{formatCurrency(bonus.checkInBonus)}</div>
                                                         <span className="text-[10px] text-slate-400">({item.check_ins}x)</span>
+                                                    </td>
+                                                    <td className="p-4 text-right">
+                                                        <div>{formatCurrency(bonus.damageBonus)}</div>
+                                                        <span className="text-[10px] text-slate-400">({item.damage_points || 0} pts)</span>
                                                     </td>
                                                     <td className="p-4 text-right">
                                                         <div>{formatCurrency(bonus.commissionBonus)}</div>

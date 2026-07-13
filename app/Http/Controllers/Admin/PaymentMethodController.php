@@ -8,6 +8,7 @@ use App\Http\Requests\UpdatePaymentMethodRequest;
 use App\Models\PaymentMethod;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -53,6 +54,7 @@ class PaymentMethodController extends Controller
         }
 
         $paymentMethods = $query->with('bankAccounts')
+            ->withCount('payments')
             ->orderBy('sort_order')
             ->orderBy('name')
             ->paginate(20);
@@ -173,15 +175,45 @@ class PaymentMethodController extends Controller
     /**
      * Remove the specified payment method.
      */
-    public function destroy(PaymentMethod $paymentMethod): RedirectResponse
+    public function destroy(Request $request, PaymentMethod $paymentMethod): RedirectResponse
     {
         $this->authorize('managePaymentMethods', PaymentMethod::class);
 
-        // Check if payment method is used in any payments
-        if ($paymentMethod->payments()->exists()) {
-            return back()->withErrors([
-                'error' => 'Cannot delete payment method that has been used in payments.',
+        $paymentsCount = $paymentMethod->payments()->count();
+
+        if ($paymentsCount > 0) {
+            $request->validate([
+                'replacement_method_id' => 'required|exists:payment_methods,id|not_in:'.$paymentMethod->id,
+            ], [
+                'replacement_method_id.required' => 'Silakan pilih metode pembayaran pengganti untuk mengalihkan '.$paymentsCount.' transaksi.',
+                'replacement_method_id.not_in' => 'Metode pembayaran pengganti tidak boleh sama dengan yang akan dihapus.',
             ]);
+
+            $replacementId = $request->input('replacement_method_id');
+
+            DB::beginTransaction();
+            try {
+                // Update all payments using this payment method
+                $paymentMethod->payments()->update([
+                    'payment_method_id' => $replacementId,
+                ]);
+
+                // Delete QR code file if exists
+                if ($paymentMethod->qr_code) {
+                    Storage::disk('public')->delete($paymentMethod->qr_code);
+                }
+
+                $paymentMethod->delete();
+
+                DB::commit();
+
+                return redirect()->route('admin.payment-methods.index')
+                    ->with('success', "Metode pembayaran berhasil dihapus. {$paymentsCount} transaksi dialihkan ke metode baru.");
+            } catch (\Exception $e) {
+                DB::rollBack();
+
+                return back()->withErrors(['error' => 'Gagal menghapus metode pembayaran: '.$e->getMessage()]);
+            }
         }
 
         // Delete QR code file if exists

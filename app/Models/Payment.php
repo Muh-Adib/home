@@ -46,6 +46,11 @@ class Payment extends Model
         'matched_mutation_id',
         'matched_at',
         'matched_by',
+        'reverification_status',
+        'reverified_by',
+        'reverified_at',
+        'reverification_notes',
+        'reverification_action',
     ];
 
     protected $casts = [
@@ -60,6 +65,7 @@ class Payment extends Model
         'matched_mutation_id' => 'integer',
         'matched_at' => 'datetime',
         'matched_by' => 'integer',
+        'reverified_at' => 'datetime',
     ];
 
     protected $appends = [
@@ -120,6 +126,11 @@ class Payment extends Model
     public function verifier(): BelongsTo
     {
         return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    public function reverifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reverified_by');
     }
 
     public function paymentMethod(): BelongsTo

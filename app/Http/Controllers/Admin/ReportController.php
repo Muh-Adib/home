@@ -7,6 +7,8 @@ use App\Models\Booking;
 use App\Models\BookingDailyRevenue;
 use App\Models\Payment;
 use App\Models\Property;
+use App\Models\UnitDamage;
+use App\Models\UnitDamageAction;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -21,6 +23,9 @@ class ReportController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
+        if ($user->role === 'front_desk') {
+            abort(403, 'Akses ditolak. Resepsionis hanya memiliki hak akses untuk Laporan Okupansi.');
+        }
         $period = $request->input('period', 'month');
         $dateFrom = $request->input('date_from');
         $dateTo = $request->input('date_to');
@@ -106,6 +111,9 @@ class ReportController extends Controller
     public function financial(Request $request): Response
     {
         $user = $request->user();
+        if ($user->role === 'front_desk') {
+            abort(403, 'Akses ditolak. Resepsionis hanya memiliki hak akses untuk Laporan Okupansi.');
+        }
         $period = $request->input('period', 'month');
         $propertyId = $request->input('property_id');
 
@@ -143,33 +151,126 @@ class ReportController extends Controller
     public function occupancy(Request $request): Response
     {
         $user = $request->user();
-        $period = $request->input('period', 'month');
-        $propertyId = $request->input('property_id');
 
-        $startDate = $this->getStartDate($period);
-        $endDate = now();
+        $month = (int) $request->input('month', now()->month);
+        $year = (int) $request->input('year', now()->year);
 
-        // Occupancy rates
-        $occupancyData = $this->getOccupancyRates($startDate, $endDate, $user, $propertyId);
+        $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $endDate = $startDate->copy()->endOfMonth();
+        $totalDaysInMonth = $startDate->daysInMonth;
 
-        // Booking patterns
-        $bookingPatterns = $this->getBookingPatterns($startDate, $endDate, $user, $propertyId);
+        $today = now()->startOfDay();
 
-        // Guest demographics
-        $guestDemographics = $this->getGuestDemographics($startDate, $endDate, $user, $propertyId);
+        // Calculate remaining nights in this month
+        $remainingNights = 0;
+        if ($today->between($startDate, $endDate)) {
+            $remainingNights = $today->diffInDays($endDate) + 1; // including tonight
+        } elseif ($today->lt($startDate)) {
+            $remainingNights = $totalDaysInMonth;
+        } else {
+            $remainingNights = 0;
+        }
 
-        $properties = $user->role === 'property_owner'
-            ? Property::where('owner_id', $user->id)->active()->get(['id', 'name'])
-            : Property::active()->get(['id', 'name']);
+        $propertiesList = $user->role === 'property_owner'
+            ? Property::where('owner_id', $user->id)->active()->get()
+            : Property::active()->get();
+
+        $occupancyReport = [];
+
+        foreach ($propertiesList as $property) {
+            $bookings = Booking::where('property_id', $property->id)
+                ->where('booking_status', '!=', 'cancelled')
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->where('check_in', '<=', $endDate->toDateString())
+                        ->where('check_out', '>=', $startDate->toDateString());
+                })
+                ->get();
+
+            $occupiedNights = 0;
+
+            for ($d = 0; $d < $totalDaysInMonth; $d++) {
+                $currentNight = $startDate->copy()->addDays($d)->startOfDay();
+                foreach ($bookings as $booking) {
+                    $ci = Carbon::parse($booking->check_in)->startOfDay();
+                    $co = Carbon::parse($booking->check_out)->startOfDay();
+                    if ($currentNight->greaterThanOrEqualTo($ci) && $currentNight->lessThan($co)) {
+                        $occupiedNights++;
+                        break;
+                    }
+                }
+            }
+
+            $occupancyPercentage = $totalDaysInMonth > 0
+                ? round(($occupiedNights / $totalDaysInMonth) * 100, 1)
+                : 0;
+
+            $vacantNights = $totalDaysInMonth - $occupiedNights;
+
+            $bookedRemainingNights = 0;
+            $startOfRemaining = $today->greaterThan($startDate) ? $today : $startDate;
+
+            if ($startOfRemaining->lessThanOrEqualTo($endDate)) {
+                $daysRemaining = $startOfRemaining->diffInDays($endDate) + 1;
+                for ($d = 0; $d < $daysRemaining; $d++) {
+                    $currentNight = $startOfRemaining->copy()->addDays($d)->startOfDay();
+                    foreach ($bookings as $booking) {
+                        $ci = Carbon::parse($booking->check_in)->startOfDay();
+                        $co = Carbon::parse($booking->check_out)->startOfDay();
+                        if ($currentNight->greaterThanOrEqualTo($ci) && $currentNight->lessThan($co)) {
+                            $bookedRemainingNights++;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            $unbookedRemainingNights = max(0, $remainingNights - $bookedRemainingNights);
+            $potentialMaxOccupiedNights = $occupiedNights + $unbookedRemainingNights;
+
+            $potentialMaxOccupancyPercentage = $totalDaysInMonth > 0
+                ? round(($potentialMaxOccupiedNights / $totalDaysInMonth) * 100, 1)
+                : 0;
+
+            $targetStatus = 'Tidak Tercapai';
+            if ($occupiedNights >= 25) {
+                $targetStatus = 'Tercapai';
+            } elseif ($potentialMaxOccupiedNights >= 25) {
+                $targetStatus = 'Potensial Tercapai';
+            }
+
+            $occupancyReport[] = [
+                'property_id' => $property->id,
+                'property_name' => $property->name,
+                'occupied_nights' => $occupiedNights,
+                'vacant_nights' => $vacantNights,
+                'occupancy_percentage' => $occupancyPercentage,
+                'potential_max_percentage' => $potentialMaxOccupancyPercentage,
+                'potential_max_nights' => $potentialMaxOccupiedNights,
+                'target_status' => $targetStatus,
+            ];
+        }
+
+        // Summary Statistics for the whole property portfolio
+        $totalUnits = count($occupancyReport);
+        $avgOccupancy = $totalUnits > 0 ? round(collect($occupancyReport)->avg('occupancy_percentage'), 1) : 0;
+        $totalOccupied = collect($occupancyReport)->sum('occupied_nights');
+        $totalVacant = collect($occupancyReport)->sum('vacant_nights');
+        $unitsMeetingTarget = collect($occupancyReport)->where('target_status', 'Tercapai')->count();
+        $unitsPotentialTarget = collect($occupancyReport)->where('target_status', 'Potensial Tercapai')->count();
 
         return Inertia::render('Admin/Reports/Occupancy', [
-            'occupancyData' => $occupancyData,
-            'bookingPatterns' => $bookingPatterns,
-            'guestDemographics' => $guestDemographics,
-            'properties' => $properties,
+            'occupancyReport' => $occupancyReport,
+            'summary' => [
+                'total_units' => $totalUnits,
+                'average_occupancy' => $avgOccupancy,
+                'total_occupied_nights' => $totalOccupied,
+                'total_vacant_nights' => $totalVacant,
+                'units_meeting_target' => $unitsMeetingTarget,
+                'units_potential_target' => $unitsPotentialTarget,
+            ],
             'filters' => [
-                'period' => $period,
-                'property_id' => $propertyId,
+                'month' => $month,
+                'year' => $year,
             ],
         ]);
     }
@@ -180,6 +281,9 @@ class ReportController extends Controller
     public function export(Request $request)
     {
         $user = $request->user();
+        if ($user->role === 'front_desk') {
+            abort(403, 'Akses ditolak. Resepsionis hanya memiliki hak akses untuk Laporan Okupansi.');
+        }
         $format = $request->input('format', 'csv');
         $reportType = $request->input('type', 'revenue');
         $dateFrom = $request->input('date_from');
@@ -1107,7 +1211,7 @@ class ReportController extends Controller
         $endDate = $dateTo ? Carbon::parse($dateTo)->endOfDay() : now()->endOfDay();
 
         // Get staff list
-        $staff = User::whereIn('role', ['super_admin', 'property_manager', 'front_desk'])
+        $staff = User::whereIn('role', ['super_admin', 'property_manager', 'front_desk', 'housekeeping'])
             ->orderBy('name')
             ->get(['id', 'name', 'role']);
 
@@ -1139,6 +1243,21 @@ class ReportController extends Controller
                 ->whereBetween('created_at', [$startDate, $endDate])
                 ->sum('total_amount');
 
+            // Count Resolved unit damages (count of actions performed)
+            $resolvedDamagesCount = UnitDamageAction::where('user_id', $s->id)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->count();
+
+            // Sum points earned from damage repair actions
+            $damagePoints = (int) UnitDamageAction::where('user_id', $s->id)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->sum('points');
+
+            // Count Assigned unit damages
+            $assignedDamagesCount = UnitDamage::where('assigned_to', $s->id)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->count();
+
             $performanceData[] = [
                 'id' => $s->id,
                 'name' => $s->name,
@@ -1148,6 +1267,9 @@ class ReportController extends Controller
                 'closings' => $closedCount,
                 'check_ins' => $checkedInCount,
                 'deals_value' => (float) $totalDealsValue,
+                'resolved_damages' => $resolvedDamagesCount,
+                'assigned_damages' => $assignedDamagesCount,
+                'damage_points' => $damagePoints,
             ];
         }
 

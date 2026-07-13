@@ -642,6 +642,21 @@ class Booking extends Model
      */
     private function recalculateRateCalculation(): array
     {
+        if (! $this->property) {
+            return [
+                'nights' => $this->nights,
+                'base_amount' => (float) $this->base_amount,
+                'weekend_premium' => 0,
+                'seasonal_premium' => 0,
+                'extra_bed_amount' => (float) ($this->extra_bed_amount ?? 0),
+                'cleaning_fee' => 0,
+                'tax_amount' => (float) ($this->tax_amount ?? 0),
+                'total_amount' => (float) $this->total_amount,
+                'extra_beds' => 0,
+                'seasonal_rates_applied' => [],
+            ];
+        }
+
         // Recalculate using RateCalculationService
         try {
             $rateCalculationService = app(RateCalculationService::class);

@@ -51,6 +51,9 @@ interface PaymentsIndexProps {
         payment_method?: string;
         date_from?: string;
         date_to?: string;
+        grouped?: string;
+        sort_by?: string;
+        sort_dir?: string;
     };
 }
 
@@ -72,6 +75,15 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
     const [showVerifyDialog, setShowVerifyDialog] = useState(false);
     const [showRejectDialog, setShowRejectDialog] = useState(false);
 
+    // Grouping & Sorting States
+    const [isGrouped, setIsGrouped] = useState(filters.grouped !== 'false');
+    const [sortBy, setSortBy] = useState(filters.sort_by || 'date');
+    const [sortDir, setSortDir] = useState(filters.sort_dir || 'desc');
+
+    // Reverification States
+    const [showReverifyAcceptDialog, setShowReverifyAcceptDialog] = useState(false);
+    const [showReverifyRejectDialog, setShowReverifyRejectDialog] = useState(false);
+
     const { data: verifyData, setData: setVerifyData, processing: verifyProcessing, patch: verifyPatch, reset: verifyReset } = useForm({
         verification_notes: '',
     });
@@ -80,16 +92,61 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
         rejection_reason: '',
     });
 
+    const { data: reverifyAcceptData, setData: setReverifyAcceptData, processing: reverifyAcceptProcessing, patch: reverifyAcceptPatch, reset: reverifyAcceptReset } = useForm({
+        reverification_notes: '',
+    });
+
+    const { data: reverifyRejectData, setData: setReverifyRejectData, processing: reverifyRejectProcessing, patch: reverifyRejectPatch, reset: reverifyRejectReset } = useForm({
+        reverification_notes: '',
+        reverification_action: '',
+    });
+
+    // Inline Notes Editing States
+    const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
+    const [editingNotesValue, setEditingNotesValue] = useState<string>('');
+    const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
+
+    const handleStartEditNotes = (payment: Payment) => {
+        setEditingPaymentId(payment.id);
+        setEditingNotesValue(payment.verification_notes || '');
+    };
+
+    const handleCancelEditNotes = () => {
+        setEditingPaymentId(null);
+        setEditingNotesValue('');
+    };
+
+    const handleSaveNotes = (payment: Payment) => {
+        setIsSavingNotes(true);
+        router.patch(`/admin/payments/${payment.payment_number}`, {
+            verification_notes: editingNotesValue,
+            keep_existing_attachment: true,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setEditingPaymentId(null);
+                setEditingNotesValue('');
+                setIsSavingNotes(false);
+            },
+            onError: () => {
+                setIsSavingNotes(false);
+            }
+        });
+    };
+
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Payments' },
     ];
 
-    const handleSearch = () => {
+    const handleSearch = (newGrouped = isGrouped, newSortBy = sortBy, newSortDir = sortDir) => {
         router.get('/admin/payments', {
             search: searchTerm,
             status: statusFilter !== 'all' ? statusFilter : undefined,
             payment_method: paymentMethodFilter !== 'all' ? paymentMethodFilter : undefined,
+            grouped: String(newGrouped),
+            sort_by: newSortBy,
+            sort_dir: newSortDir,
             date_from: filters.date_from,
             date_to: filters.date_to,
         }, {
@@ -108,6 +165,18 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
         setSelectedPayment(payment);
         setShowRejectDialog(true);
         rejectReset();
+    };
+
+    const handleReverifyAccept = (payment: Payment) => {
+        setSelectedPayment(payment);
+        setShowReverifyAcceptDialog(true);
+        reverifyAcceptReset();
+    };
+
+    const handleReverifyReject = (payment: Payment) => {
+        setSelectedPayment(payment);
+        setShowReverifyRejectDialog(true);
+        reverifyRejectReset();
     };
 
     const submitVerification = () => {
@@ -136,6 +205,32 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
         });
     };
 
+    const submitReverifyAccept = () => {
+        if (!selectedPayment) return;
+
+        reverifyAcceptPatch(`/admin/payments/${selectedPayment.payment_number}/reverify-accept`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setShowReverifyAcceptDialog(false);
+                setSelectedPayment(null);
+                reverifyAcceptReset();
+            },
+        });
+    };
+
+    const submitReverifyReject = () => {
+        if (!selectedPayment) return;
+
+        reverifyRejectPatch(`/admin/payments/${selectedPayment.payment_number}/reverify-reject`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setShowReverifyRejectDialog(false);
+                setSelectedPayment(null);
+                reverifyRejectReset();
+            },
+        });
+    };
+
     const getPaymentStatusBadge = (status: Payment['payment_status']) => {
         const statusConfig = {
             pending: { variant: 'secondary' as const, label: 'Pending', icon: Clock },
@@ -155,6 +250,28 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
             <Badge variant={config.variant} className="inline-flex items-center gap-1">
                 <Icon className="h-3 w-3" />
                 {config.label}
+            </Badge>
+        );
+    };
+
+    const getReverificationBadge = (status: string) => {
+        if (status === 'accepted') {
+            return (
+                <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100/80 font-bold border-none text-[10px]">
+                    ✓ Cek Manual Oke
+                </Badge>
+            );
+        }
+        if (status === 'rejected') {
+            return (
+                <Badge className="bg-rose-100 text-rose-800 hover:bg-rose-100/80 font-bold border-none text-[10px]">
+                    ✗ Cek Manual Salah
+                </Badge>
+            );
+        }
+        return (
+            <Badge variant="outline" className="text-amber-600 border-amber-300 font-semibold text-[10px]">
+                ? Belum Cek Manual
             </Badge>
         );
     };
@@ -357,10 +474,73 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                     </SelectContent>
                                 </Select>
 
-                                <Button onClick={handleSearch} className="w-full">
+                                <Button onClick={() => handleSearch()} className="w-full">
                                     <Filter className="h-4 w-4 mr-2" />
                                     Apply Filters
                                 </Button>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4 border-slate-100">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-slate-700">Tampilan:</span>
+                                    <Button
+                                        variant={isGrouped ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => {
+                                            setIsGrouped(true);
+                                            handleSearch(true, sortBy, sortDir);
+                                        }}
+                                    >
+                                        Kelompokkan per Booking
+                                    </Button>
+                                    <Button
+                                        variant={!isGrouped ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => {
+                                            setIsGrouped(false);
+                                            handleSearch(false, sortBy, sortDir);
+                                        }}
+                                    >
+                                        Daftar Transaksi Tunggal
+                                    </Button>
+                                </div>
+
+                                {!isGrouped && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-slate-700">Urutkan:</span>
+                                        <Select
+                                            value={sortBy}
+                                            onValueChange={(val) => {
+                                                setSortBy(val);
+                                                handleSearch(false, val, sortDir);
+                                            }}
+                                        >
+                                            <SelectTrigger className="w-[180px] h-9">
+                                                <SelectValue placeholder="Urutan Kolom" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="date">Tanggal Pembayaran</SelectItem>
+                                                <SelectItem value="bank_account">Rekening Tujuan</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Select
+                                            value={sortDir}
+                                            onValueChange={(val) => {
+                                                setSortDir(val);
+                                                handleSearch(false, sortBy, val);
+                                            }}
+                                        >
+                                            <SelectTrigger className="w-[140px] h-9">
+                                                <SelectValue placeholder="Arah Urutan" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="desc">Terbaru/Z-A (DESC)</SelectItem>
+                                                <SelectItem value="asc">Terlama/A-Z (ASC)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </CardContent>
@@ -376,7 +556,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {groupedPayments.map((group, groupIndex) => {
+                            {isGrouped && groupedPayments.map((group, groupIndex) => {
                                 const isEven = groupIndex % 2 === 0;
                                 return (
                                     <div
@@ -421,6 +601,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                                         <th className="py-2">Rekening Tujuan</th>
                                                         <th className="py-2">Status</th>
                                                         <th className="py-2">Tanggal</th>
+                                                        <th className="py-2">Catatan</th>
                                                         <th className="py-2 text-right">Aksi</th>
                                                     </tr>
                                                 </thead>
@@ -474,6 +655,57 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                                                 </td>
                                                                 <td className="py-2.5 text-slate-500 font-medium">
                                                                     {formatDate(payment.payment_date || '')}
+                                                                </td>
+                                                                <td className="py-2.5 max-w-[200px]">
+                                                                    {editingPaymentId === payment.id ? (
+                                                                        <div className="flex items-center gap-1">
+                                                                            <Input
+                                                                                value={editingNotesValue}
+                                                                                onChange={(e) => setEditingNotesValue(e.target.value)}
+                                                                                disabled={isSavingNotes}
+                                                                                className="h-7 text-xs w-full py-0 px-2"
+                                                                                placeholder="Tulis catatan..."
+                                                                                autoFocus
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter') {
+                                                                                        handleSaveNotes(payment);
+                                                                                    } else if (e.key === 'Escape') {
+                                                                                        handleCancelEditNotes();
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                            <Button
+                                                                                size="icon"
+                                                                                variant="ghost"
+                                                                                onClick={() => handleSaveNotes(payment)}
+                                                                                disabled={isSavingNotes}
+                                                                                className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 shrink-0"
+                                                                            >
+                                                                                <CheckCircle className="h-4 w-4" />
+                                                                            </Button>
+                                                                            <Button
+                                                                                size="icon"
+                                                                                variant="ghost"
+                                                                                onClick={handleCancelEditNotes}
+                                                                                disabled={isSavingNotes}
+                                                                                className="h-7 w-7 text-rose-600 hover:text-rose-700 hover:bg-rose-50 shrink-0"
+                                                                            >
+                                                                                <XCircle className="h-4 w-4" />
+                                                                            </Button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div 
+                                                                            onClick={() => handleStartEditNotes(payment)}
+                                                                            className="group flex items-center justify-between gap-1 cursor-pointer hover:bg-slate-100/80 rounded px-1.5 py-1 text-slate-600 hover:text-slate-900 transition-all min-h-[28px]"
+                                                                        >
+                                                                            <span className="truncate max-w-[150px] font-medium text-xs">
+                                                                                {payment.verification_notes || (
+                                                                                    <span className="text-slate-400 italic text-[11px]">+ Tambah Catatan</span>
+                                                                                )}
+                                                                            </span>
+                                                                            <Edit className="h-3 w-3 opacity-0 group-hover:opacity-100 text-slate-400 shrink-0 transition-opacity" />
+                                                                        </div>
+                                                                    )}
                                                                 </td>
                                                                 <td className="py-2.5 text-right">
                                                                     <DropdownMenu>
@@ -629,6 +861,337 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                 );
                             })}
 
+                            {!isGrouped && payments.data.length > 0 && (
+                                <div className="space-y-4">
+                                    {/* Desktop Table */}
+                                    <div className="hidden sm:block overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-sm">
+                                        <table className="w-full text-left border-collapse text-xs">
+                                            <thead>
+                                                <tr className="border-b border-slate-100 text-[10px] text-slate-400 uppercase font-bold tracking-wider bg-slate-50/50">
+                                                    <th className="py-3 px-4">Payment Number & Booking</th>
+                                                    <th className="py-3 px-4">Nominal</th>
+                                                    <th className="py-3 px-4">Tipe</th>
+                                                    <th className="py-3 px-4">Rekening Tujuan</th>
+                                                    <th className="py-3 px-4">Status Bayar</th>
+                                                    <th className="py-3 px-4">Cek Manual (Re-verify)</th>
+                                                    <th className="py-3 px-4">Tanggal</th>
+                                                    <th className="py-3 px-4">Catatan</th>
+                                                    <th className="py-3 px-4 text-right">Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {payments.data.map((payment, index) => {
+                                                    const isMissRouted = checkIsMissRouted(payment);
+                                                    const rowEven = index % 2 === 0;
+                                                    const canReverifyPayment = ['super_admin', 'finance'].includes(auth.user?.role) || (auth.user?.role === 'property_owner' && payment.booking?.property?.owner_id === auth.user?.id);
+
+                                                    return (
+                                                        <tr
+                                                            key={payment.id}
+                                                            className={`border-b border-slate-100/50 hover:bg-slate-200/20 transition-colors ${rowEven ? 'bg-transparent' : 'bg-slate-50/30'}`}
+                                                        >
+                                                            <td className="py-3 px-4 space-y-1">
+                                                                <Link
+                                                                    href={`/admin/payments/${payment.payment_number}`}
+                                                                    className="hover:underline text-blue-600 font-bold block"
+                                                                >
+                                                                    {payment.payment_number}
+                                                                </Link>
+                                                                <div className="text-[10px] text-slate-500 font-medium">
+                                                                    Booking:{" "}
+                                                                    {payment.booking ? (
+                                                                        <Link href={`/admin/bookings/${payment.booking.booking_number}`} className="text-blue-500 hover:underline font-bold">
+                                                                            {payment.booking.booking_number}
+                                                                        </Link>
+                                                                    ) : (
+                                                                        "Tanpa Booking"
+                                                                    )}
+                                                                    {" "}• {payment.booking?.guest_name || 'Tamu Umum'}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3 px-4 font-black text-slate-900 text-sm">
+                                                                {formatCurrency(payment.amount)}
+                                                            </td>
+                                                            <td className="py-3 px-4">
+                                                                {getPaymentTypeBadge(payment.payment_type)}
+                                                            </td>
+                                                            <td className="py-3 px-4 space-y-1">
+                                                                <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                                                                    <CreditCard className="h-3.5 w-3.5 text-slate-400" />
+                                                                    <span>{payment.paymentMethod?.name || payment.bank_name || 'Transfer'}</span>
+                                                                </div>
+                                                                <div className="text-[10px] text-slate-400 font-medium pl-5">
+                                                                    No. Rek: {payment.paymentMethod?.account_number || payment.account_number || '—'}
+                                                                </div>
+                                                                {isMissRouted && (
+                                                                    <div className="pl-5 pt-1">
+                                                                        <Badge variant="destructive" className="bg-rose-100 text-rose-700 hover:bg-rose-100 text-[9px] py-0.5 px-2 font-black uppercase tracking-wider border-none rounded">
+                                                                            ⚠️ Miss Route / Salah Rekening
+                                                                        </Badge>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-3 px-4">
+                                                                {getPaymentStatusBadge(payment.payment_status)}
+                                                            </td>
+                                                            <td className="py-3 px-4 space-y-1">
+                                                                {getReverificationBadge(payment.reverification_status || 'pending')}
+                                                                {payment.reverified_at && (
+                                                                    <div className="text-[10px] text-slate-400 font-medium block">
+                                                                        Oleh: {payment.reverifier?.name || 'Admin'}
+                                                                    </div>
+                                                                )}
+                                                                {payment.reverification_action && (
+                                                                    <div className="text-[9px] text-rose-500 font-bold max-w-[150px] truncate">
+                                                                        Tindak Lanjut: {payment.reverification_action}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-3 px-4 text-slate-500 font-medium">
+                                                                {formatDate(payment.payment_date || '')}
+                                                            </td>
+                                                            <td className="py-3 px-4 max-w-[200px]">
+                                                                {editingPaymentId === payment.id ? (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Input
+                                                                            value={editingNotesValue}
+                                                                            onChange={(e) => setEditingNotesValue(e.target.value)}
+                                                                            disabled={isSavingNotes}
+                                                                            className="h-7 text-xs w-full py-0 px-2"
+                                                                            placeholder="Tulis catatan..."
+                                                                            autoFocus
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter') {
+                                                                                    handleSaveNotes(payment);
+                                                                                } else if (e.key === 'Escape') {
+                                                                                    handleCancelEditNotes();
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                        <Button
+                                                                            size="icon"
+                                                                            variant="ghost"
+                                                                            onClick={() => handleSaveNotes(payment)}
+                                                                            disabled={isSavingNotes}
+                                                                            className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 shrink-0"
+                                                                        >
+                                                                            <CheckCircle className="h-4 w-4" />
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="icon"
+                                                                            variant="ghost"
+                                                                            onClick={handleCancelEditNotes}
+                                                                            disabled={isSavingNotes}
+                                                                            className="h-7 w-7 text-rose-600 hover:text-rose-700 hover:bg-rose-50 shrink-0"
+                                                                        >
+                                                                            <XCircle className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div 
+                                                                        onClick={() => handleStartEditNotes(payment)}
+                                                                        className="group flex items-center justify-between gap-1 cursor-pointer hover:bg-slate-100/80 rounded px-1.5 py-1 text-slate-600 hover:text-slate-900 transition-all min-h-[28px]"
+                                                                    >
+                                                                        <span className="truncate max-w-[150px] font-medium text-xs">
+                                                                            {payment.verification_notes || (
+                                                                                <span className="text-slate-400 italic text-[11px]">+ Tambah Catatan</span>
+                                                                            )}
+                                                                        </span>
+                                                                        <Edit className="h-3 w-3 opacity-0 group-hover:opacity-100 text-slate-400 shrink-0 transition-opacity" />
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-3 px-4 text-right">
+                                                                <DropdownMenu>
+                                                                    <DropdownMenuTrigger asChild>
+                                                                        <Button variant="ghost" className="h-7 w-7 p-0">
+                                                                            <MoreHorizontal className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </DropdownMenuTrigger>
+                                                                    <DropdownMenuContent align="end">
+                                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                                        <DropdownMenuItem asChild>
+                                                                            <Link href={`/admin/payments/${payment.payment_number}`}>
+                                                                                <Eye className="mr-2 h-4 w-4" /> View Details
+                                                                            </Link>
+                                                                        </DropdownMenuItem>
+                                                                        {canEdit(payment) && (
+                                                                            <DropdownMenuItem asChild>
+                                                                                <Link href={`/admin/payments/${payment.payment_number}/edit`}>
+                                                                                    <Edit className="mr-2 h-4 w-4" /> Edit Payment
+                                                                                </Link>
+                                                                            </DropdownMenuItem>
+                                                                        )}
+                                                                        {canVerify && payment.payment_status === 'pending' && (
+                                                                            <>
+                                                                                <DropdownMenuSeparator />
+                                                                                <DropdownMenuItem
+                                                                                    onClick={() => handleVerify(payment)}
+                                                                                    className="text-green-600"
+                                                                                >
+                                                                                    <CheckCircle className="mr-2 h-4 w-4" /> Verify Payment
+                                                                                </DropdownMenuItem>
+                                                                                <DropdownMenuItem
+                                                                                    onClick={() => handleReject(payment)}
+                                                                                    className="text-red-600"
+                                                                                >
+                                                                                    <XCircle className="mr-2 h-4 w-4" /> Reject Payment
+                                                                                </DropdownMenuItem>
+                                                                            </>
+                                                                        )}
+                                                                        {canReverifyPayment && payment.payment_status === 'verified' && payment.reverification_status === 'pending' && (
+                                                                            <>
+                                                                                <DropdownMenuSeparator />
+                                                                                <DropdownMenuItem
+                                                                                    onClick={() => handleReverifyAccept(payment)}
+                                                                                    className="text-emerald-600 font-medium"
+                                                                                >
+                                                                                    <CheckCircle className="mr-2 h-4 w-4" /> Setujui Recheck
+                                                                                </DropdownMenuItem>
+                                                                                <DropdownMenuItem
+                                                                                    onClick={() => handleReverifyReject(payment)}
+                                                                                    className="text-rose-600 font-medium"
+                                                                                >
+                                                                                    <XCircle className="mr-2 h-4 w-4" /> Tolak Recheck
+                                                                                </DropdownMenuItem>
+                                                                            </>
+                                                                        )}
+                                                                    </DropdownMenuContent>
+                                                                </DropdownMenu>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Mobile Card List */}
+                                    <div className="block sm:hidden space-y-3">
+                                        {payments.data.map((payment) => {
+                                            const isMissRouted = checkIsMissRouted(payment);
+                                            const canReverifyPayment = ['super_admin', 'finance'].includes(auth.user?.role) || (auth.user?.role === 'property_owner' && payment.booking?.property?.owner_id === auth.user?.id);
+
+                                            return (
+                                                <div
+                                                    key={payment.id}
+                                                    className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3 relative"
+                                                >
+                                                    <div className="flex justify-between items-start pr-8">
+                                                        <div className="space-y-0.5">
+                                                            <Link
+                                                                href={`/admin/payments/${payment.payment_number}`}
+                                                                className="font-bold text-blue-600 hover:underline text-sm"
+                                                            >
+                                                                {payment.payment_number}
+                                                            </Link>
+                                                            <div className="text-[10px] text-slate-500 font-medium">
+                                                                {formatDate(payment.payment_date || '')}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="font-bold text-slate-900 text-sm">
+                                                                {formatCurrency(payment.amount)}
+                                                            </div>
+                                                            <div className="mt-0.5 scale-90 origin-right">
+                                                                {getPaymentTypeBadge(payment.payment_type)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg">
+                                                        <div>Booking: <span className="font-bold">{payment.booking?.booking_number || 'Tanpa Booking'}</span></div>
+                                                        <div>Guest: <span className="font-semibold text-slate-800">{payment.booking?.guest_name || 'Tamu Umum'}</span></div>
+                                                    </div>
+
+                                                    <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 border-slate-100 text-[11px]">
+                                                        <div className="flex items-center gap-1 text-slate-600 font-medium">
+                                                            <CreditCard className="h-3 w-3 text-slate-400" />
+                                                            <span>{payment.paymentMethod?.name || payment.bank_name || 'Transfer'}</span>
+                                                        </div>
+                                                        <div>
+                                                            {getPaymentStatusBadge(payment.payment_status)}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 border-slate-100 text-[11px]">
+                                                        <span className="text-slate-500 font-medium">Cek Manual:</span>
+                                                        <div>{getReverificationBadge(payment.reverification_status || 'pending')}</div>
+                                                    </div>
+
+                                                    {isMissRouted && (
+                                                        <div className="border-t pt-2 border-slate-100">
+                                                            <Badge variant="destructive" className="bg-rose-100 text-rose-700 hover:bg-rose-100 text-[9px] py-0.5 px-2 font-black uppercase border-none rounded w-full justify-center">
+                                                                ⚠️ Miss Route
+                                                            </Badge>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="absolute top-2.5 right-2">
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" className="h-7 w-7 p-0 hover:bg-slate-200/50">
+                                                                    <MoreHorizontal className="h-4 w-4" />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end">
+                                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                                <DropdownMenuItem asChild>
+                                                                    <Link href={`/admin/payments/${payment.payment_number}`}>
+                                                                        <Eye className="mr-2 h-4 w-4" /> View Details
+                                                                    </Link>
+                                                                </DropdownMenuItem>
+                                                                {canEdit(payment) && (
+                                                                    <DropdownMenuItem asChild>
+                                                                        <Link href={`/admin/payments/${payment.payment_number}/edit`}>
+                                                                            <Edit className="mr-2 h-4 w-4" /> Edit Payment
+                                                                        </Link>
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                                {canVerify && payment.payment_status === 'pending' && (
+                                                                    <>
+                                                                        <DropdownMenuSeparator />
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => handleVerify(payment)}
+                                                                            className="text-green-600"
+                                                                        >
+                                                                            <CheckCircle className="mr-2 h-4 w-4" /> Verify Payment
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => handleReject(payment)}
+                                                                            className="text-red-600"
+                                                                        >
+                                                                            <XCircle className="mr-2 h-4 w-4" /> Reject Payment
+                                                                        </DropdownMenuItem>
+                                                                    </>
+                                                                )}
+                                                                {canReverifyPayment && payment.payment_status === 'verified' && payment.reverification_status === 'pending' && (
+                                                                    <>
+                                                                        <DropdownMenuSeparator />
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => handleReverifyAccept(payment)}
+                                                                            className="text-emerald-600"
+                                                                        >
+                                                                            <CheckCircle className="mr-2 h-4 w-4" /> Setujui Recheck
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => handleReverifyReject(payment)}
+                                                                            className="text-rose-600"
+                                                                        >
+                                                                            <XCircle className="mr-2 h-4 w-4" /> Tolak Recheck
+                                                                        </DropdownMenuItem>
+                                                                    </>
+                                                                )}
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
                             {payments.data.length === 0 && (
                                 <div className="text-center py-8">
                                     <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -759,6 +1322,108 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                 variant="destructive"
                             >
                                 {rejectProcessing ? 'Rejecting...' : 'Reject Payment'}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Re-verify Accept Dialog */}
+                <Dialog open={showReverifyAcceptDialog} onOpenChange={setShowReverifyAcceptDialog}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Verifikasi Ulang: Setujui Pembayaran</DialogTitle>
+                            <DialogDescription>
+                                Konfirmasi bahwa dana transfer untuk pembayaran {selectedPayment?.payment_number} telah masuk ke rekening yang sesuai.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-sm font-medium">Catatan Verifikasi Ulang (Opsional)</label>
+                                <Textarea
+                                    placeholder="Tambahkan catatan pencocokan manual..."
+                                    value={reverifyAcceptData.reverification_notes}
+                                    onChange={(e) => setReverifyAcceptData('reverification_notes', e.target.value)}
+                                    className="mt-1"
+                                />
+                            </div>
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowReverifyAcceptDialog(false)}
+                                disabled={reverifyAcceptProcessing}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                onClick={submitReverifyAccept}
+                                disabled={reverifyAcceptProcessing}
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                                {reverifyAcceptProcessing ? 'Memproses...' : 'Setujui & Cocok'}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Re-verify Reject Dialog */}
+                <Dialog open={showReverifyRejectDialog} onOpenChange={setShowReverifyRejectDialog}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Verifikasi Ulang: Tolak Pembayaran</DialogTitle>
+                            <DialogDescription>
+                                Masukkan alasan penolakan manual dan rencana tindak lanjut untuk pembayaran {selectedPayment?.payment_number}.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-sm font-medium">Alasan Penolakan (Manual Cek) *</label>
+                                <Textarea
+                                    placeholder="Jelaskan mengapa pembayaran ini tidak valid atau tidak masuk..."
+                                    value={reverifyRejectData.reverification_notes}
+                                    onChange={(e) => setReverifyRejectData('reverification_notes', e.target.value)}
+                                    className="mt-1"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-sm font-medium">Rencana Tindak Lanjut *</label>
+                                <Select
+                                    value={reverifyRejectData.reverification_action}
+                                    onValueChange={(val) => setReverifyRejectData('reverification_action', val)}
+                                >
+                                    <SelectTrigger className="w-full mt-1">
+                                        <SelectValue placeholder="Pilih Tindak Lanjut" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Minta Bukti Baru">Minta Tamu Upload Bukti Baru</SelectItem>
+                                        <SelectItem value="Hubungi WhatsApp">Hubungi Tamu via WhatsApp/Telepon</SelectItem>
+                                        <SelectItem value="Refund Dana">Refund Dana (Jika Salah Transfer)</SelectItem>
+                                        <SelectItem value="Batalkan Manual">Batalkan Booking Secara Manual</SelectItem>
+                                        <SelectItem value="Lainnya">Lainnya (Lihat Catatan)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowReverifyRejectDialog(false)}
+                                disabled={reverifyRejectProcessing}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                onClick={submitReverifyReject}
+                                disabled={reverifyRejectProcessing || !reverifyRejectData.reverification_notes || !reverifyRejectData.reverification_action}
+                                variant="destructive"
+                            >
+                                {reverifyRejectProcessing ? 'Memproses...' : 'Tolak & Revert'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

@@ -344,8 +344,13 @@ export interface Payment {
     updated_at: string;
     booking?: Booking;
     paymentMethod?: PaymentMethod;
-    processor?: User;
     verifier?: User;
+    reverifier?: User;
+    reverification_status?: string;
+    reverified_by?: number;
+    reverified_at?: string;
+    reverification_notes?: string;
+    reverification_action?: string;
 }
 
 export interface PaymentMethod {
