@@ -790,9 +790,19 @@ export default function BookingForm({
             const startDate = start.toISOString().split('T')[0];
             const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+            const params: Record<string, string> = {
+                property_id: String(propertyId),
+                start: startDate,
+                end: endDate,
+            };
+
+            if (mode === 'edit' && initialData?.id) {
+                params.exclude_booking_id = String(initialData.id);
+            }
+
             const response = await apiGet<{ success: boolean; data?: { booked_dates?: string[]; booked_periods?: string[][] }; booked_dates?: string[]; booked_periods?: string[][] }>(
                 '/api/admin/booking-management/property-date-range',
-                { property_id: String(propertyId), start: startDate, end: endDate }
+                params
             );
 
             if (response && (response.success || response.data)) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class GetPropertyDateRangeRequest extends FormRequest
@@ -19,17 +20,18 @@ class GetPropertyDateRangeRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
             'property_id' => 'required|exists:properties,id',
-            'start_date'  => 'nullable|date',
-            'end_date'    => 'nullable|date|after:start_date',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after:start_date',
             // Aliases sent by BookingForm.tsx
-            'start'       => 'nullable|date',
-            'end'         => 'nullable|date',
+            'start' => 'nullable|date',
+            'end' => 'nullable|date',
+            'exclude_booking_id' => 'nullable|integer|exists:bookings,id',
         ];
     }
 

@@ -333,10 +333,16 @@ class BookingApiController extends Controller
         // Accept both 'start_date'/'end_date' and 'start'/'end' (sent by BookingForm)
         $startDate = $request->input('start_date') ?? $request->input('start', now()->toDateString());
         $endDate = $request->input('end_date') ?? $request->input('end', now()->addMonths(3)->toDateString());
+        $excludeBookingId = $request->input('exclude_booking_id') ? (int) $request->input('exclude_booking_id') : null;
 
         try {
-            $availability = $this->availabilityService->checkAvailability($property, $startDate, $endDate);
-            $bookedDates = $this->availabilityService->getBookedDatesInRange($property, $startDate, $endDate);
+            $availability = $this->availabilityService->checkAvailability(
+                property: $property,
+                checkIn: $startDate,
+                checkOut: $endDate,
+                excludeBookingId: $excludeBookingId
+            );
+            $bookedDates = $this->availabilityService->getBookedDatesInRange($property, $startDate, $endDate, $excludeBookingId);
             $seasonalRates = PropertySeasonalRate::getEffectiveRateForProperty(
                 $property->id,
                 Carbon::parse($startDate),
