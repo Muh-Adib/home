@@ -22,6 +22,7 @@ export interface ServiceMaster {
     is_default?: boolean;
     default_quantity?: number;
     default_frequency?: 'once' | 'per_night' | 'first_night' | 'first_two_nights';
+    discount_frequency?: 'all' | 'first_night';
 }
 
 export interface SelectedService {
@@ -82,18 +83,28 @@ export default function ExtraServiceSelector({
 
     useEffect(() => {
         // Find which master IDs are selected
-        const selectedIds = new Set(selectedServices.map(s => s.service_master_id));
+        const selectedIds = new Set(selectedServices.map(s => Number(s.service_master_id)));
         setSelected(selectedIds);
 
         // Find which ones are set to per-date customization
         const customMap: Record<number, boolean> = {};
+        
+        // 1. Any service that currently has a service_date entry
         selectedServices.forEach(s => {
             if (s.service_date) {
-                customMap[s.service_master_id] = true;
+                customMap[Number(s.service_master_id)] = true;
             }
         });
+
+        // 2. Any active selected service with a date-specific default frequency
+        services.forEach(service => {
+            if (selectedIds.has(Number(service.id)) && service.default_frequency && service.default_frequency !== 'once') {
+                customMap[Number(service.id)] = true;
+            }
+        });
+
         setCustomPerDate(prev => ({ ...prev, ...customMap }));
-    }, [selectedServices]);
+    }, [selectedServices, services]);
 
     // Recalculates discounts and vendor pricing for all items using master pricing config rules
     const recalculateServiceAllocations = (
@@ -102,17 +113,18 @@ export default function ExtraServiceSelector({
     ): SelectedService[] => {
         const groups: Record<number, SelectedService[]> = {};
         items.forEach(item => {
-            if (!groups[item.service_master_id]) {
-                groups[item.service_master_id] = [];
+            const masterId = Number(item.service_master_id);
+            if (!groups[masterId]) {
+                groups[masterId] = [];
             }
-            groups[item.service_master_id].push(item);
+            groups[masterId].push(item);
         });
 
         const result: SelectedService[] = [];
 
         Object.entries(groups).forEach(([masterIdStr, groupItems]) => {
-            const masterId = parseInt(masterIdStr);
-            const master = masters.find(m => m.id === masterId);
+            const masterId = Number(masterIdStr);
+            const master = masters.find(m => Number(m.id) === masterId);
             if (!master) {
                 result.push(...groupItems);
                 return;
@@ -123,29 +135,33 @@ export default function ExtraServiceSelector({
             const discountAmount = Number(master.discount_amount || 0);
             const discountLimit = master.discount_limit ? Number(master.discount_limit) : null;
 
-            // Calculate total quantity across the group
-            const totalQty = groupItems.reduce((sum, item) => sum + item.quantity, 0);
+            const discountFreq = master.discount_frequency || 'all';
 
-            // Calculate how many items get discount
-            let discountLimitRemaining = 0;
-            if (discountAmount > 0) {
-                if (discountLimit !== null && discountLimit > 0) {
-                    discountLimitRemaining = Math.min(totalQty, discountLimit);
-                } else {
-                    discountLimitRemaining = totalQty;
-                }
-            }
+            // Sort groupItems by service_date ascending to identify the first night
+            const sortedGroupItems = [...groupItems].sort((a, b) => {
+                if (!a.service_date) return -1;
+                if (!b.service_date) return 1;
+                return a.service_date.localeCompare(b.service_date);
+            });
 
-            // Recalculate each item in the group, distributing discount sequentially
-            groupItems.forEach(item => {
+            sortedGroupItems.forEach((item, index) => {
                 const qty = item.quantity;
-                const itemDiscountedQty = Math.min(qty, discountLimitRemaining);
-                discountLimitRemaining -= itemDiscountedQty;
+                let discountedQty = 0;
 
-                const normalQty = qty - itemDiscountedQty;
-                const itemTotalPrice = (itemDiscountedQty * (unitPrice - discountAmount)) + (normalQty * unitPrice);
+                // Check if eligible for discount (all dates, or only the first night)
+                const isEligible = (discountFreq === 'all') || (discountFreq === 'first_night' && index === 0);
 
-                const itemDiscountPerUnit = qty > 0 ? (itemDiscountedQty * discountAmount) / qty : 0;
+                if (isEligible && discountAmount > 0) {
+                    if (discountLimit !== null && discountLimit > 0) {
+                        discountedQty = Math.min(qty, discountLimit);
+                    } else {
+                        discountedQty = qty;
+                    }
+                }
+
+                const normalQty = qty - discountedQty;
+                const itemTotalPrice = (discountedQty * (unitPrice - discountAmount)) + (normalQty * unitPrice);
+                const itemDiscountPerUnit = qty > 0 ? (discountedQty * discountAmount) / qty : 0;
 
                 result.push({
                     ...item,
@@ -162,19 +178,20 @@ export default function ExtraServiceSelector({
     };
 
     const handleServiceToggle = (service: ServiceMaster) => {
+        const serviceId = Number(service.id);
         const newSelected = new Set(selected);
         let updated: SelectedService[] = [];
-        if (newSelected.has(service.id)) {
-            newSelected.delete(service.id);
-            updated = selectedServices.filter(s => s.service_master_id !== service.id);
+        if (newSelected.has(serviceId)) {
+            newSelected.delete(serviceId);
+            updated = selectedServices.filter(s => Number(s.service_master_id) !== serviceId);
         } else {
-            newSelected.add(service.id);
+            newSelected.add(serviceId);
             const qty = service.default_quantity || 1;
             const freq = service.default_frequency || 'once';
 
             if (freq === 'per_night' && dates.length > 0) {
                 const dateEntries = dates.map(date => ({
-                    service_master_id: service.id,
+                    service_master_id: serviceId,
                     service_name: service.name,
                     service_type: service.service_type,
                     quantity: qty,
@@ -188,7 +205,7 @@ export default function ExtraServiceSelector({
                 updated = [...selectedServices, ...dateEntries];
             } else if (freq === 'first_night' && dates.length > 0) {
                 const newEntry: SelectedService = {
-                    service_master_id: service.id,
+                    service_master_id: serviceId,
                     service_name: service.name,
                     service_type: service.service_type,
                     quantity: qty,
@@ -236,17 +253,18 @@ export default function ExtraServiceSelector({
     };
 
     const handleToggleCustomPerDate = (serviceId: number, isCustom: boolean) => {
-        setCustomPerDate(prev => ({ ...prev, [serviceId]: isCustom }));
+        const normalizedServiceId = Number(serviceId);
+        setCustomPerDate(prev => ({ ...prev, [normalizedServiceId]: isCustom }));
 
-        const master = services.find(s => s.id === serviceId);
+        const master = services.find(s => Number(s.id) === normalizedServiceId);
         if (!master) return;
 
         let updated: SelectedService[] = [];
         if (isCustom) {
-            updated = selectedServices.filter(s => s.service_master_id !== serviceId);
+            updated = selectedServices.filter(s => Number(s.service_master_id) !== normalizedServiceId);
             if (dates.length > 0) {
                 const defaultDateEntries = dates.map(date => ({
-                    service_master_id: serviceId,
+                    service_master_id: normalizedServiceId,
                     service_name: master.name,
                     service_type: master.service_type,
                     quantity: master.default_quantity || 1,
@@ -260,9 +278,9 @@ export default function ExtraServiceSelector({
                 updated = [...updated, ...defaultDateEntries];
             }
         } else {
-            updated = selectedServices.filter(s => s.service_master_id !== serviceId);
+            updated = selectedServices.filter(s => Number(s.service_master_id) !== normalizedServiceId);
             const simpleEntry: SelectedService = {
-                service_master_id: serviceId,
+                service_master_id: normalizedServiceId,
                 service_name: master.name,
                 service_type: master.service_type,
                 quantity: master.default_quantity || 1,
@@ -279,10 +297,11 @@ export default function ExtraServiceSelector({
     };
 
     const handleToggleServiceDate = (service: ServiceMaster, date: string, isEnabled: boolean) => {
+        const serviceId = Number(service.id);
         let updated: SelectedService[] = [];
         if (isEnabled) {
             const newEntry: SelectedService = {
-                service_master_id: service.id,
+                service_master_id: serviceId,
                 service_name: service.name,
                 service_type: service.service_type,
                 quantity: 1,
@@ -296,7 +315,7 @@ export default function ExtraServiceSelector({
             updated = [...selectedServices, newEntry];
         } else {
             updated = selectedServices.filter(
-                s => !(s.service_master_id === service.id && normalizeDateStr(s.service_date) === date)
+                s => !(Number(s.service_master_id) === serviceId && normalizeDateStr(s.service_date) === date)
             );
         }
         onServicesChange(recalculateServiceAllocations(updated, services));
@@ -307,8 +326,9 @@ export default function ExtraServiceSelector({
         date: string,
         quantity: number
     ) => {
+        const normalizedServiceId = Number(serviceId);
         const updated = selectedServices.map(s => {
-            if (s.service_master_id === serviceId && normalizeDateStr(s.service_date) === date) {
+            if (Number(s.service_master_id) === normalizedServiceId && normalizeDateStr(s.service_date) === date) {
                 return { ...s, quantity };
             }
             return s;
@@ -320,8 +340,9 @@ export default function ExtraServiceSelector({
         serviceId: number,
         quantity: number
     ) => {
+        const normalizedServiceId = Number(serviceId);
         const updated = selectedServices.map(s => {
-            if (s.service_master_id === serviceId && !s.service_date) {
+            if (Number(s.service_master_id) === normalizedServiceId && !s.service_date) {
                 return { ...s, quantity };
             }
             return s;
@@ -345,7 +366,7 @@ export default function ExtraServiceSelector({
         if (!s.is_active) return false;
         if (!s.property_id) return true; // Global service
         if (!selectedPropertyId) return false; // If no unit is selected, hide property-specific ones
-        return s.property_id.toString() === selectedPropertyId.toString();
+        return Number(s.property_id) === Number(selectedPropertyId);
     });
 
     if (activeServices.length === 0) {
@@ -375,7 +396,7 @@ export default function ExtraServiceSelector({
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {activeServices.map((service) => {
-                    const isSelected = selected.has(service.id);
+                    const isSelected = selected.has(Number(service.id));
 
                     return (
                         <Card
@@ -446,13 +467,13 @@ export default function ExtraServiceSelector({
                                             </span>
                                             <input
                                                 type="checkbox"
-                                                checked={customPerDate[service.id] || false}
-                                                onChange={(e) => handleToggleCustomPerDate(service.id, e.target.checked)}
+                                                checked={customPerDate[Number(service.id)] || false}
+                                                onChange={(e) => handleToggleCustomPerDate(Number(service.id), e.target.checked)}
                                                 className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
                                             />
                                         </div>
 
-                                        {customPerDate[service.id] ? (
+                                        {customPerDate[Number(service.id)] ? (
                                             <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                                                 {/* Header Row */}
                                                 <div className="grid grid-cols-12 gap-1 text-[9px] font-bold text-slate-400 pb-1 border-b border-slate-100">
@@ -464,7 +485,7 @@ export default function ExtraServiceSelector({
 
                                                 {dates.map((date) => {
                                                     const serviceOnDate = selectedServices.find(
-                                                        s => s.service_master_id === service.id && normalizeDateStr(s.service_date) === date
+                                                        s => Number(s.service_master_id) === Number(service.id) && normalizeDateStr(s.service_date) === date
                                                     );
                                                     const isEnabled = !!serviceOnDate;
 
@@ -494,7 +515,7 @@ export default function ExtraServiceSelector({
                                                                                 type="number"
                                                                                 min="1"
                                                                                 value={serviceOnDate.quantity}
-                                                                                onChange={(e) => handleUpdateServiceOnDate(service.id, date, parseInt(e.target.value) || 1)}
+                                                                                onChange={(e) => handleUpdateServiceOnDate(Number(service.id), date, parseInt(e.target.value) || 1)}
                                                                                 className="h-7 text-[11px] text-center px-1"
                                                                             />
                                                                         </div>
@@ -531,22 +552,22 @@ export default function ExtraServiceSelector({
                                                     <Input
                                                         type="number"
                                                         min="1"
-                                                        value={selectedServices.find(s => s.service_master_id === service.id && !s.service_date)?.quantity || 1}
-                                                        onChange={(e) => handleUpdateSimpleService(service.id, parseInt(e.target.value) || 1)}
+                                                        value={selectedServices.find(s => Number(s.service_master_id) === Number(service.id) && !s.service_date)?.quantity || 1}
+                                                        onChange={(e) => handleUpdateSimpleService(Number(service.id), parseInt(e.target.value) || 1)}
                                                         className="h-7 w-20 text-center px-1"
                                                     />
                                                 </div>
 
                                                 {/* Pricing Preview for Simple Mode */}
                                                 {(() => {
-                                                    const current = selectedServices.find(s => s.service_master_id === service.id && !s.service_date);
+                                                    const current = selectedServices.find(s => Number(s.service_master_id) === Number(service.id) && !s.service_date);
                                                     if (!current) return null;
 
                                                     return (
                                                         <div className="text-[10px] text-slate-500 pt-1.5 border-t border-slate-200/50 space-y-1">
                                                             <div className="flex justify-between">
-                                                                <span>Harga Jual:</span>
-                                                                <span>{formatPrice(service.unit_price)}</span>
+                                                                 <span>Harga Jual:</span>
+                                                                 <span>{formatPrice(service.unit_price)}</span>
                                                             </div>
                                                             {current.discount_amount && Number(current.discount_amount) > 0 ? (
                                                                 <div className="flex justify-between text-rose-600 font-medium">
@@ -561,7 +582,7 @@ export default function ExtraServiceSelector({
                                                 <div className="text-[11px] text-slate-600 flex items-center justify-between pt-1.5 border-t border-slate-200/50 mt-1">
                                                     <span>Subtotal</span>
                                                     <span className="font-bold text-blue-600">
-                                                        {formatPrice(selectedServices.find(s => s.service_master_id === service.id && !s.service_date)?.total_price ?? 0)}
+                                                        {formatPrice(selectedServices.find(s => Number(s.service_master_id) === Number(service.id) && !s.service_date)?.total_price ?? 0)}
                                                     </span>
                                                 </div>
                                             </div>

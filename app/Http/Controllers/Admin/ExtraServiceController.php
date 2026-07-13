@@ -58,6 +58,7 @@ class ExtraServiceController extends Controller
                 'vendor_unit_price' => (float) $service->vendor_unit_price,
                 'discount_amount' => (float) $service->discount_amount,
                 'discount_limit' => $service->discount_limit,
+                'discount_frequency' => $service->discount_frequency,
                 'thumbnail_url' => $service->thumbnail_url,
                 'is_active' => $service->is_active,
                 'property_id' => $service->property_id,
@@ -139,6 +140,7 @@ class ExtraServiceController extends Controller
             'is_default' => 'nullable|boolean',
             'default_quantity' => 'nullable|integer|min:1',
             'default_frequency' => 'nullable|in:once,per_night,first_night,first_two_nights',
+            'discount_frequency' => 'nullable|in:all,first_night',
         ]);
 
         // Get max sort_order if not provided
@@ -160,6 +162,7 @@ class ExtraServiceController extends Controller
             'vendor_unit_price' => $validated['vendor_unit_price'] ?? 0,
             'discount_amount' => $validated['discount_amount'] ?? 0,
             'discount_limit' => $validated['discount_limit'] ?? null,
+            'discount_frequency' => $validated['discount_frequency'] ?? 'all',
             'thumbnail_path' => $thumbnailPath,
             'is_active' => $validated['is_active'] ?? true,
             'sort_order' => $validated['sort_order'],
@@ -238,6 +241,7 @@ class ExtraServiceController extends Controller
                 'is_default' => $service->is_default,
                 'default_quantity' => $service->default_quantity,
                 'default_frequency' => $service->default_frequency,
+                'discount_frequency' => $service->discount_frequency,
             ],
             'serviceTypes' => $serviceTypes,
             'properties' => $properties,
@@ -266,6 +270,7 @@ class ExtraServiceController extends Controller
             'is_default' => 'nullable|boolean',
             'default_quantity' => 'nullable|integer|min:1',
             'default_frequency' => 'nullable|in:once,per_night,first_night,first_two_nights',
+            'discount_frequency' => 'nullable|in:all,first_night',
         ]);
 
         // Handle thumbnail upload
@@ -285,6 +290,7 @@ class ExtraServiceController extends Controller
             'vendor_unit_price' => $validated['vendor_unit_price'] ?? 0,
             'discount_amount' => $validated['discount_amount'] ?? 0,
             'discount_limit' => $validated['discount_limit'] ?? null,
+            'discount_frequency' => $validated['discount_frequency'] ?? 'all',
             'is_active' => $validated['is_active'] ?? $service->is_active,
             'sort_order' => $validated['sort_order'] ?? $service->sort_order,
             'thumbnail_path' => $validated['thumbnail_path'] ?? $service->thumbnail_path,

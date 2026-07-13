@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Booking;
 use App\Models\BookingService;
+use App\Models\PropertyExpense;
 use App\Models\ServiceMaster;
 
 /**
@@ -29,6 +30,7 @@ class BookingExtraServiceSyncService
         // Hapus existing services jika diminta
         if ($replaceExisting) {
             $booking->services()->delete();
+            PropertyExpense::where('booking_id', $booking->id)->delete();
         }
 
         // Jika tidak ada services, return 0
@@ -52,15 +54,17 @@ class BookingExtraServiceSyncService
 
         // Process unmatched/custom services as fallback
         foreach ($unmatched as $serviceData) {
+            $qty = $serviceData['quantity'] ?? 1;
+            $unitPrice = $serviceData['unit_price'] ?? 0;
             $bookingService = BookingService::create([
                 'booking_id' => $booking->id,
                 'service_master_id' => null,
                 'service_name' => $serviceData['service_name'],
                 'service_type' => $serviceData['service_type'],
-                'quantity' => $serviceData['quantity'],
-                'unit_price' => $serviceData['unit_price'],
+                'quantity' => $qty,
+                'unit_price' => $unitPrice,
                 'discount_amount' => $serviceData['discount_amount'] ?? 0,
-                'total_price' => $serviceData['total_price'],
+                'total_price' => $serviceData['total_price'] ?? ($qty * $unitPrice),
                 'vendor_unit_price' => $serviceData['vendor_unit_price'] ?? 0,
                 'vendor_total_price' => $serviceData['vendor_total_price'] ?? 0,
                 'service_date' => ! empty($serviceData['service_date']) ? $serviceData['service_date'] : null,
@@ -73,15 +77,17 @@ class BookingExtraServiceSyncService
             if (! $master) {
                 // If master not found, save as is (fallback)
                 foreach ($groupItems as $serviceData) {
+                    $qty = $serviceData['quantity'] ?? 1;
+                    $unitPrice = $serviceData['unit_price'] ?? 0;
                     $bookingService = BookingService::create([
                         'booking_id' => $booking->id,
                         'service_master_id' => $masterId,
                         'service_name' => $serviceData['service_name'],
                         'service_type' => $serviceData['service_type'],
-                        'quantity' => $serviceData['quantity'],
-                        'unit_price' => $serviceData['unit_price'],
+                        'quantity' => $qty,
+                        'unit_price' => $unitPrice,
                         'discount_amount' => $serviceData['discount_amount'] ?? 0,
-                        'total_price' => $serviceData['total_price'],
+                        'total_price' => $serviceData['total_price'] ?? ($qty * $unitPrice),
                         'vendor_unit_price' => $serviceData['vendor_unit_price'] ?? 0,
                         'vendor_total_price' => $serviceData['vendor_total_price'] ?? 0,
                         'service_date' => ! empty($serviceData['service_date']) ? $serviceData['service_date'] : null,
@@ -96,36 +102,46 @@ class BookingExtraServiceSyncService
             $vendorUnitPrice = (float) $master->vendor_unit_price;
             $discountAmount = (float) $master->discount_amount;
             $discountLimit = $master->discount_limit;
+            $discountFreq = $master->discount_frequency ?? 'all';
 
-            // Calculate total quantity in this group
-            $totalQty = 0;
-            foreach ($groupItems as $item) {
-                $totalQty += (int) $item['quantity'];
-            }
-
-            // Determine discount limit remaining
-            $discountLimitRemaining = 0;
-            if ($discountAmount > 0) {
-                if ($discountLimit !== null && $discountLimit > 0) {
-                    $discountLimitRemaining = min($totalQty, $discountLimit);
-                } else {
-                    $discountLimitRemaining = $totalQty;
+            // Sort groupItems by service_date ascending to identify the first night
+            usort($groupItems, function ($a, $b) {
+                $dateA = $a['service_date'] ?? '';
+                $dateB = $b['service_date'] ?? '';
+                if ($dateA === $dateB) {
+                    return 0;
                 }
-            }
+                if ($dateA === '') {
+                    return -1;
+                }
+                if ($dateB === '') {
+                    return 1;
+                }
 
-            foreach ($groupItems as $item) {
+                return strcmp((string) $dateA, (string) $dateB);
+            });
+
+            foreach ($groupItems as $index => $item) {
                 $qty = (int) $item['quantity'];
+                $discountedQty = 0;
 
-                // How many in this item get the discount?
-                $itemDiscountedQty = min($qty, $discountLimitRemaining);
-                $discountLimitRemaining -= $itemDiscountedQty;
+                // Check if eligible for discount (all dates, or only the first night)
+                $isEligible = ($discountFreq === 'all') || ($discountFreq === 'first_night' && $index === 0);
+
+                if ($isEligible && $discountAmount > 0) {
+                    if ($discountLimit !== null && $discountLimit > 0) {
+                        $discountedQty = min($qty, $discountLimit);
+                    } else {
+                        $discountedQty = $qty;
+                    }
+                }
 
                 // Calculate total price for this item
-                $normalQty = $qty - $itemDiscountedQty;
-                $itemTotalPrice = ($itemDiscountedQty * ($unitPrice - $discountAmount)) + ($normalQty * $unitPrice);
+                $normalQty = $qty - $discountedQty;
+                $itemTotalPrice = ($discountedQty * ($unitPrice - $discountAmount)) + ($normalQty * $unitPrice);
 
                 // Per-unit discount_amount to save in DB
-                $itemDiscountPerUnit = $qty > 0 ? ($itemDiscountedQty * $discountAmount) / $qty : 0;
+                $itemDiscountPerUnit = $qty > 0 ? ($discountedQty * $discountAmount) / $qty : 0;
 
                 $bookingService = BookingService::create([
                     'booking_id' => $booking->id,
@@ -143,6 +159,27 @@ class BookingExtraServiceSyncService
 
                 $servicesTotal += $bookingService->total_price;
             }
+        }
+
+        // Sync expenses for this booking's extra services
+        PropertyExpense::where('booking_id', $booking->id)->delete();
+
+        $bookingServices = $booking->services()->where('vendor_total_price', '>', 0)->get();
+        foreach ($bookingServices as $bs) {
+            PropertyExpense::create([
+                'property_id' => $booking->property_id,
+                'booking_id' => $booking->id,
+                'expense_category' => 'other',
+                'expense_type' => 'one_time',
+                'description' => "Vendor Cost - {$bs->service_name} (Booking #{$booking->booking_number})",
+                'amount' => $bs->vendor_total_price,
+                'expense_date' => $bs->service_date ? $bs->service_date : $booking->check_in,
+                'vendor_name' => $bs->service_name,
+                'recorded_by' => auth()->id() ?? $booking->created_by ?? 1,
+                'created_by' => auth()->id() ?? $booking->created_by ?? 1,
+                'status' => 'approved',
+                'notes' => "Generated automatically from Booking #{$booking->booking_number} extra services.",
+            ]);
         }
 
         return $servicesTotal;

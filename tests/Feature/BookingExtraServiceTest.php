@@ -72,6 +72,23 @@ class BookingExtraServiceTest extends TestCase
             'vendor_total_price' => 60000,
             'service_date' => now()->addDays(1)->toDateString().' 00:00:00',
         ]);
+
+        // Assert property expenses are created
+        $this->assertDatabaseCount('property_expenses', 2);
+        $this->assertDatabaseHas('property_expenses', [
+            'booking_id' => $booking->id,
+            'property_id' => $property->id,
+            'amount' => 60000.00,
+            'expense_category' => 'other',
+            'description' => "Vendor Cost - Breakfast Day 1 (Booking #{$booking->booking_number})",
+        ]);
+        $this->assertDatabaseHas('property_expenses', [
+            'booking_id' => $booking->id,
+            'property_id' => $property->id,
+            'amount' => 25000.00,
+            'expense_category' => 'other',
+            'description' => "Vendor Cost - Breakfast Day 2 (Booking #{$booking->booking_number})",
+        ]);
     }
 
     public function test_payment_income_sync_splits_room_and_extra_services_proportionally(): void
@@ -193,8 +210,8 @@ class BookingExtraServiceTest extends TestCase
         $syncService = new BookingExtraServiceSyncService;
         $total = $syncService->sync($booking, $servicesData, true);
 
-        // Total should be: (2 * (30000 - 5000)) + (1 * 30000) = 50000 + 30000 = 80000
-        $this->assertEquals(80000, $total);
+        // Total should be: (2 * (30000 - 5000)) + (1 * (30000 - 5000)) = 50000 + 25000 = 75000
+        $this->assertEquals(75000, $total);
 
         // Assert Day 1 record has discount of 5000 per unit
         $this->assertDatabaseHas('booking_services', [
@@ -209,14 +226,14 @@ class BookingExtraServiceTest extends TestCase
             'service_date' => now()->addDays(1)->toDateString().' 00:00:00',
         ]);
 
-        // Assert Day 2 record has discount of 0
+        // Assert Day 2 record has discount of 5000
         $this->assertDatabaseHas('booking_services', [
             'booking_id' => $booking->id,
             'service_master_id' => $master->id,
             'quantity' => 1,
             'unit_price' => 30000,
-            'discount_amount' => 0,
-            'total_price' => 30000,
+            'discount_amount' => 5000,
+            'total_price' => 25000,
             'vendor_unit_price' => 20000,
             'vendor_total_price' => 20000,
             'service_date' => now()->addDays(2)->toDateString().' 00:00:00',
@@ -269,5 +286,54 @@ class BookingExtraServiceTest extends TestCase
         $this->assertTrue($serviceA->is_default);
         $this->assertEquals(8, $serviceA->default_quantity);
         $this->assertEquals('per_night', $serviceA->default_frequency);
+    }
+
+    public function test_extra_service_with_custom_discount_frequency(): void
+    {
+        $service = ServiceMaster::create([
+            'name' => 'Cubic Special Discount',
+            'service_type' => 'other',
+            'unit_price' => 20000,
+            'discount_amount' => 5000,
+            'discount_limit' => 2,
+            'discount_frequency' => 'first_night',
+            'is_active' => true,
+            'is_default' => false,
+            'default_quantity' => 2,
+            'default_frequency' => 'first_two_nights',
+        ]);
+
+        $this->assertEquals('first_night', $service->discount_frequency);
+    }
+
+    public function test_booking_service_sync_updates_and_deletes_associated_expenses(): void
+    {
+        $property = Property::factory()->create();
+        $booking = Booking::factory()->create(['property_id' => $property->id]);
+
+        $syncService = new BookingExtraServiceSyncService;
+
+        // First sync: 1 service
+        $syncService->sync($booking, [
+            [
+                'service_name' => 'Service 1',
+                'service_type' => 'other',
+                'quantity' => 1,
+                'unit_price' => 100000,
+                'vendor_unit_price' => 80000,
+                'vendor_total_price' => 80000,
+            ],
+        ], true);
+
+        $this->assertDatabaseCount('property_expenses', 1);
+        $this->assertDatabaseHas('property_expenses', [
+            'booking_id' => $booking->id,
+            'amount' => 80000,
+        ]);
+
+        // Second sync: replace with empty array
+        $syncService->sync($booking, [], true);
+
+        $this->assertDatabaseCount('property_expenses', 0);
     }
 }

@@ -15,6 +15,7 @@ class PropertyExpense extends Model
      */
     protected $fillable = [
         'property_id',
+        'booking_id',
         'expense_category',
         'expense_type',
         'description',
@@ -85,7 +86,7 @@ class PropertyExpense extends Model
      */
     public function getCategoryLabel(): string
     {
-        return match($this->expense_category) {
+        return match ($this->expense_category) {
             'maintenance' => 'Pemeliharaan',
             'utilities' => 'Utilitas',
             'supplies' => 'Perlengkapan',
@@ -103,7 +104,7 @@ class PropertyExpense extends Model
      */
     public function getTypeLabel(): string
     {
-        return match($this->expense_type) {
+        return match ($this->expense_type) {
             'recurring' => 'Berulang',
             'one_time' => 'Sekali',
             'emergency' => 'Darurat',
@@ -119,7 +120,7 @@ class PropertyExpense extends Model
      */
     public function getStatusLabel(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'pending' => 'Menunggu Persetujuan',
             'approved' => 'Disetujui',
             'rejected' => 'Ditolak',
@@ -177,7 +178,7 @@ class PropertyExpense extends Model
      */
     public function getFormattedAmount(): string
     {
-        return 'Rp ' . number_format($this->amount, 0, ',', '.');
+        return 'Rp '.number_format($this->amount, 0, ',', '.');
     }
 
     /**
@@ -226,6 +227,6 @@ class PropertyExpense extends Model
     public function scopeCurrentMonth($query)
     {
         return $query->whereMonth('expense_date', now()->month)
-                    ->whereYear('expense_date', now()->year);
+            ->whereYear('expense_date', now()->year);
     }
 }

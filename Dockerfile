@@ -45,7 +45,7 @@ RUN NODE_OPTIONS="--max-old-space-size=2048" npm run build && \
 # ✅ Buang devDependencies (vite, typescript, tailwind, dll.)
 # SSR runtime hanya butuh production deps → node_modules jauh lebih kecil,
 # image final lebih ringan, dan COPY antar-stage lebih cepat.
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev --legacy-peer-deps
 
 # ============================================================
 # 2) Production PHP stage dengan Nixpacks compatibility

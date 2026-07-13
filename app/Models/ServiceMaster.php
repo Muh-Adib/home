@@ -24,6 +24,7 @@ class ServiceMaster extends Model
         'vendor_unit_price',
         'discount_amount',
         'discount_limit',
+        'discount_frequency',
         'thumbnail_path',
         'is_active',
         'is_default',

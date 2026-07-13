@@ -291,6 +291,75 @@ export default function BookingForm({
             reader.onerror = () => resolve(file);
         });
     };
+    // Recalculates discounts and vendor pricing for all items using master pricing config rules
+    const recalculateServices = (
+        items: SelectedService[],
+        masters: ServiceMaster[]
+    ): SelectedService[] => {
+        const groups: Record<number, SelectedService[]> = {};
+        items.forEach(item => {
+            if (!groups[item.service_master_id]) {
+                groups[item.service_master_id] = [];
+            }
+            groups[item.service_master_id].push(item);
+        });
+
+        const result: SelectedService[] = [];
+
+        Object.entries(groups).forEach(([masterIdStr, groupItems]) => {
+            const masterId = parseInt(masterIdStr);
+            const master = masters.find(m => m.id === masterId);
+            if (!master) {
+                result.push(...groupItems);
+                return;
+            }
+
+            const unitPrice = Number(master.unit_price);
+            const vendorUnitPrice = Number(master.vendor_unit_price || 0);
+            const discountAmount = Number(master.discount_amount || 0);
+            const discountLimit = master.discount_limit ? Number(master.discount_limit) : null;
+            const discountFreq = master.discount_frequency || 'all';
+
+            // Sort groupItems by service_date ascending to identify the first night
+            const sortedGroupItems = [...groupItems].sort((a, b) => {
+                if (!a.service_date) return -1;
+                if (!b.service_date) return 1;
+                return a.service_date.localeCompare(b.service_date);
+            });
+
+            sortedGroupItems.forEach((item, index) => {
+                const qty = item.quantity;
+                let discountedQty = 0;
+
+                // Check if eligible for discount (all dates, or only the first night)
+                const isEligible = (discountFreq === 'all') || (discountFreq === 'first_night' && index === 0);
+
+                if (isEligible && discountAmount > 0) {
+                    if (discountLimit !== null && discountLimit > 0) {
+                        discountedQty = Math.min(qty, discountLimit);
+                    } else {
+                        discountedQty = qty;
+                    }
+                }
+
+                const normalQty = qty - discountedQty;
+                const itemTotalPrice = (discountedQty * (unitPrice - discountAmount)) + (normalQty * unitPrice);
+                const itemDiscountPerUnit = qty > 0 ? (discountedQty * discountAmount) / qty : 0;
+
+                result.push({
+                    ...item,
+                    unit_price: unitPrice,
+                    discount_amount: itemDiscountPerUnit,
+                    total_price: itemTotalPrice,
+                    vendor_unit_price: vendorUnitPrice,
+                    vendor_total_price: qty * vendorUnitPrice,
+                });
+            });
+        });
+
+        return result;
+    };
+
     // Helper to calculate default extra services for a property
     const getDefaultServices = (
         propertyId: string,
@@ -381,7 +450,166 @@ export default function BookingForm({
             }
         });
 
-        return result;
+        return recalculateServices(result, masters);
+    };
+
+    // Helper to adjust selected services dates on stay date changes
+    const adjustServicesDates = (
+        currentServices: SelectedService[],
+        newStartDate: string,
+        newEndDate: string,
+        masters: ServiceMaster[]
+    ): SelectedService[] => {
+        if (!newStartDate || !newEndDate) return currentServices;
+
+        const datesList: string[] = [];
+        const start = new Date(newStartDate);
+        const end = new Date(newEndDate);
+        for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+            datesList.push(d.toISOString().split('T')[0]);
+        }
+
+        // 1. Find all active default service masters for the current property
+        const propertyId = data.property_id ? data.property_id.toString() : '';
+        const defaultMasters = masters.filter(m => 
+            m.is_active && 
+            m.is_default && 
+            (!m.property_id || m.property_id.toString() === propertyId)
+        );
+
+        // 2. Group the currentServices by service_master_id
+        const groups: Record<number, SelectedService[]> = {};
+        currentServices.forEach(s => {
+            const mid = Number(s.service_master_id);
+            if (!groups[mid]) {
+                groups[mid] = [];
+            }
+            groups[mid].push(s);
+        });
+
+        // 3. For any default master service not present in groups, initialize its default group!
+        defaultMasters.forEach(master => {
+            const mid = Number(master.id);
+            if (!groups[mid]) {
+                groups[mid] = [];
+                const qty = master.default_quantity || 1;
+                const freq = master.default_frequency || 'once';
+
+                if (freq === 'per_night') {
+                    datesList.forEach(date => {
+                        groups[mid].push({
+                            service_master_id: mid,
+                            service_name: master.name,
+                            service_type: master.service_type,
+                            quantity: qty,
+                            unit_price: Number(master.unit_price),
+                            discount_amount: 0,
+                            total_price: qty * Number(master.unit_price),
+                            vendor_unit_price: Number(master.vendor_unit_price || 0),
+                            vendor_total_price: qty * Number(master.vendor_unit_price || 0),
+                            service_date: date,
+                        });
+                    });
+                } else if (freq === 'first_night') {
+                    groups[mid].push({
+                        service_master_id: mid,
+                        service_name: master.name,
+                        service_type: master.service_type,
+                        quantity: qty,
+                        unit_price: Number(master.unit_price),
+                        discount_amount: 0,
+                        total_price: qty * Number(master.unit_price),
+                        vendor_unit_price: Number(master.vendor_unit_price || 0),
+                        vendor_total_price: qty * Number(master.vendor_unit_price || 0),
+                        service_date: datesList[0],
+                    });
+                } else if (freq === 'first_two_nights') {
+                    const targetDates = datesList.slice(0, 2);
+                    targetDates.forEach(date => {
+                        groups[mid].push({
+                            service_master_id: mid,
+                            service_name: master.name,
+                            service_type: master.service_type,
+                            quantity: qty,
+                            unit_price: Number(master.unit_price),
+                            discount_amount: 0,
+                            total_price: qty * Number(master.unit_price),
+                            vendor_unit_price: Number(master.vendor_unit_price || 0),
+                            vendor_total_price: qty * Number(master.vendor_unit_price || 0),
+                            service_date: date,
+                        });
+                    });
+                } else {
+                    groups[mid].push({
+                        service_master_id: mid,
+                        service_name: master.name,
+                        service_type: master.service_type,
+                        quantity: qty,
+                        unit_price: Number(master.unit_price),
+                        discount_amount: 0,
+                        total_price: qty * Number(master.unit_price),
+                        vendor_unit_price: Number(master.vendor_unit_price || 0),
+                        vendor_total_price: qty * Number(master.vendor_unit_price || 0),
+                        service_date: null,
+                    });
+                }
+            }
+        });
+
+        const adjusted: SelectedService[] = [];
+
+        Object.entries(groups).forEach(([masterIdStr, groupItems]) => {
+            const masterId = Number(masterIdStr);
+            const master = masters.find(m => Number(m.id) === masterId);
+            if (!master) {
+                adjusted.push(...groupItems);
+                return;
+            }
+
+            const freq = master.default_frequency || 'once';
+            const qty = master.default_quantity || 1;
+
+            if (freq === 'per_night') {
+                datesList.forEach(date => {
+                    const existing = groupItems.find(g => g.service_date && g.service_date.split(' ')[0] === date);
+                    adjusted.push({
+                        ...groupItems[0],
+                        quantity: existing ? existing.quantity : qty,
+                        service_date: date,
+                    });
+                });
+            } else if (freq === 'first_night') {
+                const existing = groupItems.find(g => g.service_date && g.service_date.split(' ')[0] === datesList[0]);
+                adjusted.push({
+                    ...groupItems[0],
+                    quantity: existing ? existing.quantity : qty,
+                    service_date: datesList[0],
+                });
+            } else if (freq === 'first_two_nights') {
+                const targetDates = datesList.slice(0, 2);
+                targetDates.forEach(date => {
+                    const existing = groupItems.find(g => g.service_date && g.service_date.split(' ')[0] === date);
+                    adjusted.push({
+                        ...groupItems[0],
+                        quantity: existing ? existing.quantity : qty,
+                        service_date: date,
+                    });
+                });
+            } else {
+                const simpleEntries = groupItems.filter(g => !g.service_date);
+                adjusted.push(...simpleEntries);
+
+                const dateEntries = groupItems.filter(g => g.service_date);
+                dateEntries.forEach(de => {
+                    const deDate = de.service_date!.split(' ')[0];
+                    if (datesList.includes(deDate)) {
+                        adjusted.push(de);
+                    }
+                });
+            }
+        });
+
+        return recalculateServices(adjusted, masters);
     };
 
     // Extra services state
@@ -720,6 +948,9 @@ export default function BookingForm({
         setAvailabilityStatus(null);
         setAvailabilityError(null);
 
+        // Adjust selected services dates
+        setSelectedServices(prev => adjustServicesDates(prev, startDate, endDate, serviceMasters));
+
         if (startDate && endDate && currentProperty) {
             // Debounce is handled in checkAvailabilityAndCalculateRate calls or simple timeout here if needed
             // But DateRange component usually handles debounced input so we can call directly?
@@ -728,7 +959,7 @@ export default function BookingForm({
                 checkAvailabilityAndCalculateRate(currentProperty.id, startDate, endDate);
             }, 300);
         }
-    }, [currentProperty, checkAvailabilityAndCalculateRate]);
+    }, [currentProperty, checkAvailabilityAndCalculateRate, serviceMasters]);
 
     // Helper to get dates of stay
     const getDatesOfStay = useCallback(() => {

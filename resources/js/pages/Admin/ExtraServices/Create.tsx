@@ -44,6 +44,7 @@ export default function CreateExtraService({ serviceTypes, properties = [] }: Cr
         is_default: false,
         default_quantity: 1,
         default_frequency: 'once',
+        discount_frequency: 'all',
     });
 
     const handleSubmit = (e: FormEvent) => {
@@ -240,6 +241,29 @@ export default function CreateExtraService({ serviceTypes, properties = [] }: Cr
                                         )}
                                     </div>
 
+                                    {/* Discount Frequency */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="discount_frequency">Frekuensi Diskon</Label>
+                                        <Select
+                                            value={data.discount_frequency}
+                                            onValueChange={(value) => setData('discount_frequency', value as any)}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Pilih frekuensi diskon" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Setiap Tanggal Menginap</SelectItem>
+                                                <SelectItem value="first_night">Hanya Tanggal Awal Menginap</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-sm text-muted-foreground">
+                                            Tentukan apakah diskon potongan harga berlaku untuk seluruh malam atau hanya malam pertama saja.
+                                        </p>
+                                        {errors.discount_frequency && (
+                                            <p className="text-sm text-red-600">{errors.discount_frequency}</p>
+                                        )}
+                                    </div>
+
                                     {/* Thumbnail Upload */}
                                     <ExtraServiceThumbnailUpload
                                         onFileChange={(file) => setData('thumbnail', file)}
@@ -258,14 +282,16 @@ export default function CreateExtraService({ serviceTypes, properties = [] }: Cr
                                     <div className="space-y-2">
                                         <Label htmlFor="property_id">Dikhususkan Untuk Unit (Opsional)</Label>
                                         <Select
-                                            value={data.property_id?.toString() || 'all'}
-                                            onValueChange={(value) => setData('property_id', value === 'all' ? '' : value)}
+                                            value={data.property_id ? data.property_id.toString() : 'global'}
+                                            onValueChange={(value) =>
+                                                setData('property_id', value === 'global' ? '' : parseInt(value))
+                                            }
                                         >
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Semua Unit (Global)" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="all">Semua Unit (Global)</SelectItem>
+                                                <SelectItem value="global">Semua Unit (Global)</SelectItem>
                                                 {properties.map((p) => (
                                                     <SelectItem key={p.id} value={p.id.toString()}>
                                                         {p.name}
@@ -284,7 +310,7 @@ export default function CreateExtraService({ serviceTypes, properties = [] }: Cr
                                     {/* is_default Switch */}
                                     <div className="flex items-center justify-between">
                                         <div className="space-y-1">
-                                            <Label htmlFor="is_default">Jadikan Default</Label>
+                                            <Label htmlFor="is_default">Jadikan Default Terpilih</Label>
                                             <p className="text-sm text-muted-foreground">
                                                 Secara otomatis tercentang/aktif saat input booking baru
                                             </p>
@@ -296,55 +322,51 @@ export default function CreateExtraService({ serviceTypes, properties = [] }: Cr
                                         />
                                     </div>
 
-                                    {data.is_default && (
-                                        <>
-                                            {/* default_quantity Input */}
-                                            <div className="space-y-2">
-                                                <Label htmlFor="default_quantity">Jumlah Default</Label>
-                                                <Input
-                                                    id="default_quantity"
-                                                    type="number"
-                                                    value={data.default_quantity}
-                                                    onChange={(e) =>
-                                                        setData('default_quantity', parseInt(e.target.value) || 1)
-                                                    }
-                                                    min="1"
-                                                    required
-                                                />
-                                                <p className="text-sm text-muted-foreground">
-                                                    Jumlah awal item yang terisi otomatis
-                                                </p>
-                                                {errors.default_quantity && (
-                                                    <p className="text-sm text-red-600">{errors.default_quantity}</p>
-                                                )}
-                                            </div>
+                                    {/* default_quantity Input */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="default_quantity">Jumlah Default</Label>
+                                        <Input
+                                            id="default_quantity"
+                                            type="number"
+                                            value={data.default_quantity}
+                                            onChange={(e) =>
+                                                setData('default_quantity', parseInt(e.target.value) || 1)
+                                            }
+                                            min="1"
+                                            required
+                                        />
+                                        <p className="text-sm text-muted-foreground">
+                                            Jumlah awal item yang terisi otomatis saat layanan ini dipilih/aktif
+                                        </p>
+                                        {errors.default_quantity && (
+                                            <p className="text-sm text-red-600">{errors.default_quantity}</p>
+                                        )}
+                                    </div>
 
-                                            {/* default_frequency Select */}
-                                            <div className="space-y-2">
-                                                <Label htmlFor="default_frequency">Frekuensi Default</Label>
-                                                <Select
-                                                    value={data.default_frequency}
-                                                    onValueChange={(value) => setData('default_frequency', value as any)}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Pilih frekuensi default" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="once">Sekali per Booking (Global)</SelectItem>
-                                                        <SelectItem value="per_night">Setiap Malam Menginap (Harian)</SelectItem>
-                                                        <SelectItem value="first_night">Malam Pertama Saja (Awal 1 Malam)</SelectItem>
-                                                        <SelectItem value="first_two_nights">Dua Malam Pertama Saja (Awal 2 Malam)</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                <p className="text-sm text-muted-foreground">
-                                                    Aturan pengulangan tanggal otomatis untuk layanan ini
-                                                </p>
-                                                {errors.default_frequency && (
-                                                    <p className="text-sm text-red-600">{errors.default_frequency}</p>
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
+                                    {/* default_frequency Select */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="default_frequency">Frekuensi Default</Label>
+                                        <Select
+                                            value={data.default_frequency}
+                                            onValueChange={(value) => setData('default_frequency', value as any)}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Pilih frekuensi default" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="once">Sekali per Booking (Global)</SelectItem>
+                                                <SelectItem value="per_night">Setiap Malam Menginap (Harian)</SelectItem>
+                                                <SelectItem value="first_night">Malam Pertama Saja (Awal 1 Malam)</SelectItem>
+                                                <SelectItem value="first_two_nights">Dua Malam Pertama Saja (Awal 2 Malam)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-sm text-muted-foreground">
+                                            Aturan pengulangan tanggal otomatis untuk layanan ini
+                                        </p>
+                                        {errors.default_frequency && (
+                                            <p className="text-sm text-red-600">{errors.default_frequency}</p>
+                                        )}
+                                    </div>
                                 </CardContent>
                             </Card>
 
