@@ -18,6 +18,10 @@ export interface ServiceMaster {
     discount_limit: number | null;
     thumbnail_url?: string;
     is_active: boolean;
+    property_id?: number | null;
+    is_default?: boolean;
+    default_quantity?: number;
+    default_frequency?: 'once' | 'per_night' | 'first_night' | 'first_two_nights';
 }
 
 export interface SelectedService {
@@ -41,6 +45,7 @@ interface ExtraServiceSelectorProps {
     nights?: number;
     checkInDate?: string;
     checkOutDate?: string;
+    selectedPropertyId?: string;
 }
 
 export default function ExtraServiceSelector({
@@ -50,6 +55,7 @@ export default function ExtraServiceSelector({
     nights = 1,
     checkInDate,
     checkOutDate,
+    selectedPropertyId,
 }: ExtraServiceSelectorProps) {
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [customPerDate, setCustomPerDate] = useState<Record<number, boolean>>({});
@@ -163,19 +169,67 @@ export default function ExtraServiceSelector({
             updated = selectedServices.filter(s => s.service_master_id !== service.id);
         } else {
             newSelected.add(service.id);
-            const newService: SelectedService = {
-                service_master_id: service.id,
-                service_name: service.name,
-                service_type: service.service_type,
-                quantity: 1,
-                unit_price: service.unit_price,
-                discount_amount: 0,
-                total_price: service.unit_price,
-                vendor_unit_price: service.vendor_unit_price || 0,
-                vendor_total_price: service.vendor_unit_price || 0,
-                service_date: null,
-            };
-            updated = [...selectedServices, newService];
+            const qty = service.default_quantity || 1;
+            const freq = service.default_frequency || 'once';
+
+            if (freq === 'per_night' && dates.length > 0) {
+                const dateEntries = dates.map(date => ({
+                    service_master_id: service.id,
+                    service_name: service.name,
+                    service_type: service.service_type,
+                    quantity: qty,
+                    unit_price: service.unit_price,
+                    discount_amount: 0,
+                    total_price: qty * service.unit_price,
+                    vendor_unit_price: service.vendor_unit_price || 0,
+                    vendor_total_price: qty * (service.vendor_unit_price || 0),
+                    service_date: date,
+                }));
+                updated = [...selectedServices, ...dateEntries];
+            } else if (freq === 'first_night' && dates.length > 0) {
+                const newEntry: SelectedService = {
+                    service_master_id: service.id,
+                    service_name: service.name,
+                    service_type: service.service_type,
+                    quantity: qty,
+                    unit_price: service.unit_price,
+                    discount_amount: 0,
+                    total_price: qty * service.unit_price,
+                    vendor_unit_price: service.vendor_unit_price || 0,
+                    vendor_total_price: qty * (service.vendor_unit_price || 0),
+                    service_date: dates[0],
+                };
+                updated = [...selectedServices, newEntry];
+            } else if (freq === 'first_two_nights' && dates.length > 0) {
+                const targetDates = dates.slice(0, 2);
+                const dateEntries = targetDates.map(date => ({
+                    service_master_id: service.id,
+                    service_name: service.name,
+                    service_type: service.service_type,
+                    quantity: qty,
+                    unit_price: service.unit_price,
+                    discount_amount: 0,
+                    total_price: qty * service.unit_price,
+                    vendor_unit_price: service.vendor_unit_price || 0,
+                    vendor_total_price: qty * (service.vendor_unit_price || 0),
+                    service_date: date,
+                }));
+                updated = [...selectedServices, ...dateEntries];
+            } else {
+                const newService: SelectedService = {
+                    service_master_id: service.id,
+                    service_name: service.name,
+                    service_type: service.service_type,
+                    quantity: qty,
+                    unit_price: service.unit_price,
+                    discount_amount: 0,
+                    total_price: qty * service.unit_price,
+                    vendor_unit_price: service.vendor_unit_price || 0,
+                    vendor_total_price: qty * (service.vendor_unit_price || 0),
+                    service_date: null,
+                };
+                updated = [...selectedServices, newService];
+            }
         }
         setSelected(newSelected);
         onServicesChange(recalculateServiceAllocations(updated, services));
@@ -195,12 +249,12 @@ export default function ExtraServiceSelector({
                     service_master_id: serviceId,
                     service_name: master.name,
                     service_type: master.service_type,
-                    quantity: 1,
+                    quantity: master.default_quantity || 1,
                     unit_price: master.unit_price,
                     discount_amount: 0,
-                    total_price: master.unit_price,
+                    total_price: (master.default_quantity || 1) * master.unit_price,
                     vendor_unit_price: master.vendor_unit_price || 0,
-                    vendor_total_price: master.vendor_unit_price || 0,
+                    vendor_total_price: (master.default_quantity || 1) * (master.vendor_unit_price || 0),
                     service_date: date,
                 }));
                 updated = [...updated, ...defaultDateEntries];
@@ -211,12 +265,12 @@ export default function ExtraServiceSelector({
                 service_master_id: serviceId,
                 service_name: master.name,
                 service_type: master.service_type,
-                quantity: 1,
+                quantity: master.default_quantity || 1,
                 unit_price: master.unit_price,
                 discount_amount: 0,
-                total_price: master.unit_price,
+                total_price: (master.default_quantity || 1) * master.unit_price,
                 vendor_unit_price: master.vendor_unit_price || 0,
-                vendor_total_price: master.vendor_unit_price || 0,
+                vendor_total_price: (master.default_quantity || 1) * (master.vendor_unit_price || 0),
                 service_date: null,
             };
             updated = [...updated, simpleEntry];
@@ -287,7 +341,12 @@ export default function ExtraServiceSelector({
         return selectedServices.reduce((sum, service) => sum + service.total_price, 0);
     };
 
-    const activeServices = services.filter(s => s.is_active);
+    const activeServices = services.filter(s => {
+        if (!s.is_active) return false;
+        if (!s.property_id) return true; // Global service
+        if (!selectedPropertyId) return false; // If no unit is selected, hide property-specific ones
+        return s.property_id.toString() === selectedPropertyId.toString();
+    });
 
     if (activeServices.length === 0) {
         return (

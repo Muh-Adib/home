@@ -222,4 +222,52 @@ class BookingExtraServiceTest extends TestCase
             'service_date' => now()->addDays(2)->toDateString().' 00:00:00',
         ]);
     }
+
+    public function test_property_specific_services_and_defaults(): void
+    {
+        $propertyA = Property::factory()->create(['name' => 'VillaHoms']);
+        $propertyB = Property::factory()->create(['name' => 'Cubic Villa']);
+
+        // 1. Create a global default service
+        $globalService = ServiceMaster::create([
+            'name' => 'Global Service',
+            'service_type' => 'other',
+            'unit_price' => 10000,
+            'is_active' => true,
+            'is_default' => true,
+            'default_quantity' => 1,
+            'default_frequency' => 'once',
+        ]);
+
+        // 2. Create property A specific default service (e.g. breakfast 8 per night)
+        $serviceA = ServiceMaster::create([
+            'name' => 'Breakfast Package 8',
+            'service_type' => 'breakfast',
+            'unit_price' => 50000,
+            'is_active' => true,
+            'property_id' => $propertyA->id,
+            'is_default' => true,
+            'default_quantity' => 8,
+            'default_frequency' => 'per_night',
+        ]);
+
+        // 3. Create property B specific default service (e.g. cubic villa special service for first 2 nights)
+        $serviceB = ServiceMaster::create([
+            'name' => 'Layanan Khusus Cubic',
+            'service_type' => 'other',
+            'unit_price' => 150000,
+            'is_active' => true,
+            'property_id' => $propertyB->id,
+            'is_default' => true,
+            'default_quantity' => 1,
+            'default_frequency' => 'first_two_nights',
+        ]);
+
+        // Assert database properties relations
+        $this->assertEquals($propertyA->id, $serviceA->property_id);
+        $this->assertEquals($propertyB->id, $serviceB->property_id);
+        $this->assertTrue($serviceA->is_default);
+        $this->assertEquals(8, $serviceA->default_quantity);
+        $this->assertEquals('per_night', $serviceA->default_frequency);
+    }
 }

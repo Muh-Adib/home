@@ -291,11 +291,103 @@ export default function BookingForm({
             reader.onerror = () => resolve(file);
         });
     };
+    // Helper to calculate default extra services for a property
+    const getDefaultServices = (
+        propertyId: string,
+        checkIn: string | null,
+        checkOut: string | null,
+        masters: ServiceMaster[]
+    ): SelectedService[] => {
+        if (!propertyId) return [];
+
+        const defaultMasters = masters.filter(m => 
+            m.is_active && 
+            m.is_default && 
+            (!m.property_id || m.property_id.toString() === propertyId.toString())
+        );
+
+        const result: SelectedService[] = [];
+        const datesList: string[] = [];
+
+        if (checkIn && checkOut) {
+            const start = new Date(checkIn);
+            const end = new Date(checkOut);
+            for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+                datesList.push(d.toISOString().split('T')[0]);
+            }
+        }
+
+        defaultMasters.forEach(master => {
+            const qty = master.default_quantity || 1;
+            const freq = master.default_frequency || 'once';
+
+            if (freq === 'per_night' && datesList.length > 0) {
+                datesList.forEach(date => {
+                    result.push({
+                        service_master_id: master.id,
+                        service_name: master.name,
+                        service_type: master.service_type,
+                        quantity: qty,
+                        unit_price: Number(master.unit_price),
+                        discount_amount: 0,
+                        total_price: qty * Number(master.unit_price),
+                        vendor_unit_price: Number(master.vendor_unit_price || 0),
+                        vendor_total_price: qty * Number(master.vendor_unit_price || 0),
+                        service_date: date,
+                    });
+                });
+            } else if (freq === 'first_night' && datesList.length > 0) {
+                result.push({
+                    service_master_id: master.id,
+                    service_name: master.name,
+                    service_type: master.service_type,
+                    quantity: qty,
+                    unit_price: Number(master.unit_price),
+                    discount_amount: 0,
+                    total_price: qty * Number(master.unit_price),
+                    vendor_unit_price: Number(master.vendor_unit_price || 0),
+                    vendor_total_price: qty * Number(master.vendor_unit_price || 0),
+                    service_date: datesList[0],
+                });
+            } else if (freq === 'first_two_nights' && datesList.length > 0) {
+                const targetDates = datesList.slice(0, 2);
+                targetDates.forEach(date => {
+                    result.push({
+                        service_master_id: master.id,
+                        service_name: master.name,
+                        service_type: master.service_type,
+                        quantity: qty,
+                        unit_price: Number(master.unit_price),
+                        discount_amount: 0,
+                        total_price: qty * Number(master.unit_price),
+                        vendor_unit_price: Number(master.vendor_unit_price || 0),
+                        vendor_total_price: qty * Number(master.vendor_unit_price || 0),
+                        service_date: date,
+                    });
+                });
+            } else {
+                result.push({
+                    service_master_id: master.id,
+                    service_name: master.name,
+                    service_type: master.service_type,
+                    quantity: qty,
+                    unit_price: Number(master.unit_price),
+                    discount_amount: 0,
+                    total_price: qty * Number(master.unit_price),
+                    vendor_unit_price: Number(master.vendor_unit_price || 0),
+                    vendor_total_price: qty * Number(master.vendor_unit_price || 0),
+                    service_date: null,
+                });
+            }
+        });
+
+        return result;
+    };
 
     // Extra services state
     const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
 
-    // Initialize selected services from initialData
+    // Initialize selected services from initialData or new defaults
     useEffect(() => {
         if (initialData?.services && initialData.services.length > 0) {
             const initialServices = initialData.services.map((s: any) => ({
@@ -304,14 +396,17 @@ export default function BookingForm({
                 service_name: s.service_name,
                 service_type: s.service_type,
                 quantity: s.quantity,
-                unit_price: s.unit_price,
-                discount_amount: s.discount_amount || 0,
-                total_price: s.total_price,
-                vendor_unit_price: s.vendor_unit_price || 0,
-                vendor_total_price: s.vendor_total_price || 0,
+                unit_price: Number(s.unit_price),
+                discount_amount: Number(s.discount_amount || 0),
+                total_price: Number(s.total_price),
+                vendor_unit_price: Number(s.vendor_unit_price || 0),
+                vendor_total_price: Number(s.vendor_total_price || 0),
                 service_date: s.service_date ? s.service_date.split(' ')[0] : null,
             }));
             setSelectedServices(initialServices);
+        } else if (mode === 'create' && data.property_id) {
+            const defaults = getDefaultServices(data.property_id, data.check_in_date, data.check_out_date, serviceMasters);
+            setSelectedServices(defaults);
         }
     }, [initialData]);
 
@@ -500,6 +595,10 @@ export default function BookingForm({
         setRateError(null);
         setAvailabilityStatus(null);
         setAvailabilityError(null);
+
+        // Reset extra services to new property's defaults (or global defaults)
+        const defaults = getDefaultServices(propertyId, data.check_in_date, data.check_out_date, serviceMasters);
+        setSelectedServices(defaults);
 
         if (property) {
             loadPropertyData(property.id);
@@ -1253,6 +1352,7 @@ export default function BookingForm({
                             nights={rateCalculation?.nights || 1}
                             checkInDate={data.check_in_date}
                             checkOutDate={data.check_out_date}
+                            selectedPropertyId={data.property_id}
                         />
 
                         <Separator />

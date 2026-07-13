@@ -218,6 +218,10 @@ class BookingManagementController extends Controller
                 'discount_limit' => $service->discount_limit,
                 'thumbnail_url' => $service->thumbnail_url,
                 'is_active' => $service->is_active,
+                'property_id' => $service->property_id,
+                'is_default' => $service->is_default,
+                'default_quantity' => $service->default_quantity,
+                'default_frequency' => $service->default_frequency,
             ];
         });
 
@@ -418,6 +422,10 @@ class BookingManagementController extends Controller
                 'discount_limit' => $service->discount_limit,
                 'thumbnail_url' => $service->thumbnail_url,
                 'is_active' => $service->is_active,
+                'property_id' => $service->property_id,
+                'is_default' => $service->is_default,
+                'default_quantity' => $service->default_quantity,
+                'default_frequency' => $service->default_frequency,
             ];
         });
 

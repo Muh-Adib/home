@@ -18,11 +18,17 @@ import { ArrowLeft, Save } from 'lucide-react';
 import { BreadcrumbItem } from '@/types';
 import ExtraServiceThumbnailUpload from '@/components/ExtraServiceThumbnailUpload';
 
-interface CreateExtraServiceProps {
-    serviceTypes: Record<string, string>;
+interface Property {
+    id: number;
+    name: string;
 }
 
-export default function CreateExtraService({ serviceTypes }: CreateExtraServiceProps) {
+interface CreateExtraServiceProps {
+    serviceTypes: Record<string, string>;
+    properties: Property[];
+}
+
+export default function CreateExtraService({ serviceTypes, properties = [] }: CreateExtraServiceProps) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         description: '',
@@ -34,6 +40,10 @@ export default function CreateExtraService({ serviceTypes }: CreateExtraServiceP
         is_active: true,
         sort_order: 0,
         thumbnail: null as File | null,
+        property_id: '' as string | number,
+        is_default: false,
+        default_quantity: 1,
+        default_frequency: 'once',
     });
 
     const handleSubmit = (e: FormEvent) => {
@@ -235,6 +245,106 @@ export default function CreateExtraService({ serviceTypes }: CreateExtraServiceP
                                         onFileChange={(file) => setData('thumbnail', file)}
                                         error={errors.thumbnail}
                                     />
+                                </CardContent>
+                            </Card>
+
+                            {/* Unit-specific & Default Inputs Config */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Spesifikasi Unit & Default Input</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    {/* Property filter */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="property_id">Dikhususkan Untuk Unit (Opsional)</Label>
+                                        <Select
+                                            value={data.property_id?.toString() || 'all'}
+                                            onValueChange={(value) => setData('property_id', value === 'all' ? '' : value)}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Semua Unit (Global)" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Semua Unit (Global)</SelectItem>
+                                                {properties.map((p) => (
+                                                    <SelectItem key={p.id} value={p.id.toString()}>
+                                                        {p.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-sm text-muted-foreground">
+                                            Pilih jika layanan ini hanya boleh muncul untuk unit tertentu saja.
+                                        </p>
+                                        {errors.property_id && (
+                                            <p className="text-sm text-red-600">{errors.property_id}</p>
+                                        )}
+                                    </div>
+
+                                    {/* is_default Switch */}
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="is_default">Jadikan Default</Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                Secara otomatis tercentang/aktif saat input booking baru
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            id="is_default"
+                                            checked={data.is_default}
+                                            onCheckedChange={(checked) => setData('is_default', checked)}
+                                        />
+                                    </div>
+
+                                    {data.is_default && (
+                                        <>
+                                            {/* default_quantity Input */}
+                                            <div className="space-y-2">
+                                                <Label htmlFor="default_quantity">Jumlah Default</Label>
+                                                <Input
+                                                    id="default_quantity"
+                                                    type="number"
+                                                    value={data.default_quantity}
+                                                    onChange={(e) =>
+                                                        setData('default_quantity', parseInt(e.target.value) || 1)
+                                                    }
+                                                    min="1"
+                                                    required
+                                                />
+                                                <p className="text-sm text-muted-foreground">
+                                                    Jumlah awal item yang terisi otomatis
+                                                </p>
+                                                {errors.default_quantity && (
+                                                    <p className="text-sm text-red-600">{errors.default_quantity}</p>
+                                                )}
+                                            </div>
+
+                                            {/* default_frequency Select */}
+                                            <div className="space-y-2">
+                                                <Label htmlFor="default_frequency">Frekuensi Default</Label>
+                                                <Select
+                                                    value={data.default_frequency}
+                                                    onValueChange={(value) => setData('default_frequency', value as any)}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Pilih frekuensi default" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="once">Sekali per Booking (Global)</SelectItem>
+                                                        <SelectItem value="per_night">Setiap Malam Menginap (Harian)</SelectItem>
+                                                        <SelectItem value="first_night">Malam Pertama Saja (Awal 1 Malam)</SelectItem>
+                                                        <SelectItem value="first_two_nights">Dua Malam Pertama Saja (Awal 2 Malam)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Aturan pengulangan tanggal otomatis untuk layanan ini
+                                                </p>
+                                                {errors.default_frequency && (
+                                                    <p className="text-sm text-red-600">{errors.default_frequency}</p>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
                                 </CardContent>
                             </Card>
 

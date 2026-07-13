@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Property;
 use App\Models\ServiceMaster;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -59,6 +60,10 @@ class ExtraServiceController extends Controller
                 'discount_limit' => $service->discount_limit,
                 'thumbnail_url' => $service->thumbnail_url,
                 'is_active' => $service->is_active,
+                'property_id' => $service->property_id,
+                'is_default' => $service->is_default,
+                'default_quantity' => $service->default_quantity,
+                'default_frequency' => $service->default_frequency,
                 'sort_order' => $service->sort_order,
                 'created_at' => $service->created_at->format('Y-m-d H:i:s'),
                 'updated_at' => $service->updated_at->format('Y-m-d H:i:s'),
@@ -104,8 +109,11 @@ class ExtraServiceController extends Controller
             'other' => 'Lainnya',
         ];
 
+        $properties = Property::active()->get(['id', 'name']);
+
         return Inertia::render('Admin/ExtraServices/Create', [
             'serviceTypes' => $serviceTypes,
+            'properties' => $properties,
         ]);
     }
 
@@ -127,6 +135,10 @@ class ExtraServiceController extends Controller
             'is_active' => 'boolean',
             'sort_order' => 'nullable|integer|min:0',
             'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'property_id' => 'nullable|exists:properties,id',
+            'is_default' => 'nullable|boolean',
+            'default_quantity' => 'nullable|integer|min:1',
+            'default_frequency' => 'nullable|in:once,per_night,first_night,first_two_nights',
         ]);
 
         // Get max sort_order if not provided
@@ -151,6 +163,10 @@ class ExtraServiceController extends Controller
             'thumbnail_path' => $thumbnailPath,
             'is_active' => $validated['is_active'] ?? true,
             'sort_order' => $validated['sort_order'],
+            'property_id' => $validated['property_id'] ?? null,
+            'is_default' => (bool) ($validated['is_default'] ?? false),
+            'default_quantity' => $validated['default_quantity'] ?? 1,
+            'default_frequency' => $validated['default_frequency'] ?? 'once',
         ]);
 
         return redirect()
@@ -202,6 +218,8 @@ class ExtraServiceController extends Controller
             'other' => 'Lainnya',
         ];
 
+        $properties = Property::active()->get(['id', 'name']);
+
         return Inertia::render('Admin/ExtraServices/Edit', [
             'service' => [
                 'id' => $service->id,
@@ -216,8 +234,13 @@ class ExtraServiceController extends Controller
                 'thumbnail_path' => $service->thumbnail_path,
                 'is_active' => $service->is_active,
                 'sort_order' => $service->sort_order,
+                'property_id' => $service->property_id,
+                'is_default' => $service->is_default,
+                'default_quantity' => $service->default_quantity,
+                'default_frequency' => $service->default_frequency,
             ],
             'serviceTypes' => $serviceTypes,
+            'properties' => $properties,
         ]);
     }
 
@@ -239,6 +262,10 @@ class ExtraServiceController extends Controller
             'is_active' => 'boolean',
             'sort_order' => 'nullable|integer|min:0',
             'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'property_id' => 'nullable|exists:properties,id',
+            'is_default' => 'nullable|boolean',
+            'default_quantity' => 'nullable|integer|min:1',
+            'default_frequency' => 'nullable|in:once,per_night,first_night,first_two_nights',
         ]);
 
         // Handle thumbnail upload
@@ -261,6 +288,10 @@ class ExtraServiceController extends Controller
             'is_active' => $validated['is_active'] ?? $service->is_active,
             'sort_order' => $validated['sort_order'] ?? $service->sort_order,
             'thumbnail_path' => $validated['thumbnail_path'] ?? $service->thumbnail_path,
+            'property_id' => $validated['property_id'] ?? null,
+            'is_default' => (bool) ($validated['is_default'] ?? false),
+            'default_quantity' => $validated['default_quantity'] ?? 1,
+            'default_frequency' => $validated['default_frequency'] ?? 'once',
         ]);
 
         return redirect()

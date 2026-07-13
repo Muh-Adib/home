@@ -16,6 +16,7 @@ class ServiceMaster extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'property_id',
         'name',
         'description',
         'service_type',
@@ -25,6 +26,9 @@ class ServiceMaster extends Model
         'discount_limit',
         'thumbnail_path',
         'is_active',
+        'is_default',
+        'default_quantity',
+        'default_frequency',
         'sort_order',
     ];
 
@@ -34,11 +38,14 @@ class ServiceMaster extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'property_id' => 'integer',
         'unit_price' => 'decimal:2',
         'vendor_unit_price' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'discount_limit' => 'integer',
         'is_active' => 'boolean',
+        'is_default' => 'boolean',
+        'default_quantity' => 'integer',
         'sort_order' => 'integer',
     ];
 
