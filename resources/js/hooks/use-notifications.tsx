@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { router } from '@inertiajs/react';
 import { getEcho } from '@/lib/echo';
 import { createNotificationFallback } from '@/lib/echo-fallback';
+import { registerServiceWorker, subscribeToPush, isPushSubscribed } from '@/lib/push-manager';
 
 export interface Notification {
     id: string;
@@ -417,11 +418,40 @@ export function useNotifications(userId?: number): UseNotificationsReturn {
         };
     }, [userId, handleNewNotification, startPollingFallback, stopPollingFallback]);
 
-    // Request notification permission on mount
+    // Register Service Worker and manage push subscription
     useEffect(() => {
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
+        if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+            return;
         }
+
+        // Always register the SW (needed even if push is already subscribed)
+        registerServiceWorker();
+
+        // Request push permission and subscribe if not yet done
+        const setupPush = async () => {
+            if (!('Notification' in window)) {
+                return;
+            }
+
+            if (Notification.permission === 'denied') {
+                return;
+            }
+
+            if (Notification.permission === 'default') {
+                // Delay to avoid immediately bombarding the user
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                await subscribeToPush();
+                return;
+            }
+
+            // Permission already granted — check if we have a subscription
+            const alreadySubscribed = await isPushSubscribed();
+            if (!alreadySubscribed) {
+                await subscribeToPush();
+            }
+        };
+
+        setupPush().catch(console.error);
     }, []);
 
     return {

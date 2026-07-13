@@ -5,6 +5,7 @@ namespace App\Listeners;
 use App\Events\BookingCreated;
 use App\Models\User;
 use App\Notifications\BookingCreatedNotification;
+use App\Services\WebPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Queue\InteractsWithQueue;
@@ -15,13 +16,7 @@ class SendBookingNotification implements ShouldQueue
 {
     use InteractsWithQueue;
 
-    /**
-     * Create the event listener.
-     */
-    public function __construct()
-    {
-        //
-    }
+    public function __construct(private readonly WebPushService $webPush) {}
 
     /**
      * Handle the event.
@@ -34,10 +29,20 @@ class SendBookingNotification implements ShouldQueue
         // Get users who should receive notifications
         $notifiableUsers = $this->getNotifiableUsers($event->booking);
 
-        // Send notification to each user
+        // Send database + broadcast notification to each user
         foreach ($notifiableUsers as $user) {
             $user->notify(new BookingCreatedNotification($event->booking, $event->user));
         }
+
+        // Send background web push to all admin/staff subscribers
+        $this->webPush->sendToRoles(['super_admin', 'property_manager', 'front_desk', 'finance', 'housekeeping'], [
+            'title' => '🏠 Booking Baru',
+            'body' => "Booking {$event->booking->booking_number} dari {$event->booking->guest_name}",
+            'icon' => '/logo.svg',
+            'badge' => '/logo.svg',
+            'tag' => 'booking-'.$event->booking->id,
+            'url' => '/admin/bookings/'.$event->booking->booking_number,
+        ]);
     }
 
     /**

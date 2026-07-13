@@ -6,6 +6,7 @@ use App\Http\Controllers\ICalController;
 use App\Http\Controllers\LegalViewController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SeoLandingController;
 use App\Http\Controllers\SitemapController;
@@ -214,6 +215,20 @@ Route::get('/optimize-clear', function () {
 Route::post('/broadcasting/auth', function (Request $request) {
     return response()->json(['authenticated' => true]);
 })->middleware(['auth']);
+
+/**
+ * Web Push Notifications
+ * VAPID subscription management for background push notifications
+ */
+Route::controller(PushSubscriptionController::class)
+    ->prefix('push')
+    ->as('push.')
+    ->middleware(['auth'])
+    ->group(function () {
+        Route::get('/vapid-public-key', 'vapidPublicKey')->name('vapid-public-key')->withoutMiddleware(['auth']);
+        Route::post('/subscribe', 'subscribe')->name('subscribe');
+        Route::delete('/unsubscribe', 'unsubscribe')->name('unsubscribe');
+    });
 
 /*
 |--------------------------------------------------------------------------

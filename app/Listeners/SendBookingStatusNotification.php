@@ -4,7 +4,10 @@ namespace App\Listeners;
 
 use App\Events\BookingStatusChanged;
 use App\Models\User;
+use App\Notifications\BookingStatusChangedNotification;
+use App\Services\WebPushService;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Notification;
 
@@ -12,13 +15,7 @@ class SendBookingStatusNotification implements ShouldQueue
 {
     use InteractsWithQueue;
 
-    /**
-     * Create the event listener.
-     */
-    public function __construct()
-    {
-        //
-    }
+    public function __construct(private readonly WebPushService $webPush) {}
 
     /**
      * Handle the event.
@@ -54,24 +51,35 @@ class SendBookingStatusNotification implements ShouldQueue
 
         // Send notification to each user
         foreach ($notifiableUsers as $user) {
-            $user->notify(new \App\Notifications\BookingStatusChangedNotification($notificationData));
+            $user->notify(new BookingStatusChangedNotification($notificationData));
         }
+
+        // Send background web push to admin/staff subscribers
+        $statusLabel = ucfirst(str_replace('_', ' ', $newStatus));
+        $this->webPush->sendToRoles(['super_admin', 'property_manager', 'front_desk', 'finance'], [
+            'title' => '📊 Status Booking Berubah',
+            'body' => "Booking {$booking->booking_number}: {$oldStatus} → {$statusLabel}",
+            'icon' => '/logo.svg',
+            'badge' => '/logo.svg',
+            'tag' => 'booking-status-'.$booking->id,
+            'url' => '/admin/bookings/'.$booking->booking_number,
+        ]);
     }
 
     /**
      * Get users who should receive booking status change notifications
      */
-    private function getNotifiableUsers($booking): \Illuminate\Database\Eloquent\Collection
+    private function getNotifiableUsers($booking): Collection
     {
         // Get admins, property managers, and front desk staff
         return User::whereIn('role', [
             'super_admin',
-            'property_manager', 
+            'property_manager',
             'front_desk',
-            'finance'
+            'finance',
         ])
-        ->where('status', 'active')
-        ->get();
+            ->where('status', 'active')
+            ->get();
     }
 
     /**
@@ -79,7 +87,7 @@ class SendBookingStatusNotification implements ShouldQueue
      */
     private function getStatusIcon(string $status): string
     {
-        return match($status) {
+        return match ($status) {
             'confirmed' => 'check-circle',
             'checked_in' => 'log-in',
             'checked_out' => 'log-out',
@@ -94,7 +102,7 @@ class SendBookingStatusNotification implements ShouldQueue
      */
     private function getStatusColor(string $status): string
     {
-        return match($status) {
+        return match ($status) {
             'confirmed' => 'green',
             'checked_in' => 'blue',
             'checked_out' => 'gray',

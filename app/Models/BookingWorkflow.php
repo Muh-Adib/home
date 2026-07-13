@@ -74,7 +74,7 @@ class BookingWorkflow extends Model
      */
     public function getStatusLabel(): string
     {
-        return match($this->to_status) {
+        return match ($this->to_status) {
             'pending' => 'Menunggu Verifikasi',
             'verified' => 'Terverifikasi',
             'confirmed' => 'Dikonfirmasi',
@@ -91,7 +91,7 @@ class BookingWorkflow extends Model
      */
     public function getStepLabel(): string
     {
-        return match($this->step) {
+        return match ($this->step) {
             'submitted' => 'Booking Dibuat',
             'staff_review' => 'Review Staff',
             'approved' => 'Disetujui',
@@ -99,6 +99,8 @@ class BookingWorkflow extends Model
             'payment_pending' => 'Menunggu Pembayaran',
             'dp_received' => 'DP Diterima',
             'payment_verified' => 'Pembayaran Diverifikasi',
+            'payment_rejected' => 'Pembayaran Ditolak',
+            'payment_deleted' => 'Pembayaran Dihapus',
             'confirmed' => 'Dikonfirmasi',
             'checked_in' => 'Check-in',
             'checked_out' => 'Check-out',
@@ -139,7 +141,7 @@ class BookingWorkflow extends Model
         if ($this->from_status && $this->to_status) {
             return "Status berubah dari '{$this->from_status}' ke '{$this->to_status}'";
         }
-        
+
         return $this->getStepLabel();
     }
 
@@ -175,15 +177,14 @@ class BookingWorkflow extends Model
         return $query->where('step', $step);
     }
 
-
     /**
      * Create workflow entry for booking status change
      */
     public static function createStatusChange(
-        int $bookingId, 
-        string $fromStatus, 
-        string $toStatus, 
-        int $userId, 
+        int $bookingId,
+        string $fromStatus,
+        string $toStatus,
+        int $userId,
         ?string $notes = null
     ): self {
         return self::create([

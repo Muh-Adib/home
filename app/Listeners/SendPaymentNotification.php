@@ -5,19 +5,12 @@ namespace App\Listeners;
 use App\Events\PaymentCreated;
 use App\Models\User;
 use App\Notifications\PaymentCreatedNotification;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
+use App\Services\WebPushService;
 use Illuminate\Support\Facades\Notification;
 
 class SendPaymentNotification
 {
-    /**
-     * Create the event listener.
-     */
-    public function __construct()
-    {
-        //
-    }
+    public function __construct(private readonly WebPushService $webPush) {}
 
     /**
      * Handle the event.
@@ -34,7 +27,7 @@ class SendPaymentNotification
 
         // Send notification to admin users (super_admin, property_manager, finance)
         $adminUsers = User::whereIn('role', ['super_admin', 'property_manager', 'finance'])->get();
-        
+
         foreach ($adminUsers as $admin) {
             $admin->notify(new PaymentCreatedNotification($payment));
         }
@@ -54,5 +47,16 @@ class SendPaymentNotification
                 $propertyOwner->notify(new PaymentCreatedNotification($payment));
             }
         }
+
+        // Send background web push to admin/finance subscribers
+        $amount = 'Rp '.number_format((float) $payment->amount, 0, ',', '.');
+        $this->webPush->sendToRoles(['super_admin', 'property_manager', 'finance'], [
+            'title' => '💰 Pembayaran Baru',
+            'body' => "{$amount} — Booking {$payment->booking->booking_number}",
+            'icon' => '/logo.svg',
+            'badge' => '/logo.svg',
+            'tag' => 'payment-'.$payment->id,
+            'url' => '/admin/payments/'.$payment->payment_number,
+        ]);
     }
 }

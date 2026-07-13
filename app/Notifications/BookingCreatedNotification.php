@@ -4,10 +4,12 @@ namespace App\Notifications;
 
 use App\Models\Booking;
 use App\Models\User;
+use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Messages\BroadcastMessage;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class BookingCreatedNotification extends Notification implements ShouldQueue
@@ -15,6 +17,7 @@ class BookingCreatedNotification extends Notification implements ShouldQueue
     use Queueable;
 
     protected $booking;
+
     protected $createdBy;
 
     /**
@@ -42,14 +45,14 @@ class BookingCreatedNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-                    ->subject('New Booking Created')
-                    ->line('A new booking has been created.')
-                    ->line('Booking Number: ' . $this->booking->booking_number)
-                    ->line('Guest: ' . $this->booking->guest_name)
-                    ->line('Property: ' . $this->booking->property->name)
-                    ->line('Check-in: ' . $this->booking->check_in)
-                    ->line('Check-out: ' . $this->booking->check_out)
-                    ->action('View Booking', url('/admin/bookings/' . $this->booking->id))
+            ->subject('New Booking Created')
+            ->line('A new booking has been created.')
+            ->line('Booking Number: '.$this->booking->booking_number)
+            ->line('Guest: '.$this->booking->guest_name)
+            ->line('Property: '.$this->booking->property->name)
+            ->line('Check-in: '.$this->booking->check_in)
+            ->line('Check-out: '.$this->booking->check_out)
+            ->action('View Booking', url('/admin/bookings/'.$this->booking->id))
             ->line('Thank you for using our application!');
     }
 
@@ -106,7 +109,7 @@ class BookingCreatedNotification extends Notification implements ShouldQueue
                     'name' => $this->createdBy->name,
                 ],
             ],
-            'action_url' => '/admin/bookings/' . $this->booking->booking_number,
+            'action_url' => '/admin/bookings/'.$this->booking->booking_number,
             'icon' => 'calendar',
             'color' => 'blue',
             'read_at' => null,
@@ -121,9 +124,9 @@ class BookingCreatedNotification extends Notification implements ShouldQueue
     {
         // Return channels for admin and staff notifications
         return [
-            new \Illuminate\Broadcasting\Channel('admin-notifications'),
-            new \Illuminate\Broadcasting\Channel('staff-notifications'),
-            new \Illuminate\Broadcasting\PrivateChannel('user.' . $this->createdBy->id),
+            new Channel('admin-notifications'),
+            new Channel('staff-notifications'),
+            new PrivateChannel('user.'.$this->createdBy->id),
         ];
     }
 
