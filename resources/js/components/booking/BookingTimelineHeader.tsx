@@ -12,7 +12,7 @@ export default function BookingTimelineHeader({ dates, cellWidth = 60 }: Booking
         <div className="bg-white border-b border-gray-300 shadow-sm">
             <div className="flex">
                 {/* Property names column (Sticky Left) */}
-                <div className="sticky left-0 z-40 flex w-20 sm:w-52 flex-shrink-0 items-center justify-center border-r border-gray-300 bg-gray-50 px-2 py-3 shadow-[1px_0_0_0_rgba(209,213,219,0.5)]">
+                <div className="sticky left-0 z-40 flex w-20 sm:w-36 flex-shrink-0 items-center justify-center border-r border-gray-300 bg-gray-50 px-2 py-3 shadow-[1px_0_0_0_rgba(209,213,219,0.5)]">
                     <h3 className="text-center text-xs sm:text-sm font-semibold text-gray-700">
                         Unit
                     </h3>

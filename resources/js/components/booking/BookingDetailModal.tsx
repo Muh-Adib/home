@@ -309,10 +309,9 @@ export default function BookingDetailModal({
     const todayVal = new Date();
     todayVal.setHours(0, 0, 0, 0);
     const yesterdayVal = new Date(todayVal);
-    yesterdayVal.setDate(todayVal.getDate() - 1);
+    yesterdayVal.setDate(todayVal.getDate() - 180);
     //sementara allow check in untuk tanggal setelahnya hari ini
-    //const isCheckInTime = checkInDate >= yesterdayVal && checkInDate <= todayVal;
-    const isCheckInTime = checkInDate >= todayVal;
+    const isCheckInTime = checkInDate >= yesterdayVal && checkInDate <= todayVal;
 
     // Reset default payment amount when booking changes
     useEffect(() => {

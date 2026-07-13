@@ -69,7 +69,7 @@ export default function BookingTimelineRow({
             {/* PROPERTY INFO (Sticky + compact + mobile friendly) */}
             <div
                 className="
-                    w-20 sm:w-52 flex-shrink-0 border-r border-gray-300 
+                    w-20 sm:w-36 flex-shrink-0 border-r border-gray-300 
                     p-1.5 sm:p-3 sticky left-0 z-30
                     shadow-[1px_0_0_0_rgba(209,213,219,0.5)]
                     overflow-hidden flex items-center border-l-4

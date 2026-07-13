@@ -169,7 +169,7 @@ export default function BookingTimeline({
         >
             {/* Header */}
             <div className={`z-50 ${isFullscreen ? 'w-full shrink-0 border-b border-slate-200' : ''}`}>
-                <Card className={`border-none shadow-md rounded-2xl bg-white ${isFullscreen ? 'rounded-none shadow-none' : ''}`}>
+                <Card className={`border-none shadow-md rounded-2xl pb-3 bg-white ${isFullscreen ? 'rounded-none shadow-none' : ''}`}>
                     <CardHeader className="pb-3">
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
@@ -225,7 +225,7 @@ export default function BookingTimeline({
             </div>
 
             {/* Timeline Area */}
-            <Card className={`rounded-2xl shadow-md border-none overflow-hidden bg-white ${isFullscreen ? 'h-full rounded-none flex-1 mt-0 flex flex-col' : ''}`}>
+            <Card className={`rounded-2xl shadow-md border-none overflow-hidden pb-0 bg-white ${isFullscreen ? 'h-full rounded-none flex-1 mt-0 flex flex-col' : ''}`}>
                 <CardContent className={`p-0 ${isFullscreen ? 'h-full flex-1 flex flex-col overflow-hidden' : ''}`}>
                     <div
                         ref={scrollContainerRef}
