@@ -6,7 +6,7 @@ import { UserMenuContent } from '@/components/user-menu-content';
 import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
-import { Home, Building2, Phone, Mail, User, Info, FileText } from 'lucide-react';
+import { Home, Building2, Phone, Mail, User, Info, FileText, LayoutDashboard } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import LanguageSwitcher from '@/components/language-switcher';
 import AppearanceToggleDropdown from '@/components/appearance-dropdown';
@@ -82,7 +82,48 @@ export default function GuestLayout({
     }, []);
 
     const isTransparent = !scrolled && variant !== 'minimal';
-    const mobileItems = isAuthenticated ? mobileAuthItems : mobileGuestItems;
+
+    const getDashboardUrl = (role?: string) => {
+        if (!role) return '/dashboard';
+        switch (role) {
+            case 'super_admin':
+            case 'property_manager':
+            case 'front_desk':
+            case 'property_owner':
+                return '/admin/dashboard';
+            case 'finance':
+                return '/admin/finance';
+            case 'housekeeping':
+                return '/staff/cleaning';
+            default:
+                return '/dashboard';
+        }
+    };
+
+    const dashboardUrl = getDashboardUrl(auth?.user?.role);
+
+    const navItems = React.useMemo(() => {
+        if (!isAuthenticated) return publicNavItems;
+        return [
+            { key: 'dashboard', href: dashboardUrl, icon: LayoutDashboard, label: 'nav.dashboard' },
+            { key: 'properties', href: '/properties', icon: Building2, label: 'nav.properties' },
+            { key: 'articles', href: '/articles', icon: FileText, label: 'nav.articles' },
+            { key: 'profile', href: '/settings/profile', icon: User, label: 'nav.profile' },
+        ];
+    }, [isAuthenticated, dashboardUrl]);
+
+    const mobileItems = React.useMemo(() => {
+        if (!isAuthenticated) return mobileGuestItems;
+        if (auth?.user?.role && auth?.user?.role !== 'guest') {
+            return [
+                { key: 'home', href: '/', icon: Home, label: 'nav.home', external: false },
+                { key: 'dashboard', href: dashboardUrl, icon: LayoutDashboard, label: 'nav.dashboard', external: false },
+                { key: 'articles', href: '/articles', icon: FileText, label: 'nav.articles', external: false },
+                { key: 'profile', href: '/settings/profile', icon: User, label: 'nav.profile', external: false },
+            ];
+        }
+        return mobileAuthItems;
+    }, [isAuthenticated, dashboardUrl]);
 
     return (
         <div className="min-h-screen bg-background flex flex-col">
@@ -123,7 +164,7 @@ export default function GuestLayout({
 
                                 {/* Center nav links */}
                                 <nav className="flex items-center gap-0.5">
-                                    {(!isAuthenticated ? publicNavItems : authNavItems).map((item) => {
+                                    {navItems.map((item) => {
                                         const isActive = currentPath === item.href;
                                         return (
                                             <Link
@@ -183,24 +224,13 @@ export default function GuestLayout({
                                             <Link
                                                 href="/login"
                                                 className={cn(
-                                                    "px-4 py-2 rounded-full text-sm font-medium transition-all duration-200",
-                                                    isTransparent
-                                                        ? "text-white/90 hover:text-white hover:bg-white/15"
-                                                        : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
-                                                )}
-                                            >
-                                                {t('nav.login')}
-                                            </Link>
-                                            <Link
-                                                href="/register"
-                                                className={cn(
-                                                    "px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 shadow-sm",
+                                                    "px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 shadow-sm",
                                                     isTransparent
                                                         ? "bg-white text-brand-primary hover:bg-white/90 shadow-md"
                                                         : "bg-brand-primary text-white hover:bg-brand-primary/90"
                                                 )}
                                             >
-                                                {t('nav.register')}
+                                                {t('nav.login')}
                                             </Link>
                                         </div>
                                     )}
@@ -262,13 +292,13 @@ export default function GuestLayout({
                                     </DropdownMenu>
                                 ) : (
                                     <Link
-                                        href="/register"
+                                        href="/login"
                                         className={cn(
-                                            "ml-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                                            "ml-1 px-4 py-1.5 rounded-full text-xs font-semibold transition-all shadow-sm",
                                             isTransparent ? "bg-white text-brand-primary shadow-sm" : "bg-brand-primary text-white"
                                         )}
                                     >
-                                        {t('nav.register')}
+                                        {t('nav.login')}
                                     </Link>
                                 )}
                             </div>
