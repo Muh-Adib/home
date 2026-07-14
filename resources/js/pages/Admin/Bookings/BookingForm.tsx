@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { DateRange } from '@/components/ui/date-range';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     Users,
     DollarSign,
@@ -194,6 +195,7 @@ export default function BookingForm({
     const { data, setData, post, patch, processing, errors } = useForm<any>(defaultValues);
 
     // State management
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [currentProperty, setCurrentProperty] = useState<Property | null>(
         initialData?.property || properties.find(p => p.id.toString() === data.property_id) || null
     );
@@ -1068,10 +1070,37 @@ export default function BookingForm({
         }).format(amount);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('id-ID', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+        });
+    };
 
-        if (!canSubmit) return;
+    const getDailyBreakdown = (): any[] => {
+        if (!rateCalculationFull) return [];
+        if (rateCalculationFull.daily_breakdown) {
+            if (Array.isArray(rateCalculationFull.daily_breakdown)) {
+                return rateCalculationFull.daily_breakdown;
+            } else if (typeof rateCalculationFull.daily_breakdown === 'object') {
+                return Object.values(rateCalculationFull.daily_breakdown);
+            }
+        }
+        if (rateCalculationFull.breakdown?.daily_breakdown) {
+            if (Array.isArray(rateCalculationFull.breakdown.daily_breakdown)) {
+                return rateCalculationFull.breakdown.daily_breakdown;
+            } else if (typeof rateCalculationFull.breakdown.daily_breakdown === 'object') {
+                return Object.values(rateCalculationFull.breakdown.daily_breakdown);
+            }
+        }
+        return [];
+    };
+
+    const handleActualSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
 
         // Prepare submission data
         const formData: any = {
@@ -1126,6 +1155,12 @@ export default function BookingForm({
             // Edit mode (Put)
             router.put(route('admin.bookings.update', bookingNumber), formData, submitOptions);
         }
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!canSubmit) return;
+        setShowConfirmModal(true);
     };
 
     return (
@@ -1851,6 +1886,170 @@ export default function BookingForm({
                     </form>
                 </CardContent>
             </Card>
+
+            {/* Confirmation Modal */}
+            <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-black text-slate-800 flex items-center gap-2">
+                            <CheckCircle className="h-6 w-6 text-blue-600" />
+                            Ringkasan & Konfirmasi Booking
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500 font-medium">
+                            Harap periksa kembali detail pesanan berikut sebelum submit ke sistem.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-6 my-4 text-sm text-slate-700">
+                        {/* Section: Guest & Date */}
+                        <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <div>
+                                <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">Nama Tamu</span>
+                                <span className="text-base font-bold text-slate-800">{data.guest_name || '-'}</span>
+                                <span className="text-xs text-slate-500 block mt-1">{data.guest_phone || '-'}</span>
+                            </div>
+                            <div>
+                                <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">Tanggal Inap</span>
+                                <span className="text-sm font-bold text-slate-800">
+                                    {data.check_in_date ? formatDate(data.check_in_date) : '-'} s.d{' '}
+                                    {data.check_out_date ? formatDate(data.check_out_date) : '-'}
+                                </span>
+                                <span className="text-xs text-slate-500 font-bold block mt-1">
+                                    ({rateCalculation?.nights || 0} Malam)
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Section: Breakdown Rate Ringkas */}
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Rincian Tarif Per Malam</h4>
+                            <div className="border rounded-xl overflow-hidden shadow-sm">
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b text-slate-500 font-bold">
+                                            <th className="p-3">Tanggal</th>
+                                            <th className="p-3 text-right">Tarif (Kamar + Special Rate)</th>
+                                            <th className="p-3 text-center">Extra Bed</th>
+                                            <th className="p-3">Layanan Extra Hari Terkait</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {getDailyBreakdown().map((day: any) => {
+                                            // Find extra services on this day
+                                            const dayServices = selectedServices.filter(
+                                                (s) => s.service_date === day.date
+                                            );
+                                            const extraBedCount = data.daily_extra_beds[day.date] || 0;
+
+                                            return (
+                                                <tr key={day.date} className="hover:bg-slate-50/50">
+                                                    <td className="p-3 font-semibold text-slate-700">
+                                                        {formatDate(day.date)}
+                                                    </td>
+                                                    <td className="p-3 text-right font-bold text-slate-800">
+                                                        {formatCurrency(day.final_rate)}
+                                                    </td>
+                                                    <td className="p-3 text-center font-bold">
+                                                        {extraBedCount > 0 ? (
+                                                            <Badge className="bg-blue-100 text-blue-850 border-none font-bold text-[10px]">
+                                                                {extraBedCount} Bed
+                                                            </Badge>
+                                                        ) : (
+                                                            <span className="text-slate-400">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3">
+                                                        {dayServices.length > 0 ? (
+                                                            <div className="space-y-1">
+                                                                {dayServices.map((ds, idx) => (
+                                                                    <div key={idx} className="text-[11px] font-medium text-slate-600 flex items-center gap-1">
+                                                                        <span className="bullet shrink-0 w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                                                                        <span>{ds.service_name} (x{ds.quantity})</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-400 italic text-[11px]">-</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Section: Layanan Non-Spesifik Tanggal (Layanan Global / Sekali Bayar) */}
+                        {selectedServices.filter(s => !s.service_date).length > 0 && (
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Layanan Tambahan (Global / Sekali Bayar)</h4>
+                                <div className="p-3 bg-slate-50 border rounded-xl space-y-1.5">
+                                    {selectedServices.filter(s => !s.service_date).map((s, idx) => (
+                                        <div key={idx} className="flex justify-between items-center text-xs">
+                                            <span className="font-semibold text-slate-700">
+                                                {s.service_name} <span className="text-slate-400 font-medium">(x{s.quantity})</span>
+                                            </span>
+                                            <span className="font-bold text-slate-800">{formatCurrency(s.total_price)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Section: Pricing Totals & Payments */}
+                        <div className="border-t pt-4 space-y-2.5">
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="font-bold text-slate-600">Total Tarif:</span>
+                                <span className="text-lg font-black text-slate-800">{formatCurrency(totalBookingAmount)}</span>
+                            </div>
+
+                            {/* Payment */}
+                            {showPaymentForm && (paymentData.amount || 0) > 0 && (
+                                <div className="flex justify-between items-center text-sm p-2.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-100">
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-xs uppercase tracking-wider text-emerald-900">Uang Muka / Pembayaran Terinput</span>
+                                        <span className="text-[11px] text-emerald-700 font-medium">
+                                            Metode: {paymentMethods.find(m => m.id.toString() === paymentData.payment_method_id)?.name || 'Transfer Bank'}
+                                        </span>
+                                    </div>
+                                    <span className="font-black">{formatCurrency(paymentData.amount || 0)}</span>
+                                </div>
+                            )}
+
+                            {/* Remaining balance (Kekurangan) */}
+                            <div className="flex justify-between items-center text-sm p-2.5 bg-amber-50 text-amber-800 rounded-lg border border-amber-100">
+                                <span className="font-bold text-xs uppercase tracking-wider text-amber-900">Kekurangan Pembayaran</span>
+                                <span className="font-black text-base">
+                                    {formatCurrency(Math.max(0, totalBookingAmount - (showPaymentForm ? (paymentData.amount || 0) : 0)))}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="pt-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowConfirmModal(false)}
+                            disabled={processing}
+                        >
+                            Perbaiki Input
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={(e) => {
+                                setShowConfirmModal(false);
+                                handleActualSubmit(e);
+                            }}
+                            disabled={processing}
+                            className="font-bold bg-blue-600 hover:bg-blue-700"
+                        >
+                            {processing ? 'Mengirim...' : 'Konfirmasi & Simpan Booking'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
