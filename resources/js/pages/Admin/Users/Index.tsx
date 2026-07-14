@@ -11,7 +11,6 @@ import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { type User, type BreadcrumbItem, type PaginatedData, type PageProps } from '@/types';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
-import { apiGet } from '@/lib/api';
 import {
     Search,
     Filter,
@@ -34,8 +33,7 @@ import {
     CheckCircle,
     XCircle,
     FileText,
-    Activity,
-    Clock
+    Activity
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -66,10 +64,6 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
 
     const roleGroup = filters.role_group || 'staff';
 
-    const [activitiesUser, setActivitiesUser] = useState<User | null>(null);
-    const [activities, setActivities] = useState<any[]>([]);
-    const [loadingActivities, setLoadingActivities] = useState(false);
-
     const { processing, patch } = useForm();
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -99,19 +93,6 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
         });
     };
 
-    const handleViewActivities = async (user: User) => {
-        setActivitiesUser(user);
-        setLoadingActivities(true);
-        setActivities([]);
-        try {
-            const data = await apiGet(`/admin/users/${user.id}/activities`);
-            setActivities(data);
-        } catch (err) {
-            console.error('Failed to load user activities', err);
-        } finally {
-            setLoadingActivities(false);
-        }
-    };
 
     const handleStatusToggle = (user: User) => {
         const nextStatus = user.status === 'active' ? 'inactive' : 'active';
@@ -501,9 +482,11 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                                                         </DropdownMenuItem>
 
                                                         {auth.user.role === 'super_admin' && (
-                                                            <DropdownMenuItem onClick={() => handleViewActivities(user)}>
-                                                                <Activity className="mr-2 h-4 w-4" />
-                                                                Aktivitas User
+                                                            <DropdownMenuItem asChild>
+                                                                <Link href={`/admin/users/${user.id}/activities`}>
+                                                                    <Activity className="mr-2 h-4 w-4" />
+                                                                    Aktivitas User
+                                                                </Link>
                                                             </DropdownMenuItem>
                                                         )}
 
@@ -596,60 +579,6 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                                 disabled={processing}
                             >
                                 {processing ? 'Deleting...' : 'Delete User'}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
-                {/* User Activity Logs Modal */}
-                <Dialog open={activitiesUser !== null} onOpenChange={(open) => !open && setActivitiesUser(null)}>
-                    <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col p-6">
-                        <DialogHeader className="pb-2">
-                            <DialogTitle className="font-black text-xl text-slate-800 flex items-center gap-2">
-                                <Activity className="h-5 w-5 text-blue-600" />
-                                Log Aktivitas: {activitiesUser?.name}
-                            </DialogTitle>
-                            <DialogDescription className="text-slate-600">
-                                Menampilkan hingga 50 aktivitas terbaru dari user ini.
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[50vh] pr-2 py-2">
-                            {loadingActivities ? (
-                                <div className="space-y-4">
-                                    <Skeleton className="h-10 w-full" />
-                                    <Skeleton className="h-10 w-full" />
-                                    <Skeleton className="h-10 w-full" />
-                                </div>
-                            ) : activities.length > 0 ? (
-                                <div className="relative border-l border-slate-200 dark:border-slate-800 ml-3 space-y-6">
-                                    {activities.map((log: any) => (
-                                        <div key={log.id} className="relative pl-6">
-                                            <div className="absolute -left-1.5 top-1.5 h-3 w-3 rounded-full bg-blue-600 border-2 border-white dark:border-slate-900" />
-                                            <div className="text-xs text-muted-foreground font-bold tracking-wider uppercase mb-0.5">
-                                                {log.activity_type.replace(/_/g, ' ')}
-                                            </div>
-                                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                                                {log.description}
-                                            </p>
-                                            <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-                                                <Clock className="h-3 w-3" />
-                                                {log.created_at_human} ({log.created_at})
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-12 text-muted-foreground text-sm flex flex-col items-center justify-center gap-2">
-                                    <Activity className="h-8 w-8 text-slate-300" />
-                                    Belum ada aktivitas tercatat untuk user ini.
-                                </div>
-                            )}
-                        </div>
-
-                        <DialogFooter className="pt-4 border-t border-slate-100 dark:border-slate-800">
-                            <Button type="button" onClick={() => setActivitiesUser(null)} className="font-bold">
-                                Tutup
                             </Button>
                         </DialogFooter>
                     </DialogContent>

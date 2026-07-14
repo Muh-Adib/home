@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Models\User;
 use App\Models\UserActivityLog;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -298,30 +297,26 @@ class UserController extends Controller
         return back()->with('success', "Status user berhasil {$statusLabel[$request->status]}");
     }
 
-    /**
-     * Get user activity logs
-     */
-    public function activities(User $user): JsonResponse
+    public function activities(User $user, Request $request): Response
     {
         $this->authorize('viewAny', User::class);
 
-        $activities = UserActivityLog::where('user_id', $user->id)
-            ->latest()
-            ->limit(50)
-            ->get()
-            ->map(function ($log) {
-                return [
-                    'id' => $log->id,
-                    'activity_type' => $log->activity_type,
-                    'reference_type' => $log->reference_type,
-                    'reference_id' => $log->reference_id,
-                    'description' => $log->description,
-                    'properties' => $log->properties,
-                    'created_at' => $log->created_at->toDateTimeString(),
-                    'created_at_human' => $log->created_at->diffForHumans(),
-                ];
-            });
+        $query = UserActivityLog::where('user_id', $user->id)
+            ->latest();
 
-        return response()->json($activities);
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where('description', 'like', "%{$search}%");
+        }
+
+        $activities = $query->paginate(20);
+
+        return Inertia::render('Admin/Users/Activities', [
+            'targetUser' => $user,
+            'activities' => $activities,
+            'filters' => [
+                'search' => $request->input('search'),
+            ],
+        ]);
     }
 }
