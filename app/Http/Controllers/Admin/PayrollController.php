@@ -16,6 +16,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class PayrollController extends Controller
 {
@@ -38,7 +40,7 @@ class PayrollController extends Controller
         // 1. Get staff list (non-guests)
         $staff = User::where('role', '!=', 'guest')
             ->orderBy('name')
-            ->get(['id', 'name', 'role', 'status']);
+            ->get(['id', 'name', 'role', 'status', 'fingerprint_id', 'shift_start_time', 'shift_end_time']);
 
         // 2. Fetch existing stored payrolls
         $storedPayrolls = StaffPayroll::where('month', $month)
@@ -51,6 +53,7 @@ class PayrollController extends Controller
         $nextNightRate = (float) $request->input('next_night_rate', 5000);
         $housekeepingRatePerPoint = (float) $request->input('housekeeping_rate_per_point', 1000);
         $lateDeductionRate = (float) $request->input('late_deduction_rate', 20000);
+        $standbyRate = (float) $request->input('standby_rate', 50000);
 
         // Default base salaries based on roles
         $defaultSalaries = [
@@ -82,24 +85,21 @@ class PayrollController extends Controller
                 $nights = 1;
             }
 
-            // Combine closing and input (use closed_by if set, fallback to created_by)
+            // Combine closing and input
             $closerId = $booking->closed_by ?? $booking->created_by;
 
             if ($closerId) {
-                // First night bonus goes directly to closer
                 if (! isset($firstNightBonuses[$closerId])) {
                     $firstNightBonuses[$closerId] = 0;
                 }
                 $firstNightBonuses[$closerId] += $firstNightRate;
             }
 
-            // Remaining nights go to the shared pool
             if ($nights > 1) {
                 $totalNextNightsPool += ($nights - 1) * $nextNightRate;
             }
         }
 
-        // Shared pool split equally
         $sharedNextNightsBonus = $frontdeskCount > 0 ? ($totalNextNightsPool / $frontdeskCount) : 0;
 
         // 4. Build payroll calculation data
@@ -136,13 +136,18 @@ class PayrollController extends Controller
                     'user_id' => $s->id,
                     'name' => $s->name,
                     'role' => $s->role,
+                    'fingerprint_id' => $s->fingerprint_id,
+                    'shift_start_time' => $s->shift_start_time,
+                    'shift_end_time' => $s->shift_end_time,
                     'base_salary' => (float) $existing->base_salary,
                     'attendance_days' => $existing->attendance_days,
                     'absent_days' => $existing->absent_days,
                     'late_days' => $existing->late_days,
+                    'standby_nights' => $existing->standby_nights,
                     'late_deduction' => (float) $existing->late_deduction,
                     'loan_deduction' => (float) $existing->loan_deduction,
                     'housekeeping_bonus' => (float) $existing->housekeeping_bonus,
+                    'standby_bonus' => (float) $existing->standby_bonus,
                     'frontdesk_first_night_bonus' => (float) $existing->frontdesk_first_night_bonus,
                     'frontdesk_next_nights_bonus_share' => (float) $existing->frontdesk_next_nights_bonus_share,
                     'total_salary' => (float) $existing->total_salary,
@@ -156,29 +161,34 @@ class PayrollController extends Controller
                 // Compute live values
                 $baseSalary = $defaultSalaries[$s->role] ?? 2000000.0;
 
-                // For live preview, assume full attendance unless CSV is uploaded
                 $attendanceDays = 26; // Default standard working days
                 $absentDays = 0;
                 $lateDays = 0;
+                $standbyNights = 0;
                 $lateDeduction = 0.0;
+                $standbyBonus = 0.0;
 
-                // Simple auto-deduction of casbon (caps at 20% of base salary or outstanding balance, whichever is smaller)
                 $suggestedLoanDeduction = min($outstandingLoanAmount, $baseSalary * 0.2);
 
-                $totalSalary = max(0.0, $baseSalary + $housekeepingBonus + $fdFirstNightBonus + $fdNextNightsShare - $lateDeduction - $suggestedLoanDeduction);
+                $totalSalary = max(0.0, $baseSalary + $housekeepingBonus + $standbyBonus + $fdFirstNightBonus + $fdNextNightsShare - $lateDeduction - $suggestedLoanDeduction);
 
                 $payrolls[] = [
                     'id' => null,
                     'user_id' => $s->id,
                     'name' => $s->name,
                     'role' => $s->role,
+                    'fingerprint_id' => $s->fingerprint_id,
+                    'shift_start_time' => $s->shift_start_time,
+                    'shift_end_time' => $s->shift_end_time,
                     'base_salary' => $baseSalary,
                     'attendance_days' => $attendanceDays,
                     'absent_days' => $absentDays,
                     'late_days' => $lateDays,
+                    'standby_nights' => $standbyNights,
                     'late_deduction' => $lateDeduction,
                     'loan_deduction' => $suggestedLoanDeduction,
                     'housekeeping_bonus' => $housekeepingBonus,
+                    'standby_bonus' => $standbyBonus,
                     'frontdesk_first_night_bonus' => $fdFirstNightBonus,
                     'frontdesk_next_nights_bonus_share' => $fdNextNightsShare,
                     'total_salary' => $totalSalary,
@@ -200,72 +210,208 @@ class PayrollController extends Controller
                 'next_night_rate' => $nextNightRate,
                 'housekeeping_rate_per_point' => $housekeepingRatePerPoint,
                 'late_deduction_rate' => $lateDeductionRate,
+                'standby_rate' => $standbyRate,
             ],
-            'fingerprint_template_url' => route('csrf.token'), // Dummy or endpoint
         ]);
     }
 
     /**
-     * Upload & Parse Fingerprint Attendance CSV
+     * Update employee shift settings
+     */
+    public function updateUserSettings(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'fingerprint_id' => 'nullable|string|unique:users,fingerprint_id,'.$request->input('user_id'),
+            'shift_start_time' => 'required|string',
+            'shift_end_time' => 'required|string',
+        ]);
+
+        $u = User::findOrFail($validated['user_id']);
+        $u->update([
+            'fingerprint_id' => $validated['fingerprint_id'],
+            'shift_start_time' => $validated['shift_start_time'],
+            'shift_end_time' => $validated['shift_end_time'],
+        ]);
+
+        return redirect()->back()->with('success', 'Pengaturan shift staff berhasil diperbarui.');
+    }
+
+    /**
+     * Upload & Parse Fingerprint Attendance XLS/XLSX or CSV
      */
     public function uploadAttendance(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => 'required|file|mimes:csv,txt',
+            'file' => 'required|file',
         ]);
 
         $file = $request->file('file');
         $filePath = $file->getRealPath();
+        $extension = strtolower($file->getClientOriginalExtension());
 
-        $rows = [];
-        if (($handle = fopen($filePath, 'r')) !== false) {
-            // Read header
-            $header = fgetcsv($handle, 1000, ',');
-
-            // Clean headers (trim whitespace, remove BOM)
-            $header = array_map(function ($h) {
-                return trim(preg_replace('/[\x00-\x1F\x80-\xFF]/', '', $h));
-            }, $header);
-
-            while (($data = fgetcsv($handle, 1000, ',')) !== false) {
-                if (count($header) === count($data)) {
-                    $rows[] = array_combine($header, $data);
-                }
-            }
-            fclose($handle);
-        }
-
-        // Map parsed rows to employee names
         $attendanceSummary = [];
 
-        foreach ($rows as $row) {
-            // Find employee name column dynamically
-            $nameKey = null;
-            $lateKey = null;
-            $absentKey = null;
-            $presentKey = null;
+        if (in_array($extension, ['xls', 'xlsx'])) {
+            try {
+                $reader = IOFactory::createReaderForFile($filePath);
+                $spreadsheet = $reader->load($filePath);
 
-            foreach ($row as $key => $val) {
-                $cleanKey = strtolower($key);
-                if (str_contains($cleanKey, 'nama') || str_contains($cleanKey, 'name') || str_contains($cleanKey, 'employee')) {
-                    $nameKey = $key;
-                } elseif (str_contains($cleanKey, 'lambat') || str_contains($cleanKey, 'late') || str_contains($cleanKey, 'terlambat')) {
-                    $lateKey = $key;
-                } elseif (str_contains($cleanKey, 'alpa') || str_contains($cleanKey, 'absen') || str_contains($cleanKey, 'absent') || str_contains($cleanKey, 'bolos')) {
-                    $absentKey = $key;
-                } elseif (str_contains($cleanKey, 'hadir') || str_contains($cleanKey, 'days') || str_contains($cleanKey, 'present') || str_contains($cleanKey, 'kerja')) {
-                    $presentKey = $key;
+                // Parse all sheets starting from sheet index 2
+                for ($sheetIdx = 2; $sheetIdx < $spreadsheet->getSheetCount(); $sheetIdx++) {
+                    $sheet = $spreadsheet->getSheet($sheetIdx);
+                    $highestRow = $sheet->getHighestRow();
+                    $highestColumn = $sheet->getHighestColumn();
+                    $highestColIdx = Coordinate::columnIndexFromString($highestColumn);
+
+                    // Scan horizontally for employee cards (step of 15 columns)
+                    for ($colStart = 1; $colStart < $highestColIdx; $colStart += 15) {
+                        $name = $sheet->getCellByColumnAndRow($colStart + 9, 4)->getValue();
+                        $fingerprintId = $sheet->getCellByColumnAndRow($colStart + 9, 5)->getValue();
+
+                        if (! $name && ! $fingerprintId) {
+                            continue;
+                        }
+
+                        $name = trim((string) $name);
+                        $fingerprintId = trim((string) $fingerprintId);
+
+                        // Find user in DB to get their custom shift settings
+                        $matchedUser = User::where('fingerprint_id', $fingerprintId)
+                            ->orWhere('name', 'like', "%{$name}%")
+                            ->first();
+
+                        $shiftStart = $matchedUser ? $matchedUser->shift_start_time : '08:00';
+                        $role = $matchedUser ? $matchedUser->role : 'housekeeping';
+
+                        $presentDays = 0;
+                        $absentDays = 0;
+                        $lateCount = 0;
+                        $standbyCount = 0;
+
+                        // Loop through calendar rows 13 to 43 (31 days)
+                        for ($row = 13; $row <= 43; $row++) {
+                            $dayLabel = $sheet->getCellByColumnAndRow($colStart, $row)->getValue();
+                            if (! $dayLabel) {
+                                continue;
+                            }
+
+                            $inPagi = $sheet->getCellByColumnAndRow($colStart + 1, $row)->getValue();
+                            $outPagi = $sheet->getCellByColumnAndRow($colStart + 3, $row)->getValue();
+                            $inSiang = $sheet->getCellByColumnAndRow($colStart + 6, $row)->getValue();
+                            $outSiang = $sheet->getCellByColumnAndRow($colStart + 8, $row)->getValue();
+
+                            $checkIn = $inPagi ?: $inSiang;
+                            $checkOut = $outSiang ?: $outPagi;
+
+                            if ($checkIn || $checkOut) {
+                                $presentDays++;
+
+                                if ($checkIn) {
+                                    $timeParts = explode(':', (string) $checkIn);
+                                    if (count($timeParts) >= 2) {
+                                        $hour = (int) $timeParts[0];
+                                        $minute = (int) $timeParts[1];
+
+                                        // Standby check (Housekeeping check-in after 17:00 / 5 PM)
+                                        if ($role === 'housekeeping' && $hour >= 17) {
+                                            $standbyCount++;
+                                            // Standby shifts are outside regular attendance
+                                            $presentDays--;
+                                        } else {
+                                            // Regular lateness check
+                                            $shiftParts = explode(':', $shiftStart);
+                                            $shiftHour = count($shiftParts) >= 1 ? (int) $shiftParts[0] : 8;
+                                            $shiftMinute = count($shiftParts) >= 2 ? (int) $shiftParts[1] : 0;
+
+                                            $checkInTotal = $hour * 60 + $minute;
+                                            $shiftTotal = $shiftHour * 60 + $shiftMinute;
+
+                                            if ($checkInTotal > $shiftTotal) {
+                                                $lateCount++;
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Absent check (exclude weekend rest days "Sab" & "Min")
+                                $dayStr = strtolower((string) $dayLabel);
+                                if (! str_contains($dayStr, 'sab') && ! str_contains($dayStr, 'min')) {
+                                    $absentDays++;
+                                }
+                            }
+                        }
+
+                        $attendanceSummary[] = [
+                            'name' => $name,
+                            'fingerprint_id' => $fingerprintId,
+                            'present_days' => $presentDays,
+                            'late_days' => $lateCount,
+                            'absent_days' => $absentDays,
+                            'standby_nights' => $standbyCount,
+                        ];
+                    }
                 }
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error parsing Excel file: '.$e->getMessage(),
+                ], 500);
             }
+        } else {
+            // Text/CSV Parsing (simplified fallback)
+            try {
+                $rows = [];
+                if (($handle = fopen($filePath, 'r')) !== false) {
+                    $header = fgetcsv($handle, 1000, ',');
+                    $header = array_map(function ($h) {
+                        return trim(preg_replace('/[\x00-\x1F\x80-\xFF]/', '', $h));
+                    }, $header);
 
-            if ($nameKey) {
-                $name = trim($row[$nameKey]);
-                $attendanceSummary[] = [
-                    'name' => $name,
-                    'present_days' => $presentKey ? (int) $row[$presentKey] : 26,
-                    'late_days' => $lateKey ? (int) $row[$lateKey] : 0,
-                    'absent_days' => $absentKey ? (int) $row[$absentKey] : 0,
-                ];
+                    while (($data = fgetcsv($handle, 1000, ',')) !== false) {
+                        if (count($header) === count($data)) {
+                            $rows[] = array_combine($header, $data);
+                        }
+                    }
+                    fclose($handle);
+                }
+
+                foreach ($rows as $row) {
+                    $nameKey = null;
+                    $lateKey = null;
+                    $absentKey = null;
+                    $presentKey = null;
+
+                    foreach ($row as $key => $val) {
+                        $cleanKey = strtolower($key);
+                        if (str_contains($cleanKey, 'nama') || str_contains($cleanKey, 'name') || str_contains($cleanKey, 'employee')) {
+                            $nameKey = $key;
+                        } elseif (str_contains($cleanKey, 'lambat') || str_contains($cleanKey, 'late') || str_contains($cleanKey, 'terlambat')) {
+                            $lateKey = $key;
+                        } elseif (str_contains($cleanKey, 'alpa') || str_contains($cleanKey, 'absen') || str_contains($cleanKey, 'absent') || str_contains($cleanKey, 'bolos')) {
+                            $absentKey = $key;
+                        } elseif (str_contains($cleanKey, 'hadir') || str_contains($cleanKey, 'days') || str_contains($cleanKey, 'present') || str_contains($cleanKey, 'kerja')) {
+                            $presentKey = $key;
+                        }
+                    }
+
+                    if ($nameKey) {
+                        $name = trim($row[$nameKey]);
+                        $attendanceSummary[] = [
+                            'name' => $name,
+                            'fingerprint_id' => '',
+                            'present_days' => $presentKey ? (int) $row[$presentKey] : 26,
+                            'late_days' => $lateKey ? (int) $row[$lateKey] : 0,
+                            'absent_days' => $absentKey ? (int) $row[$absentKey] : 0,
+                            'standby_nights' => 0,
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error parsing CSV file: '.$e->getMessage(),
+                ], 500);
             }
         }
 
@@ -294,9 +440,11 @@ class PayrollController extends Controller
             'payrolls.*.attendance_days' => 'required|integer',
             'payrolls.*.absent_days' => 'required|integer',
             'payrolls.*.late_days' => 'required|integer',
+            'payrolls.*.standby_nights' => 'required|integer',
             'payrolls.*.late_deduction' => 'required|numeric',
             'payrolls.*.loan_deduction' => 'required|numeric',
             'payrolls.*.housekeeping_bonus' => 'required|numeric',
+            'payrolls.*.standby_bonus' => 'required|numeric',
             'payrolls.*.frontdesk_first_night_bonus' => 'required|numeric',
             'payrolls.*.frontdesk_next_nights_bonus_share' => 'required|numeric',
             'payrolls.*.total_salary' => 'required|numeric',
@@ -309,7 +457,6 @@ class PayrollController extends Controller
 
         DB::transaction(function () use ($validated, $month, $year, $user) {
             foreach ($validated['payrolls'] as $payrollData) {
-                // Determine if payroll should record loan payments
                 $existing = StaffPayroll::where('user_id', $payrollData['user_id'])
                     ->where('month', $month)
                     ->where('year', $year)
@@ -317,10 +464,8 @@ class PayrollController extends Controller
 
                 $loanDeduction = (float) $payrollData['loan_deduction'];
 
-                // If first time marking this payroll as paid, record the casbon repayment!
                 if ($payrollData['status'] === 'paid' && (! $existing || $existing->status !== 'paid')) {
                     if ($loanDeduction > 0) {
-                        // Deduct from outstanding employee loans
                         $loans = EmployeeLoan::where('employee_id', $payrollData['user_id'])
                             ->where('status', 'active')
                             ->orderBy('disbursed_at', 'asc')
@@ -347,7 +492,6 @@ class PayrollController extends Controller
                                     'notes' => "Dipotong otomatis dari gaji bulan {$month}/{$year}",
                                 ]);
 
-                                // Update loan status to paid if fully repaid
                                 if (($repaid + $paymentAmount) >= $loan->amount) {
                                     $loan->update(['status' => 'paid']);
                                 }
@@ -369,9 +513,11 @@ class PayrollController extends Controller
                         'attendance_days' => $payrollData['attendance_days'],
                         'absent_days' => $payrollData['absent_days'],
                         'late_days' => $payrollData['late_days'],
+                        'standby_nights' => $payrollData['standby_nights'],
                         'late_deduction' => $payrollData['late_deduction'],
                         'loan_deduction' => $payrollData['loan_deduction'],
                         'housekeeping_bonus' => $payrollData['housekeeping_bonus'],
+                        'standby_bonus' => $payrollData['standby_bonus'],
                         'frontdesk_first_night_bonus' => $payrollData['frontdesk_first_night_bonus'],
                         'frontdesk_next_nights_bonus_share' => $payrollData['frontdesk_next_nights_bonus_share'],
                         'total_salary' => $payrollData['total_salary'],

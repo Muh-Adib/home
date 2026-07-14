@@ -378,6 +378,7 @@ Route::middleware(['auth', 'role:super_admin,finance'])->prefix('admin/finance')
         Route::get('payroll', 'index')->name('payroll.index');
         Route::post('payroll/attendance', 'uploadAttendance')->name('payroll.attendance');
         Route::post('payroll/store', 'store')->name('payroll.store');
+        Route::post('payroll/user-settings', 'updateUserSettings')->name('payroll.user-settings');
     });
 });
 

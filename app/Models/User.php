@@ -3,16 +3,17 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, SoftDeletes;
 
     /**
@@ -31,6 +32,9 @@ class User extends Authenticatable
         'gender',
         'avatar',
         'last_login_at',
+        'fingerprint_id',
+        'shift_start_time',
+        'shift_end_time',
     ];
 
     /**
@@ -122,11 +126,11 @@ class User extends Authenticatable
     public function scopeStaff($query)
     {
         return $query->whereIn('role', [
-            'super_admin', 
-            'property_manager', 
-            'front_desk', 
-            'housekeeping', 
-            'finance'
+            'super_admin',
+            'property_manager',
+            'front_desk',
+            'housekeeping',
+            'finance',
         ]);
     }
 
@@ -154,48 +158,48 @@ class User extends Authenticatable
     public function isStaff(): bool
     {
         return in_array($this->role, [
-            'super_admin', 
-            'property_manager', 
-            'front_desk', 
-            'housekeeping', 
-            'finance'
+            'super_admin',
+            'property_manager',
+            'front_desk',
+            'housekeeping',
+            'finance',
         ]);
     }
 
     public function canManageProperty(): bool
     {
         return in_array($this->role, [
-            'super_admin', 
-            'property_owner', 
-            'property_manager'
+            'super_admin',
+            'property_owner',
+            'property_manager',
         ]);
     }
 
     public function canManageBookings(): bool
     {
         return in_array($this->role, [
-            'super_admin', 
-            'property_manager', 
-            'front_desk'
+            'super_admin',
+            'property_manager',
+            'front_desk',
         ]);
     }
 
     public function canManagePayments(): bool
     {
         return in_array($this->role, [
-            'super_admin', 
-            'property_manager', 
-            'finance'
+            'super_admin',
+            'property_manager',
+            'finance',
         ]);
     }
 
     public function canViewFinancials(): bool
     {
         return in_array($this->role, [
-            'super_admin', 
-            'property_owner', 
-            'property_manager', 
-            'finance'
+            'super_admin',
+            'property_owner',
+            'property_manager',
+            'finance',
         ]);
     }
 

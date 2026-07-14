@@ -7,22 +7,19 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { 
-    DollarSign,
+    Coins,
     Calculator,
-    Users,
     Upload,
     Save,
     Calendar,
-    Coins,
-    Percent,
     AlertCircle,
-    CheckCircle2,
-    FileSpreadsheet,
-    FileText,
-    HelpCircle
+    Settings,
+    Clock,
+    UserCheck,
+    Loader2
 } from 'lucide-react';
 import { type BreadcrumbItem } from '@/types';
 import { apiPostForm } from '@/lib/api';
@@ -32,13 +29,18 @@ interface PayrollStaffRow {
     user_id: number;
     name: string;
     role: string;
+    fingerprint_id: string | null;
+    shift_start_time: string;
+    shift_end_time: string;
     base_salary: number;
     attendance_days: number;
     absent_days: number;
     late_days: number;
+    standby_nights: number;
     late_deduction: number;
     loan_deduction: number;
     housekeeping_bonus: number;
+    standby_bonus: number;
     frontdesk_first_night_bonus: number;
     frontdesk_next_nights_bonus_share: number;
     total_salary: number;
@@ -57,6 +59,7 @@ interface PayrollProps {
         next_night_rate: number;
         housekeeping_rate_per_point: number;
         late_deduction_rate: number;
+        standby_rate: number;
     };
 }
 
@@ -69,8 +72,17 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
     const [nextNightRate, setNextNightRate] = useState(filters.next_night_rate);
     const [housekeepingRate, setHousekeepingRate] = useState(filters.housekeeping_rate_per_point);
     const [lateDeductionRate, setLateDeductionRate] = useState(filters.late_deduction_rate);
+    const [standbyRate, setStandbyRate] = useState(filters.standby_rate || 50000);
 
     const [isParsingAttendance, setIsParsingAttendance] = useState(false);
+    const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+
+    // User selected for editing shift settings
+    const [selectedUserForShift, setSelectedUserForShift] = useState<PayrollStaffRow | null>(null);
+    const [tempFingerprintId, setTempFingerprintId] = useState('');
+    const [tempShiftStart, setTempShiftStart] = useState('');
+    const [tempShiftEnd, setTempShiftEnd] = useState('');
+    const [isSavingShift, setIsSavingShift] = useState(false);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -78,13 +90,11 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
         { title: 'Sistem Payroll & Gaji' },
     ];
 
-    // Months translation map
     const monthsName = [
         'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
         'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
 
-    // Local form state representing the staff payroll table rows
     const [staffRows, setStaffRows] = useState<PayrollStaffRow[]>([]);
 
     useEffect(() => {
@@ -102,17 +112,16 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                 next_night_rate: nextNightRate,
                 housekeeping_rate_per_point: housekeepingRate,
                 late_deduction_rate: lateDeductionRate,
+                standby_rate: standbyRate,
             },
             { preserveState: true }
         );
     };
 
-    // Auto-trigger calculation reload when month/year changes
     useEffect(() => {
         applyConfigRates();
     }, [selectedMonth, selectedYear]);
 
-    // Format currency helper
     const formatCurrency = (val: number) => {
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
@@ -121,7 +130,7 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
         }).format(val);
     };
 
-    // Modify a cell value in a staff row and recalculate the total_salary
+    // Modify a cell value and recalculate
     const handleCellChange = (userId: number, field: keyof PayrollStaffRow, value: any) => {
         setStaffRows((prevRows) => 
             prevRows.map((row) => {
@@ -129,7 +138,6 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
 
                 const updatedRow = { ...row, [field]: value };
 
-                // Ensure numeric fields are correctly parsed
                 if (field === 'base_salary') updatedRow.base_salary = parseFloat(value) || 0;
                 if (field === 'attendance_days') updatedRow.attendance_days = parseInt(value) || 0;
                 if (field === 'absent_days') updatedRow.absent_days = parseInt(value) || 0;
@@ -137,15 +145,19 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                     updatedRow.late_days = parseInt(value) || 0;
                     updatedRow.late_deduction = updatedRow.late_days * lateDeductionRate;
                 }
+                if (field === 'standby_nights') {
+                    updatedRow.standby_nights = parseInt(value) || 0;
+                    updatedRow.standby_bonus = updatedRow.standby_nights * standbyRate;
+                }
                 if (field === 'late_deduction') updatedRow.late_deduction = parseFloat(value) || 0;
                 if (field === 'loan_deduction') {
-                    // Cap loan deduction at outstanding loans
                     const amount = parseFloat(value) || 0;
                     updatedRow.loan_deduction = Math.min(amount, row.outstanding_loans);
                 }
 
-                // Math formula: Base + Bonuses - Deductions
+                // Math formula: Base + Housekeeping Points + Standby nights + Frontdesk bonuses - Deductions
                 const bonuses = updatedRow.housekeeping_bonus + 
+                                updatedRow.standby_bonus + 
                                 updatedRow.frontdesk_first_night_bonus + 
                                 updatedRow.frontdesk_next_nights_bonus_share;
                 const deductions = updatedRow.late_deduction + updatedRow.loan_deduction;
@@ -157,7 +169,7 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
         );
     };
 
-    // Handle CSV upload for fingerprint machine
+    // Handle excel attendance file upload
     const handleFingerprintUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -169,14 +181,22 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
         try {
             const res = await apiPostForm<any>('/admin/finance/payroll/attendance', formData);
             if (res.success && res.summary) {
-                const summary = res.summary as Array<{ name: string; present_days: number; late_days: number; absent_days: number }>;
+                const summary = res.summary as Array<{ 
+                    name: string; 
+                    fingerprint_id: string;
+                    present_days: number; 
+                    late_days: number; 
+                    absent_days: number;
+                    standby_nights: number;
+                }>;
                 
                 let matchCount = 0;
                 setStaffRows((prevRows) => 
                     prevRows.map((row) => {
-                        // Find matching row in CSV summary (case-insensitive contains)
+                        // Match by fingerprint_id first, fallback to fuzzy name contains
                         const matchedSummary = summary.find(
-                            (item) => item.name.toLowerCase().replace(/\s/g, '').includes(row.name.toLowerCase().replace(/\s/g, '')) ||
+                            (item) => (row.fingerprint_id && item.fingerprint_id === row.fingerprint_id) ||
+                                      item.name.toLowerCase().replace(/\s/g, '').includes(row.name.toLowerCase().replace(/\s/g, '')) ||
                                       row.name.toLowerCase().replace(/\s/g, '').includes(item.name.toLowerCase().replace(/\s/g, ''))
                         );
 
@@ -187,10 +207,13 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                                 attendance_days: matchedSummary.present_days,
                                 late_days: matchedSummary.late_days,
                                 absent_days: matchedSummary.absent_days,
+                                standby_nights: matchedSummary.standby_nights,
                                 late_deduction: matchedSummary.late_days * lateDeductionRate,
+                                standby_bonus: matchedSummary.standby_nights * standbyRate,
                             };
 
                             const bonuses = updatedRow.housekeeping_bonus + 
+                                            updatedRow.standby_bonus +
                                             updatedRow.frontdesk_first_night_bonus + 
                                             updatedRow.frontdesk_next_nights_bonus_share;
                             const deductions = updatedRow.late_deduction + updatedRow.loan_deduction;
@@ -203,21 +226,55 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                     })
                 );
 
-                toast.success(`Berhasil mengimpor absensi. ${matchCount} staff berhasil dicocokkan.`);
+                toast.success(`Berhasil mengimpor absensi sidik jari. ${matchCount} staff berhasil dicocokkan.`);
             } else {
-                toast.error('Gagal memproses file absensi.');
+                toast.error('Gagal memproses file absensi sidik jari.');
             }
         } catch (err) {
             console.error('Attendance parse error:', err);
             toast.error('Error membaca file absensi.');
         } finally {
             setIsParsingAttendance(false);
-            // Clear input
             e.target.value = '';
         }
     };
 
-    // Save full payroll dataset to database
+    // Save user shift settings to database
+    const handleSaveShiftSettings = () => {
+        if (!selectedUserForShift) return;
+        setIsSavingShift(true);
+
+        router.post(
+            route('admin.finance.payroll.user-settings'),
+            {
+                user_id: selectedUserForShift.user_id,
+                fingerprint_id: tempFingerprintId || null,
+                shift_start_time: tempShiftStart,
+                shift_end_time: tempShiftEnd,
+            },
+            {
+                onSuccess: () => {
+                    toast.success('Pengaturan shift karyawan berhasil diperbarui.');
+                    setIsSavingShift(false);
+                    setIsShiftModalOpen(false);
+                    // Update state locally
+                    setStaffRows((prev) => 
+                        prev.map((row) => 
+                            row.user_id === selectedUserForShift.user_id 
+                                ? { ...row, fingerprint_id: tempFingerprintId || null, shift_start_time: tempShiftStart, shift_end_time: tempShiftEnd } 
+                                : row
+                        )
+                    );
+                },
+                onError: () => {
+                    toast.error('Gagal menyimpan pengaturan shift.');
+                    setIsSavingShift(false);
+                }
+            }
+        );
+    };
+
+    // Save full payroll data
     const [isSaving, setIsSaving] = useState(false);
     const handleSavePayroll = () => {
         setIsSaving(true);
@@ -242,12 +299,11 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
         );
     };
 
-    // Total totals summary of all payroll rows
     const totalPayrollSummary = useMemo(() => {
         return staffRows.reduce(
             (acc, curr) => {
                 acc.base += curr.base_salary;
-                acc.bonuses += curr.housekeeping_bonus + curr.frontdesk_first_night_bonus + curr.frontdesk_next_nights_bonus_share;
+                acc.bonuses += curr.housekeeping_bonus + curr.standby_bonus + curr.frontdesk_first_night_bonus + curr.frontdesk_next_nights_bonus_share;
                 acc.deductions += curr.late_deduction + curr.loan_deduction;
                 acc.net += curr.total_salary;
                 return acc;
@@ -256,24 +312,34 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
         );
     }, [staffRows]);
 
+    const openShiftModal = (row: PayrollStaffRow) => {
+        setSelectedUserForShift(row);
+        setTempFingerprintId(row.fingerprint_id || '');
+        setTempShiftStart(row.shift_start_time || '08:00');
+        setTempShiftEnd(row.shift_end_time || '16:00');
+        setIsShiftModalOpen(true);
+    };
+
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Sistem Payroll & Gaji" />
 
             <div className="space-y-6 max-w-7xl mx-auto pb-12">
                 {/* Header */}
-                <div>
-                    <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                        <Coins className="h-6 w-6 text-emerald-600" />
-                        Sistem Payroll & Penggajian Karyawan
-                    </h1>
-                    <p className="text-sm text-slate-500 font-medium">
-                        Kelola gaji bulanan, bonus frontdesk, poin kerusakan housekeeping, potongan absensi terlambat, dan potongan cicilan casbon.
-                    </p>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <Coins className="h-6 w-6 text-emerald-600" />
+                            Sistem Payroll & Penggajian Karyawan
+                        </h1>
+                        <p className="text-sm text-slate-500 font-medium">
+                            Kelola gaji bulanan, denda keterlambatan sidik jari, bonus HK/standby, dan potongan cicilan casbon.
+                        </p>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                    {/* Month/Year Filter Card */}
+                    {/* Period Card */}
                     <Card className="shadow-md">
                         <CardHeader className="p-4 pb-2">
                             <CardTitle className="text-sm font-bold flex items-center gap-1.5 text-slate-700">
@@ -321,88 +387,100 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                         </CardContent>
                     </Card>
 
-                    {/* Rates Settings Configuration Card */}
+                    {/* Settings Configuration Card */}
                     <Card className="shadow-md lg:col-span-3">
                         <CardHeader className="p-4 pb-2">
                             <CardTitle className="text-sm font-bold flex items-center gap-1.5 text-slate-700">
                                 <Calculator className="h-4 w-4 text-slate-400" />
-                                Tarif Bonus & Denda Gaji
+                                Tarif Bonus & Denda Gaji Karyawan
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0">
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase">FD Malam Ke-1</label>
                                     <div className="relative">
-                                        <span className="absolute left-2.5 top-2 text-[11px] font-bold text-slate-400">Rp</span>
+                                        <span className="absolute left-2 top-2 text-[10px] font-bold text-slate-400">Rp</span>
                                         <Input
                                             type="number"
                                             value={firstNightRate}
                                             onChange={(e) => setFirstNightRate(parseFloat(e.target.value) || 0)}
-                                            className="h-8 pl-8 text-xs font-bold"
+                                            className="h-8 pl-6 text-xs font-bold"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase">FD Malam Ke-2+</label>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">FD Malam 2+</label>
                                     <div className="relative">
-                                        <span className="absolute left-2.5 top-2 text-[11px] font-bold text-slate-400">Rp</span>
+                                        <span className="absolute left-2 top-2 text-[10px] font-bold text-slate-400">Rp</span>
                                         <Input
                                             type="number"
                                             value={nextNightRate}
                                             onChange={(e) => setNextNightRate(parseFloat(e.target.value) || 0)}
-                                            className="h-8 pl-8 text-xs font-bold"
+                                            className="h-8 pl-6 text-xs font-bold"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Poin HK (Kerusakan)</label>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">HK Poin</label>
                                     <div className="relative">
-                                        <span className="absolute left-2.5 top-2 text-[11px] font-bold text-slate-400">Rp</span>
+                                        <span className="absolute left-2 top-2 text-[10px] font-bold text-slate-400">Rp</span>
                                         <Input
                                             type="number"
                                             value={housekeepingRate}
                                             onChange={(e) => setHousekeepingRate(parseFloat(e.target.value) || 0)}
-                                            className="h-8 pl-8 text-xs font-bold"
+                                            className="h-8 pl-6 text-xs font-bold"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Denda Telambat / Alpa</label>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">HK Jaga Malam</label>
                                     <div className="relative">
-                                        <span className="absolute left-2.5 top-2 text-[11px] font-bold text-slate-400">Rp</span>
+                                        <span className="absolute left-2 top-2 text-[10px] font-bold text-slate-400">Rp</span>
+                                        <Input
+                                            type="number"
+                                            value={standbyRate}
+                                            onChange={(e) => setStandbyRate(parseFloat(e.target.value) || 0)}
+                                            className="h-8 pl-6 text-xs font-bold"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Denda Telat</label>
+                                    <div className="relative">
+                                        <span className="absolute left-2 top-2 text-[10px] font-bold text-slate-400">Rp</span>
                                         <Input
                                             type="number"
                                             value={lateDeductionRate}
                                             onChange={(e) => setLateDeductionRate(parseFloat(e.target.value) || 0)}
-                                            className="h-8 pl-8 text-xs font-bold"
+                                            className="h-8 pl-6 text-xs font-bold"
                                         />
                                     </div>
                                 </div>
                             </div>
                             <div className="flex justify-end mt-3">
                                 <Button onClick={applyConfigRates} size="sm" className="bg-slate-800 hover:bg-slate-900 text-xs font-bold">
-                                    Simpan & Terapkan Tarif Baru
+                                    Simpan & Terapkan Tarif
                                 </Button>
                             </div>
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* Fingerprint CSV Import & Quick Summary */}
+                {/* Fingerprint XLS Import & Summary */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* CSV Uploader */}
+                    {/* XLS/CSV Uploader */}
                     <Card className="shadow-md bg-slate-50 dark:bg-slate-900/10 border-dashed border-2 border-slate-200 dark:border-slate-800">
                         <CardContent className="p-5 flex flex-col items-center justify-center text-center">
                             <Upload className="h-8 w-8 text-blue-500 mb-2" />
-                            <h3 className="text-sm font-bold text-slate-800">Import Data Absensi Karyawan</h3>
+                            <h3 className="text-sm font-bold text-slate-800">Upload Excel Fingerprint</h3>
                             <p className="text-xs text-slate-400 max-w-xs mb-4">
-                                Unggah berkas laporan CSV mesin fingerprint. Sistem akan mencocokkan nama dan menghitung keterlambatan.
+                                Unggah berkas absensi format **.xls / .xlsx**. Sistem otomatis memilah card rincian jam kehadiran dan shift start staff.
                             </p>
                             <div className="relative">
                                 <Input
                                     type="file"
-                                    accept=".csv"
+                                    accept=".xls,.xlsx,.csv"
                                     onChange={handleFingerprintUpload}
                                     className="hidden"
                                     id="fingerprint-file-input"
@@ -410,17 +488,17 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                                 />
                                 <Button asChild variant="outline" size="sm" disabled={isParsingAttendance}>
                                     <label htmlFor="fingerprint-file-input" className="cursor-pointer font-bold">
-                                        {isParsingAttendance ? 'Sedang Membaca...' : 'Pilih Berkas CSV'}
+                                        {isParsingAttendance ? 'Membaca Excel...' : 'Pilih File Excel / CSV'}
                                     </label>
                                 </Button>
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Summary Card */}
+                    {/* Summary Total Card */}
                     <Card className="shadow-md md:col-span-2 flex flex-col justify-between">
                         <CardHeader className="p-4 pb-2">
-                            <CardTitle className="text-sm font-bold text-slate-700">Total Akumulasi Pembayaran Gaji</CardTitle>
+                            <CardTitle className="text-sm font-bold text-slate-700">Total Akumulasi Pembayaran Gaji Karyawan</CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -445,7 +523,7 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                             <div className="mt-4 pt-3 border-t flex items-center justify-between">
                                 <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                                     <AlertCircle className="h-4 w-4 text-amber-500" />
-                                    Perubahan nilai di tabel di bawah akan otomatis memperbarui total gaji bersih.
+                                    Data slip yang lunas akan otomatis memotong sisa pinjaman casbon aktif.
                                 </div>
                                 <Button 
                                     onClick={handleSavePayroll} 
@@ -468,47 +546,51 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                 <Card className="shadow-lg overflow-hidden">
                     <CardHeader className="bg-slate-50 p-4 border-b">
                         <CardTitle className="text-base font-black text-slate-800">Daftar Pembayaran Gaji Staff</CardTitle>
-                        <CardDescription className="text-xs font-semibold">
-                            Tinjau dan sesuaikan parameter gaji di bawah untuk bulan {monthsName[selectedMonth - 1]} {selectedYear}.
-                        </CardDescription>
                     </CardHeader>
                     <CardContent className="p-0 overflow-x-auto">
-                        <Table className="min-w-[1100px]">
+                        <Table className="min-w-[1250px]">
                             <TableHeader>
                                 <TableRow className="bg-slate-100/50">
-                                    <TableHead className="font-bold py-3 pl-6">Nama / Peran</TableHead>
+                                    <TableHead className="font-bold py-3 pl-6">Nama / Shift</TableHead>
                                     <TableHead className="font-bold py-3">Gaji Pokok</TableHead>
-                                    <TableHead className="font-bold py-3 text-center">Kehadiran (Hadir/Late/Alpa)</TableHead>
+                                    <TableHead className="font-bold py-3 text-center">Kehadiran (Hdr/Tlt/Alp)</TableHead>
+                                    <TableHead className="font-bold py-3 text-center">Jaga Malam (HK)</TableHead>
                                     <TableHead className="font-bold py-3">Denda Terlambat</TableHead>
-                                    <TableHead className="font-bold py-3">Poin / Bonus HK</TableHead>
+                                    <TableHead className="font-bold py-3">Bonus Poin HK</TableHead>
                                     <TableHead className="font-bold py-3">Bonus FD (Mlm 1 / Share)</TableHead>
                                     <TableHead className="font-bold py-3">Potongan Casbon</TableHead>
                                     <TableHead className="font-bold py-3">Gaji Bersih</TableHead>
                                     <TableHead className="font-bold py-3">Status</TableHead>
-                                    <TableHead className="font-bold py-3 pr-6">Catatan</TableHead>
+                                    <TableHead className="font-bold py-3 pr-6">Aksi</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {staffRows.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={10} className="h-32 text-center text-slate-400">
+                                        <TableCell colSpan={11} className="h-32 text-center text-slate-400">
                                             Tidak ada staff terdaftar.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     staffRows.map((row) => (
                                         <TableRow key={row.user_id} className="hover:bg-slate-50/50">
-                                            {/* Name / Role */}
+                                            {/* Name / Role / Shift settings */}
                                             <TableCell className="py-3 pl-6">
                                                 <div className="font-bold text-slate-800">{row.name}</div>
-                                                <Badge variant="secondary" className="capitalize text-[10px] font-bold px-1.5 py-0">
-                                                    {row.role.replace('_', ' ')}
-                                                </Badge>
-                                                {row.stored && (
-                                                    <span className="ml-1 text-[9px] text-emerald-600 font-bold bg-emerald-50 px-1 rounded border border-emerald-100">
-                                                        Saved
+                                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                                    <Badge variant="secondary" className="capitalize text-[9px] font-bold px-1 py-0">
+                                                        {row.role.replace('_', ' ')}
+                                                    </Badge>
+                                                    <span className="text-[9px] text-slate-400 font-semibold flex items-center gap-0.5">
+                                                        <Clock className="h-2.5 w-2.5" />
+                                                        {row.shift_start_time} - {row.shift_end_time}
                                                     </span>
-                                                )}
+                                                    {row.fingerprint_id && (
+                                                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-blue-200 text-blue-600 bg-blue-50/20 font-bold">
+                                                            ID: {row.fingerprint_id}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </TableCell>
 
                                             {/* Base Salary */}
@@ -521,7 +603,7 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                                                 />
                                             </TableCell>
 
-                                            {/* Attendance details (Present, Late, Absent) */}
+                                            {/* Attendance details */}
                                             <TableCell className="text-center">
                                                 <div className="flex items-center justify-center gap-1">
                                                     <Input
@@ -548,17 +630,38 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                                                 </div>
                                             </TableCell>
 
+                                            {/* Jaga Malam Standby Nights (Housekeeping Only) */}
+                                            <TableCell className="text-center">
+                                                {row.role === 'housekeeping' ? (
+                                                    <div className="flex flex-col items-center justify-center space-y-1">
+                                                        <Input
+                                                            type="number"
+                                                            value={row.standby_nights}
+                                                            onChange={(e) => handleCellChange(row.user_id, 'standby_nights', e.target.value)}
+                                                            className="w-12 h-8 text-center text-xs font-bold border-indigo-200"
+                                                        />
+                                                        {row.standby_bonus > 0 && (
+                                                            <span className="text-[9px] text-indigo-600 font-bold">
+                                                                {formatCurrency(row.standby_bonus)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-300 text-xs">-</span>
+                                                )}
+                                            </TableCell>
+
                                             {/* Late Deduction */}
                                             <TableCell className="font-bold text-red-500 text-xs">
                                                 {formatCurrency(row.late_deduction)}
                                             </TableCell>
 
-                                            {/* Housekeeping Points & Bonus */}
+                                            {/* Housekeeping Points Bonus */}
                                             <TableCell className="text-xs font-medium">
                                                 {row.role === 'housekeeping' ? (
                                                     <div>
                                                         <div className="font-black text-slate-800">{formatCurrency(row.housekeeping_bonus)}</div>
-                                                        <div className="text-[10px] text-slate-400 font-bold">(Poin kerusakan ter-resolve)</div>
+                                                        <div className="text-[9px] text-slate-400 font-bold leading-none">Poin kerusakan</div>
                                                     </div>
                                                 ) : (
                                                     <span className="text-slate-300">-</span>
@@ -589,7 +692,7 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                                                     />
                                                     {row.outstanding_loans > 0 && (
                                                         <div className="text-[9px] text-amber-600 font-bold leading-none">
-                                                            Sisa Casbon: {formatCurrency(row.outstanding_loans)}
+                                                            Sisa: {formatCurrency(row.outstanding_loans)}
                                                         </div>
                                                     )}
                                                 </div>
@@ -620,14 +723,17 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                                                 </Select>
                                             </TableCell>
 
-                                            {/* Notes */}
+                                            {/* Aksi */}
                                             <TableCell className="pr-6">
-                                                <Input
-                                                    value={row.notes}
-                                                    onChange={(e) => handleCellChange(row.user_id, 'notes', e.target.value)}
-                                                    placeholder="Catatan..."
-                                                    className="w-36 h-8 text-xs"
-                                                />
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => openShiftModal(row)}
+                                                    className="h-8 font-bold text-xs"
+                                                >
+                                                    <Settings className="h-3.5 w-3.5 mr-1" />
+                                                    Shift
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     ))
@@ -637,6 +743,71 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Shift & Fingerprint Settings Modal */}
+            <Dialog open={isShiftModalOpen} onOpenChange={setIsShiftModalOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Clock className="h-5 w-5 text-blue-600" />
+                            Pengaturan Shift & Fingerprint Karyawan
+                        </DialogTitle>
+                        <DialogDescription className="text-xs font-semibold">
+                            Sesuaikan jam masuk, jam keluar, dan ID sidik jari untuk staff **{selectedUserForShift?.name}**.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-3">
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500">ID Sidik Jari (Fingerprint ID)</label>
+                            <Input
+                                placeholder="Masukkan ID Sidik Jari Mesin..."
+                                value={tempFingerprintId}
+                                onChange={(e) => setTempFingerprintId(e.target.value)}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500">Jam Shift Masuk</label>
+                                <Input
+                                    type="text"
+                                    placeholder="Format e.g. 08:00"
+                                    value={tempShiftStart}
+                                    onChange={(e) => setTempShiftStart(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500">Jam Shift Keluar</label>
+                                <Input
+                                    type="text"
+                                    placeholder="Format e.g. 16:00"
+                                    value={tempShiftEnd}
+                                    onChange={(e) => setTempShiftEnd(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" size="sm" onClick={() => setIsShiftModalOpen(false)}>
+                            Batal
+                        </Button>
+                        <Button 
+                            onClick={handleSaveShiftSettings} 
+                            disabled={isSavingShift}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                            size="sm"
+                        >
+                            {isSavingShift ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <>
+                                    <Save className="h-4 w-4 mr-1.5" />
+                                    Simpan Shift Settings
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AdminLayout>
     );
 }
