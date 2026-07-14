@@ -88,7 +88,7 @@ class PaymentController extends Controller
     /**
      * Display payments index
      */
-    public function index(Request $request): Response
+    public function index(Request $request): \Inertia\Response|\Illuminate\Http\JsonResponse
     {
         $this->authorize('viewAny', Payment::class);
 
@@ -144,6 +144,14 @@ class PaymentController extends Controller
             'today_amount' => Payment::where('payment_date', now()->toDateString())->sum('amount'),
             'month_amount' => Payment::whereMonth('payment_date', now()->month)->sum('amount'),
         ];
+
+        if ($request->wantsJson() || $request->input('format') === 'json') {
+            return response()->json([
+                'payments' => $payments,
+                'paymentMethods' => $paymentMethods,
+                'stats' => $stats,
+            ]);
+        }
 
         return Inertia::render('Admin/Payments/Index', [
             'payments' => $payments,

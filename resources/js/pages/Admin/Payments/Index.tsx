@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '@/components/ui/textarea';
 import { type Payment, type PaymentMethod, type BreadcrumbItem, type User, type PaginatedData, type PageProps } from '@/types';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
+import { apiGet } from '@/lib/api';
 import {
     Search,
     Filter,
@@ -28,9 +29,10 @@ import {
     Settings,
     Users,
     Calendar,
-    Edit
+    Edit,
+    Loader2
 } from 'lucide-react';
-import { useState, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 
 interface PaymentsIndexProps {
     payments: PaginatedData<Payment>;
@@ -105,6 +107,70 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
     const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
     const [editingNotesValue, setEditingNotesValue] = useState<string>('');
     const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
+
+    // Infinite Scroll States
+    const [loadedPayments, setLoadedPayments] = useState<Payment[]>(payments.data);
+    const [currentPage, setCurrentPage] = useState(payments.current_page);
+    const [lastPage, setLastPage] = useState(payments.last_page);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+    // Sync state when initial props update
+    useEffect(() => {
+        setLoadedPayments(payments.data);
+        setCurrentPage(payments.current_page);
+        setLastPage(payments.last_page);
+    }, [payments]);
+
+    const loadNextPage = async () => {
+        if (currentPage >= lastPage || isLoadingMore) return;
+        setIsLoadingMore(true);
+
+        try {
+            const res = await apiGet<{ payments: PaginatedData<Payment> }>('/admin/payments', {
+                page: currentPage + 1,
+                format: 'json',
+                search: searchTerm || undefined,
+                status: statusFilter !== 'all' ? statusFilter : undefined,
+                payment_method: paymentMethodFilter !== 'all' ? paymentMethodFilter : undefined,
+                grouped: isGrouped ? 'true' : 'false',
+                sort_by: sortBy,
+                sort_dir: sortDir,
+            });
+
+            if (res.payments && res.payments.data) {
+                setLoadedPayments((prev) => [...prev, ...res.payments.data]);
+                setCurrentPage(res.payments.current_page);
+                setLastPage(res.payments.last_page);
+            }
+        } catch (err) {
+            console.error('Failed to load more payments:', err);
+            toast.success('Gagal memuat data pembayaran selanjutnya.');
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && currentPage < lastPage && !isLoadingMore) {
+                    loadNextPage();
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        const target = document.getElementById('infinite-scroll-trigger');
+        if (target) {
+            observer.observe(target);
+        }
+
+        return () => {
+            if (target) {
+                observer.unobserve(target);
+            }
+        };
+    }, [currentPage, lastPage, isLoadingMore, searchTerm, statusFilter, paymentMethodFilter, isGrouped, sortBy, sortDir]);
 
     const handleStartEditNotes = (payment: Payment) => {
         setEditingPaymentId(payment.id);
@@ -334,7 +400,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
     // Group payments by booking code
     const groupedPayments: { bookingNumber: string; guestName: string; propertyName: string; payments: Payment[] }[] = [];
 
-    payments.data.forEach((payment) => {
+    loadedPayments.forEach((payment) => {
         const bookingNumber = payment.booking?.booking_number || 'Tanpa Booking';
         const guestName = payment.booking?.guest_name || 'Tamu Umum';
         const propertyName = payment.booking?.property?.name || 'Properti Umum';
@@ -861,7 +927,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                 );
                             })}
 
-                            {!isGrouped && payments.data.length > 0 && (
+                            {!isGrouped && loadedPayments.length > 0 && (
                                 <div className="space-y-4">
                                     {/* Desktop Table */}
                                     <div className="hidden sm:block overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-sm">
@@ -880,7 +946,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {payments.data.map((payment, index) => {
+                                                {loadedPayments.map((payment, index) => {
                                                     const isMissRouted = checkIsMissRouted(payment);
                                                     const rowEven = index % 2 === 0;
                                                     const canReverifyPayment = ['super_admin', 'finance'].includes(auth.user?.role) || (auth.user?.role === 'property_owner' && payment.booking?.property?.owner_id === auth.user?.id);
@@ -1068,7 +1134,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
 
                                     {/* Mobile Card List */}
                                     <div className="block sm:hidden space-y-3">
-                                        {payments.data.map((payment) => {
+                                        {loadedPayments.map((payment) => {
                                             const isMissRouted = checkIsMissRouted(payment);
                                             const canReverifyPayment = ['super_admin', 'finance'].includes(auth.user?.role) || (auth.user?.role === 'property_owner' && payment.booking?.property?.owner_id === auth.user?.id);
 
@@ -1192,7 +1258,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                 </div>
                             )}
 
-                            {payments.data.length === 0 && (
+                            {loadedPayments.length === 0 && (
                                 <div className="text-center py-8">
                                     <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground" />
                                     <h3 className="mt-2 text-sm font-semibold">No payments found</h3>
@@ -1203,44 +1269,20 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                             )}
                         </div>
 
-                        {/* Pagination */}
-                        {payments.last_page > 1 && (
-                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 border-t border-slate-100/60 mt-4">
-                                <div className="text-xs sm:text-sm text-muted-foreground">
-                                    Showing <span className="font-semibold text-slate-800">{payments.from}</span> to <span className="font-semibold text-slate-800">{payments.to}</span> of <span className="font-semibold text-slate-800">{payments.total}</span> payments
+                        {/* Infinite Scroll Trigger Indicator */}
+                        <div id="infinite-scroll-trigger" className="flex justify-center items-center py-6 mt-4 border-t border-slate-100/60">
+                            {isLoadingMore && (
+                                <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                                    Memuat lebih banyak pembayaran...
                                 </div>
-
-                                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                                    {payments.prev_page_url ? (
-                                        <Link href={payments.prev_page_url} className="flex-1 sm:flex-initial">
-                                            <Button variant="outline" size="sm" className="w-full text-xs h-8">
-                                                &laquo; Previous
-                                            </Button>
-                                        </Link>
-                                    ) : (
-                                        <Button variant="outline" size="sm" disabled className="flex-1 sm:flex-initial text-xs h-8">
-                                            &laquo; Previous
-                                        </Button>
-                                    )}
-
-                                    <span className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-md min-w-[90px] text-center">
-                                        Page {payments.current_page} of {payments.last_page}
-                                    </span>
-
-                                    {payments.next_page_url ? (
-                                        <Link href={payments.next_page_url} className="flex-1 sm:flex-initial">
-                                            <Button variant="outline" size="sm" className="w-full text-xs h-8">
-                                                Next &raquo;
-                                            </Button>
-                                        </Link>
-                                    ) : (
-                                        <Button variant="outline" size="sm" disabled className="flex-1 sm:flex-initial text-xs h-8">
-                                            Next &raquo;
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+                            )}
+                            {!isLoadingMore && currentPage >= lastPage && loadedPayments.length > 0 && (
+                                <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full">
+                                    Semua data pembayaran telah dimuat.
+                                </span>
+                            )}
+                        </div>
                     </CardContent>
                 </Card>
 
