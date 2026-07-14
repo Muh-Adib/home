@@ -1867,7 +1867,7 @@ class BookingManagementController extends Controller
     /**
      * Display the Booking Staff Attribution (Tracking) page for Super Admin.
      */
-    public function staffTracking(Request $request): Response
+    public function staffTracking(Request $request): Response|JsonResponse
     {
         $user = $request->user();
         if ($user->role !== 'super_admin') {
