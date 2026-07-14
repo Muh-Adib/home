@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Head, Link, useForm, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,13 +11,12 @@ import { toast } from 'sonner';
 import { 
     Search, 
     Building2, 
-    Users, 
-    Calendar, 
     Save, 
     UserCheck,
     Loader2
 } from 'lucide-react';
 import { type Booking, type Property, type BreadcrumbItem } from '@/types';
+import { apiGet } from '@/lib/api';
 
 interface StaffUser {
     id: number;
@@ -50,11 +49,24 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
     const [propertyId, setPropertyId] = useState(filters.property_id || 'all');
     const [updatingRowId, setUpdatingRowId] = useState<number | null>(null);
 
+    // Infinite scroll states
+    const [loadedBookings, setLoadedBookings] = useState<Booking[]>(bookings.data);
+    const [currentPage, setCurrentPage] = useState(bookings.current_page);
+    const [lastPage, setLastPage] = useState(bookings.last_page);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Bookings', href: '/admin/bookings' },
         { title: 'Attribusi Staff & Closing' },
     ];
+
+    // Sync initial state when initial props update (e.g. from filter or search submission)
+    useEffect(() => {
+        setLoadedBookings(bookings.data);
+        setCurrentPage(bookings.current_page);
+        setLastPage(bookings.last_page);
+    }, [bookings]);
 
     // Helper to format date
     const formatDate = (dateString?: string) => {
@@ -111,17 +123,21 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
     // State for temporary select values per row (so they can edit first, then click save)
     const [tempValues, setTempValues] = useState<Record<number, { closed_by: string; followed_up_by: string }>>({});
 
-    // Initialize/sync row select states
+    // Initialize/sync row select states whenever loadedBookings changes
     useEffect(() => {
-        const initialMap: Record<number, { closed_by: string; followed_up_by: string }> = {};
-        bookings.data.forEach((b) => {
-            initialMap[b.id] = {
-                closed_by: b.closed_by?.toString() || 'null',
-                followed_up_by: b.followed_up_by?.toString() || 'null',
-            };
+        setTempValues((prev) => {
+            const newMap = { ...prev };
+            loadedBookings.forEach((b) => {
+                if (newMap[b.id] === undefined) {
+                    newMap[b.id] = {
+                        closed_by: b.closed_by?.toString() || 'null',
+                        followed_up_by: b.followed_up_by?.toString() || 'null',
+                    };
+                }
+            });
+            return newMap;
         });
-        setTempValues(initialMap);
-    }, [bookings.data]);
+    }, [loadedBookings]);
 
     const handleSelectChange = (bookingId: number, field: 'closed_by' | 'followed_up_by', value: string) => {
         setTempValues((prev) => ({
@@ -133,11 +149,60 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
         }));
     };
 
+    // Load next page of bookings for infinite scroll
+    const loadNextPage = async () => {
+        if (currentPage >= lastPage || isLoadingMore) return;
+        setIsLoadingMore(true);
+
+        try {
+            const res = await apiGet<{ bookings: PaginatedBookings }>('/admin/bookings/staff-tracking', {
+                page: currentPage + 1,
+                format: 'json',
+                search: searchVal || undefined,
+                property_id: propertyId !== 'all' ? propertyId : undefined,
+            });
+
+            if (res.bookings && res.bookings.data) {
+                setLoadedBookings((prev) => [...prev, ...res.bookings.data]);
+                setCurrentPage(res.bookings.current_page);
+                setLastPage(res.bookings.last_page);
+            }
+        } catch (err) {
+            console.error('Failed to load more bookings:', err);
+            toast.error('Gagal memuat data booking selanjutnya.');
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
+
+    // IntersectionObserver scroll listener
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && currentPage < lastPage && !isLoadingMore) {
+                    loadNextPage();
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        const target = document.getElementById('infinite-scroll-trigger');
+        if (target) {
+            observer.observe(target);
+        }
+
+        return () => {
+            if (target) {
+                observer.unobserve(target);
+            }
+        };
+    }, [currentPage, lastPage, isLoadingMore, searchVal, propertyId]);
+
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
             <Head title="Attribusi Staff & Closing" />
             
-            <div className="space-y-6 max-w-7xl mx-auto">
+            <div className="space-y-6 max-w-7xl mx-auto pb-16">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -200,14 +265,14 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {bookings.data.length === 0 ? (
+                                {loadedBookings.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={7} className="h-48 text-center text-slate-400">
                                             Tidak ada data booking ditemukan.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    bookings.data.map((b) => {
+                                    loadedBookings.map((b) => {
                                         const rowTemp = tempValues[b.id] || {
                                             closed_by: b.closed_by?.toString() || 'null',
                                             followed_up_by: b.followed_up_by?.toString() || 'null',
@@ -305,29 +370,20 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
                     </CardContent>
                 </Card>
 
-                {/* Pagination */}
-                {bookings.last_page > 1 && (
-                    <div className="flex justify-center items-center gap-2 mt-4">
-                        {bookings.links.map((link, idx) => {
-                            const isPrevOrNext = link.label.includes('Previous') || link.label.includes('Next');
-                            
-                            return (
-                                <Link
-                                    key={idx}
-                                    href={link.url || '#'}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                                        link.active
-                                            ? 'bg-blue-600 text-white shadow-md'
-                                            : !link.url
-                                                ? 'text-slate-300 pointer-events-none'
-                                                : 'bg-white hover:bg-slate-50 border text-slate-600'
-                                    }`}
-                                    dangerouslySetInnerHTML={{ __html: link.label }}
-                                />
-                            );
-                        })}
-                    </div>
-                )}
+                {/* Infinite Scroll Trigger Indicator */}
+                <div id="infinite-scroll-trigger" className="flex justify-center items-center py-6 mt-2">
+                    {isLoadingMore && (
+                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                            Memuat lebih banyak booking...
+                        </div>
+                    )}
+                    {!isLoadingMore && currentPage >= lastPage && loadedBookings.length > 0 && (
+                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full">
+                            Semua data booking telah dimuat.
+                        </span>
+                    )}
+                </div>
             </div>
         </AdminLayout>
     );

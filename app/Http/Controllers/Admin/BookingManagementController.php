@@ -1901,6 +1901,14 @@ class BookingManagementController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'role']);
 
+        if ($request->wantsJson() || $request->input('format') === 'json') {
+            return response()->json([
+                'bookings' => $bookings,
+                'properties' => $properties,
+                'staffUsers' => $staffUsers,
+            ]);
+        }
+
         return Inertia::render('Admin/Bookings/StaffTracking', [
             'bookings' => $bookings,
             'properties' => $properties,
