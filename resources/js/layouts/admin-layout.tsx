@@ -35,6 +35,8 @@ import {
   Globe,
   Wrench,
   ClipboardList,
+  Coins,
+  UserCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -101,6 +103,7 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Create Booking', href: '/admin/bookings/create', icon: Calendar },
           { title: 'Check-in/Out Report', href: '/admin/bookings/check-in-out', icon: Shield },
           { title: 'Occupancy Report', href: '/admin/reports/occupancy', icon: BarChart3 },
+          { title: 'Booking Attribution', href: '/admin/bookings/staff-tracking', icon: UserCheck },
         ]
       },
       {
@@ -118,6 +121,7 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
           { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
           { title: 'Wallets', href: '/admin/finance/wallets', icon: CreditCard },
+          { title: 'Payroll', href: '/admin/finance/payroll', icon: Coins },
         ]
       },
       {
@@ -307,6 +311,7 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
           { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
           { title: 'Wallets', href: '/admin/finance/wallets', icon: CreditCard },
+          { title: 'Payroll', href: '/admin/finance/payroll', icon: Coins },
         ]
       },
       {
