@@ -1863,4 +1863,69 @@ class BookingManagementController extends Controller
             return back()->withErrors(['error' => 'Import failed: '.$e->getMessage()]);
         }
     }
+
+    /**
+     * Display the Booking Staff Attribution (Tracking) page for Super Admin.
+     */
+    public function staffTracking(Request $request): Response
+    {
+        $user = $request->user();
+        if ($user->role !== 'super_admin') {
+            abort(403, 'Unauthorized.');
+        }
+
+        // Get active properties for filter dropdown
+        $properties = Property::active()->orderBy('name')->get(['id', 'name']);
+
+        $bookingsQuery = Booking::query()
+            ->with(['property:id,name', 'followedUpBy:id,name', 'closedBy:id,name']);
+
+        // Search filter
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $bookingsQuery->where(function ($q) use ($search) {
+                $q->where('booking_number', 'like', "%{$search}%")
+                    ->orWhere('guest_name', 'like', "%{$search}%");
+            });
+        }
+
+        // Property filter
+        if ($request->filled('property_id')) {
+            $bookingsQuery->where('property_id', $request->input('property_id'));
+        }
+
+        $bookings = $bookingsQuery->orderBy('created_at', 'desc')->paginate(15)->withQueryString();
+
+        // Get non-guest staff users
+        $staffUsers = User::where('role', '!=', 'guest')
+            ->orderBy('name')
+            ->get(['id', 'name', 'role']);
+
+        return Inertia::render('Admin/Bookings/StaffTracking', [
+            'bookings' => $bookings,
+            'properties' => $properties,
+            'staffUsers' => $staffUsers,
+            'filters' => $request->only(['search', 'property_id']),
+        ]);
+    }
+
+    /**
+     * Update Booking Staff Attribution (followed_up_by and closed_by)
+     */
+    public function updateStaffTracking(Request $request, Booking $booking): RedirectResponse
+    {
+        $user = $request->user();
+        if ($user->role !== 'super_admin') {
+            abort(403, 'Unauthorized.');
+        }
+
+        $validated = $request->validate([
+            'followed_up_by' => 'nullable|exists:users,id',
+            'closed_by' => 'nullable|exists:users,id',
+        ]);
+
+        $booking->update($validated);
+
+        return back()->with('success', 'Attribution booking berhasil diperbarui.');
+    }
 }

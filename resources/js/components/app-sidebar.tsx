@@ -27,7 +27,9 @@ import {
     TrendingUp,
     Bell,
     HelpCircle,
-    LogOut
+    LogOut,
+    Coins,
+    UserCheck
 } from 'lucide-react';
 import AppLogo from './app-logo';
 import { NotificationBell } from './notifications/notification-bell';
@@ -68,9 +70,11 @@ const getNavItemsForRole = (userRole: User['role']): {
             ],
             operations: [
                 { title: 'bookings', href: '/admin/bookings', icon: Calendar },
+                { title: 'booking_attribution', href: '/admin/bookings/staff-tracking', icon: UserCheck },
                 { title: 'occupancy_report', href: '/admin/reports/occupancy', icon: BarChart3 },
                 { title: 'payments', href: '/admin/payments', icon: CreditCard },
                 { title: 'finance', href: '/admin/finance', icon: DollarSign },
+                { title: 'payroll', href: '/admin/finance/payroll', icon: Coins },
                 { title: 'cleaning_tasks', href: '/admin/cleaning-tasks', icon: ListChecks },
                 { title: 'cleaning_schedules', href: '/admin/cleaning-schedules', icon: Calendar },
                 { title: 'cleaning_staff', href: '/admin/cleaning-staff', icon: Sparkles },
@@ -150,6 +154,8 @@ const getNavItemsForRole = (userRole: User['role']): {
             management: [],
             operations: [
                 { title: 'payments', href: '/admin/payments', icon: CreditCard },
+                { title: 'finance', href: '/admin/finance', icon: DollarSign },
+                { title: 'payroll', href: '/admin/finance/payroll', icon: Coins },
             ],
             analytics: [
                 { title: 'financial_reports', href: '/admin/reports/financial', icon: DollarSign },

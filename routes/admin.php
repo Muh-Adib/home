@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\LegalPageController;
 use App\Http\Controllers\Admin\LostAndFoundController;
 use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\PaymentMethodController;
+use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\PropertyManagementController;
 use App\Http\Controllers\Admin\PropertySeasonalRateController;
 use App\Http\Controllers\Admin\RateManagementController;
@@ -252,6 +253,8 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
         // Main booking routes
         Route::get('bookings', 'index')->name('bookings.index');
         Route::get('bookings/daily-operations', 'dailyOperations')->name('bookings.daily-operations');
+        Route::get('bookings/staff-tracking', 'staffTracking')->name('bookings.staff-tracking')->middleware('role:super_admin');
+        Route::put('bookings/{booking}/staff-tracking', 'updateStaffTracking')->name('bookings.staff-tracking.update')->middleware('role:super_admin');
 
         Route::get('bookings/create', 'create')->name('bookings.create');
         Route::post('bookings', 'store')->name('bookings.store');
@@ -366,6 +369,15 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,fin
         Route::get('finance/loans', 'loans')->name('finance.loans');
         Route::post('finance/loans', 'storeLoan')->name('finance.loans.store');
         Route::post('finance/loans/{loan}/payments', 'storeLoanPayment')->name('finance.loans.payments.store');
+    });
+});
+
+// Payroll Management
+Route::middleware(['auth', 'role:super_admin,finance'])->prefix('admin/finance')->name('admin.finance.')->group(function () {
+    Route::controller(PayrollController::class)->group(function () {
+        Route::get('payroll', 'index')->name('payroll.index');
+        Route::post('payroll/attendance', 'uploadAttendance')->name('payroll.attendance');
+        Route::post('payroll/store', 'store')->name('payroll.store');
     });
 });
 
