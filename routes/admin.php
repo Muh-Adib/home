@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminCustomTaskController;
+use App\Http\Controllers\Admin\AdminRoutineScheduleController;
 use App\Http\Controllers\Admin\AdminSeoLandingController;
 use App\Http\Controllers\Admin\AiAgentController;
 use App\Http\Controllers\Admin\BankAccountController;
@@ -253,8 +255,8 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
         // Main booking routes
         Route::get('bookings', 'index')->name('bookings.index');
         Route::get('bookings/daily-operations', 'dailyOperations')->name('bookings.daily-operations');
-        Route::get('bookings/staff-tracking', 'staffTracking')->name('bookings.staff-tracking')->middleware('role:super_admin');
-        Route::put('bookings/{booking}/staff-tracking', 'updateStaffTracking')->name('bookings.staff-tracking.update')->middleware('role:super_admin');
+        Route::get('bookings/staff-tracking', 'staffTracking')->name('bookings.staff-tracking')->middleware('role:super_admin,property_manager,front_desk');
+        Route::put('bookings/{booking}/staff-tracking', 'updateStaffTracking')->name('bookings.staff-tracking.update')->middleware('role:super_admin,property_manager,front_desk');
 
         Route::get('bookings/create', 'create')->name('bookings.create');
         Route::post('bookings', 'store')->name('bookings.store');
@@ -379,6 +381,25 @@ Route::middleware(['auth', 'role:super_admin,finance'])->prefix('admin/finance')
         Route::post('payroll/attendance', 'uploadAttendance')->name('payroll.attendance');
         Route::post('payroll/store', 'store')->name('payroll.store');
         Route::post('payroll/user-settings', 'updateUserSettings')->name('payroll.user-settings');
+    });
+});
+
+// Housekeeping Routine Schedules
+Route::middleware(['auth', 'role:super_admin,property_manager'])->prefix('admin/housekeeping-schedules')->name('admin.housekeeping-schedules.')->group(function () {
+    Route::controller(AdminRoutineScheduleController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/generate', 'generate')->name('generate');
+        Route::patch('/{schedule}', 'update')->name('update');
+        Route::delete('/{schedule}', 'destroy')->name('destroy');
+    });
+});
+
+// Custom Tasks
+Route::middleware(['auth', 'role:super_admin,property_manager'])->prefix('admin/custom-tasks')->name('admin.custom-tasks.')->group(function () {
+    Route::controller(AdminCustomTaskController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::delete('/{customTask}', 'destroy')->name('destroy');
     });
 });
 

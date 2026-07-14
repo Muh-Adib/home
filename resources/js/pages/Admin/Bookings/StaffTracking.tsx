@@ -70,7 +70,25 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
         setLoadedBookings(bookings.data);
         setCurrentPage(bookings.current_page);
         setLastPage(bookings.last_page);
+        
+        const initialMap: Record<number, { closed_by: string; followed_up_by: string }> = {};
+        bookings.data.forEach((b) => {
+            initialMap[b.id] = {
+                closed_by: getUserIdValue(b.closed_by),
+                followed_up_by: getUserIdValue(b.followed_up_by),
+            };
+        });
+        setTempValues(initialMap);
     }, [bookings]);
+
+    // Helper to safely extract user ID value from object or primitive
+    const getUserIdValue = (val: any) => {
+        if (val === null || val === undefined) return 'null';
+        if (typeof val === 'object' && val.id !== undefined) {
+            return val.id.toString();
+        }
+        return val.toString();
+    };
 
     // Helper to format date
     const formatDate = (dateString?: string) => {
@@ -136,8 +154,8 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
             loadedBookings.forEach((b) => {
                 if (newMap[b.id] === undefined) {
                     newMap[b.id] = {
-                        closed_by: b.closed_by?.toString() || 'null',
-                        followed_up_by: b.followed_up_by?.toString() || 'null',
+                        closed_by: getUserIdValue(b.closed_by),
+                        followed_up_by: getUserIdValue(b.followed_up_by),
                     };
                 }
             });
@@ -316,13 +334,13 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
                                 ) : (
                                     loadedBookings.map((b) => {
                                         const rowTemp = tempValues[b.id] || {
-                                            closed_by: b.closed_by?.toString() || 'null',
-                                            followed_up_by: b.followed_up_by?.toString() || 'null',
+                                            closed_by: getUserIdValue(b.closed_by),
+                                            followed_up_by: getUserIdValue(b.followed_up_by),
                                         };
 
                                         const isModified = 
-                                            rowTemp.closed_by !== (b.closed_by?.toString() || 'null') ||
-                                            rowTemp.followed_up_by !== (b.followed_up_by?.toString() || 'null');
+                                            rowTemp.closed_by !== getUserIdValue(b.closed_by) ||
+                                            rowTemp.followed_up_by !== getUserIdValue(b.followed_up_by);
 
                                         return (
                                             <TableRow key={b.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20">

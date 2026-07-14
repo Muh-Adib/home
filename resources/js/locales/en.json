@@ -127,6 +127,8 @@
     "users": "Users",
     "settings": "Settings",
     "cleaning_tasks": "Cleaning Tasks",
+    "housekeeping_schedules": "Routine Schedules",
+    "custom_tasks": "Custom Tasks",
     "unit_damages": "Unit Damages",
     "lost_and_founds": "Lost & Found",
     "check_in_out": "Check In/Out",

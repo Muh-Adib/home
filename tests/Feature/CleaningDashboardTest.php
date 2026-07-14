@@ -25,13 +25,15 @@ class CleaningDashboardTest extends TestCase
     {
         parent::setUp();
 
-        $this->user = User::factory()->create(['role' => 'staff']);
+        $this->user = User::factory()->create(['role' => 'housekeeping']);
         $this->property = Property::factory()->create([
             'current_keybox_code' => '000',
         ]);
-        $this->item = InventoryItem::factory()->create([
+        $this->item = InventoryItem::create([
             'name' => 'Soap',
+            'sku' => InventoryItem::generateUniqueSku(),
             'unit' => 'pcs',
+            'min_stock' => 5,
         ]);
 
         $this->actingAs($this->user);
@@ -61,7 +63,7 @@ class CleaningDashboardTest extends TestCase
             'is_cleaned' => false,
         ]);
 
-        $response = $this->patch(route('staff.cleaning.mark-cleaned', $booking->id), [
+        $response = $this->patch(route('staff.cleaning.mark-cleaned', $booking), [
             'new_keybox_code' => '999',
             'notes' => 'Cleaned well',
             'stock_usage' => [

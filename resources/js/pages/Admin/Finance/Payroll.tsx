@@ -19,7 +19,8 @@ import {
     Settings,
     Clock,
     UserCheck,
-    Loader2
+    Loader2,
+    Sparkles
 } from 'lucide-react';
 import { type BreadcrumbItem } from '@/types';
 import { apiPostForm } from '@/lib/api';
@@ -52,6 +53,12 @@ interface PayrollStaffRow {
 
 interface PayrollProps {
     payrolls: PayrollStaffRow[];
+    poolData: {
+        eligible_turnover: number;
+        total_pool: number;
+        total_points: number;
+        point_rate: number;
+    };
     filters: {
         month: number;
         year: number;
@@ -63,14 +70,14 @@ interface PayrollProps {
     };
 }
 
-export default function Payroll({ payrolls, filters }: PayrollProps) {
+export default function Payroll({ payrolls, poolData, filters }: PayrollProps) {
     const [selectedMonth, setSelectedMonth] = useState(filters.month);
     const [selectedYear, setSelectedYear] = useState(filters.year);
 
     // Rates configuration
     const [firstNightRate, setFirstNightRate] = useState(filters.first_night_rate);
     const [nextNightRate, setNextNightRate] = useState(filters.next_night_rate);
-    const [housekeepingRate, setHousekeepingRate] = useState(filters.housekeeping_rate_per_point);
+    const [housekeepingRate, setHousekeepingRate] = useState(poolData ? poolData.point_rate : filters.housekeeping_rate_per_point);
     const [lateDeductionRate, setLateDeductionRate] = useState(filters.late_deduction_rate);
     const [standbyRate, setStandbyRate] = useState(filters.standby_rate || 50000);
 
@@ -386,6 +393,39 @@ export default function Payroll({ payrolls, filters }: PayrollProps) {
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* Sharing Pool Info Banner */}
+                    {poolData && (
+                        <div className="lg:col-span-4 bg-gradient-to-r from-blue-50 to-indigo-50/50 border border-blue-100 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                            <div className="space-y-1">
+                                <div className="text-xs font-black text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Sparkles className="h-4 w-4 text-blue-600 animate-pulse" />
+                                    Sharing Pool Housekeeping Bulan Ini
+                                </div>
+                                <p className="text-xs text-blue-600 font-medium">
+                                    Total 0.7% omset bersih dari seluruh properti aktif (di luar properti defisit) yang dibagi rata berdasarkan kontribusi poin.
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 bg-white/80 p-3 rounded-xl border border-blue-100/50 shrink-0">
+                                <div className="space-y-0.5">
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Omset Bersih</span>
+                                    <span className="text-xs font-black text-slate-800">{formatCurrency(poolData.eligible_turnover)}</span>
+                                </div>
+                                <div className="space-y-0.5">
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Sharing Pool (0.7%)</span>
+                                    <span className="text-xs font-black text-blue-700">{formatCurrency(poolData.total_pool)}</span>
+                                </div>
+                                <div className="space-y-0.5">
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Poin Karyawan</span>
+                                    <span className="text-xs font-black text-slate-800">{poolData.total_points.toFixed(2)} Poin</span>
+                                </div>
+                                <div className="space-y-0.5">
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Nilai Per Poin</span>
+                                    <span className="text-xs font-black text-indigo-700">{formatCurrency(poolData.point_rate)} / Pts</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Settings Configuration Card */}
                     <Card className="shadow-md lg:col-span-3">

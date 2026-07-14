@@ -247,6 +247,7 @@ export interface Booking {
     rate_calculation?: any;
     daily_extra_beds?: Record<string, number>;
     followed_up_by?: number | string | User;
+    closed_by?: number | string | User;
     created_by?: number | User;
     created_by_user?: User;
     followed_up_by_user?: User;

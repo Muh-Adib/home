@@ -7,8 +7,8 @@ use App\Models\Booking;
 use App\Models\EmployeeLoan;
 use App\Models\EmployeeLoanPayment;
 use App\Models\StaffPayroll;
-use App\Models\UnitDamageAction;
 use App\Models\User;
+use App\Services\HousekeepingPointService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -108,11 +108,19 @@ class PayrollController extends Controller
         foreach ($staff as $s) {
             $existing = $storedPayrolls->get($s->id);
 
-            // Housekeeping points
-            $resolvedPoints = (int) UnitDamageAction::where('user_id', $s->id)
-                ->whereBetween('created_at', [$startDate, $endDate])
-                ->sum('points');
-            $housekeepingBonus = $resolvedPoints * $housekeepingRatePerPoint;
+            // Housekeeping points & bonus using the new point system
+            $pointService = app(HousekeepingPointService::class);
+            $poolData = $pointService->getMonthlyPool($month, $year);
+            $pointRate = $poolData['point_rate'];
+
+            $pointsBreakdown = $pointService->getMonthlyPointsDetails($s->id, $month, $year);
+            $resolvedPoints = $pointsBreakdown['total'];
+
+            if ($s->role === 'housekeeping') {
+                $housekeepingBonus = $resolvedPoints * $pointRate;
+            } else {
+                $housekeepingBonus = $resolvedPoints * $housekeepingRatePerPoint;
+            }
 
             // Frontdesk specific bonuses
             $fdFirstNightBonus = $s->role === 'front_desk' ? ($firstNightBonuses[$s->id] ?? 0.0) : 0.0;
@@ -201,8 +209,18 @@ class PayrollController extends Controller
             }
         }
 
+        // Get pool data again to pass to frontend
+        $pointService = app(HousekeepingPointService::class);
+        $poolData = $pointService->getMonthlyPool($month, $year);
+
         return Inertia::render('Admin/Finance/Payroll', [
             'payrolls' => $payrolls,
+            'poolData' => [
+                'eligible_turnover' => $poolData['eligible_turnover'],
+                'total_pool' => $poolData['total_pool'],
+                'total_points' => $poolData['total_points'],
+                'point_rate' => $poolData['point_rate'],
+            ],
             'filters' => [
                 'month' => $month,
                 'year' => $year,

@@ -70,7 +70,7 @@ class NotificationController extends Controller
     {
         $user = Auth::user();
 
-        $user->unreadNotifications()->markAsRead();
+        $user->unreadNotifications->markAsRead();
 
         return response()->json([
             'message' => 'All notifications marked as read',

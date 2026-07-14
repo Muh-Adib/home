@@ -1870,7 +1870,7 @@ class BookingManagementController extends Controller
     public function staffTracking(Request $request): Response|JsonResponse
     {
         $user = $request->user();
-        if ($user->role !== 'super_admin') {
+        if (! in_array($user->role, ['super_admin', 'property_manager', 'front_desk'])) {
             abort(403, 'Unauthorized.');
         }
 
@@ -1943,7 +1943,7 @@ class BookingManagementController extends Controller
     public function updateStaffTracking(Request $request, Booking $booking): RedirectResponse
     {
         $user = $request->user();
-        if ($user->role !== 'super_admin') {
+        if (! in_array($user->role, ['super_admin', 'property_manager', 'front_desk'])) {
             abort(403, 'Unauthorized.');
         }
 

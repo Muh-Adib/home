@@ -35,6 +35,7 @@ class CheckInOutController extends Controller
                     'location' => $booking->property->location ?? 'selatan',
                     'guest_name' => $booking->primaryGuest->guest_name ?? '',
                     'guest_phone' => $booking->primaryGuest->guest_phone ?? '',
+                    'is_cleaned' => $booking->is_cleaned,
                 ];
             });
 
@@ -57,6 +58,7 @@ class CheckInOutController extends Controller
                     'guest_name' => $booking->primaryGuest->guest_name ?? '',
                     'guest_phone' => $booking->primaryGuest->guest_phone ?? '',
                     'nights' => $nights,
+                    'is_cleaned' => $booking->is_cleaned,
                 ];
             });
 
@@ -74,6 +76,7 @@ class CheckInOutController extends Controller
                     'location' => $booking->property->location ?? 'selatan',
                     'guest_name' => $booking->primaryGuest->guest_name ?? '',
                     'check_out_date' => $booking->check_out,
+                    'is_cleaned' => $booking->is_cleaned,
                 ];
             });
 

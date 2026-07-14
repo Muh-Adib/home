@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -62,6 +63,25 @@ class User extends Authenticatable
     }
 
     // Relationships
+    public function housekeepingSchedules(): HasMany
+    {
+        return $this->hasMany(HousekeepingSchedule::class);
+    }
+
+    public function bookingCleanings(): BelongsToMany
+    {
+        return $this->belongsToMany(Booking::class, 'booking_cleaners')
+            ->withPivot('points')
+            ->withTimestamps();
+    }
+
+    public function customTasks(): BelongsToMany
+    {
+        return $this->belongsToMany(CustomTask::class, 'custom_task_members')
+            ->withPivot('points')
+            ->withTimestamps();
+    }
+
     public function profile(): HasOne
     {
         return $this->hasOne(UserProfile::class);

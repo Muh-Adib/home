@@ -8,24 +8,20 @@ use App\Models\InventoryStockMovement;
 use App\Models\InventoryUsage;
 use App\Models\Property;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class CleaningService
 {
     /**
      * Mark a booking as cleaned, deduct stock, and update keybox.
      *
-     * @param Booking $booking
-     * @param string $newKeyboxCode
-     * @param array $stockUsage Array of ['item_id' => int, 'quantity' => float]
-     * @param string|null $notes
-     * @param int $userId
-     * @return Booking
+     * @param  array  $stockUsage  Array of ['item_id' => int, 'quantity' => float]
+     * @param  array  $cleanerIds  Array of user IDs who worked on the cleaning
+     *
      * @throws \Exception
      */
-    public function markAsCleaned(Booking $booking, string $newKeyboxCode, array $stockUsage, ?string $notes, int $userId): Booking
+    public function markAsCleaned(Booking $booking, string $newKeyboxCode, array $stockUsage, ?string $notes, int $userId, array $cleanerIds = []): Booking
     {
-        return DB::transaction(function () use ($booking, $newKeyboxCode, $stockUsage, $notes, $userId) {
+        return DB::transaction(function () use ($booking, $newKeyboxCode, $stockUsage, $notes, $userId, $cleanerIds) {
             // 1. Update Booking
             $booking->update([
                 'is_cleaned' => true,
@@ -38,9 +34,22 @@ class CleaningService
             $booking->property->updateKeyboxCode($newKeyboxCode, $userId);
 
             // 3. Process Stock Usage
-            if (!empty($stockUsage)) {
+            if (! empty($stockUsage)) {
                 $this->processStockUsage($booking, $stockUsage, $userId);
             }
+
+            // 4. Save Booking Cleaners & Divide Points
+            if (empty($cleanerIds)) {
+                $cleanerIds = [$userId];
+            }
+            $cleaningPoints = (float) ($booking->property->cleaning_points ?? 0);
+            $pointsPerCleaner = count($cleanerIds) > 0 ? ($cleaningPoints / count($cleanerIds)) : 0;
+
+            $syncData = [];
+            foreach ($cleanerIds as $cid) {
+                $syncData[(int) $cid] = ['points' => $pointsPerCleaner];
+            }
+            $booking->cleaners()->sync($syncData);
 
             return $booking;
         });
@@ -54,7 +63,7 @@ class CleaningService
         foreach ($stockUsage as $item) {
             $inventoryItem = InventoryItem::find($item['item_id']);
 
-            if (!$inventoryItem) {
+            if (! $inventoryItem) {
                 continue;
             }
 
@@ -106,7 +115,7 @@ class CleaningService
             ->latest('cleaned_at')
             ->first();
 
-        if (!$lastCleanedBooking) {
+        if (! $lastCleanedBooking) {
             return [];
         }
 

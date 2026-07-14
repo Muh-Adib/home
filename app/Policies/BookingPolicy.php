@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\Booking;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class BookingPolicy
 {
@@ -14,10 +13,10 @@ class BookingPolicy
     public function viewAny(User $user): bool
     {
         return in_array($user->role, [
-            'super_admin', 
-            'property_manager', 
-            'front_desk', 
-            'property_owner'
+            'super_admin',
+            'property_manager',
+            'front_desk',
+            'property_owner',
         ]);
     }
 
@@ -43,9 +42,9 @@ class BookingPolicy
 
         // Staff dapat melihat semua booking
         return in_array($user->role, [
-            'property_manager', 
-            'front_desk', 
-            'finance'
+            'property_manager',
+            'front_desk',
+            'finance',
         ]);
     }
 
@@ -55,9 +54,9 @@ class BookingPolicy
     public function create(User $user): bool
     {
         return in_array($user->role, [
-            'super_admin', 
-            'property_manager', 
-            'front_desk'
+            'super_admin',
+            'property_manager',
+            'front_desk',
         ]);
     }
 
@@ -76,10 +75,11 @@ class BookingPolicy
             return $booking->property->owner_id === $user->id;
         }
 
-        // Manager dan front desk dapat update
+        // Manager, front desk, dan housekeeping dapat update
         return in_array($user->role, [
-            'property_manager', 
-            'front_desk'
+            'property_manager',
+            'front_desk',
+            'housekeeping',
         ]);
     }
 
@@ -109,8 +109,8 @@ class BookingPolicy
 
         // Manager dan front desk dapat verify
         return in_array($user->role, [
-            'property_manager', 
-            'front_desk'
+            'property_manager',
+            'front_desk',
         ]);
     }
 
@@ -128,12 +128,11 @@ class BookingPolicy
         if ($user->role === 'property_owner') {
             return $booking->property->owner_id === $user->id;
         }
-        
 
         // Manager dan front desk dapat checkin
         return in_array($user->role, [
-            'property_manager', 
-            'front_desk'
+            'property_manager',
+            'front_desk',
         ]);
     }
 
@@ -154,9 +153,9 @@ class BookingPolicy
 
         // Manager, front desk, dan housekeeping dapat checkout
         return in_array($user->role, [
-            'property_manager', 
+            'property_manager',
             'front_desk',
-            'housekeeping'
+            'housekeeping',
         ]);
     }
 
@@ -177,8 +176,8 @@ class BookingPolicy
 
         // Manager dan front desk dapat reject
         return in_array($user->role, [
-            'property_manager', 
-            'front_desk'
+            'property_manager',
+            'front_desk',
         ]);
     }
 
@@ -199,8 +198,8 @@ class BookingPolicy
 
         // Manager dan front desk dapat cancel booking
         return in_array($user->role, [
-            'property_manager', 
-            'front_desk'
+            'property_manager',
+            'front_desk',
         ]);
     }
 
@@ -210,10 +209,10 @@ class BookingPolicy
     public function viewReports(User $user): bool
     {
         return in_array($user->role, [
-            'super_admin', 
-            'property_manager', 
+            'super_admin',
+            'property_manager',
             'property_owner',
-            'finance'
+            'finance',
         ]);
     }
 
@@ -223,9 +222,9 @@ class BookingPolicy
     public function export(User $user): bool
     {
         return in_array($user->role, [
-            'super_admin', 
-            'property_manager', 
-            'finance'
+            'super_admin',
+            'property_manager',
+            'finance',
         ]);
     }
 }

@@ -1,7 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Staff\CleaningDashboardController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,4 +16,12 @@ Route::middleware(['auth', 'role:super_admin,housekeeping,front_desk'])->group(f
         ->name('staff.cleaning.mark-cleaned');
     Route::get('/staff/cleaning/property/{property}/keybox', [CleaningDashboardController::class, 'getKeyboxCode'])
         ->name('staff.cleaning.keybox');
+
+    // Unit Damages and Routine Schedules for Staff
+    Route::post('/staff/unit-damages/{unitDamage:uuid}/claim', [CleaningDashboardController::class, 'claimUnitDamage'])
+        ->name('staff.unit-damages.claim');
+    Route::post('/staff/unit-damages/{unitDamage:uuid}/resolve', [CleaningDashboardController::class, 'resolveUnitDamage'])
+        ->name('staff.unit-damages.resolve');
+    Route::post('/staff/routine-schedules/{schedule}/complete', [CleaningDashboardController::class, 'completeRoutineSchedule'])
+        ->name('staff.routine-schedules.complete');
 });

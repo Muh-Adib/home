@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\PropertyPerformanceExport;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingDailyRevenue;
@@ -14,6 +15,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ReportController extends Controller
 {
@@ -269,6 +271,344 @@ class ReportController extends Controller
     }
 
     /**
+     * Display property performance reports (daily revenue visualization & detail table)
+     */
+    public function propertyPerformance(Request $request): Response
+    {
+        $user = $request->user();
+        if ($user->role === 'front_desk') {
+            abort(403, 'Akses ditolak. Resepsionis hanya memiliki hak akses untuk Laporan Okupansi.');
+        }
+
+        $period = $request->input('period', 'month');
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+        $propertyId = $request->input('property_id') === 'all' ? null : $request->input('property_id');
+
+        // Set date range
+        $startDate = $dateFrom ? Carbon::parse($dateFrom)->startOfDay() : $this->getStartDate($period)->startOfDay();
+        $endDate = $dateTo ? Carbon::parse($dateTo)->endOfDay() : now()->endOfDay();
+
+        // Get properties list for filters (restricted by owner if property_owner)
+        $properties = $user->role === 'property_owner'
+            ? Property::where('owner_id', $user->id)->active()->get(['id', 'name'])
+            : Property::active()->get(['id', 'name']);
+
+        $data = $this->getPropertyPerformanceData($user, $startDate, $endDate, $propertyId);
+
+        return Inertia::render('Admin/Reports/PropertyPerformance', [
+            'properties' => $properties,
+            'filters' => [
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'property_id' => $propertyId ?: 'all',
+                'period' => $period,
+            ],
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Helper to get property performance report data
+     */
+    private function getPropertyPerformanceData($user, Carbon $startDate, Carbon $endDate, ?int $propertyId): array
+    {
+        // Get properties list for filters (restricted by owner if property_owner)
+        $properties = $user->role === 'property_owner'
+            ? Property::where('owner_id', $user->id)->active()->get(['id', 'name', 'color'])
+            : Property::active()->get(['id', 'name', 'color']);
+
+        $propertyIds = $properties->pluck('id');
+
+        // If a specific property is filtered, make sure it belongs to the owner
+        if ($propertyId && $user->role === 'property_owner') {
+            $belongsToOwner = Property::where('id', $propertyId)->where('owner_id', $user->id)->exists();
+            if (! $belongsToOwner) {
+                abort(403, 'Akses ditolak.');
+            }
+        }
+
+        // 1. Query Daily Revenue for Chart
+        $dailyRevenuesQuery = BookingDailyRevenue::whereBetween('tanggal', [$startDate, $endDate])
+            ->whereIn('property_id', $propertyIds)
+            ->confirmedBookings()
+            ->with(['property:id,name,color', 'booking.services']);
+
+        if ($propertyId) {
+            $dailyRevenuesQuery->where('property_id', $propertyId);
+        }
+
+        $dailyRevenues = $dailyRevenuesQuery->get();
+
+        // Initialize chart data with 0s for all dates in the range
+        $chartData = [];
+        $current = $startDate->copy();
+        $daysCount = 0;
+
+        while ($current->lte($endDate)) {
+            $dateStr = $current->toDateString();
+            $dayLabel = $current->format('d M');
+            $chartData[$dateStr] = [
+                'date' => $dateStr,
+                'day' => $dayLabel,
+                'total' => 0,
+                'base_amount' => 0,
+                'weekend_premium' => 0,
+                'seasonal_premium' => 0,
+                'extra_bed_amount' => 0,
+                'extra_services_amount' => 0,
+            ];
+
+            // Initialize each property in chart data with 0
+            foreach ($properties as $prop) {
+                $chartData[$dateStr][$prop->name] = 0;
+            }
+
+            $current->addDay();
+            $daysCount++;
+        }
+
+        $daysCount = max(1, $daysCount);
+
+        foreach ($dailyRevenues as $rev) {
+            $dateStr = $rev->tanggal->toDateString();
+            if (isset($chartData[$dateStr])) {
+                $propName = $rev->property->name ?? 'Unknown';
+                $amount = (float) $rev->amount;
+
+                $extraServicesAmount = 0;
+                if ($rev->booking) {
+                    $extraServicesAmount = (float) $rev->booking->services
+                        ->where('service_type', '!=', 'extra_bed')
+                        ->where('status', '!=', 'cancelled')
+                        ->filter(function ($srv) use ($rev) {
+                            if ($srv->service_date) {
+                                return $srv->service_date->toDateString() === $rev->tanggal->toDateString();
+                            }
+
+                            return $rev->booking->check_in->toDateString() === $rev->tanggal->toDateString();
+                        })
+                        ->sum('total_price');
+                }
+
+                $totalWithServices = $amount + $extraServicesAmount;
+
+                $chartData[$dateStr][$propName] = ($chartData[$dateStr][$propName] ?? 0) + $totalWithServices;
+                $chartData[$dateStr]['total'] += $totalWithServices;
+                $chartData[$dateStr]['base_amount'] += (float) $rev->base_amount;
+                $chartData[$dateStr]['weekend_premium'] += (float) $rev->weekend_premium;
+                $chartData[$dateStr]['seasonal_premium'] += (float) $rev->seasonal_premium;
+                $chartData[$dateStr]['extra_bed_amount'] += (float) $rev->extra_bed_amount;
+                $chartData[$dateStr]['extra_services_amount'] += $extraServicesAmount;
+            }
+        }
+
+        $dailyRevenueChart = array_values($chartData);
+
+        // 2. Query Property-wise Performance Summary
+        $propertyPerformance = Property::active()
+            ->whereIn('id', $propertyIds)
+            ->when($propertyId, function ($q) use ($propertyId) {
+                $q->where('id', $propertyId);
+            })
+            ->get()
+            ->map(function ($property) use ($startDate, $endDate) {
+                $revenues = BookingDailyRevenue::where('property_id', $property->id)
+                    ->whereBetween('tanggal', [$startDate, $endDate])
+                    ->confirmedBookings()
+                    ->with('booking.services')
+                    ->get();
+
+                $roomRevenue = $revenues->sum('amount');
+                $servicesRevenue = $revenues->sum(function ($rev) {
+                    if (! $rev->booking) {
+                        return 0;
+                    }
+
+                    return (float) $rev->booking->services
+                        ->where('service_type', '!=', 'extra_bed')
+                        ->where('status', '!=', 'cancelled')
+                        ->filter(function ($srv) use ($rev) {
+                            if ($srv->service_date) {
+                                return $srv->service_date->toDateString() === $rev->tanggal->toDateString();
+                            }
+
+                            return $rev->booking->check_in->toDateString() === $rev->tanggal->toDateString();
+                        })
+                        ->sum('total_price');
+                });
+
+                $totalRevenue = $roomRevenue + $servicesRevenue;
+
+                $bookingsCount = Booking::where('property_id', $property->id)
+                    ->whereIn('booking_status', ['confirmed', 'checked_in', 'completed'])
+                    ->where(function ($q) use ($startDate, $endDate) {
+                        $q->where('check_in', '<=', $endDate->toDateString())
+                            ->where('check_out', '>=', $startDate->toDateString());
+                    })
+                    ->count();
+
+                $occupancyRate = $this->calculatePropertyOccupancyRate($property->id, $startDate, $endDate);
+
+                $bookedDays = $revenues->count();
+
+                $adr = $bookedDays > 0 ? $totalRevenue / $bookedDays : 0;
+                $totalDays = max(1, $startDate->diffInDays($endDate));
+                $revpar = $totalDays > 0 ? $totalRevenue / $totalDays : 0;
+
+                return [
+                    'id' => $property->id,
+                    'name' => $property->name,
+                    'color' => $property->color ?? '#3b82f6',
+                    'total_revenue' => (float) $totalRevenue,
+                    'total_bookings' => $bookingsCount,
+                    'occupancy_rate' => round($occupancyRate, 1),
+                    'adr' => round($adr, 2),
+                    'revpar' => round($revpar, 2),
+                ];
+            })
+            ->sortByDesc('total_revenue')
+            ->values()
+            ->toArray();
+
+        // 3. Overall KPI Calculations
+        $totalRevenue = collect($propertyPerformance)->sum('total_revenue');
+        $totalBookings = collect($propertyPerformance)->sum('total_bookings');
+        $averageOccupancy = count($propertyPerformance) > 0 ? collect($propertyPerformance)->avg('occupancy_rate') : 0;
+
+        $totalBookedDays = BookingDailyRevenue::whereIn('property_id', $propertyIds)
+            ->whereBetween('tanggal', [$startDate, $endDate])
+            ->confirmedBookings()
+            ->when($propertyId, function ($q) use ($propertyId) {
+                $q->where('property_id', $propertyId);
+            })
+            ->count();
+
+        $overallAdr = $totalBookedDays > 0 ? $totalRevenue / $totalBookedDays : 0;
+        $totalAvailableNights = $daysCount * count($propertyIds);
+        $overallRevpar = $totalAvailableNights > 0 ? $totalRevenue / $totalAvailableNights : 0;
+
+        // 4. Booking Sources breakdown for this period
+        $bookingSources = Booking::whereIn('property_id', $propertyIds)
+            ->whereIn('booking_status', ['confirmed', 'checked_in', 'completed'])
+            ->whereBetween('check_in', [$startDate, $endDate])
+            ->when($propertyId, function ($q) use ($propertyId) {
+                $q->where('property_id', $propertyId);
+            })
+            ->selectRaw('COALESCE(source, "direct") as source, COUNT(*) as count, SUM(total_amount) as revenue')
+            ->groupBy('source')
+            ->orderByDesc('count')
+            ->get()
+            ->map(function ($r) use ($totalBookings) {
+                return [
+                    'source' => $r->source,
+                    'count' => $r->count,
+                    'revenue' => (float) $r->revenue,
+                    'percentage' => $totalBookings > 0 ? round(($r->count / $totalBookings) * 100, 1) : 0,
+                ];
+            })
+            ->toArray();
+
+        // 5. Query daily breakdown records for date & property details table
+        $dailyBreakdownQuery = BookingDailyRevenue::whereBetween('tanggal', [$startDate, $endDate])
+            ->whereIn('property_id', $propertyIds)
+            ->confirmedBookings()
+            ->with(['property:id,name,color', 'booking.services']);
+
+        if ($propertyId) {
+            $dailyBreakdownQuery->where('property_id', $propertyId);
+        }
+
+        $dailyBreakdown = $dailyBreakdownQuery->orderBy('tanggal', 'desc')
+            ->orderBy('property_id')
+            ->get()
+            ->map(function ($rev) {
+                $extraServicesAmount = 0;
+                if ($rev->booking) {
+                    $extraServicesAmount = (float) $rev->booking->services
+                        ->where('service_type', '!=', 'extra_bed')
+                        ->where('status', '!=', 'cancelled')
+                        ->filter(function ($srv) use ($rev) {
+                            if ($srv->service_date) {
+                                return $srv->service_date->toDateString() === $rev->tanggal->toDateString();
+                            }
+
+                            return $rev->booking->check_in->toDateString() === $rev->tanggal->toDateString();
+                        })
+                        ->sum('total_price');
+                }
+
+                $roomRevenue = (float) $rev->amount;
+                $totalRevenue = $roomRevenue + $extraServicesAmount;
+
+                return [
+                    'date' => $rev->tanggal->format('Y-m-d'),
+                    'property_name' => $rev->property->name ?? 'Unknown',
+                    'property_color' => $rev->property->color ?? '#3b82f6',
+                    'booking_id' => $rev->booking_id,
+                    'booking_number' => $rev->booking->booking_number ?? 'N/A',
+                    'guest_name' => $rev->booking->guest_name ?? 'N/A',
+                    'amount' => $totalRevenue,
+                    'base_amount' => (float) $rev->base_amount,
+                    'weekend_premium' => (float) $rev->weekend_premium,
+                    'seasonal_premium' => (float) $rev->seasonal_premium,
+                    'extra_bed_amount' => (float) $rev->extra_bed_amount,
+                    'extra_services_amount' => $extraServicesAmount,
+                    'is_weekend' => $rev->is_weekend,
+                    'rate_type' => $rev->rate_type,
+                    'rate_name' => $rev->rate_name,
+                ];
+            })
+            ->toArray();
+
+        // 6. Overall Bookings referenced in this period
+        $bookingIds = collect($dailyBreakdown)->pluck('booking_id')->unique()->filter()->toArray();
+        $overallBookings = Booking::whereIn('id', $bookingIds)
+            ->with(['property:id,name', 'services'])
+            ->orderBy('check_in', 'desc')
+            ->get()
+            ->map(function ($b) {
+                $extraServices = (float) $b->services
+                    ->where('service_type', '!=', 'extra_bed')
+                    ->where('status', '!=', 'cancelled')
+                    ->sum('total_price');
+
+                $roomCharge = (float) $b->dailyRevenues->sum('amount');
+                $totalPaid = $roomCharge + $extraServices;
+
+                return [
+                    'booking_number' => $b->booking_number,
+                    'property_name' => $b->property->name ?? 'Unknown',
+                    'guest_name' => $b->guest_name,
+                    'check_in' => $b->check_in->format('Y-m-d'),
+                    'check_out' => $b->check_out->format('Y-m-d'),
+                    'nights' => $b->nights,
+                    'room_charge' => $roomCharge,
+                    'extra_services' => $extraServices,
+                    'total_amount' => $totalPaid,
+                    'booking_status' => $b->booking_status,
+                ];
+            })
+            ->toArray();
+
+        return [
+            'properties' => $properties->toArray(),
+            'overview' => [
+                'totalRevenue' => $totalRevenue,
+                'totalBookings' => $totalBookings,
+                'occupancyRate' => round($averageOccupancy, 1),
+                'adr' => round($overallAdr, 0),
+                'revpar' => round($overallRevpar, 0),
+            ],
+            'dailyRevenueChart' => $dailyRevenueChart,
+            'propertyPerformance' => $propertyPerformance,
+            'bookingSources' => $bookingSources,
+            'dailyBreakdown' => $dailyBreakdown,
+            'overallBookings' => $overallBookings,
+        ];
+    }
+
+    /**
      * Export report data
      */
     public function export(Request $request)
@@ -289,6 +629,27 @@ class ReportController extends Controller
         $ownerId = $user->role === 'property_owner' ? $user->id : null;
 
         switch ($reportType) {
+            case 'property_performance':
+                $propId = $propertyId === 'all' ? null : (int) $propertyId;
+                $data = $this->getPropertyPerformanceData($user, $startDate, $endDate, $propId);
+                $filters = [
+                    'date_from' => $startDate->toDateString(),
+                    'date_to' => $endDate->toDateString(),
+                    'property_id' => $propertyId ?: 'all',
+                ];
+                $export = new PropertyPerformanceExport($data, $filters);
+                $filename = $export->getFilename();
+
+                return Excel::download($export, $filename, \Maatwebsite\Excel\Excel::XLSX, [
+                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Content-Security-Policy' => "default-src 'none'",
+                    'X-Download-Options' => 'noopen',
+                    'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                    'Pragma' => 'no-cache',
+                    'Expires' => '0',
+                ]);
             case 'revenue':
                 $data = $this->getRevenueExportData($startDate, $endDate, $ownerId, $propertyId);
                 $filename = 'revenue_report_'.$startDate->format('Ymd').'_'.$endDate->format('Ymd');

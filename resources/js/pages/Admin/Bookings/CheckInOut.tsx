@@ -16,6 +16,7 @@ interface Guest {
     guest_phone?: string;
     nights?: number;
     check_out_date?: string;
+    is_cleaned?: boolean;
 }
 
 interface PropertyUnit {
@@ -196,7 +197,14 @@ function CheckInOut({ checkOuts, checkIns, stayingGuests, emptyUnits, today }: C
                                                         </>
                                                     )}
                                                 </div>
-                                                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">CO</span>
+                                                <div className="flex items-center gap-2">
+                                                    {guest.is_cleaned ? (
+                                                        <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-bold">Clean</span>
+                                                    ) : (
+                                                        <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded font-bold">Dirty</span>
+                                                    )}
+                                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">CO</span>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -222,7 +230,14 @@ function CheckInOut({ checkOuts, checkIns, stayingGuests, emptyUnits, today }: C
                                                         </>
                                                     )}
                                                 </div>
-                                                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">CO</span>
+                                                <div className="flex items-center gap-2">
+                                                    {guest.is_cleaned ? (
+                                                        <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-bold">Clean</span>
+                                                    ) : (
+                                                        <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded font-bold">Dirty</span>
+                                                    )}
+                                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">CO</span>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -263,7 +278,14 @@ function CheckInOut({ checkOuts, checkIns, stayingGuests, emptyUnits, today }: C
                                                         </>
                                                     )}
                                                 </div>
-                                                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">CI</span>
+                                                <div className="flex items-center gap-2">
+                                                    {guest.is_cleaned ? (
+                                                        <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-bold">Clean</span>
+                                                    ) : (
+                                                        <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded font-bold">Dirty</span>
+                                                    )}
+                                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">CI</span>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -291,7 +313,14 @@ function CheckInOut({ checkOuts, checkIns, stayingGuests, emptyUnits, today }: C
                                                         </>
                                                     )}
                                                 </div>
-                                                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">CI</span>
+                                                <div className="flex items-center gap-2">
+                                                    {guest.is_cleaned ? (
+                                                        <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-bold">Clean</span>
+                                                    ) : (
+                                                        <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded font-bold">Dirty</span>
+                                                    )}
+                                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">CI</span>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -343,11 +372,18 @@ function CheckInOut({ checkOuts, checkIns, stayingGuests, emptyUnits, today }: C
                             ) : (
                                 <ul className="space-y-1">
                                     {stayingGuests.map((guest, index) => (
-                                        <li key={guest.id} className="text-sm p-2 hover:bg-gray-50 rounded">
-                                            {index + 1}. {guest.property_name}
-                                            <span className="text-xs text-muted-foreground ml-2">
-                                                (CO: {new Date(guest.check_out_date!).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })})
-                                            </span>
+                                        <li key={guest.id} className="text-sm p-2 hover:bg-gray-50 rounded flex items-center justify-between">
+                                            <div>
+                                                {index + 1}. {guest.property_name}
+                                                <span className="text-xs text-muted-foreground ml-2">
+                                                    (CO: {new Date(guest.check_out_date!).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })})
+                                                </span>
+                                            </div>
+                                            {guest.is_cleaned ? (
+                                                <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded font-bold">Clean</span>
+                                            ) : (
+                                                <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-bold">Dirty</span>
+                                            )}
                                         </li>
                                     ))}
                                 </ul>

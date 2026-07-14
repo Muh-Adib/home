@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { type BreadcrumbItem, type PageProps } from '@/types';
@@ -34,9 +35,12 @@ interface UnitDamage {
     description: string;
     photo_path: string | null;
     status: 'pending' | 'in_progress' | 'resolved';
+    difficulty?: 'easy' | 'medium' | 'hard';
+    resolved_photo_path?: string | null;
     resolved_by: number | null;
     resolved_at: string | null;
     resolved_notes: string | null;
+    completion_notes?: string | null;
     created_at: string;
     updated_at: string;
     property: {
@@ -106,6 +110,19 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
     const [showResolveModal, setShowResolveModal] = useState(false);
     const [selectedDamage, setSelectedDamage] = useState<UnitDamage | null>(null);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const [resolvePhotoPreview, setResolvePhotoPreview] = useState<string | null>(null);
+
+    const handleResolvePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            resolveForm.setData('resolved_photo', file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setResolvePhotoPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     // Form for reporting new damage
     const createForm = useForm({
@@ -113,12 +130,15 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
         title: '',
         description: '',
         photo: null as File | null,
+        difficulty: 'easy',
     });
 
     // Form for resolving damage
     const resolveForm = useForm({
+        _method: 'PATCH', // Spoof patch for file upload
         resolved_notes: '',
-        actions: [] as { user_id: string; action_details: string; points: number }[],
+        resolved_photo: null as File | null,
+        worker_ids: [] as string[],
     });
 
     // Form for assigning staff
@@ -172,7 +192,7 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
     const handleResolveSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (selectedDamage) {
-            resolveForm.patch(`/admin/unit-damages/${selectedDamage.id}/resolve`, {
+            resolveForm.post(`/admin/unit-damages/${selectedDamage.id}/resolve`, {
                 onSuccess: () => {
                     setShowResolveModal(false);
                     setSelectedDamage(null);
@@ -194,21 +214,21 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
         switch (status) {
             case 'pending':
                 return (
-                    <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-none font-bold text-xs px-2.5 py-0.5 flex items-center gap-1 w-fit">
+                    <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200 font-bold text-xs px-2.5 py-0.5 flex items-center gap-1 w-fit">
                         <Clock className="h-3 w-3" />
                         Pending
                     </Badge>
                 );
             case 'in_progress':
                 return (
-                    <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-none font-bold text-xs px-2.5 py-0.5 flex items-center gap-1 w-fit">
+                    <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200 font-bold text-xs px-2.5 py-0.5 flex items-center gap-1 w-fit">
                         <Wrench className="h-3 w-3" />
                         Dalam Perbaikan
                     </Badge>
                 );
             case 'resolved':
                 return (
-                    <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-none font-bold text-xs px-2.5 py-0.5 flex items-center gap-1 w-fit">
+                    <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-200 font-bold text-xs px-2.5 py-0.5 flex items-center gap-1 w-fit">
                         <CheckCircle2 className="h-3 w-3" />
                         Selesai
                     </Badge>
@@ -312,7 +332,7 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="h-24 w-full bg-slate-50 flex items-center justify-center border-b border-dashed text-slate-300">
+                                    <div className="h-24 w-full bg-slate-50 flex items-center justify-center border-b border-dashed text-slate-300 relative">
                                         <ImageIcon className="h-8 w-8" />
                                         <span className="text-[10px] uppercase font-bold ml-1 tracking-wider">Tanpa Foto</span>
                                         <div className="absolute top-2 right-2">
@@ -322,9 +342,22 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
                                 )}
 
                                 <CardHeader className="p-4 pb-2">
-                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                                        <Building2 className="h-3 w-3" />
-                                        {damage.property.name}
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center justify-between gap-1 w-full">
+                                        <div className="flex items-center gap-1">
+                                            <Building2 className="h-3 w-3" />
+                                            {damage.property.name}
+                                        </div>
+                                        {damage.difficulty && (
+                                            <Badge variant="outline" className={`text-[9px] font-extrabold rounded px-1.5 py-0.5 capitalize border ${
+                                                damage.difficulty === 'easy' ? 'text-green-700 bg-green-50/50 border-green-200' :
+                                                damage.difficulty === 'medium' ? 'text-amber-700 bg-amber-50/50 border-amber-200' :
+                                                'text-red-700 bg-red-50/50 border-red-200'
+                                            }`}>
+                                                {damage.difficulty === 'easy' ? 'Mudah (2 Pts)' :
+                                                 damage.difficulty === 'medium' ? 'Sedang (5 Pts)' :
+                                                 'Sulit (10 Pts)'}
+                                            </Badge>
+                                        )}
                                     </div>
                                     <CardTitle className="text-base font-bold text-slate-800 line-clamp-1 mt-1">
                                         {damage.title}
@@ -356,27 +389,23 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
                                         {/* Assignee Selection / Display */}
                                         <div className="flex flex-col gap-1.5 pt-1 border-t border-slate-100/50">
                                             <span className="font-bold text-slate-500">Petugas Perbaikan:</span>
-                                            {damage.assignee ? (
+                                            {damage.assignee && !canManageAll ? (
                                                 <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
                                                     <span className="font-semibold text-slate-800 flex items-center gap-1">
                                                         <User className="h-3.5 w-3.5 text-slate-400" />
                                                         {damage.assignee.name}
                                                     </span>
-                                                    {damage.status === 'in_progress' && (damage.assigned_to === auth.user?.id || canManageAll) && (
+                                                    {damage.status === 'in_progress' && (damage.assigned_to === auth.user?.id) && (
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
                                                             onClick={() => {
                                                                 setSelectedDamage(damage);
                                                                 resolveForm.setData({
+                                                                    _method: 'PATCH',
                                                                     resolved_notes: '',
-                                                                    actions: [
-                                                                        {
-                                                                            user_id: damage.assigned_to ? damage.assigned_to.toString() : (auth.user?.id ? auth.user.id.toString() : ''),
-                                                                            action_details: '',
-                                                                            points: 10,
-                                                                        }
-                                                                    ]
+                                                                    resolved_photo: null as File | null,
+                                                                    worker_ids: damage.assigned_to ? [damage.assigned_to.toString()] : (auth.user?.id ? [auth.user.id.toString()] : []),
                                                                 });
                                                                 setShowResolveModal(true);
                                                             }}
@@ -389,20 +418,45 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
                                             ) : (
                                                 <div className="space-y-2">
                                                     {canManageAll ? (
-                                                        <Select
-                                                            onValueChange={(val) => handleAssign(damage.id, val)}
-                                                        >
-                                                            <SelectTrigger className="h-8 text-xs">
-                                                                <SelectValue placeholder="Tugaskan Staff..." />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {staff.map((s) => (
-                                                                    <SelectItem key={s.id} value={s.id.toString()} className="text-xs">
-                                                                        {s.name} ({s.role === 'housekeeping' ? 'Cleaner' : s.role})
+                                                        <div className="flex flex-col gap-2">
+                                                            <Select
+                                                                value={damage.assigned_to ? damage.assigned_to.toString() : 'unassigned'}
+                                                                onValueChange={(val) => handleAssign(damage.id, val)}
+                                                            >
+                                                                <SelectTrigger className="h-8 text-xs">
+                                                                    <SelectValue placeholder="Tugaskan Staff..." />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="unassigned" className="text-xs text-red-600 font-bold">
+                                                                        Lepas Penugasan (Batal)
                                                                     </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                                    {staff.map((s) => (
+                                                                        <SelectItem key={s.id} value={s.id.toString()} className="text-xs">
+                                                                            {s.name} ({s.role === 'housekeeping' ? 'Cleaner' : s.role})
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            {damage.status === 'in_progress' && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        setSelectedDamage(damage);
+                                                                        resolveForm.setData({
+                                                                            _method: 'PATCH',
+                                                                            resolved_notes: '',
+                                                                            resolved_photo: null as File | null,
+                                                                            worker_ids: damage.assigned_to ? [damage.assigned_to.toString()] : (auth.user?.id ? [auth.user.id.toString()] : []),
+                                                                        });
+                                                                        setShowResolveModal(true);
+                                                                    }}
+                                                                    className="h-8 text-xs font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 mt-1"
+                                                                >
+                                                                    Tandai Selesai
+                                                                </Button>
+                                                            )}
+                                                        </div>
                                                     ) : isHousekeeping && damage.status === 'pending' ? (
                                                         <Button
                                                             onClick={() => handleSelfAssign(damage.id)}
@@ -435,6 +489,12 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
                                                         {damage.resolved_notes || 'Selesai tanpa catatan.'}
                                                     </p>
                                                 </div>
+                                                {damage.resolved_photo_path && (
+                                                    <div className="mt-2 rounded-lg overflow-hidden border border-slate-100 relative">
+                                                        <img src={`/storage/${damage.resolved_photo_path}`} alt="Bukti Selesai" className="w-full h-32 object-cover" />
+                                                        <span className="absolute bottom-1 right-1 bg-black/60 text-[9px] text-white px-1.5 py-0.5 rounded font-bold">Bukti Selesai</span>
+                                                    </div>
+                                                )}
 
                                                 {damage.actions && damage.actions.length > 0 && (
                                                     <div className="space-y-1.5 pt-1">
@@ -543,6 +603,26 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
                             </div>
 
                             <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Tingkat Kesulitan *</Label>
+                                <Select
+                                    value={createForm.data.difficulty}
+                                    onValueChange={(val) => createForm.setData('difficulty', val)}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Pilih Kesulitan" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="easy">Mudah (2 Poin)</SelectItem>
+                                        <SelectItem value="medium">Sedang (5 Poin)</SelectItem>
+                                        <SelectItem value="hard">Sulit (10 Poin)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                {createForm.errors.difficulty && (
+                                    <p className="text-xs text-red-500 font-bold">{createForm.errors.difficulty}</p>
+                                )}
+                            </div>
+
+                            <div className="space-y-1.5">
                                 <Label className="text-xs font-bold text-slate-700 font-medium">Unggah Foto Kerusakan (Opsional)</Label>
                                 <Input
                                     type="file"
@@ -584,7 +664,7 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
                         <DialogHeader>
                             <DialogTitle className="font-black text-xl text-slate-800">Tandai Pekerjaan Selesai</DialogTitle>
                             <DialogDescription>
-                                Berikan catatan perbaikan serta log tindakan kontribusi staff untuk kinerja mereka.
+                                Masukkan foto bukti penyelesaian, catatan perbaikan, dan pilih staff yang mengerjakan.
                             </DialogDescription>
                         </DialogHeader>
                         <form onSubmit={handleResolveSubmit} className="space-y-4">
@@ -602,108 +682,76 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
                                 )}
                             </div>
 
-                            {/* Actions and Points Section */}
-                            <div className="space-y-3 border-t pt-4">
-                                <div className="flex justify-between items-center">
-                                    <Label className="text-xs font-black text-slate-800 uppercase tracking-wider">Tindakan & Point Staff</Label>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 text-xs font-bold gap-1"
-                                        onClick={() => {
-                                            const currentActions = [...resolveForm.data.actions];
-                                            currentActions.push({
-                                                user_id: '',
-                                                action_details: '',
-                                                points: 10,
-                                            });
-                                            resolveForm.setData('actions', currentActions);
-                                        }}
-                                    >
-                                        <Plus className="h-3 w-3" /> Tambah Staff
-                                    </Button>
-                                </div>
-
-                                <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
-                                    {resolveForm.data.actions.map((act, index) => (
-                                        <div key={index} className="p-3 bg-slate-50 border rounded-xl space-y-2 relative">
-                                            {resolveForm.data.actions.length > 1 && (
-                                                <button
-                                                    type="button"
-                                                    className="absolute top-2 right-2 text-slate-400 hover:text-red-500 transition-colors"
-                                                    onClick={() => {
-                                                        const currentActions = [...resolveForm.data.actions];
-                                                        currentActions.splice(index, 1);
-                                                        resolveForm.setData('actions', currentActions);
-                                                    }}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </button>
-                                            )}
-
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px] font-bold text-slate-500">Staff Pelaksana *</Label>
-                                                    <Select
-                                                        value={act.user_id}
-                                                        onValueChange={(val) => {
-                                                            const currentActions = [...resolveForm.data.actions];
-                                                            currentActions[index].user_id = val;
-                                                            resolveForm.setData('actions', currentActions);
-                                                        }}
-                                                    >
-                                                        <SelectTrigger className="h-8 text-xs bg-white">
-                                                            <SelectValue placeholder="Pilih Staff" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {staff.map((s) => (
-                                                                <SelectItem key={s.id} value={s.id.toString()}>
-                                                                    {s.name} ({s.role})
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px] font-bold text-slate-500">Point Kinerja *</Label>
-                                                    <Input
-                                                        type="number"
-                                                        className="h-8 text-xs"
-                                                        value={act.points}
-                                                        onChange={(e) => {
-                                                            const currentActions = [...resolveForm.data.actions];
-                                                            currentActions[index].points = parseInt(e.target.value) || 0;
-                                                            resolveForm.setData('actions', currentActions);
-                                                        }}
-                                                        min={0}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <Label className="text-[10px] font-bold text-slate-500">Detail Tindakan *</Label>
-                                                <Input
-                                                    className="h-8 text-xs bg-white"
-                                                    placeholder="Tindakan spesifik (misal: membersihkan filter AC)"
-                                                    value={act.action_details}
-                                                    onChange={(e) => {
-                                                        const currentActions = [...resolveForm.data.actions];
-                                                        currentActions[index].action_details = e.target.value;
-                                                        resolveForm.setData('actions', currentActions);
-                                                    }}
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {resolveForm.errors && Object.keys(resolveForm.errors).some(k => k.startsWith('actions')) && (
-                                    <p className="text-xs text-red-500 font-bold">Harap lengkapi semua data tindakan staff pelaksana.</p>
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Foto Bukti Selesai *</Label>
+                                <Input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleResolvePhotoChange}
+                                    className="cursor-pointer text-xs"
+                                    required
+                                />
+                                {resolvePhotoPreview && (
+                                    <div className="mt-2 h-32 w-full rounded-lg overflow-hidden border">
+                                        <img src={resolvePhotoPreview} alt="Preview Selesai" className="w-full h-full object-cover" />
+                                    </div>
+                                )}
+                                {resolveForm.errors.resolved_photo && (
+                                    <p className="text-xs text-red-500 font-bold">{resolveForm.errors.resolved_photo}</p>
                                 )}
                             </div>
+
+                            {/* Staff Pelaksana Checkbox Grid */}
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Staff Pelaksana (Pilih minimal 1) *</Label>
+                                <div className="grid grid-cols-2 gap-2 max-h-[150px] overflow-y-auto border border-slate-100 p-3 bg-slate-50 rounded-xl">
+                                    {staff.map((s) => {
+                                        const isChecked = resolveForm.data.worker_ids.includes(s.id.toString());
+                                        return (
+                                            <div key={s.id} className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id={`worker-${s.id}`}
+                                                    checked={isChecked}
+                                                    onCheckedChange={(checked) => {
+                                                        const currentIds = [...resolveForm.data.worker_ids];
+                                                        if (checked) {
+                                                            currentIds.push(s.id.toString());
+                                                        } else {
+                                                            const idx = currentIds.indexOf(s.id.toString());
+                                                            if (idx > -1) currentIds.splice(idx, 1);
+                                                        }
+                                                        resolveForm.setData('worker_ids', currentIds);
+                                                    }}
+                                                />
+                                                <label
+                                                    htmlFor={`worker-${s.id}`}
+                                                    className="text-xs font-medium text-slate-700 cursor-pointer select-none truncate"
+                                                >
+                                                    {s.name}
+                                                </label>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                {resolveForm.errors.worker_ids && (
+                                    <p className="text-xs text-red-500 font-bold">{resolveForm.errors.worker_ids}</p>
+                                )}
+                            </div>
+
+                            {selectedDamage && resolveForm.data.worker_ids.length > 0 && (
+                                <div className="bg-blue-50/50 border border-blue-100 p-3 rounded-xl text-[11px] text-blue-700 font-medium">
+                                    Kerusakan ini bernilai <strong>{
+                                        selectedDamage.difficulty === 'easy' ? '2' : selectedDamage.difficulty === 'medium' ? '5' : '10'
+                                    } Poin</strong>. Setiap staff yang dipilih akan menerima{' '}
+                                    <strong>
+                                        {(
+                                            (selectedDamage.difficulty === 'easy' ? 2.00 : selectedDamage.difficulty === 'medium' ? 5.00 : 10.00) /
+                                            resolveForm.data.worker_ids.length
+                                        ).toFixed(2)}{' '}
+                                        Poin
+                                    </strong>.
+                                </div>
+                            )}
 
                             <DialogFooter className="pt-2">
                                 <Button
@@ -712,6 +760,7 @@ export default function UnitDamagesIndex({ damages, properties, staff, filters }
                                     onClick={() => {
                                         setShowResolveModal(false);
                                         resolveForm.reset();
+                                        setResolvePhotoPreview(null);
                                     }}
                                     disabled={resolveForm.processing}
                                 >

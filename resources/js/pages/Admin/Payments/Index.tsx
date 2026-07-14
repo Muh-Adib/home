@@ -33,6 +33,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { useState, useEffect, Fragment } from 'react';
+import { toast } from 'sonner';
 
 interface PaymentsIndexProps {
     payments: PaginatedData<Payment>;
@@ -144,7 +145,7 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
             }
         } catch (err) {
             console.error('Failed to load more payments:', err);
-            toast.success('Gagal memuat data pembayaran selanjutnya.');
+            toast.error('Gagal memuat data pembayaran selanjutnya.');
         } finally {
             setIsLoadingMore(false);
         }

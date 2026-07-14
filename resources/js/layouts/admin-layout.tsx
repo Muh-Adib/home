@@ -116,6 +116,7 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
           { title: 'Rekening Bank', href: '/admin/bank-accounts', icon: Building2 },
           { title: 'Reports', href: '/admin/reports', icon: BarChart3 },
+          { title: 'Property Performance', href: '/admin/reports/property-performance', icon: Building2 },
           { title: 'Staff Performance', href: '/admin/reports/staff-performance', icon: Users },
           { title: 'Finance', href: '/admin/finance', icon: DollarSign },
           { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
@@ -140,8 +141,10 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Inventory Items', href: '/admin/inventory/items', icon: Folder },
           { title: 'Inventory Purchases', href: '/admin/inventory/purchases', icon: Folder },
           { title: 'Inventory Usages', href: '/admin/inventory/usages', icon: Folder },
+          { title: 'Jadwal Rutin', href: '/admin/housekeeping-schedules', icon: Calendar },
           { title: 'Laporan Kerusakan', href: '/admin/unit-damages', icon: Wrench },
           { title: 'Barang Tertinggal', href: '/admin/lost-and-founds', icon: ClipboardList },
+          { title: 'Tugas Khusus', href: '/admin/custom-tasks', icon: ListChecks },
         ]
       },
       {
@@ -189,6 +192,7 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Payments', href: '/admin/payments', icon: CreditCard },
           { title: 'Rekonsiliasi Bank', href: '/admin/payments/reconciliation', icon: DollarSign },
           { title: 'Reports', href: '/admin/reports', icon: BarChart3 },
+          { title: 'Property Performance', href: '/admin/reports/property-performance', icon: Building2 },
           { title: 'Staff Performance', href: '/admin/reports/staff-performance', icon: Users },
           { title: 'Finance', href: '/admin/finance', icon: DollarSign },
           { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
@@ -239,6 +243,7 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Rekonsiliasi Bank', href: '/admin/payments/reconciliation', icon: DollarSign },
           { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
           { title: 'Rekening Bank', href: '/admin/bank-accounts', icon: Building2 },
+          { title: 'Property Performance', href: '/admin/reports/property-performance', icon: Building2 },
           { title: 'Finance', href: '/admin/finance', icon: DollarSign },
           { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
           { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
@@ -253,8 +258,10 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Inventory Items', href: '/admin/inventory/items', icon: Folder },
           { title: 'Inventory Purchases', href: '/admin/inventory/purchases', icon: Folder },
           { title: 'Inventory Usages', href: '/admin/inventory/usages', icon: Folder },
+          { title: 'Jadwal Rutin', href: '/admin/housekeeping-schedules', icon: Calendar },
           { title: 'Laporan Kerusakan', href: '/admin/unit-damages', icon: Wrench },
           { title: 'Barang Tertinggal', href: '/admin/lost-and-founds', icon: ClipboardList },
+          { title: 'Tugas Khusus', href: '/admin/custom-tasks', icon: ListChecks },
         ]
       }
     ],
@@ -306,6 +313,7 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
           { title: 'Rekening Bank', href: '/admin/bank-accounts', icon: Building2 },
           { title: 'Reports', href: '/admin/reports', icon: BarChart3 },
+          { title: 'Property Performance', href: '/admin/reports/property-performance', icon: Building2 },
           { title: 'Staff Performance', href: '/admin/reports/staff-performance', icon: Users },
           { title: 'Finance', href: '/admin/finance', icon: DollarSign },
           { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
