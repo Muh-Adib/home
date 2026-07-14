@@ -1894,6 +1894,26 @@ class BookingManagementController extends Controller
             $bookingsQuery->where('property_id', $request->input('property_id'));
         }
 
+        // Closed By filter
+        if ($request->filled('closed_by')) {
+            $closedBy = $request->input('closed_by');
+            if ($closedBy === 'none') {
+                $bookingsQuery->whereNull('closed_by');
+            } else {
+                $bookingsQuery->where('closed_by', $closedBy);
+            }
+        }
+
+        // Followed Up By filter
+        if ($request->filled('followed_up_by')) {
+            $followedUpBy = $request->input('followed_up_by');
+            if ($followedUpBy === 'none') {
+                $bookingsQuery->whereNull('followed_up_by');
+            } else {
+                $bookingsQuery->where('followed_up_by', $followedUpBy);
+            }
+        }
+
         $bookings = $bookingsQuery->orderBy('created_at', 'desc')->paginate(15)->withQueryString();
 
         // Get non-guest staff users
@@ -1913,7 +1933,7 @@ class BookingManagementController extends Controller
             'bookings' => $bookings,
             'properties' => $properties,
             'staffUsers' => $staffUsers,
-            'filters' => $request->only(['search', 'property_id']),
+            'filters' => $request->only(['search', 'property_id', 'closed_by', 'followed_up_by']),
         ]);
     }
 

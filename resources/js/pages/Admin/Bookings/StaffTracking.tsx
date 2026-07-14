@@ -41,12 +41,16 @@ interface StaffTrackingProps {
     filters: {
         search?: string;
         property_id?: string;
+        closed_by?: string;
+        followed_up_by?: string;
     };
 }
 
 export default function StaffTracking({ bookings, properties, staffUsers, filters }: StaffTrackingProps) {
     const [searchVal, setSearchVal] = useState(filters.search || '');
     const [propertyId, setPropertyId] = useState(filters.property_id || 'all');
+    const [closedByFilter, setClosedByFilter] = useState(filters.closed_by || 'all');
+    const [followedUpByFilter, setFollowedUpByFilter] = useState(filters.followed_up_by || 'all');
     const [updatingRowId, setUpdatingRowId] = useState<number | null>(null);
 
     // Infinite scroll states
@@ -86,15 +90,17 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
             {
                 search: searchVal || undefined,
                 property_id: propertyId !== 'all' ? propertyId : undefined,
+                closed_by: closedByFilter !== 'all' ? closedByFilter : undefined,
+                followed_up_by: followedUpByFilter !== 'all' ? followedUpByFilter : undefined,
             },
             { preserveState: true }
         );
     };
 
-    // Auto-filter on property select
+    // Auto-filter on property select or staff filters change
     useEffect(() => {
         applyFilters();
-    }, [propertyId]);
+    }, [propertyId, closedByFilter, followedUpByFilter]);
 
     // Handle single booking attribution update
     const handleUpdate = (booking: Booking, closedByVal: string, followedUpByVal: string) => {
@@ -160,6 +166,8 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
                 format: 'json',
                 search: searchVal || undefined,
                 property_id: propertyId !== 'all' ? propertyId : undefined,
+                closed_by: closedByFilter !== 'all' ? closedByFilter : undefined,
+                followed_up_by: followedUpByFilter !== 'all' ? followedUpByFilter : undefined,
             });
 
             if (res.bookings && res.bookings.data) {
@@ -196,7 +204,7 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
                 observer.unobserve(target);
             }
         };
-    }, [currentPage, lastPage, isLoadingMore, searchVal, propertyId]);
+    }, [currentPage, lastPage, isLoadingMore, searchVal, propertyId, closedByFilter, followedUpByFilter]);
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
@@ -217,7 +225,7 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
 
                 {/* Filters card */}
                 <Card className="shadow-md border-slate-100 dark:border-slate-800">
-                    <CardContent className="p-4 flex flex-col md:flex-row gap-4">
+                    <CardContent className="p-4 flex flex-col lg:flex-row gap-3">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                             <Input
@@ -228,20 +236,54 @@ export default function StaffTracking({ bookings, properties, staffUsers, filter
                                 onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
                             />
                         </div>
-                        <div className="w-full md:w-64">
-                            <Select value={propertyId} onValueChange={setPropertyId}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Pilih Unit Properti" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Semua Unit Properti</SelectItem>
-                                    {properties.map((p) => (
-                                        <SelectItem key={p.id} value={p.id.toString()}>
-                                            {p.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full lg:w-[750px]">
+                            <div>
+                                <Select value={propertyId} onValueChange={setPropertyId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Pilih Unit Properti" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Semua Unit Properti</SelectItem>
+                                        {properties.map((p) => (
+                                            <SelectItem key={p.id} value={p.id.toString()}>
+                                                {p.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Select value={closedByFilter} onValueChange={setClosedByFilter}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Filter Closing Staff" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Semua Closing Staff</SelectItem>
+                                        <SelectItem value="none">-- Belum Ada Closing Staff --</SelectItem>
+                                        {staffUsers.map((st) => (
+                                            <SelectItem key={st.id} value={st.id.toString()}>
+                                                {st.name} ({st.role.replace('_', ' ')})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Select value={followedUpByFilter} onValueChange={setFollowedUpByFilter}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Filter Follow Up Staff" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Semua Follow Up Staff</SelectItem>
+                                        <SelectItem value="none">-- Belum Ada Follow Up Staff --</SelectItem>
+                                        {staffUsers.map((st) => (
+                                            <SelectItem key={st.id} value={st.id.toString()}>
+                                                {st.name} ({st.role.replace('_', ' ')})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                         <Button onClick={applyFilters} className="bg-blue-600 hover:bg-blue-700 font-bold px-6">
                             Filter
