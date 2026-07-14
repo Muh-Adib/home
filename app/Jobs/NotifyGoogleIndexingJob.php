@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 
 class NotifyGoogleIndexingJob implements ShouldQueue
 {
-    use Queueable, InteractsWithQueue, SerializesModels;
+    use InteractsWithQueue, Queueable, SerializesModels;
 
     /**
      * Number of times the job may be attempted.
@@ -30,8 +30,8 @@ class NotifyGoogleIndexingJob implements ShouldQueue
     /**
      * Create a new job instance.
      *
-     * @param string $url  The full public URL to notify Google about
-     * @param string $type 'URL_UPDATED' or 'URL_DELETED'
+     * @param  string  $url  The full public URL to notify Google about
+     * @param  string  $type  'URL_UPDATED' or 'URL_DELETED'
      */
     public function __construct(
         public readonly string $url,
@@ -43,16 +43,22 @@ class NotifyGoogleIndexingJob implements ShouldQueue
      */
     public function handle(GoogleIndexingService $service): void
     {
+        if (empty(config('services.google_indexing.private_key')) || empty(config('services.google_indexing.client_email'))) {
+            Log::info('[GoogleIndexing] Google Indexing credentials not fully configured. Skipping notification.');
+
+            return;
+        }
+
         Log::info('[GoogleIndexing] Dispatching indexing notification.', [
-            'url'  => $this->url,
+            'url' => $this->url,
             'type' => $this->type,
         ]);
 
         $success = $service->notifyUrl($this->url, $this->type);
 
-        if (!$success) {
+        if (! $success) {
             Log::warning('[GoogleIndexing] Notification failed, will retry.', [
-                'url'      => $this->url,
+                'url' => $this->url,
                 'attempts' => $this->attempts(),
             ]);
 

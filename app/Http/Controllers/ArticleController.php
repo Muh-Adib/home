@@ -150,7 +150,7 @@ class ArticleController extends Controller
 
         $article = $this->articleService->createArticle($request->validated());
 
-        return redirect()->route('articles.edit', $article->slug)
+        return redirect()->route('admin.articles.edit', $article->slug)
             ->with('success', 'Article created successfully.');
     }
 
@@ -254,7 +254,7 @@ class ArticleController extends Controller
 
         $article->delete();
 
-        return redirect()->route('articles.index')
+        return redirect()->route('admin.articles.index')
             ->with('success', 'Article deleted successfully.');
     }
 
@@ -297,7 +297,7 @@ class ArticleController extends Controller
 
         $newArticle = $this->articleService->duplicateArticle($article);
 
-        return redirect()->route('articles.edit', $newArticle->slug)
+        return redirect()->route('admin.articles.edit', $newArticle->slug)
             ->with('success', 'Article duplicated successfully.');
     }
 

@@ -10,7 +10,7 @@ export interface User {
     name: string;
     email: string;
     email_verified_at: string;
-    role: 'super_admin' | 'property_owner' | 'property_manager' | 'front_desk' | 'finance' | 'housekeeping' | 'guest';
+    role: 'super_admin' | 'property_owner' | 'property_manager' | 'front_desk' | 'finance' | 'housekeeping' | 'guest' | 'content_creator';
     avatar?: string;
 }
 

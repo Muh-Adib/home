@@ -39,8 +39,8 @@ class PropertyPolicy
      */
     public function update(User $user, Property $property): bool
     {
-        // Super admin dan property_manager dapat update semua property
-        if (in_array($user->role, ['super_admin', 'property_manager'])) {
+        // Super admin, property_manager, dan content_creator dapat update semua property
+        if (in_array($user->role, ['super_admin', 'property_manager', 'content_creator'])) {
             return true;
         }
 
@@ -83,8 +83,8 @@ class PropertyPolicy
      */
     public function manageMedia(User $user, Property $property): bool
     {
-        // User dapat manage media property yang mereka miliki atau sebagai admin
-        return $user->isAdmin() || $property->owner_id === $user->id;
+        // User dapat manage media property yang mereka miliki atau sebagai admin/content_creator
+        return $user->isAdmin() || $user->role === 'content_creator' || $property->owner_id === $user->id;
     }
 
     /**
@@ -92,8 +92,8 @@ class PropertyPolicy
      */
     public function manageAmenities(User $user, Property $property): bool
     {
-        // Super admin dapat manage semua amenities
-        if ($user->role === 'super_admin') {
+        // Super admin dan content_creator dapat manage semua amenities
+        if ($user->role === 'super_admin' || $user->role === 'content_creator') {
             return true;
         }
 

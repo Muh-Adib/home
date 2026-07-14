@@ -44,7 +44,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 // Property Management - Create/Edit/Delete restricted to managers/owners
-Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,content_creator'])->prefix('admin')->name('admin.')->group(function () {
     Route::controller(PropertyManagementController::class)->group(function () {
         Route::get('properties/create', 'create')->name('properties.create');
         Route::post('properties', 'store')->name('properties.store');
@@ -94,7 +94,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
     });
 
     // Extra Services Management (only for super_admin and property_owner)
-    Route::middleware(['role:super_admin,property_owner'])->group(function () {
+    Route::middleware(['role:super_admin,property_owner,content_creator'])->group(function () {
         Route::resource('extra-services', ExtraServiceController::class)->parameters([
             'extra-services' => 'service',
         ])->names([
@@ -117,7 +117,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner'])-
     Route::controller(ArticleController::class)
         ->prefix('articles')
         ->name('articles.')
-        ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance'])
+        ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance,content_creator'])
         ->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/create', 'create')->name('create');
@@ -299,7 +299,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
 });
 
 // Property Management API (outside admin prefix to match /api/admin/properties path)
-Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk'])->prefix('api/admin/properties')->name('api.admin.properties.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk,content_creator'])->prefix('api/admin/properties')->name('api.admin.properties.')->group(function () {
     $controller = PropertyManagementController::class;
     Route::get('{property:id}/stats', [$controller, 'stats'])->name('stats');
     Route::patch('{property:id}/color', [$controller, 'updateColor'])->name('update-color');

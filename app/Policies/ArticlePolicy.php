@@ -26,15 +26,15 @@ class ArticlePolicy
         if ($article->status === 'published') {
             return true;
         }
-        
+
         // Drafts/scheduled only for authenticated non-guests
-        if (!$user || $user->role === 'guest') {
+        if (! $user || $user->role === 'guest') {
             return false;
         }
-        
+
         // Author or admin/manager can view
-        return $user->id === $article->author_id 
-            || in_array($user->role, ['super_admin', 'property_manager']);
+        return $user->id === $article->author_id
+            || in_array($user->role, ['super_admin', 'property_manager', 'content_creator']);
     }
 
     /**
@@ -52,8 +52,8 @@ class ArticlePolicy
      */
     public function update(User $user, Article $article): bool
     {
-        return $user->id === $article->author_id 
-            || in_array($user->role, ['super_admin', 'property_manager']);
+        return $user->id === $article->author_id
+            || in_array($user->role, ['super_admin', 'property_manager', 'content_creator']);
     }
 
     /**
@@ -62,7 +62,7 @@ class ArticlePolicy
      */
     public function delete(User $user, Article $article): bool
     {
-        return $user->id === $article->author_id 
+        return $user->id === $article->author_id
             || $user->role === 'super_admin';
     }
 
@@ -72,8 +72,8 @@ class ArticlePolicy
      */
     public function publish(User $user, Article $article): bool
     {
-        return $user->id === $article->author_id 
-            || in_array($user->role, ['super_admin', 'property_manager']);
+        return $user->id === $article->author_id
+            || in_array($user->role, ['super_admin', 'property_manager', 'content_creator']);
     }
 
     /**
@@ -82,8 +82,8 @@ class ArticlePolicy
      */
     public function schedule(User $user, Article $article): bool
     {
-        return $user->id === $article->author_id 
-            || in_array($user->role, ['super_admin', 'property_manager']);
+        return $user->id === $article->author_id
+            || in_array($user->role, ['super_admin', 'property_manager', 'content_creator']);
     }
 
     /**

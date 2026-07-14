@@ -354,6 +354,19 @@ const getAdminNavItems = (userRole: User['role']) => {
         ]
       }
     ],
+    content_creator: [
+      ...baseItems,
+      {
+        title: 'Property & Content',
+        href: '/admin/properties',
+        icon: Folder,
+        children: [
+          { title: 'All Properties', href: '/admin/properties', icon: Folder },
+          { title: 'Amenities', href: '/admin/amenities', icon: Building2 },
+          { title: 'Extra Service', href: '/admin/extra-services', icon: Package },
+        ]
+      }
+    ],
     guest: []
   };
 

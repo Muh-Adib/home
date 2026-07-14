@@ -31,7 +31,8 @@ import {
     Home,
     AlertCircle,
     CheckCircle,
-    XCircle
+    XCircle,
+    FileText
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -41,6 +42,7 @@ interface UsersIndexProps {
         search?: string;
         role?: string;
         status?: string;
+        role_group?: string;
     };
     stats: {
         total_users: number;
@@ -59,6 +61,8 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
+    const roleGroup = filters.role_group || 'staff';
+
     const { processing, patch } = useForm();
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -71,8 +75,19 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
             search: searchTerm,
             role: roleFilter !== 'all' ? roleFilter : undefined,
             status: statusFilter !== 'all' ? statusFilter : undefined,
+            role_group: roleGroup,
         }, {
             preserveState: true,
+            preserveScroll: true,
+        });
+    };
+
+    const handleRoleGroupChange = (group: string) => {
+        router.get('/admin/users', {
+            role_group: group,
+            status: statusFilter !== 'all' ? statusFilter : undefined,
+        }, {
+            preserveState: false,
             preserveScroll: true,
         });
     };
@@ -137,6 +152,12 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                 label: 'Housekeeping',
                 icon: Home,
                 color: 'bg-gray-100 text-gray-800'
+            },
+            content_creator: {
+                variant: 'outline' as const,
+                label: 'Content Creator',
+                icon: FileText,
+                color: 'bg-indigo-100 text-indigo-800'
             },
             guest: {
                 variant: 'outline' as const,
@@ -264,6 +285,57 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                     </Card>
                 </div>
 
+                {/* Tabs for separating Staff, Owners, and Guests */}
+                <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6 mt-2">
+                    <button
+                        onClick={() => handleRoleGroupChange('staff')}
+                        className={`pb-3 text-sm font-bold transition-all relative ${
+                            roleGroup === 'staff'
+                                ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
+                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                    >
+                        Staff ({
+                            (stats.role_breakdown.super_admin || 0) +
+                            (stats.role_breakdown.property_manager || 0) +
+                            (stats.role_breakdown.front_desk || 0) +
+                            (stats.role_breakdown.finance || 0) +
+                            (stats.role_breakdown.housekeeping || 0) +
+                            (stats.role_breakdown.content_creator || 0)
+                        })
+                    </button>
+                    <button
+                        onClick={() => handleRoleGroupChange('owner')}
+                        className={`pb-3 text-sm font-bold transition-all relative ${
+                            roleGroup === 'owner'
+                                ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
+                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                    >
+                        Property Owners ({stats.role_breakdown.property_owner || 0})
+                    </button>
+                    <button
+                        onClick={() => handleRoleGroupChange('guest')}
+                        className={`pb-3 text-sm font-bold transition-all relative ${
+                            roleGroup === 'guest'
+                                ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
+                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                    >
+                        Guests ({stats.role_breakdown.guest || 0})
+                    </button>
+                    <button
+                        onClick={() => handleRoleGroupChange('all')}
+                        className={`pb-3 text-sm font-bold transition-all relative ${
+                            roleGroup === 'all'
+                                ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
+                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                    >
+                        Semua User ({stats.total_users || 0})
+                    </button>
+                </div>
+
                 {/* Filters */}
                 <Card>
                     <CardHeader className="pb-4">
@@ -297,6 +369,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                                         <SelectItem value="front_desk">Front Desk</SelectItem>
                                         <SelectItem value="finance">Finance</SelectItem>
                                         <SelectItem value="housekeeping">Housekeeping</SelectItem>
+                                        <SelectItem value="content_creator">Content Creator</SelectItem>
                                         <SelectItem value="guest">Guest</SelectItem>
                                     </SelectContent>
                                 </Select>

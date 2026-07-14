@@ -3,10 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
-use App\Models\UserProfile;
-use Illuminate\Http\Request;
 use App\Http\Requests\Admin\UpdateUserRequest;
+use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -21,16 +20,27 @@ class UserController extends Controller
     {
         $this->authorize('viewAny', User::class);
 
+        $roleGroup = $request->input('role_group', 'staff');
+
         $query = User::with(['profile'])
             ->latest();
+
+        // Apply role group filtering
+        if ($roleGroup === 'staff') {
+            $query->staff();
+        } elseif ($roleGroup === 'owner') {
+            $query->where('role', 'property_owner');
+        } elseif ($roleGroup === 'guest') {
+            $query->where('role', 'guest');
+        }
 
         // Apply search filter
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
             });
         }
 
@@ -59,7 +69,12 @@ class UserController extends Controller
 
         return Inertia::render('Admin/Users/Index', [
             'users' => $users,
-            'filters' => $request->only(['search', 'role', 'status']),
+            'filters' => [
+                'search' => $request->input('search'),
+                'role' => $request->input('role'),
+                'status' => $request->input('status'),
+                'role_group' => $roleGroup,
+            ],
             'stats' => $stats,
         ]);
     }
@@ -85,7 +100,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'phone' => 'nullable|string|max:20',
-            'role' => ['required', Rule::in(['super_admin', 'property_owner', 'property_manager', 'front_desk', 'housekeeping', 'finance', 'guest'])],
+            'role' => ['required', Rule::in(['super_admin', 'property_owner', 'property_manager', 'front_desk', 'housekeeping', 'finance', 'guest', 'content_creator'])],
             'status' => ['required', Rule::in(['active', 'inactive', 'suspended'])],
             'password' => 'required|string|min:8|confirmed',
             'avatar' => 'nullable|image|max:2048',
@@ -193,34 +208,34 @@ class UserController extends Controller
 
         // Extract profile data
         $profileData = collect($validated)->only([
-            'address', 'city', 'state', 'country', 'postal_code', 
-            'birth_date', 'gender', 'bio'
+            'address', 'city', 'state', 'country', 'postal_code',
+            'birth_date', 'gender', 'bio',
         ])->toArray();
 
         // Extract user data (exclude profile fields)
         $userData = collect($validated)->except([
-            'address', 'city', 'state', 'country', 'postal_code', 
-            'birth_date', 'gender', 'bio'
+            'address', 'city', 'state', 'country', 'postal_code',
+            'birth_date', 'gender', 'bio',
         ])->toArray();
 
         // Update user - pastikan semua field yang ada di $userData ter-update
-        if (!empty($userData)) {
+        if (! empty($userData)) {
             $user->fill($userData);
             $user->save();
         }
 
         // Update or create profile
         // Gunakan array_filter untuk menghapus null/empty tapi tetap update field yang diisi
-        $profileDataToUpdate = array_filter($profileData, function($value) {
+        $profileDataToUpdate = array_filter($profileData, function ($value) {
             return $value !== null && $value !== '';
         });
 
-        if (!empty($profileDataToUpdate)) {
+        if (! empty($profileDataToUpdate)) {
             $user->load('profile');
             $user->profile()->updateOrCreate(
                 ['user_id' => $user->id],
                 array_merge($profileDataToUpdate, [
-                    'country' => $profileDataToUpdate['country'] ?? $user->profile?->country ?? 'Indonesia'
+                    'country' => $profileDataToUpdate['country'] ?? $user->profile?->country ?? 'Indonesia',
                 ])
             );
         }
@@ -274,10 +289,10 @@ class UserController extends Controller
 
         $statusLabel = [
             'active' => 'diaktifkan',
-            'inactive' => 'dinonaktifkan', 
-            'suspended' => 'di-suspend'
+            'inactive' => 'dinonaktifkan',
+            'suspended' => 'di-suspend',
         ];
 
         return back()->with('success', "Status user berhasil {$statusLabel[$request->status]}");
     }
-} 
+}

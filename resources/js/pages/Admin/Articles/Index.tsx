@@ -30,6 +30,7 @@ import {
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Article {
     id: number;
@@ -67,6 +68,7 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [languageFilter, setLanguageFilter] = useState(filters.language || 'all');
     const [isLoading, setIsLoading] = useState(false);
+    const [articleToDelete, setArticleToDelete] = useState<Article | null>(null);
 
     // Effect to clear loading state when articles prop changes
     useEffect(() => {
@@ -93,9 +95,16 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
     };
 
     const handleDelete = (article: Article) => {
-        if (confirm(`Delete article "${article.title}"?`)) {
-            router.delete(`/admin/articles/${article.slug}`, {
+        setArticleToDelete(article);
+    };
+
+    const confirmDelete = () => {
+        if (articleToDelete) {
+            router.delete(`/admin/articles/${articleToDelete.slug}`, {
                 preserveScroll: true,
+                onSuccess: () => {
+                    setArticleToDelete(null);
+                }
             });
         }
     };
@@ -347,6 +356,38 @@ export default function ArticlesIndex({ articles, filters, languages }: Articles
                         </div>
                     </div>
                 )}
+
+                {/* Delete Confirmation Modal */}
+                <Dialog open={articleToDelete !== null} onOpenChange={(open) => !open && setArticleToDelete(null)}>
+                    <DialogContent className="max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="font-black text-xl text-slate-800 flex items-center gap-2">
+                                <AlertTriangle className="h-5 w-5 text-red-500" />
+                                Hapus Artikel
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-600 mt-2">
+                                Apakah Anda yakin ingin menghapus artikel <strong>"{articleToDelete?.title}"</strong>? Tindakan ini tidak dapat dibatalkan.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="pt-4 flex items-center justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setArticleToDelete(null)}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                onClick={confirmDelete}
+                                className="font-bold"
+                            >
+                                Hapus
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </AdminLayout>
     );

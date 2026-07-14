@@ -12,7 +12,7 @@ class ServiceMasterPolicy
      */
     public function viewAny(User $user): bool
     {
-        return in_array($user->role, ['super_admin', 'property_owner']);
+        return in_array($user->role, ['super_admin', 'property_owner', 'content_creator']);
     }
 
     /**
@@ -20,7 +20,7 @@ class ServiceMasterPolicy
      */
     public function view(User $user, ServiceMaster $serviceMaster): bool
     {
-        return in_array($user->role, ['super_admin', 'property_owner']);
+        return in_array($user->role, ['super_admin', 'property_owner', 'content_creator']);
     }
 
     /**
@@ -28,7 +28,7 @@ class ServiceMasterPolicy
      */
     public function create(User $user): bool
     {
-        return in_array($user->role, ['super_admin', 'property_owner']);
+        return in_array($user->role, ['super_admin', 'property_owner', 'content_creator']);
     }
 
     /**
@@ -36,7 +36,7 @@ class ServiceMasterPolicy
      */
     public function update(User $user, ServiceMaster $serviceMaster): bool
     {
-        return in_array($user->role, ['super_admin', 'property_owner']);
+        return in_array($user->role, ['super_admin', 'property_owner', 'content_creator']);
     }
 
     /**
@@ -44,7 +44,6 @@ class ServiceMasterPolicy
      */
     public function delete(User $user, ServiceMaster $serviceMaster): bool
     {
-        return in_array($user->role, ['super_admin', 'property_owner']);
+        return in_array($user->role, ['super_admin', 'property_owner', 'content_creator']);
     }
 }
-

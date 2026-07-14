@@ -37,7 +37,7 @@ export interface User {
     name: string;
     email: string;
     phone?: string;
-    role: 'super_admin' | 'property_owner' | 'property_manager' | 'front_desk' | 'finance' | 'housekeeping' | 'guest';
+    role: 'super_admin' | 'property_owner' | 'property_manager' | 'front_desk' | 'finance' | 'housekeeping' | 'guest' | 'content_creator';
     status: 'active' | 'inactive' | 'suspended';
     avatar?: string;
     last_login_at?: string;

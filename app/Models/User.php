@@ -151,6 +151,7 @@ class User extends Authenticatable
             'front_desk',
             'housekeeping',
             'finance',
+            'content_creator',
         ]);
     }
 
@@ -183,6 +184,7 @@ class User extends Authenticatable
             'front_desk',
             'housekeeping',
             'finance',
+            'content_creator',
         ]);
     }
 
