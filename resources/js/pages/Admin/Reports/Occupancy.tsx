@@ -180,8 +180,8 @@ export default function OccupancyReport({ occupancyReport, summary, filters }: O
                             <TrendingUp className="h-4 w-4 text-slate-400" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-black text-slate-800">{summary.average_occupancy}%</div>
-                            <Progress value={summary.average_occupancy} className="h-1.5 mt-3 bg-slate-100" />
+                            <div className="text-3xl font-black text-slate-800">{Math.round(summary.average_occupancy)}%</div>
+                            <Progress value={Math.round(summary.average_occupancy)} className="h-1.5 mt-3 bg-slate-100" />
                             <p className="text-[10px] text-slate-400 font-semibold mt-2 uppercase tracking-wide">Seluruh Properti Aktif</p>
                         </CardContent>
                     </Card>
@@ -251,45 +251,48 @@ export default function OccupancyReport({ occupancyReport, summary, filters }: O
                                     <table className="w-full text-left border-collapse text-xs">
                                         <thead>
                                             <tr className="border-b border-slate-100 text-[10px] text-slate-400 uppercase font-bold tracking-wider bg-slate-50/50">
-                                                <th className="py-3.5 px-4 font-bold">Nama Unit Properti</th>
-                                                <th className="py-3.5 px-4 font-bold text-center">Malam Terisi</th>
-                                                <th className="py-3.5 px-4 font-bold text-center">Sisa Malam Kosong</th>
-                                                <th className="py-3.5 px-4 font-bold">Persentase Okupansi</th>
-                                                <th className="py-3.5 px-4 font-bold">Potensi Max Okupansi</th>
-                                                <th className="py-3.5 px-4 font-bold">Target Status</th>
+                                                <th className="py-2.5 px-3 font-bold">Nama Unit Properti</th>
+                                                <th className="py-2.5 px-3 font-bold text-center">Malam Terisi</th>
+                                                <th className="py-2.5 px-3 font-bold text-center">Sisa Malam Kosong</th>
+                                                <th className="py-2.5 px-3 font-bold">Persentase Okupansi</th>
+                                                <th className="py-2.5 px-3 font-bold">Potensi Max Okupansi</th>
+                                                <th className="py-2.5 px-3 font-bold">Target Status</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {occupancyReport.map((row, index) => {
                                                 const rowEven = index % 2 === 0;
+                                                const occupancyPercent = Math.min(100, Math.round(row.occupancy_percentage));
+                                                const potentialPercent = Math.min(100, Math.round(row.potential_max_percentage));
+                                                
                                                 return (
                                                     <tr
                                                         key={row.property_id}
                                                         className={`border-b border-slate-100/50 hover:bg-slate-200/10 transition-colors ${rowEven ? 'bg-transparent' : 'bg-slate-50/20'}`}
                                                     >
-                                                        <td className="py-4 px-4 font-bold text-slate-800 flex items-center gap-2">
+                                                        <td className="py-2 px-3 font-bold text-slate-800 flex items-center gap-2">
                                                             <Building2 className="h-4 w-4 text-slate-400" />
                                                             {row.property_name}
                                                         </td>
-                                                        <td className="py-4 px-4 font-black text-slate-900 text-center text-sm">
+                                                        <td className="py-2 px-3 font-black text-slate-900 text-center text-xs">
                                                             {row.occupied_nights} Malam
                                                         </td>
-                                                        <td className="py-4 px-4 font-bold text-rose-500 text-center text-sm">
+                                                        <td className="py-2 px-3 font-bold text-rose-500 text-center text-xs">
                                                             {row.vacant_nights} Malam
                                                         </td>
-                                                        <td className="py-4 px-4 space-y-1.5 w-[200px]">
-                                                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
-                                                                <span>{row.occupancy_percentage}%</span>
+                                                        <td className="py-2 px-3 w-[180px]">
+                                                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1">
+                                                                <span>{occupancyPercent}%</span>
                                                             </div>
-                                                            <Progress value={row.occupancy_percentage} className="h-2 bg-slate-100" />
+                                                            <Progress value={occupancyPercent} className="h-1.5 bg-slate-100" />
                                                         </td>
-                                                        <td className="py-4 px-4 space-y-1.5 w-[200px]">
-                                                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
-                                                                <span>{row.potential_max_percentage}% ({row.potential_max_nights} Malam)</span>
+                                                        <td className="py-2 px-3 w-[180px]">
+                                                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1">
+                                                                <span>{potentialPercent}% ({row.potential_max_nights} Malam)</span>
                                                             </div>
-                                                            <Progress value={row.potential_max_percentage} className="h-2 bg-slate-100 [&>div]:bg-blue-500" />
+                                                            <Progress value={potentialPercent} className="h-1.5 bg-slate-100 [&>div]:bg-blue-500" />
                                                         </td>
-                                                        <td className="py-4 px-4">
+                                                        <td className="py-2 px-3">
                                                             {getTargetBadge(row.target_status)}
                                                         </td>
                                                     </tr>
@@ -330,17 +333,17 @@ export default function OccupancyReport({ occupancyReport, summary, filters }: O
                                                 <div className="space-y-1">
                                                     <div className="flex justify-between text-[10px] font-bold text-slate-500">
                                                         <span>Okupansi Saat Ini</span>
-                                                        <span>{row.occupancy_percentage}%</span>
+                                                        <span>{Math.round(row.occupancy_percentage)}%</span>
                                                     </div>
-                                                    <Progress value={row.occupancy_percentage} className="h-2 bg-slate-100" />
+                                                    <Progress value={Math.round(row.occupancy_percentage)} className="h-1.5 bg-slate-100" />
                                                 </div>
 
                                                 <div className="space-y-1">
                                                     <div className="flex justify-between text-[10px] font-bold text-slate-500">
                                                         <span>Potensi Okupansi Maksimal</span>
-                                                        <span>{row.potential_max_percentage}%</span>
+                                                        <span>{Math.round(row.potential_max_percentage)}%</span>
                                                     </div>
-                                                    <Progress value={row.potential_max_percentage} className="h-2 bg-slate-100 [&>div]:bg-blue-500" />
+                                                    <Progress value={Math.round(row.potential_max_percentage)} className="h-1.5 bg-slate-100 [&>div]:bg-blue-500" />
                                                 </div>
                                             </div>
 

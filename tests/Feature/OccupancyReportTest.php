@@ -90,8 +90,8 @@ class OccupancyReportTest extends TestCase
 
             $this->assertNotNull($item);
             $this->assertEquals(14, $item['occupied_nights']); // 4 (booking 1) + 10 (booking 2)
-            $this->assertEquals(17, $item['vacant_nights']); // 31 - 14 = 17
-            $this->assertEquals(45.2, $item['occupancy_percentage']); // (14 / 31) * 100
+            $this->assertEquals(8, $item['vacant_nights']); // 31 - 14 occupied - 9 passed empty = 8
+            $this->assertEquals(45, $item['occupancy_percentage']); // (14 / 31) * 100 rounded to integer
         });
     }
 

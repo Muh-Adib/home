@@ -187,48 +187,41 @@ class ReportController extends Controller
                 ->get();
 
             $occupiedNights = 0;
+            $passedEmptyNights = 0;
 
             for ($d = 0; $d < $totalDaysInMonth; $d++) {
                 $currentNight = $startDate->copy()->addDays($d)->startOfDay();
+
+                // Check if this night is occupied
+                $isOccupied = false;
                 foreach ($bookings as $booking) {
                     $ci = Carbon::parse($booking->check_in)->startOfDay();
                     $co = Carbon::parse($booking->check_out)->startOfDay();
                     if ($currentNight->greaterThanOrEqualTo($ci) && $currentNight->lessThan($co)) {
-                        $occupiedNights++;
+                        $isOccupied = true;
                         break;
                     }
                 }
-            }
 
-            $occupancyPercentage = $totalDaysInMonth > 0
-                ? round(($occupiedNights / $totalDaysInMonth) * 100, 1)
-                : 0;
-
-            $vacantNights = $totalDaysInMonth - $occupiedNights;
-
-            $bookedRemainingNights = 0;
-            $startOfRemaining = $today->greaterThan($startDate) ? $today : $startDate;
-
-            if ($startOfRemaining->lessThanOrEqualTo($endDate)) {
-                $daysRemaining = $startOfRemaining->diffInDays($endDate) + 1;
-                for ($d = 0; $d < $daysRemaining; $d++) {
-                    $currentNight = $startOfRemaining->copy()->addDays($d)->startOfDay();
-                    foreach ($bookings as $booking) {
-                        $ci = Carbon::parse($booking->check_in)->startOfDay();
-                        $co = Carbon::parse($booking->check_out)->startOfDay();
-                        if ($currentNight->greaterThanOrEqualTo($ci) && $currentNight->lessThan($co)) {
-                            $bookedRemainingNights++;
-                            break;
-                        }
-                    }
+                if ($isOccupied) {
+                    $occupiedNights++;
+                } elseif ($currentNight->lessThan($today)) {
+                    // Empty night in the past is counted as passed empty
+                    $passedEmptyNights++;
                 }
             }
 
-            $unbookedRemainingNights = max(0, $remainingNights - $bookedRemainingNights);
-            $potentialMaxOccupiedNights = $occupiedNights + $unbookedRemainingNights;
+            // sisa kosong: total malam bulan ini - okupansi - malam kosong yang sudah terlewat
+            $vacantNights = max(0, $totalDaysInMonth - $occupiedNights - $passedEmptyNights);
+
+            $occupancyPercentage = $totalDaysInMonth > 0
+                ? (int) round(($occupiedNights / $totalDaysInMonth) * 100)
+                : 0;
+
+            $potentialMaxOccupiedNights = min($totalDaysInMonth, $occupiedNights + $vacantNights);
 
             $potentialMaxOccupancyPercentage = $totalDaysInMonth > 0
-                ? round(($potentialMaxOccupiedNights / $totalDaysInMonth) * 100, 1)
+                ? (int) round(($potentialMaxOccupiedNights / $totalDaysInMonth) * 100)
                 : 0;
 
             $targetStatus = 'Tidak Tercapai';
@@ -252,7 +245,7 @@ class ReportController extends Controller
 
         // Summary Statistics for the whole property portfolio
         $totalUnits = count($occupancyReport);
-        $avgOccupancy = $totalUnits > 0 ? round(collect($occupancyReport)->avg('occupancy_percentage'), 1) : 0;
+        $avgOccupancy = $totalUnits > 0 ? (int) round(collect($occupancyReport)->avg('occupancy_percentage')) : 0;
         $totalOccupied = collect($occupancyReport)->sum('occupied_nights');
         $totalVacant = collect($occupancyReport)->sum('vacant_nights');
         $unitsMeetingTarget = collect($occupancyReport)->where('target_status', 'Tercapai')->count();
