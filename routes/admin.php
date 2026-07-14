@@ -493,6 +493,8 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
 
     Route::patch('users/{user}/status', [UserController::class, 'toggleStatus'])
         ->name('users.status');
+    Route::get('users/{user}/activities', [UserController::class, 'activities'])
+        ->name('users.activities');
 
     // Payment Methods Management
     Route::controller(PaymentMethodController::class)

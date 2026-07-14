@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Models\User;
+use App\Models\UserActivityLog;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -294,5 +296,32 @@ class UserController extends Controller
         ];
 
         return back()->with('success', "Status user berhasil {$statusLabel[$request->status]}");
+    }
+
+    /**
+     * Get user activity logs
+     */
+    public function activities(User $user): JsonResponse
+    {
+        $this->authorize('viewAny', User::class);
+
+        $activities = UserActivityLog::where('user_id', $user->id)
+            ->latest()
+            ->limit(50)
+            ->get()
+            ->map(function ($log) {
+                return [
+                    'id' => $log->id,
+                    'activity_type' => $log->activity_type,
+                    'reference_type' => $log->reference_type,
+                    'reference_id' => $log->reference_id,
+                    'description' => $log->description,
+                    'properties' => $log->properties,
+                    'created_at' => $log->created_at->toDateTimeString(),
+                    'created_at_human' => $log->created_at->diffForHumans(),
+                ];
+            });
+
+        return response()->json($activities);
     }
 }
