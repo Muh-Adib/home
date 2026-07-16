@@ -75,6 +75,9 @@ RUN apk add --no-cache \
     libwebp \
     imagemagick
 
+# Install global node packages
+RUN npm install -g laravel-echo-server@1.6.3
+
 # Install PHP extensions safely & efficiently
 RUN install-php-extensions \
     gd \
@@ -154,6 +157,7 @@ COPY dokploy/config/mime.types /etc/nginx/mime.types
 COPY dokploy/config/fastcgi_params /etc/nginx/fastcgi_params
 COPY dokploy/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY dokploy/config/php-fpm.conf /etc/php-fpm.conf
+COPY dokploy/config/php-prod.ini /usr/local/etc/php/conf.d/php-prod.ini
 
 # Copy safe startup script and echo config generator
 COPY dokploy/scripts/safe-startup.sh /usr/local/bin/safe-startup.sh
