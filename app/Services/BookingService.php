@@ -70,7 +70,7 @@ class BookingService
 
                     // ✅ Always save daily revenue for confirmed/paid bookings
                     // This ensures breakdown is stored for accurate monthly reporting
-                    if (in_array($booking->booking_status, ['confirmed', 'checked_in', 'completed']) || $booking->payment_status === 'paid') {
+                    if (in_array($booking->booking_status, ['confirmed', 'checked_in', 'checked_out']) || $booking->payment_status === 'paid') {
                         BookingDailyRevenue::where('booking_id', $booking->id)->delete();
                         $this->insertDailyRevenueWithBreakdown($booking, $property, $rateCalculation->toArray());
                     }
@@ -129,7 +129,7 @@ class BookingService
                     $booking = $this->bookingRepository->update($booking, $request, $property, $rateCalculation);
 
                     // ✅ Save daily revenue for all confirmed bookings with breakdown
-                    if (in_array($booking->booking_status, ['confirmed', 'checked_in', 'completed']) || $booking->payment_status === 'paid') {
+                    if (in_array($booking->booking_status, ['confirmed', 'checked_in', 'checked_out']) || $booking->payment_status === 'paid') {
                         BookingDailyRevenue::where('booking_id', $booking->id)->delete();
                         $this->insertDailyRevenueWithBreakdown($booking, $property, $rateCalculation->toArray());
                     }

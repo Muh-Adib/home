@@ -804,10 +804,13 @@ class PropertyManagementController extends Controller
                 ->get();
 
             // Calculate KPIs
-            $confirmedBookings = $bookings->where('booking_status', '!=', 'cancelled');
+            $confirmedBookings = $bookings->filter(function ($booking) {
+                return in_array($booking->booking_status, ['confirmed', 'checked_in', 'checked_out']) ||
+                    ($booking->booking_status === 'cancelled' && in_array($booking->payment_status, ['dp_received', 'fully_paid']));
+            });
             $revenueTotal = $confirmedBookings->sum('total_amount');
-            $totalBookings = $bookings->count();
-            $averageRating = $bookings->whereNotNull('guest_rating')->avg('guest_rating') ?? 0;
+            $totalBookings = $confirmedBookings->count();
+            $averageRating = $confirmedBookings->whereNotNull('guest_rating')->avg('guest_rating') ?? 0;
 
             // Calculate occupancy rate
             $totalDays = Carbon::parse($from)->diffInDays(Carbon::parse($to)) + 1;
@@ -896,11 +899,16 @@ class PropertyManagementController extends Controller
                 return $booking->check_in <= $periodEnd && $booking->check_out >= $current;
             });
 
-            $revenue = $periodBookings->where('booking_status', '!=', 'cancelled')->sum('total_amount');
+            $confirmedPeriodBookings = $periodBookings->filter(function ($booking) {
+                return in_array($booking->booking_status, ['confirmed', 'checked_in', 'checked_out']) ||
+                    ($booking->booking_status === 'cancelled' && in_array($booking->payment_status, ['dp_received', 'fully_paid']));
+            });
+
+            $revenue = $confirmedPeriodBookings->sum('total_amount');
 
             // Calculate occupancy for this period
             $periodDays = $current->diffInDays($periodEnd) + 1;
-            $bookedDays = $periodBookings->where('booking_status', '!=', 'cancelled')->sum(function ($booking) use ($current, $periodEnd) {
+            $bookedDays = $confirmedPeriodBookings->sum(function ($booking) use ($current, $periodEnd) {
                 $start = max($booking->check_in, $current);
                 $end = min($booking->check_out, $periodEnd);
 

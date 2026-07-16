@@ -231,7 +231,7 @@ class PropertyFinancialService
 
         $ymExprBooking = $this->dateGroupExpr('check_in');
         $bookings = Booking::where('property_id', $property->id)
-            ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
+            ->confirmedBookings()
             ->whereBetween('check_in', [$start, $end])
             ->selectRaw("{$ymExprBooking} as ym, COUNT(*) as count, SUM(nights) as total_nights")
             ->groupBy('ym')
@@ -365,7 +365,7 @@ class PropertyFinancialService
     private function buildBookingSources(Property $property, string $from, string $to): array
     {
         $rows = Booking::where('property_id', $property->id)
-            ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
+            ->confirmedBookings()
             ->whereBetween('check_in', [$from, $to])
             ->selectRaw('COALESCE(source, "direct") as source, COUNT(*) as count, SUM(total_amount) as revenue')
             ->groupBy('source')
@@ -429,7 +429,7 @@ class PropertyFinancialService
     private function topBookings(Property $property, string $from, string $to): array
     {
         return Booking::where('property_id', $property->id)
-            ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
+            ->confirmedBookings()
             ->whereBetween('check_in', [$from, $to])
             ->orderByDesc('total_amount')
             ->limit(10)
@@ -463,7 +463,7 @@ class PropertyFinancialService
         $availableNights = (int) $start->diffInDays($end);
 
         $bookedNights = (int) Booking::where('property_id', $property->id)
-            ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
+            ->confirmedBookings()
             ->whereBetween('check_in', [$from, $to])
             ->sum('nights');
 

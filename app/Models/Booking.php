@@ -247,6 +247,17 @@ class Booking extends Model
         return $query->whereIn('booking_status', ['confirmed', 'checked_in']);
     }
 
+    public function scopeConfirmedBookings($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
+                ->orWhere(function ($sub) {
+                    $sub->where('booking_status', 'cancelled')
+                        ->whereIn('payment_status', ['dp_received', 'fully_paid']);
+                });
+        });
+    }
+
     public function scopeUpcoming($query)
     {
         return $query->where('check_in', '>', now())

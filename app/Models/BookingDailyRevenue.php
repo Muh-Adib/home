@@ -73,7 +73,13 @@ class BookingDailyRevenue extends Model
     public function scopeConfirmedBookings(Builder $query): Builder
     {
         return $query->whereHas('booking', function ($q) {
-            $q->whereIn('booking_status', ['confirmed', 'checked_in', 'completed']);
+            $q->where(function ($sub) {
+                $sub->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
+                    ->orWhere(function ($orSub) {
+                        $orSub->where('booking_status', 'cancelled')
+                            ->whereIn('payment_status', ['dp_received', 'fully_paid']);
+                    });
+            });
         });
     }
 

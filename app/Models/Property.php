@@ -170,7 +170,7 @@ class Property extends Model
 
     public function confirmedBookings(): HasMany
     {
-        return $this->hasMany(Booking::class)->where('booking_status', 'confirmed');
+        return $this->hasMany(Booking::class)->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out']);
     }
 
     public function expenses(): HasMany

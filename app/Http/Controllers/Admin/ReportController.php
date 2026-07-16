@@ -441,7 +441,7 @@ class ReportController extends Controller
                 $totalRevenue = $roomRevenue + $servicesRevenue;
 
                 $bookingsCount = Booking::where('property_id', $property->id)
-                    ->whereIn('booking_status', ['confirmed', 'checked_in', 'completed'])
+                    ->confirmedBookings()
                     ->where(function ($q) use ($startDate, $endDate) {
                         $q->where('check_in', '<=', $endDate->toDateString())
                             ->where('check_out', '>=', $startDate->toDateString());
@@ -490,7 +490,7 @@ class ReportController extends Controller
 
         // 4. Booking Sources breakdown for this period
         $bookingSources = Booking::whereIn('property_id', $propertyIds)
-            ->whereIn('booking_status', ['confirmed', 'checked_in', 'completed'])
+            ->confirmedBookings()
             ->whereBetween('check_in', [$startDate->toDateString(), $endDate->toDateString()])
             ->when($propertyId, function ($q) use ($propertyId) {
                 $q->where('property_id', $propertyId);

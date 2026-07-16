@@ -220,9 +220,7 @@ class DashboardController extends Controller
 
         // Filter by user role for base queries
         $dailyRevenueQuery = BookingDailyRevenue::query()
-            ->whereHas('booking', function ($q) {
-                $q->whereIn('booking_status', ['confirmed', 'checked_in', 'completed']);
-            });
+            ->confirmedBookings();
 
         $bookingQuery = Booking::query();
         $paymentQuery = Payment::query();
@@ -498,9 +496,7 @@ class DashboardController extends Controller
             $monthEnd = $current->copy()->endOfMonth();
 
             $revenueQuery = BookingDailyRevenue::whereBetween('tanggal', [$monthStart, $monthEnd])
-                ->whereHas('booking', function ($q) {
-                    $q->whereIn('booking_status', ['confirmed', 'checked_in', 'completed']);
-                });
+                ->confirmedBookings();
 
             if ($user->role === 'property_owner') {
                 $revenueQuery->whereHas('property', function ($q) use ($user) {
@@ -566,14 +562,12 @@ class DashboardController extends Controller
             // Get this month's revenue from daily breakdown
             $monthlyRevenue = BookingDailyRevenue::where('property_id', $property->id)
                 ->whereBetween('tanggal', [$thisMonth, now()])
-                ->whereHas('booking', function ($q) {
-                    $q->whereIn('booking_status', ['confirmed', 'checked_in', 'completed']);
-                })
+                ->confirmedBookings()
                 ->sum('amount');
 
             // Get booking count for this month
             $bookingCount = Booking::where('property_id', $property->id)
-                ->whereIn('booking_status', ['confirmed', 'checked_in', 'completed'])
+                ->confirmedBookings()
                 ->whereBetween('created_at', [$thisMonth, now()])
                 ->count();
 

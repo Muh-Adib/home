@@ -42,7 +42,7 @@ class SyncBookingDailyRevenue extends Command
         $this->info('Starting booking daily revenue sync...');
 
         $query = Booking::query()
-            ->whereIn('booking_status', ['confirmed', 'checked_in', 'completed'])
+            ->confirmedBookings()
             ->with('property');
 
         // Apply filters
