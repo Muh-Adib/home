@@ -52,7 +52,10 @@ RUN npm prune --omit=dev --legacy-peer-deps
 # ============================================================
 FROM php:8.4-fpm-alpine AS php-stage
 
-# Install system dependencies (including ImageMagick + WebP support for image processing)
+# Install community php-extension-installer to install extensions via pre-compiled alpine packages
+COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
+
+# Install system dependencies (runtime dependencies only, excluding heavy compilers)
 RUN apk add --no-cache \
     nginx \
     supervisor \
@@ -61,35 +64,22 @@ RUN apk add --no-cache \
     bash \
     git \
     netcat-openbsd \
-    libpng-dev \
-    libjpeg-turbo-dev \
-    freetype-dev \
-    libzip-dev \
     zip \
     unzip \
-    icu-dev \
-    oniguruma-dev \
     mysql-client \
     postgresql-client \
-    postgresql-dev \
-    autoconf \
-    g++ \
-    make \
-    pcre-dev \
     nodejs \
     npm \
     sqlite \
-    sqlite-dev \
-    pkgconfig \
     coreutils \
     libwebp \
-    libwebp-dev \
-    imagemagick \
-    imagemagick-dev
+    imagemagick
 
-# PHP extensions + Redis + Imagick in single step to avoid BuildKit cache issues
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
-    docker-php-ext-install -j$(nproc) \
+# Install PHP extensions safely & efficiently
+RUN install-php-extensions \
+    gd \
+    zip \
+    intl \
     pdo_mysql \
     pdo_pgsql \
     pdo_sqlite \
@@ -97,17 +87,9 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
     exif \
     pcntl \
     bcmath \
-    gd \
-    zip \
-    intl \
-    opcache && \
-    pecl install redis imagick && \
-    docker-php-ext-enable redis imagick && \
-    php -m | grep -q redis && \
-    php -m | grep -q imagick
-
-# Cleanup build tools
-RUN apk del autoconf g++ make pcre-dev postgresql-dev sqlite-dev || true
+    opcache \
+    redis \
+    imagick
 
 # Workdir consistent with Nixpacks configs (nginx root and supervisor use /app)
 WORKDIR /app
