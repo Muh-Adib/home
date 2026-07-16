@@ -1,33 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import { Link, router } from '@inertiajs/react';
-import { Button } from '@/components/ui/button';
-import { formatCurrency } from '@/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import {
-    Calendar,
-    MapPin,
-    Users,
-    Clock,
-    CreditCard,
-    Eye,
-    Building2,
-    CheckCircle,
-    AlertCircle,
-    Star,
-    Key,
-    ExternalLink,
-    Sparkles,
-    Timer,
-    Wallet
-} from 'lucide-react';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import { PaymentStatusBadge } from '@/components/booking/PaymentStatusBadge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { formatCurrency } from '@/lib/utils';
+import { Link, router } from '@inertiajs/react';
+import {
+    AlertCircle,
+    Building2,
+    Calendar,
+    CheckCircle,
+    CreditCard,
+    ExternalLink,
+    Eye,
+    Key,
+    MapPin,
+    Sparkles,
+    Star,
+    Timer,
+    Users,
+    Wallet,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface Property {
@@ -111,8 +109,9 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
     const [countdown, setCountdown] = useState('');
 
     // Get property cover image
-    const coverImage = booking.property.media?.find(m => m.media_type === 'image' && m.is_cover)?.url ||
-        booking.property.media?.find(m => m.media_type === 'image')?.url;
+    const coverImage =
+        booking.property.media?.find((m) => m.media_type === 'image' && m.is_cover)?.url ||
+        booking.property.media?.find((m) => m.media_type === 'image')?.url;
 
     // Countdown timer for check-in
     useEffect(() => {
@@ -148,28 +147,21 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
         }
     }, [booking.can_show_checkin, booking.check_in, booking.checkin_time_formatted]);
 
-
-
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('id-ID', {
             day: 'numeric',
             month: 'short',
-            year: 'numeric'
+            year: 'numeric',
         });
     };
 
-
     const canMakePayment = (booking: Booking) => {
-        return booking.booking_status === 'confirmed' &&
-            ['dp_pending', 'dp_received'].includes(booking.payment_status) &&
-            booking.payment_link;
+        return booking.booking_status === 'confirmed' && ['dp_pending', 'dp_received'].includes(booking.payment_status) && booking.payment_link;
     };
 
     const getPaidAmount = (booking: Booking) => {
         if (!booking.payments) return 0;
-        return booking.payments
-            .filter(p => p.payment_status === 'verified')
-            .reduce((sum, p) => sum + p.amount, 0);
+        return booking.payments.filter((p) => p.payment_status === 'verified').reduce((sum, p) => sum + p.amount, 0);
     };
 
     const getRemainingAmount = (booking: Booking) => {
@@ -188,7 +180,7 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                 booking_id: booking.id,
                 property_id: booking.property.id,
                 rating: reviewRating,
-                comment: reviewComment
+                comment: reviewComment,
             });
             setShowReviewDialog(false);
             setReviewRating(5);
@@ -202,59 +194,49 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
 
     return (
         <>
-            <Card className="overflow-hidden hover:shadow-lg transition-shadow">
+            <Card className="overflow-hidden transition-shadow hover:shadow-lg">
                 <CardContent className="p-0">
                     {/* Property Image */}
                     {coverImage && (
                         <div className="relative h-48 bg-gray-200">
-                            <img
-                                src={coverImage}
-                                alt={booking.property.name}
-                                className="w-full h-full object-cover"
-                            />
+                            <img src={coverImage} alt={booking.property.name} className="h-full w-full object-cover" />
                             <div className="absolute top-4 left-4">
-                                <Badge className="bg-black/60 text-white">
-                                    {booking.booking_number}
-                                </Badge>
+                                <Badge className="bg-black/60 text-white">{booking.booking_number}</Badge>
                             </div>
                         </div>
                     )}
 
                     <div className="p-6">
                         {/* Header */}
-                        <div className="flex items-start justify-between mb-4">
+                        <div className="mb-4 flex items-start justify-between">
                             <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
+                                <div className="mb-2 flex items-center gap-3">
                                     <BookingStatusBadge status={booking.booking_status} booking={booking} />
                                     <PaymentStatusBadge status={booking.payment_status} />
                                     {booking.can_show_checkin && (
-                                        <Badge className="bg-blue-100 text-blue-800 border-blue-300">
-                                            <Sparkles className="h-3 w-3 mr-1" />
+                                        <Badge className="border-blue-300 bg-blue-100 text-blue-800">
+                                            <Sparkles className="mr-1 h-3 w-3" />
                                             Check-in Mandiri
                                         </Badge>
                                     )}
                                 </div>
                                 <Link href={`/properties/${booking.property.slug}`} className="text-blue-600 hover:underline">
-                                    <h4 className="font-medium text-lg text-blue-600">{booking.property.name}</h4>
+                                    <h4 className="text-lg font-medium text-blue-600">{booking.property.name}</h4>
                                 </Link>
-                                <div className="flex items-center text-sm text-gray-600 mt-1">
-                                    <MapPin className="h-4 w-4 mr-1" />
+                                <div className="mt-1 flex items-center text-sm text-gray-600">
+                                    <MapPin className="mr-1 h-4 w-4" />
                                     <span>{booking.property.address}</span>
                                 </div>
                             </div>
                             <div className="text-right">
-                                <p className="text-2xl font-bold text-blue-600">
-                                    {formatCurrency(booking.total_amount)}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                    {booking.nights} malam
-                                </p>
+                                <p className="text-2xl font-bold text-blue-600">{formatCurrency(booking.total_amount)}</p>
+                                <p className="text-sm text-gray-600">{booking.nights} malam</p>
                             </div>
                         </div>
 
                         {/* Check-in Instructions */}
                         {booking.can_show_checkin && (
-                            <Alert className="mb-4 bg-blue-50 border-blue-200">
+                            <Alert className="mb-4 border-blue-200 bg-blue-50">
                                 <CheckCircle className="h-4 w-4 text-blue-600" />
                                 <AlertDescription className="text-blue-800">
                                     <div className="space-y-2">
@@ -264,22 +246,25 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                                         </div>
                                         {booking.checkin_instruction && (
                                             <div className="text-sm">
-                                                <strong>Instruksi Check-in:</strong><br />
+                                                <strong>Instruksi Check-in:</strong>
+                                                <br />
                                                 {booking.checkin_instruction}
                                             </div>
                                         )}
                                         {booking.keybox_code && (
                                             <div className="flex items-center gap-2 text-sm">
                                                 <Key className="h-4 w-4" />
-                                                <span><strong>Kode Keybox:</strong> {booking.keybox_code}</span>
+                                                <span>
+                                                    <strong>Kode Keybox:</strong> {booking.keybox_code}
+                                                </span>
                                             </div>
                                         )}
                                         {booking.maps_link && (
                                             <Button variant="outline" size="sm" asChild className="mt-2">
                                                 <a href={booking.maps_link} target="_blank" rel="noopener noreferrer">
-                                                    <MapPin className="h-4 w-4 mr-2" />
+                                                    <MapPin className="mr-2 h-4 w-4" />
                                                     Lihat di Google Maps
-                                                    <ExternalLink className="h-4 w-4 ml-2" />
+                                                    <ExternalLink className="ml-2 h-4 w-4" />
                                                 </a>
                                             </Button>
                                         )}
@@ -289,7 +274,7 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                         )}
 
                         {/* Booking Details */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-4">
                             <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-gray-500" />
                                 <div>
@@ -310,7 +295,7 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                                     <p className="text-sm font-medium">Tamu</p>
                                     <p className="text-sm text-gray-600">
                                         {booking.guest_count} orang
-                                        <span className="text-xs text-gray-500 ml-1">
+                                        <span className="ml-1 text-xs text-gray-500">
                                             ({booking.guest_male}M, {booking.guest_female}F, {booking.guest_children}C)
                                         </span>
                                     </p>
@@ -333,43 +318,39 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                                 <AlertCircle className="h-4 w-4" />
                                 <AlertDescription>
                                     Pembayaran yang belum dilakukan: {formatCurrency(getRemainingAmount(booking))}
-                                    {booking.payment_status === 'dp_pending' && booking.booking_status === 'pending_verification' && ' (Mohon tunggu admin untuk melakukan verifikasi)'}
+                                    {booking.payment_status === 'dp_pending' &&
+                                        booking.booking_status === 'pending_verification' &&
+                                        ' (Mohon tunggu admin untuk melakukan verifikasi)'}
                                     {booking.payment_status === 'dp_pending' && booking.booking_status === 'confirmed' && ' (DP wajib dilakukan)'}
-                                    {booking.payment_status === 'dp_received' && booking.booking_status === 'confirmed' && ' (Pembayaran yang belum dilakukan)'}
+                                    {booking.payment_status === 'dp_received' &&
+                                        booking.booking_status === 'confirmed' &&
+                                        ' (Pembayaran yang belum dilakukan)'}
                                 </AlertDescription>
                             </Alert>
                         )}
 
                         {/* Action Buttons */}
-                        <div className="flex items-center justify-between pt-4 border-t">
+                        <div className="flex items-center justify-between border-t pt-4">
                             <div className="flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => onViewDetails(booking)}
-                                >
-                                    <Eye className="h-4 w-4 mr-2" />
+                                <Button variant="outline" size="sm" onClick={() => onViewDetails(booking)}>
+                                    <Eye className="mr-2 h-4 w-4" />
                                     Detail
                                 </Button>
                                 <Link href={`/properties/${booking.property.slug}`}>
                                     <Button variant="outline" size="sm">
-                                        <Building2 className="h-4 w-4 mr-2" />
+                                        <Building2 className="mr-2 h-4 w-4" />
                                         Lihat Properti
                                     </Button>
                                 </Link>
                                 {booking.can_review && !booking.review && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setShowReviewDialog(true)}
-                                    >
-                                        <Star className="h-4 w-4 mr-2" />
+                                    <Button variant="outline" size="sm" onClick={() => setShowReviewDialog(true)}>
+                                        <Star className="mr-2 h-4 w-4" />
                                         Beri Ulasan
                                     </Button>
                                 )}
                                 {booking.review && (
-                                    <Badge variant="outline" className="text-green-600 border-green-300">
-                                        <Star className="h-3 w-3 mr-1" />
+                                    <Badge variant="outline" className="border-green-300 text-green-600">
+                                        <Star className="mr-1 h-3 w-3" />
                                         Sudah Diulas
                                     </Badge>
                                 )}
@@ -377,9 +358,9 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
 
                             <div className="flex gap-2">
                                 {canMakePayment(booking) && (
-                                    <Link href={booking.payment_link!}>
+                                    <Link href={booking.payment_link || undefined}>
                                         <Button size="sm">
-                                            <CreditCard className="h-4 w-4 mr-2" />
+                                            <CreditCard className="mr-2 h-4 w-4" />
                                             Lakukan pembayaran
                                         </Button>
                                     </Link>
@@ -399,7 +380,7 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                     <div className="space-y-4">
                         <div>
                             <Label>Rating</Label>
-                            <div className="flex gap-1 mt-2">
+                            <div className="mt-2 flex gap-1">
                                 {[1, 2, 3, 4, 5].map((star) => (
                                     <button
                                         key={star}
@@ -410,9 +391,7 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                                     </button>
                                 ))}
                             </div>
-                            <p className="text-sm text-gray-600 mt-1">
-                                {reviewRating} bintang
-                            </p>
+                            <p className="mt-1 text-sm text-gray-600">{reviewRating} bintang</p>
                         </div>
                         <div>
                             <Label htmlFor="comment">Komentar</Label>
@@ -425,17 +404,10 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
                             />
                         </div>
                         <div className="flex gap-2">
-                            <Button
-                                onClick={handleSubmitReview}
-                                disabled={isSubmittingReview}
-                                className="flex-1"
-                            >
+                            <Button onClick={handleSubmitReview} disabled={isSubmittingReview} className="flex-1">
                                 {isSubmittingReview ? 'Mengirim...' : 'Kirim Ulasan'}
                             </Button>
-                            <Button
-                                variant="outline"
-                                onClick={() => setShowReviewDialog(false)}
-                            >
+                            <Button variant="outline" onClick={() => setShowReviewDialog(false)}>
                                 Batal
                             </Button>
                         </div>
@@ -444,4 +416,4 @@ export default function BookingCard({ booking, onViewDetails }: BookingCardProps
             </Dialog>
         </>
     );
-} 
+}
