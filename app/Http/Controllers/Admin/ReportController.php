@@ -177,35 +177,33 @@ class ReportController extends Controller
             ? Property::where('owner_id', $user->id)->active()->get()
             : Property::active()->get();
 
+        $propertyIds = $propertiesList->pluck('id')->toArray();
+
+        // Eager load all confirmed daily revenues for the date range
+        $allRevenues = BookingDailyRevenue::whereIn('property_id', $propertyIds)
+            ->where('tanggal', '>=', $startDate->toDateString())
+            ->where('tanggal', '<=', $endDate->toDateString())
+            ->confirmedBookings()
+            ->get(['property_id', 'tanggal'])
+            ->groupBy('property_id');
+
         $occupancyReport = [];
 
         foreach ($propertiesList as $property) {
-            $bookings = Booking::where('property_id', $property->id)
-                ->where('booking_status', '!=', 'cancelled')
-                ->where(function ($q) use ($startDate, $endDate) {
-                    $q->where('check_in', '<=', $endDate->toDateString())
-                        ->where('check_out', '>=', $startDate->toDateString());
-                })
-                ->get();
+            $propertyRevenues = $allRevenues->get($property->id) ?? collect();
+            $occupiedDates = $propertyRevenues->pluck('tanggal')
+                ->map(fn ($d) => $d instanceof Carbon ? $d->toDateString() : Carbon::parse($d)->toDateString())
+                ->flip()
+                ->toArray();
 
             $occupiedNights = 0;
             $passedEmptyNights = 0;
 
             for ($d = 0; $d < $totalDaysInMonth; $d++) {
                 $currentNight = $startDate->copy()->addDays($d)->startOfDay();
+                $dateStr = $currentNight->toDateString();
 
-                // Check if this night is occupied
-                $isOccupied = false;
-                foreach ($bookings as $booking) {
-                    $ci = Carbon::parse($booking->check_in)->startOfDay();
-                    $co = Carbon::parse($booking->check_out)->startOfDay();
-                    if ($currentNight->greaterThanOrEqualTo($ci) && $currentNight->lessThan($co)) {
-                        $isOccupied = true;
-                        break;
-                    }
-                }
-
-                if ($isOccupied) {
+                if (isset($occupiedDates[$dateStr])) {
                     $occupiedNights++;
                 } elseif ($currentNight->lessThan($today)) {
                     // Empty night in the past is counted as passed empty
@@ -448,12 +446,11 @@ class ReportController extends Controller
                     })
                     ->count();
 
-                $occupancyRate = $this->calculatePropertyOccupancyRate($property->id, $startDate, $endDate);
-
                 $bookedDays = $revenues->count();
+                $totalDays = max(1, $startDate->diffInDays($endDate));
+                $occupancyRate = ($bookedDays / $totalDays) * 100;
 
                 $adr = $bookedDays > 0 ? $totalRevenue / $bookedDays : 0;
-                $totalDays = max(1, $startDate->diffInDays($endDate));
                 $revpar = $totalDays > 0 ? $totalRevenue / $totalDays : 0;
 
                 return [
@@ -1327,30 +1324,21 @@ class ReportController extends Controller
 
     private function calculatePropertyOccupancyRate($propertyId, $startDate, $endDate): float
     {
-        $totalDays = $startDate->diffInDays($endDate);
+        $startDateStr = $startDate instanceof Carbon ? $startDate->toDateString() : $startDate;
+        $endDateStr = $endDate instanceof Carbon ? $endDate->toDateString() : $endDate;
 
-        $bookedDays = Booking::where('property_id', $propertyId)
-            ->where('booking_status', '!=', 'cancelled')
-            ->where(function ($q) use ($startDate, $endDate) {
-                $q->whereBetween('check_in', [$startDate, $endDate])
-                    ->orWhereBetween('check_out', [$startDate, $endDate])
-                    ->orWhere(function ($q2) use ($startDate, $endDate) {
-                        $q2->where('check_in', '<=', $startDate)
-                            ->where('check_out', '>=', $endDate);
-                    });
-            })
-            ->get()
-            ->sum(function ($booking) use ($startDate, $endDate) {
-                $checkIn = Carbon::parse($booking->check_in);
-                $checkOut = Carbon::parse($booking->check_out);
+        $totalDays = Carbon::parse($startDateStr)->diffInDays(Carbon::parse($endDateStr));
+        if ($totalDays <= 0) {
+            return 0;
+        }
 
-                $actualStart = $checkIn->max($startDate);
-                $actualEnd = $checkOut->min($endDate);
+        $bookedDays = BookingDailyRevenue::where('property_id', $propertyId)
+            ->where('tanggal', '>=', $startDateStr)
+            ->where('tanggal', '<', $endDateStr)
+            ->confirmedBookings()
+            ->count();
 
-                return max(0, $actualStart->diffInDays($actualEnd));
-            });
-
-        return $totalDays > 0 ? ($bookedDays / $totalDays) * 100 : 0;
+        return ($bookedDays / $totalDays) * 100;
     }
 
     // Keep existing methods for backward compatibility

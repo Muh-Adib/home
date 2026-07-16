@@ -33,8 +33,10 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        // Run auto-publish check for scheduled articles
-        Artisan::call('articles:auto-publish');
+        // Run auto-publish check for scheduled articles if any are due
+        if (Article::where('status', 'scheduled')->where('scheduled_at', '<=', now())->exists()) {
+            Artisan::call('articles:auto-publish');
+        }
 
         // Single Source of Truth for Redirection
         $targetRoute = $this->dashboardRouteService->getDashboardRoute($user);
@@ -488,30 +490,35 @@ class DashboardController extends Controller
 
     private function getRevenueChartData($user): array
     {
+        $startDate = Carbon::now()->subMonths(11)->startOfMonth();
+        $endDate = Carbon::now()->endOfMonth();
+
+        $query = BookingDailyRevenue::whereBetween('tanggal', [$startDate->toDateString(), $endDate->toDateString()])
+            ->confirmedBookings();
+
+        if ($user->role === 'property_owner') {
+            $query->whereHas('property', function ($q) use ($user) {
+                $q->where('owner_id', $user->id);
+            });
+        }
+
+        $monthlyData = $query->get(['tanggal', 'amount'])
+            ->groupBy(function ($row) {
+                return Carbon::parse($row->tanggal)->format('Y-m');
+            })
+            ->map(fn ($group) => $group->sum('amount'))
+            ->toArray();
+
         $months = [];
-        $current = Carbon::now()->subMonths(11)->startOfMonth();
+        $current = $startDate->copy();
 
         for ($i = 0; $i < 12; $i++) {
-            $monthStart = $current->copy()->startOfMonth();
-            $monthEnd = $current->copy()->endOfMonth();
-
-            $revenueQuery = BookingDailyRevenue::whereBetween('tanggal', [$monthStart, $monthEnd])
-                ->confirmedBookings();
-
-            if ($user->role === 'property_owner') {
-                $revenueQuery->whereHas('property', function ($q) use ($user) {
-                    $q->where('owner_id', $user->id);
-                });
-            }
-
-            $revenue = $revenueQuery->sum('amount');
-
+            $ym = $current->format('Y-m');
             $months[] = [
                 'month' => $current->format('M Y'),
-                'revenue' => $revenue,
+                'revenue' => (float) ($monthlyData[$ym] ?? 0),
                 'month_short' => $current->format('M'),
             ];
-
             $current->addMonth();
         }
 
@@ -520,26 +527,34 @@ class DashboardController extends Controller
 
     private function getBookingTrends($user): array
     {
+        $startDate = Carbon::now()->subDays(29)->startOfDay();
+        $endDate = Carbon::now()->endOfDay();
+
+        $bookingQuery = Booking::whereBetween('created_at', [$startDate, $endDate]);
+
+        if ($user->role === 'property_owner') {
+            $bookingQuery->whereHas('property', function ($q) use ($user) {
+                $q->where('owner_id', $user->id);
+            });
+        }
+
+        $dailyData = $bookingQuery->get(['created_at'])
+            ->groupBy(function ($booking) {
+                return Carbon::parse($booking->created_at)->toDateString();
+            })
+            ->map(fn ($group) => $group->count())
+            ->toArray();
+
         $days = [];
         $current = Carbon::now()->subDays(29);
 
         for ($i = 0; $i < 30; $i++) {
-            $bookingQuery = Booking::whereDate('created_at', $current);
-
-            if ($user->role === 'property_owner') {
-                $bookingQuery->whereHas('property', function ($q) use ($user) {
-                    $q->where('owner_id', $user->id);
-                });
-            }
-
-            $bookings = $bookingQuery->count();
-
+            $dateString = $current->toDateString();
             $days[] = [
-                'date' => $current->format('Y-m-d'),
+                'date' => $dateString,
                 'day' => $current->format('M j'),
-                'bookings' => $bookings,
+                'bookings' => $dailyData[$dateString] ?? 0,
             ];
-
             $current->addDay();
         }
 
@@ -549,6 +564,7 @@ class DashboardController extends Controller
     private function getPropertyPerformance($user): array
     {
         $thisMonth = Carbon::now()->startOfMonth();
+        $now = Carbon::now();
 
         $propertyQuery = Property::query();
         if ($user->role === 'property_owner') {
@@ -558,26 +574,50 @@ class DashboardController extends Controller
         // Get properties with their performance metrics using BookingDailyRevenue
         $properties = $propertyQuery->active()->limit(5)->get();
 
-        return $properties->map(function ($property) use ($thisMonth) {
-            // Get this month's revenue from daily breakdown
-            $monthlyRevenue = BookingDailyRevenue::where('property_id', $property->id)
-                ->whereBetween('tanggal', [$thisMonth, now()])
-                ->confirmedBookings()
-                ->sum('amount');
+        if ($properties->isEmpty()) {
+            return [];
+        }
 
-            // Get booking count for this month
-            $bookingCount = Booking::where('property_id', $property->id)
-                ->confirmedBookings()
-                ->whereBetween('created_at', [$thisMonth, now()])
-                ->count();
+        $propertyIds = $properties->pluck('id')->toArray();
 
-            // Calculate occupancy rate
-            $occupancyRate = $this->calculateOccupancyRate(
-                auth()->user(),
-                $thisMonth,
-                now(),
-                $property->id
-            );
+        // 1. Batch load monthly revenues
+        $monthlyRevenues = BookingDailyRevenue::whereIn('property_id', $propertyIds)
+            ->whereBetween('tanggal', [$thisMonth->toDateString(), $now->toDateString()])
+            ->confirmedBookings()
+            ->get(['property_id', 'amount'])
+            ->groupBy('property_id')
+            ->map(fn ($group) => $group->sum('amount'))
+            ->toArray();
+
+        // 2. Batch load booking counts
+        $bookingCounts = Booking::whereIn('property_id', $propertyIds)
+            ->confirmedBookings()
+            ->whereBetween('created_at', [$thisMonth->startOfDay(), $now->endOfDay()])
+            ->get(['property_id'])
+            ->groupBy('property_id')
+            ->map(fn ($group) => $group->count())
+            ->toArray();
+
+        // 3. Batch load booked nights for occupancy rate
+        $startDateStr = $thisMonth->toDateString();
+        $endDateStr = $now->toDateString();
+        $totalDays = Carbon::parse($startDateStr)->diffInDays(Carbon::parse($endDateStr));
+
+        $bookedNightsData = BookingDailyRevenue::whereIn('property_id', $propertyIds)
+            ->where('tanggal', '>=', $startDateStr)
+            ->where('tanggal', '<', $endDateStr)
+            ->confirmedBookings()
+            ->get(['property_id'])
+            ->groupBy('property_id')
+            ->map(fn ($group) => $group->count())
+            ->toArray();
+
+        return $properties->map(function ($property) use ($totalDays, $monthlyRevenues, $bookingCounts, $bookedNightsData) {
+            $monthlyRevenue = (float) ($monthlyRevenues[$property->id] ?? 0);
+            $bookingCount = $bookingCounts[$property->id] ?? 0;
+            $bookedNights = $bookedNightsData[$property->id] ?? 0;
+
+            $occupancyRate = $totalDays > 0 ? ($bookedNights / $totalDays) * 100 : 0;
 
             return [
                 'id' => $property->id,
@@ -594,6 +634,9 @@ class DashboardController extends Controller
 
     private function calculateOccupancyRate($user, $startDate, $endDate, $propertyId = null): float
     {
+        $startDateStr = $startDate instanceof Carbon ? $startDate->toDateString() : $startDate;
+        $endDateStr = $endDate instanceof Carbon ? $endDate->toDateString() : $endDate;
+
         $propertyQuery = Property::query();
 
         if ($user->role === 'property_owner') {
@@ -604,41 +647,37 @@ class DashboardController extends Controller
             $propertyQuery->where('id', $propertyId);
         }
 
-        $properties = $propertyQuery->get();
+        $propertiesCount = $propertyQuery->count();
 
-        if ($properties->isEmpty()) {
+        if ($propertiesCount === 0) {
             return 0;
         }
 
-        $totalDays = $startDate->diffInDays($endDate) * $properties->count();
-        $bookedDays = 0;
+        $totalDays = Carbon::parse($startDateStr)->diffInDays(Carbon::parse($endDateStr));
+        $totalNights = $totalDays * $propertiesCount;
 
-        foreach ($properties as $property) {
-            $propertyBookedDays = $property->bookings()
-                ->where('booking_status', '!=', 'cancelled')
-                ->where(function ($q) use ($startDate, $endDate) {
-                    $q->whereBetween('check_in', [$startDate, $endDate])
-                        ->orWhereBetween('check_out', [$startDate, $endDate])
-                        ->orWhere(function ($q2) use ($startDate, $endDate) {
-                            $q2->where('check_in', '<=', $startDate)
-                                ->where('check_out', '>=', $endDate);
-                        });
-                })
-                ->get()
-                ->sum(function ($booking) use ($startDate, $endDate) {
-                    $checkIn = Carbon::parse($booking->check_in);
-                    $checkOut = Carbon::parse($booking->check_out);
-
-                    $actualStart = $checkIn->max($startDate);
-                    $actualEnd = $checkOut->min($endDate);
-
-                    return $actualStart->diffInDays($actualEnd);
-                });
-
-            $bookedDays += $propertyBookedDays;
+        if ($totalNights <= 0) {
+            return 0;
         }
 
-        return $totalDays > 0 ? ($bookedDays / $totalDays) * 100 : 0;
+        // Count booked days directly using booking daily revenue
+        $revenueQuery = BookingDailyRevenue::where('tanggal', '>=', $startDateStr)
+            ->where('tanggal', '<', $endDateStr)
+            ->confirmedBookings();
+
+        if ($user->role === 'property_owner') {
+            $revenueQuery->whereHas('property', function ($q) use ($user) {
+                $q->where('owner_id', $user->id);
+            });
+        }
+
+        if ($propertyId) {
+            $revenueQuery->where('property_id', $propertyId);
+        }
+
+        $bookedDays = $revenueQuery->count();
+
+        return ($bookedDays / $totalNights) * 100;
     }
 
     /**

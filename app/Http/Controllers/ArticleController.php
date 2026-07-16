@@ -38,8 +38,10 @@ class ArticleController extends Controller
     {
         $this->authorize('viewAny', Article::class);
 
-        // Run auto-publish check for scheduled articles
-        Artisan::call('articles:auto-publish');
+        // Run auto-publish check for scheduled articles if any are due
+        if (Article::where('status', 'scheduled')->where('scheduled_at', '<=', now())->exists()) {
+            Artisan::call('articles:auto-publish');
+        }
 
         $query = Article::with(['author', 'properties'])
             ->withCount('properties');

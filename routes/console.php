@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\GenerateTrendingArticleJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -12,13 +13,13 @@ Artisan::command('inspire', function () {
 Schedule::command('ical:sync')->everyTwoHours();
 
 // Automated Trending Articles (Yogyakarta Focus)
-Schedule::job(new \App\Jobs\GenerateTrendingArticleJob)
+Schedule::job(new GenerateTrendingArticleJob)
     ->dailyAt('10:00')
     ->timezone('Asia/Jakarta');
 
-Schedule::job(new \App\Jobs\GenerateTrendingArticleJob)
+Schedule::job(new GenerateTrendingArticleJob)
     ->dailyAt('15:00')
     ->timezone('Asia/Jakarta');
 
 // Auto-Publish Articles
-Schedule::command('articles:auto-publish')->everyMinute();
+Schedule::command('articles:auto-publish')->everyThirtyMinutes();
