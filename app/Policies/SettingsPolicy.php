@@ -19,6 +19,6 @@ class SettingsPolicy
      */
     public function manageSettings(User $user): bool
     {
-        return $user->role === 'super_admin';
+        return in_array($user->role, ['super_admin', 'admin']);
     }
 }

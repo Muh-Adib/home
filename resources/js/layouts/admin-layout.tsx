@@ -354,6 +354,65 @@ const getAdminNavItems = (userRole: User['role']) => {
         ]
       }
     ],
+    admin: [
+      ...baseItems,
+      {
+        title: 'Property Management',
+        href: '/admin/properties',
+        icon: Folder,
+        children: [
+          { title: 'All Properties', href: '/admin/properties', icon: Folder },
+          { title: 'Add Property', href: '/admin/properties/create', icon: Building2 },
+          { title: 'Rate Management', href: '/admin/rate-management', icon: DollarSign },
+          { title: 'Amenities', href: '/admin/amenities', icon: Building2 },
+          { title: 'Extra Service', href: '/admin/extra-services', icon: Package },
+        ]
+      },
+      {
+        title: 'Booking Management',
+        href: '/admin/bookings',
+        icon: BookOpen,
+        children: [
+          { title: 'All Bookings', href: '/admin/bookings', icon: BookOpen },
+          { title: 'Daily Operations', href: '/admin/bookings/daily-operations', icon: ListChecks },
+          { title: 'Create Booking', href: '/admin/bookings/create', icon: Calendar },
+          { title: 'Check-in/Out Report', href: '/admin/bookings/check-in-out', icon: Shield },
+          { title: 'Occupancy Report', href: '/admin/reports/occupancy', icon: BarChart3 },
+        ]
+      },
+      {
+        title: 'User Management',
+        href: '/admin/users',
+        icon: Users,
+        children: [
+          { title: 'All Users', href: '/admin/users', icon: Users },
+        ]
+      },
+      {
+        title: 'Operations',
+        href: '/admin/operations',
+        icon: ListChecks,
+        children: [
+          { title: 'Inventory Items', href: '/admin/inventory/items', icon: Folder },
+          { title: 'Inventory Purchases', href: '/admin/inventory/purchases', icon: Folder },
+          { title: 'Inventory Usages', href: '/admin/inventory/usages', icon: Folder },
+          { title: 'Jadwal Rutin', href: '/admin/housekeeping-schedules', icon: Calendar },
+          { title: 'Laporan Kerusakan', href: '/admin/unit-damages', icon: Wrench },
+          { title: 'Barang Tertinggal', href: '/admin/lost-and-founds', icon: ClipboardList },
+          { title: 'Tugas Khusus', href: '/admin/custom-tasks', icon: ListChecks },
+        ]
+      },
+      {
+        title: 'System',
+        href: '/admin/settings',
+        icon: Settings,
+        children: [
+          { title: 'Legal', href: '/admin/legal/', icon: FileText },
+          { title: 'AI Provider Keys', href: '/admin/settings/ai-keys', icon: KeySquare },
+          { title: 'SEO Pages', href: '/admin/seo-pages', icon: Globe }
+        ]
+      }
+    ],
     content_creator: [
       ...baseItems,
       {
@@ -365,6 +424,16 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Amenities', href: '/admin/amenities', icon: Building2 },
           { title: 'Extra Service', href: '/admin/extra-services', icon: Package },
         ]
+      },
+      {
+        title: 'Content Planner',
+        href: '/admin/content-plans',
+        icon: Calendar,
+      },
+      {
+        title: 'AI Keys Settings',
+        href: '/admin/settings/ai-keys',
+        icon: KeySquare,
       }
     ],
     guest: []
@@ -777,12 +846,14 @@ function AdminSidebarNav({ navItems, collapsed = false, onNavClick }: {
 
 const ROLE_BADGE_COLORS: Record<User['role'], string> = {
   super_admin:      'bg-amber-500/20 text-amber-200 border-amber-500/30',
+  admin:            'bg-rose-500/20 text-rose-200 border-rose-500/30',
   property_owner:   'bg-blue-500/20 text-blue-200 border-blue-500/30',
   property_manager: 'bg-green-500/20 text-green-200 border-green-500/30',
   front_desk:       'bg-purple-500/20 text-purple-200 border-purple-500/30',
   finance:          'bg-emerald-500/20 text-emerald-200 border-emerald-500/30',
   housekeeping:     'bg-orange-500/20 text-orange-200 border-orange-500/30',
   guest:            'bg-gray-500/20 text-gray-200 border-gray-500/30',
+  content_creator:  'bg-cyan-500/20 text-cyan-200 border-cyan-500/30',
 };
 
 // Admin Sidebar Footer Component (Sticky at bottom)
@@ -794,12 +865,14 @@ function AdminSidebarFooter({ collapsed = false }: { collapsed?: boolean }) {
   const getRoleDisplayName = (role: User['role']) => {
     const roleNames: Record<User['role'], string> = {
       super_admin: 'Super Administrator',
+      admin: 'Administrator',
       property_owner: 'Property Owner',
       property_manager: 'Property Manager',
       front_desk: 'Front Desk',
       finance: 'Finance',
       housekeeping: 'Housekeeping',
       guest: 'Guest',
+      content_creator: 'Content Creator',
     };
     return roleNames[role];
   };

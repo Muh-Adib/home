@@ -2,25 +2,29 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Article;
 use App\Models\Booking;
 use App\Models\BookingDailyRevenue;
+use App\Models\ContentPlan;
+use App\Models\LostAndFound;
 use App\Models\Payment;
 use App\Models\Property;
+use App\Models\SeoLandingPage;
+use App\Models\UnitDamage;
 use App\Models\User;
+use App\Services\DashboardRouteService;
+use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Http\RedirectResponse;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
-
     public function __construct(
-        private \App\Services\DashboardRouteService $dashboardRouteService
-    ) {
-    }
+        private DashboardRouteService $dashboardRouteService
+    ) {}
 
     /**
      * Display the dashboard
@@ -28,6 +32,9 @@ class DashboardController extends Controller
     public function index(Request $request): Response|RedirectResponse
     {
         $user = $request->user();
+
+        // Run auto-publish check for scheduled articles
+        Artisan::call('articles:auto-publish');
 
         // Single Source of Truth for Redirection
         $targetRoute = $this->dashboardRouteService->getDashboardRoute($user);
@@ -78,6 +85,58 @@ class DashboardController extends Controller
         // Property performance
         $propertyPerformance = $this->getPropertyPerformance($user);
 
+        // Get custom data for content creator
+        $contentCreatorData = null;
+        if ($user->role === 'content_creator') {
+            $totalArticleViews = Article::sum('view_count');
+            $totalSeoViews = SeoLandingPage::sum('views_count');
+            $totalTraffic = $totalArticleViews + $totalSeoViews;
+
+            $contentCreatorData = [
+                'site_traffic' => [
+                    'total' => $totalTraffic,
+                    'articles' => $totalArticleViews,
+                    'seo_pages' => $totalSeoViews,
+                ],
+                'newly_published_articles' => Article::where('status', 'published')
+                    ->with('author')
+                    ->orderBy('published_at', 'desc')
+                    ->take(5)
+                    ->get(),
+                'content_planner' => ContentPlan::orderBy('planned_publish_date', 'asc')
+                    ->take(5)
+                    ->get(),
+                'scheduled_articles' => Article::where('status', 'scheduled')
+                    ->orderBy('scheduled_at', 'asc')
+                    ->take(5)
+                    ->get(),
+            ];
+        }
+
+        // Get custom data for admin
+        $adminRoleData = null;
+        if ($user->role === 'admin' || $user->role === 'super_admin') {
+            $totalArticleViews = Article::sum('view_count');
+            $totalSeoViews = SeoLandingPage::sum('views_count');
+            $totalTraffic = $totalArticleViews + $totalSeoViews;
+
+            $adminRoleData = [
+                'site_traffic' => [
+                    'total' => $totalTraffic,
+                    'articles' => $totalArticleViews,
+                    'seo_pages' => $totalSeoViews,
+                ],
+                'damage_reports' => UnitDamage::with(['property', 'reporter'])
+                    ->orderBy('created_at', 'desc')
+                    ->take(5)
+                    ->get(),
+                'lost_and_founds' => LostAndFound::with(['property', 'booking'])
+                    ->orderBy('found_date', 'desc')
+                    ->take(5)
+                    ->get(),
+            ];
+        }
+
         return Inertia::render('Dashboard', [
             'kpis' => $kpis,
             'recentActivity' => $recentActivity,
@@ -87,13 +146,15 @@ class DashboardController extends Controller
             'revenueBreakdown' => $revenueBreakdown,
             'bookingTrends' => $bookingTrends,
             'propertyPerformance' => $propertyPerformance,
+            'contentCreatorData' => $contentCreatorData,
+            'adminRoleData' => $adminRoleData,
         ]);
     }
 
     /**
      * Admin Dashboard
      */
-    public function admin(Request $request): Response
+    public function admin(Request $request): Response|RedirectResponse
     {
         // Reuse the index logic or duplicate it if it needs specific admin variations
         // For now, we reuse index logic as it handles data gathering based on role
@@ -114,7 +175,7 @@ class DashboardController extends Controller
             ->get()
             ->map(function ($booking) {
                 $property = $booking->property;
-                $checkInDate = \Carbon\Carbon::parse($booking->check_in);
+                $checkInDate = Carbon::parse($booking->check_in);
                 $canShowInstructions = false;
 
                 // Show instructions only on check-in day or within check-in window (12:00 PM onwards)
@@ -299,7 +360,7 @@ class DashboardController extends Controller
                     'id' => $payment->id,
                     'type' => 'payment',
                     'title' => "Payment received: {$payment->payment_number}",
-                    'description' => "Amount: Rp " . number_format($payment->amount) . " - Status: {$payment->payment_status}",
+                    'description' => 'Amount: Rp '.number_format($payment->amount)." - Status: {$payment->payment_status}",
                     'time' => $payment->created_at,
                     'status' => $payment->payment_status,
                     'icon' => 'DollarSign',

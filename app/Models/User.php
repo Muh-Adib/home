@@ -147,6 +147,7 @@ class User extends Authenticatable
     {
         return $query->whereIn('role', [
             'super_admin',
+            'admin',
             'property_manager',
             'front_desk',
             'housekeeping',
@@ -173,13 +174,14 @@ class User extends Authenticatable
 
     public function isAdmin(): bool
     {
-        return $this->role === 'super_admin';
+        return in_array($this->role, ['super_admin', 'admin']);
     }
 
     public function isStaff(): bool
     {
         return in_array($this->role, [
             'super_admin',
+            'admin',
             'property_manager',
             'front_desk',
             'housekeeping',
@@ -192,6 +194,7 @@ class User extends Authenticatable
     {
         return in_array($this->role, [
             'super_admin',
+            'admin',
             'property_owner',
             'property_manager',
         ]);
@@ -201,6 +204,7 @@ class User extends Authenticatable
     {
         return in_array($this->role, [
             'super_admin',
+            'admin',
             'property_manager',
             'front_desk',
         ]);

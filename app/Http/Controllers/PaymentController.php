@@ -273,6 +273,16 @@ class PaymentController extends Controller
             }
             $expectedAmount = $request->amount + $uniqueCode;
 
+            $destBankName = $paymentMethod->bank_name;
+            $destAccountNumber = $paymentMethod->account_number;
+            $destAccountName = $paymentMethod->account_name;
+
+            if ($paymentMethod->type === 'bank_transfer' && $bankAccount && $bankAccount->payment_method_id === $paymentMethod->id) {
+                $destBankName = $bankAccount->bank_name;
+                $destAccountNumber = $bankAccount->account_number;
+                $destAccountName = $bankAccount->account_holder;
+            }
+
             // Create payment record
             $payment = Payment::create([
                 'booking_id' => $booking->id,
@@ -289,6 +299,9 @@ class PaymentController extends Controller
                 'verification_notes' => $request->payment_notes,
                 'payment_date' => now(),
                 'processed_by' => null, // Guest payment, no processor
+                'bank_name' => $destBankName,
+                'account_number' => $destAccountNumber,
+                'account_name' => $destAccountName,
             ]);
 
             // Update booking payment status
@@ -584,6 +597,16 @@ class PaymentController extends Controller
             }
             $expectedAmount = $request->amount + $uniqueCode;
 
+            $destBankName = $paymentMethod->bank_name;
+            $destAccountNumber = $paymentMethod->account_number;
+            $destAccountName = $paymentMethod->account_name;
+
+            if ($paymentMethod->type === 'bank_transfer' && $bankAccount && $bankAccount->payment_method_id === $paymentMethod->id) {
+                $destBankName = $bankAccount->bank_name;
+                $destAccountNumber = $bankAccount->account_number;
+                $destAccountName = $bankAccount->account_holder;
+            }
+
             // Create payment record
             $payment = Payment::create([
                 'booking_id' => $booking->id,
@@ -600,6 +623,9 @@ class PaymentController extends Controller
                 'verification_notes' => $request->payment_notes,
                 'payment_date' => now(),
                 'processed_by' => null, // Guest payment, no processor
+                'bank_name' => $destBankName,
+                'account_number' => $destAccountNumber,
+                'account_name' => $destAccountName,
             ]);
 
             // Update booking payment status

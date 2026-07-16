@@ -2,12 +2,12 @@
 
 namespace App\Observers;
 
+use App\Http\Controllers\SitemapController;
 use App\Jobs\NotifyGoogleIndexingJob;
 use App\Models\Article;
 use App\Models\ContentPlan;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
-use App\Http\Controllers\SitemapController;
+use Illuminate\Support\Str;
 
 class ArticleObserver
 {
@@ -56,7 +56,7 @@ class ArticleObserver
      */
     public function updated(Article $article): void
     {
-        $statusChanged   = $article->isDirty('status');
+        $statusChanged = $article->isDirty('status');
         $becamePublished = $statusChanged && $article->status === 'published';
         $becameUnpublished = $statusChanged && $article->status !== 'published';
 
@@ -98,7 +98,7 @@ class ArticleObserver
             ContentPlan::$isSyncing = true;
 
             $dataToSync = [
-                'status' => $article->status,
+                'status' => $this->mapArticleStatusToContentPlan($article->status),
                 'title' => $article->title,
                 'target_keywords' => $article->target_keywords,
             ];
@@ -155,6 +155,7 @@ class ArticleObserver
     private function buildArticleUrl(Article $article): string
     {
         $baseUrl = rtrim(config('app.url'), '/');
+
         return "{$baseUrl}/articles/{$article->slug}";
     }
 
@@ -164,7 +165,7 @@ class ArticleObserver
     private function generateUniqueSlug(string $title): string
     {
         $slug = Str::slug($title);
-        $count = Article::whereRaw("slug LIKE ?", ["{$slug}%"])->count();
+        $count = Article::whereRaw('slug LIKE ?', ["{$slug}%"])->count();
 
         return $count > 0 ? "{$slug}-{$count}" : $slug;
     }
@@ -174,7 +175,7 @@ class ArticleObserver
      */
     private function ensureContentPlan(Article $article): void
     {
-        if (!$article->content_plan_id) {
+        if (! $article->content_plan_id) {
             $plan = ContentPlan::create([
                 'title' => $article->title,
                 'target_keywords' => $article->target_keywords ?? [],
@@ -188,5 +189,24 @@ class ArticleObserver
             $article->content_plan_id = $plan->id;
             $article->saveQuietly();
         }
+    }
+
+    /**
+     * Map article status to a valid ContentPlan status.
+     */
+    private function mapArticleStatusToContentPlan(string $articleStatus): string
+    {
+        return match ($articleStatus) {
+            'draft' => 'writing',
+            'reviewing' => 'reviewing',
+            'scheduled' => 'scheduled',
+            'published' => 'published',
+            'idea' => 'idea',
+            'researching' => 'researching',
+            'outlining' => 'outlining',
+            'writing' => 'writing',
+            'archived' => 'published',
+            default => 'writing',
+        };
     }
 }

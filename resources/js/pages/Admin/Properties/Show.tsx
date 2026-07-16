@@ -97,6 +97,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
     const { auth } = usePage<PageProps>().props;
     const authUser = auth?.user as any;
     const canViewFinancials = ['super_admin', 'property_owner', 'property_manager'].includes(authUser?.role);
+    const canViewBep = ['super_admin', 'property_manager', 'admin'].includes(authUser?.role);
 
     // Ensure property data exists with safe defaults
     const safeProperty = {
@@ -368,7 +369,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                 </div>
 
                 {/* Proyeksi & Analisis Balik Modal (BEP / ROI) */}
-                {stats?.bep_data && (
+                {stats?.bep_data && canViewBep && (
                     <Card className="border-0 shadow-lg bg-white overflow-hidden card-modern">
                         <CardHeader className="bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border-b border-slate-100 p-4 md:p-6">
                             <CardTitle className="flex items-center gap-2 text-slate-800 text-base md:text-lg">

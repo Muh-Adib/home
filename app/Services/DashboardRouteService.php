@@ -12,7 +12,7 @@ class DashboardRouteService
     public function getDashboardRoute(User $user): string
     {
         return match ($user->role) {
-            'super_admin', 'property_manager', 'front_desk' => 'admin.dashboard',
+            'super_admin', 'admin', 'property_manager', 'front_desk', 'content_creator' => 'admin.dashboard',
             'property_owner' => 'admin.dashboard', // Owners share the admin dashboard structure
             'finance' => 'admin.finance.index',
             'housekeeping' => 'staff.cleaning.index',
@@ -27,6 +27,7 @@ class DashboardRouteService
     public function getRedirectUrl(User $user): string
     {
         $route = $this->getDashboardRoute($user);
+
         return route($route);
     }
 }

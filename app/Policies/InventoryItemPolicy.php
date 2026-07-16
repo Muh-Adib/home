@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\InventoryItem;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class InventoryItemPolicy
 {
@@ -15,10 +14,11 @@ class InventoryItemPolicy
     {
         return in_array($user->role, [
             'super_admin',
+            'admin',
             'property_manager',
             'housekeeping',
             'front_desk',
-            'finance'
+            'finance',
         ]);
     }
 
@@ -29,10 +29,11 @@ class InventoryItemPolicy
     {
         return in_array($user->role, [
             'super_admin',
+            'admin',
             'property_manager',
             'housekeeping',
             'front_desk',
-            'finance'
+            'finance',
         ]);
     }
 
@@ -60,4 +61,3 @@ class InventoryItemPolicy
         return $user->role !== 'guest';
     }
 }
-

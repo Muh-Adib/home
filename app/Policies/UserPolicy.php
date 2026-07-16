@@ -11,7 +11,7 @@ class UserPolicy
      */
     public function viewAny(User $user): bool
     {
-        return in_array($user->role, ['super_admin']);
+        return in_array($user->role, ['super_admin', 'admin']);
     }
 
     /**
@@ -24,6 +24,15 @@ class UserPolicy
             return true;
         }
 
+        if ($user->role === 'admin') {
+            // Admin cannot view details of super admin
+            if ($model->role === 'super_admin') {
+                return false;
+            }
+
+            return true;
+        }
+
         // Users can view their own profile
         return $user->id === $model->id;
     }
@@ -33,7 +42,7 @@ class UserPolicy
      */
     public function create(User $user): bool
     {
-        return $user->role === 'super_admin';
+        return in_array($user->role, ['super_admin', 'admin']);
     }
 
     /**
@@ -46,6 +55,19 @@ class UserPolicy
             return true;
         }
 
+        if ($user->role === 'admin') {
+            // Admin cannot edit super admin users
+            if ($model->role === 'super_admin') {
+                return false;
+            }
+            // Admin cannot change anyone's role to super_admin
+            if (request()->has('role') && request()->input('role') === 'super_admin') {
+                return false;
+            }
+
+            return true;
+        }
+
         // Users can update their own profile (except role and status)
         return $user->id === $model->id;
     }
@@ -55,9 +77,20 @@ class UserPolicy
      */
     public function delete(User $user, User $model): bool
     {
-        // Only super admin can delete users
-        // Cannot delete themselves
-        return $user->role === 'super_admin' && $user->id !== $model->id;
+        if ($user->role === 'super_admin') {
+            return $user->id !== $model->id;
+        }
+
+        if ($user->role === 'admin') {
+            // Admin cannot delete super admin users
+            if ($model->role === 'super_admin') {
+                return false;
+            }
+
+            return $user->id !== $model->id;
+        }
+
+        return false;
     }
 
     /**

@@ -101,7 +101,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'phone' => 'nullable|string|max:20',
-            'role' => ['required', Rule::in(['super_admin', 'property_owner', 'property_manager', 'front_desk', 'housekeeping', 'finance', 'guest', 'content_creator'])],
+            'role' => ['required', Rule::in(['super_admin', 'admin', 'property_owner', 'property_manager', 'front_desk', 'housekeeping', 'finance', 'guest', 'content_creator'])],
             'status' => ['required', Rule::in(['active', 'inactive', 'suspended'])],
             'password' => 'required|string|min:8|confirmed',
             'avatar' => 'nullable|image|max:2048',

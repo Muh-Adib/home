@@ -8,8 +8,6 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
 
 class PaymentService
 {
@@ -23,9 +21,14 @@ class PaymentService
     {
         return DB::transaction(function () use ($booking, $data, $file, $userId) {
             // Validasi amount melebihi pending
-            $paidAmount    = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-            $pendingAmount = $booking->total_amount - $paidAmount;
-            if ($data['amount'] > $pendingAmount) {
+            $otherPaidBaseAmount = $booking->payments()
+                ->where('payment_status', 'verified')
+                ->get()
+                ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
+            $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
+
+            $currentBaseAmount = $data['amount'] - ($data['unique_code'] ?? 0);
+            if ($currentBaseAmount > $pendingAmount) {
                 throw new \Exception('Payment amount exceeds pending amount');
             }
 
@@ -41,30 +44,30 @@ class PaymentService
             // Simpan record
             $payment = $booking->payments()->create([
                 'payment_method_id' => $method->id,
-                'payment_number'   => Payment::generatePaymentNumber(),
-                'amount'           => $data['amount'],
-                'payment_type'     => $paymentType,
-                'payment_method'   => $method->type,
-                'payment_status'   => 'pending',
-                'payment_date'     => now(),
-                'attachment_path'  => $attachmentPath,
-                'bank_name'        => $method->bank_name,
-                'verification_notes'=> $data['notes'] ?? null,
-                'processed_by'     => $userId,
+                'payment_number' => Payment::generatePaymentNumber(),
+                'amount' => $data['amount'],
+                'payment_type' => $paymentType,
+                'payment_method' => $method->type,
+                'payment_status' => 'pending',
+                'payment_date' => now(),
+                'attachment_path' => $attachmentPath,
+                'bank_name' => $method->bank_name,
+                'verification_notes' => $data['notes'] ?? null,
+                'processed_by' => $userId,
             ]);
 
             // Tambah workflow jika relasi ada
             if (method_exists($booking, 'workflow')) {
                 $booking->workflow()->create([
-                    'step'         => 'payment_pending',
-                    'status'       => 'in_progress',
+                    'step' => 'payment_pending',
+                    'status' => 'in_progress',
                     'processed_by' => $userId,
                     'processed_at' => now(),
-                    'notes'        => "Payment submitted: {$payment->payment_number}",
+                    'notes' => "Payment submitted: {$payment->payment_number}",
                 ]);
             }
 
-            //jika proses berhasil kirim notifikasi ke admin dan user yang bersangkutan (booking->guest)
+            // jika proses berhasil kirim notifikasi ke admin dan user yang bersangkutan (booking->guest)
 
             // Dispatch PaymentCreated event untuk notifikasi
             $user = User::find($userId);
@@ -72,12 +75,12 @@ class PaymentService
                 event(new PaymentCreated($payment->load('booking.property'), $user));
             } else {
                 // Untuk guest payment, buat dummy user
-                $guestUser = new User();
+                $guestUser = new User;
                 $guestUser->id = 0;
                 $guestUser->name = 'Guest';
                 $guestUser->email = $booking->guest_email;
                 $guestUser->role = 'guest';
-                
+
                 event(new PaymentCreated($payment->load('booking.property'), $guestUser));
             }
 
@@ -88,10 +91,9 @@ class PaymentService
     private function uploadPaymentProof($file): string
     {
         // Bisa dioptimalkan lebih lanjut (thumbnail, compress, dll)
-        $filename = 'payments/' . uniqid('proof_') . '.' . $file->getClientOriginalExtension();
+        $filename = 'payments/'.uniqid('proof_').'.'.$file->getClientOriginalExtension();
         $file->storeAs('public', $filename);
+
         return $filename;
     }
-
-    
-} 
+}

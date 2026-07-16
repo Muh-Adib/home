@@ -80,6 +80,18 @@ export default function UserShow({ user }: UserShowProps) {
                 color: 'bg-purple-100 text-purple-800 border-purple-200',
                 description: 'Full system access and control'
             },
+            admin: {
+                label: 'Administrator',
+                icon: Shield,
+                color: 'bg-teal-100 text-teal-800 border-teal-200',
+                description: 'System manager (excluding financial controls)'
+            },
+            content_creator: {
+                label: 'Content Creator',
+                icon: FileText,
+                color: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+                description: 'Manage content and property descriptions'
+            },
             property_owner: {
                 label: 'Property Owner',
                 icon: Building2,

@@ -44,7 +44,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 // Property Management - Create/Edit/Delete restricted to managers/owners
-Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,content_creator'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,admin,property_manager,property_owner,content_creator'])->prefix('admin')->name('admin.')->group(function () {
     Route::controller(PropertyManagementController::class)->group(function () {
         Route::get('properties/create', 'create')->name('properties.create');
         Route::post('properties', 'store')->name('properties.store');
@@ -70,6 +70,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,con
         Route::post('optimize', 'optimizeImages')->name('optimize');
     });
 
+    // Media
     Route::controller(MediaController::class)->prefix('media')->name('media.')->group(function () {
         Route::patch('{media}', 'update')->name('update');
         Route::delete('{media}', 'destroy')->name('destroy');
@@ -94,7 +95,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,con
     });
 
     // Extra Services Management (only for super_admin and property_owner)
-    Route::middleware(['role:super_admin,property_owner,content_creator'])->group(function () {
+    Route::middleware(['role:super_admin,admin,property_owner,content_creator'])->group(function () {
         Route::resource('extra-services', ExtraServiceController::class)->parameters([
             'extra-services' => 'service',
         ])->names([
@@ -117,7 +118,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,con
     Route::controller(ArticleController::class)
         ->prefix('articles')
         ->name('articles.')
-        ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance,content_creator'])
+        ->middleware(['role:super_admin,admin,property_owner,property_manager,front_desk,housekeeping,finance,content_creator'])
         ->group(function () {
             Route::get('/', 'index')->name('index');
             Route::get('/create', 'create')->name('create');
@@ -141,7 +142,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,con
     Route::controller(ArticleAIController::class)
         ->prefix('api/articles/ai')
         ->name('api.articles.ai.')
-        ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance'])
+        ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance,content_creator'])
         ->group(function () {
             Route::post('/generate-title', 'generateTitle')->name('generate-title');
             Route::post('/generate-outline', 'generateOutline')->name('generate-outline');
@@ -156,7 +157,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,con
     Route::controller(ContentPlanController::class)
         ->prefix('content-plans')
         ->name('content-plans.')
-        ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance'])
+        ->middleware(['role:super_admin,property_owner,property_manager,front_desk,housekeeping,finance,content_creator'])
         ->group(function () {
             // Standard CRUD
             Route::get('/', 'index')->name('index');
@@ -195,7 +196,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,con
         });
 });
 
-Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,admin,property_manager,property_owner,front_desk,content_creator'])->prefix('admin')->name('admin.')->group(function () {
     // Property Management - Now using dedicated PropertyManagementController
     Route::controller(PropertyManagementController::class)->group(function () {
         Route::get('properties', 'index')->name('properties.index');
@@ -237,7 +238,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,admin,property_manager,property_owner,front_desk,content_creator'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('dashboard', [DashboardController::class, 'admin'])->name('dashboard');
 
     // SEO Pages
@@ -255,8 +256,8 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
         // Main booking routes
         Route::get('bookings', 'index')->name('bookings.index');
         Route::get('bookings/daily-operations', 'dailyOperations')->name('bookings.daily-operations');
-        Route::get('bookings/staff-tracking', 'staffTracking')->name('bookings.staff-tracking')->middleware('role:super_admin,property_manager,front_desk');
-        Route::put('bookings/{booking}/staff-tracking', 'updateStaffTracking')->name('bookings.staff-tracking.update')->middleware('role:super_admin,property_manager,front_desk');
+        Route::get('bookings/staff-tracking', 'staffTracking')->name('bookings.staff-tracking')->middleware('role:super_admin,admin,property_manager,front_desk');
+        Route::put('bookings/{booking}/staff-tracking', 'updateStaffTracking')->name('bookings.staff-tracking.update')->middleware('role:super_admin,admin,property_manager,front_desk');
 
         Route::get('bookings/create', 'create')->name('bookings.create');
         Route::post('bookings', 'store')->name('bookings.store');
@@ -282,7 +283,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,fro
 });
 
 // Booking Management API (Authenticated but custom prefix)
-Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->prefix('api/admin/booking-management')->name('api.admin.booking-management.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,admin,property_manager,front_desk'])->prefix('api/admin/booking-management')->name('api.admin.booking-management.')->group(function () {
     $controller = BookingApiController::class;
     Route::get('timeline', [$controller, 'timeline']);
     Route::get('timeline-data', [$controller, 'timelineData']); // For infinite scroll lazy loading
@@ -299,7 +300,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk'])->pre
 });
 
 // Property Management API (outside admin prefix to match /api/admin/properties path)
-Route::middleware(['auth', 'role:super_admin,property_manager,property_owner,front_desk,content_creator'])->prefix('api/admin/properties')->name('api.admin.properties.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,admin,property_manager,property_owner,front_desk,content_creator'])->prefix('api/admin/properties')->name('api.admin.properties.')->group(function () {
     $controller = PropertyManagementController::class;
     Route::get('{property:id}/stats', [$controller, 'stats'])->name('stats');
     Route::patch('{property:id}/color', [$controller, 'updateColor'])->name('update-color');
@@ -385,7 +386,7 @@ Route::middleware(['auth', 'role:super_admin,finance'])->prefix('admin/finance')
 });
 
 // Housekeeping Routine Schedules
-Route::middleware(['auth', 'role:super_admin,property_manager'])->prefix('admin/housekeeping-schedules')->name('admin.housekeeping-schedules.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,admin,property_manager'])->prefix('admin/housekeeping-schedules')->name('admin.housekeeping-schedules.')->group(function () {
     Route::controller(AdminRoutineScheduleController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::post('/generate', 'generate')->name('generate');
@@ -395,7 +396,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager'])->prefix('admin/
 });
 
 // Custom Tasks
-Route::middleware(['auth', 'role:super_admin,property_manager'])->prefix('admin/custom-tasks')->name('admin.custom-tasks.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,admin,property_manager'])->prefix('admin/custom-tasks')->name('admin.custom-tasks.')->group(function () {
     Route::controller(AdminCustomTaskController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::post('/', 'store')->name('store');
@@ -404,7 +405,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager'])->prefix('admin/
 });
 
 // Inventory/Operational Management
-Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,housekeeping,front_desk,finance'])->prefix('admin/inventory')->name('admin.inventory.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,admin,property_owner,property_manager,housekeeping,front_desk,finance'])->prefix('admin/inventory')->name('admin.inventory.')->group(function () {
     $controller = InventoryController::class;
 
     // Exports
@@ -437,14 +438,16 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,hou
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:super_admin,property_manager,finance,front_desk,property_owner'])->prefix('admin/reports')->name('admin.reports.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,admin,property_manager,finance,front_desk,property_owner'])->prefix('admin/reports')->name('admin.reports.')->group(function () {
     Route::controller(ReportController::class)->group(function () {
         Route::get('/', 'index')->name('index');
-        Route::get('/financial', 'financial')->name('financial');
         Route::get('/occupancy', 'occupancy')->name('occupancy');
-        Route::get('/property-performance', 'propertyPerformance')->name('property-performance');
-        Route::get('/staff-performance', 'staffPerformance')->name('staff-performance');
         Route::post('/export', 'export')->name('export');
+
+        // Financial & performance reports are restricted from admin role
+        Route::get('/financial', 'financial')->name('financial')->middleware('role:super_admin,finance,property_manager');
+        Route::get('/property-performance', 'propertyPerformance')->name('property-performance')->middleware('role:super_admin,finance,property_manager');
+        Route::get('/staff-performance', 'staffPerformance')->name('staff-performance')->middleware('role:super_admin,finance,property_manager');
     });
 });
 
@@ -454,7 +457,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance,front_desk
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,admin'])->prefix('admin')->name('admin.')->group(function () {
     // AI Agent Management (API tokens, leads, escalations, conversations)
     Route::prefix('ai-agent')->name('ai-agent.')->controller(AiAgentController::class)->group(function () {
         Route::get('/', 'index')->name('index');
@@ -612,7 +615,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
 });
 
 // Unit Damages Routes
-Route::middleware(['auth', 'role:super_admin,property_manager,front_desk,housekeeping,property_owner'])
+Route::middleware(['auth', 'role:super_admin,admin,property_manager,front_desk,housekeeping,property_owner'])
     ->prefix('admin/unit-damages')
     ->name('admin.unit-damages.')
     ->controller(UnitDamageController::class)
@@ -625,7 +628,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk,houseke
     });
 
 // Lost and Found Routes
-Route::middleware(['auth', 'role:super_admin,property_manager,front_desk,housekeeping,property_owner'])
+Route::middleware(['auth', 'role:super_admin,admin,property_manager,front_desk,housekeeping,property_owner'])
     ->prefix('admin/lost-and-founds')
     ->name('admin.lost-and-founds.')
     ->controller(LostAndFoundController::class)

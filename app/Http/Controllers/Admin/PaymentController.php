@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\PaymentGatewayService;
 use App\Services\PaymentIncomeSyncService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -88,7 +89,7 @@ class PaymentController extends Controller
     /**
      * Display payments index
      */
-    public function index(Request $request): \Inertia\Response|\Illuminate\Http\JsonResponse
+    public function index(Request $request): Response|JsonResponse
     {
         $this->authorize('viewAny', Payment::class);
 
@@ -246,6 +247,7 @@ class PaymentController extends Controller
             'verified_by' => 'nullable|exists:users,id',
             'gateway_transaction_id' => 'nullable|string|max:255',
             'auto_confirm' => 'boolean',
+            'unique_code' => 'nullable|integer|min:0|max:999',
         ]);
 
         DB::beginTransaction();
@@ -254,10 +256,15 @@ class PaymentController extends Controller
             $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
 
             // Check if amount is valid
-            $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-            $pendingAmount = $booking->total_amount - $paidAmount;
+            $otherPaidBaseAmount = $booking->payments()
+                ->where('payment_status', 'verified')
+                ->get()
+                ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
+            $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
 
-            if ($validated['amount'] > $pendingAmount) {
+            $currentBaseAmount = $validated['amount'] - ($validated['unique_code'] ?? 0);
+
+            if ($currentBaseAmount > $pendingAmount) {
                 return back()->withErrors(['amount' => 'Payment amount exceeds pending amount.']);
             }
 
@@ -287,6 +294,8 @@ class PaymentController extends Controller
                 'verified_by' => $validated['payment_status'] === 'verified' ? ($validated['verified_by'] ?: Auth::id()) : null,
                 'verified_at' => $validated['payment_status'] === 'verified' ? now() : null,
                 'gateway_transaction_id' => $validated['gateway_transaction_id'],
+                'unique_code' => $validated['unique_code'] ?? 0,
+                'expected_amount' => $validated['amount'],
             ]);
 
             // Update booking payment status (centralized — sets dp_paid_amount & remaining_amount)
@@ -420,15 +429,21 @@ class PaymentController extends Controller
             'verified_by' => 'nullable|exists:users,id',
             'gateway_transaction_id' => 'nullable|string|max:255',
             'auto_confirm' => 'boolean',
+            'unique_code' => 'nullable|integer|min:0|max:999',
         ]);
         // dd($validated);
 
         try {
             // Check if amount is valid
-            $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-            $pendingAmount = $booking->total_amount - $paidAmount;
+            $otherPaidBaseAmount = $booking->payments()
+                ->where('payment_status', 'verified')
+                ->get()
+                ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
+            $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
 
-            if ($validated['amount'] > $pendingAmount) {
+            $currentBaseAmount = $validated['amount'] - ($validated['unique_code'] ?? 0);
+
+            if ($currentBaseAmount > $pendingAmount) {
                 return back()->withErrors(['amount' => 'Payment amount exceeds pending amount.']);
             }
 
@@ -463,6 +478,8 @@ class PaymentController extends Controller
                 'verified_by' => $validated['payment_status'] === 'verified' ? ($validated['verified_by'] ?: Auth::id()) : null,
                 'verified_at' => $validated['payment_status'] === 'verified' ? now() : null,
                 'gateway_transaction_id' => $validated['gateway_transaction_id'],
+                'unique_code' => $validated['unique_code'] ?? 0,
+                'expected_amount' => $validated['amount'],
             ]);
 
             // Update booking payment status (centralized — sets dp_paid_amount & remaining_amount)
@@ -644,6 +661,7 @@ class PaymentController extends Controller
             'notes' => 'nullable|string|max:1000',
             'admin_notes' => 'nullable|string|max:1000',
             'auto_confirm' => 'boolean',
+            'unique_code' => 'nullable|integer|min:0|max:999',
         ]);
 
         DB::beginTransaction();
@@ -652,10 +670,15 @@ class PaymentController extends Controller
             $paymentMethod = PaymentMethod::findOrFail($validated['payment_method_id']);
 
             // Check if amount is valid
-            $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-            $pendingAmount = $booking->total_amount - $paidAmount;
+            $otherPaidBaseAmount = $booking->payments()
+                ->where('payment_status', 'verified')
+                ->get()
+                ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
+            $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
 
-            if ($validated['amount'] > $pendingAmount) {
+            $currentBaseAmount = $validated['amount'] - ($validated['unique_code'] ?? 0);
+
+            if ($currentBaseAmount > $pendingAmount) {
                 return back()->withErrors(['amount' => 'Payment amount exceeds pending amount.']);
             }
 
@@ -676,6 +699,8 @@ class PaymentController extends Controller
                 'processed_by' => Auth::id(),
                 'verified_by' => $validated['payment_status'] === 'verified' ? Auth::id() : null,
                 'verified_at' => $validated['payment_status'] === 'verified' ? now() : null,
+                'unique_code' => $validated['unique_code'] ?? 0,
+                'expected_amount' => $validated['amount'],
             ]);
 
             // Update booking payment status (centralized — sets dp_paid_amount & remaining_amount)
@@ -795,6 +820,7 @@ class PaymentController extends Controller
             'verified_by' => 'nullable|exists:users,id',
             'gateway_transaction_id' => 'nullable|string|max:255',
             'keep_existing_attachment' => 'boolean',
+            'unique_code' => 'nullable|integer|min:0|max:999',
         ];
 
         $validated = $request->validate($rules);
@@ -805,14 +831,22 @@ class PaymentController extends Controller
 
             // Check if amount is valid (excluding current payment from calculation) - only if amount is being updated
             if (isset($validated['amount'])) {
-                // cek apakah ada payment lainnya
-                $paidAmount = $booking->payments()
+                // Sum base amounts of all other verified payments (amount - unique_code)
+                $otherPaidBaseAmount = $booking->payments()
                     ->where('payment_status', 'verified')
                     ->where('id', '!=', $payment->id)
-                    ->sum('amount');
-                $pendingAmount = $booking->total_amount - $paidAmount;
+                    ->get()
+                    ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
 
-                if ($validated['amount'] > $pendingAmount) {
+                $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
+
+                $currentUniqueCode = array_key_exists('unique_code', $validated)
+                    ? ($validated['unique_code'] ?? 0)
+                    : ($payment->unique_code ?? 0);
+
+                $currentBaseAmount = $validated['amount'] - $currentUniqueCode;
+
+                if ($currentBaseAmount > $pendingAmount) {
                     DB::rollBack();
 
                     return back()->withErrors(['amount' => 'Payment amount exceeds pending amount.']);
@@ -855,6 +889,10 @@ class PaymentController extends Controller
             }
             if (isset($validated['amount'])) {
                 $updateData['amount'] = $validated['amount'];
+                $updateData['expected_amount'] = $validated['amount'];
+            }
+            if (array_key_exists('unique_code', $validated)) {
+                $updateData['unique_code'] = $validated['unique_code'] ?? 0;
             }
             if (isset($validated['payment_type'])) {
                 $updateData['payment_type'] = $validated['payment_type'];

@@ -34,7 +34,7 @@ class ArticlePolicy
 
         // Author or admin/manager can view
         return $user->id === $article->author_id
-            || in_array($user->role, ['super_admin', 'property_manager', 'content_creator']);
+            || in_array($user->role, ['super_admin', 'admin', 'property_manager', 'content_creator']);
     }
 
     /**
@@ -53,7 +53,7 @@ class ArticlePolicy
     public function update(User $user, Article $article): bool
     {
         return $user->id === $article->author_id
-            || in_array($user->role, ['super_admin', 'property_manager', 'content_creator']);
+            || in_array($user->role, ['super_admin', 'admin', 'property_manager', 'content_creator']);
     }
 
     /**
@@ -63,7 +63,7 @@ class ArticlePolicy
     public function delete(User $user, Article $article): bool
     {
         return $user->id === $article->author_id
-            || $user->role === 'super_admin';
+            || in_array($user->role, ['super_admin', 'admin']);
     }
 
     /**
@@ -73,7 +73,7 @@ class ArticlePolicy
     public function publish(User $user, Article $article): bool
     {
         return $user->id === $article->author_id
-            || in_array($user->role, ['super_admin', 'property_manager', 'content_creator']);
+            || in_array($user->role, ['super_admin', 'admin', 'property_manager', 'content_creator']);
     }
 
     /**
@@ -83,7 +83,7 @@ class ArticlePolicy
     public function schedule(User $user, Article $article): bool
     {
         return $user->id === $article->author_id
-            || in_array($user->role, ['super_admin', 'property_manager', 'content_creator']);
+            || in_array($user->role, ['super_admin', 'admin', 'property_manager', 'content_creator']);
     }
 
     /**
@@ -91,7 +91,7 @@ class ArticlePolicy
      */
     public function restore(User $user, Article $article): bool
     {
-        return $user->role === 'super_admin';
+        return in_array($user->role, ['super_admin', 'admin']);
     }
 
     /**
@@ -99,6 +99,6 @@ class ArticlePolicy
      */
     public function forceDelete(User $user, Article $article): bool
     {
-        return $user->role === 'super_admin';
+        return in_array($user->role, ['super_admin', 'admin']);
     }
 }

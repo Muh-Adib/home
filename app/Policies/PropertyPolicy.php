@@ -31,7 +31,7 @@ class PropertyPolicy
      */
     public function create(User $user): bool
     {
-        return in_array($user->role, ['super_admin', 'property_manager', 'property_owner']);
+        return in_array($user->role, ['super_admin', 'admin', 'property_manager', 'property_owner']);
     }
 
     /**
@@ -39,8 +39,8 @@ class PropertyPolicy
      */
     public function update(User $user, Property $property): bool
     {
-        // Super admin, property_manager, dan content_creator dapat update semua property
-        if (in_array($user->role, ['super_admin', 'property_manager', 'content_creator'])) {
+        // Super admin, admin, property_manager, dan content_creator dapat update semua property
+        if (in_array($user->role, ['super_admin', 'admin', 'property_manager', 'content_creator'])) {
             return true;
         }
 
@@ -53,8 +53,8 @@ class PropertyPolicy
      */
     public function delete(User $user, Property $property): bool
     {
-        // Super admin dapat delete semua property
-        if ($user->role === 'super_admin') {
+        // Super admin dan admin dapat delete semua property
+        if (in_array($user->role, ['super_admin', 'admin'])) {
             return true;
         }
 
@@ -92,8 +92,8 @@ class PropertyPolicy
      */
     public function manageAmenities(User $user, Property $property): bool
     {
-        // Super admin dan content_creator dapat manage semua amenities
-        if ($user->role === 'super_admin' || $user->role === 'content_creator') {
+        // Super admin, admin, dan content_creator dapat manage semua amenities
+        if (in_array($user->role, ['super_admin', 'admin', 'content_creator'])) {
             return true;
         }
 
@@ -111,8 +111,8 @@ class PropertyPolicy
      */
     public function managePricing(User $user, Property $property): bool
     {
-        // Super admin dapat manage semua pricing
-        if ($user->role === 'super_admin') {
+        // Super admin dan admin dapat manage semua pricing
+        if (in_array($user->role, ['super_admin', 'admin'])) {
             return true;
         }
 
@@ -152,8 +152,8 @@ class PropertyPolicy
      */
     public function changeStatus(User $user, Property $property): bool
     {
-        // Super admin dapat change semua status
-        if ($user->role === 'super_admin') {
+        // Super admin dan admin dapat change semua status
+        if (in_array($user->role, ['super_admin', 'admin'])) {
             return true;
         }
 
@@ -183,6 +183,7 @@ class PropertyPolicy
     {
         return in_array($user->role, [
             'super_admin',
+            'admin',
             'property_manager',
             'property_owner',
         ]);
@@ -195,6 +196,7 @@ class PropertyPolicy
     {
         return in_array($user->role, [
             'super_admin',
+            'admin',
             'property_manager',
             'finance',
         ]);

@@ -1234,7 +1234,7 @@ export default function CleaningDashboard({
                                         </Button>
                                     </div>
 
-                                    <div className="space-y-2 border border-slate-100 rounded-xl p-3 max-h-48 overflow-y-auto bg-slate-50/50">
+                                    <div className="space-y-2 border border-slate-100 rounded-xl p-3 overflow-y-auto bg-slate-50/50">
                                         {cleaningData.stock_usage.length === 0 ? (
                                             <div className="text-center py-4 text-slate-400 text-xs font-semibold">
                                                 Belum ada pemakaian dicatat. Klik "Tambah Item" jika ada pemakaian.

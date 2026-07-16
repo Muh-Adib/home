@@ -11,14 +11,14 @@ use App\Models\ServiceMaster;
 use App\Models\User;
 use App\Policies\BookingPolicy;
 use App\Policies\InventoryItemPolicy;
-use App\Policies\PaymentPolicy;
 use App\Policies\PaymentMethodPolicy;
+use App\Policies\PaymentPolicy;
 use App\Policies\PropertyPolicy;
 use App\Policies\ServiceMasterPolicy;
 use App\Policies\UserPolicy;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Auth\Access\Response;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -63,7 +63,7 @@ class AuthServiceProvider extends ServiceProvider
                 'super_admin',
                 'property_manager',
                 'front_desk',
-                'finance'
+                'finance',
             ]);
         });
 
@@ -77,7 +77,7 @@ class AuthServiceProvider extends ServiceProvider
                 'property_manager',
                 'front_desk',
                 'finance',
-                'housekeeping'
+                'housekeeping',
             ]);
         });
 
@@ -85,7 +85,7 @@ class AuthServiceProvider extends ServiceProvider
             return in_array($user->role, [
                 'super_admin',
                 'property_manager',
-                'finance'
+                'finance',
             ]);
         });
 
@@ -97,12 +97,10 @@ class AuthServiceProvider extends ServiceProvider
             return $user->role === 'super_admin' ? Response::allow() : Response::deny('You are not authorized to manage settings.');
         });
 
-        // AI Keys management - super_admin only
+        // AI Keys management - super_admin, admin, and content_creator
         Gate::define('manage-ai-keys', function (User $user) {
-            return $user->role === 'super_admin';
+            return in_array($user->role, ['super_admin', 'admin', 'content_creator']);
         });
-
-
 
     }
 }

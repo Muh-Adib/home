@@ -104,6 +104,11 @@ export default function UserEdit({ user }: UserEditProps) {
                 icon: Crown,
                 description: 'Full system access and control'
             },
+            admin: {
+                label: 'Administrator',
+                icon: Crown,
+                description: 'System manager (excluding financial controls)'
+            },
             property_owner: {
                 label: 'Property Owner',
                 icon: Building2,
@@ -129,6 +134,11 @@ export default function UserEdit({ user }: UserEditProps) {
                 icon: Home,
                 description: 'Cleaning and maintenance staff'
             },
+            content_creator: {
+                label: 'Content Creator',
+                icon: Crown,
+                description: 'Manage content and property descriptions'
+            },
             guest: {
                 label: 'Guest',
                 icon: Users,
@@ -136,7 +146,11 @@ export default function UserEdit({ user }: UserEditProps) {
             },
         };
 
-        return roleConfig[role];
+        return roleConfig[role] || {
+            label: role,
+            icon: UserIcon,
+            description: ''
+        };
     };
 
     const getInitials = (name: string) => {
@@ -145,17 +159,40 @@ export default function UserEdit({ user }: UserEditProps) {
 
     // Check permissions
     const canEditRole = () => {
-        return auth.user.role === 'super_admin';
+        return auth.user.role === 'super_admin' || auth.user.role === 'admin';
     };
 
     const canEditStatus = () => {
-        return auth.user.role === 'super_admin' && user.id !== auth.user.id;
+        if (user.role === 'super_admin' && auth.user.role !== 'super_admin') {
+            return false;
+        }
+        return (auth.user.role === 'super_admin' || auth.user.role === 'admin') && user.id !== auth.user.id;
     };
 
     const availableRoles = canEditRole() ? [
-        'super_admin', 'property_owner', 'property_manager',
-        'front_desk', 'finance', 'housekeeping', 'guest'
+        ...(auth.user.role === 'super_admin' ? ['super_admin'] : []),
+        'admin', 'property_owner', 'property_manager',
+        'front_desk', 'finance', 'housekeeping', 'content_creator', 'guest'
     ] : ['guest'];
+
+    const isEditingSuperAdmin = user.role === 'super_admin';
+    const isCurrentUserSuperAdmin = auth.user.role === 'super_admin';
+    const isAllowedToEdit = isCurrentUserSuperAdmin || (!isEditingSuperAdmin && (auth.user.role === 'admin' || (auth.user.role === 'property_owner' && user.role === 'guest')));
+
+    if (!isAllowedToEdit) {
+        return (
+            <AdminLayout breadcrumbs={breadcrumbs}>
+                <div className="max-w-2xl mx-auto mt-8">
+                    <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                            Anda tidak memiliki izin untuk mengedit pengguna Super Admin.
+                        </AlertDescription>
+                    </Alert>
+                </div>
+            </AdminLayout>
+        );
+    }
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>

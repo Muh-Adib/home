@@ -128,6 +128,12 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                 icon: Crown,
                 color: 'bg-purple-100 text-purple-800'
             },
+            admin: {
+                variant: 'default' as const,
+                label: 'Admin',
+                icon: Shield,
+                color: 'bg-teal-100 text-teal-800'
+            },
             property_owner: {
                 variant: 'secondary' as const,
                 label: 'Property Owner',
@@ -201,9 +207,14 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
     };
 
     // Check permissions
-    const canManageUsers = auth.user.role === 'super_admin';
+    const canManageUsers = auth.user.role === 'super_admin' || auth.user.role === 'admin';
     const canEditUser = (user: User) => {
         if (auth.user.role === 'super_admin') return true;
+        if (auth.user.role === 'admin') {
+            // Admin cannot edit super admin users
+            if (user.role === 'super_admin') return false;
+            return true;
+        }
         if (auth.user.role === 'property_owner' && user.role === 'guest') return true;
         return false;
     };
@@ -268,6 +279,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                         <CardContent>
                             <div className="text-2xl font-bold">
                                 {(stats.role_breakdown.super_admin || 0) +
+                                    (stats.role_breakdown.admin || 0) +
                                     (stats.role_breakdown.property_manager || 0)}
                             </div>
                             <p className="text-xs text-muted-foreground">
@@ -302,6 +314,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                     >
                         Staff ({
                             (stats.role_breakdown.super_admin || 0) +
+                            (stats.role_breakdown.admin || 0) +
                             (stats.role_breakdown.property_manager || 0) +
                             (stats.role_breakdown.front_desk || 0) +
                             (stats.role_breakdown.finance || 0) +
@@ -369,6 +382,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                                     <SelectContent>
                                         <SelectItem value="all">All Roles</SelectItem>
                                         <SelectItem value="super_admin">Super Admin</SelectItem>
+                                        <SelectItem value="admin">Administrator</SelectItem>
                                         <SelectItem value="property_owner">Property Owner</SelectItem>
                                         <SelectItem value="property_manager">Property Manager</SelectItem>
                                         <SelectItem value="front_desk">Front Desk</SelectItem>
@@ -441,7 +455,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                                             <TableCell>
                                                 <div className="flex items-center gap-2">
                                                     {getStatusBadge(user.status as 'active' | 'inactive')}
-                                                    {canManageUsers && (
+                                                    {canManageUsers && (auth.user.role === 'super_admin' || user.role !== 'super_admin') && (
                                                         <Switch
                                                             checked={user.status === 'active'}
                                                             onCheckedChange={() => handleStatusToggle(user)}
@@ -481,7 +495,7 @@ export default function UsersIndex({ users, filters, stats }: UsersIndexProps) {
                                                             </Link>
                                                         </DropdownMenuItem>
 
-                                                        {auth.user.role === 'super_admin' && (
+                                                        {(auth.user.role === 'super_admin' || (auth.user.role === 'admin' && user.role !== 'super_admin')) && (
                                                             <DropdownMenuItem asChild>
                                                                 <Link href={`/admin/users/${user.id}/activities`}>
                                                                     <Activity className="mr-2 h-4 w-4" />

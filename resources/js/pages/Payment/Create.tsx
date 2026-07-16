@@ -241,7 +241,7 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
 
     const timeDiff = checkInDateTime.getTime() - currentTime.getTime();
     // Buka instruksi check-in 30 menit sebelum waktu check-in (30 * 60 * 1000 ms)
-    const isBeforeCheckIn = timeDiff > 0;
+    const isBeforeCheckIn = timeDiff > 30 * 60 * 1000;
 
     const getGoogleCalendarUrl = () => {
         try {
@@ -668,60 +668,68 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
                                             </Button>
                                         </form>
                                     )
-                                ) : booking.payment_status === 'fully_paid' ? (
-                                    isBeforeCheckIn ? (
-                                        <div className="text-center py-8 px-4 space-y-5">
-                                            <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-blue-50 text-blue-600 mb-1">
-                                                <CheckCircle className="h-12 w-12 text-blue-500" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <h3 className="text-xl font-bold text-slate-900">Booking Terkonfirmasi</h3>
-                                                <Badge variant="secondary" className="bg-green-100 text-green-700 font-bold border-none text-[10px] uppercase">
-                                                    LUNAS
-                                                </Badge>
-                                            </div>
-                                            <p className="text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
-                                                Halo <strong>{booking.guest_name}</strong>, booking Anda dengan nomor <strong>{booking.booking_number}</strong> telah terkonfirmasi. Silakan menunggu waktu check-in tiba.
-                                            </p>
+                                ) : (booking.payment_status === 'fully_paid' || booking.booking_status === 'checked_in') ? (
+                                (isBeforeCheckIn && booking.booking_status !== 'checked_in') ? (
+                                    <div className="text-center py-8 px-4 space-y-5">
+                                        <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-blue-50 text-blue-600 mb-1">
+                                            <CheckCircle className="h-12 w-12 text-blue-500" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <h3 className="text-xl font-bold text-slate-900">Booking Terkonfirmasi</h3>
+                                            <Badge variant="secondary" className="bg-green-100 text-green-700 font-bold border-none text-[10px] uppercase">
+                                                LUNAS
+                                            </Badge>
+                                        </div>
+                                        <p className="text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
+                                            Halo <strong>{booking.guest_name}</strong>, booking Anda dengan nomor <strong>{booking.booking_number}</strong> telah terkonfirmasi. Silakan menunggu waktu check-in tiba.
+                                        </p>
 
-                                            {/* Countdown Card */}
-                                            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 max-w-sm mx-auto shadow-sm space-y-2">
-                                                <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                                    <Clock className="h-4 w-4 text-blue-500 animate-pulse" /> Waktu Menuju Check-in
-                                                </div>
-                                                <div className="text-lg sm:text-xl font-black text-slate-905 tracking-tight text-blue-600">
-                                                    {formatCountdown()}
-                                                </div>
-                                                <div className="text-[10px] text-slate-400">
-                                                    Check-in: {formatDate(booking.check_in)} ({booking.property.check_in_time || booking.check_in_time || '14:00'})
-                                                </div>
+                                        {/* Countdown Card */}
+                                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 max-w-sm mx-auto shadow-sm space-y-2">
+                                            <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                                <Clock className="h-4 w-4 text-blue-500 animate-pulse" /> Waktu Menuju Check-in
                                             </div>
-
-                                            <div className="pt-2 max-w-sm mx-auto space-y-3">
-                                                <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer">
-                                                    <a href={getGoogleCalendarUrl()} target="_blank" rel="noopener noreferrer">
-                                                        <Calendar className="h-5 w-5" /> Tambah Pengingat ke Kalender
-                                                    </a>
-                                                </Button>
-                                                <Button asChild variant="ghost" className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer">
-                                                     <a href={`https://wa.me/6281138226322?text=${encodeURIComponent(`Halo Admin Hospitality, saya memerlukan bantuan terkait pemesanan ${booking.booking_number} atas nama ${booking.guest_name}.`)}`} target="_blank" rel="noopener noreferrer">
-                                                         Butuh bantuan? Hubungi Hospitality
-                                                     </a>
-                                                 </Button>
+                                            <div className="text-lg sm:text-xl font-black text-slate-905 tracking-tight text-blue-600">
+                                                {formatCountdown()}
+                                            </div>
+                                            <div className="text-[10px] text-slate-400">
+                                                Check-in: {formatDate(booking.check_in)} ({booking.property.check_in_time || booking.check_in_time || '14:00'})
                                             </div>
                                         </div>
-                                    ) : (
-                                        <div className="py-6 px-2 space-y-6">
+
+                                        <div className="pt-2 max-w-sm mx-auto space-y-3">
+                                            <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer">
+                                                <a href={getGoogleCalendarUrl()} target="_blank" rel="noopener noreferrer">
+                                                    <Calendar className="h-5 w-5" /> Tambah Pengingat ke Kalender
+                                                </a>
+                                            </Button>
+                                            <Button asChild variant="ghost" className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer">
+                                                 <a href={`https://wa.me/6281138226322?text=${encodeURIComponent(`Halo Admin Hospitality, saya memerlukan bantuan terkait pemesanan ${booking.booking_number} atas nama ${booking.guest_name}.`)}`} target="_blank" rel="noopener noreferrer">
+                                                     Butuh bantuan? Hubungi Hospitality
+                                                 </a>
+                                             </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="py-6 px-2 space-y-6">
                                         <div className="text-center pb-4 border-b border-dashed">
                                             <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-50 text-green-600 mb-2">
                                                 <CheckCircle className="h-10 w-10 text-green-500" />
                                             </div>
-                                            <h3 className="text-xl font-bold text-slate-900">Booking Terkonfirmasi</h3>
-                                            <Badge variant="secondary" className="bg-green-100 text-green-700 font-bold border-none text-[10px] uppercase mt-1">
-                                                LUNAS
-                                            </Badge>
+                                            <h3 className="text-xl font-bold text-slate-900">
+                                                {booking.booking_status === 'checked_in' ? 'Anda Telah Check-in' : 'Booking Terkonfirmasi'}
+                                            </h3>
+                                            {booking.payment_status === 'fully_paid' ? (
+                                                <Badge variant="secondary" className="bg-green-100 text-green-700 font-bold border-none text-[10px] uppercase mt-1">
+                                                    LUNAS
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="secondary" className="bg-blue-100 text-blue-700 font-bold border-none text-[10px] uppercase mt-1">
+                                                    CHECKED IN
+                                                </Badge>
+                                            )}
                                             <p className="text-xs text-slate-500 mt-2 max-w-sm mx-auto">
-                                                Halo <strong>{booking.guest_name}</strong>, booking Anda <strong>{booking.booking_number}</strong> telah lunas. Berikut adalah panduan akses masuk properti Anda.
+                                                Halo <strong>{booking.guest_name}</strong>, booking Anda <strong>{booking.booking_number}</strong> {booking.payment_status === 'fully_paid' ? 'telah lunas. Berikut adalah panduan akses masuk properti Anda.' : 'telah aktif. Berikut adalah panduan akses masuk properti Anda.'}
                                             </p>
                                         </div>
 
@@ -732,7 +740,7 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
                                                 
                                                 {/* Map Component */}
                                                 {booking.property.lat && booking.property.lng && (
-                                                    <Card className="border-slate-200 shadow-sm overflow-hidden rounded-xl">
+                                                    <Card className="border-slate-200 shadow-sm overflow-hidden rounded-xl pb-0">
                                                         <CardContent className="p-0 h-64 relative">
                                                             <Map 
                                                                 lat={Number(booking.property.lat)} 

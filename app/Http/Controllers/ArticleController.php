@@ -15,6 +15,7 @@ use App\Services\SeoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -36,6 +37,9 @@ class ArticleController extends Controller
     public function index(Request $request): Response
     {
         $this->authorize('viewAny', Article::class);
+
+        // Run auto-publish check for scheduled articles
+        Artisan::call('articles:auto-publish');
 
         $query = Article::with(['author', 'properties'])
             ->withCount('properties');

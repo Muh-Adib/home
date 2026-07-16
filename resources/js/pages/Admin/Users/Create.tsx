@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Head, useForm, Link } from '@inertiajs/react';
+import { Head, useForm, Link, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 
 export default function CreateUser() {
+    const page = usePage<PageProps>();
+    const { auth } = page.props;
     const [showPassword, setShowPassword] = useState(false);
     const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
 
@@ -63,12 +65,14 @@ export default function CreateUser() {
     };
 
     const roleOptions = [
-        { value: 'super_admin', label: 'Super Admin', description: 'Full system access' },
+        ...(auth.user.role === 'super_admin' ? [{ value: 'super_admin', label: 'Super Admin', description: 'Full system access' }] : []),
+        { value: 'admin', label: 'Administrator', description: 'System manager (excluding financial controls)' },
         { value: 'property_owner', label: 'Property Owner', description: 'Manage owned properties' },
         { value: 'property_manager', label: 'Property Manager', description: 'Manage all properties' },
         { value: 'front_desk', label: 'Front Desk', description: 'Check-in/out operations' },
         { value: 'housekeeping', label: 'Housekeeping', description: 'Room maintenance' },
         { value: 'finance', label: 'Finance', description: 'Payment management' },
+        { value: 'content_creator', label: 'Content Creator', description: 'Manage content and property descriptions' },
         { value: 'guest', label: 'Guest', description: 'Booking and stay management' },
     ];
 

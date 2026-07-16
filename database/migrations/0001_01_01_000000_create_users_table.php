@@ -20,13 +20,15 @@ return new class extends Migration
             $table->string('password');
             $table->string('phone', 20)->nullable();
             $table->enum('role', [
-                'super_admin', 
-                'property_owner', 
-                'property_manager', 
-                'front_desk', 
-                'housekeeping', 
-                'finance', 
-                'guest'
+                'super_admin',
+                'admin',
+                'property_owner',
+                'property_manager',
+                'front_desk',
+                'housekeeping',
+                'finance',
+                'guest',
+                'content_creator',
             ])->default('guest');
             $table->enum('status', ['active', 'inactive', 'suspended'])->default('active');
             $table->enum('gender', ['male', 'female'])->nullable();

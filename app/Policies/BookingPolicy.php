@@ -14,6 +14,7 @@ class BookingPolicy
     {
         return in_array($user->role, [
             'super_admin',
+            'admin',
             'property_manager',
             'front_desk',
             'property_owner',
@@ -25,8 +26,8 @@ class BookingPolicy
      */
     public function view(User $user, Booking $booking): bool
     {
-        // Super admin dapat melihat semua
-        if ($user->role === 'super_admin') {
+        // Super admin dan admin dapat melihat semua
+        if (in_array($user->role, ['super_admin', 'admin'])) {
             return true;
         }
 
@@ -55,6 +56,7 @@ class BookingPolicy
     {
         return in_array($user->role, [
             'super_admin',
+            'admin',
             'property_manager',
             'front_desk',
         ]);
@@ -65,8 +67,8 @@ class BookingPolicy
      */
     public function update(User $user, Booking $booking): bool
     {
-        // Super admin dapat update semua
-        if ($user->role === 'super_admin') {
+        // Super admin dan admin dapat update semua
+        if (in_array($user->role, ['super_admin', 'admin'])) {
             return true;
         }
 
@@ -88,8 +90,8 @@ class BookingPolicy
      */
     public function delete(User $user, Booking $booking): bool
     {
-        // Hanya super admin yang dapat menghapus booking
-        return $user->role === 'super_admin';
+        // Hanya super admin dan admin yang dapat menghapus booking
+        return in_array($user->role, ['super_admin', 'admin']);
     }
 
     /**
@@ -97,8 +99,8 @@ class BookingPolicy
      */
     public function verify(User $user, Booking $booking): bool
     {
-        // Super admin dapat verify semua
-        if ($user->role === 'super_admin') {
+        // Super admin dan admin dapat verify semua
+        if (in_array($user->role, ['super_admin', 'admin'])) {
             return true;
         }
 
@@ -119,8 +121,8 @@ class BookingPolicy
      */
     public function checkin(User $user, Booking $booking): bool
     {
-        // Super admin dapat checkin semua
-        if ($user->role === 'super_admin') {
+        // Super admin dan admin dapat checkin semua
+        if (in_array($user->role, ['super_admin', 'admin'])) {
             return true;
         }
 
@@ -141,8 +143,8 @@ class BookingPolicy
      */
     public function checkout(User $user, Booking $booking): bool
     {
-        // Super admin dapat checkout semua
-        if ($user->role === 'super_admin') {
+        // Super admin dan admin dapat checkout semua
+        if (in_array($user->role, ['super_admin', 'admin'])) {
             return true;
         }
 
@@ -164,8 +166,8 @@ class BookingPolicy
      */
     public function reject(User $user, Booking $booking): bool
     {
-        // Super admin dapat reject semua
-        if ($user->role === 'super_admin') {
+        // Super admin dan admin dapat reject semua
+        if (in_array($user->role, ['super_admin', 'admin'])) {
             return true;
         }
 
@@ -186,8 +188,8 @@ class BookingPolicy
      */
     public function cancel(User $user, Booking $booking): bool
     {
-        // Super admin dapat cancel semua
-        if ($user->role === 'super_admin') {
+        // Super admin dan admin dapat cancel semua
+        if (in_array($user->role, ['super_admin', 'admin'])) {
             return true;
         }
 

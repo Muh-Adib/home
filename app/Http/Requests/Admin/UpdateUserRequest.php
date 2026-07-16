@@ -36,7 +36,7 @@ class UpdateUserRequest extends FormRequest
                 Rule::unique('users', 'email')->ignore($user?->id),
             ],
             'phone' => ['sometimes', 'nullable', 'string', 'max:20'],
-            'role' => [$presence, Rule::in(['super_admin', 'property_owner', 'property_manager', 'front_desk', 'housekeeping', 'finance', 'guest', 'content_creator'])],
+            'role' => [$presence, Rule::in(['super_admin', 'admin', 'property_owner', 'property_manager', 'front_desk', 'housekeeping', 'finance', 'guest', 'content_creator'])],
             'status' => [$presence, Rule::in(['active', 'inactive', 'suspended'])],
             'password' => ['sometimes', 'nullable', 'string', 'min:8', 'confirmed'],
             'avatar' => ['sometimes', 'nullable', 'image', 'max:2048'],

@@ -1084,10 +1084,11 @@ class BookingManagementController extends Controller
 
         try {
             // Calculate payment type jika tidak di-set
-            $paidAmount = $booking->payments()
+            $otherPaidBaseAmount = $booking->payments()
                 ->where('payment_status', 'verified')
-                ->sum('amount');
-            $pendingAmount = $booking->total_amount - $paidAmount;
+                ->get()
+                ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
+            $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
 
             if ($validated['amount'] > $pendingAmount) {
                 return back()->withErrors([

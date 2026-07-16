@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -145,6 +145,10 @@ export default function PropertyForm({
     paymentMethods = [],
     property,
 }: PropertyFormProps) {
+    const { auth } = usePage<PageProps>().props;
+    const authUser = auth?.user as any;
+    const hasFinancialAccess = ['super_admin', 'property_manager', 'admin'].includes(authUser?.role);
+
     const isEdit = mode === 'edit';
     const [showMap, setShowMap] = useState(false);
     const [mapCenter, setMapCenter] = useState({
@@ -231,12 +235,12 @@ export default function PropertyForm({
             icon: Users, 
             fields: ['capacity', 'capacity_max', 'bedroom_count', 'bathroom_count'] 
         },
-        { 
+        ...(hasFinancialAccess ? [{ 
             value: 'pricing', 
             label: 'Keuangan & BEP', 
             icon: DollarSign, 
             fields: ['base_rate', 'weekend_premium_percent', 'weekend_premium_fixed', 'cleaning_fee', 'extra_bed_rate', 'ownership_model', 'initial_build_capital', 'lease_capital', 'monthly_rent_cost', 'monthly_mortgage_cost', 'mortgage_interest_monthly', 'owner_split_pct', 'investor_split_pct'] 
-        },
+        }] : []),
         { 
             value: 'media_amenities', 
             label: 'Foto & Fasilitas', 
@@ -405,71 +409,73 @@ export default function PropertyForm({
                         </Card>
 
                         {/* Rekening Bank Properti */}
-                        <Card className="border-slate-100 shadow-sm bg-white rounded-2xl">
-                            <CardHeader className="pb-3 border-b border-slate-50">
-                                <CardTitle className="flex items-center gap-2 text-slate-800 text-base">
-                                    <CreditCard className="h-5 w-5 text-blue-600" /> Rekening Bank Properti
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4 pt-5">
-                                {/* Payment Method / Bank */}
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="payment_method_id">Bank (Metode Pembayaran) *</Label>
-                                    <Select
-                                        value={data.payment_method_id ? data.payment_method_id.toString() : 'none'}
-                                        onValueChange={v => {
-                                            setData((prev: any) => ({
-                                                ...prev,
-                                                payment_method_id: v && v !== 'none' ? parseInt(v) : null,
-                                                bank_account_id: null // Reset bank account selection when bank changes
-                                            }));
-                                        }}
-                                    >
-                                        <SelectTrigger id="payment_method_id">
-                                            <SelectValue placeholder="Pilih Bank (Metode Pembayaran)" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="none">-- Pilih Bank (Metode Pembayaran) --</SelectItem>
-                                            {paymentMethods.map((pm: any) => (
-                                                <SelectItem key={pm.id} value={pm.id.toString()}>
-                                                    {pm.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {fieldError('payment_method_id')}
-                                </div>
-
-                                {/* Bank Account / Rekening */}
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="bank_account_id">Rekening Bank Transfer Pembayaran *</Label>
-                                    <Select
-                                        disabled={!data.payment_method_id}
-                                        value={data.bank_account_id ? data.bank_account_id.toString() : 'system_default'}
-                                        onValueChange={v => setData('bank_account_id', v && v !== 'system_default' ? parseInt(v) : null)}
-                                    >
-                                        <SelectTrigger id="bank_account_id">
-                                            <SelectValue placeholder={data.payment_method_id ? "Pilih Rekening Bank Properti" : "Pilih Bank terlebih dahulu"} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="system_default">-- Gunakan Rekening Sistem (Default) --</SelectItem>
-                                            {bankAccounts
-                                                .filter((acc: any) => acc.payment_method_id === data.payment_method_id)
-                                                .map((acc: any) => (
-                                                    <SelectItem key={acc.id} value={acc.id.toString()}>
-                                                        <span className="font-medium">{acc.label || acc.bank_name}</span>
-                                                        <span className="text-muted-foreground ml-2 font-mono text-xs">· {acc.account_number}</span>
+                        {hasFinancialAccess && (
+                            <Card className="border-slate-100 shadow-sm bg-white rounded-2xl">
+                                <CardHeader className="pb-3 border-b border-slate-50">
+                                    <CardTitle className="flex items-center gap-2 text-slate-800 text-base">
+                                        <CreditCard className="h-5 w-5 text-blue-600" /> Rekening Bank Properti
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4 pt-5">
+                                    {/* Payment Method / Bank */}
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="payment_method_id">Bank (Metode Pembayaran) *</Label>
+                                        <Select
+                                            value={data.payment_method_id ? data.payment_method_id.toString() : 'none'}
+                                            onValueChange={v => {
+                                                setData((prev: any) => ({
+                                                    ...prev,
+                                                    payment_method_id: v && v !== 'none' ? parseInt(v) : null,
+                                                    bank_account_id: null // Reset bank account selection when bank changes
+                                                }));
+                                            }}
+                                        >
+                                            <SelectTrigger id="payment_method_id">
+                                                <SelectValue placeholder="Pilih Bank (Metode Pembayaran)" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">-- Pilih Bank (Metode Pembayaran) --</SelectItem>
+                                                {paymentMethods.map((pm: any) => (
+                                                    <SelectItem key={pm.id} value={pm.id.toString()}>
+                                                        {pm.name}
                                                     </SelectItem>
                                                 ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <p className="text-xs text-slate-400 mt-1">
-                                        Rekening ini akan ditampilkan pada checkout guest dan link pembayaran secure untuk properti ini.
-                                    </p>
-                                    {fieldError('bank_account_id')}
-                                </div>
-                            </CardContent>
-                        </Card>
+                                            </SelectContent>
+                                        </Select>
+                                        {fieldError('payment_method_id')}
+                                    </div>
+
+                                    {/* Bank Account / Rekening */}
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="bank_account_id">Rekening Bank Transfer Pembayaran *</Label>
+                                        <Select
+                                            disabled={!data.payment_method_id}
+                                            value={data.bank_account_id ? data.bank_account_id.toString() : 'system_default'}
+                                            onValueChange={v => setData('bank_account_id', v && v !== 'system_default' ? parseInt(v) : null)}
+                                        >
+                                            <SelectTrigger id="bank_account_id">
+                                                <SelectValue placeholder={data.payment_method_id ? "Pilih Rekening Bank Properti" : "Pilih Bank terlebih dahulu"} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="system_default">-- Gunakan Rekening Sistem (Default) --</SelectItem>
+                                                {bankAccounts
+                                                    .filter((acc: any) => acc.payment_method_id === data.payment_method_id)
+                                                    .map((acc: any) => (
+                                                        <SelectItem key={acc.id} value={acc.id.toString()}>
+                                                            <span className="font-medium">{acc.label || acc.bank_name}</span>
+                                                            <span className="text-muted-foreground ml-2 font-mono text-xs">· {acc.account_number}</span>
+                                                        </SelectItem>
+                                                    ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            Rekening ini akan ditampilkan pada checkout guest dan link pembayaran secure untuk properti ini.
+                                        </p>
+                                        {fieldError('bank_account_id')}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
                     </div>
                 )}
 

@@ -36,6 +36,7 @@ interface Payment {
     booking_id: number;
     payment_method_id?: number;
     amount: number;
+    unique_code?: number;
     payment_type: 'dp' | 'remaining' | 'full' | 'refund' | 'penalty';
     payment_method: 'cash' | 'bank_transfer' | 'credit_card' | 'e_wallet' | 'other';
     payment_date: string;
@@ -143,6 +144,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
     const { data, setData, post, delete: deletePayment, processing, errors, transform } = useForm({
         payment_method_id: payment.payment_method_id?.toString() || '',
         amount: payment.amount.toString(),
+        unique_code: payment.unique_code?.toString() || '0',
         payment_type: payment.payment_type,
         payment_date: payment.payment_date.split('T')[0],
         due_date: payment.due_date ? payment.due_date.split('T')[0] : '',
@@ -415,7 +417,7 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                         </div>
                                     </div>
 
-                                    <div className="grid md:grid-cols-2 gap-4">
+                                    <div className="grid md:grid-cols-3 gap-4">
                                         <div>
                                             <Label htmlFor="amount">Amount *</Label>
                                             <Input
@@ -429,6 +431,25 @@ export default function PaymentEdit({ payment, paymentMethods, users }: PaymentE
                                                 className={errors.amount ? 'border-red-500' : ''}
                                             />
                                             {errors.amount && <p className="text-sm text-red-500 mt-1">{errors.amount}</p>}
+                                            <p className="text-[11px] text-gray-500 mt-1">
+                                                Base amount: {formatCurrency(Math.max(0, Number(data.amount) - Number(data.unique_code || 0)))}
+                                            </p>
+                                        </div>
+
+                                        <div>
+                                            <Label htmlFor="unique_code">Kode Unik</Label>
+                                            <Input
+                                                id="unique_code"
+                                                type="number"
+                                                step="1"
+                                                min="0"
+                                                max="999"
+                                                value={data.unique_code}
+                                                onChange={(e) => setData('unique_code', e.target.value)}
+                                                placeholder="0"
+                                                className={errors.unique_code ? 'border-red-500' : ''}
+                                            />
+                                            {errors.unique_code && <p className="text-sm text-red-500 mt-1">{errors.unique_code}</p>}
                                         </div>
 
                                         <div>
