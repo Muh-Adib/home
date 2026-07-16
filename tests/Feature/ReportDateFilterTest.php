@@ -140,4 +140,46 @@ class ReportDateFilterTest extends TestCase
             $this->assertNotContains('2026-07-08', $dates);
         });
     }
+
+    #[Test]
+    public function daily_revenue_sync_command_correctly_syncs_dynamic_extra_beds(): void
+    {
+        $property = Property::factory()->create(['status' => 'active', 'base_rate' => 500000]);
+        $booking = Booking::factory()->create([
+            'property_id' => $property->id,
+            'booking_status' => 'confirmed',
+            'check_in' => '2026-07-01',
+            'check_out' => '2026-07-03',
+            'guest_count' => 2,
+        ]);
+
+        // Create a dynamic extra bed service for July 2nd
+        $booking->services()->create([
+            'service_name' => 'Extra Bed Dynamic',
+            'service_type' => 'extra_bed',
+            'quantity' => 2,
+            'unit_price' => 150000,
+            'total_price' => 300000,
+            'service_date' => '2026-07-02',
+        ]);
+
+        // Run the sync console command
+        $this->artisan('booking:sync-daily-revenue', [
+            '--booking' => $booking->id,
+        ])->assertExitCode(0);
+
+        // Fetch daily revenues and verify July 2nd has 2 extra beds and 300,000 amount
+        $rev1 = BookingDailyRevenue::where('booking_id', $booking->id)->where('tanggal', '2026-07-01')->first();
+        $rev2 = BookingDailyRevenue::where('booking_id', $booking->id)->where('tanggal', '2026-07-02')->first();
+
+        $this->assertNotNull($rev1);
+        $this->assertNotNull($rev2);
+
+        // July 1st has no service specific record, fallback to 0 or booking-level exbeds
+        $this->assertEquals(0, $rev1->extra_bed_count);
+
+        // July 2nd has the dynamic extra bed service (qty = 2, amount = 300,000)
+        $this->assertEquals(2, $rev2->extra_bed_count);
+        $this->assertEquals(300000, $rev2->extra_bed_amount);
+    }
 }

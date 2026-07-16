@@ -117,6 +117,11 @@ class SyncBookingDailyRevenue extends Command
         $guestCount = $booking->guest_count;
         $extraBeds = RateCalculationService::calculateExtraBedCount($guestCount, $property->capacity);
 
+        // Fetch dynamic extra bed services
+        $extraBedServices = $booking->services()
+            ->where('service_type', 'extra_bed')
+            ->get();
+
         // Get the booking discount to distribute evenly across nights
         $totalDiscount = (float) ($booking->discount_amount ?? 0);
         $dailyDiscountBase = $nights > 0 ? (int) floor($totalDiscount / $nights) : 0;
@@ -156,9 +161,37 @@ class SyncBookingDailyRevenue extends Command
                 $rateType = 'weekend';
             }
 
-            // Calculate extra bed for this day using single source of truth
-            $effectiveExtraBedRate = RateCalculationService::calculateEffectiveExtraBedRate($property, $seasonalRate);
-            $extraBedAmount = $extraBeds * $effectiveExtraBedRate;
+            // Calculate extra bed for this day dynamically
+            $dayExtraBeds = null;
+            $effectiveExtraBedRate = null;
+
+            // 1. Look for service on this specific date
+            $dateService = $extraBedServices->first(function ($s) use ($dateString) {
+                return $s->service_date && $s->service_date->format('Y-m-d') === $dateString;
+            });
+
+            if ($dateService) {
+                $dayExtraBeds = (int) $dateService->quantity;
+                $effectiveExtraBedRate = (float) $dateService->unit_price;
+            } else {
+                // 2. Fall back to generic/no-date extra_bed service
+                $genericService = $extraBedServices->first(function ($s) {
+                    return is_null($s->service_date);
+                });
+
+                if ($genericService) {
+                    $dayExtraBeds = (int) $genericService->quantity;
+                    $effectiveExtraBedRate = (float) $genericService->unit_price;
+                }
+            }
+
+            // 3. Fallback to booking level columns or static calculation
+            if (is_null($dayExtraBeds)) {
+                $dayExtraBeds = $booking->extra_bed_count !== null ? (int) $booking->extra_bed_count : $extraBeds;
+                $effectiveExtraBedRate = RateCalculationService::calculateEffectiveExtraBedRate($property, $seasonalRate);
+            }
+
+            $extraBedAmount = $dayExtraBeds * $effectiveExtraBedRate;
 
             // Calculate current daily discount
             $currentDailyDiscount = $dailyDiscountBase;
@@ -179,6 +212,7 @@ class SyncBookingDailyRevenue extends Command
                 'weekend_premium' => $weekendPremium,
                 'seasonal_premium' => $seasonalPremium,
                 'extra_bed_amount' => $extraBedAmount,
+                'extra_bed_count' => $dayExtraBeds,
                 'rate_type' => $rateType,
                 'rate_name' => $rateName,
                 'is_weekend' => $isWeekend,
