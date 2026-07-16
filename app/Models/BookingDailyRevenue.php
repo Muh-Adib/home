@@ -61,7 +61,10 @@ class BookingDailyRevenue extends Model
      */
     public function scopeInPeriod(Builder $query, $startDate, $endDate): Builder
     {
-        return $query->whereBetween('tanggal', [$startDate, $endDate]);
+        $start = $startDate instanceof Carbon ? $startDate->toDateString() : $startDate;
+        $end = $endDate instanceof Carbon ? $endDate->toDateString() : $endDate;
+
+        return $query->whereBetween('tanggal', [$start, $end]);
     }
 
     /**

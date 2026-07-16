@@ -35,7 +35,7 @@ class ReportController extends Controller
 
         // Set date range
         $startDate = $dateFrom ? Carbon::parse($dateFrom) : $this->getStartDate($period);
-        $endDate = $dateTo ? Carbon::parse($dateTo) : now();
+        $endDate = $dateTo ? Carbon::parse($dateTo) : $this->getEndDate($period);
 
         // Get previous period for comparison
         $diffDays = $startDate->diffInDays($endDate);
@@ -120,7 +120,7 @@ class ReportController extends Controller
         $propertyId = $request->input('property_id');
 
         $startDate = $this->getStartDate($period);
-        $endDate = now();
+        $endDate = $this->getEndDate($period);
 
         // Revenue analysis
         $revenueData = $this->getRevenueAnalysis($startDate, $endDate, $user, $propertyId);
@@ -287,7 +287,7 @@ class ReportController extends Controller
 
         // Set date range
         $startDate = $dateFrom ? Carbon::parse($dateFrom)->startOfDay() : $this->getStartDate($period)->startOfDay();
-        $endDate = $dateTo ? Carbon::parse($dateTo)->endOfDay() : now()->endOfDay();
+        $endDate = $dateTo ? Carbon::parse($dateTo)->endOfDay() : $this->getEndDate($period)->endOfDay();
 
         // Get properties list for filters (restricted by owner if property_owner)
         $properties = $user->role === 'property_owner'
@@ -329,7 +329,7 @@ class ReportController extends Controller
         }
 
         // 1. Query Daily Revenue for Chart
-        $dailyRevenuesQuery = BookingDailyRevenue::whereBetween('tanggal', [$startDate, $endDate])
+        $dailyRevenuesQuery = BookingDailyRevenue::whereBetween('tanggal', [$startDate->toDateString(), $endDate->toDateString()])
             ->whereIn('property_id', $propertyIds)
             ->confirmedBookings()
             ->with(['property:id,name,color', 'booking.services']);
@@ -414,7 +414,7 @@ class ReportController extends Controller
             ->get()
             ->map(function ($property) use ($startDate, $endDate) {
                 $revenues = BookingDailyRevenue::where('property_id', $property->id)
-                    ->whereBetween('tanggal', [$startDate, $endDate])
+                    ->whereBetween('tanggal', [$startDate->toDateString(), $endDate->toDateString()])
                     ->confirmedBookings()
                     ->with('booking.services')
                     ->get();
@@ -477,7 +477,7 @@ class ReportController extends Controller
         $averageOccupancy = count($propertyPerformance) > 0 ? collect($propertyPerformance)->avg('occupancy_rate') : 0;
 
         $totalBookedDays = BookingDailyRevenue::whereIn('property_id', $propertyIds)
-            ->whereBetween('tanggal', [$startDate, $endDate])
+            ->whereBetween('tanggal', [$startDate->toDateString(), $endDate->toDateString()])
             ->confirmedBookings()
             ->when($propertyId, function ($q) use ($propertyId) {
                 $q->where('property_id', $propertyId);
@@ -491,7 +491,7 @@ class ReportController extends Controller
         // 4. Booking Sources breakdown for this period
         $bookingSources = Booking::whereIn('property_id', $propertyIds)
             ->whereIn('booking_status', ['confirmed', 'checked_in', 'completed'])
-            ->whereBetween('check_in', [$startDate, $endDate])
+            ->whereBetween('check_in', [$startDate->toDateString(), $endDate->toDateString()])
             ->when($propertyId, function ($q) use ($propertyId) {
                 $q->where('property_id', $propertyId);
             })
@@ -510,7 +510,7 @@ class ReportController extends Controller
             ->toArray();
 
         // 5. Query daily breakdown records for date & property details table
-        $dailyBreakdownQuery = BookingDailyRevenue::whereBetween('tanggal', [$startDate, $endDate])
+        $dailyBreakdownQuery = BookingDailyRevenue::whereBetween('tanggal', [$startDate->toDateString(), $endDate->toDateString()])
             ->whereIn('property_id', $propertyIds)
             ->confirmedBookings()
             ->with(['property:id,name,color', 'booking.services']);
@@ -967,6 +967,17 @@ class ReportController extends Controller
             'quarter' => now()->startOfQuarter(),
             'year' => now()->startOfYear(),
             default => now()->startOfMonth(),
+        };
+    }
+
+    private function getEndDate($period): Carbon
+    {
+        return match ($period) {
+            'week' => now()->endOfWeek(),
+            'month' => now()->endOfMonth(),
+            'quarter' => now()->endOfQuarter(),
+            'year' => now()->endOfYear(),
+            default => now()->endOfMonth(),
         };
     }
 
@@ -1562,7 +1573,7 @@ class ReportController extends Controller
 
         // Set date range (default: current month)
         $startDate = $dateFrom ? Carbon::parse($dateFrom)->startOfDay() : now()->startOfMonth()->startOfDay();
-        $endDate = $dateTo ? Carbon::parse($dateTo)->endOfDay() : now()->endOfDay();
+        $endDate = $dateTo ? Carbon::parse($dateTo)->endOfDay() : now()->endOfMonth()->endOfDay();
 
         // Get staff list
         $staff = User::whereIn('role', ['super_admin', 'property_manager', 'front_desk', 'housekeeping'])

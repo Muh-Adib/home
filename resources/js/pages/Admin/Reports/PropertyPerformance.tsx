@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -148,6 +148,60 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
     const [dateTo, setDateTo] = useState(filters.date_to || '');
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+
+    const months = [
+        { value: '01', label: 'Januari' },
+        { value: '02', label: 'Februari' },
+        { value: '03', label: 'Maret' },
+        { value: '04', label: 'April' },
+        { value: '05', label: 'Mei' },
+        { value: '06', label: 'Juni' },
+        { value: '07', label: 'Juli' },
+        { value: '08', label: 'Agustus' },
+        { value: '09', label: 'September' },
+        { value: '10', label: 'Oktober' },
+        { value: '11', label: 'November' },
+        { value: '12', label: 'Desember' },
+    ];
+
+    const currentYear = new Date().getFullYear();
+    const years = Array.from({ length: 5 }, (_, i) => (currentYear - 3 + i).toString());
+
+    // Safely extract initial values from filters.date_from
+    const initialMonth = filters.date_from && filters.date_from.includes('-')
+        ? filters.date_from.split('-')[1]
+        : (new Date().getMonth() + 1).toString().padStart(2, '0');
+    const initialYear = filters.date_from && filters.date_from.includes('-')
+        ? filters.date_from.split('-')[0]
+        : new Date().getFullYear().toString();
+
+    const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+    const [selectedYear, setSelectedYear] = useState(initialYear);
+
+    // Keep dropdown selections synchronized when dateFrom is changed via date pickers or period quick filters
+    useEffect(() => {
+        if (dateFrom && dateFrom.includes('-')) {
+            const parts = dateFrom.split('-');
+            setSelectedMonth(parts[1]);
+            setSelectedYear(parts[0]);
+        }
+    }, [dateFrom]);
+
+    const getDaysInMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
+
+    const handleMonthYearChange = (m: string, y: string) => {
+        const lastDay = getDaysInMonth(parseInt(y), parseInt(m));
+        const fromDate = `${y}-${m}-01`;
+        const toDate = `${y}-${m}-${lastDay.toString().padStart(2, '0')}`;
+        setDateFrom(fromDate);
+        setDateTo(toDate);
+        setSelectedPeriod('custom');
+        handleFilterChange({
+            period: 'custom',
+            date_from: fromDate,
+            date_to: toDate,
+        });
+    };
 
     const handleExport = async () => {
         setIsExporting(true);
@@ -417,6 +471,49 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
                                         ))}
                                     </SelectContent>
                                 </Select>
+                            </div>
+
+                            {/* Month & Year Selectors */}
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-semibold text-slate-500">Pilih Bulan & Tahun</label>
+                                <div className="flex gap-2">
+                                    <Select
+                                        value={selectedMonth}
+                                        onValueChange={(val) => {
+                                            setSelectedMonth(val);
+                                            handleMonthYearChange(val, selectedYear);
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-[140px] font-bold border-slate-200 focus:ring-indigo-500 rounded-xl">
+                                            <SelectValue placeholder="Bulan" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {months.map((m) => (
+                                                <SelectItem key={m.value} value={m.value} className="font-medium">
+                                                    {m.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Select
+                                        value={selectedYear}
+                                        onValueChange={(val) => {
+                                            setSelectedYear(val);
+                                            handleMonthYearChange(selectedMonth, val);
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-[100px] font-bold border-slate-200 focus:ring-indigo-500 rounded-xl">
+                                            <SelectValue placeholder="Tahun" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {years.map((y) => (
+                                                <SelectItem key={y} value={y} className="font-medium">
+                                                    {y}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
 
                             {/* Date Picker Trigger / Indicator */}
