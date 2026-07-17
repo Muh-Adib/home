@@ -9,6 +9,17 @@ function formatRupiah(n: number) {
   return `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 }
 
+function formatDate(dateStr: string) {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch (e) {
+    return dateStr;
+  }
+}
+
 export default function WalletReport({ wallet, transactions, totalIn, totalOut, netAmount, filterFrom, filterTo, walletCategories }: any) {
   const { data, setData, get } = useForm({
     from: filterFrom || '',
@@ -86,7 +97,7 @@ export default function WalletReport({ wallet, transactions, totalIn, totalOut, 
                 {wallet.has_target && (
                   <div>
                     <span className="text-muted-foreground">Target:</span>
-                    <span className="ml-2 font-medium">{formatRupiah(Number(wallet.target_amount))} ({wallet.target_date})</span>
+                    <span className="ml-2 font-medium">{formatRupiah(Number(wallet.target_amount))} ({formatDate(wallet.target_date)})</span>
                     {wallet.progress_percentage !== undefined && (
                       <span className="ml-2 text-sm text-muted-foreground">
                         ({wallet.progress_percentage.toFixed(1)}% tercapai)
@@ -133,7 +144,7 @@ export default function WalletReport({ wallet, transactions, totalIn, totalOut, 
                 <tbody>
                   {transactions?.map((tx: any) => (
                     <tr key={tx.id} className="border-b">
-                      <td className="py-2 pr-4">{tx.transaction_date}</td>
+                      <td className="py-2 pr-4">{formatDate(tx.transaction_date)}</td>
                       <td className="py-2 pr-4">
                         <span className={`px-2 py-1 rounded text-xs ${tx.direction === 'in' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                           {tx.direction === 'in' ? 'MASUK' : 'KELUAR'}

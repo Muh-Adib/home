@@ -30,6 +30,10 @@ class PropertyExpense extends Model
         'approved_by',
         'approved_at',
         'status',
+        'wallet_id',
+        'expense_scope',
+        'receipt_image',
+        'capital_split_investor_pct',
     ];
 
     /**
@@ -39,7 +43,17 @@ class PropertyExpense extends Model
         'amount' => 'decimal:2',
         'expense_date' => 'date',
         'approved_at' => 'datetime',
+        'wallet_id' => 'integer',
+        'capital_split_investor_pct' => 'decimal:2',
     ];
+
+    /**
+     * Get the wallet associated with this expense.
+     */
+    public function wallet(): BelongsTo
+    {
+        return $this->belongsTo(Wallet::class);
+    }
 
     /**
      * Get the property that owns the expense.
@@ -82,21 +96,39 @@ class PropertyExpense extends Model
     }
 
     /**
+     * Get inventory stock movement (purchase) related to this expense
+     */
+    public function stockMovement()
+    {
+        return $this->hasOne(InventoryStockMovement::class, 'reference_id')->where('reference_type', 'purchase');
+    }
+
+    /**
+     * Get booking related to this expense
+     */
+    public function booking()
+    {
+        return $this->belongsTo(Booking::class, 'booking_id');
+    }
+
+    /**
      * Get expense category label
      */
     public function getCategoryLabel(): string
     {
-        return match ($this->expense_category) {
-            'maintenance' => 'Pemeliharaan',
-            'utilities' => 'Utilitas',
-            'supplies' => 'Perlengkapan',
-            'marketing' => 'Marketing',
-            'insurance' => 'Asuransi',
-            'taxes' => 'Pajak',
-            'professional_services' => 'Jasa Profesional',
-            'other' => 'Lainnya',
-            default => 'Tidak Diketahui'
-        };
+        $categories = config('finance.expense_categories', []);
+
+        return $categories[$this->expense_category] ?? ucfirst($this->expense_category ?? 'Lainnya');
+    }
+
+    /**
+     * Get expense scope label
+     */
+    public function getScopeLabel(): string
+    {
+        $scopes = config('finance.expense_scopes', []);
+
+        return $scopes[$this->expense_scope] ?? ucfirst($this->expense_scope ?? 'Lainnya');
     }
 
     /**
@@ -104,15 +136,9 @@ class PropertyExpense extends Model
      */
     public function getTypeLabel(): string
     {
-        return match ($this->expense_type) {
-            'recurring' => 'Berulang',
-            'one_time' => 'Sekali',
-            'emergency' => 'Darurat',
-            'fixed' => 'Beban Fix',
-            'variable' => 'Beban Variabel',
-            'additional' => 'Beban Tambahan',
-            default => 'Tidak Diketahui'
-        };
+        $types = config('finance.expense_types', []);
+
+        return $types[$this->expense_type] ?? ucfirst($this->expense_type ?? 'Lainnya');
     }
 
     /**
@@ -228,5 +254,13 @@ class PropertyExpense extends Model
     {
         return $query->whereMonth('expense_date', now()->month)
             ->whereYear('expense_date', now()->year);
+    }
+
+    /**
+     * Scope: Get expenses by scope
+     */
+    public function scopeByScope($query, $scope)
+    {
+        return $query->where('expense_scope', $scope);
     }
 }

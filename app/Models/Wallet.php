@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Wallet extends Model
 {
@@ -23,6 +25,7 @@ class Wallet extends Model
         'target_date',
         'notes',
         'created_by',
+        'purpose',
     ];
 
     protected $casts = [
@@ -33,6 +36,11 @@ class Wallet extends Model
         'target_amount' => 'decimal:2',
         'target_date' => 'date',
     ];
+
+    public function bankAccount(): HasOne
+    {
+        return $this->hasOne(BankAccount::class);
+    }
 
     public function property(): BelongsTo
     {
@@ -47,6 +55,24 @@ class Wallet extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Get purpose label
+     */
+    public function getPurposeLabel(): string
+    {
+        $purposes = config('finance.wallet_purposes', []);
+
+        return $purposes[$this->purpose] ?? ucfirst($this->purpose ?? 'Umum');
+    }
+
+    /**
+     * Scope: Filter wallets by purpose
+     */
+    public function scopeByPurpose($query, $purpose)
+    {
+        return $query->where('purpose', $purpose);
     }
 
     /**
@@ -71,11 +97,12 @@ class Wallet extends Model
      */
     public function getProgressPercentage(): float
     {
-        if (!$this->target_amount || $this->target_amount <= 0) {
+        if (! $this->target_amount || $this->target_amount <= 0) {
             return 0;
         }
 
         $percentage = ($this->balance / $this->target_amount) * 100;
+
         return min(100, max(0, round($percentage, 2)));
     }
 
@@ -84,7 +111,7 @@ class Wallet extends Model
      */
     public function hasTarget(): bool
     {
-        return !is_null($this->target_amount) && !is_null($this->target_date) && $this->target_amount > 0;
+        return ! is_null($this->target_amount) && ! is_null($this->target_date) && $this->target_amount > 0;
     }
 
     /**
@@ -92,12 +119,12 @@ class Wallet extends Model
      */
     public function getDaysRemaining(): ?int
     {
-        if (!$this->target_date) {
+        if (! $this->target_date) {
             return null;
         }
 
         $today = now()->startOfDay();
-        $target = \Carbon\Carbon::parse($this->target_date)->startOfDay();
+        $target = Carbon::parse($this->target_date)->startOfDay();
         $days = $today->diffInDays($target, false);
 
         return $days >= 0 ? $days : null; // Return null if target date has passed
@@ -108,13 +135,10 @@ class Wallet extends Model
      */
     public function isTargetAchieved(): bool
     {
-        if (!$this->hasTarget()) {
+        if (! $this->hasTarget()) {
             return false;
         }
 
         return $this->balance >= $this->target_amount;
     }
 }
-
-
-

@@ -143,4 +143,32 @@ class AdminRoleTest extends TestCase
             'role' => 'content_creator',
         ]);
     }
+
+    #[Test]
+    public function super_admin_can_access_financial_overview()
+    {
+        $superAdmin = User::factory()->create([
+            'role' => 'super_admin',
+        ]);
+
+        $this->actingAs($superAdmin)
+            ->get('/admin/finance')
+            ->assertStatus(200);
+
+        $this->actingAs($superAdmin)
+            ->get('/admin/finance/incomes')
+            ->assertStatus(200);
+
+        $this->actingAs($superAdmin)
+            ->get('/admin/finance/expenses')
+            ->assertStatus(200);
+
+        $this->actingAs($superAdmin)
+            ->get('/admin/finance/wallets')
+            ->assertStatus(200);
+
+        $this->actingAs($superAdmin)
+            ->get('/admin/finance/loans')
+            ->assertStatus(200);
+    }
 }

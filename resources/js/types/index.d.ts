@@ -210,6 +210,7 @@ export interface Booking {
     dp_amount: number;
     total_amount: number;
     remaining_amount: number;
+    paid_amount?: number;
     discount_amount: number;
     booking_status: BookingStatus;
     payment_status: PaymentStatus;

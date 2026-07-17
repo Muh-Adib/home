@@ -1,67 +1,195 @@
 import AdminLayout from '@/layouts/admin-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { type PageProps } from '@/types';
-import { usePage, Link } from '@inertiajs/react';
-import { DollarSign, Wallet as WalletIcon, FileText } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Link } from '@inertiajs/react';
+import { DollarSign, Wallet as WalletIcon, FileText, ArrowRight, TrendingUp, Users, Coins } from 'lucide-react';
 
 interface FinanceIndexProps {
   summary: {
     totalIncome: number;
     totalExpense: number;
+    netProfit: number;
   };
+  wallets: any[];
+  bankAccounts: any[];
+  scopeBreakdown: Record<string, number>;
+  expenseScopes: Record<string, string>;
 }
 
-export default function FinanceIndex({ summary }: FinanceIndexProps) {
-  const page = usePage<PageProps>();
-  const { auth } = page.props;
+function formatRupiah(n: number) {
+  return `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
+}
 
+export default function FinanceIndex({ summary, wallets, bankAccounts, scopeBreakdown, expenseScopes }: FinanceIndexProps) {
   return (
-    <AdminLayout title="Keuangan" breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Keuangan' }] }>
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5" /> Omzet</CardTitle>
+    <AdminLayout
+      title="Dashboard Keuangan"
+      breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Keuangan' }]}
+    >
+      {/* Overview Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="border-emerald-100 bg-emerald-50/50 dark:bg-emerald-950/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" /> Total Pendapatan (YTD)
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">Rp {summary.totalIncome.toLocaleString('id-ID')}</div>
+            <div className="text-3xl font-bold text-emerald-900 dark:text-emerald-100">
+              {formatRupiah(summary.totalIncome)}
+            </div>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Akumulasi pendapatan riil masuk tahun ini</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Pengeluaran</CardTitle>
+
+        <Card className="border-rose-100 bg-rose-50/50 dark:bg-rose-950/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-rose-800 dark:text-rose-300 flex items-center gap-2">
+              <FileText className="h-4 w-4" /> Total Pengeluaran (YTD)
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">Rp {summary.totalExpense.toLocaleString('id-ID')}</div>
+            <div className="text-3xl font-bold text-rose-900 dark:text-rose-100">
+              {formatRupiah(summary.totalExpense)}
+            </div>
+            <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">Akumulasi semua pengeluaran operasional & modal</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-blue-100 bg-blue-50/50 dark:bg-blue-950/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-blue-800 dark:text-blue-300 flex items-center gap-2">
+              <DollarSign className="h-4 w-4" /> Laba Bersih
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-3xl font-bold ${summary.netProfit >= 0 ? 'text-blue-900 dark:text-blue-100' : 'text-rose-900'}`}>
+              {formatRupiah(summary.netProfit)}
+            </div>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Selisih laba tahun berjalan</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-3">
-        <Link href="/admin/finance/incomes">
-          <Card className="hover:bg-accent">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5" /> Pendapatan</CardTitle>
-            </CardHeader>
-          </Card>
-        </Link>
-        <Link href="/admin/finance/expenses">
-          <Card className="hover:bg-accent">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Pengeluaran</CardTitle>
-            </CardHeader>
-          </Card>
-        </Link>
-        <Link href="/admin/finance/wallets">
-          <Card className="hover:bg-accent">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><WalletIcon className="h-5 w-5" /> Wallet</CardTitle>
-            </CardHeader>
-          </Card>
-        </Link>
+      {/* Saldo Rekening / Bank Accounts */}
+      <h3 className="text-lg font-semibold mt-8 mb-4">Saldo & Akun Rekening</h3>
+      <div className="grid gap-4 md:grid-cols-4">
+        {bankAccounts.map((account) => {
+          const wallet = wallets.find(w => w.id === account.wallet_id);
+          const balance = wallet ? Number(wallet.balance) : 0;
+          return (
+            <Card key={account.id} className="relative overflow-hidden hover:shadow-md transition-all">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-primary" />
+              <CardHeader className="pb-2 pl-6">
+                <CardTitle className="text-sm font-semibold truncate">{account.label || account.bank_name}</CardTitle>
+                <CardDescription className="text-xs">{account.account_number} a.n. {account.account_holder}</CardDescription>
+              </CardHeader>
+              <CardContent className="pl-6">
+                <div className="text-xl font-bold">{formatRupiah(balance)}</div>
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${account.can_receive_payments ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    {account.can_receive_payments ? 'Penerima Pembayaran' : 'Khusus Pengeluaran'}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      <div className="mt-8 grid gap-6 md:grid-cols-3">
+        {/* Expense by Scope Breakdown */}
+        <Card className="col-span-2">
+          <CardHeader>
+            <CardTitle>Rincian Pengeluaran Berdasarkan Scope</CardTitle>
+            <CardDescription>Beban pengeluaran tahun ini dikelompokkan berdasarkan area fungsional</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {Object.entries(expenseScopes).map(([scope, label]) => {
+                const total = scopeBreakdown[scope] ?? 0;
+                const percent = summary.totalExpense > 0 ? (total / summary.totalExpense) * 100 : 0;
+                return (
+                  <div key={scope} className="space-y-1.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">{label}</span>
+                      <span className="text-muted-foreground font-mono">{formatRupiah(total)} ({percent.toFixed(1)}%)</span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full" style={{ width: `${percent}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Quick Menu / Navigation */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Akses Modul Keuangan</CardTitle>
+            <CardDescription>Menu navigasi cepat ke seluruh pencatatan keuangan</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            <Link href="/admin/finance/incomes">
+              <Button variant="outline" className="w-full justify-between hover:bg-accent group">
+                <span className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-emerald-500" />
+                  Pendapatan Riil
+                </span>
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+              </Button>
+            </Link>
+            <Link href="/admin/finance/expenses">
+              <Button variant="outline" className="w-full justify-between hover:bg-accent group">
+                <span className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-rose-500" />
+                  Pengeluaran & Nota
+                </span>
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+              </Button>
+            </Link>
+            <Link href="/admin/finance/wallets">
+              <Button variant="outline" className="w-full justify-between hover:bg-accent group">
+                <span className="flex items-center gap-2">
+                  <WalletIcon className="w-4 h-4 text-blue-500" />
+                  Manajemen Rekening (Wallet)
+                </span>
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+              </Button>
+            </Link>
+            <Link href="/admin/finance/report">
+              <Button variant="outline" className="w-full justify-between hover:bg-accent group">
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-amber-500" />
+                  Laporan Laba Rugi & BEP
+                </span>
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+              </Button>
+            </Link>
+            <Link href="/admin/finance/payroll">
+              <Button variant="outline" className="w-full justify-between hover:bg-accent group">
+                <span className="flex items-center gap-2">
+                  <Coins className="w-4 h-4 text-violet-500" />
+                  Payroll & Gaji Staff
+                </span>
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+              </Button>
+            </Link>
+            <Link href="/admin/finance/loans">
+              <Button variant="outline" className="w-full justify-between hover:bg-accent group">
+                <span className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-cyan-500" />
+                  Casbon & Pinjaman Staff
+                </span>
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     </AdminLayout>
   );
 }
-
-
-

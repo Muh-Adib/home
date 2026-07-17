@@ -14,7 +14,13 @@ class StaffPayroll extends Model
         'base_salary',
         'attendance_days',
         'absent_days',
+        'sick_days',
+        'sick_deduction',
+        'permission_days',
+        'permission_deduction',
+        'absent_deduction',
         'late_days',
+        'late_hours',
         'standby_nights',
         'late_deduction',
         'loan_deduction',
@@ -22,11 +28,15 @@ class StaffPayroll extends Model
         'standby_bonus',
         'frontdesk_first_night_bonus',
         'frontdesk_next_nights_bonus_share',
+        'overtime_hours',
+        'overtime_bonus',
+        'holiday_days',
         'total_salary',
         'status',
         'paid_at',
         'notes',
         'created_by',
+        'expense_id',
     ];
 
     protected $casts = [
@@ -39,11 +49,25 @@ class StaffPayroll extends Model
         'frontdesk_next_nights_bonus_share' => 'float',
         'total_salary' => 'float',
         'paid_at' => 'datetime',
+        'sick_days' => 'integer',
+        'sick_deduction' => 'float',
+        'permission_days' => 'integer',
+        'permission_deduction' => 'float',
+        'absent_deduction' => 'float',
+        'late_hours' => 'float',
+        'overtime_hours' => 'float',
+        'overtime_bonus' => 'float',
+        'holiday_days' => 'integer',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function expense(): BelongsTo
+    {
+        return $this->belongsTo(PropertyExpense::class, 'expense_id');
     }
 
     public function creator(): BelongsTo

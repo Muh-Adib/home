@@ -30,6 +30,8 @@ class User extends Authenticatable
         'country',
         'role',
         'status',
+        'base_salary',
+        'holiday_quota',
         'gender',
         'avatar',
         'last_login_at',
@@ -59,10 +61,17 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
             'password' => 'hashed',
+            'base_salary' => 'float',
+            'holiday_quota' => 'integer',
         ];
     }
 
     // Relationships
+    public function staffShifts(): HasMany
+    {
+        return $this->hasMany(StaffShift::class);
+    }
+
     public function housekeepingSchedules(): HasMany
     {
         return $this->hasMany(HousekeepingSchedule::class);

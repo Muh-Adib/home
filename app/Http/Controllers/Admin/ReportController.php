@@ -411,31 +411,12 @@ class ReportController extends Controller
             })
             ->get()
             ->map(function ($property) use ($startDate, $endDate) {
-                $revenues = BookingDailyRevenue::where('property_id', $property->id)
-                    ->whereBetween('tanggal', [$startDate->toDateString(), $endDate->toDateString()])
-                    ->confirmedBookings()
-                    ->with('booking.services')
+                $revenues = Income::where('property_id', $property->id)
+                    ->whereBetween('income_date', [$startDate->toDateString(), $endDate->toDateString()])
                     ->get();
 
-                $roomRevenue = $revenues->sum('amount');
-                $servicesRevenue = $revenues->sum(function ($rev) {
-                    if (! $rev->booking) {
-                        return 0;
-                    }
-
-                    return (float) $rev->booking->services
-                        ->where('service_type', '!=', 'extra_bed')
-                        ->where('status', '!=', 'cancelled')
-                        ->filter(function ($srv) use ($rev) {
-                            if ($srv->service_date) {
-                                return $srv->service_date->toDateString() === $rev->tanggal->toDateString();
-                            }
-
-                            return $rev->booking->check_in->toDateString() === $rev->tanggal->toDateString();
-                        })
-                        ->sum('total_price');
-                });
-
+                $roomRevenue = $revenues->where('source', 'booking')->sum('amount');
+                $servicesRevenue = $revenues->where('source', '!=', 'booking')->sum('amount');
                 $totalRevenue = $roomRevenue + $servicesRevenue;
 
                 $bookingsCount = Booking::where('property_id', $property->id)
@@ -1113,32 +1094,41 @@ class ReportController extends Controller
             $query->where('id', $propertyId);
         }
 
-        return $query->withCount([
-            'bookings as total_bookings' => function ($q) use ($startDate, $endDate) {
-                $q->where('booking_status', '!=', 'cancelled')
-                    ->whereBetween('check_in', [$startDate, $endDate]);
-            },
-        ])
-            ->withSum([
-                'bookings as total_revenue' => function ($q) use ($startDate, $endDate) {
-                    $q->where('booking_status', '!=', 'cancelled')
-                        ->whereBetween('check_in', [$startDate, $endDate]);
-                },
-            ], 'total_amount')
-            ->orderByDesc('total_revenue')
-            ->limit(10)
-            ->get()
-            ->map(function ($property) use ($startDate, $endDate) {
-                $occupancyRate = $this->calculatePropertyOccupancyRate($property->id, $startDate, $endDate);
+        $properties = $query->get();
+        $propertyIds = $properties->pluck('id')->toArray();
 
-                return [
-                    'id' => $property->id,
-                    'name' => $property->name,
-                    'revenue' => $property->total_revenue ?? 0,
-                    'bookings' => $property->total_bookings ?? 0,
-                    'occupancyRate' => round($occupancyRate, 1),
-                ];
-            })
+        // Load cash-basis revenues
+        $revenues = Income::whereIn('property_id', $propertyIds)
+            ->whereBetween('income_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->get(['property_id', 'amount'])
+            ->groupBy('property_id')
+            ->map(fn ($group) => (float) $group->sum('amount'))
+            ->toArray();
+
+        // Load booking counts
+        $bookingsCounts = Booking::whereIn('property_id', $propertyIds)
+            ->where('booking_status', '!=', 'cancelled')
+            ->whereBetween('check_in', [$startDate, $endDate])
+            ->get(['property_id'])
+            ->groupBy('property_id')
+            ->map(fn ($group) => $group->count())
+            ->toArray();
+
+        return $properties->map(function ($property) use ($startDate, $endDate, $revenues, $bookingsCounts) {
+            $occupancyRate = $this->calculatePropertyOccupancyRate($property->id, $startDate, $endDate);
+            $revenue = $revenues[$property->id] ?? 0.0;
+            $bookingsCount = $bookingsCounts[$property->id] ?? 0;
+
+            return [
+                'id' => $property->id,
+                'name' => $property->name,
+                'revenue' => $revenue,
+                'bookings' => $bookingsCount,
+                'occupancyRate' => round($occupancyRate, 1),
+            ];
+        })
+            ->sortByDesc('revenue')
+            ->values()
             ->toArray();
     }
 
@@ -1152,13 +1142,28 @@ class ReportController extends Controller
             $monthStart = $current->copy()->startOfMonth();
             $monthEnd = $current->copy()->endOfMonth();
 
-            // Use BookingDailyRevenue for accurate monthly revenue
+            // Calculate actual income
+            $incomeQuery = Income::whereBetween('income_date', [$monthStart->toDateString(), $monthEnd->toDateString()]);
+            if ($propertyId) {
+                $incomeQuery->where('property_id', $propertyId);
+            }
+            if ($ownerId) {
+                $incomeQuery->whereHas('property', function ($q) use ($ownerId) {
+                    $q->where('owner_id', $ownerId);
+                });
+            }
+            $totalRealRevenue = (float) $incomeQuery->sum('amount');
+
+            // Get estimated breakdown from BookingDailyRevenue
             $breakdown = BookingDailyRevenue::getRevenueBreakdown(
                 $monthStart,
                 $monthEnd,
                 $propertyId,
                 $ownerId
             );
+
+            $estimatedTotal = $breakdown['total'];
+            $ratio = $estimatedTotal > 0 ? $totalRealRevenue / $estimatedTotal : 0;
 
             $bookingQuery = Booking::whereBetween('created_at', [$monthStart, $monthEnd]);
 
@@ -1174,10 +1179,10 @@ class ReportController extends Controller
 
             $months[] = [
                 'month' => $current->format('M Y'),
-                'revenue' => $breakdown['total'],
-                'base_amount' => $breakdown['base_amount'],
-                'weekend_premium' => $breakdown['weekend_premium'],
-                'seasonal_premium' => $breakdown['seasonal_premium'],
+                'revenue' => $totalRealRevenue,
+                'base_amount' => round($breakdown['base_amount'] * $ratio, 2),
+                'weekend_premium' => round($breakdown['weekend_premium'] * $ratio, 2),
+                'seasonal_premium' => round($breakdown['seasonal_premium'] * $ratio, 2),
                 'bookings' => $bookingQuery->count(),
             ];
 

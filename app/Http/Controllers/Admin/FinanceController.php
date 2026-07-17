@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\BankAccount;
 use App\Models\Booking;
 use App\Models\EmployeeLoan;
 use App\Models\EmployeeLoanPayment;
@@ -10,6 +11,7 @@ use App\Models\Income;
 use App\Models\PaymentMethod;
 use App\Models\Property;
 use App\Models\PropertyExpense;
+use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\WalletService;
@@ -19,19 +21,50 @@ use Inertia\Inertia;
 
 class FinanceController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, WalletService $walletService)
     {
+        $user = $request->user();
+
+        // Pastikan setiap rekening bank memiliki wallet/dompet kas masing-masing
+        $walletService->ensureEveryBankAccountHasWallet($user->id);
+
+        // Saldo masing-masing rekening
+        $wallets = Wallet::visibleToUser($user->id, $user->role)
+            ->with(['property:id,name', 'bankAccount'])
+            ->orderBy('name')
+            ->get();
+
+        $bankAccounts = BankAccount::with('wallet')
+            ->orderBy('label')
+            ->get();
+
+        $totalIncome = (float) Income::whereYear('income_date', now()->year)->sum('amount');
+        $totalExpense = (float) PropertyExpense::whereYear('expense_date', now()->year)->sum('amount');
+
+        // Scope breakdown for chart
+        $scopeBreakdown = PropertyExpense::whereYear('expense_date', now()->year)
+            ->selectRaw('expense_scope, SUM(amount) as total')
+            ->groupBy('expense_scope')
+            ->get()
+            ->pluck('total', 'expense_scope')
+            ->toArray();
+
         return Inertia::render('Admin/Finance/Index', [
+            'wallets' => $wallets,
+            'bankAccounts' => $bankAccounts,
             'summary' => [
-                'totalIncome' => (float) Income::whereYear('income_date', now()->year)->sum('amount'),
-                'totalExpense' => (float) PropertyExpense::whereYear('expense_date', now()->year)->sum('amount'),
+                'totalIncome' => $totalIncome,
+                'totalExpense' => $totalExpense,
+                'netProfit' => $totalIncome - $totalExpense,
             ],
+            'scopeBreakdown' => $scopeBreakdown,
+            'expenseScopes' => config('finance.expense_scopes'),
         ]);
     }
 
     public function incomes(Request $request)
     {
-        $incomes = Income::with(['property', 'booking', 'wallet'])
+        $incomes = Income::with(['property', 'booking', 'wallet', 'payment'])
             ->orderByDesc('income_date')
             ->paginate(20)
             ->withQueryString();
@@ -52,7 +85,7 @@ class FinanceController extends Controller
 
     public function expenses(Request $request)
     {
-        $query = PropertyExpense::with(['property', 'creator', 'approver']);
+        $query = PropertyExpense::with(['property', 'creator', 'approver', 'wallet', 'booking', 'inventoryUsage.item', 'stockMovement.item']);
 
         // Apply filters
         if ($request->filled('q')) {
@@ -77,6 +110,14 @@ class FinanceController extends Controller
 
         if ($request->filled('category')) {
             $query->where('expense_category', $request->input('category'));
+        }
+
+        if ($request->filled('scope')) {
+            $query->where('expense_scope', $request->input('scope'));
+        }
+
+        if ($request->filled('wallet_id')) {
+            $query->where('wallet_id', $request->input('wallet_id'));
         }
 
         if ($request->filled('property_id')) {
@@ -107,12 +148,14 @@ class FinanceController extends Controller
 
         $categories = config('finance.expense_categories');
         $types = config('finance.expense_types');
-        $properties = Property::select('id', 'name')->orderBy('name')->get();
+        $scopes = config('finance.expense_scopes');
+        $scopeCategories = config('finance.scope_categories');
+        $properties = Property::select('id', 'name', 'ownership_model', 'investor_split_pct')->orderBy('name')->get();
 
         // Get wallets untuk dropdown (filtered by user visibility)
         $user = $request->user();
         $wallets = Wallet::visibleToUser($user->id, $user->role)
-            ->select('id', 'name')
+            ->select('id', 'name', 'balance')
             ->orderBy('name')
             ->get();
 
@@ -120,6 +163,8 @@ class FinanceController extends Controller
             'expenses' => $expenses,
             'expenseCategories' => $categories,
             'expenseTypes' => $types,
+            'expenseScopes' => $scopes,
+            'scopeCategories' => $scopeCategories,
             'properties' => $properties,
             'wallets' => $wallets,
             'totalByProperty' => $totalByProperty,
@@ -128,9 +173,12 @@ class FinanceController extends Controller
         ]);
     }
 
-    public function wallets(Request $request)
+    public function wallets(Request $request, WalletService $walletService)
     {
         $user = $request->user();
+
+        // Pastikan setiap rekening bank memiliki wallet/dompet kas masing-masing
+        $walletService->ensureEveryBankAccountHasWallet($user->id);
 
         // Filter wallets berdasarkan created_by untuk user biasa
         // Finance/Super Admin tetap bisa lihat semua
@@ -143,12 +191,14 @@ class FinanceController extends Controller
         $properties = Property::select('id', 'name')->orderBy('name')->get();
         $paymentMethods = PaymentMethod::select('id', 'name', 'type', 'bank_name', 'wallet_id')->orderBy('name')->get();
         $walletCategories = config('finance.wallet_transaction_categories', []);
+        $walletPurposes = config('finance.wallet_purposes', []);
 
         return Inertia::render('Admin/Finance/Wallets', [
             'wallets' => $wallets,
             'properties' => $properties,
             'paymentMethods' => $paymentMethods,
             'walletCategories' => $walletCategories,
+            'walletPurposes' => $walletPurposes,
         ]);
     }
 
@@ -175,15 +225,13 @@ class FinanceController extends Controller
         return redirect()->back()->with('success', 'Income berhasil disimpan');
     }
 
-    public function storeExpense(Request $request)
+    public function storeExpense(Request $request, ExpenseService $expenseService)
     {
-        // Get configured categories and types
-        $expenseCategories = array_keys(config('finance.expense_categories', []));
-        $expenseTypes = array_keys(config('finance.expense_types', []));
-
-        // Build validation rules
-        $validationRules = [
+        $validated = $request->validate([
             'property_id' => ['nullable', 'exists:properties,id'],
+            'booking_id' => ['nullable', 'exists:bookings,id'],
+            'expense_category' => ['required', 'string', 'max:50'],
+            'expense_type' => ['required', 'string', 'max:50'],
             'description' => ['nullable', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0'],
             'expense_date' => ['required', 'date'],
@@ -192,45 +240,65 @@ class FinanceController extends Controller
             'payment_method' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string', 'max:255'],
             'wallet_id' => ['nullable', 'exists:wallets,id'],
-        ];
-
-        // Add category validation if categories are configured
-        if (! empty($expenseCategories)) {
-            $validationRules['expense_category'] = ['required', 'in:'.implode(',', $expenseCategories)];
-        } else {
-            $validationRules['expense_category'] = ['required', 'string', 'max:50'];
-        }
-
-        // Add type validation if types are configured
-        if (! empty($expenseTypes)) {
-            $validationRules['expense_type'] = ['required', 'in:'.implode(',', $expenseTypes)];
-        } else {
-            $validationRules['expense_type'] = ['required', 'string', 'max:50'];
-        }
-
-        $validated = $request->validate($validationRules);
-
-        $expense = PropertyExpense::create([
-            'property_id' => $validated['property_id'] ?? null,
-            'expense_category' => $validated['expense_category'],
-            'expense_type' => $validated['expense_type'],
-            'description' => $validated['description'] ?? null,
-            'amount' => $validated['amount'],
-            'expense_date' => $validated['expense_date'],
-            'vendor_name' => $validated['vendor_name'] ?? null,
-            'receipt_number' => $validated['receipt_number'] ?? null,
-            'payment_method' => $validated['payment_method'] ?? null,
-            'notes' => $validated['notes'] ?? null,
-            'created_by' => $request->user()->id,
-            'recorded_by' => $request->user()->id, // Set recorded_by sama dengan created_by
-            'status' => 'approved',
+            'expense_scope' => ['required', 'string', 'in:operational,unit,house,kitchen,capital,prive'],
+            'capital_split_investor_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
-        if (! empty($validated['wallet_id'])) {
-            $this->recordWallet($validated['wallet_id'], 'out', $validated['amount'], $validated['expense_date'], 'expense', $expense->id, $validated['description'] ?? '');
+        try {
+            $expense = $expenseService->recordExpense($validated, $request->user()->id);
+
+            // Handle receipt image upload if present
+            if ($request->hasFile('receipt_image')) {
+                $expenseService->uploadReceipt($expense, $request->file('receipt_image'));
+            }
+
+            return redirect()->back()->with('success', 'Pengeluaran berhasil disimpan');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors(['error' => $e->getMessage()]);
+        }
+    }
+
+    public function adjustBalance(Request $request, Wallet $wallet, ExpenseService $expenseService)
+    {
+        $user = $request->user();
+        if ($wallet->created_by !== $user->id && ! in_array($user->role, ['super_admin', 'finance'])) {
+            abort(403, 'Unauthorized to perform adjustment on this wallet');
         }
 
-        return redirect()->back()->with('success', 'Pengeluaran berhasil disimpan');
+        $validated = $request->validate([
+            'new_balance' => ['required', 'numeric', 'min:0'],
+            'reason' => ['required', 'string', 'max:255'],
+            'transaction_date' => ['required', 'date'],
+        ]);
+
+        try {
+            $expenseService->adjustBalance(
+                $wallet->id,
+                (float) $validated['new_balance'],
+                $validated['reason'],
+                $validated['transaction_date'],
+                $user->id
+            );
+
+            return redirect()->back()->with('success', 'Saldo berhasil disesuaikan');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors(['error' => $e->getMessage()]);
+        }
+    }
+
+    public function storeExpenseReceipt(Request $request, PropertyExpense $expense, ExpenseService $expenseService)
+    {
+        $request->validate([
+            'receipt_image' => ['required', 'image', 'max:4096'],
+        ]);
+
+        try {
+            $expenseService->uploadReceipt($expense, $request->file('receipt_image'));
+
+            return redirect()->back()->with('success', 'Foto nota berhasil diunggah');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors(['error' => $e->getMessage()]);
+        }
     }
 
     public function storeWallet(Request $request)
@@ -245,6 +313,7 @@ class FinanceController extends Controller
             'target_amount' => ['nullable', 'numeric', 'min:0'],
             'target_date' => ['nullable', 'date', 'after_or_equal:today'],
             'notes' => ['nullable', 'string', 'max:255'],
+            'purpose' => ['required', 'string', 'max:50'],
         ]);
 
         // Coalesce nulls ke default agar tidak melanggar NOT NULL (SQLite tidak menerapkan default jika nilai null dikirim)
@@ -254,6 +323,7 @@ class FinanceController extends Controller
         $validated['savings_monthly_amount'] = $validated['savings_monthly_amount'] ?? 0;
         $validated['target_amount'] = $validated['target_amount'] ?? null;
         $validated['target_date'] = $validated['target_date'] ?? null;
+        $validated['purpose'] = $validated['purpose'] ?? 'general';
 
         // Set created_by to current user
         $validated['created_by'] = $request->user()->id;
@@ -263,7 +333,7 @@ class FinanceController extends Controller
         return redirect()->back()->with('success', 'Wallet berhasil dibuat');
     }
 
-    public function mapPaymentMethodToWallet(Request $request, PaymentMethod $paymentMethod)
+    public function mapPaymentMethodToWallet(Request $request, PaymentMethod $paymentMethod, WalletService $walletService)
     {
         $this->authorize('update', $paymentMethod);
         $validated = $request->validate([
@@ -272,6 +342,8 @@ class FinanceController extends Controller
         $paymentMethod->update([
             'wallet_id' => $validated['wallet_id'] ?? null,
         ]);
+
+        $walletService->syncAll();
 
         return back()->with('success', 'Payment method berhasil dihubungkan ke wallet');
     }
@@ -524,9 +596,17 @@ class FinanceController extends Controller
                 }
             }
 
-            // Direct expenses for this property
+            // Direct expenses for this property (exclude CAPEX and prive from operational costs)
             $propExpenses = $expenses->where('property_id', $property->id);
-            $directCosts = $propExpenses->sum('amount');
+            $operationalExpenses = $propExpenses->whereNotIn('expense_scope', ['capital', 'prive']);
+            $directCosts = $operationalExpenses->sum('amount');
+
+            // Capital/CAPEX expenses in this period
+            $propCapexExpenses = $propExpenses->where('expense_scope', 'capital');
+            $periodCapex = $propCapexExpenses->sum('amount');
+
+            // Prive in this period
+            $periodPrive = $propExpenses->where('expense_scope', 'prive')->sum('amount');
 
             // Operational profit
             $labaOperasional = ($propNetRoomIncome + $propOtherIncome) - $directCosts;
@@ -536,17 +616,29 @@ class FinanceController extends Controller
             $ownerShare = 0;
 
             if ($property->ownership_model === 'partnership') {
-                $investorShare = $labaOperasional * ($property->investor_split_pct / 100.0);
-                $ownerShare = $labaOperasional * ($property->owner_split_pct / 100.0);
+                // Calculate investor's and owner's shares of CAPEX
+                $periodInvestorCapex = $propCapexExpenses->sum(function ($exp) use ($property) {
+                    $pct = $exp->capital_split_investor_pct ?? $property->investor_split_pct;
+
+                    return $exp->amount * ($pct / 100.0);
+                });
+                $periodOwnerCapex = $propCapexExpenses->sum(function ($exp) use ($property) {
+                    $pct = isset($exp->capital_split_investor_pct) ? (100 - $exp->capital_split_investor_pct) : $property->owner_split_pct;
+
+                    return $exp->amount * ($pct / 100.0);
+                });
+
+                $investorShare = ($labaOperasional * ($property->investor_split_pct / 100.0)) - $periodInvestorCapex;
+                $ownerShare = ($labaOperasional * ($property->owner_split_pct / 100.0)) - $periodOwnerCapex - $periodPrive;
             } elseif ($property->ownership_model === 'rented') {
                 $rent = $property->monthly_rent_cost * $monthFactor;
-                $ownerShare = $labaOperasional - $rent;
+                $ownerShare = $labaOperasional - $rent - $periodCapex - $periodPrive;
                 $investorShare = 0;
                 $totalRentCost += $rent;
             } else { // owned
-                $ownerShare = $labaOperasional;
-                $investorShare = 0;
                 $interest = $property->mortgage_interest_monthly * $monthFactor;
+                $ownerShare = $labaOperasional - $periodCapex - $periodPrive;
+                $investorShare = 0;
                 $totalInterestCost += $interest;
             }
 
@@ -558,9 +650,13 @@ class FinanceController extends Controller
             $occupancyRate = ($monthFactor * 30 > 0) ? ($bookedNights / ($monthFactor * 30)) * 100 : 0;
             $lowOccupancyAlert = $bookedNights < (25 * $monthFactor);
 
-            // Cumulative net profit BEP calculations
+            // Cumulative net profit BEP calculations including capital expenses
             $allTimeIncome = Income::where('property_id', $property->id)->sum('amount');
-            $allTimeExpense = PropertyExpense::where('property_id', $property->id)->sum('amount');
+
+            // All-time operational expenses (exclude CAPEX and prive)
+            $allTimeExpense = PropertyExpense::where('property_id', $property->id)
+                ->whereNotIn('expense_scope', ['capital', 'prive'])
+                ->sum('amount');
 
             $firstTxDate = Income::where('property_id', $property->id)->min('income_date') ?? (optional($property->created_at)->toDateString() ?? now()->toDateString());
             $monthsSinceStart = max(1, round(Carbon::parse($firstTxDate)->diffInMonths(now())));
@@ -572,8 +668,22 @@ class FinanceController extends Controller
                 $allTimeRentOrInterest = $property->mortgage_interest_monthly * $monthsSinceStart;
             }
 
-            $cumulativeProfit = $allTimeIncome - $allTimeExpense - $allTimeRentOrInterest;
-            $capital = $property->initial_build_capital + $property->lease_capital;
+            // Cumulative approved CAPEX
+            $allTimeCapex = PropertyExpense::where('property_id', $property->id)
+                ->where('expense_scope', 'capital')
+                ->where('status', 'approved')
+                ->sum('amount');
+
+            // Cumulative Prive
+            $allTimePrive = PropertyExpense::where('property_id', $property->id)
+                ->where('expense_scope', 'prive')
+                ->where('status', 'approved')
+                ->sum('amount');
+
+            $cumulativeProfit = $allTimeIncome - $allTimeExpense - $allTimeRentOrInterest - $allTimePrive;
+
+            // Total Capital includes initial capital + all-time CAPEX
+            $capital = $property->initial_build_capital + $property->lease_capital + $allTimeCapex;
             $bepPct = $capital > 0 ? ($cumulativeProfit / $capital) * 100 : 0;
             $avgMonthlyProfit = $monthsSinceStart > 0 ? ($cumulativeProfit / $monthsSinceStart) : 0;
             $remainingMonths = ($avgMonthlyProfit > 0 && $cumulativeProfit < $capital) ? round(($capital - $cumulativeProfit) / $avgMonthlyProfit, 1) : 0;
@@ -584,6 +694,8 @@ class FinanceController extends Controller
                 'ownership_model' => $property->ownership_model,
                 'total_income' => $propIncomes->sum('amount'),
                 'total_expense' => $directCosts,
+                'total_capex' => $periodCapex,
+                'total_prive' => $periodPrive,
                 'laba_operasional' => $labaOperasional,
                 'investor_share' => $investorShare,
                 'owner_share' => $ownerShare,

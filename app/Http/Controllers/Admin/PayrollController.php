@@ -6,9 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\EmployeeLoan;
 use App\Models\EmployeeLoanPayment;
+use App\Models\PropertyExpense;
 use App\Models\StaffPayroll;
+use App\Models\StaffShift;
 use App\Models\User;
+use App\Models\Wallet;
+use App\Models\WalletTransaction;
 use App\Services\HousekeepingPointService;
+use App\Services\WalletService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -37,10 +42,18 @@ class PayrollController extends Controller
         $startDate = Carbon::create($year, $month, 1)->startOfMonth()->startOfDay();
         $endDate = Carbon::create($year, $month, 1)->endOfMonth()->endOfDay();
 
-        // 1. Get staff list (non-guests)
-        $staff = User::where('role', '!=', 'guest')
+        // 1. Get staff list (non-guests) active in this period (including soft deleted)
+        $staff = User::withTrashed()
+            ->where('role', '!=', 'guest')
+            ->where(function ($q) use ($startDate, $endDate) {
+                $q->where('created_at', '<=', $endDate)
+                    ->where(function ($sub) use ($startDate) {
+                        $sub->whereNull('deleted_at')
+                            ->orWhere('deleted_at', '>=', $startDate);
+                    });
+            })
             ->orderBy('name')
-            ->get(['id', 'name', 'role', 'status', 'fingerprint_id', 'shift_start_time', 'shift_end_time']);
+            ->get(['id', 'name', 'role', 'status', 'fingerprint_id', 'shift_start_time', 'shift_end_time', 'base_salary', 'holiday_quota', 'created_at', 'deleted_at']);
 
         // 2. Fetch existing stored payrolls
         $storedPayrolls = StaffPayroll::where('month', $month)
@@ -52,10 +65,14 @@ class PayrollController extends Controller
         $firstNightRate = (float) $request->input('first_night_rate', 15000);
         $nextNightRate = (float) $request->input('next_night_rate', 5000);
         $housekeepingRatePerPoint = (float) $request->input('housekeeping_rate_per_point', 1000);
-        $lateDeductionRate = (float) $request->input('late_deduction_rate', 20000);
+        $lateDeductionRate = (float) $request->input('late_deduction_rate', 20000); // late per hour
         $standbyRate = (float) $request->input('standby_rate', 50000);
+        $overtimeRate = (float) $request->input('overtime_rate', 25000); // overtime per hour
+        $absentDeductionRate = (float) $request->input('absent_deduction_rate', 100000); // absent per day
+        $sickDeductionRate = (float) $request->input('sick_deduction_rate', 50000); // sick per day
+        $permissionDeductionRate = (float) $request->input('permission_deduction_rate', 75000); // permission per day
 
-        // Default base salaries based on roles
+        // Default base salaries based on roles (if not set in user profile)
         $defaultSalaries = [
             'super_admin' => 5000000.0,
             'property_manager' => 4500000.0,
@@ -74,7 +91,9 @@ class PayrollController extends Controller
             ->get(['id', 'booking_number', 'check_in', 'check_out', 'closed_by', 'created_by']);
 
         $firstNightBonuses = [];
+        $firstNightCounts = [];
         $totalNextNightsPool = 0;
+        $totalNextNightsCount = 0;
 
         foreach ($bookings as $booking) {
             $nights = $booking->check_in && $booking->check_out
@@ -91,16 +110,27 @@ class PayrollController extends Controller
             if ($closerId) {
                 if (! isset($firstNightBonuses[$closerId])) {
                     $firstNightBonuses[$closerId] = 0;
+                    $firstNightCounts[$closerId] = 0;
                 }
                 $firstNightBonuses[$closerId] += $firstNightRate;
+                $firstNightCounts[$closerId] += 1;
             }
 
             if ($nights > 1) {
                 $totalNextNightsPool += ($nights - 1) * $nextNightRate;
+                $totalNextNightsCount += ($nights - 1);
             }
         }
 
         $sharedNextNightsBonus = $frontdeskCount > 0 ? ($totalNextNightsPool / $frontdeskCount) : 0;
+
+        // Fetch daily custom shifts for all users for this month
+        $shifts = StaffShift::whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->get()
+            ->groupBy('user_id');
+
+        // Fetch wallets for payroll source payment selection
+        $wallets = Wallet::orderBy('name')->get(['id', 'name', 'balance']);
 
         // 4. Build payroll calculation data
         $payrolls = [];
@@ -137,6 +167,29 @@ class PayrollController extends Controller
                 $outstandingLoanAmount += max(0.0, (float) $loan->amount - (float) $repaid);
             }
 
+            // Calculate active employment days and proration factor in the current month (mid-month joiners/leavers)
+            $daysInMonth = Carbon::create($year, $month, 1)->endOfMonth()->day;
+            $activeEmploymentDays = 0;
+            for ($d = 1; $d <= $daysInMonth; $d++) {
+                $dateCarbon = Carbon::create($year, $month, $d);
+                if ($dateCarbon->lt(Carbon::parse($s->created_at)->startOfDay())) {
+                    continue;
+                }
+                if ($s->deleted_at && $dateCarbon->gt(Carbon::parse($s->deleted_at)->endOfDay())) {
+                    continue;
+                }
+                if ($dateCarbon->dayOfWeek !== Carbon::SUNDAY) {
+                    $activeEmploymentDays++;
+                }
+            }
+
+            $prorationFactor = min(1.0, $activeEmploymentDays / 26.0);
+
+            // Default values
+            $originalBaseSalary = (float) ($s->base_salary > 0 ? $s->base_salary : ($defaultSalaries[$s->role] ?? 2000000.0));
+            $baseSalary = (float) round($originalBaseSalary * $prorationFactor);
+            $holidayQuota = $s->holiday_quota !== null ? $s->holiday_quota : 4;
+
             // If a stored payroll exists, use those values
             if ($existing) {
                 $payrolls[] = [
@@ -150,7 +203,13 @@ class PayrollController extends Controller
                     'base_salary' => (float) $existing->base_salary,
                     'attendance_days' => $existing->attendance_days,
                     'absent_days' => $existing->absent_days,
+                    'sick_days' => $existing->sick_days,
+                    'sick_deduction' => (float) $existing->sick_deduction,
+                    'permission_days' => $existing->permission_days,
+                    'permission_deduction' => (float) $existing->permission_deduction,
+                    'absent_deduction' => (float) $existing->absent_deduction,
                     'late_days' => $existing->late_days,
+                    'late_hours' => (float) $existing->late_hours,
                     'standby_nights' => $existing->standby_nights,
                     'late_deduction' => (float) $existing->late_deduction,
                     'loan_deduction' => (float) $existing->loan_deduction,
@@ -158,23 +217,42 @@ class PayrollController extends Controller
                     'standby_bonus' => (float) $existing->standby_bonus,
                     'frontdesk_first_night_bonus' => (float) $existing->frontdesk_first_night_bonus,
                     'frontdesk_next_nights_bonus_share' => (float) $existing->frontdesk_next_nights_bonus_share,
+                    'overtime_hours' => (float) $existing->overtime_hours,
+                    'overtime_bonus' => (float) $existing->overtime_bonus,
+                    'holiday_days' => $existing->holiday_days,
                     'total_salary' => (float) $existing->total_salary,
                     'status' => $existing->status,
                     'paid_at' => $existing->paid_at ? $existing->paid_at->toIso8601String() : null,
                     'notes' => $existing->notes,
                     'outstanding_loans' => $outstandingLoanAmount,
                     'stored' => true,
+                    'holiday_quota' => $holidayQuota,
+                    'expense_id' => $existing->expense_id,
+                    'original_base_salary' => $originalBaseSalary,
+                    'prorated' => $prorationFactor < 1.0,
+                    'active_employment_days' => $activeEmploymentDays,
+                    'hk_points' => (float) $resolvedPoints,
+                    'first_nights_count' => $s->role === 'front_desk' ? ($firstNightCounts[$s->id] ?? 0) : 0,
+                    'next_nights_pool_count' => $totalNextNightsCount,
+                    'frontdesk_count' => $frontdeskCount,
                 ];
             } else {
                 // Compute live values
-                $baseSalary = $defaultSalaries[$s->role] ?? 2000000.0;
-
-                $attendanceDays = 26; // Default standard working days
+                $attendanceDays = min(26, $activeEmploymentDays);
                 $absentDays = 0;
+                $sickDays = 0;
+                $sickDeduction = 0.0;
+                $permissionDays = 0;
+                $permissionDeduction = 0.0;
+                $absentDeduction = 0.0;
                 $lateDays = 0;
+                $lateHours = 0.0;
                 $standbyNights = 0;
                 $lateDeduction = 0.0;
                 $standbyBonus = 0.0;
+                $overtimeHours = 0.0;
+                $overtimeBonus = 0.0;
+                $holidayDays = 0;
 
                 $suggestedLoanDeduction = min($outstandingLoanAmount, $baseSalary * 0.2);
 
@@ -191,7 +269,13 @@ class PayrollController extends Controller
                     'base_salary' => $baseSalary,
                     'attendance_days' => $attendanceDays,
                     'absent_days' => $absentDays,
+                    'sick_days' => $sickDays,
+                    'sick_deduction' => $sickDeduction,
+                    'permission_days' => $permissionDays,
+                    'permission_deduction' => $permissionDeduction,
+                    'absent_deduction' => $absentDeduction,
                     'late_days' => $lateDays,
+                    'late_hours' => $lateHours,
                     'standby_nights' => $standbyNights,
                     'late_deduction' => $lateDeduction,
                     'loan_deduction' => $suggestedLoanDeduction,
@@ -199,12 +283,24 @@ class PayrollController extends Controller
                     'standby_bonus' => $standbyBonus,
                     'frontdesk_first_night_bonus' => $fdFirstNightBonus,
                     'frontdesk_next_nights_bonus_share' => $fdNextNightsShare,
+                    'overtime_hours' => $overtimeHours,
+                    'overtime_bonus' => $overtimeBonus,
+                    'holiday_days' => $holidayDays,
                     'total_salary' => $totalSalary,
                     'status' => 'pending',
                     'paid_at' => null,
                     'notes' => '',
                     'outstanding_loans' => $outstandingLoanAmount,
                     'stored' => false,
+                    'holiday_quota' => $holidayQuota,
+                    'expense_id' => null,
+                    'original_base_salary' => $originalBaseSalary,
+                    'prorated' => $prorationFactor < 1.0,
+                    'active_employment_days' => $activeEmploymentDays,
+                    'hk_points' => (float) $resolvedPoints,
+                    'first_nights_count' => $s->role === 'front_desk' ? ($firstNightCounts[$s->id] ?? 0) : 0,
+                    'next_nights_pool_count' => $totalNextNightsCount,
+                    'frontdesk_count' => $frontdeskCount,
                 ];
             }
         }
@@ -213,8 +309,23 @@ class PayrollController extends Controller
         $pointService = app(HousekeepingPointService::class);
         $poolData = $pointService->getMonthlyPool($month, $year);
 
+        // Fetch shift details in monthly calendar format
+        $userShifts = [];
+        foreach ($staff as $s) {
+            $userShifts[$s->id] = $shifts->get($s->id, collect())->map(function ($sh) {
+                return [
+                    'date' => $sh->date->toDateString(),
+                    'shift_start_time' => $sh->shift_start_time,
+                    'shift_end_time' => $sh->shift_end_time,
+                    'is_off_day' => (bool) $sh->is_off_day,
+                ];
+            })->values()->all();
+        }
+
         return Inertia::render('Admin/Finance/Payroll', [
             'payrolls' => $payrolls,
+            'wallets' => $wallets,
+            'userShifts' => $userShifts,
             'poolData' => [
                 'eligible_turnover' => $poolData['eligible_turnover'],
                 'total_pool' => $poolData['total_pool'],
@@ -229,12 +340,16 @@ class PayrollController extends Controller
                 'housekeeping_rate_per_point' => $housekeepingRatePerPoint,
                 'late_deduction_rate' => $lateDeductionRate,
                 'standby_rate' => $standbyRate,
+                'overtime_rate' => $overtimeRate,
+                'absent_deduction_rate' => $absentDeductionRate,
+                'sick_deduction_rate' => $sickDeductionRate,
+                'permission_deduction_rate' => $permissionDeductionRate,
             ],
         ]);
     }
 
     /**
-     * Update employee shift settings
+     * Update employee shift and wage settings
      */
     public function updateUserSettings(Request $request): RedirectResponse
     {
@@ -243,6 +358,8 @@ class PayrollController extends Controller
             'fingerprint_id' => 'nullable|string|unique:users,fingerprint_id,'.$request->input('user_id'),
             'shift_start_time' => 'required|string',
             'shift_end_time' => 'required|string',
+            'base_salary' => 'required|numeric|min:0',
+            'holiday_quota' => 'required|integer|min:0',
         ]);
 
         $u = User::findOrFail($validated['user_id']);
@@ -250,9 +367,42 @@ class PayrollController extends Controller
             'fingerprint_id' => $validated['fingerprint_id'],
             'shift_start_time' => $validated['shift_start_time'],
             'shift_end_time' => $validated['shift_end_time'],
+            'base_salary' => $validated['base_salary'],
+            'holiday_quota' => $validated['holiday_quota'],
         ]);
 
-        return redirect()->back()->with('success', 'Pengaturan shift staff berhasil diperbarui.');
+        return redirect()->back()->with('success', 'Pengaturan shift & gaji staff berhasil diperbarui.');
+    }
+
+    /**
+     * Store employee daily shifts (calendar)
+     */
+    public function storeShifts(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'shifts' => 'required|array',
+            'shifts.*.date' => 'required|date',
+            'shifts.*.shift_start_time' => 'required|string',
+            'shifts.*.shift_end_time' => 'required|string',
+            'shifts.*.is_off_day' => 'required|boolean',
+        ]);
+
+        foreach ($validated['shifts'] as $shiftData) {
+            StaffShift::updateOrCreate(
+                [
+                    'user_id' => $validated['user_id'],
+                    'date' => $shiftData['date'],
+                ],
+                [
+                    'shift_start_time' => $shiftData['shift_start_time'],
+                    'shift_end_time' => $shiftData['shift_end_time'],
+                    'is_off_day' => $shiftData['is_off_day'],
+                ]
+            );
+        }
+
+        return redirect()->back()->with('success', 'Jadwal shift harian staff berhasil disimpan.');
     }
 
     /**
@@ -262,7 +412,18 @@ class PayrollController extends Controller
     {
         $request->validate([
             'file' => 'required|file',
+            'month' => 'required|integer',
+            'year' => 'required|integer',
+            'late_deduction_rate' => 'required|numeric',
+            'overtime_rate' => 'required|numeric',
+            'standby_rate' => 'required|numeric',
         ]);
+
+        $month = (int) $request->input('month');
+        $year = (int) $request->input('year');
+        $lateRate = (float) $request->input('late_deduction_rate');
+        $overtimeRate = (float) $request->input('overtime_rate');
+        $standbyRate = (float) $request->input('standby_rate');
 
         $file = $request->file('file');
         $filePath = $file->getRealPath();
@@ -299,19 +460,64 @@ class PayrollController extends Controller
                             ->orWhere('name', 'like', "%{$name}%")
                             ->first();
 
-                        $shiftStart = $matchedUser ? $matchedUser->shift_start_time : '08:00';
                         $role = $matchedUser ? $matchedUser->role : 'housekeeping';
 
                         $presentDays = 0;
                         $absentDays = 0;
-                        $lateCount = 0;
                         $standbyCount = 0;
+                        $holidayCount = 0;
+                        $totalLateMinutes = 0;
+                        $totalOvertimeMinutes = 0;
+                        $daysLogs = [];
 
                         // Loop through calendar rows 13 to 43 (31 days)
                         for ($row = 13; $row <= 43; $row++) {
                             $dayLabel = $sheet->getCellByColumnAndRow($colStart, $row)->getValue();
                             if (! $dayLabel) {
                                 continue;
+                            }
+
+                            // Calculate date for row
+                            $day = $row - 12;
+                            if ($day > Carbon::create($year, $month, 1)->endOfMonth()->day) {
+                                continue;
+                            }
+                            $dateCarbon = Carbon::create($year, $month, $day);
+                            $dateStr = $dateCarbon->toDateString();
+
+                            // Skip checking if employee hasn't joined yet or has resigned/left
+                            if ($matchedUser) {
+                                if ($dateCarbon->lt(Carbon::parse($matchedUser->created_at)->startOfDay())) {
+                                    continue;
+                                }
+                                if ($matchedUser->deleted_at && $dateCarbon->gt(Carbon::parse($matchedUser->deleted_at)->endOfDay())) {
+                                    continue;
+                                }
+                            }
+
+                            // Find shift for this user and date
+                            $customShift = $matchedUser
+                                ? StaffShift::where('user_id', $matchedUser->id)->whereDate('date', $dateStr)->first()
+                                : null;
+
+                            $isOffDay = false;
+                            $shiftStart = '08:00';
+                            $shiftEnd = '16:00';
+
+                            if ($customShift) {
+                                $isOffDay = (bool) $customShift->is_off_day;
+                                $shiftStart = $customShift->shift_start_time ?: '08:00';
+                                $shiftEnd = $customShift->shift_end_time ?: '16:00';
+                            } else {
+                                if ($matchedUser) {
+                                    $shiftStart = $matchedUser->shift_start_time ?: '08:00';
+                                    $shiftEnd = $matchedUser->shift_end_time ?: '16:00';
+                                }
+                                // Fallback weekend as off day
+                                $dayOfWeek = Carbon::create($year, $month, $day)->dayOfWeek;
+                                if ($dayOfWeek === Carbon::SATURDAY || $dayOfWeek === Carbon::SUNDAY) {
+                                    $isOffDay = true;
+                                }
                             }
 
                             $inPagi = $sheet->getCellByColumnAndRow($colStart + 1, $row)->getValue();
@@ -322,8 +528,15 @@ class PayrollController extends Controller
                             $checkIn = $inPagi ?: $inSiang;
                             $checkOut = $outSiang ?: $outPagi;
 
+                            $dayLateMinutes = 0;
+                            $dayOvertimeMinutes = 0;
+
                             if ($checkIn || $checkOut) {
-                                $presentDays++;
+                                if ($isOffDay) {
+                                    $holidayCount++;
+                                } else {
+                                    $presentDays++;
+                                }
 
                                 if ($checkIn) {
                                     $timeParts = explode(':', (string) $checkIn);
@@ -334,8 +547,9 @@ class PayrollController extends Controller
                                         // Standby check (Housekeeping check-in after 17:00 / 5 PM)
                                         if ($role === 'housekeeping' && $hour >= 17) {
                                             $standbyCount++;
-                                            // Standby shifts are outside regular attendance
-                                            $presentDays--;
+                                            if (! $isOffDay) {
+                                                $presentDays--;
+                                            }
                                         } else {
                                             // Regular lateness check
                                             $shiftParts = explode(':', $shiftStart);
@@ -346,27 +560,67 @@ class PayrollController extends Controller
                                             $shiftTotal = $shiftHour * 60 + $shiftMinute;
 
                                             if ($checkInTotal > $shiftTotal) {
-                                                $lateCount++;
+                                                $dayLateMinutes = $checkInTotal - $shiftTotal;
+                                                $totalLateMinutes += $dayLateMinutes;
                                             }
                                         }
                                     }
                                 }
+
+                                if ($checkOut) {
+                                    $timeParts = explode(':', (string) $checkOut);
+                                    if (count($timeParts) >= 2) {
+                                        $hour = (int) $timeParts[0];
+                                        $minute = (int) $timeParts[1];
+
+                                        // Overtime check
+                                        $shiftEndParts = explode(':', $shiftEnd);
+                                        $shiftEndHour = count($shiftEndParts) >= 1 ? (int) $shiftEndParts[0] : 16;
+                                        $shiftEndMinute = count($shiftEndParts) >= 2 ? (int) $shiftEndParts[1] : 0;
+
+                                        $checkOutTotal = $hour * 60 + $minute;
+                                        $shiftEndTotal = $shiftEndHour * 60 + $shiftEndMinute;
+
+                                        if ($checkOutTotal > $shiftEndTotal) {
+                                            $dayOvertimeMinutes = $checkOutTotal - $shiftEndTotal;
+                                            $totalOvertimeMinutes += $dayOvertimeMinutes;
+                                        }
+                                    }
+                                }
                             } else {
-                                // Absent check (exclude weekend rest days "Sab" & "Min")
-                                $dayStr = strtolower((string) $dayLabel);
-                                if (! str_contains($dayStr, 'sab') && ! str_contains($dayStr, 'min')) {
+                                if ($isOffDay) {
+                                    $holidayCount++;
+                                } else {
                                     $absentDays++;
                                 }
                             }
+
+                            $daysLogs[] = [
+                                'day' => $day,
+                                'date' => $dateStr,
+                                'check_in' => $checkIn ?: '—',
+                                'check_out' => $checkOut ?: '—',
+                                'is_off_day' => $isOffDay,
+                                'shift_start' => $shiftStart,
+                                'shift_end' => $shiftEnd,
+                                'late_hours' => round($dayLateMinutes / 60, 2),
+                                'overtime_hours' => round($dayOvertimeMinutes / 60, 2),
+                            ];
                         }
+
+                        $lateHoursCalculated = round($totalLateMinutes / 60, 2);
+                        $overtimeHoursCalculated = round($totalOvertimeMinutes / 60, 2);
 
                         $attendanceSummary[] = [
                             'name' => $name,
                             'fingerprint_id' => $fingerprintId,
                             'present_days' => $presentDays,
-                            'late_days' => $lateCount,
+                            'late_days' => (int) ceil($lateHoursCalculated / 8), // rough days late
+                            'late_hours' => $lateHoursCalculated,
                             'absent_days' => $absentDays,
                             'standby_nights' => $standbyCount,
+                            'holiday_days' => $holidayCount,
+                            'days_logs' => $daysLogs,
                         ];
                     }
                 }
@@ -419,9 +673,11 @@ class PayrollController extends Controller
                             'name' => $name,
                             'fingerprint_id' => '',
                             'present_days' => $presentKey ? (int) $row[$presentKey] : 26,
-                            'late_days' => $lateKey ? (int) $row[$lateKey] : 0,
+                            'late_days' => $lateKey ? (int) ($row[$lateKey] / 8) : 0,
+                            'late_hours' => $lateKey ? (float) $row[$lateKey] : 0,
                             'absent_days' => $absentKey ? (int) $row[$absentKey] : 0,
                             'standby_nights' => 0,
+                            'holiday_days' => 4,
                         ];
                     }
                 }
@@ -452,12 +708,19 @@ class PayrollController extends Controller
         $validated = $request->validate([
             'month' => 'required|integer',
             'year' => 'required|integer',
+            'wallet_id' => 'nullable|exists:wallets,id', // wallet used to pay
             'payrolls' => 'required|array',
             'payrolls.*.user_id' => 'required|exists:users,id',
             'payrolls.*.base_salary' => 'required|numeric',
             'payrolls.*.attendance_days' => 'required|integer',
             'payrolls.*.absent_days' => 'required|integer',
+            'payrolls.*.sick_days' => 'required|integer',
+            'payrolls.*.sick_deduction' => 'required|numeric',
+            'payrolls.*.permission_days' => 'required|integer',
+            'payrolls.*.permission_deduction' => 'required|numeric',
+            'payrolls.*.absent_deduction' => 'required|numeric',
             'payrolls.*.late_days' => 'required|integer',
+            'payrolls.*.late_hours' => 'required|numeric',
             'payrolls.*.standby_nights' => 'required|integer',
             'payrolls.*.late_deduction' => 'required|numeric',
             'payrolls.*.loan_deduction' => 'required|numeric',
@@ -465,6 +728,9 @@ class PayrollController extends Controller
             'payrolls.*.standby_bonus' => 'required|numeric',
             'payrolls.*.frontdesk_first_night_bonus' => 'required|numeric',
             'payrolls.*.frontdesk_next_nights_bonus_share' => 'required|numeric',
+            'payrolls.*.overtime_hours' => 'required|numeric',
+            'payrolls.*.overtime_bonus' => 'required|numeric',
+            'payrolls.*.holiday_days' => 'required|integer',
             'payrolls.*.total_salary' => 'required|numeric',
             'payrolls.*.status' => 'required|string|in:pending,paid',
             'payrolls.*.notes' => 'nullable|string',
@@ -472,8 +738,9 @@ class PayrollController extends Controller
 
         $month = $validated['month'];
         $year = $validated['year'];
+        $walletId = $validated['wallet_id'] ?? null;
 
-        DB::transaction(function () use ($validated, $month, $year, $user) {
+        DB::transaction(function () use ($validated, $month, $year, $user, $walletId) {
             foreach ($validated['payrolls'] as $payrollData) {
                 $existing = StaffPayroll::where('user_id', $payrollData['user_id'])
                     ->where('month', $month)
@@ -481,8 +748,11 @@ class PayrollController extends Controller
                     ->first();
 
                 $loanDeduction = (float) $payrollData['loan_deduction'];
+                $totalSalary = (float) $payrollData['total_salary'];
+                $expenseId = $existing?->expense_id;
 
                 if ($payrollData['status'] === 'paid' && (! $existing || $existing->status !== 'paid')) {
+                    // Record loan payment if any loan deduction
                     if ($loanDeduction > 0) {
                         $loans = EmployeeLoan::where('employee_id', $payrollData['user_id'])
                             ->where('status', 'active')
@@ -506,8 +776,8 @@ class PayrollController extends Controller
                                     'employee_loan_id' => $loan->id,
                                     'amount' => $paymentAmount,
                                     'paid_at' => now(),
-                                    'payment_method' => 'salary_deduction',
                                     'notes' => "Dipotong otomatis dari gaji bulan {$month}/{$year}",
+                                    'created_by' => $user->id,
                                 ]);
 
                                 if (($repaid + $paymentAmount) >= $loan->amount) {
@@ -517,6 +787,42 @@ class PayrollController extends Controller
                                 $remainingDeduction -= $paymentAmount;
                             }
                         }
+                    }
+
+                    // Create PropertyExpense to track in monthly reports
+                    if ($walletId) {
+                        $empUser = User::find($payrollData['user_id']);
+                        $expense = PropertyExpense::create([
+                            'property_id' => null, // General company expense
+                            'expense_scope' => 'operational',
+                            'expense_category' => 'salary',
+                            'expense_type' => 'fixed',
+                            'description' => "Gaji Karyawan: {$empUser->name} - Periode {$month}/{$year}",
+                            'amount' => $totalSalary,
+                            'expense_date' => now()->toDateString(),
+                            'payment_method' => 'cash',
+                            'wallet_id' => $walletId,
+                            'status' => 'approved',
+                            'recorded_by' => $user->id,
+                            'approved_by' => $user->id,
+                        ]);
+
+                        $expenseId = $expense->id;
+
+                        // Create WalletTransaction
+                        WalletTransaction::create([
+                            'wallet_id' => $walletId,
+                            'direction' => 'out',
+                            'amount' => $totalSalary,
+                            'category' => 'expense',
+                            'transaction_date' => now()->toDateString(),
+                            'description' => "Bayar Gaji: {$empUser->name} - Periode {$month}/{$year}",
+                            'reference_type' => PropertyExpense::class,
+                            'reference_id' => $expenseId,
+                        ]);
+
+                        // Recalculate wallet balance
+                        app(WalletService::class)->recalculateBalance($walletId);
                     }
                 }
 
@@ -530,7 +836,13 @@ class PayrollController extends Controller
                         'base_salary' => $payrollData['base_salary'],
                         'attendance_days' => $payrollData['attendance_days'],
                         'absent_days' => $payrollData['absent_days'],
+                        'sick_days' => $payrollData['sick_days'],
+                        'sick_deduction' => $payrollData['sick_deduction'],
+                        'permission_days' => $payrollData['permission_days'],
+                        'permission_deduction' => $payrollData['permission_deduction'],
+                        'absent_deduction' => $payrollData['absent_deduction'],
                         'late_days' => $payrollData['late_days'],
+                        'late_hours' => $payrollData['late_hours'],
                         'standby_nights' => $payrollData['standby_nights'],
                         'late_deduction' => $payrollData['late_deduction'],
                         'loan_deduction' => $payrollData['loan_deduction'],
@@ -538,11 +850,15 @@ class PayrollController extends Controller
                         'standby_bonus' => $payrollData['standby_bonus'],
                         'frontdesk_first_night_bonus' => $payrollData['frontdesk_first_night_bonus'],
                         'frontdesk_next_nights_bonus_share' => $payrollData['frontdesk_next_nights_bonus_share'],
+                        'overtime_hours' => $payrollData['overtime_hours'],
+                        'overtime_bonus' => $payrollData['overtime_bonus'],
+                        'holiday_days' => $payrollData['holiday_days'],
                         'total_salary' => $payrollData['total_salary'],
                         'status' => $payrollData['status'],
                         'paid_at' => $payrollData['status'] === 'paid' ? now() : null,
                         'notes' => $payrollData['notes'],
                         'created_by' => $user->id,
+                        'expense_id' => $expenseId,
                     ]
                 );
             }

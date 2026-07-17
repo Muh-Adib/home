@@ -146,11 +146,33 @@ class PaymentController extends Controller
             'month_amount' => Payment::whereMonth('payment_date', now()->month)->sum('amount'),
         ];
 
+        $bookings = Booking::with('property')
+            ->whereIn('payment_status', ['dp_pending', 'dp_received'])
+            ->where('booking_status', '!=', 'cancelled')
+            ->latest()
+            ->get()
+            ->map(function ($booking) {
+                $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
+                $booking->paid_amount = $paidAmount;
+                $booking->remaining_amount = $booking->total_amount - $paidAmount;
+
+                return $booking;
+            })
+            ->filter(function ($booking) {
+                return $booking->remaining_amount > 0;
+            })
+            ->values();
+
+        $users = User::whereIn('role', ['super_admin', 'property_manager', 'finance'])->get();
+
         if ($request->wantsJson() || $request->input('format') === 'json') {
             return response()->json([
                 'payments' => $payments,
                 'paymentMethods' => $paymentMethods,
                 'stats' => $stats,
+                'bookings' => $bookings,
+                'users' => $users,
+                'bankOptions' => self::BANK_OPTIONS,
             ]);
         }
 
@@ -158,6 +180,9 @@ class PaymentController extends Controller
             'payments' => $payments,
             'paymentMethods' => $paymentMethods,
             'stats' => $stats,
+            'bookings' => $bookings,
+            'users' => $users,
+            'bankOptions' => self::BANK_OPTIONS,
             'filters' => [
                 'search' => $request->input('search'),
                 'status' => $request->input('status'),

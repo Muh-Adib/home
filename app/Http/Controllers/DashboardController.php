@@ -6,6 +6,7 @@ use App\Models\Article;
 use App\Models\Booking;
 use App\Models\BookingDailyRevenue;
 use App\Models\ContentPlan;
+use App\Models\Income;
 use App\Models\LostAndFound;
 use App\Models\Payment;
 use App\Models\Property;
@@ -493,8 +494,7 @@ class DashboardController extends Controller
         $startDate = Carbon::now()->subMonths(11)->startOfMonth();
         $endDate = Carbon::now()->endOfMonth();
 
-        $query = BookingDailyRevenue::whereBetween('tanggal', [$startDate->toDateString(), $endDate->toDateString()])
-            ->confirmedBookings();
+        $query = Income::whereBetween('income_date', [$startDate->toDateString(), $endDate->toDateString()]);
 
         if ($user->role === 'property_owner') {
             $query->whereHas('property', function ($q) use ($user) {
@@ -502,9 +502,9 @@ class DashboardController extends Controller
             });
         }
 
-        $monthlyData = $query->get(['tanggal', 'amount'])
+        $monthlyData = $query->get(['income_date', 'amount'])
             ->groupBy(function ($row) {
-                return Carbon::parse($row->tanggal)->format('Y-m');
+                return Carbon::parse($row->income_date)->format('Y-m');
             })
             ->map(fn ($group) => $group->sum('amount'))
             ->toArray();
@@ -580,10 +580,9 @@ class DashboardController extends Controller
 
         $propertyIds = $properties->pluck('id')->toArray();
 
-        // 1. Batch load monthly revenues
-        $monthlyRevenues = BookingDailyRevenue::whereIn('property_id', $propertyIds)
-            ->whereBetween('tanggal', [$thisMonth->toDateString(), $now->toDateString()])
-            ->confirmedBookings()
+        // 1. Batch load monthly revenues from verified incomes
+        $monthlyRevenues = Income::whereIn('property_id', $propertyIds)
+            ->whereBetween('income_date', [$thisMonth->toDateString(), $now->toDateString()])
             ->get(['property_id', 'amount'])
             ->groupBy('property_id')
             ->map(fn ($group) => $group->sum('amount'))

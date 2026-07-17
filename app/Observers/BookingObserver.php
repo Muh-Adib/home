@@ -6,6 +6,8 @@ namespace App\Observers;
 
 use App\Models\Booking;
 use App\Models\Income;
+use App\Services\BookingDailyRevenueService;
+use App\Services\PaymentIncomeSyncService;
 use Illuminate\Support\Facades\Cache;
 
 class BookingObserver
@@ -16,6 +18,7 @@ class BookingObserver
     public function created(Booking $booking): void
     {
         $this->invalidateAvailabilityCache($booking->property_id);
+        app(BookingDailyRevenueService::class)->syncBookingRevenue($booking);
     }
 
     /**
@@ -28,6 +31,19 @@ class BookingObserver
             if ($booking->isDirty('property_id')) {
                 $this->invalidateAvailabilityCache($booking->getOriginal('property_id'));
             }
+        }
+
+        if ($booking->isDirty(['check_in', 'check_out', 'property_id', 'total_amount', 'discount_amount'])) {
+            $payments = $booking->payments()->where('payment_status', 'verified')->get();
+            $syncService = app(PaymentIncomeSyncService::class);
+            foreach ($payments as $payment) {
+                $syncService->syncOnVerified($payment);
+            }
+        }
+
+        // Auto-sync daily revenue breakdown on date, price, status, or paid amount changes
+        if ($booking->isDirty(['check_in', 'check_out', 'property_id', 'total_amount', 'discount_amount', 'booking_status', 'dp_paid_amount'])) {
+            app(BookingDailyRevenueService::class)->syncBookingRevenue($booking);
         }
     }
 

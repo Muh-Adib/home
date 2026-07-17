@@ -218,11 +218,20 @@ class PaymentIncomeSyncService
      */
     private function getWalletId(Payment $payment): ?int
     {
-        if (! $payment->paymentMethod || ! $payment->paymentMethod->wallet_id) {
-            return null;
+        // 1. Coba ambil wallet dari bank account milik properti booking
+        if ($payment->booking && $payment->booking->property) {
+            $bankAccount = $payment->booking->property->bankAccount;
+            if ($bankAccount && $bankAccount->wallet_id) {
+                return $bankAccount->wallet_id;
+            }
         }
 
-        return $payment->paymentMethod->wallet_id;
+        // 2. Fallback ke wallet milik payment method
+        if ($payment->paymentMethod && $payment->paymentMethod->wallet_id) {
+            return $payment->paymentMethod->wallet_id;
+        }
+
+        return null;
     }
 
     /**

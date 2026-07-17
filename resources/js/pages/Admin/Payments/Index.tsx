@@ -4,12 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { type Payment, type PaymentMethod, type BreadcrumbItem, type User, type PaginatedData, type PageProps } from '@/types';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { type Payment, type PaymentMethod, type BreadcrumbItem, type User, type PaginatedData, type PageProps, type Booking } from '@/types';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { apiGet } from '@/lib/api';
 import {
@@ -30,7 +33,8 @@ import {
     Users,
     Calendar,
     Edit,
-    Loader2
+    Loader2,
+    Plus
 } from 'lucide-react';
 import { useState, useEffect, Fragment } from 'react';
 import { toast } from 'sonner';
@@ -58,9 +62,12 @@ interface PaymentsIndexProps {
         sort_by?: string;
         sort_dir?: string;
     };
+    bookings: Booking[];
+    users: User[];
+    bankOptions: string[];
 }
 
-export default function PaymentsIndex({ payments, paymentMethods, stats, filters }: PaymentsIndexProps) {
+export default function PaymentsIndex({ payments, paymentMethods, stats, filters, bookings, users, bankOptions }: PaymentsIndexProps) {
     const page = usePage<PageProps>();
     const { auth } = page.props;
 
@@ -86,6 +93,158 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
     // Reverification States
     const [showReverifyAcceptDialog, setShowReverifyAcceptDialog] = useState(false);
     const [showReverifyRejectDialog, setShowReverifyRejectDialog] = useState(false);
+
+    // Create & Edit Modal States
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+    const [selectedBookingData, setSelectedBookingData] = useState<Booking | null>(null);
+    const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+
+    const createForm = useForm({
+        booking_id: '',
+        payment_method_id: '',
+        amount: '',
+        payment_type: 'dp' as 'dp' | 'remaining' | 'full' | 'refund' | 'penalty',
+        payment_date: new Date().toISOString().split('T')[0],
+        due_date: '',
+        reference_number: '',
+        bank_name: '',
+        account_number: '',
+        account_name: '',
+        payment_status: 'pending' as 'pending' | 'verified' | 'failed' | 'cancelled',
+        verification_notes: '',
+        attachment: null as File | null,
+        processed_by: '',
+        verified_by: '',
+        gateway_transaction_id: '',
+        auto_confirm: false,
+    });
+
+    const editForm = useForm({
+        payment_method_id: '',
+        amount: '',
+        unique_code: '0',
+        payment_type: 'dp' as 'dp' | 'remaining' | 'full' | 'refund' | 'penalty',
+        payment_date: '',
+        due_date: '',
+        reference_number: '',
+        bank_name: '',
+        account_number: '',
+        account_name: '',
+        payment_status: 'pending' as 'pending' | 'verified' | 'failed' | 'cancelled',
+        verification_notes: '',
+        attachment: null as File | null,
+        processed_by: '',
+        verified_by: '',
+        gateway_transaction_id: '',
+        keep_existing_attachment: true,
+    });
+
+    // Auto-fill create form values when a booking is selected
+    useEffect(() => {
+        if (createForm.data.booking_id) {
+            const booking = bookings.find(b => b.id.toString() === createForm.data.booking_id.toString());
+            setSelectedBookingData(booking || null);
+
+            if (booking) {
+                if (booking.payment_status === 'dp_pending') {
+                    createForm.setData(prev => ({
+                        ...prev,
+                        payment_type: 'dp',
+                        amount: booking.dp_amount ? booking.dp_amount.toString() : ''
+                    }));
+                } else if (booking.payment_status === 'dp_received') {
+                    createForm.setData(prev => ({
+                        ...prev,
+                        payment_type: 'remaining',
+                        amount: booking.remaining_amount ? booking.remaining_amount.toString() : ''
+                    }));
+                }
+            }
+        } else {
+            setSelectedBookingData(null);
+        }
+    }, [createForm.data.booking_id]);
+
+    // Auto-fill create form payment method details
+    useEffect(() => {
+        if (createForm.data.payment_method_id) {
+            const method = paymentMethods.find(m => m.id.toString() === createForm.data.payment_method_id.toString());
+            if (method) {
+                createForm.setData(prev => ({
+                    ...prev,
+                    bank_name: method.bank_name || '',
+                    account_number: method.account_number || '',
+                    account_name: method.account_name || ''
+                }));
+            }
+        }
+    }, [createForm.data.payment_method_id]);
+
+    // Auto-fill edit form payment method details
+    useEffect(() => {
+        if (editForm.data.payment_method_id) {
+            const method = paymentMethods.find(m => m.id.toString() === editForm.data.payment_method_id.toString());
+            if (method) {
+                editForm.setData(prev => ({
+                    ...prev,
+                    bank_name: method.bank_name || '',
+                    account_number: method.account_number || '',
+                    account_name: method.account_name || ''
+                }));
+            }
+        }
+    }, [editForm.data.payment_method_id]);
+
+    const handleEditPayment = (payment: Payment) => {
+        setEditingPayment(payment);
+        editForm.setData({
+            payment_method_id: payment.payment_method_id?.toString() || '',
+            amount: payment.amount.toString(),
+            unique_code: payment.unique_code?.toString() || '0',
+            payment_type: payment.payment_type as any,
+            payment_date: payment.payment_date ? payment.payment_date.split('T')[0] : '',
+            due_date: payment.due_date ? payment.due_date.split('T')[0] : '',
+            reference_number: payment.reference_number || '',
+            bank_name: payment.bank_name || '',
+            account_number: payment.account_number || '',
+            account_name: payment.account_name || '',
+            payment_status: payment.payment_status as any,
+            verification_notes: payment.verification_notes || '',
+            attachment: null,
+            processed_by: payment.processed_by?.toString() || '',
+            verified_by: payment.verified_by?.toString() || '',
+            gateway_transaction_id: payment.gateway_transaction_id || '',
+            keep_existing_attachment: true,
+        });
+        setShowEditModal(true);
+    };
+
+    const submitCreatePayment = (e: React.FormEvent) => {
+        e.preventDefault();
+        createForm.post('/admin/payments', {
+            forceFormData: true,
+            onSuccess: () => {
+                setShowCreateModal(false);
+                createForm.reset();
+                toast.success('Pembayaran baru berhasil dicatat.');
+            },
+        });
+    };
+
+    const submitEditPayment = (e: React.FormEvent) => {
+        e.preventDefault();
+        editForm.post(`/admin/payments/${editingPayment?.payment_number}`, {
+            forceFormData: true,
+            onSuccess: () => {
+                setShowEditModal(false);
+                setEditingPayment(null);
+                editForm.reset();
+                toast.success('Pembayaran berhasil diperbarui.');
+            },
+        });
+    };
 
     const { data: verifyData, setData: setVerifyData, processing: verifyProcessing, patch: verifyPatch, reset: verifyReset } = useForm({
         verification_notes: '',
@@ -424,13 +583,20 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Payments</h1>
-                        <p className="text-muted-foreground">
-                            Manage and verify guest payments
+                        <p className="text-muted-foreground text-sm">
+                            Kelola dan verifikasi pembayaran tamu
                         </p>
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-2">
-                        <Button variant="outline" className="w-full sm:w-auto">
+                        <Button 
+                            onClick={() => { createForm.reset(); setSelectedBookingData(null); setShowCreateModal(true); }} 
+                            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl"
+                        >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Catat Pembayaran
+                        </Button>
+                        <Button variant="outline" className="w-full sm:w-auto font-semibold rounded-xl">
                             <Download className="h-4 w-4 mr-2" />
                             Export
                         </Button>
@@ -438,101 +604,112 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Pending Payments</CardTitle>
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{stats.pending_payments}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Awaiting verification
-                            </p>
-                        </CardContent>
-                    </Card>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-amber-50/50 border border-amber-200/60 rounded-2xl p-4 shadow-sm flex flex-col justify-between min-h-[100px]">
+                        <div className="flex items-center justify-between text-amber-700 font-bold text-xs uppercase tracking-wider">
+                            <span>Pending</span>
+                            <Clock className="h-4 w-4" />
+                        </div>
+                        <div className="mt-2">
+                            <div className="text-2xl md:text-3xl font-black text-amber-900">{stats.pending_payments}</div>
+                            <p className="text-[10px] md:text-xs text-amber-700 font-semibold mt-1">Butuh verifikasi</p>
+                        </div>
+                    </div>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Verified Payments</CardTitle>
-                            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{stats.verified_payments}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Successfully verified
-                            </p>
-                        </CardContent>
-                    </Card>
+                    <div className="bg-emerald-50/50 border border-emerald-200/60 rounded-2xl p-4 shadow-sm flex flex-col justify-between min-h-[100px]">
+                        <div className="flex items-center justify-between text-emerald-700 font-bold text-xs uppercase tracking-wider">
+                            <span>Verified</span>
+                            <CheckCircle className="h-4 w-4" />
+                        </div>
+                        <div className="mt-2">
+                            <div className="text-2xl md:text-3xl font-black text-emerald-900">{stats.verified_payments}</div>
+                            <p className="text-[10px] md:text-xs text-emerald-700 font-semibold mt-1">Berhasil diverifikasi</p>
+                        </div>
+                    </div>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
-                            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{formatCurrency(stats.today_amount)}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Verified today
-                            </p>
-                        </CardContent>
-                    </Card>
+                    <div className="bg-blue-50/50 border border-blue-200/60 rounded-2xl p-4 shadow-sm flex flex-col justify-between min-h-[100px]">
+                        <div className="flex items-center justify-between text-blue-700 font-bold text-xs uppercase tracking-wider">
+                            <span>Hari Ini</span>
+                            <TrendingUp className="h-4 w-4" />
+                        </div>
+                        <div className="mt-2">
+                            <div className="text-xl md:text-2xl font-black text-blue-900 truncate">{formatCurrency(stats.today_amount)}</div>
+                            <p className="text-[10px] md:text-xs text-blue-700 font-semibold mt-1">Total masuk hari ini</p>
+                        </div>
+                    </div>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-                            <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{formatCurrency(stats.month_amount)}</div>
-                            <p className="text-xs text-muted-foreground">
-                                This month total
-                            </p>
-                        </CardContent>
-                    </Card>
-
+                    <div className="bg-indigo-50/50 border border-indigo-200/60 rounded-2xl p-4 shadow-sm flex flex-col justify-between min-h-[100px]">
+                        <div className="flex items-center justify-between text-indigo-700 font-bold text-xs uppercase tracking-wider">
+                            <span>Bulan Ini</span>
+                            <DollarSign className="h-4 w-4" />
+                        </div>
+                        <div className="mt-2">
+                            <div className="text-xl md:text-2xl font-black text-indigo-900 truncate">{formatCurrency(stats.month_amount)}</div>
+                            <p className="text-[10px] md:text-xs text-indigo-700 font-semibold mt-1">Total bulan berjalan</p>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Filters */}
-                <Card>
-                    <CardHeader className="pb-4">
-                        <CardTitle className="text-lg">Filters</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-col gap-4">
-                            <div className="flex-1">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        placeholder="Search by payment number, guest name, booking..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                        className="pl-10"
-                                    />
-                                </div>
-                            </div>
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm space-y-4">
+                    <div className="flex flex-col md:flex-row gap-3">
+                        <div className="flex-1 relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                placeholder="Cari nomor pembayaran, nama tamu, booking..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                className="pl-10 h-10 border-slate-200 focus-visible:ring-blue-500 rounded-xl"
+                            />
+                        </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="flex gap-2">
+                            <Button 
+                                variant="outline" 
+                                onClick={() => setIsFilterExpanded(!isFilterExpanded)} 
+                                className="h-10 px-4 font-semibold border-slate-200 hover:bg-slate-50 flex items-center gap-2 rounded-xl shrink-0"
+                            >
+                                <Filter className="h-4 w-4" />
+                                <span>Filter</span>
+                                {(statusFilter !== 'all' || paymentMethodFilter !== 'all') && (
+                                    <Badge className="bg-blue-600 text-white rounded-full px-1.5 py-0.5 text-[10px] font-bold">
+                                        {[statusFilter !== 'all' ? 1 : 0, paymentMethodFilter !== 'all' ? 1 : 0].reduce((a, b) => a + b, 0)}
+                                    </Badge>
+                                )}
+                            </Button>
+                            <Button onClick={() => handleSearch()} className="h-10 bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 rounded-xl shrink-0">
+                                Terapkan
+                            </Button>
+                        </div>
+                    </div>
+
+                    {isFilterExpanded && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status Pembayaran</label>
                                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Payment Status" />
+                                    <SelectTrigger className="h-10 border-slate-200 rounded-xl">
+                                        <SelectValue placeholder="Pilih Status" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All Status</SelectItem>
+                                        <SelectItem value="all">Semua Status</SelectItem>
                                         <SelectItem value="pending">Pending</SelectItem>
                                         <SelectItem value="verified">Verified</SelectItem>
-                                        <SelectItem value="failed">Failed</SelectItem>
+                                        <SelectItem value="failed">Gagal (Failed)</SelectItem>
                                         <SelectItem value="refunded">Refunded</SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
 
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Metode Pembayaran</label>
                                 <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Payment Method" />
+                                    <SelectTrigger className="h-10 border-slate-200 rounded-xl">
+                                        <SelectValue placeholder="Pilih Metode" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All Methods</SelectItem>
+                                        <SelectItem value="all">Semua Metode</SelectItem>
                                         {paymentMethods.map((method) => (
                                             <SelectItem key={method.id} value={method.id.toString()}>
                                                 {method.name}
@@ -540,78 +717,75 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                         ))}
                                     </SelectContent>
                                 </Select>
-
-                                <Button onClick={() => handleSearch()} className="w-full">
-                                    <Filter className="h-4 w-4 mr-2" />
-                                    Apply Filters
-                                </Button>
-                            </div>
-
-                            <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4 border-slate-100">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-slate-700">Tampilan:</span>
-                                    <Button
-                                        variant={isGrouped ? "default" : "outline"}
-                                        size="sm"
-                                        onClick={() => {
-                                            setIsGrouped(true);
-                                            handleSearch(true, sortBy, sortDir);
-                                        }}
-                                    >
-                                        Kelompokkan per Booking
-                                    </Button>
-                                    <Button
-                                        variant={!isGrouped ? "default" : "outline"}
-                                        size="sm"
-                                        onClick={() => {
-                                            setIsGrouped(false);
-                                            handleSearch(false, sortBy, sortDir);
-                                        }}
-                                    >
-                                        Daftar Transaksi Tunggal
-                                    </Button>
-                                </div>
-
-                                {!isGrouped && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-slate-700">Urutkan:</span>
-                                        <Select
-                                            value={sortBy}
-                                            onValueChange={(val) => {
-                                                setSortBy(val);
-                                                handleSearch(false, val, sortDir);
-                                            }}
-                                        >
-                                            <SelectTrigger className="w-[180px] h-9">
-                                                <SelectValue placeholder="Urutan Kolom" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="date">Tanggal Pembayaran</SelectItem>
-                                                <SelectItem value="bank_account">Rekening Tujuan</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-
-                                        <Select
-                                            value={sortDir}
-                                            onValueChange={(val) => {
-                                                setSortDir(val);
-                                                handleSearch(false, sortBy, val);
-                                            }}
-                                        >
-                                            <SelectTrigger className="w-[140px] h-9">
-                                                <SelectValue placeholder="Arah Urutan" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="desc">Terbaru/Z-A (DESC)</SelectItem>
-                                                <SelectItem value="asc">Terlama/A-Z (ASC)</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                )}
                             </div>
                         </div>
-                    </CardContent>
-                </Card>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-3.5 border-slate-100">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Tampilan:</span>
+                            <Button
+                                variant={isGrouped ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                    setIsGrouped(true);
+                                    handleSearch(true, sortBy, sortDir);
+                                }}
+                                className="h-8 rounded-lg text-xs font-semibold px-3"
+                            >
+                                Kelompokkan per Booking
+                            </Button>
+                            <Button
+                                variant={!isGrouped ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                    setIsGrouped(false);
+                                    handleSearch(false, sortBy, sortDir);
+                                }}
+                                className="h-8 rounded-lg text-xs font-semibold px-3"
+                            >
+                                Daftar Transaksi Tunggal
+                            </Button>
+                        </div>
+
+                        {!isGrouped && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Urutan:</span>
+                                <Select
+                                    value={sortBy}
+                                    onValueChange={(val) => {
+                                        setSortBy(val);
+                                        handleSearch(false, val, sortDir);
+                                    }}
+                                >
+                                    <SelectTrigger className="w-[150px] h-8 text-xs border-slate-200 rounded-lg">
+                                        <SelectValue placeholder="Kolom" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="date">Tanggal Bayar</SelectItem>
+                                        <SelectItem value="bank_account">Rekening Tujuan</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
+                                <Select
+                                    value={sortDir}
+                                    onValueChange={(val) => {
+                                        setSortDir(val);
+                                        handleSearch(false, sortBy, val);
+                                    }}
+                                >
+                                    <SelectTrigger className="w-[130px] h-8 text-xs border-slate-200 rounded-lg">
+                                        <SelectValue placeholder="Arah" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="desc">DESC (Z-A)</SelectItem>
+                                        <SelectItem value="asc">ASC (A-Z)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+                    </div>
+                </div>
 
                 {/* Payments Table */}
                 <Card>
@@ -789,10 +963,8 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                                                                 </Link>
                                                                             </DropdownMenuItem>
                                                                             {canEdit(payment) && (
-                                                                                <DropdownMenuItem asChild>
-                                                                                    <Link href={`/admin/payments/${payment.payment_number}/edit`}>
-                                                                                        <Edit className="mr-2 h-4 w-4" /> Edit Payment
-                                                                                    </Link>
+                                                                                <DropdownMenuItem onClick={() => handleEditPayment(payment)}>
+                                                                                    <Edit className="mr-2 h-4 w-4" /> Edit Payment
                                                                                 </DropdownMenuItem>
                                                                             )}
                                                                             {canVerify && payment.payment_status === 'pending' && (
@@ -894,10 +1066,8 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                                                         </Link>
                                                                     </DropdownMenuItem>
                                                                     {canEdit(payment) && (
-                                                                        <DropdownMenuItem asChild>
-                                                                            <Link href={`/admin/payments/${payment.payment_number}/edit`}>
-                                                                                <Edit className="mr-2 h-4 w-4" /> Edit Payment
-                                                                            </Link>
+                                                                        <DropdownMenuItem onClick={() => handleEditPayment(payment)}>
+                                                                            <Edit className="mr-2 h-4 w-4" /> Edit Payment
                                                                         </DropdownMenuItem>
                                                                     )}
                                                                     {canVerify && payment.payment_status === 'pending' && (
@@ -1083,10 +1253,8 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                                                             </Link>
                                                                         </DropdownMenuItem>
                                                                         {canEdit(payment) && (
-                                                                            <DropdownMenuItem asChild>
-                                                                                <Link href={`/admin/payments/${payment.payment_number}/edit`}>
-                                                                                    <Edit className="mr-2 h-4 w-4" /> Edit Payment
-                                                                                </Link>
+                                                                            <DropdownMenuItem onClick={() => handleEditPayment(payment)}>
+                                                                                <Edit className="mr-2 h-4 w-4" /> Edit Payment
                                                                             </DropdownMenuItem>
                                                                         )}
                                                                         {canVerify && payment.payment_status === 'pending' && (
@@ -1209,10 +1377,8 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                                                     </Link>
                                                                 </DropdownMenuItem>
                                                                 {canEdit(payment) && (
-                                                                    <DropdownMenuItem asChild>
-                                                                        <Link href={`/admin/payments/${payment.payment_number}/edit`}>
-                                                                            <Edit className="mr-2 h-4 w-4" /> Edit Payment
-                                                                        </Link>
+                                                                    <DropdownMenuItem onClick={() => handleEditPayment(payment)}>
+                                                                        <Edit className="mr-2 h-4 w-4" /> Edit Payment
                                                                     </DropdownMenuItem>
                                                                 )}
                                                                 {canVerify && payment.payment_status === 'pending' && (
@@ -1469,6 +1635,419 @@ export default function PaymentsIndex({ payments, paymentMethods, stats, filters
                                 {reverifyRejectProcessing ? 'Memproses...' : 'Tolak & Revert'}
                             </Button>
                         </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Create Payment Modal */}
+                <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+                    <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl">
+                        <DialogHeader className="p-6 pb-4 border-b border-slate-100">
+                            <DialogTitle className="text-xl font-bold">Catat Pembayaran Baru</DialogTitle>
+                            <DialogDescription>Masukkan detail transaksi pembayaran tamu untuk booking.</DialogDescription>
+                        </DialogHeader>
+
+                        <form onSubmit={submitCreatePayment} className="flex-1 overflow-y-auto p-6 space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Pilih Booking *</Label>
+                                    <Select 
+                                        value={createForm.data.booking_id} 
+                                        onValueChange={(val) => createForm.setData('booking_id', val)}
+                                    >
+                                        <SelectTrigger className="h-10 border-slate-200 rounded-xl">
+                                            <SelectValue placeholder="Pilih Booking Tamu" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {bookings.map((booking) => (
+                                                <SelectItem key={booking.id} value={booking.id.toString()}>
+                                                    {booking.booking_number} - {booking.guest_name} ({booking.property?.name})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {createForm.errors.booking_id && <p className="text-xs text-rose-500 font-bold">{createForm.errors.booking_id}</p>}
+                                </div>
+
+                                {selectedBookingData && (
+                                    <div className="col-span-1 sm:col-span-2 bg-slate-50 border border-slate-200/60 rounded-xl p-3 text-xs space-y-1">
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-500 font-medium">Total Tagihan:</span>
+                                            <span className="font-bold text-slate-800">{formatCurrency(selectedBookingData.total_amount)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-500 font-medium">Sudah Dibayar:</span>
+                                            <span className="font-bold text-emerald-600">{formatCurrency(selectedBookingData.paid_amount || 0)}</span>
+                                        </div>
+                                        <div className="flex justify-between border-t pt-1 mt-1 font-bold">
+                                            <span className="text-slate-700">Sisa Pembayaran:</span>
+                                            <span className="text-blue-600">{formatCurrency(selectedBookingData.remaining_amount || 0)}</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Tipe Pembayaran *</Label>
+                                    <Select 
+                                        value={createForm.data.payment_type} 
+                                        onValueChange={(val) => createForm.setData('payment_type', val as any)}
+                                    >
+                                        <SelectTrigger className="h-10 border-slate-200 rounded-xl">
+                                            <SelectValue placeholder="Pilih Tipe" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="dp">DP (Down Payment)</SelectItem>
+                                            <SelectItem value="remaining">Pelunasan (Remaining)</SelectItem>
+                                            <SelectItem value="full">Full Payment</SelectItem>
+                                            <SelectItem value="refund">Refund</SelectItem>
+                                            <SelectItem value="penalty">Denda (Penalty)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    {createForm.errors.payment_type && <p className="text-xs text-rose-500 font-bold">{createForm.errors.payment_type}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Metode Pembayaran *</Label>
+                                    <Select 
+                                        value={createForm.data.payment_method_id} 
+                                        onValueChange={(val) => createForm.setData('payment_method_id', val)}
+                                    >
+                                        <SelectTrigger className="h-10 border-slate-200 rounded-xl">
+                                            <SelectValue placeholder="Pilih Metode" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {paymentMethods.map((method) => (
+                                                <SelectItem key={method.id} value={method.id.toString()}>
+                                                    {method.name} ({method.type})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {createForm.errors.payment_method_id && <p className="text-xs text-rose-500 font-bold">{createForm.errors.payment_method_id}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Nominal Pembayaran *</Label>
+                                    <CurrencyInput
+                                        placeholder="Contoh: 500.000"
+                                        value={Number(createForm.data.amount) || 0}
+                                        onChange={(val) => createForm.setData('amount', val.toString())}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {createForm.errors.amount && <p className="text-xs text-rose-500 font-bold">{createForm.errors.amount}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Tanggal Pembayaran *</Label>
+                                    <Input
+                                        type="date"
+                                        value={createForm.data.payment_date}
+                                        onChange={(e) => createForm.setData('payment_date', e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {createForm.errors.payment_date && <p className="text-xs text-rose-500 font-bold">{createForm.errors.payment_date}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Nama Bank Penerima</Label>
+                                    <Input
+                                        placeholder="Contoh: Bank Mandiri"
+                                        value={createForm.data.bank_name}
+                                        onChange={(e) => createForm.setData('bank_name', e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {createForm.errors.bank_name && <p className="text-xs text-rose-500 font-bold">{createForm.errors.bank_name}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Nomor Rekening Penerima</Label>
+                                    <Input
+                                        placeholder="Contoh: 13700xxxxxxxx"
+                                        value={createForm.data.account_number}
+                                        onChange={(e) => createForm.setData('account_number', e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {createForm.errors.account_number && <p className="text-xs text-rose-500 font-bold">{createForm.errors.account_number}</p>}
+                                </div>
+
+                                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Nama Pemilik Rekening</Label>
+                                    <Input
+                                        placeholder="Contoh: Indah Arini"
+                                        value={createForm.data.account_name}
+                                        onChange={(e) => createForm.setData('account_name', e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {createForm.errors.account_name && <p className="text-xs text-rose-500 font-bold">{createForm.errors.account_name}</p>}
+                                </div>
+
+                                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Nomor Referensi / Ref ID</Label>
+                                    <Input
+                                        placeholder="Contoh: TRX-19283719"
+                                        value={createForm.data.reference_number}
+                                        onChange={(e) => createForm.setData('reference_number', e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {createForm.errors.reference_number && <p className="text-xs text-rose-500 font-bold">{createForm.errors.reference_number}</p>}
+                                </div>
+
+                                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Upload Bukti Transfer</Label>
+                                    <Input
+                                        type="file"
+                                        accept="image/*,application/pdf"
+                                        onChange={(e) => createForm.setData('attachment', e.target.files?.[0] || null)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500 pointer-events-auto"
+                                    />
+                                    {createForm.errors.attachment && <p className="text-xs text-rose-500 font-bold">{createForm.errors.attachment}</p>}
+                                </div>
+
+                                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Catatan Verifikasi</Label>
+                                    <Textarea
+                                        placeholder="Tambahkan catatan jika diperlukan..."
+                                        value={createForm.data.verification_notes}
+                                        onChange={(e) => createForm.setData('verification_notes', e.target.value)}
+                                        className="border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {createForm.errors.verification_notes && <p className="text-xs text-rose-500 font-bold">{createForm.errors.verification_notes}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Status Awal</Label>
+                                    <Select 
+                                        value={createForm.data.payment_status} 
+                                        onValueChange={(val) => createForm.setData('payment_status', val as any)}
+                                    >
+                                        <SelectTrigger className="h-10 border-slate-200 rounded-xl">
+                                            <SelectValue placeholder="Pilih Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="pending">Pending (Perlu Dicek)</SelectItem>
+                                            <SelectItem value="verified">Verified (Disetujui)</SelectItem>
+                                            <SelectItem value="failed">Failed (Gagal)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    {createForm.errors.payment_status && <p className="text-xs text-rose-500 font-bold">{createForm.errors.payment_status}</p>}
+                                </div>
+
+                                <div className="flex items-center space-x-2 pt-4">
+                                    <Switch
+                                        id="auto_confirm"
+                                        checked={createForm.data.auto_confirm}
+                                        onCheckedChange={(val) => createForm.setData('auto_confirm', val)}
+                                    />
+                                    <Label htmlFor="auto_confirm" className="text-xs font-semibold cursor-pointer">Konfirmasi Otomatis Booking</Label>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 border-t pt-4 border-slate-100">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setShowCreateModal(false)}
+                                    disabled={createForm.processing}
+                                    className="rounded-xl h-10 px-4 font-semibold"
+                                >
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={createForm.processing}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-5 font-bold"
+                                >
+                                    {createForm.processing ? 'Menyimpan...' : 'Simpan Pembayaran'}
+                                </Button>
+                            </div>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Edit Payment Modal */}
+                <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+                    <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl">
+                        <DialogHeader className="p-6 pb-4 border-b border-slate-100">
+                            <DialogTitle className="text-xl font-bold">Edit Pembayaran: {editingPayment?.payment_number}</DialogTitle>
+                            <DialogDescription>Perbarui rincian transaksi pembayaran tamu.</DialogDescription>
+                        </DialogHeader>
+
+                        <form onSubmit={submitEditPayment} className="flex-1 overflow-y-auto p-6 space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Booking</Label>
+                                    <div className="bg-slate-100 border border-slate-200/60 rounded-xl p-3 text-xs font-semibold text-slate-700">
+                                        {editingPayment?.booking?.booking_number} - {editingPayment?.booking?.guest_name} ({editingPayment?.booking?.property?.name})
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Tipe Pembayaran *</Label>
+                                    <Select 
+                                        value={editForm.data.payment_type} 
+                                        onValueChange={(val) => editForm.setData('payment_type', val as any)}
+                                    >
+                                        <SelectTrigger className="h-10 border-slate-200 rounded-xl">
+                                            <SelectValue placeholder="Pilih Tipe" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="dp">DP (Down Payment)</SelectItem>
+                                            <SelectItem value="remaining">Pelunasan (Remaining)</SelectItem>
+                                            <SelectItem value="full">Full Payment</SelectItem>
+                                            <SelectItem value="refund">Refund</SelectItem>
+                                            <SelectItem value="penalty">Denda (Penalty)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    {editForm.errors.payment_type && <p className="text-xs text-rose-500 font-bold">{editForm.errors.payment_type}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Metode Pembayaran *</Label>
+                                    <Select 
+                                        value={editForm.data.payment_method_id} 
+                                        onValueChange={(val) => editForm.setData('payment_method_id', val)}
+                                    >
+                                        <SelectTrigger className="h-10 border-slate-200 rounded-xl">
+                                            <SelectValue placeholder="Pilih Metode" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {paymentMethods.map((method) => (
+                                                <SelectItem key={method.id} value={method.id.toString()}>
+                                                    {method.name} ({method.type})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {editForm.errors.payment_method_id && <p className="text-xs text-rose-500 font-bold">{editForm.errors.payment_method_id}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Nominal Pembayaran *</Label>
+                                    <CurrencyInput
+                                        placeholder="Contoh: 500.000"
+                                        value={Number(editForm.data.amount) || 0}
+                                        onChange={(val) => editForm.setData('amount', val.toString())}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {editForm.errors.amount && <p className="text-xs text-rose-500 font-bold">{editForm.errors.amount}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Tanggal Pembayaran *</Label>
+                                    <Input
+                                        type="date"
+                                        value={editForm.data.payment_date}
+                                        onChange={(e) => editForm.setData('payment_date', e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {editForm.errors.payment_date && <p className="text-xs text-rose-500 font-bold">{editForm.errors.payment_date}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Nama Bank Penerima</Label>
+                                    <Input
+                                        placeholder="Contoh: Bank Mandiri"
+                                        value={editForm.data.bank_name}
+                                        onChange={(e) => editForm.setData('bank_name', e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {editForm.errors.bank_name && <p className="text-xs text-rose-500 font-bold">{editForm.errors.bank_name}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Nomor Rekening Penerima</Label>
+                                    <Input
+                                        placeholder="Contoh: 13700xxxxxxxx"
+                                        value={editForm.data.account_number}
+                                        onChange={(e) => editForm.setData('account_number', e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {editForm.errors.account_number && <p className="text-xs text-rose-500 font-bold">{editForm.errors.account_number}</p>}
+                                </div>
+
+                                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Nama Pemilik Rekening</Label>
+                                    <Input
+                                        placeholder="Contoh: Indah Arini"
+                                        value={editForm.data.account_name}
+                                        onChange={(e) => editForm.setData('account_name', e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {editForm.errors.account_name && <p className="text-xs text-rose-500 font-bold">{editForm.errors.account_name}</p>}
+                                </div>
+
+                                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Nomor Referensi / Ref ID</Label>
+                                    <Input
+                                        placeholder="Contoh: TRX-19283719"
+                                        value={editForm.data.reference_number}
+                                        onChange={(e) => editForm.setData('reference_number', e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {editForm.errors.reference_number && <p className="text-xs text-rose-500 font-bold">{editForm.errors.reference_number}</p>}
+                                </div>
+
+                                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Ganti Bukti Transfer Baru</Label>
+                                    <Input
+                                        type="file"
+                                        accept="image/*,application/pdf"
+                                        onChange={(e) => editForm.setData('attachment', e.target.files?.[0] || null)}
+                                        className="h-10 border-slate-200 rounded-xl focus-visible:ring-blue-500 pointer-events-auto"
+                                    />
+                                    {editForm.errors.attachment && <p className="text-xs text-rose-500 font-bold">{editForm.errors.attachment}</p>}
+                                </div>
+
+                                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Catatan Verifikasi</Label>
+                                    <Textarea
+                                        placeholder="Tambahkan catatan jika diperlukan..."
+                                        value={editForm.data.verification_notes}
+                                        onChange={(e) => editForm.setData('verification_notes', e.target.value)}
+                                        className="border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                                    />
+                                    {editForm.errors.verification_notes && <p className="text-xs text-rose-500 font-bold">{editForm.errors.verification_notes}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase">Status Pembayaran</Label>
+                                    <Select 
+                                        value={editForm.data.payment_status} 
+                                        onValueChange={(val) => editForm.setData('payment_status', val as any)}
+                                    >
+                                        <SelectTrigger className="h-10 border-slate-200 rounded-xl">
+                                            <SelectValue placeholder="Pilih Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="pending">Pending</SelectItem>
+                                            <SelectItem value="verified">Verified</SelectItem>
+                                            <SelectItem value="failed">Failed</SelectItem>
+                                            <SelectItem value="refunded">Refunded</SelectItem>
+                                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    {editForm.errors.payment_status && <p className="text-xs text-rose-500 font-bold">{editForm.errors.payment_status}</p>}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 border-t pt-4 border-slate-100">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setShowEditModal(false)}
+                                    disabled={editForm.processing}
+                                    className="rounded-xl h-10 px-4 font-semibold"
+                                >
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={editForm.processing}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-5 font-bold"
+                                >
+                                    {editForm.processing ? 'Menyimpan...' : 'Simpan Perubahan'}
+                                </Button>
+                            </div>
+                        </form>
                     </DialogContent>
                 </Dialog>
             </div>

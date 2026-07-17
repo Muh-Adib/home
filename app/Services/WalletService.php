@@ -2,6 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\BankAccount;
+use App\Models\Income;
+use App\Models\Payment;
+use App\Models\PropertyExpense;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
@@ -12,13 +16,14 @@ class WalletService
     /**
      * Transfer between wallets
      *
-     * @param int $fromWalletId Source wallet ID
-     * @param int $toWalletId Destination wallet ID
-     * @param float $amount Transfer amount
-     * @param string $date Transaction date
-     * @param int $userId User performing the transfer
-     * @param string|null $description Transfer description
+     * @param  int  $fromWalletId  Source wallet ID
+     * @param  int  $toWalletId  Destination wallet ID
+     * @param  float  $amount  Transfer amount
+     * @param  string  $date  Transaction date
+     * @param  int  $userId  User performing the transfer
+     * @param  string|null  $description  Transfer description
      * @return array Array containing both transaction records
+     *
      * @throws \Exception
      */
     public function transfer(
@@ -46,7 +51,7 @@ class WalletService
         // Validate sufficient balance
         if ($fromWallet->balance < $amount) {
             throw new \Exception(
-                'Insufficient balance. Current balance: Rp ' . 
+                'Insufficient balance. Current balance: Rp '.
                 number_format($fromWallet->balance, 0, ',', '.')
             );
         }
@@ -70,7 +75,7 @@ class WalletService
                 'transaction_date' => $date,
                 'reference_type' => 'transfer',
                 'reference_id' => $toWallet->id,
-                'description' => $desc . " (keluar)",
+                'description' => $desc.' (keluar)',
                 'created_by' => $userId,
             ]);
 
@@ -84,7 +89,7 @@ class WalletService
                 'reference_type' => 'transfer',
                 'reference_id' => $fromWallet->id,
                 'related_transaction_id' => $outTransaction->id,
-                'description' => $desc . " (masuk)",
+                'description' => $desc.' (masuk)',
                 'created_by' => $userId,
             ]);
 
@@ -117,16 +122,15 @@ class WalletService
     /**
      * Record a wallet transaction with category
      *
-     * @param int $walletId Wallet ID
-     * @param string $direction in or out
-     * @param string $category Transaction category
-     * @param float $amount Transaction amount
-     * @param string $date Transaction date
-     * @param string|null $referenceType Reference type (income, expense, manual)
-     * @param int|null $referenceId Reference ID
-     * @param string|null $description Transaction description
-     * @param int|null $userId User ID
-     * @return WalletTransaction
+     * @param  int  $walletId  Wallet ID
+     * @param  string  $direction  in or out
+     * @param  string  $category  Transaction category
+     * @param  float  $amount  Transaction amount
+     * @param  string  $date  Transaction date
+     * @param  string|null  $referenceType  Reference type (income, expense, manual)
+     * @param  int|null  $referenceId  Reference ID
+     * @param  string|null  $description  Transaction description
+     * @param  int|null  $userId  User ID
      */
     public function recordTransaction(
         int $walletId,
@@ -144,7 +148,7 @@ class WalletService
         // Validate OUT transaction has sufficient balance
         if ($direction === 'out' && $wallet->balance < $amount) {
             throw new \Exception(
-                'Insufficient balance. Current balance: Rp ' . 
+                'Insufficient balance. Current balance: Rp '.
                 number_format($wallet->balance, 0, ',', '.')
             );
         }
@@ -194,9 +198,9 @@ class WalletService
     /**
      * Get wallet summary
      *
-     * @param int $walletId Wallet ID
-     * @param string|null $startDate Start date filter
-     * @param string|null $endDate End date filter
+     * @param  int  $walletId  Wallet ID
+     * @param  string|null  $startDate  Start date filter
+     * @param  string|null  $endDate  End date filter
      * @return array Wallet summary data
      */
     public function getWalletSummary(int $walletId, ?string $startDate = null, ?string $endDate = null): array
@@ -235,5 +239,220 @@ class WalletService
             'by_category' => $byCategory,
             'transactions' => $transactions,
         ];
+    }
+
+    /**
+     * Synchronize and recalculate all wallet transactions and balances.
+     */
+    public function syncAll(): void
+    {
+        DB::transaction(function () {
+            // 1. Sync verified payments
+            $payments = Payment::where('payment_status', 'verified')
+                ->with(['booking.property.bankAccount', 'paymentMethod'])
+                ->get();
+
+            foreach ($payments as $payment) {
+                $walletId = null;
+
+                // 1a. Dari bank account milik properti booking
+                if ($payment->booking && $payment->booking->property) {
+                    $bankAccount = $payment->booking->property->bankAccount;
+                    if ($bankAccount && $bankAccount->wallet_id) {
+                        $walletId = $bankAccount->wallet_id;
+                    }
+                }
+
+                // 1b. Fallback ke payment method
+                if (! $walletId && $payment->paymentMethod && $payment->paymentMethod->wallet_id) {
+                    $walletId = $payment->paymentMethod->wallet_id;
+                }
+
+                if (! $walletId) {
+                    // Jika tidak ada wallet, pastikan tidak ada WalletTransaction dari payment ini
+                    WalletTransaction::where('reference_type', 'payment')
+                        ->where('reference_id', $payment->id)
+                        ->delete();
+
+                    continue;
+                }
+
+                // Sync Income records
+                Income::where('payment_id', $payment->id)
+                    ->update(['wallet_id' => $walletId]);
+
+                // Sync WalletTransaction (in)
+                $existing = WalletTransaction::where('wallet_id', $walletId)
+                    ->where('reference_type', 'payment')
+                    ->where('reference_id', $payment->id)
+                    ->first();
+
+                if (! $existing) {
+                    WalletTransaction::create([
+                        'wallet_id' => $walletId,
+                        'direction' => 'in',
+                        'category' => 'booking',
+                        'amount' => $payment->amount,
+                        'transaction_date' => $payment->payment_date?->toDateString() ?? now()->toDateString(),
+                        'reference_type' => 'payment',
+                        'reference_id' => $payment->id,
+                        'description' => 'Payment verified: '.$payment->payment_number,
+                        'created_by' => $payment->verified_by ?? $payment->processed_by ?? null,
+                    ]);
+                } else {
+                    $existing->update([
+                        'amount' => $payment->amount,
+                        'transaction_date' => $payment->payment_date?->toDateString() ?? now()->toDateString(),
+                    ]);
+                }
+
+                // Remove duplicate transactions for this payment in other wallets
+                WalletTransaction::where('reference_type', 'payment')
+                    ->where('reference_id', $payment->id)
+                    ->where('wallet_id', '!=', $walletId)
+                    ->delete();
+            }
+
+            // 2. Sync unverified/refunded/failed/cancelled payments
+            $unverifiedPayments = Payment::whereIn('payment_status', ['refunded', 'failed', 'cancelled'])
+                ->with(['booking.property.bankAccount', 'paymentMethod'])
+                ->get();
+
+            foreach ($unverifiedPayments as $payment) {
+                $walletId = null;
+
+                // 2a. Dari bank account milik properti booking
+                if ($payment->booking && $payment->booking->property) {
+                    $bankAccount = $payment->booking->property->bankAccount;
+                    if ($bankAccount && $bankAccount->wallet_id) {
+                        $walletId = $bankAccount->wallet_id;
+                    }
+                }
+
+                // 2b. Fallback ke payment method
+                if (! $walletId && $payment->paymentMethod && $payment->paymentMethod->wallet_id) {
+                    $walletId = $payment->paymentMethod->wallet_id;
+                }
+
+                if (! $walletId) {
+                    // Delete any transactions
+                    WalletTransaction::where('reference_type', 'payment')
+                        ->where('reference_id', $payment->id)
+                        ->delete();
+
+                    continue;
+                }
+
+                // Sync Income records
+                Income::where('payment_id', $payment->id)
+                    ->update(['wallet_id' => $walletId]);
+
+                if ($payment->payment_status === 'refunded') {
+                    $existing = WalletTransaction::where('wallet_id', $walletId)
+                        ->where('reference_type', 'payment')
+                        ->where('reference_id', $payment->id)
+                        ->where('direction', 'out')
+                        ->first();
+
+                    if (! $existing) {
+                        WalletTransaction::create([
+                            'wallet_id' => $walletId,
+                            'direction' => 'out',
+                            'category' => 'booking',
+                            'amount' => $payment->amount,
+                            'transaction_date' => now()->toDateString(),
+                            'reference_type' => 'payment',
+                            'reference_id' => $payment->id,
+                            'description' => 'Payment refunded: '.$payment->payment_number,
+                            'created_by' => $payment->processed_by ?? null,
+                        ]);
+                    }
+                } else {
+                    // Delete for failed/cancelled
+                    WalletTransaction::where('reference_type', 'payment')
+                        ->where('reference_id', $payment->id)
+                        ->delete();
+                }
+            }
+
+            // 3. Sync expenses with a wallet_id
+            $expenses = PropertyExpense::whereNotNull('wallet_id')->get();
+            foreach ($expenses as $expense) {
+                $category = $expense->expense_scope === 'prive' ? 'prive' : 'expense';
+
+                $existing = WalletTransaction::where('wallet_id', $expense->wallet_id)
+                    ->where('reference_type', 'expense')
+                    ->where('reference_id', $expense->id)
+                    ->first();
+
+                if (! $existing) {
+                    WalletTransaction::create([
+                        'wallet_id' => $expense->wallet_id,
+                        'direction' => 'out',
+                        'category' => $category,
+                        'amount' => $expense->amount,
+                        'transaction_date' => $expense->expense_date->toDateString(),
+                        'reference_type' => 'expense',
+                        'reference_id' => $expense->id,
+                        'description' => $expense->description ?? 'Pengeluaran: '.$expense->getCategoryLabel(),
+                        'created_by' => $expense->created_by,
+                    ]);
+                } else {
+                    $existing->update([
+                        'amount' => $expense->amount,
+                        'transaction_date' => $expense->expense_date->toDateString(),
+                    ]);
+                }
+            }
+
+            // 4. Recalculate all wallet balances
+            $wallets = Wallet::all();
+            foreach ($wallets as $wallet) {
+                $totalIn = WalletTransaction::where('wallet_id', $wallet->id)
+                    ->where('direction', 'in')
+                    ->sum('amount');
+
+                $totalOut = WalletTransaction::where('wallet_id', $wallet->id)
+                    ->where('direction', 'out')
+                    ->sum('amount');
+
+                $wallet->balance = $totalIn - $totalOut;
+                $wallet->save();
+            }
+        });
+    }
+
+    /**
+     * Ensure every BankAccount has a corresponding Wallet.
+     */
+    public function ensureEveryBankAccountHasWallet(?int $userId = null): void
+    {
+        $bankAccounts = BankAccount::whereNull('wallet_id')->get();
+
+        if ($bankAccounts->isEmpty()) {
+            return;
+        }
+
+        foreach ($bankAccounts as $account) {
+            DB::transaction(function () use ($account, $userId) {
+                // Create a corresponding wallet
+                $wallet = Wallet::create([
+                    'name' => $account->label ?? ($account->bank_name.' - '.$account->account_number),
+                    'type' => 'property_linked',
+                    'balance' => 0,
+                    'purpose' => 'general',
+                    'created_by' => $userId,
+                    'notes' => 'Auto-created for bank account '.$account->account_number,
+                ]);
+
+                // Update the bank account
+                $account->update([
+                    'wallet_id' => $wallet->id,
+                ]);
+            });
+        }
+
+        // Trigger sync to calculate balances
+        $this->syncAll();
     }
 }
