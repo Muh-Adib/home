@@ -38,18 +38,7 @@ class ExpenseService
                     ]);
                 }
 
-                // Periksa saldo wallet
-                if ($wallet->balance < $amount) {
-                    throw ValidationException::withMessages([
-                        'wallet_id' => [
-                            sprintf(
-                                'Saldo tidak cukup untuk rekening %s. Saldo saat ini: Rp %s',
-                                $wallet->name,
-                                number_format((float) $wallet->balance, 0, ',', '.')
-                            ),
-                        ],
-                    ]);
-                }
+
             }
 
             // Buat expense record
@@ -120,26 +109,7 @@ class ExpenseService
                     ]);
                 }
 
-                // Periksa saldo wallet
-                $oldWalletId = $expense->wallet_id;
-                $oldAmount = (float) $expense->amount;
 
-                $availableBalance = (float) $wallet->balance;
-                if ($oldWalletId === $wallet->id) {
-                    $availableBalance += $oldAmount; // Kembalikan nominal lama untuk kalkulasi saldo
-                }
-
-                if ($availableBalance < $amount) {
-                    throw ValidationException::withMessages([
-                        'wallet_id' => [
-                            sprintf(
-                                'Saldo tidak cukup untuk rekening %s. Saldo saat ini: Rp %s',
-                                $wallet->name,
-                                number_format((float) $wallet->balance, 0, ',', '.')
-                            ),
-                        ],
-                    ]);
-                }
             }
 
             // Hapus transaksi wallet lama yang terasosiasi dengan expense ini

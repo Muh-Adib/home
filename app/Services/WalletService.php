@@ -146,14 +146,6 @@ class WalletService
     ): WalletTransaction {
         $wallet = Wallet::findOrFail($walletId);
 
-        // Validate OUT transaction has sufficient balance
-        if ($direction === 'out' && $wallet->balance < $amount) {
-            throw new \Exception(
-                'Insufficient balance. Current balance: Rp '.
-                number_format($wallet->balance, 0, ',', '.')
-            );
-        }
-
         return DB::transaction(function () use (
             $wallet,
             $direction,
