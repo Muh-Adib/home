@@ -23,6 +23,7 @@ import {
     Globe,
     FilePenLine,
     ClipboardList,
+    Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import AdminLayout from '@/layouts/admin-layout';
@@ -326,6 +327,16 @@ export default function Dashboard({
                             </span>
                         </div>
                     </div>
+                    {['super_admin', 'property_manager'].includes(auth.user.role) && (
+                        <div className="flex items-center gap-2">
+                            <Button asChild className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md cursor-pointer shrink-0">
+                                <Link href="/admin/finance/expenses?action=create">
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Tambah Pengeluaran
+                                </Link>
+                            </Button>
+                        </div>
+                    )}
                 </div>
 
                 {/* CONTENT CREATOR VIEW */}

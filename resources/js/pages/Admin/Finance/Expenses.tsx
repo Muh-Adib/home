@@ -6,7 +6,8 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { useState, useMemo, useEffect } from 'react';
-import { Package, FileText, Image as ImageIcon, Eye, Upload, Percent, Link2 } from 'lucide-react';
+import { Package, FileText, Image as ImageIcon, Eye, Upload, Percent, Link2, Plus } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface ExpenseForm {
   property_id: number | string | null;
@@ -118,6 +119,7 @@ export default function Expenses({
 
   const [selectedScope, setSelectedScope] = useState<string>('operational');
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   
   const { data, setData, post, processing, errors, reset } = useForm<ExpenseForm>({
     property_id: '',
@@ -173,13 +175,26 @@ export default function Expenses({
       receipt_image: null,
       capital_split_investor_pct: expense.capital_split_investor_pct || '',
     });
+    setIsFormOpen(true);
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     reset();
     setSelectedScope('operational');
+    setIsFormOpen(false);
   };
+
+  // Handle action=create from dashboard redirect
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('action') === 'create') {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      reset();
+      setEditingId(null);
+      setIsFormOpen(true);
+    }
+  }, []);
 
   // Automatically update default category when scope changes
   useEffect(() => {
@@ -223,6 +238,7 @@ export default function Expenses({
         onSuccess: () => {
           reset();
           setSelectedScope('operational');
+          setIsFormOpen(false);
         },
         preserveScroll: true,
       });
@@ -280,13 +296,38 @@ export default function Expenses({
 
   return (
     <AdminLayout title="Pengeluaran" breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Keuangan', href: '/admin/finance' }, { title: 'Pengeluaran' }]}>
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Form Card */}
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle>Catat Pengeluaran Baru</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Manajemen Pengeluaran</h2>
+            <p className="text-xs text-slate-500">Kelola catatan dan klasifikasi biaya operasional properti Anda.</p>
+          </div>
+          {['super_admin', 'property_manager', 'finance'].includes(userRole) && (
+            <Button
+              onClick={() => {
+                reset();
+                setEditingId(null);
+                setIsFormOpen(true);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md cursor-pointer shrink-0"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Tambah Pengeluaran
+            </Button>
+          )}
+        </div>
+
+        {/* Form Modal Dialog */}
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">
+                {editingId ? 'Edit Catatan Pengeluaran' : 'Catat Pengeluaran Baru'}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500">
+                Silakan lengkapi formulir di bawah ini untuk mencatat pengeluaran keuangan.
+              </DialogDescription>
+            </DialogHeader>
             <form className="space-y-3" onSubmit={submit}>
               {/* Scope Selector */}
               <div>
@@ -500,13 +541,16 @@ export default function Expenses({
 
               {errors.error && <div className="text-xs text-rose-500 mt-1 font-medium">{errors.error}</div>}
 
-              <Button type="submit" disabled={processing} className="w-full">Simpan Pengeluaran</Button>
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={cancelEdit} className="w-full font-bold rounded-xl">Batal</Button>
+                <Button type="submit" disabled={processing} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl">Simpan</Button>
+              </div>
             </form>
-          </CardContent>
-        </Card>
+          </DialogContent>
+        </Dialog>
 
         {/* List Card */}
-        <Card className="md:col-span-2">
+        <Card className="w-full">
           <CardHeader>
             <CardTitle>Data Riwayat Pengeluaran</CardTitle>
           </CardHeader>
