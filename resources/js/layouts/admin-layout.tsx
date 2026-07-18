@@ -243,10 +243,7 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Rekonsiliasi Bank', href: '/admin/payments/reconciliation', icon: DollarSign },
           { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
           { title: 'Rekening Bank', href: '/admin/bank-accounts', icon: Building2 },
-          { title: 'Finance', href: '/admin/finance', icon: DollarSign },
-          { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
           { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
-          { title: 'Wallets', href: '/admin/finance/wallets', icon: CreditCard },
         ]
       },
       {

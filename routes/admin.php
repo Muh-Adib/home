@@ -352,8 +352,8 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk,propert
     });
 });
 
-// Finance Management - Restricted from finance role
-Route::middleware(['auth', 'role:super_admin,property_owner,property_manager'])->prefix('admin')->name('admin.')->group(function () {
+// Finance Management - Restricted from finance and property_manager roles
+Route::middleware(['auth', 'role:super_admin,property_owner'])->prefix('admin')->name('admin.')->group(function () {
     Route::controller(FinanceController::class)->group(function () {
         Route::get('finance', 'index')->name('finance.index');
         Route::get('finance/incomes', 'incomes')->name('finance.incomes');

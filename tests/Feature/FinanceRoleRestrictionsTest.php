@@ -84,6 +84,19 @@ class FinanceRoleRestrictionsTest extends TestCase
             ->get('/admin/finance/payroll')
             ->assertStatus(403);
 
+        // CANNOT access finance, incomes, and wallets
+        $this->actingAs($manager)
+            ->get('/admin/finance')
+            ->assertStatus(403);
+
+        $this->actingAs($manager)
+            ->get('/admin/finance/incomes')
+            ->assertStatus(403);
+
+        $this->actingAs($manager)
+            ->get('/admin/finance/wallets')
+            ->assertStatus(403);
+
         // CANNOT access financial reports
         $this->actingAs($manager)
             ->get('/admin/reports/financial')
