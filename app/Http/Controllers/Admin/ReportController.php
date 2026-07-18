@@ -6,6 +6,7 @@ use App\Exports\PropertyPerformanceExport;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingDailyRevenue;
+use App\Models\Income;
 use App\Models\Payment;
 use App\Models\Property;
 use App\Models\UnitDamage;
