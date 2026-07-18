@@ -487,6 +487,7 @@ export default function Expenses({
                               <th className="py-2.5 px-3">Pelacakan Data</th>
                               <th className="py-2.5 px-3">Nota</th>
                               <th className="py-2.5 px-3 text-right">Nominal</th>
+                              {['super_admin', 'property_manager'].includes(userRole) && <th className="py-2.5 px-3 text-center">Aksi</th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -530,6 +531,21 @@ export default function Expenses({
                                   )}
                                 </td>
                                 <td className="py-2.5 px-3 text-right font-black text-rose-600">{formatRupiah(Number(row.amount))}</td>
+                                {['super_admin', 'property_manager'].includes(userRole) && (
+                                  <td className="py-2.5 px-3 text-center">
+                                    {canEdit(row) ? (
+                                      <button 
+                                        type="button"
+                                        onClick={() => startEdit(row)} 
+                                        className="text-blue-600 hover:text-blue-800 font-bold hover:underline font-semibold"
+                                      >
+                                        Edit
+                                      </button>
+                                    ) : (
+                                      <span className="text-slate-400 text-[10px]" title="Pengeluaran terhubung tidak bisa diedit secara manual">Terhubung</span>
+                                    )}
+                                  </td>
+                                )}
                               </tr>
                             ))}
                           </tbody>
@@ -554,6 +570,7 @@ export default function Expenses({
                       <th className="py-3 px-4">Pelacakan Data</th>
                       <th className="py-3 px-4">Nota</th>
                       <th className="py-3 px-4 text-right">Nominal</th>
+                      {['super_admin', 'property_manager'].includes(userRole) && <th className="py-3 px-4 text-center">Aksi</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -598,6 +615,21 @@ export default function Expenses({
                           )}
                         </td>
                         <td className="py-2.5 px-4 text-right font-black text-rose-600">{formatRupiah(Number(row.amount))}</td>
+                        {['super_admin', 'property_manager'].includes(userRole) && (
+                          <td className="py-2.5 px-4 text-center">
+                            {canEdit(row) ? (
+                              <button 
+                                type="button"
+                                onClick={() => startEdit(row)} 
+                                className="text-blue-600 hover:text-blue-800 font-bold hover:underline font-semibold"
+                              >
+                                Edit
+                              </button>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]" title="Pengeluaran terhubung tidak bisa diedit secara manual">Terhubung</span>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                     {(!displayedExpenses || displayedExpenses.length === 0) && (
@@ -651,6 +683,15 @@ export default function Expenses({
                               <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 border-slate-100 text-[10px] text-slate-500 font-semibold">
                                 <div>Wallet: <span className="text-slate-700 font-bold">{row.wallet?.name || '-'}</span></div>
                                 <div className="flex items-center gap-1.5">
+                                  {canEdit(row) && (
+                                    <button 
+                                      type="button"
+                                      onClick={() => startEdit(row)} 
+                                      className="inline-flex items-center gap-0.5 text-blue-600 hover:underline font-bold font-semibold"
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
                                   {row.receipt_image && (
                                     <a href={`/storage/${row.receipt_image}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-blue-600 hover:underline">
                                       <Eye className="w-3 h-3" /> Nota
@@ -704,6 +745,15 @@ export default function Expenses({
                       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 border-slate-100 text-[11px] text-slate-500 font-semibold">
                         <div>Wallet: <span className="text-slate-700 font-bold">{row.wallet?.name || '-'}</span></div>
                         <div className="flex items-center gap-2">
+                          {canEdit(row) && (
+                            <button 
+                              type="button"
+                              onClick={() => startEdit(row)} 
+                              className="inline-flex items-center gap-0.5 text-blue-600 hover:underline font-bold font-semibold"
+                            >
+                              Edit
+                            </button>
+                          )}
                           {row.receipt_image && (
                             <a href={`/storage/${row.receipt_image}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-blue-600 hover:underline">
                               <Eye className="w-3.5 h-3.5" /> Nota

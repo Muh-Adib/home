@@ -259,6 +259,44 @@ class FinanceController extends Controller
         }
     }
 
+    public function updateExpense(Request $request, PropertyExpense $expense, ExpenseService $expenseService)
+    {
+        $user = $request->user();
+        if (! in_array($user->role, ['super_admin', 'property_manager'])) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $validated = $request->validate([
+            'property_id' => ['nullable', 'exists:properties,id'],
+            'booking_id' => ['nullable', 'exists:bookings,id'],
+            'expense_category' => ['required', 'string', 'max:50'],
+            'expense_type' => ['required', 'string', 'max:50'],
+            'description' => ['nullable', 'string', 'max:255'],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'expense_date' => ['required', 'date'],
+            'vendor_name' => ['nullable', 'string', 'max:100'],
+            'receipt_number' => ['nullable', 'string', 'max:100'],
+            'payment_method' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string', 'max:255'],
+            'wallet_id' => ['nullable', 'exists:wallets,id'],
+            'expense_scope' => ['required', 'string', 'in:operational,unit,house,kitchen,capital,prive'],
+            'capital_split_investor_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        try {
+            $expenseService->updateExpense($expense, $validated, $user->id);
+
+            // Handle receipt image upload if present
+            if ($request->hasFile('receipt_image')) {
+                $expenseService->uploadReceipt($expense, $request->file('receipt_image'));
+            }
+
+            return redirect()->back()->with('success', 'Pengeluaran berhasil diperbarui');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors(['error' => $e->getMessage()]);
+        }
+    }
+
     public function adjustBalance(Request $request, Wallet $wallet, ExpenseService $expenseService)
     {
         $user = $request->user();

@@ -11,6 +11,11 @@ class PropertyExpense extends Model
     use HasFactory;
 
     /**
+     * The attributes to append to the model's array form.
+     */
+    protected $appends = ['is_linked'];
+
+    /**
      * The attributes that are mass assignable.
      */
     protected $fillable = [
@@ -262,5 +267,32 @@ class PropertyExpense extends Model
     public function scopeByScope($query, $scope)
     {
         return $query->where('expense_scope', $scope);
+    }
+
+    /**
+     * Get staff payroll related to this expense
+     */
+    public function staffPayroll(): BelongsTo
+    {
+        return $this->belongsTo(StaffPayroll::class, 'id', 'expense_id');
+    }
+
+    /**
+     * Check if this expense is linked to other modules (inventory, booking, payroll)
+     */
+    public function isLinked(): bool
+    {
+        return $this->booking_id !== null
+            || ($this->relationLoaded('inventoryUsage') ? $this->inventoryUsage !== null : $this->inventoryUsage()->exists())
+            || ($this->relationLoaded('stockMovement') ? $this->stockMovement !== null : $this->stockMovement()->exists())
+            || ($this->relationLoaded('staffPayroll') ? $this->staffPayroll !== null : $this->staffPayroll()->exists());
+    }
+
+    /**
+     * Get is_linked attribute for serialization
+     */
+    public function getIsLinkedAttribute(): bool
+    {
+        return $this->isLinked();
     }
 }

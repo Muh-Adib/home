@@ -98,6 +98,98 @@ class ExpenseService
     }
 
     /**
+     * Update pengeluaran + sinkronisasi saldo wallet.
+     *
+     * @throws ValidationException
+     */
+    public function updateExpense(PropertyExpense $expense, array $data, int $userId): PropertyExpense
+    {
+        if ($expense->isLinked()) {
+            throw new \Exception('Pengeluaran yang terhubung tidak dapat diubah secara manual.');
+        }
+
+        return DB::transaction(function () use ($expense, $data, $userId) {
+            $walletId = $data['wallet_id'] ?? null;
+            $amount = (float) $data['amount'];
+
+            if ($walletId) {
+                $wallet = Wallet::find($walletId);
+                if (! $wallet) {
+                    throw ValidationException::withMessages([
+                        'wallet_id' => ['Wallet tidak ditemukan.'],
+                    ]);
+                }
+
+                // Periksa saldo wallet
+                $oldWalletId = $expense->wallet_id;
+                $oldAmount = (float) $expense->amount;
+
+                $availableBalance = (float) $wallet->balance;
+                if ($oldWalletId === $wallet->id) {
+                    $availableBalance += $oldAmount; // Kembalikan nominal lama untuk kalkulasi saldo
+                }
+
+                if ($availableBalance < $amount) {
+                    throw ValidationException::withMessages([
+                        'wallet_id' => [
+                            sprintf(
+                                'Saldo tidak cukup untuk rekening %s. Saldo saat ini: Rp %s',
+                                $wallet->name,
+                                number_format((float) $wallet->balance, 0, ',', '.')
+                            ),
+                        ],
+                    ]);
+                }
+            }
+
+            // Hapus transaksi wallet lama yang terasosiasi dengan expense ini
+            WalletTransaction::where('reference_type', 'expense')
+                ->where('reference_id', $expense->id)
+                ->delete();
+
+            // Perbarui data expense
+            $expense->update([
+                'property_id' => $data['property_id'] ?? null,
+                'booking_id' => $data['booking_id'] ?? null,
+                'expense_category' => $data['expense_category'],
+                'expense_type' => $data['expense_type'] ?? 'variable',
+                'description' => $data['description'] ?? null,
+                'amount' => $amount,
+                'expense_date' => $data['expense_date'],
+                'vendor_name' => $data['vendor_name'] ?? null,
+                'receipt_number' => $data['receipt_number'] ?? null,
+                'payment_method' => $data['payment_method'] ?? 'cash',
+                'notes' => $data['notes'] ?? null,
+                'wallet_id' => $walletId,
+                'expense_scope' => $data['expense_scope'] ?? 'operational',
+                'capital_split_investor_pct' => $data['capital_split_investor_pct'] ?? null,
+            ]);
+
+            // Jika wallet dipilih, buat transaksi baru
+            if ($walletId) {
+                $category = $expense->expense_scope === 'prive' ? 'prive' : 'expense';
+
+                $this->walletService->recordTransaction(
+                    (int) $walletId,
+                    'out',
+                    $category,
+                    $amount,
+                    Carbon::parse($expense->expense_date)->toDateString(),
+                    'expense',
+                    $expense->id,
+                    $expense->description ?? 'Pengeluaran: '.$expense->getCategoryLabel(),
+                    $userId
+                );
+            }
+
+            // Jalankan syncAll untuk merapikan saldo wallet
+            $this->walletService->syncAll();
+
+            return $expense->fresh();
+        });
+    }
+
+    /**
      * Penyesuaian saldo wallet (adjustment).
      */
     public function adjustBalance(int $walletId, float $newBalance, string $reason, string $date, int $userId): WalletTransaction

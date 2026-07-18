@@ -381,6 +381,7 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,fin
     Route::controller(FinanceController::class)->group(function () {
         Route::get('finance/expenses', 'expenses')->name('finance.expenses');
         Route::post('finance/expenses', 'storeExpense')->name('finance.expenses.store');
+        Route::post('finance/expenses/{expense}/update', 'updateExpense')->name('finance.expenses.update')->middleware('role:super_admin,property_manager');
         Route::post('finance/expenses/{expense}/receipt', 'storeExpenseReceipt')->name('finance.expenses.receipt');
     });
 });

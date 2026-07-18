@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Booking;
 use App\Models\Property;
+use App\Models\PropertyExpense;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -148,5 +150,167 @@ class FinanceRoleRestrictionsTest extends TestCase
             'amount' => 100000,
             'wallet_id' => $wallet->id,
         ]);
+    }
+
+    #[Test]
+    public function property_manager_can_store_an_expense()
+    {
+        $manager = User::factory()->create(['role' => 'property_manager']);
+        $wallet = Wallet::create([
+            'name' => 'Kas kecil',
+            'balance' => 500000,
+            'created_by' => $manager->id,
+        ]);
+        $property = Property::factory()->create();
+
+        $response = $this->actingAs($manager)
+            ->post('/admin/finance/expenses', [
+                'property_id' => $property->id,
+                'expense_category' => 'utilities',
+                'expense_type' => 'variable',
+                'description' => 'Manager Expense',
+                'amount' => 50000,
+                'expense_date' => now()->toDateString(),
+                'payment_method' => 'cash',
+                'wallet_id' => $wallet->id,
+                'expense_scope' => 'operational',
+            ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('property_expenses', [
+            'description' => 'Manager Expense',
+            'amount' => 50000,
+            'wallet_id' => $wallet->id,
+        ]);
+    }
+
+    #[Test]
+    public function super_admin_and_property_manager_can_update_unlinked_expense()
+    {
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $manager = User::factory()->create(['role' => 'property_manager']);
+
+        $wallet = Wallet::create([
+            'name' => 'Kas kecil',
+            'balance' => 500000,
+            'created_by' => $admin->id,
+        ]);
+
+        $expense = PropertyExpense::create([
+            'expense_category' => 'utilities',
+            'expense_type' => 'variable',
+            'description' => 'Original description',
+            'amount' => 100000,
+            'expense_date' => now()->toDateString(),
+            'payment_method' => 'cash',
+            'wallet_id' => $wallet->id,
+            'expense_scope' => 'operational',
+            'created_by' => $admin->id,
+            'recorded_by' => $admin->id,
+        ]);
+
+        // Manager updates it
+        $response = $this->actingAs($manager)
+            ->post("/admin/finance/expenses/{$expense->id}/update", [
+                'expense_category' => 'utilities',
+                'expense_type' => 'variable',
+                'description' => 'Updated by manager',
+                'amount' => 120000,
+                'expense_date' => now()->toDateString(),
+                'payment_method' => 'cash',
+                'wallet_id' => $wallet->id,
+                'expense_scope' => 'operational',
+            ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('property_expenses', [
+            'id' => $expense->id,
+            'description' => 'Updated by manager',
+            'amount' => 120000,
+        ]);
+    }
+
+    #[Test]
+    public function super_admin_and_property_manager_cannot_update_linked_expense()
+    {
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $wallet = Wallet::create([
+            'name' => 'Kas kecil',
+            'balance' => 500000,
+            'created_by' => $admin->id,
+        ]);
+        $booking = Booking::factory()->create();
+
+        $expense = PropertyExpense::create([
+            'expense_category' => 'utilities',
+            'expense_type' => 'variable',
+            'description' => 'Linked to Booking',
+            'amount' => 100000,
+            'expense_date' => now()->toDateString(),
+            'payment_method' => 'cash',
+            'wallet_id' => $wallet->id,
+            'expense_scope' => 'operational',
+            'booking_id' => $booking->id,
+            'created_by' => $admin->id,
+            'recorded_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->post("/admin/finance/expenses/{$expense->id}/update", [
+                'expense_category' => 'utilities',
+                'expense_type' => 'variable',
+                'description' => 'Try to update linked',
+                'amount' => 120000,
+                'expense_date' => now()->toDateString(),
+                'payment_method' => 'cash',
+                'wallet_id' => $wallet->id,
+                'expense_scope' => 'operational',
+            ]);
+
+        $response->assertSessionHasErrors(['error']);
+        $this->assertDatabaseHas('property_expenses', [
+            'id' => $expense->id,
+            'description' => 'Linked to Booking',
+            'amount' => 100000, // Unchanged
+        ]);
+    }
+
+    #[Test]
+    public function finance_cannot_update_expense()
+    {
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $finance = User::factory()->create(['role' => 'finance']);
+        $wallet = Wallet::create([
+            'name' => 'Kas kecil',
+            'balance' => 500000,
+            'created_by' => $admin->id,
+        ]);
+
+        $expense = PropertyExpense::create([
+            'expense_category' => 'utilities',
+            'expense_type' => 'variable',
+            'description' => 'Unlinked Expense',
+            'amount' => 100000,
+            'expense_date' => now()->toDateString(),
+            'payment_method' => 'cash',
+            'wallet_id' => $wallet->id,
+            'expense_scope' => 'operational',
+            'created_by' => $admin->id,
+            'recorded_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($finance)
+            ->post("/admin/finance/expenses/{$expense->id}/update", [
+                'expense_category' => 'utilities',
+                'expense_type' => 'variable',
+                'description' => 'Try to update by finance',
+                'amount' => 120000,
+                'expense_date' => now()->toDateString(),
+                'payment_method' => 'cash',
+                'wallet_id' => $wallet->id,
+                'expense_scope' => 'operational',
+            ]);
+
+        $response->assertStatus(403);
     }
 }
