@@ -333,6 +333,54 @@ class FinanceController extends Controller
         return redirect()->back()->with('success', 'Wallet berhasil dibuat');
     }
 
+    public function updateWallet(Request $request, Wallet $wallet)
+    {
+        $user = $request->user();
+        if ($wallet->created_by !== $user->id && ! in_array($user->role, ['super_admin', 'finance'])) {
+            abort(403, 'Unauthorized to update this wallet');
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'type' => ['required', 'in:property_linked,standalone_savings'],
+            'property_id' => ['nullable', 'exists:properties,id'],
+            'is_savings' => ['boolean'],
+            'auto_deduct_from_monthly_report' => ['boolean'],
+            'savings_monthly_amount' => ['nullable', 'numeric', 'min:0'],
+            'target_amount' => ['nullable', 'numeric', 'min:0'],
+            'target_date' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string', 'max:255'],
+            'purpose' => ['required', 'string', 'max:50'],
+        ]);
+
+        $validated['property_id'] = $validated['property_id'] ?? null;
+        $validated['is_savings'] = (bool) ($validated['is_savings'] ?? false);
+        $validated['auto_deduct_from_monthly_report'] = (bool) ($validated['auto_deduct_from_monthly_report'] ?? false);
+        $validated['savings_monthly_amount'] = $validated['savings_monthly_amount'] ?? 0;
+        $validated['target_amount'] = $validated['target_amount'] ?? null;
+        $validated['target_date'] = $validated['target_date'] ?? null;
+
+        $wallet->update($validated);
+
+        return redirect()->back()->with('success', 'Wallet berhasil diperbarui');
+    }
+
+    public function destroyWallet(Request $request, Wallet $wallet)
+    {
+        $user = $request->user();
+        if ($wallet->created_by !== $user->id && ! in_array($user->role, ['super_admin', 'finance'])) {
+            abort(403, 'Unauthorized to delete this wallet');
+        }
+
+        if ($wallet->transactions()->count() > 0) {
+            return redirect()->back()->withErrors(['error' => 'Tidak dapat menghapus wallet yang sudah memiliki transaksi.']);
+        }
+
+        $wallet->delete();
+
+        return redirect()->back()->with('success', 'Wallet berhasil dihapus');
+    }
+
     public function mapPaymentMethodToWallet(Request $request, PaymentMethod $paymentMethod, WalletService $walletService)
     {
         $this->authorize('update', $paymentMethod);

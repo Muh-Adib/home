@@ -3,9 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useForm, Link } from '@inertiajs/react';
-import { ArrowLeftRight, Coins, Scale, TrendingUp } from 'lucide-react';
+import { useForm, Link, router } from '@inertiajs/react';
+import { ArrowLeftRight, Coins, Scale, TrendingUp, Edit2, Trash2, Settings } from 'lucide-react';
 import { useState, useMemo } from 'react';
+import { CurrencyInput } from '@/components/ui/currency-input';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface WalletForm {
   name: string;
@@ -144,11 +146,11 @@ export default function Wallets({ wallets, properties, paymentMethods, walletCat
                   </div>
                   <div>
                     <Label className="text-xs">Saldo Tabungan Bulanan</Label>
-                    <Input type="number" step="1" min="0" value={data.savings_monthly_amount} onChange={(e) => setData('savings_monthly_amount', e.target.value)} placeholder="Jumlah tabungan bulanan" />
+                    <CurrencyInput value={Number(data.savings_monthly_amount) || 0} onChange={(val) => setData('savings_monthly_amount', val.toString())} placeholder="Jumlah tabungan bulanan" />
                   </div>
                   <div>
                     <Label className="text-xs">Target Jumlah</Label>
-                    <Input type="number" value={data.target_amount} onChange={(e) => setData('target_amount', e.target.value)} placeholder="Target jumlah tabungan" />
+                    <CurrencyInput value={Number(data.target_amount) || 0} onChange={(val) => setData('target_amount', val.toString())} placeholder="Target jumlah tabungan" />
                   </div>
                   <div>
                     <Label className="text-xs">Target Tanggal</Label>
@@ -179,6 +181,7 @@ export default function Wallets({ wallets, properties, paymentMethods, walletCat
                 paymentMethods={paymentMethods} 
                 walletCategories={walletCategories} 
                 walletPurposes={walletPurposes}
+                properties={properties}
               />
             ))}
           </div>
@@ -250,14 +253,11 @@ function WalletTransferForm({ wallets }: { wallets: any[] }) {
 
       <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <Label>Nominal (Rp) <span className="text-red-500">*</span></Label>
-          <Input
-            type="number"
-            step="1"
-            min="1"
+          <Label>Nominal <span className="text-red-500">*</span></Label>
+          <CurrencyInput
             placeholder="0"
-            value={data.amount}
-            onChange={(e) => setData('amount', e.target.value)}
+            value={Number(data.amount) || 0}
+            onChange={(val) => setData('amount', val.toString())}
             required
           />
           {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount}</p>}
@@ -358,7 +358,7 @@ function InlineTransactionForm({ walletId, walletCategories }: { walletId: numbe
         </div>
         <div>
           <Label className="text-[10px]">Nominal</Label>
-          <Input className="h-8 text-xs" type="number" step="1" min="0" placeholder="0" value={data.amount} onChange={(e) => setData('amount', e.target.value)} required />
+          <CurrencyInput className="h-8 text-xs" placeholder="0" value={Number(data.amount) || 0} onChange={(val) => setData('amount', val.toString())} required />
         </div>
       </div>
       <div className="grid gap-2 md:grid-cols-2">
@@ -414,8 +414,8 @@ function BalanceAdjustmentForm({ walletId }: { walletId: number }) {
       </div>
       <div className="grid gap-2 grid-cols-2">
         <div>
-          <Label className="text-[10px]">Saldo Baru Aktual (Rp)</Label>
-          <Input className="h-8 text-xs border-amber-300 focus-visible:ring-amber-400" type="number" step="1" min="0" placeholder="Saldo aktual" value={data.new_balance} onChange={(e) => setData('new_balance', e.target.value)} required />
+          <Label className="text-[10px]">Saldo Baru Aktual</Label>
+          <CurrencyInput className="h-8 text-xs border-amber-300 focus-visible:ring-amber-400" placeholder="Saldo aktual" value={Number(data.new_balance) || 0} onChange={(val) => setData('new_balance', val.toString())} required />
         </div>
         <div>
           <Label className="text-[10px]">Tanggal Penyesuaian</Label>
@@ -437,11 +437,42 @@ function BalanceAdjustmentForm({ walletId }: { walletId: number }) {
   );
 }
 
-function WalletCard({ wallet: w, wallets, paymentMethods, walletCategories, walletPurposes }: any) {
+function WalletCard({ wallet: w, wallets, paymentMethods, walletCategories, walletPurposes, properties }: any) {
   const hasTarget = w.target_amount && w.target_date;
   const progress = hasTarget ? ((Number(w.balance) / Number(w.target_amount)) * 100) : 0;
   const daysRemaining = hasTarget ? Math.ceil((new Date(w.target_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
   const isTargetAchieved = hasTarget && Number(w.balance) >= Number(w.target_amount);
+
+  const [isEditOpen, setIsEditOpen] = useState(false);
+
+  const { data, setData, put, processing, errors } = useForm({
+    name: w.name || '',
+    type: w.type || 'property_linked',
+    property_id: w.property_id || null,
+    is_savings: !!w.is_savings,
+    auto_deduct_from_monthly_report: !!w.auto_deduct_from_monthly_report,
+    savings_monthly_amount: w.savings_monthly_amount || '',
+    target_amount: w.target_amount || '',
+    target_date: w.target_date ? new Date(w.target_date).toISOString().slice(0, 10) : '',
+    notes: w.notes || '',
+    purpose: w.purpose || 'general',
+  });
+
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    put(`/admin/finance/wallets/${w.id}`, {
+      onSuccess: () => setIsEditOpen(false),
+      preserveScroll: true,
+    });
+  };
+
+  const handleDelete = () => {
+    if (confirm('Apakah Anda yakin ingin menghapus wallet ini?')) {
+      router.delete(`/admin/finance/wallets/${w.id}`, {
+        preserveScroll: true,
+      });
+    }
+  };
 
   return (
     <Card className="hover:shadow-md transition-shadow relative">
@@ -494,16 +525,39 @@ function WalletCard({ wallet: w, wallets, paymentMethods, walletCategories, wall
         )}
 
         {/* Quick Actions Panel */}
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs h-8"
-            onClick={() => window.open(`/admin/finance/wallets/${w.id}/report`, '_blank')}
-          >
-            Cetak Mutasi
-          </Button>
-          <BalanceAdjustmentForm walletId={w.id} />
+        <div className="flex justify-between items-center gap-2">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-8"
+              onClick={() => window.open(`/admin/finance/wallets/${w.id}/report`, '_blank')}
+            >
+              Cetak Mutasi
+            </Button>
+            <BalanceAdjustmentForm walletId={w.id} />
+          </div>
+
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-slate-500 hover:text-blue-600 rounded-lg"
+              onClick={() => setIsEditOpen(true)}
+              title="Edit Wallet"
+            >
+              <Edit2 className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+              onClick={handleDelete}
+              title="Hapus Wallet"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Payment Methods Mapper */}
@@ -520,6 +574,147 @@ function WalletCard({ wallet: w, wallets, paymentMethods, walletCategories, wall
         {/* Inline Manual Transaction Form */}
         <InlineTransactionForm walletId={w.id} walletCategories={walletCategories} />
       </CardContent>
+
+      {/* Edit Wallet Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-md bg-white p-6 rounded-2xl border-0 shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-800">
+              <Settings className="w-5 h-5 text-blue-600" />
+              Edit Pengaturan Wallet
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Ubah konfigurasi, peruntukan, atau target tabungan untuk **{w.name}**.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdate} className="space-y-3.5 text-xs mt-2">
+            <div>
+              <Label className="text-xs font-bold text-slate-600">Nama Rekening *</Label>
+              <Input 
+                value={data.name} 
+                onChange={(e) => setData('name', e.target.value)} 
+                required 
+                className="h-9 mt-1"
+              />
+              {errors.name && <p className="text-[10px] text-red-500 font-bold mt-0.5">{errors.name}</p>}
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold text-slate-600">Peruntukan (Purpose) *</Label>
+              <select 
+                className="w-full border border-slate-200 rounded-lg h-9 px-2.5 bg-background text-xs mt-1" 
+                value={data.purpose} 
+                onChange={(e) => setData('purpose', e.target.value)}
+              >
+                {Object.entries(walletPurposes || {}).map(([key, label]: any) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-bold text-slate-600">Tipe</Label>
+                <select 
+                  className="w-full border border-slate-200 rounded-lg h-9 px-2.5 bg-background text-xs mt-1" 
+                  value={data.type} 
+                  onChange={(e) => setData('type', e.target.value as any)}
+                >
+                  <option value="property_linked">Terhubung ke Property</option>
+                  <option value="standalone_savings">Tabungan (Mandiri)</option>
+                </select>
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold text-slate-600">Property (opsional)</Label>
+                <select 
+                  className="w-full border border-slate-200 rounded-lg h-9 px-2.5 bg-background text-xs mt-1" 
+                  value={String(data.property_id ?? '')} 
+                  onChange={(e) => setData('property_id', e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">—</option>
+                  {properties?.map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 pt-1">
+              <input
+                type="checkbox"
+                id={`edit_is_savings_${w.id}`}
+                checked={data.is_savings}
+                onChange={(e) => setData('is_savings', e.target.checked)}
+                className="rounded border-slate-300"
+              />
+              <Label htmlFor={`edit_is_savings_${w.id}`} className="cursor-pointer text-xs font-bold text-slate-600">Ini adalah wallet tabungan</Label>
+            </div>
+
+            {data.is_savings && (
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60 space-y-2.5 mt-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id={`edit_auto_deduct_${w.id}`}
+                    checked={data.auto_deduct_from_monthly_report}
+                    onChange={(e) => setData('auto_deduct_from_monthly_report', e.target.checked)}
+                    className="rounded border-slate-300"
+                  />
+                  <Label htmlFor={`edit_auto_deduct_${w.id}`} className="cursor-pointer text-[11px] font-semibold text-slate-600">Auto deduct dari laporan bulanan</Label>
+                </div>
+                <div>
+                  <Label className="text-[10px] font-bold text-slate-500">Saldo Tabungan Bulanan</Label>
+                  <CurrencyInput 
+                    value={Number(data.savings_monthly_amount) || 0} 
+                    onChange={(val) => setData('savings_monthly_amount', val.toString())} 
+                    placeholder="Jumlah tabungan bulanan" 
+                    className="h-8 mt-0.5"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] font-bold text-slate-500">Target Jumlah</Label>
+                  <CurrencyInput 
+                    value={Number(data.target_amount) || 0} 
+                    onChange={(val) => setData('target_amount', val.toString())} 
+                    placeholder="Target jumlah tabungan" 
+                    className="h-8 mt-0.5"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] font-bold text-slate-500">Target Tanggal</Label>
+                  <Input 
+                    type="date" 
+                    value={data.target_date} 
+                    onChange={(e) => setData('target_date', e.target.value)} 
+                    className="h-8 mt-0.5"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <Label className="text-xs font-bold text-slate-600">Catatan</Label>
+              <Input 
+                value={data.notes || ''} 
+                onChange={(e) => setData('notes', e.target.value)} 
+                placeholder="Catatan tambahan" 
+                className="h-9 mt-1"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsEditOpen(false)}>
+                Batal
+              </Button>
+              <Button type="submit" size="sm" disabled={processing} className="bg-blue-600 hover:bg-blue-700 text-white font-bold">
+                Simpan Perubahan
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

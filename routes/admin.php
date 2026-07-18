@@ -367,6 +367,8 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,fin
         Route::post('finance/wallets/{wallet}/transactions', 'storeWalletTransaction')->name('finance.wallets.transactions.store');
         Route::post('finance/wallets/{wallet}/adjust', 'adjustBalance')->name('finance.wallets.adjust');
         Route::get('finance/wallets/{wallet}/report', 'walletReport')->name('finance.wallets.report');
+        Route::put('finance/wallets/{wallet}', 'updateWallet')->name('finance.wallets.update');
+        Route::delete('finance/wallets/{wallet}', 'destroyWallet')->name('finance.wallets.destroy');
         Route::patch('finance/payment-methods/{paymentMethod}/wallet', 'mapPaymentMethodToWallet')->name('finance.payment-methods.map-wallet');
         Route::post('finance/expenses/{expense}/receipt', 'storeExpenseReceipt')->name('finance.expenses.receipt');
 
