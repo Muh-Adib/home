@@ -514,11 +514,11 @@ export default function Expenses({
                     <span>✓ File terpilih: {data.receipt_image.name}</span>
                   </div>
                 )}
-                {editingId && !data.receipt_image && expenses.find((e: any) => e.id === editingId)?.receipt_image && (
+                {editingId && !data.receipt_image && expenses?.data?.find((e: any) => e.id === editingId)?.receipt_image && (
                   <div className="mt-2 text-xs text-slate-500 font-medium">
                     <span>Nota saat ini: </span>
                     <a
-                      href={`/storage/${expenses.find((e: any) => e.id === editingId).receipt_image}`}
+                      href={`/storage/${expenses?.data?.find((e: any) => e.id === editingId).receipt_image}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline font-bold"
