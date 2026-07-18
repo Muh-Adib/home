@@ -249,9 +249,9 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
     // Flat breakdown table state
     const [searchTerm, setSearchTerm] = useState('');
     const [sortField, setSortField] = useState<keyof DailyBreakdownItem>('date');
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [itemsPerPage, setItemsPerPage] = useState(50);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },

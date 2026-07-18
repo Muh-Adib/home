@@ -498,47 +498,88 @@ class ReportController extends Controller
             $dailyBreakdownQuery->where('property_id', $propertyId);
         }
 
-        $dailyBreakdown = $dailyBreakdownQuery->orderBy('tanggal', 'desc')
-            ->orderBy('property_id')
-            ->get()
-            ->map(function ($rev) {
-                $extraServicesAmount = 0;
-                if ($rev->booking) {
-                    $extraServicesAmount = (float) $rev->booking->services
-                        ->where('service_type', '!=', 'extra_bed')
-                        ->where('status', '!=', 'cancelled')
-                        ->filter(function ($srv) use ($rev) {
-                            if ($srv->service_date) {
-                                return $srv->service_date->toDateString() === $rev->tanggal->toDateString();
-                            }
+        $dailyBreakdownRaw = $dailyBreakdownQuery->get();
 
-                            return $rev->booking->check_in->toDateString() === $rev->tanggal->toDateString();
-                        })
-                        ->sum('total_price');
-                }
+        $dailyBreakdown = [];
+        $current = $startDate->copy();
 
-                $roomRevenue = (float) $rev->amount;
-                $totalRevenue = $roomRevenue + $extraServicesAmount;
-
-                return [
-                    'date' => $rev->tanggal->format('Y-m-d'),
-                    'property_name' => $rev->property->name ?? 'Unknown',
-                    'property_color' => $rev->property->color ?? '#3b82f6',
-                    'booking_id' => $rev->booking_id,
-                    'booking_number' => $rev->booking->booking_number ?? 'N/A',
-                    'guest_name' => $rev->booking->guest_name ?? 'N/A',
-                    'amount' => $totalRevenue,
-                    'base_amount' => (float) $rev->base_amount,
-                    'weekend_premium' => (float) $rev->weekend_premium,
-                    'seasonal_premium' => (float) $rev->seasonal_premium,
-                    'extra_bed_amount' => (float) $rev->extra_bed_amount,
-                    'extra_services_amount' => $extraServicesAmount,
-                    'is_weekend' => $rev->is_weekend,
-                    'rate_type' => $rev->rate_type,
-                    'rate_name' => $rev->rate_name,
-                ];
+        $propertiesToDisplay = Property::active()
+            ->whereIn('id', $propertyIds)
+            ->when($propertyId, function ($q) use ($propertyId) {
+                $q->where('id', $propertyId);
             })
-            ->toArray();
+            ->get();
+
+        while ($current->lte($endDate)) {
+            $dateStr = $current->toDateString();
+            $isWeekend = $current->isWeekend();
+
+            foreach ($propertiesToDisplay as $prop) {
+                $matchingRevenues = $dailyBreakdownRaw->filter(function ($rev) use ($dateStr, $prop) {
+                    return $rev->tanggal->toDateString() === $dateStr && $rev->property_id === $prop->id;
+                });
+
+                if ($matchingRevenues->isEmpty()) {
+                    $dailyBreakdown[] = [
+                        'date' => $dateStr,
+                        'property_name' => $prop->name,
+                        'property_color' => $prop->color ?? '#3b82f6',
+                        'booking_id' => null,
+                        'booking_number' => '-',
+                        'guest_name' => '-',
+                        'amount' => 0.0,
+                        'base_amount' => 0.0,
+                        'weekend_premium' => 0.0,
+                        'seasonal_premium' => 0.0,
+                        'extra_bed_amount' => 0.0,
+                        'extra_services_amount' => 0.0,
+                        'is_weekend' => $isWeekend,
+                        'rate_type' => '-',
+                        'rate_name' => '-',
+                    ];
+                } else {
+                    foreach ($matchingRevenues as $rev) {
+                        $extraServicesAmount = 0;
+                        if ($rev->booking) {
+                            $extraServicesAmount = (float) $rev->booking->services
+                                ->where('service_type', '!=', 'extra_bed')
+                                ->where('status', '!=', 'cancelled')
+                                ->filter(function ($srv) use ($rev) {
+                                    if ($srv->service_date) {
+                                        return $srv->service_date->toDateString() === $rev->tanggal->toDateString();
+                                    }
+
+                                    return $rev->booking->check_in->toDateString() === $rev->tanggal->toDateString();
+                                })
+                                ->sum('total_price');
+                        }
+
+                        $roomRevenue = (float) $rev->amount;
+                        $totalRevenue = $roomRevenue + $extraServicesAmount;
+
+                        $dailyBreakdown[] = [
+                            'date' => $rev->tanggal->format('Y-m-d'),
+                            'property_name' => $prop->name,
+                            'property_color' => $prop->color ?? '#3b82f6',
+                            'booking_id' => $rev->booking_id,
+                            'booking_number' => $rev->booking->booking_number ?? 'N/A',
+                            'guest_name' => $rev->booking->guest_name ?? 'N/A',
+                            'amount' => $totalRevenue,
+                            'base_amount' => (float) $rev->base_amount,
+                            'weekend_premium' => (float) $rev->weekend_premium,
+                            'seasonal_premium' => (float) $rev->seasonal_premium,
+                            'extra_bed_amount' => (float) $rev->extra_bed_amount,
+                            'extra_services_amount' => $extraServicesAmount,
+                            'is_weekend' => $rev->is_weekend,
+                            'rate_type' => $rev->rate_type,
+                            'rate_name' => $rev->rate_name,
+                        ];
+                    }
+                }
+            }
+
+            $current->addDay();
+        }
 
         // 6. Overall Bookings referenced in this period
         $bookingIds = collect($dailyBreakdown)->pluck('booking_id')->unique()->filter()->toArray();
