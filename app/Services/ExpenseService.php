@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Models\PropertyExpense;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -84,7 +85,7 @@ class ExpenseService
                     'out',
                     $category,
                     $amount,
-                    $expense->expense_date->toDateString(),
+                    Carbon::parse($expense->expense_date)->toDateString(),
                     'expense',
                     $expense->id,
                     $expense->description ?? 'Pengeluaran: '.$expense->getCategoryLabel(),

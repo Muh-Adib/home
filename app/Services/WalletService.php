@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Models\PropertyExpense;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -391,7 +392,7 @@ class WalletService
                         'direction' => 'out',
                         'category' => $category,
                         'amount' => $expense->amount,
-                        'transaction_date' => $expense->expense_date->toDateString(),
+                        'transaction_date' => Carbon::parse($expense->expense_date)->toDateString(),
                         'reference_type' => 'expense',
                         'reference_id' => $expense->id,
                         'description' => $expense->description ?? 'Pengeluaran: '.$expense->getCategoryLabel(),
@@ -400,7 +401,7 @@ class WalletService
                 } else {
                     $existing->update([
                         'amount' => $expense->amount,
-                        'transaction_date' => $expense->expense_date->toDateString(),
+                        'transaction_date' => Carbon::parse($expense->expense_date)->toDateString(),
                     ]);
                 }
             }
