@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
-import { Link, useForm } from '@inertiajs/react';
+import { Link, useForm, usePage } from '@inertiajs/react';
 import { useState, useMemo, useEffect } from 'react';
 import { Package, FileText, Image as ImageIcon, Eye, Upload, Percent, Link2 } from 'lucide-react';
 
@@ -53,7 +53,11 @@ export default function Expenses({
   totalGeneral,
   totalAll
 }: any) {
+  const { auth } = usePage<any>().props;
+  const userRole = auth?.user?.role;
+
   const [selectedScope, setSelectedScope] = useState<string>('operational');
+  const [editingId, setEditingId] = useState<number | null>(null);
   
   const { data, setData, post, processing, errors, reset } = useForm<ExpenseForm>({
     property_id: '',
@@ -86,14 +90,46 @@ export default function Expenses({
     is_inventory: '',
   });
 
+  const canEdit = (row: any) => {
+    return ['super_admin', 'property_manager'].includes(userRole) && !row.is_linked;
+  };
+
+  const startEdit = (expense: any) => {
+    setEditingId(expense.id);
+    setSelectedScope(expense.expense_scope);
+    setData({
+      property_id: expense.property_id || '',
+      expense_scope: expense.expense_scope,
+      expense_category: expense.expense_category,
+      expense_type: expense.expense_type,
+      description: expense.description || '',
+      amount: String(expense.amount),
+      expense_date: expense.expense_date ? expense.expense_date.slice(0, 10) : new Date().toISOString().slice(0, 10),
+      vendor_name: expense.vendor_name || '',
+      receipt_number: expense.receipt_number || '',
+      payment_method: expense.payment_method || 'cash',
+      notes: expense.notes || '',
+      wallet_id: expense.wallet_id || '',
+      receipt_image: null,
+      capital_split_investor_pct: expense.capital_split_investor_pct || '',
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    reset();
+    setSelectedScope('operational');
+  };
+
   // Automatically update default category when scope changes
   useEffect(() => {
+    if (editingId !== null) return;
     setData(prev => ({
       ...prev,
       expense_scope: selectedScope,
       expense_category: scopeCategories[selectedScope]?.[0] || 'other'
     }));
-  }, [selectedScope]);
+  }, [selectedScope, editingId]);
 
   // Find if currently selected property is partnership
   const selectedProperty = useMemo(() => {
@@ -115,13 +151,22 @@ export default function Expenses({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    post('/admin/finance/expenses', {
-      onSuccess: () => {
-        reset();
-        setSelectedScope('operational');
-      },
-      preserveScroll: true,
-    });
+    if (editingId) {
+      post(`/admin/finance/expenses/${editingId}/update`, {
+        onSuccess: () => {
+          cancelEdit();
+        },
+        preserveScroll: true,
+      });
+    } else {
+      post('/admin/finance/expenses', {
+        onSuccess: () => {
+          reset();
+          setSelectedScope('operational');
+        },
+        preserveScroll: true,
+      });
+    }
   };
 
   const applyFilter = (e: React.FormEvent) => {
