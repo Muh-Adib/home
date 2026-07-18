@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Property;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -114,5 +116,37 @@ class FinanceRoleRestrictionsTest extends TestCase
         $this->actingAs($manager)
             ->get('/admin/reports/occupancy')
             ->assertStatus(200);
+    }
+
+    #[Test]
+    public function super_admin_can_store_an_expense()
+    {
+        $this->withoutExceptionHandling();
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $wallet = Wallet::create([
+            'name' => 'Kas kecil',
+            'balance' => 500000,
+            'created_by' => $admin->id,
+        ]);
+        $property = Property::factory()->create();
+
+        $response = $this->actingAs($admin)
+            ->post('/admin/finance/expenses', [
+                'property_id' => $property->id,
+                'expense_category' => 'utilities',
+                'expense_type' => 'variable',
+                'description' => 'Test Expense Description',
+                'amount' => 100000,
+                'expense_date' => now()->toDateString(),
+                'payment_method' => 'cash',
+                'wallet_id' => $wallet->id,
+                'expense_scope' => 'operational',
+            ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('property_expenses', [
+            'amount' => 100000,
+            'wallet_id' => $wallet->id,
+        ]);
     }
 }
