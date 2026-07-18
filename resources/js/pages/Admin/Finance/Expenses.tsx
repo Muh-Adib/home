@@ -389,11 +389,12 @@ export default function Expenses({
 
               {/* Description */}
               <div>
-                <Label>Deskripsi / Detail Barang</Label>
+                <Label>Deskripsi / Detail Barang <span className="text-red-500">*</span></Label>
                 <Input 
                   value={data.description || ''} 
                   onChange={(e) => setData('description', e.target.value)} 
                   placeholder="Detail barang/jasa yang dibeli" 
+                  required
                 />
               </div>
 
