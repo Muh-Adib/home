@@ -243,7 +243,6 @@ const getAdminNavItems = (userRole: User['role']) => {
           { title: 'Rekonsiliasi Bank', href: '/admin/payments/reconciliation', icon: DollarSign },
           { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
           { title: 'Rekening Bank', href: '/admin/bank-accounts', icon: Building2 },
-          { title: 'Property Performance', href: '/admin/reports/property-performance', icon: Building2 },
           { title: 'Finance', href: '/admin/finance', icon: DollarSign },
           { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
           { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
@@ -305,21 +304,11 @@ const getAdminNavItems = (userRole: User['role']) => {
       ...baseItems,
       {
         title: 'Financial Management',
-        href: '/admin/payments',
+        href: '/admin/finance/expenses',
         icon: CreditCard,
         children: [
-          { title: 'Payments', href: '/admin/payments', icon: CreditCard },
-          { title: 'Rekonsiliasi Bank', href: '/admin/payments/reconciliation', icon: DollarSign },
-          { title: 'Payment Methods', href: '/admin/payment-methods', icon: DollarSign },
-          { title: 'Rekening Bank', href: '/admin/bank-accounts', icon: Building2 },
-          { title: 'Reports', href: '/admin/reports', icon: BarChart3 },
-          { title: 'Property Performance', href: '/admin/reports/property-performance', icon: Building2 },
-          { title: 'Staff Performance', href: '/admin/reports/staff-performance', icon: Users },
-          { title: 'Finance', href: '/admin/finance', icon: DollarSign },
-          { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
           { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
-          { title: 'Wallets', href: '/admin/finance/wallets', icon: CreditCard },
-          { title: 'Payroll', href: '/admin/finance/payroll', icon: Coins },
+          { title: 'Occupancy Report', href: '/admin/reports/occupancy', icon: BarChart3 },
         ]
       },
       {

@@ -26,8 +26,8 @@ class ReportController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        if ($user->role === 'front_desk') {
-            abort(403, 'Akses ditolak. Resepsionis hanya memiliki hak akses untuk Laporan Okupansi.');
+        if (in_array($user->role, ['front_desk', 'finance', 'property_manager'])) {
+            abort(403, 'Akses ditolak. Anda hanya memiliki hak akses untuk Laporan Okupansi.');
         }
         $period = $request->input('period', 'month');
         $dateFrom = $request->input('date_from');
@@ -114,8 +114,8 @@ class ReportController extends Controller
     public function financial(Request $request): Response
     {
         $user = $request->user();
-        if ($user->role === 'front_desk') {
-            abort(403, 'Akses ditolak. Resepsionis hanya memiliki hak akses untuk Laporan Okupansi.');
+        if (in_array($user->role, ['front_desk', 'finance', 'property_manager'])) {
+            abort(403, 'Akses ditolak. Anda hanya memiliki hak akses untuk Laporan Okupansi.');
         }
         $period = $request->input('period', 'month');
         $propertyId = $request->input('property_id');
@@ -275,8 +275,8 @@ class ReportController extends Controller
     public function propertyPerformance(Request $request): Response
     {
         $user = $request->user();
-        if ($user->role === 'front_desk') {
-            abort(403, 'Akses ditolak. Resepsionis hanya memiliki hak akses untuk Laporan Okupansi.');
+        if (in_array($user->role, ['front_desk', 'finance', 'property_manager'])) {
+            abort(403, 'Akses ditolak. Anda hanya memiliki hak akses untuk Laporan Okupansi.');
         }
 
         $period = $request->input('period', 'month');
@@ -593,11 +593,13 @@ class ReportController extends Controller
     public function export(Request $request)
     {
         $user = $request->user();
-        if ($user->role === 'front_desk') {
-            abort(403, 'Akses ditolak. Resepsionis hanya memiliki hak akses untuk Laporan Okupansi.');
+        $reportType = $request->input('type', 'revenue');
+        if (in_array($user->role, ['front_desk', 'finance', 'property_manager'])) {
+            if ($reportType !== 'occupancy') {
+                abort(403, 'Akses ditolak. Anda hanya memiliki hak akses untuk Laporan Okupansi.');
+            }
         }
         $format = $request->input('format', 'csv');
-        $reportType = $request->input('type', 'revenue');
         $dateFrom = $request->input('date_from');
         $dateTo = $request->input('date_to');
         $propertyId = $request->input('property_id');
@@ -1558,7 +1560,7 @@ class ReportController extends Controller
         $user = $request->user();
 
         // Only allow admins, property managers, or finance to view this
-        if (! in_array($user->role, ['super_admin', 'property_manager', 'finance'])) {
+        if (! in_array($user->role, ['super_admin'])) {
             abort(403, 'Unauthorized.');
         }
 

@@ -308,7 +308,7 @@ Route::middleware(['auth', 'role:super_admin,admin,property_manager,property_own
 });
 
 // Payment Gateway Routes (Admin)
-Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,property_manager'])->prefix('admin')->name('admin.')->group(function () {
     Route::post(
         '/bookings/{booking:booking_number}/payment-gateway/send-link',
         [BookingManagementController::class, 'sendPaymentLink']
@@ -321,7 +321,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance'])->prefix
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:super_admin,property_manager,finance,front_desk,property_owner'])->prefix('admin/payments')->name('admin.payments.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,property_manager,front_desk,property_owner'])->prefix('admin/payments')->name('admin.payments.')->group(function () {
     Route::controller(PaymentController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/create', 'create')->name('create');
@@ -352,16 +352,14 @@ Route::middleware(['auth', 'role:super_admin,property_manager,finance,front_desk
     });
 });
 
-// Finance Management
-Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
+// Finance Management - Restricted from finance role
+Route::middleware(['auth', 'role:super_admin,property_owner,property_manager'])->prefix('admin')->name('admin.')->group(function () {
     Route::controller(FinanceController::class)->group(function () {
         Route::get('finance', 'index')->name('finance.index');
         Route::get('finance/incomes', 'incomes')->name('finance.incomes');
-        Route::get('finance/expenses', 'expenses')->name('finance.expenses');
         Route::get('finance/wallets', 'wallets')->name('finance.wallets');
         Route::get('finance/report', 'financialReport')->name('finance.report');
         Route::post('finance/incomes', 'storeIncome')->name('finance.incomes.store');
-        Route::post('finance/expenses', 'storeExpense')->name('finance.expenses.store');
         Route::post('finance/wallets', 'storeWallet')->name('finance.wallets.store');
         Route::post('finance/wallets/transfer', 'transferWallet')->name('finance.wallets.transfer');
         Route::post('finance/wallets/{wallet}/transactions', 'storeWalletTransaction')->name('finance.wallets.transactions.store');
@@ -370,7 +368,6 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,fin
         Route::put('finance/wallets/{wallet}', 'updateWallet')->name('finance.wallets.update');
         Route::delete('finance/wallets/{wallet}', 'destroyWallet')->name('finance.wallets.destroy');
         Route::patch('finance/payment-methods/{paymentMethod}/wallet', 'mapPaymentMethodToWallet')->name('finance.payment-methods.map-wallet');
-        Route::post('finance/expenses/{expense}/receipt', 'storeExpenseReceipt')->name('finance.expenses.receipt');
 
         // Employee Loans (Casbon)
         Route::get('finance/loans', 'loans')->name('finance.loans');
@@ -379,8 +376,17 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,fin
     });
 });
 
+// Finance Management - Expenses Only (Allowed for finance role)
+Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
+    Route::controller(FinanceController::class)->group(function () {
+        Route::get('finance/expenses', 'expenses')->name('finance.expenses');
+        Route::post('finance/expenses', 'storeExpense')->name('finance.expenses.store');
+        Route::post('finance/expenses/{expense}/receipt', 'storeExpenseReceipt')->name('finance.expenses.receipt');
+    });
+});
+
 // Payroll Management
-Route::middleware(['auth', 'role:super_admin,finance'])->prefix('admin/finance')->name('admin.finance.')->group(function () {
+Route::middleware(['auth', 'role:super_admin'])->prefix('admin/finance')->name('admin.finance.')->group(function () {
     Route::controller(PayrollController::class)->group(function () {
         Route::get('payroll', 'index')->name('payroll.index');
         Route::post('payroll/attendance', 'uploadAttendance')->name('payroll.attendance');
@@ -450,9 +456,9 @@ Route::middleware(['auth', 'role:super_admin,admin,property_manager,finance,fron
         Route::post('/export', 'export')->name('export');
 
         // Financial & performance reports are restricted from admin role
-        Route::get('/financial', 'financial')->name('financial')->middleware('role:super_admin,finance,property_manager');
-        Route::get('/property-performance', 'propertyPerformance')->name('property-performance')->middleware('role:super_admin,finance,property_manager');
-        Route::get('/staff-performance', 'staffPerformance')->name('staff-performance')->middleware('role:super_admin,finance,property_manager');
+        Route::get('/financial', 'financial')->name('financial')->middleware('role:super_admin,property_owner');
+        Route::get('/property-performance', 'propertyPerformance')->name('property-performance')->middleware('role:super_admin,property_owner');
+        Route::get('/staff-performance', 'staffPerformance')->name('staff-performance')->middleware('role:super_admin,property_owner');
     });
 });
 
