@@ -285,8 +285,8 @@ class ReportController extends Controller
         $propertyId = $request->input('property_id') === 'all' ? null : $request->input('property_id');
 
         // Set date range
-        $startDate = $dateFrom ? Carbon::parse($dateFrom)->startOfDay() : $this->getStartDate($period)->startOfDay();
-        $endDate = $dateTo ? Carbon::parse($dateTo)->endOfDay() : $this->getEndDate($period)->endOfDay();
+        $startDate = ($dateFrom && $dateFrom !== '') ? Carbon::parse($dateFrom)->startOfDay() : $this->getStartDate($period)->startOfDay();
+        $endDate = ($dateTo && $dateTo !== '') ? Carbon::parse($dateTo)->endOfDay() : $this->getEndDate($period)->endOfDay();
 
         // Get properties list for filters (restricted by owner if property_owner)
         $properties = $user->role === 'property_owner'
@@ -298,8 +298,8 @@ class ReportController extends Controller
         return Inertia::render('Admin/Reports/PropertyPerformance', [
             'properties' => $properties,
             'filters' => [
-                'date_from' => $dateFrom,
-                'date_to' => $dateTo,
+                'date_from' => $startDate->toDateString(),
+                'date_to' => $endDate->toDateString(),
                 'property_id' => $propertyId ?: 'all',
                 'period' => $period,
             ],
@@ -646,7 +646,7 @@ class ReportController extends Controller
         $propertyId = $request->input('property_id');
 
         $startDate = $dateFrom ? Carbon::parse($dateFrom) : now()->startOfMonth();
-        $endDate = $dateTo ? Carbon::parse($dateTo) : now();
+        $endDate = $dateTo ? Carbon::parse($dateTo) : now()->endOfMonth();
 
         $ownerId = $user->role === 'property_owner' ? $user->id : null;
 

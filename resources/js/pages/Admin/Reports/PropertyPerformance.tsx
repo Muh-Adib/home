@@ -896,12 +896,16 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
                                             <td className="py-3.5 px-5 font-bold text-slate-800">{item.date}</td>
                                             <td className="py-3.5 px-5 font-semibold">{item.property_name}</td>
                                             <td className="py-3.5 px-5">
-                                                <Link 
-                                                    href={`/admin/bookings/${item.booking_number}`}
-                                                    className="text-indigo-600 hover:text-indigo-800 hover:underline font-bold"
-                                                >
-                                                    {item.booking_number}
-                                                </Link>
+                                                {item.booking_number && item.booking_number !== '-' ? (
+                                                    <Link 
+                                                        href={`/admin/bookings/${item.booking_number}`}
+                                                        className="text-indigo-600 hover:text-indigo-800 hover:underline font-bold"
+                                                    >
+                                                        {item.booking_number}
+                                                    </Link>
+                                                ) : (
+                                                    <span className="text-slate-400 font-semibold">-</span>
+                                                )}
                                             </td>
                                             <td className="py-3.5 px-5 text-slate-700 font-bold">{item.guest_name}</td>
                                             <td className="text-right py-3.5 px-5">{formatCurrency(item.base_amount)}</td>
