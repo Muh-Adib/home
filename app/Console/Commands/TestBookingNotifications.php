@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Booking;
-use App\Models\User;
-use App\Models\Property;
 use App\Events\BookingCreated;
+use App\Models\Booking;
+use App\Models\Property;
+use App\Models\User;
 use Illuminate\Console\Command;
 
 class TestBookingNotifications extends Command
@@ -34,24 +34,26 @@ class TestBookingNotifications extends Command
         // Get or create test user
         $userId = $this->option('user-id');
         $user = $userId ? User::find($userId) : User::where('role', 'guest')->first();
-        
-        if (!$user) {
+
+        if (! $user) {
             $this->error('❌ No guest user found. Please create a guest user first.');
+
             return 1;
         }
 
         // Get or create test property
         $propertyId = $this->option('property-id');
         $property = $propertyId ? Property::find($propertyId) : Property::first();
-        
-        if (!$property) {
+
+        if (! $property) {
             $this->error('❌ No property found. Please create a property first.');
+
             return 1;
         }
 
         // Create test booking
         $booking = Booking::create([
-            'booking_number' => 'TEST-' . time(),
+            'booking_number' => 'TEST-'.time(),
             'property_id' => $property->id,
             'guest_name' => 'Test Guest',
             'guest_email' => 'test@example.com',
@@ -72,7 +74,7 @@ class TestBookingNotifications extends Command
             'property_manager',
             'front_desk',
             'finance',
-            'housekeeping'
+            'housekeeping',
         ])->where('status', 'active')->get();
 
         $this->info("📋 Found {$adminUsers->count()} admin/staff users:");

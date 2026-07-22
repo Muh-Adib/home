@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\GowaConfig;
 use App\Services\GowaService;
-use Illuminate\Http\Request;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -49,7 +51,7 @@ class GowaAdminController extends Controller
     {
         $result = $this->gowaService->getLoginQRCode();
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return response()->json([
                 'success' => false,
                 'message' => $result['error'] ?? 'Failed to generate QR code',
@@ -94,7 +96,7 @@ class GowaAdminController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error sending message: ' . $e->getMessage(),
+                'message' => 'Error sending message: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -108,8 +110,8 @@ class GowaAdminController extends Controller
 
         return response()->json([
             'success' => $success,
-            'message' => $success 
-                ? __('gowa.logout_success') 
+            'message' => $success
+                ? __('gowa.logout_success')
                 : __('gowa.logout_failed'),
         ]);
     }
@@ -123,8 +125,8 @@ class GowaAdminController extends Controller
 
         return response()->json([
             'success' => $success,
-            'message' => $success 
-                ? __('gowa.reconnect_success') 
+            'message' => $success
+                ? __('gowa.reconnect_success')
                 : __('gowa.reconnect_failed'),
         ]);
     }
@@ -157,7 +159,7 @@ class GowaAdminController extends Controller
 
         $config = GowaConfig::getActive();
 
-        if (!$config) {
+        if (! $config) {
             // Create new config and set as active
             $config = GowaConfig::create([
                 'name' => 'default',
@@ -206,8 +208,8 @@ class GowaAdminController extends Controller
     public function testConnection(): JsonResponse
     {
         $config = GowaConfig::getActive();
-        
-        if (!$config) {
+
+        if (! $config) {
             return response()->json([
                 'success' => false,
                 'message' => 'No active GOWA configuration found',
@@ -227,42 +229,42 @@ class GowaAdminController extends Controller
 
         try {
             // Test basic HTTP connection
-            $response = \Illuminate\Support\Facades\Http::timeout(10)
+            $response = Http::timeout(10)
                 ->withBasicAuth($config->username, $config->password)
-                ->get($config->url . '/app/devices');
+                ->get($config->url.'/app/devices');
 
             $debugInfo['http_status'] = $response->status();
             $debugInfo['response_time'] = $response->handlerStats()['total_time'] ?? 'N/A';
-            
+
             if ($response->successful()) {
                 $data = $response->json();
                 $debugInfo['response_data'] = $data;
                 $debugInfo['api_code'] = $data['code'] ?? 'N/A';
-                
+
                 $isConnected = isset($data['code']) && $data['code'] === 200;
-                
+
                 return response()->json([
                     'success' => $isConnected,
-                    'message' => $isConnected 
-                        ? 'GOWA server connected successfully' 
+                    'message' => $isConnected
+                        ? 'GOWA server connected successfully'
                         : 'GOWA server responded but not connected',
                     'debug' => $debugInfo,
                 ]);
             } else {
                 $debugInfo['error'] = 'HTTP request failed';
                 $debugInfo['response_body'] = $response->body();
-                
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Failed to connect to GOWA server',
                     'debug' => $debugInfo,
                 ], 500);
             }
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+        } catch (ConnectionException $e) {
             $debugInfo['error'] = 'Connection failed';
             $debugInfo['error_message'] = $e->getMessage();
             $debugInfo['error_type'] = 'ConnectionException';
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Cannot reach GOWA server - Connection timeout or refused',
@@ -272,10 +274,10 @@ class GowaAdminController extends Controller
             $debugInfo['error'] = 'Unexpected error';
             $debugInfo['error_message'] = $e->getMessage();
             $debugInfo['error_type'] = get_class($e);
-            
+
             return response()->json([
                 'success' => false,
-                'message' => 'Error testing connection: ' . $e->getMessage(),
+                'message' => 'Error testing connection: '.$e->getMessage(),
                 'debug' => $debugInfo,
             ], 500);
         }
@@ -287,7 +289,7 @@ class GowaAdminController extends Controller
     public function debugStatus(): JsonResponse
     {
         $config = GowaConfig::getActive();
-        
+
         $debugData = [
             'timestamp' => now()->toISOString(),
             'config' => $config ? [

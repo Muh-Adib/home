@@ -22,8 +22,7 @@ readonly class ImageUploadResult
         public ?int $originalSize = null,
         public ?float $compressionRatio = null,
         public ?string $error = null,
-    ) {
-    }
+    ) {}
 
     /**
      * Convert to array for backward compatibility

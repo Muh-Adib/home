@@ -30,6 +30,7 @@ class BookingService extends Model
         'notes',
         'status',
         'provided_at',
+        'expense_id',
     ];
 
     /**
@@ -46,6 +47,7 @@ class BookingService extends Model
         'vendor_total_price' => 'decimal:2',
         'service_date' => 'date',
         'provided_at' => 'datetime',
+        'expense_id' => 'integer',
     ];
 
     /**
@@ -62,6 +64,14 @@ class BookingService extends Model
     public function serviceMaster(): BelongsTo
     {
         return $this->belongsTo(ServiceMaster::class);
+    }
+
+    /**
+     * Get the expense that paid for this service.
+     */
+    public function expense(): BelongsTo
+    {
+        return $this->belongsTo(PropertyExpense::class, 'expense_id');
     }
 
     /**

@@ -34,8 +34,7 @@ class GenerateArticleJob implements ShouldQueue
         protected string $provider = 'gemini',
         protected string $language = 'id',
         protected string $tone = 'casual'
-    ) {
-    }
+    ) {}
 
     /**
      * Execute the job.
@@ -45,21 +44,21 @@ class GenerateArticleJob implements ShouldQueue
         set_time_limit(600); // Article generation can take minutes
         try {
             $properties = [];
-            if (!empty($this->propertyIds)) {
+            if (! empty($this->propertyIds)) {
                 // Load full property data dengan media agar AI bisa natural menyebut properti + gunakan foto asli
-                $properties = Property::with(['media' => fn($q) => $q->orderBy('display_order')])
+                $properties = Property::with(['media' => fn ($q) => $q->orderBy('display_order')])
                     ->whereIn('id', $this->propertyIds)
                     ->get(['id', 'name', 'slug', 'description', 'location', 'address', 'capacity', 'bedroom_count', 'base_rate'])
-                    ->map(fn($p) => [
-                        'id'          => $p->id,
-                        'name'        => $p->name,
-                        'slug'        => $p->slug,
+                    ->map(fn ($p) => [
+                        'id' => $p->id,
+                        'name' => $p->name,
+                        'slug' => $p->slug,
                         'description' => $p->description,
-                        'location'    => $p->location ?? $p->address,
-                        'capacity'    => $p->capacity,
-                        'bedrooms'    => $p->bedroom_count,
-                        'base_rate'   => $p->base_rate,
-                        'images'      => $p->media->take(3)->pluck('url')->toArray(),
+                        'location' => $p->location ?? $p->address,
+                        'capacity' => $p->capacity,
+                        'bedrooms' => $p->bedroom_count,
+                        'base_rate' => $p->base_rate,
+                        'images' => $p->media->take(3)->pluck('url')->toArray(),
                     ])
                     ->toArray();
             }

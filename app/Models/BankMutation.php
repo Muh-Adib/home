@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class BankMutation extends Model
 {
@@ -44,5 +45,13 @@ class BankMutation extends Model
     public function matchedPayment(): BelongsTo
     {
         return $this->belongsTo(Payment::class, 'matched_payment_id');
+    }
+
+    /**
+     * Get the property expense associated with this mutation.
+     */
+    public function propertyExpense(): HasOne
+    {
+        return $this->hasOne(PropertyExpense::class, 'bank_mutation_id');
     }
 }

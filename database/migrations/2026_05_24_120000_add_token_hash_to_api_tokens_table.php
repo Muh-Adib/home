@@ -34,7 +34,7 @@ return new class extends Migration
         // invalidated — they won't match any real token lookup.
         DB::table('api_tokens')
             ->whereNull('token_hash')
-            ->update(['token_hash' => hash('sha256', 'INVALIDATED_' . uniqid())]);
+            ->update(['token_hash' => hash('sha256', 'INVALIDATED_'.uniqid())]);
 
         Schema::table('api_tokens', function (Blueprint $table) {
             $table->string('token_hash', 64)->nullable(false)->change();

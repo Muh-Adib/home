@@ -23,7 +23,7 @@ class WhatsappAuthService
     public function sendOtp(string $phone): array
     {
         // 1. Validate phone format
-        if (!$this->isValidPhoneFormat($phone)) {
+        if (! $this->isValidPhoneFormat($phone)) {
             return [
                 'success' => false,
                 'message' => __('auth.invalid_phone_format'),
@@ -31,7 +31,7 @@ class WhatsappAuthService
         }
 
         // 2. Check if phone is registered on WhatsApp
-        if (!$this->gowaService->checkWhatsappNumber($phone)) {
+        if (! $this->gowaService->checkWhatsappNumber($phone)) {
             return [
                 'success' => false,
                 'message' => __('auth.phone_not_on_whatsapp'),
@@ -63,7 +63,7 @@ class WhatsappAuthService
         $message = __('auth.otp_message', ['otp' => $otpCode]);
         $result = $this->gowaService->sendMessage($phone, $message);
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return [
                 'success' => false,
                 'message' => __('auth.failed_to_send_otp'),
@@ -83,7 +83,7 @@ class WhatsappAuthService
     {
         $otpRecord = WhatsappOtp::getLatestForPhone($phone);
 
-        if (!$otpRecord) {
+        if (! $otpRecord) {
             return false;
         }
 
@@ -100,11 +100,13 @@ class WhatsappAuthService
         // Verify OTP code
         if ($otpRecord->otp_code !== $otp) {
             $otpRecord->incrementAttempts();
+
             return false;
         }
 
         // Mark as verified
         $otpRecord->markAsVerified();
+
         return true;
     }
 
@@ -134,7 +136,7 @@ class WhatsappAuthService
         $user = User::create([
             'name' => $name,
             'phone' => $phone,
-            'email' => $phone . '@whatsapp.local', // Dummy email
+            'email' => $phone.'@whatsapp.local', // Dummy email
             'password' => Hash::make(Str::random(32)), // Random password
             'role' => 'guest',
             'status' => 'active',

@@ -8,7 +8,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * API Response Formatter Middleware
- * 
+ *
  * Middleware untuk memformat semua API responses dengan struktur yang konsisten
  * dan menambahkan security headers
  */
@@ -17,7 +17,7 @@ class ApiResponseFormatter
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -32,9 +32,9 @@ class ApiResponseFormatter
             $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
             // Format JSON response if needed
-            if ($response->headers->get('Content-Type') === 'application/json' || 
+            if ($response->headers->get('Content-Type') === 'application/json' ||
                 str_contains($response->headers->get('Content-Type', ''), 'application/json')) {
-                
+
                 $content = $response->getContent();
                 $data = json_decode($content, true);
 
@@ -68,6 +68,3 @@ class ApiResponseFormatter
         return $response;
     }
 }
-
-
-

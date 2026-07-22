@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PropertyExpense extends Model
 {
@@ -39,6 +40,7 @@ class PropertyExpense extends Model
         'expense_scope',
         'receipt_image',
         'capital_split_investor_pct',
+        'bank_mutation_id',
     ];
 
     /**
@@ -50,6 +52,7 @@ class PropertyExpense extends Model
         'approved_at' => 'datetime',
         'wallet_id' => 'integer',
         'capital_split_investor_pct' => 'decimal:2',
+        'bank_mutation_id' => 'integer',
     ];
 
     /**
@@ -90,6 +93,22 @@ class PropertyExpense extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * Get the bank mutation associated with this expense.
+     */
+    public function bankMutation(): BelongsTo
+    {
+        return $this->belongsTo(BankMutation::class, 'bank_mutation_id');
+    }
+
+    /**
+     * Get the booking services billed in this expense.
+     */
+    public function bookingServices(): HasMany
+    {
+        return $this->hasMany(BookingService::class, 'expense_id');
     }
 
     /**
@@ -209,7 +228,7 @@ class PropertyExpense extends Model
      */
     public function getFormattedAmount(): string
     {
-        return 'Rp '.number_format($this->amount, 0, ',', '.');
+        return 'Rp '.number_format((float) $this->amount, 0, ',', '.');
     }
 
     /**

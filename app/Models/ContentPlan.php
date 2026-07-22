@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
@@ -20,14 +21,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property array|null $ai_research_data
  * @property array|null $ai_outline
  * @property array|null $ai_suggestions
- * @property \Illuminate\Support\Carbon|null $planned_publish_date
- * @property \Illuminate\Support\Carbon|null $actual_publish_date
+ * @property Carbon|null $planned_publish_date
+ * @property Carbon|null $actual_publish_date
  * @property int $priority
  * @property int $created_by
  * @property int|null $assigned_to
- * @property \Illuminate\Support\Carbon $created_at
- * @property \Illuminate\Support\Carbon $updated_at
- * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  */
 class ContentPlan extends Model
 {

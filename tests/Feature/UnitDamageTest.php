@@ -40,6 +40,7 @@ class UnitDamageTest extends TestCase
             'property_id' => $property->id,
             'title' => 'AC Bocor Air',
             'description' => 'Air menetes terus dari unit indoor di kamar master.',
+            'difficulty' => 'medium',
         ]);
 
         $response->assertRedirect(route('admin.unit-damages.index'));
@@ -48,6 +49,7 @@ class UnitDamageTest extends TestCase
             'title' => 'AC Bocor Air',
             'status' => 'pending',
             'reported_by' => $admin->id,
+            'difficulty' => 'medium',
         ]);
     }
 
@@ -63,10 +65,11 @@ class UnitDamageTest extends TestCase
             'title' => 'Kerusakan Pintu',
             'description' => 'Gagang pintu longgar.',
             'status' => 'pending',
+            'difficulty' => 'medium',
         ]);
 
         $response = $this->actingAs($admin)->patch(route('admin.unit-damages.assign', $damage), [
-            'assigned_to' => $staff->id,
+            'assigned_to' => (string) $staff->id,
         ]);
 
         $response->assertRedirect(route('admin.unit-damages.index'));
@@ -90,22 +93,12 @@ class UnitDamageTest extends TestCase
             'title' => 'Kerusakan AC',
             'description' => 'AC tidak dingin.',
             'status' => 'in_progress',
+            'difficulty' => 'medium',
         ]);
 
         $response = $this->actingAs($staff1)->patch(route('admin.unit-damages.resolve', $damage), [
             'resolved_notes' => 'Pipa AC dibersihkan dan dipasang isolasi baru.',
-            'actions' => [
-                [
-                    'user_id' => $staff1->id,
-                    'action_details' => 'Membersihkan unit AC indoor',
-                    'points' => 20,
-                ],
-                [
-                    'user_id' => $staff2->id,
-                    'action_details' => 'Mengganti kapasitor AC',
-                    'points' => 35,
-                ],
-            ],
+            'worker_ids' => [$staff1->id, $staff2->id],
         ]);
 
         $response->assertRedirect(route('admin.unit-damages.index'));
@@ -119,15 +112,15 @@ class UnitDamageTest extends TestCase
         $this->assertDatabaseHas('unit_damage_actions', [
             'unit_damage_id' => $damage->id,
             'user_id' => $staff1->id,
-            'action_details' => 'Membersihkan unit AC indoor',
-            'points' => 20,
+            'action_details' => 'Menyelesaikan perbaikan kerusakan unit: Kerusakan AC',
+            'points' => 2.50,
         ]);
 
         $this->assertDatabaseHas('unit_damage_actions', [
             'unit_damage_id' => $damage->id,
             'user_id' => $staff2->id,
-            'action_details' => 'Mengganti kapasitor AC',
-            'points' => 35,
+            'action_details' => 'Menyelesaikan perbaikan kerusakan unit: Kerusakan AC',
+            'points' => 2.50,
         ]);
     }
 }

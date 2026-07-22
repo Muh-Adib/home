@@ -2,13 +2,13 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\User;
-use App\Models\Booking;
-use App\Models\Payment;
 use App\Events\BookingCreated;
 use App\Events\BookingStatusChanged;
 use App\Events\PaymentCreated;
+use App\Models\Booking;
+use App\Models\Payment;
+use App\Models\User;
+use Illuminate\Console\Command;
 
 class TestNotifications extends Command
 {
@@ -35,8 +35,9 @@ class TestNotifications extends Command
 
         // Get test user
         $user = User::first();
-        if (!$user) {
+        if (! $user) {
             $this->error('No users found in database');
+
             return;
         }
 
@@ -50,7 +51,7 @@ class TestNotifications extends Command
             $this->warn('⚠️ No bookings found for testing');
         }
 
-        // Test 2: PaymentCreated Event  
+        // Test 2: PaymentCreated Event
         $this->info('2. Testing PaymentCreated Event...');
         $payment = Payment::with('booking.property')->first();
         if ($payment) {
@@ -70,22 +71,22 @@ class TestNotifications extends Command
         // Check notification count
         $this->info('4. Checking notification counts...');
         $adminUsers = User::whereIn('role', ['super_admin', 'property_manager', 'front_desk', 'finance'])->get();
-        
+
         foreach ($adminUsers as $admin) {
             $count = $admin->notifications()->count();
             $recent = $admin->notifications()->latest()->first();
-            
+
             $this->info("User: {$admin->name} ({$admin->role})");
             $this->info("  - Total notifications: {$count}");
             if ($recent) {
                 $this->info("  - Latest: {$recent->type} at {$recent->created_at}");
-                
+
                 // Debug: Show notification data structure
-                $this->info("  - Data structure:");
+                $this->info('  - Data structure:');
                 $this->info("    * ID: {$recent->id}");
                 $this->info("    * Type: {$recent->type}");
-                $this->info("    * Data: " . json_encode($recent->data));
-                $this->info("    * Read at: " . ($recent->read_at ?? 'NULL'));
+                $this->info('    * Data: '.json_encode($recent->data));
+                $this->info('    * Read at: '.($recent->read_at ?? 'NULL'));
             }
         }
 

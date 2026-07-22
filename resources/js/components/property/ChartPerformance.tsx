@@ -24,9 +24,10 @@ interface ChartPerformanceProps {
   }>;
   loading?: boolean;
   className?: string;
+  showRevenue?: boolean;
 }
 
-export function ChartPerformance({ data, loading = false, className }: ChartPerformanceProps) {
+export function ChartPerformance({ data, loading = false, className, showRevenue = true }: ChartPerformanceProps) {
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('id-ID', { 
@@ -55,23 +56,28 @@ export function ChartPerformance({ data, loading = false, className }: ChartPerf
           <p className="text-sm font-medium text-foreground mb-2">
             {formatDate(label)}
           </p>
-          {payload.map((entry: any, index: number) => (
-            <div key={index} className="flex items-center gap-2 text-sm">
-              <div 
-                className="w-3 h-3 rounded-full" 
-                style={{ backgroundColor: entry.color }}
-              />
-              <span className="text-muted-foreground">
-                {entry.name}:
-              </span>
-              <span className="font-medium">
-                {entry.name === 'Revenue' 
-                  ? formatCurrency(entry.value) 
-                  : formatPercentage(entry.value)
-                }
-              </span>
-            </div>
-          ))}
+          {payload.map((entry: any, index: number) => {
+            if (entry.name === 'Revenue' && !showRevenue) {
+              return null;
+            }
+            return (
+              <div key={index} className="flex items-center gap-2 text-sm">
+                <div 
+                  className="w-3 h-3 rounded-full" 
+                  style={{ backgroundColor: entry.color }}
+                />
+                <span className="text-muted-foreground">
+                  {entry.name}:
+                </span>
+                <span className="font-medium">
+                  {entry.name === 'Revenue' 
+                    ? formatCurrency(entry.value) 
+                    : formatPercentage(entry.value)
+                  }
+                </span>
+              </div>
+            );
+          })}
         </div>
       );
     }
@@ -110,7 +116,7 @@ export function ChartPerformance({ data, loading = false, className }: ChartPerf
               Performance Overview
             </CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Revenue and occupancy trends over time
+              {showRevenue ? "Revenue and occupancy trends over time" : "Occupancy trends over time"}
             </p>
           </div>
           <div className="flex gap-2">
@@ -118,10 +124,12 @@ export function ChartPerformance({ data, loading = false, className }: ChartPerf
               <Calendar className="h-4 w-4 mr-2" />
               This Month
             </Button>
-            <Button variant="outline" size="sm">
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Revenue
-            </Button>
+            {showRevenue && (
+              <Button variant="outline" size="sm">
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Revenue
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -136,31 +144,35 @@ export function ChartPerformance({ data, loading = false, className }: ChartPerf
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
               />
-              <YAxis 
-                yAxisId="revenue"
-                orientation="left"
-                stroke="hsl(var(--muted-foreground))"
-                fontSize={12}
-                tickFormatter={(value) => formatCurrency(value)}
-              />
+              {showRevenue && (
+                <YAxis 
+                  yAxisId="revenue"
+                  orientation="left"
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                  tickFormatter={(value) => formatCurrency(value)}
+                />
+              )}
               <YAxis 
                 yAxisId="occupancy"
-                orientation="right"
+                orientation={showRevenue ? "right" : "left"}
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
                 tickFormatter={(value) => `${value}%`}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
-              <Line
-                yAxisId="revenue"
-                type="monotone"
-                dataKey="revenue"
-                stroke="hsl(var(--primary))"
-                strokeWidth={2}
-                dot={{ fill: "hsl(var(--primary))", strokeWidth: 2, r: 4 }}
-                name="Revenue"
-              />
+              {showRevenue && (
+                <Line
+                  yAxisId="revenue"
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                  dot={{ fill: "hsl(var(--primary))", strokeWidth: 2, r: 4 }}
+                  name="Revenue"
+                />
+              )}
               <Line
                 yAxisId="occupancy"
                 type="monotone"

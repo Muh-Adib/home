@@ -2,10 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use App\Models\PropertySeasonalRate;
 use App\Models\Property;
+use App\Models\PropertySeasonalRate;
+use Illuminate\Database\Seeder;
 
 class PropertySeasonalRateSeeder extends Seeder
 {
@@ -13,7 +12,7 @@ class PropertySeasonalRateSeeder extends Seeder
     {
         $currentYear = date('Y');
         $nextYear = $currentYear + 1;
-        
+
         $properties = Property::all();
 
         $seasonalRates = [
@@ -46,7 +45,7 @@ class PropertySeasonalRateSeeder extends Seeder
                     ->where('end_date', $rateData['end_date'])
                     ->exists();
 
-                if (!$exists) {
+                if (! $exists) {
                     PropertySeasonalRate::create([
                         'property_id' => $property->id,
                         'name' => $rateData['name'],
@@ -63,4 +62,4 @@ class PropertySeasonalRateSeeder extends Seeder
             }
         }
     }
-} 
+}

@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\PaymentMethod;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class PaymentMethodPolicy
 {
@@ -16,7 +15,7 @@ class PaymentMethodPolicy
         return in_array($user->role, [
             'super_admin',
             'property_manager',
-            'finance'
+            'finance',
         ]);
     }
 
@@ -28,7 +27,7 @@ class PaymentMethodPolicy
         return in_array($user->role, [
             'super_admin',
             'property_manager',
-            'finance'
+            'finance',
         ]);
     }
 
@@ -77,8 +76,8 @@ class PaymentMethodPolicy
      */
     public function managePaymentMethods(User $user): bool
     {
-        return $user->role === 'super_admin' ? 
-            true : 
+        return $user->role === 'super_admin' ?
+            true :
             false;
     }
 }

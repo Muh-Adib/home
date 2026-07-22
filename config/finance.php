@@ -5,7 +5,8 @@ return [
         'operational' => 'Operasional Harian',
         'unit' => 'Per Unit (Kamar/Villa)',
         'house' => 'Rumah (Pusat/Pojok)',
-        'kitchen' => 'Dapur',
+        'kitchen' => 'Dapur (Pusat)',
+        'laundry' => 'Laundry (Pusat)',
         'capital' => 'Belanja Besar / CAPEX',
         'prive' => 'Prive (Penarikan Pribadi)',
     ],
@@ -22,9 +23,11 @@ return [
         'maintenance' => 'Pemeliharaan / Perbaikan',
         'supplies' => 'Perlengkapan Kamar',
         'amenities' => 'Amenities Tamu',
-        // Dapur
+        // Dapur & Laundry
         'kitchen_supplies' => 'Perlengkapan Dapur',
         'food_beverage' => 'Bahan Makanan & Minuman',
+        'laundry_supplies' => 'Perlengkapan Laundry (Deterjen, Dll)',
+        'laundry_service' => 'Jasa Laundry External',
         // CAPEX
         'furniture' => 'Perabotan (Kasur, Meja, dll)',
         'renovation' => 'Renovasi',
@@ -51,6 +54,7 @@ return [
         'unit' => ['maintenance', 'supplies', 'amenities', 'other'],
         'house' => ['maintenance', 'utilities', 'supplies', 'other'],
         'kitchen' => ['kitchen_supplies', 'food_beverage', 'other'],
+        'laundry' => ['laundry_supplies', 'laundry_service', 'other'],
         'capital' => ['furniture', 'renovation', 'equipment', 'other'],
         'prive' => ['prive'],
     ],

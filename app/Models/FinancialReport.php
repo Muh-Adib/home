@@ -71,7 +71,7 @@ class FinancialReport extends Model
      */
     public function getTypeLabel(): string
     {
-        return match($this->report_type) {
+        return match ($this->report_type) {
             'daily' => 'Harian',
             'weekly' => 'Mingguan',
             'monthly' => 'Bulanan',
@@ -87,7 +87,7 @@ class FinancialReport extends Model
      */
     public function getStatusLabel(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'generating' => 'Sedang Dibuat',
             'completed' => 'Selesai',
             'failed' => 'Gagal',
@@ -100,7 +100,7 @@ class FinancialReport extends Model
      */
     public function getFormattedRevenue(): string
     {
-        return 'Rp ' . number_format($this->total_revenue, 0, ',', '.');
+        return 'Rp '.number_format($this->total_revenue, 0, ',', '.');
     }
 
     /**
@@ -108,7 +108,7 @@ class FinancialReport extends Model
      */
     public function getFormattedExpenses(): string
     {
-        return 'Rp ' . number_format($this->total_expenses, 0, ',', '.');
+        return 'Rp '.number_format($this->total_expenses, 0, ',', '.');
     }
 
     /**
@@ -116,7 +116,7 @@ class FinancialReport extends Model
      */
     public function getFormattedNetProfit(): string
     {
-        return 'Rp ' . number_format($this->net_profit, 0, ',', '.');
+        return 'Rp '.number_format($this->net_profit, 0, ',', '.');
     }
 
     /**
@@ -127,7 +127,7 @@ class FinancialReport extends Model
         if ($this->total_revenue == 0) {
             return 0;
         }
-        
+
         return round(($this->net_profit / $this->total_revenue) * 100, 2);
     }
 
@@ -171,7 +171,7 @@ class FinancialReport extends Model
      */
     public function getPeriodDescription(): string
     {
-        return $this->period_start->format('d M Y') . ' - ' . $this->period_end->format('d M Y');
+        return $this->period_start->format('d M Y').' - '.$this->period_end->format('d M Y');
     }
 
     /**
@@ -204,7 +204,7 @@ class FinancialReport extends Model
     public function scopePeriod($query, $startDate, $endDate)
     {
         return $query->where('period_start', '>=', $startDate)
-                    ->where('period_end', '<=', $endDate);
+            ->where('period_end', '<=', $endDate);
     }
 
     /**
@@ -228,7 +228,7 @@ class FinancialReport extends Model
 
         // Calculate financial metrics
         $report->calculateMetrics();
-        
+
         return $report;
     }
 
@@ -238,13 +238,13 @@ class FinancialReport extends Model
     public function calculateMetrics(): void
     {
         // Get bookings in period
-        $bookings = \App\Models\Booking::where('property_id', $this->property_id)
+        $bookings = Booking::where('property_id', $this->property_id)
             ->whereBetween('check_in', [$this->period_start, $this->period_end])
             ->where('booking_status', '!=', 'cancelled')
             ->get();
 
         // Get expenses in period
-        $expenses = \App\Models\PropertyExpense::where('property_id', $this->property_id)
+        $expenses = PropertyExpense::where('property_id', $this->property_id)
             ->whereBetween('expense_date', [$this->period_start, $this->period_end])
             ->where('status', 'approved')
             ->get();
@@ -253,18 +253,18 @@ class FinancialReport extends Model
         $totalRevenue = $bookings->sum('total_amount');
         $totalExpenses = $expenses->sum('amount');
         $netProfit = $totalRevenue - $totalExpenses;
-        
+
         $bookingCount = $bookings->count();
         $guestCount = $bookings->sum('guest_count');
-        
+
         // Calculate occupancy rate
         $totalDays = $this->period_start->diffInDays($this->period_end);
         $occupiedDays = $bookings->sum('nights');
         $occupancyRate = $totalDays > 0 ? ($occupiedDays / $totalDays) * 100 : 0;
-        
+
         // Calculate ADR (Average Daily Rate)
         $averageDailyRate = $occupiedDays > 0 ? $totalRevenue / $occupiedDays : 0;
-        
+
         // Calculate RevPAR (Revenue Per Available Room)
         $revPAR = $totalDays > 0 ? $totalRevenue / $totalDays : 0;
 

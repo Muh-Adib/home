@@ -9,6 +9,7 @@ use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 class InventoryUsagesExport implements WithMultipleSheets
 {
     protected $dateFrom;
+
     protected $dateTo;
 
     public function __construct($dateFrom = null, $dateTo = null)
@@ -32,7 +33,7 @@ class InventoryUsagesExport implements WithMultipleSheets
         if ($this->dateTo) {
             $query->whereDate('usage_date', '<=', $this->dateTo);
         }
-        
+
         $propertyIds = $query->distinct()->pluck('property_id')->toArray();
         $properties = Property::whereIn('id', $propertyIds)->orderBy('name')->get();
 

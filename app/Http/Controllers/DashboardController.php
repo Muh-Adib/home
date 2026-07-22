@@ -66,6 +66,9 @@ class DashboardController extends Controller
 
         // Core KPIs
         $kpis = $this->getKPIs($user);
+        if ($user->role !== 'super_admin') {
+            $kpis['revenue'] = null;
+        }
 
         // Recent activity
         $recentActivity = $this->getRecentActivity($user);
@@ -77,16 +80,23 @@ class DashboardController extends Controller
         $quickStats = $this->getQuickStats($user);
 
         // Revenue chart data with breakdown
-        $revenueChart = $this->getRevenueChartData($user);
+        $revenueChart = $user->role === 'super_admin' ? $this->getRevenueChartData($user) : [];
 
         // Revenue breakdown by source
-        $revenueBreakdown = $this->getRevenueBreakdown($user);
+        $revenueBreakdown = $user->role === 'super_admin' ? $this->getRevenueBreakdown($user) : null;
 
         // Booking trends
         $bookingTrends = $this->getBookingTrends($user);
 
         // Property performance
         $propertyPerformance = $this->getPropertyPerformance($user);
+        if ($user->role !== 'super_admin') {
+            $propertyPerformance = array_map(function ($item) {
+                $item['total_revenue'] = 0;
+
+                return $item;
+            }, $propertyPerformance);
+        }
 
         // Get custom data for content creator
         $contentCreatorData = null;
@@ -176,7 +186,7 @@ class DashboardController extends Controller
             ->with(['property'])
             ->orderBy('check_in')
             ->get()
-            ->map(function ($booking) {
+            ->map(function (Booking $booking) {
                 $property = $booking->property;
                 $checkInDate = Carbon::parse($booking->check_in);
                 $canShowInstructions = false;

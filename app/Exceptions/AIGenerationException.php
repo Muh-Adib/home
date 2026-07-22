@@ -15,9 +15,9 @@ class AIGenerationException extends Exception
     /**
      * Create a new AI generation exception
      *
-     * @param string $message User-friendly error message
-     * @param array $details Additional error context (provider, suggestions, etc.)
-     * @param int $code HTTP status code
+     * @param  string  $message  User-friendly error message
+     * @param  array  $details  Additional error context (provider, suggestions, etc.)
+     * @param  int  $code  HTTP status code
      */
     public function __construct(string $message, array $details = [], int $code = 500)
     {
@@ -27,8 +27,6 @@ class AIGenerationException extends Exception
 
     /**
      * Get additional error details
-     *
-     * @return array
      */
     public function getDetails(): array
     {
@@ -37,8 +35,6 @@ class AIGenerationException extends Exception
 
     /**
      * Check if retry is suggested for this error
-     *
-     * @return bool
      */
     public function shouldRetry(): bool
     {

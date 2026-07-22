@@ -22,13 +22,13 @@ class PropertyResource extends JsonResource
             'slug' => $this->slug,
             'description' => $this->description,
             'address' => $this->address,
-            
+
             // Capacity
             'capacity' => [
                 'min' => $this->capacity,
                 'max' => $this->capacity_max,
             ],
-            
+
             // Pricing
             'pricing' => [
                 'base_rate' => $this->base_rate,
@@ -39,35 +39,35 @@ class PropertyResource extends JsonResource
                 'weekend_premium_type' => $this->weekend_premium_type ?? 'percentage',
                 'weekend_premium_fixed' => $this->weekend_premium_fixed ?? 0,
             ],
-            
+
             // Media
             'cover_image' => $this->cover_image,
             'images' => $this->whenLoaded('media', function () {
-                return $this->media->map(fn($media) => [
+                return $this->media->map(fn ($media) => [
                     'url' => $media->getUrl(),
                     'thumb' => $media->getUrl('thumb'),
                 ]);
             }),
-            
+
             // Amenities
             'amenities' => $this->whenLoaded('amenities', function () {
-                return $this->amenities->map(fn($amenity) => [
+                return $this->amenities->map(fn ($amenity) => [
                     'id' => $amenity->id,
                     'name' => $amenity->name,
                     'icon' => $amenity->icon,
                 ]);
             }),
-            
+
             // Owner (admin only)
             'owner' => $this->when(
                 $request->user()?->isAdmin(),
                 new UserResource($this->whenLoaded('owner'))
             ),
-            
+
             // Status
             'is_active' => $this->is_active,
             'status' => $this->is_active ? 'active' : 'inactive',
-            
+
             // Metadata
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),

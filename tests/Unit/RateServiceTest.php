@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\Property;
 use App\Models\PropertySeasonalRate;
 use App\Services\RateService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -75,8 +76,8 @@ class RateServiceTest extends TestCase
         $this->assertInstanceOf(PropertySeasonalRate::class, $seasonalRate);
         $this->assertEquals($this->property->id, $seasonalRate->property_id);
         $this->assertEquals($data['name'], $seasonalRate->name);
-        $this->assertEquals($data['start_date'], $seasonalRate->start_date);
-        $this->assertEquals($data['end_date'], $seasonalRate->end_date);
+        $this->assertEquals($data['start_date'], Carbon::parse($seasonalRate->start_date)->toDateString());
+        $this->assertEquals($data['end_date'], Carbon::parse($seasonalRate->end_date)->toDateString());
         $this->assertEquals($data['rate_type'], $seasonalRate->rate_type);
         $this->assertEquals($data['rate_value'], $seasonalRate->rate_value);
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Layout;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -34,6 +35,7 @@ use Tests\TestCase;
  */
 class ContactLinkBugConditionTest extends TestCase
 {
+    use RefreshDatabase;
     // =========================================================================
     // Test Case A — Layout Source Files Contain href="/contact"
     // Validates: Requirements 1.6

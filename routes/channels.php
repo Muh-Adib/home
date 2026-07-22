@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Property;
 use Illuminate\Support\Facades\Broadcast;
 
 /*
@@ -25,7 +26,7 @@ Broadcast::channel('bookings', function ($user) {
         'property_manager',
         'front_desk',
         'finance',
-        'housekeeping'
+        'housekeeping',
     ]);
 });
 
@@ -35,18 +36,18 @@ Broadcast::channel('property.{propertyId}', function ($user, $propertyId) {
     if ($user->role === 'super_admin') {
         return true;
     }
-    
+
     if ($user->role === 'property_owner') {
         // Check if user owns this property
-        return \App\Models\Property::where('id', $propertyId)
+        return Property::where('id', $propertyId)
             ->where('owner_id', $user->id)
             ->exists();
     }
-    
+
     if (in_array($user->role, ['property_manager', 'front_desk', 'finance', 'housekeeping'])) {
         return true;
     }
-    
+
     return false;
 });
 
@@ -56,7 +57,7 @@ Broadcast::channel('admin-notifications', function ($user) {
         'super_admin',
         'property_manager',
         'front_desk',
-        'finance'
+        'finance',
     ]);
 });
 
@@ -67,4 +68,4 @@ Broadcast::channel('online-users', function ($user) {
         'name' => $user->name,
         'role' => $user->role,
     ];
-}); 
+});

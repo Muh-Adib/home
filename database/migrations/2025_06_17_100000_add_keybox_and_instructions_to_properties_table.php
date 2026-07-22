@@ -16,10 +16,10 @@ return new class extends Migration
             $table->string('current_keybox_code', 3)->nullable()->after('check_out_time');
             $table->timestamp('keybox_updated_at')->nullable()->after('current_keybox_code');
             $table->unsignedBigInteger('keybox_updated_by')->nullable()->after('keybox_updated_at');
-            
+
             // Check-in instructions as JSON
             $table->json('checkin_instructions')->nullable()->after('keybox_updated_by');
-            
+
             // Foreign key
             $table->foreign('keybox_updated_by')->references('id')->on('users');
         });
@@ -34,9 +34,9 @@ return new class extends Migration
             $table->dropForeign(['keybox_updated_by']);
             $table->dropColumn([
                 'current_keybox_code',
-                'keybox_updated_at', 
+                'keybox_updated_at',
                 'keybox_updated_by',
-                'checkin_instructions'
+                'checkin_instructions',
             ]);
         });
     }

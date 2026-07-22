@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('notes')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->unique(['inventory_item_id','property_id','usage_date'], 'uniq_item_property_date');
+            $table->unique(['inventory_item_id', 'property_id', 'usage_date'], 'uniq_item_property_date');
         });
     }
 
@@ -28,6 +28,3 @@ return new class extends Migration
         Schema::dropIfExists('inventory_usages');
     }
 };
-
-
-

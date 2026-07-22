@@ -202,20 +202,8 @@ class PropertyPolicy
         ]);
     }
 
-    /**
-     * Determine whether the user can access the financial dashboard (ROI, BEP, etc).
-     * Restricted to super_admin, property_manager, and property_owner (own properties only).
-     */
     public function viewFinancials(User $user, Property $property): bool
     {
-        if ($user->role === 'super_admin') {
-            return true;
-        }
-
-        if ($user->role === 'property_manager') {
-            return true;
-        }
-
-        return $user->role === 'property_owner' && $property->owner_id === $user->id;
+        return $user->role === 'super_admin';
     }
 }

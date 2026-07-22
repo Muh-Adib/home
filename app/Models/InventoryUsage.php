@@ -19,7 +19,7 @@ class InventoryUsage extends Model
         'total_cost',
         'notes',
         'created_by',
-        'expense_id'
+        'expense_id',
     ];
 
     protected $casts = [
@@ -49,6 +49,3 @@ class InventoryUsage extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 }
-
-
-

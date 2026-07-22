@@ -36,7 +36,7 @@ class VerifyEmailController extends Controller
 
         $redirect = $manualIntended
             ? redirect($manualIntended)
-            : redirect()->intended(route('dashboard', absolute: false) . '?verified=1');
+            : redirect()->intended(route('dashboard', absolute: false).'?verified=1');
 
         return $redirect->with('message', 'Email verified successfully!');
     }

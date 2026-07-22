@@ -20,6 +20,7 @@ class BankAccount extends Model
         'payment_method_id',
         'wallet_id',
         'can_receive_payments',
+        'visibility_mode',
     ];
 
     protected $casts = [
@@ -27,6 +28,27 @@ class BankAccount extends Model
         'wallet_id' => 'integer',
         'can_receive_payments' => 'boolean',
     ];
+
+    /**
+     * Scope: Filter bank accounts visible to the given user based on visibility_mode.
+     * Mode: 'public' (all staff), 'super_admin_and_pm' (super_admin + property_manager), 'super_admin_only' (only super_admin).
+     */
+    public function scopeVisibleToUser($query, $user = null)
+    {
+        if (! $user) {
+            return $query->where('visibility_mode', 'public');
+        }
+
+        if ($user->role === 'super_admin') {
+            return $query;
+        }
+
+        if ($user->role === 'property_manager') {
+            return $query->whereIn('visibility_mode', ['public', 'super_admin_and_pm']);
+        }
+
+        return $query->where('visibility_mode', 'public');
+    }
 
     /**
      * Get the wallet associated with this bank account.

@@ -8,7 +8,7 @@ use App\Models\Property;
 
 /**
  * Checkin Instructions Trait for Booking Model
- * 
+ *
  * Handles check-in instruction generation and formatting
  */
 trait HasCheckinInstructions
@@ -20,17 +20,17 @@ trait HasCheckinInstructions
     public function getCheckinInstructions(): array
     {
         $property = $this->property;
-        
+
         // Step 1: Check if booking has custom checkin_instruction
-        if (!empty($this->checkin_instruction)) {
-            $instructions = is_array($this->checkin_instruction) 
-                ? $this->checkin_instruction 
+        if (! empty($this->checkin_instruction)) {
+            $instructions = is_array($this->checkin_instruction)
+                ? $this->checkin_instruction
                 : ['custom' => $this->checkin_instruction];
-        } 
+        }
         // Step 2: Use property template if exists
-        elseif (!empty($property->checkin_instructions) && is_array($property->checkin_instructions)) {
+        elseif (! empty($property->checkin_instructions) && is_array($property->checkin_instructions)) {
             $instructions = $property->checkin_instructions;
-        } 
+        }
         // Step 3: Fallback to default template
         else {
             $instructions = Property::getDefaultCheckinInstructionsTemplate();
@@ -55,13 +55,13 @@ trait HasCheckinInstructions
     {
         if (is_string($instructions)) {
             return str_replace(
-                array_map(fn($key) => '{{' . $key . '}}', array_keys($replacements)),
+                array_map(fn ($key) => '{{'.$key.'}}', array_keys($replacements)),
                 array_values($replacements),
                 $instructions
             );
         }
 
-        if (!is_array($instructions)) {
+        if (! is_array($instructions)) {
             return [];
         }
 
@@ -69,7 +69,7 @@ trait HasCheckinInstructions
         foreach ($instructions as $key => $value) {
             if (is_string($value)) {
                 $result[$key] = str_replace(
-                    array_map(fn($k) => '{{' . $k . '}}', array_keys($replacements)),
+                    array_map(fn ($k) => '{{'.$k.'}}', array_keys($replacements)),
                     array_values($replacements),
                     $value
                 );
@@ -89,41 +89,41 @@ trait HasCheckinInstructions
     public function getFormattedCheckinInstructions(): string
     {
         $instructions = $this->getCheckinInstructions();
-        
+
         if (empty($instructions)) {
             return '';
         }
 
         $formatted = [];
-        
+
         // Handle array format
         if (isset($instructions['welcome'])) {
-            if (!empty($instructions['welcome'])) {
+            if (! empty($instructions['welcome'])) {
                 $formatted[] = $instructions['welcome'];
             }
-            if (!empty($instructions['keybox_location'])) {
+            if (! empty($instructions['keybox_location'])) {
                 $formatted[] = $instructions['keybox_location'];
             }
-            if (!empty($instructions['keybox_code'])) {
+            if (! empty($instructions['keybox_code'])) {
                 $formatted[] = $instructions['keybox_code'];
             }
-            if (!empty($instructions['checkin_time'])) {
+            if (! empty($instructions['checkin_time'])) {
                 $formatted[] = $instructions['checkin_time'];
             }
-            if (!empty($instructions['emergency_contact'])) {
+            if (! empty($instructions['emergency_contact'])) {
                 $formatted[] = $instructions['emergency_contact'];
             }
-            if (!empty($instructions['additional_info']) && is_array($instructions['additional_info'])) {
-                $formatted[] = "\n" . implode("\n", array_map(fn($info) => "• " . $info, $instructions['additional_info']));
+            if (! empty($instructions['additional_info']) && is_array($instructions['additional_info'])) {
+                $formatted[] = "\n".implode("\n", array_map(fn ($info) => '• '.$info, $instructions['additional_info']));
             }
-        } 
+        }
         // Handle simple array or custom format
         else {
             foreach ($instructions as $key => $value) {
                 if (is_string($value)) {
                     $formatted[] = $value;
                 } elseif (is_array($value)) {
-                    $formatted[] = implode("\n", array_map(fn($v) => "• " . $v, $value));
+                    $formatted[] = implode("\n", array_map(fn ($v) => '• '.$v, $value));
                 }
             }
         }

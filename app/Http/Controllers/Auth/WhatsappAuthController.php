@@ -5,13 +5,14 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Services\GowaService;
 use App\Services\WhatsappAuthService;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class WhatsappAuthController extends Controller
 {
     protected WhatsappAuthService $whatsappAuthService;
+
     protected GowaService $gowaService;
 
     public function __construct(
@@ -35,7 +36,7 @@ class WhatsappAuthController extends Controller
 
         return response()->json([
             'valid' => $isValid,
-            'message' => $isValid 
+            'message' => $isValid
                 ? __('auth.phone_registered_on_whatsapp')
                 : __('auth.phone_not_on_whatsapp'),
         ]);
@@ -75,7 +76,7 @@ class WhatsappAuthController extends Controller
             $request->otp
         );
 
-        if (!$isValid) {
+        if (! $isValid) {
             return response()->json([
                 'success' => false,
                 'message' => __('auth.invalid_otp'),

@@ -3,10 +3,11 @@
 namespace App\Notifications;
 
 use App\Models\Payment;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Messages\BroadcastMessage;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class PaymentStatusChangedNotification extends Notification implements ShouldQueue
@@ -14,7 +15,9 @@ class PaymentStatusChangedNotification extends Notification implements ShouldQue
     use Queueable;
 
     protected Payment $payment;
+
     protected string $oldStatus;
+
     protected string $newStatus;
 
     /**
@@ -44,25 +47,25 @@ class PaymentStatusChangedNotification extends Notification implements ShouldQue
     {
         $bookingNumber = $this->payment->booking->booking_number;
         $paymentNumber = $this->payment->payment_number;
-        
+
         $statusMessages = [
             'verified' => 'Your payment has been verified successfully.',
             'failed' => 'Your payment has been rejected.',
             'cancelled' => 'Your payment has been cancelled.',
             'pending' => 'Your payment is pending verification.',
         ];
-        
+
         $message = $statusMessages[$this->newStatus] ?? "Your payment status has been updated to {$this->newStatus}.";
-        
+
         return (new MailMessage)
-                    ->subject("Payment Status Updated - {$paymentNumber}")
-                    ->line("Payment status for booking {$bookingNumber} has been updated.")
-                    ->line("Payment Number: {$paymentNumber}")
-                    ->line("Amount: " . number_format($this->payment->amount, 0, ',', '.'))
-                    ->line("Status: {$this->oldStatus} → {$this->newStatus}")
-                    ->line($message)
-                    ->action('View Payment', url("/my-payments/{$paymentNumber}"))
-                    ->line('Thank you for using our application!');
+            ->subject("Payment Status Updated - {$paymentNumber}")
+            ->line("Payment status for booking {$bookingNumber} has been updated.")
+            ->line("Payment Number: {$paymentNumber}")
+            ->line('Amount: '.number_format($this->payment->amount, 0, ',', '.'))
+            ->line("Status: {$this->oldStatus} → {$this->newStatus}")
+            ->line($message)
+            ->action('View Payment', url("/my-payments/{$paymentNumber}"))
+            ->line('Thank you for using our application!');
     }
 
     /**
@@ -126,7 +129,7 @@ class PaymentStatusChangedNotification extends Notification implements ShouldQue
     public function broadcastOn(): array
     {
         return [
-            new \Illuminate\Broadcasting\Channel('admin-notifications'),
+            new Channel('admin-notifications'),
         ];
     }
 
@@ -137,4 +140,4 @@ class PaymentStatusChangedNotification extends Notification implements ShouldQue
     {
         return 'notification.created';
     }
-} 
+}

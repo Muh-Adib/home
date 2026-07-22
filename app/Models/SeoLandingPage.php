@@ -71,7 +71,7 @@ class SeoLandingPage extends Model
      */
     public function getUrlAttribute(): string
     {
-        return url('/s/' . $this->slug);
+        return url('/s/'.$this->slug);
     }
 
     /**
@@ -83,14 +83,14 @@ class SeoLandingPage extends Model
         $filters = $this->filters;
 
         // Ensure it's an array (Laravel cast should handle this, but double-check)
-        if (!is_array($filters)) {
+        if (! is_array($filters)) {
             // If it's a string, try to decode it
             if (is_string($filters)) {
                 $filters = json_decode($filters, true);
             }
 
             // If still not array or decode failed, return query unchanged
-            if (!is_array($filters)) {
+            if (! is_array($filters)) {
                 return $query;
             }
         }
@@ -104,37 +104,37 @@ class SeoLandingPage extends Model
         foreach ($filters as $key => $value) {
             match ($key) {
                 'property_type' => $query->where(function ($q) use ($value) {
-                        if ($value === 'villa') {
-                            // Match either exact type OR name/description contains 'villa'
-                            $q->where('type', 'villa')
+                    if ($value === 'villa') {
+                        // Match either exact type OR name/description contains 'villa'
+                        $q->where('type', 'villa')
                             ->orWhere('name', 'like', '%villa%')
                             ->orWhere('description', 'like', '%villa%');
-                        } elseif ($value === 'guest_house') {
-                            $q->where('type', 'guest_house')
+                    } elseif ($value === 'guest_house') {
+                        $q->where('type', 'guest_house')
                             ->orWhere('type', 'guesthouse')
                             ->orWhere('name', 'like', '%guest%house%')
                             ->orWhere('name', 'like', '%guesthouse%')
                             ->orWhere('description', 'like', '%guest%house%');
-                        } elseif ($value === 'homestay') {
-                            $q->where('type', 'homestay')
+                    } elseif ($value === 'homestay') {
+                        $q->where('type', 'homestay')
                             ->orWhere('name', 'like', '%homestay%')
                             ->orWhere('description', 'like', '%homestay%');
-                        }
-                        // If no match, don't filter (show all properties)
-                    }),
+                    }
+                    // If no match, don't filter (show all properties)
+                }),
 
                 'max_price' => $query->where('base_rate', '<=', $value),
                 'min_price' => $query->where('base_rate', '>=', $value),
 
                 'location' => $query->where(function ($q) use ($value) {
-                        $q->where('address', 'like', "%{$value}%")
+                    $q->where('address', 'like', "%{$value}%")
                         ->orWhere('location', 'like', "%{$value}%")
                         ->orWhere('description', 'like', "%{$value}%");
-                    }),
+                }),
 
                 'amenity' => $query->whereHas('amenities', function ($q) use ($value) {
-                        $q->where('name', 'like', "%{$value}%");
-                    }),
+                    $q->where('name', 'like', "%{$value}%");
+                }),
 
                 default => null
             };

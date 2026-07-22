@@ -16,14 +16,14 @@ return new class extends Migration
             $table->string('name', 100)->unique();
             $table->string('icon', 100); // Icon class or SVG path
             $table->enum('category', [
-                'basic', 
-                'kitchen', 
-                'bathroom', 
-                'entertainment', 
-                'outdoor', 
+                'basic',
+                'kitchen',
+                'bathroom',
+                'entertainment',
+                'outdoor',
                 'safety',
                 'special',
-                'accessibility'
+                'accessibility',
             ])->default('basic');
             $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);

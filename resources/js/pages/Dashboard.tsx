@@ -185,6 +185,9 @@ function KPICard({
 
 // Property Performance Card Component
 function PropertyPerformanceCard({ data }: { data: PropertyPerformance[] }) {
+    const { auth } = usePage<PageProps>().props;
+    const isSuperAdmin = auth?.user?.role === 'super_admin';
+
     const formatCurrency = (amount: number) => {
         if (amount >= 1000000) {
             return `Rp ${(amount / 1000000).toFixed(1)}M`;
@@ -206,14 +209,18 @@ function PropertyPerformanceCard({ data }: { data: PropertyPerformance[] }) {
                             <BarChart3 className="h-5 w-5 text-primary" />
                             Property Performance
                         </CardTitle>
-                        <CardDescription>This month's top performers</CardDescription>
+                        <CardDescription>
+                            {isSuperAdmin ? "This month's top performers by revenue" : "This month's property stats"}
+                        </CardDescription>
                     </div>
-                    <Button variant="ghost" size="sm" asChild>
-                        <Link href="/admin/reports">
-                            View All
-                            <ArrowUpRight className="h-4 w-4 ml-1" />
-                        </Link>
-                    </Button>
+                    {isSuperAdmin && (
+                        <Button variant="ghost" size="sm" asChild>
+                            <Link href="/admin/reports">
+                                View All
+                                <ArrowUpRight className="h-4 w-4 ml-1" />
+                            </Link>
+                        </Button>
+                    )}
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -233,7 +240,9 @@ function PropertyPerformanceCard({ data }: { data: PropertyPerformance[] }) {
                                     <span className="font-medium text-sm truncate">{property.name}</span>
                                 </div>
                                 <div className="text-right flex-shrink-0 ml-2">
-                                    <p className="font-semibold text-sm">{formatCurrency(property.total_revenue || 0)}</p>
+                                    {isSuperAdmin && (
+                                        <p className="font-semibold text-sm">{formatCurrency(property.total_revenue || 0)}</p>
+                                    )}
                                     <p className="text-xs text-muted-foreground">
                                         {property.total_bookings} bookings
                                     </p>
@@ -241,7 +250,7 @@ function PropertyPerformanceCard({ data }: { data: PropertyPerformance[] }) {
                             </div>
                             <div className="flex items-center gap-2">
                                 <Progress 
-                                    value={((property.total_revenue || 0) / maxRevenue) * 100} 
+                                    value={isSuperAdmin ? ((property.total_revenue || 0) / maxRevenue) * 100 : property.occupancy_rate} 
                                     className="h-2 flex-1" 
                                 />
                                 <Badge variant="outline" className="text-xs">
@@ -622,16 +631,18 @@ export default function Dashboard({
 
                 {/* STANDARD ADMIN VIEW */}
                 {isStandardAdminRole && kpis && (
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                        <KPICard
-                            title="Monthly Revenue"
-                            value={kpis.revenue?.value || 0}
-                            change={kpis.revenue?.change}
-                            trend={kpis.revenue?.trend}
-                            icon={DollarSign}
-                            prefix="Rp"
-                            color="emerald"
-                        />
+                    <div className={`grid grid-cols-2 ${auth.user.role === 'super_admin' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3 sm:gap-4`}>
+                        {auth.user.role === 'super_admin' && (
+                            <KPICard
+                                title="Monthly Revenue"
+                                value={kpis.revenue?.value || 0}
+                                change={kpis.revenue?.change}
+                                trend={kpis.revenue?.trend}
+                                icon={DollarSign}
+                                prefix="Rp"
+                                color="emerald"
+                            />
+                        )}
                         <KPICard
                             title="Total Bookings"
                             value={kpis.bookings?.value || 0}
@@ -680,22 +691,24 @@ export default function Dashboard({
                 {isStandardAdminRole && (
                     <>
                         {/* Charts Row - Revenue & Breakdown */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-                            <div className="lg:col-span-2">
-                                <Card className="h-[350px] sm:h-[400px]">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base sm:text-lg">Revenue Trend</CardTitle>
-                                        <CardDescription>Last 12 months</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="h-[280px] sm:h-[320px]">
-                                        <ChartRevenue data={revenueChart || []} />
-                                    </CardContent>
-                                </Card>
+                        {auth.user.role === 'super_admin' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                                <div className="lg:col-span-2">
+                                    <Card className="h-[350px] sm:h-[400px]">
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-base sm:text-lg">Revenue Trend</CardTitle>
+                                            <CardDescription>Last 12 months</CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="h-[280px] sm:h-[320px]">
+                                            <ChartRevenue data={revenueChart || []} />
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                                <div className="lg:col-span-1">
+                                    <RevenueBreakdownCard data={revenueBreakdown} />
+                                </div>
                             </div>
-                            <div className="lg:col-span-1">
-                                <RevenueBreakdownCard data={revenueBreakdown} />
-                            </div>
-                        </div>
+                        )}
 
                         {/* Second Row - Bookings & Property Performance */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

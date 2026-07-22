@@ -168,9 +168,10 @@ export default function Usages({ items, properties, usages, usageStats, filters 
         setData('usages', updated);
     };
 
-    const availableProperties = properties?.filter((p: any) => 
-        !data.usages.some(row => row.property_id === p.id?.toString())
-    );
+    const availableProperties = [
+        ...(data.usages.some(row => row.property_id === 'global' || row.property_id === '') ? [] : [{ id: 'global', name: '🏢 Pengeluaran Perusahaan (Global / Dapur & Laundry)' }]),
+        ...(properties?.filter((p: any) => !data.usages.some(row => row.property_id === p.id?.toString())) || [])
+    ];
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -329,14 +330,14 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                 {editItem ? (
                                     <>
                                         <div className="space-y-2">
-                                            <Label htmlFor="property" className="text-sm font-semibold text-slate-700">Properti</Label>
+                                            <Label htmlFor="property" className="text-sm font-semibold text-slate-700">Properti Target</Label>
                                             <select
                                                 id="property"
                                                 value={data.property_id || ''}
                                                 onChange={(e) => setData('property_id', e.target.value)}
                                                 className={cn("w-full bg-white/50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl h-10 text-xs px-3 outline-none transition-all cursor-pointer appearance-none", errors.property_id && "border-red-500")}
                                             >
-                                                <option value="">Pilih Properti...</option>
+                                                <option value="">🏢 Pengeluaran Perusahaan (Global / Dapur & Laundry)</option>
                                                 {properties?.map((p: any) => (
                                                     <option key={p.id} value={p.id}>{p.name}</option>
                                                 ))}
@@ -365,13 +366,13 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                         
                                         <div className="flex gap-2 items-end">
                                             <div className="flex-1 space-y-1">
-                                                <Label className="text-xs text-slate-500">Pilih Properti</Label>
+                                                <Label className="text-xs text-slate-500">Pilih Properti / Target</Label>
                                                 <select
                                                     value={tempPropertyId}
                                                     onChange={(e) => setTempPropertyId(e.target.value)}
                                                     className="w-full bg-white/50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl h-9 text-xs px-2 outline-none transition-all cursor-pointer appearance-none animate-none"
                                                 >
-                                                    <option value="">Pilih Properti Villa...</option>
+                                                    <option value="">Pilih Target Pemakaian...</option>
                                                     {availableProperties?.map((p: any) => (
                                                         <option key={p.id} value={p.id}>{p.name}</option>
                                                     ))}
@@ -385,10 +386,12 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                         {data.usages.length > 0 ? (
                                             <div className="space-y-2 mt-2 p-2 bg-slate-50/50 border border-slate-100 rounded-xl max-h-[220px] overflow-y-auto">
                                                 {data.usages.map((row, idx) => {
-                                                    const prop = properties.find((p: any) => p.id?.toString() === row.property_id);
+                                                    const prop = row.property_id === 'global' || row.property_id === '' 
+                                                        ? { name: '🏢 Global / Dapur & Laundry' }
+                                                        : properties.find((p: any) => p.id?.toString() === row.property_id);
                                                     return (
                                                         <div key={row.property_id} className="flex items-center justify-between gap-3 p-2 bg-white border border-slate-100 rounded-lg shadow-sm">
-                                                            <span className="text-xs font-semibold text-slate-700 truncate flex-1">{prop?.name}</span>
+                                                            <span className="text-xs font-semibold text-slate-700 truncate flex-1">{prop?.name || 'Global'}</span>
                                                             <div className="flex items-center gap-1 shrink-0">
                                                                 <Input
                                                                     type="number"
@@ -543,7 +546,9 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                                         )}
                                                     </div>
                                                     <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-1.5">
-                                                        <Badge variant="secondary" className="text-[10px] font-semibold bg-slate-100/80 text-slate-600 border-none px-1.5 py-0 rounded-md">{u.property?.name}</Badge>
+                                                        <Badge variant="secondary" className="text-[10px] font-semibold bg-slate-100/80 text-slate-600 border-none px-1.5 py-0 rounded-md">
+                                                            {u.property?.name || '🏢 Global / Dapur & Laundry'}
+                                                        </Badge>
                                                         <span>{formatDate(u.usage_date)}</span>
                                                     </div>
                                                 </div>
@@ -620,7 +625,9 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                                         </div>
                                                         {u.notes && <div className="text-[11px] text-slate-400 truncate max-w-[180px] mt-0.5" title={u.notes}>{u.notes}</div>}
                                                     </TableCell>
-                                                    <TableCell className="text-slate-600 text-sm">{u.property?.name}</TableCell>
+                                                    <TableCell className="text-slate-600 text-sm font-medium">
+                                                         {u.property?.name || <span className="text-indigo-600 font-semibold">🏢 Global / Dapur & Laundry</span>}
+                                                    </TableCell>
                                                     <TableCell className="text-slate-600 text-sm">
                                                         {Number(u.quantity_used)} <span className="text-slate-400 text-xs font-medium">{u.item?.unit}</span>
                                                     </TableCell>

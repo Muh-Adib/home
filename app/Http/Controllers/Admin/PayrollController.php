@@ -72,6 +72,14 @@ class PayrollController extends Controller
         $sickDeductionRate = (float) $request->input('sick_deduction_rate', 50000); // sick per day
         $permissionDeductionRate = (float) $request->input('permission_deduction_rate', 75000); // permission per day
 
+        // Performance KPI rates
+        $followUpRate = (float) $request->input('follow_up_rate', 5000);
+        $creationRate = (float) $request->input('creation_rate', 5000);
+        $closingRate = (float) $request->input('closing_rate', 15000);
+        $checkInRate = (float) $request->input('check_in_rate', 10000);
+        $commissionPercent = (float) $request->input('commission_percent', 0.5);
+        $housekeepingPoolPercentage = (float) $request->input('housekeeping_pool_percentage', 5.0);
+
         // Default base salaries based on roles (if not set in user profile)
         $defaultSalaries = [
             'super_admin' => 5000000.0,
@@ -124,6 +132,37 @@ class PayrollController extends Controller
 
         $sharedNextNightsBonus = $frontdeskCount > 0 ? ($totalNextNightsPool / $frontdeskCount) : 0;
 
+        // Fetch KPI counts in bulk for this month
+        $followUpsCounts = Booking::selectRaw('followed_up_by, COUNT(*) as count')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereNotNull('followed_up_by')
+            ->groupBy('followed_up_by')
+            ->pluck('count', 'followed_up_by');
+
+        $creationsCounts = Booking::selectRaw('created_by, COUNT(*) as count')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereNotNull('created_by')
+            ->groupBy('created_by')
+            ->pluck('count', 'created_by');
+
+        $closingsCounts = Booking::selectRaw('closed_by, COUNT(*) as count')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereNotNull('closed_by')
+            ->groupBy('closed_by')
+            ->pluck('count', 'closed_by');
+
+        $checkInsCounts = Booking::selectRaw('checked_in_by, COUNT(*) as count')
+            ->whereBetween('check_in', [$startDate->toDateString(), $endDate->toDateString()])
+            ->whereNotNull('checked_in_by')
+            ->groupBy('checked_in_by')
+            ->pluck('count', 'checked_in_by');
+
+        $dealsValues = Booking::selectRaw('closed_by, SUM(total_amount) as total')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereNotNull('closed_by')
+            ->groupBy('closed_by')
+            ->pluck('total', 'closed_by');
+
         // Fetch daily custom shifts for all users for this month
         $shifts = StaffShift::whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
             ->get()
@@ -140,7 +179,7 @@ class PayrollController extends Controller
 
             // Housekeeping points & bonus using the new point system
             $pointService = app(HousekeepingPointService::class);
-            $poolData = $pointService->getMonthlyPool($month, $year);
+            $poolData = $pointService->getMonthlyPool($month, $year, $housekeepingPoolPercentage);
             $pointRate = $poolData['point_rate'];
 
             $pointsBreakdown = $pointService->getMonthlyPointsDetails($s->id, $month, $year);
@@ -156,6 +195,47 @@ class PayrollController extends Controller
             $fdFirstNightBonus = $s->role === 'front_desk' ? ($firstNightBonuses[$s->id] ?? 0.0) : 0.0;
             $fdNextNightsShare = $s->role === 'front_desk' ? $sharedNextNightsBonus : 0.0;
 
+            // Performance KPI calculation
+            $followUps = $followUpsCounts->get($s->id, 0);
+            $creations = $creationsCounts->get($s->id, 0);
+            $closings = $closingsCounts->get($s->id, 0);
+            $checkIns = $checkInsCounts->get($s->id, 0);
+            $dealsValue = (float) $dealsValues->get($s->id, 0.0);
+
+            $performanceBonus = 0.0;
+            if (in_array($s->role, ['front_desk', 'property_manager', 'super_admin'])) {
+                $performanceBonus = ($followUps * $followUpRate) +
+                                     ($creations * $creationRate) +
+                                     ($closings * $closingRate) +
+                                     ($checkIns * $checkInRate) +
+                                     ($dealsValue * $commissionPercent / 100.0);
+            }
+
+            $kpiDetails = [
+                'follow_ups' => $followUps,
+                'creations' => $creations,
+                'closings' => $closings,
+                'check_ins' => $checkIns,
+                'deals_value' => $dealsValue,
+                'rates' => [
+                    'follow_up_rate' => $followUpRate,
+                    'creation_rate' => $creationRate,
+                    'closing_rate' => $closingRate,
+                    'check_in_rate' => $checkInRate,
+                    'commission_percent' => $commissionPercent,
+                ],
+            ];
+
+            // Housekeeping points details
+            $pointsDetails = [
+                'routine' => $pointsBreakdown['routine'],
+                'cleaning' => $pointsBreakdown['cleaning'],
+                'damage' => $pointsBreakdown['damage'],
+                'custom' => $pointsBreakdown['custom'],
+                'total' => $pointsBreakdown['total'],
+                'point_rate' => $pointRate,
+            ];
+
             // Casbon (active outstanding loans)
             $activeLoans = EmployeeLoan::where('employee_id', $s->id)
                 ->where('status', 'active')
@@ -166,6 +246,18 @@ class PayrollController extends Controller
                 $repaid = $loan->payments()->sum('amount');
                 $outstandingLoanAmount += max(0.0, (float) $loan->amount - (float) $repaid);
             }
+
+            $loansDetails = $activeLoans->map(function ($loan) {
+                $repaid = $loan->payments()->sum('amount');
+
+                return [
+                    'id' => $loan->id,
+                    'amount' => (float) $loan->amount,
+                    'disbursed_at' => $loan->disbursed_at->toDateString(),
+                    'outstanding' => max(0.0, (float) $loan->amount - (float) $repaid),
+                    'notes' => $loan->notes,
+                ];
+            })->all();
 
             // Calculate active employment days and proration factor in the current month (mid-month joiners/leavers)
             $daysInMonth = Carbon::create($year, $month, 1)->endOfMonth()->day;
@@ -217,6 +309,7 @@ class PayrollController extends Controller
                     'standby_bonus' => (float) $existing->standby_bonus,
                     'frontdesk_first_night_bonus' => (float) $existing->frontdesk_first_night_bonus,
                     'frontdesk_next_nights_bonus_share' => (float) $existing->frontdesk_next_nights_bonus_share,
+                    'performance_bonus' => (float) ($existing->performance_bonus ?? $performanceBonus),
                     'overtime_hours' => (float) $existing->overtime_hours,
                     'overtime_bonus' => (float) $existing->overtime_bonus,
                     'holiday_days' => $existing->holiday_days,
@@ -235,6 +328,9 @@ class PayrollController extends Controller
                     'first_nights_count' => $s->role === 'front_desk' ? ($firstNightCounts[$s->id] ?? 0) : 0,
                     'next_nights_pool_count' => $totalNextNightsCount,
                     'frontdesk_count' => $frontdeskCount,
+                    'kpi_details' => $existing->kpi_details ?? $kpiDetails,
+                    'points_details' => $existing->points_details ?? $pointsDetails,
+                    'loans_details' => $existing->loans_details ?? $loansDetails,
                 ];
             } else {
                 // Compute live values
@@ -256,7 +352,7 @@ class PayrollController extends Controller
 
                 $suggestedLoanDeduction = min($outstandingLoanAmount, $baseSalary * 0.2);
 
-                $totalSalary = max(0.0, $baseSalary + $housekeepingBonus + $standbyBonus + $fdFirstNightBonus + $fdNextNightsShare - $lateDeduction - $suggestedLoanDeduction);
+                $totalSalary = max(0.0, $baseSalary + $housekeepingBonus + $standbyBonus + $fdFirstNightBonus + $fdNextNightsShare + $performanceBonus + $overtimeBonus - $lateDeduction - $suggestedLoanDeduction);
 
                 $payrolls[] = [
                     'id' => null,
@@ -283,6 +379,7 @@ class PayrollController extends Controller
                     'standby_bonus' => $standbyBonus,
                     'frontdesk_first_night_bonus' => $fdFirstNightBonus,
                     'frontdesk_next_nights_bonus_share' => $fdNextNightsShare,
+                    'performance_bonus' => $performanceBonus,
                     'overtime_hours' => $overtimeHours,
                     'overtime_bonus' => $overtimeBonus,
                     'holiday_days' => $holidayDays,
@@ -301,13 +398,16 @@ class PayrollController extends Controller
                     'first_nights_count' => $s->role === 'front_desk' ? ($firstNightCounts[$s->id] ?? 0) : 0,
                     'next_nights_pool_count' => $totalNextNightsCount,
                     'frontdesk_count' => $frontdeskCount,
+                    'kpi_details' => $kpiDetails,
+                    'points_details' => $pointsDetails,
+                    'loans_details' => $loansDetails,
                 ];
             }
         }
 
         // Get pool data again to pass to frontend
         $pointService = app(HousekeepingPointService::class);
-        $poolData = $pointService->getMonthlyPool($month, $year);
+        $poolData = $pointService->getMonthlyPool($month, $year, $housekeepingPoolPercentage);
 
         // Fetch shift details in monthly calendar format
         $userShifts = [];
@@ -344,6 +444,12 @@ class PayrollController extends Controller
                 'absent_deduction_rate' => $absentDeductionRate,
                 'sick_deduction_rate' => $sickDeductionRate,
                 'permission_deduction_rate' => $permissionDeductionRate,
+                'follow_up_rate' => $followUpRate,
+                'creation_rate' => $creationRate,
+                'closing_rate' => $closingRate,
+                'check_in_rate' => $checkInRate,
+                'commission_percent' => $commissionPercent,
+                'housekeeping_pool_percentage' => $housekeepingPoolPercentage,
             ],
         ]);
     }
@@ -497,7 +603,7 @@ class PayrollController extends Controller
 
                             // Find shift for this user and date
                             $customShift = $matchedUser
-                                ? StaffShift::where('user_id', $matchedUser->id)->whereDate('date', $dateStr)->first()
+                                ? StaffShift::where('user_id', $matchedUser->id)->where('date', $dateStr)->first()
                                 : null;
 
                             $isOffDay = false;
@@ -734,6 +840,10 @@ class PayrollController extends Controller
             'payrolls.*.total_salary' => 'required|numeric',
             'payrolls.*.status' => 'required|string|in:pending,paid',
             'payrolls.*.notes' => 'nullable|string',
+            'payrolls.*.performance_bonus' => 'nullable|numeric',
+            'payrolls.*.kpi_details' => 'nullable|array',
+            'payrolls.*.points_details' => 'nullable|array',
+            'payrolls.*.loans_details' => 'nullable|array',
         ]);
 
         $month = $validated['month'];
@@ -850,6 +960,7 @@ class PayrollController extends Controller
                         'standby_bonus' => $payrollData['standby_bonus'],
                         'frontdesk_first_night_bonus' => $payrollData['frontdesk_first_night_bonus'],
                         'frontdesk_next_nights_bonus_share' => $payrollData['frontdesk_next_nights_bonus_share'],
+                        'performance_bonus' => $payrollData['performance_bonus'] ?? 0.0,
                         'overtime_hours' => $payrollData['overtime_hours'],
                         'overtime_bonus' => $payrollData['overtime_bonus'],
                         'holiday_days' => $payrollData['holiday_days'],
@@ -859,6 +970,9 @@ class PayrollController extends Controller
                         'notes' => $payrollData['notes'],
                         'created_by' => $user->id,
                         'expense_id' => $expenseId,
+                        'kpi_details' => $payrollData['kpi_details'] ?? null,
+                        'points_details' => $payrollData['points_details'] ?? null,
+                        'loans_details' => $payrollData['loans_details'] ?? null,
                     ]
                 );
             }

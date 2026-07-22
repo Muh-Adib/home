@@ -18,6 +18,11 @@ class PushSubscriptionTest extends TestCase
     {
         parent::setUp();
 
+        config([
+            'webpush.vapid.public_key' => 'mock_public_key',
+            'webpush.vapid.private_key' => 'mock_private_key',
+        ]);
+
         $this->admin = User::factory()->create(['role' => 'super_admin', 'status' => 'active']);
     }
 

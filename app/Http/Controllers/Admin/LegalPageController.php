@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\LegalPage;
-use Inertia\Inertia;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 
 class LegalPageController extends Controller
 {
@@ -27,29 +27,29 @@ class LegalPageController extends Controller
     {
         // Ambil semua slug aktif (tidak soft deleted)
         $activeSlugs = array_values($this->typeSlugMap);
-        
+
         $legalPages = [];
-        
+
         foreach ($activeSlugs as $slug) {
             // Ambil dokumen aktif (latest)
             $active = LegalPage::where('slug', $slug)
                 ->whereNull('deleted_at')
                 ->orderByDesc('id')
                 ->first();
-            
+
             if ($active) {
                 // Ambil archived versions (soft deleted) - max 10
                 $archived = LegalPage::onlyTrashed()
-                    ->where('slug', 'LIKE', $slug . '-%')
+                    ->where('slug', 'LIKE', $slug.'-%')
                     ->orderByDesc('id')
                     ->limit(10)
                     ->get();
-                
+
                 $legalPages[] = [
                     'active' => $active,
                     'archived' => $archived,
                     'total_archived' => LegalPage::onlyTrashed()
-                        ->where('slug', 'LIKE', $slug . '-%')
+                        ->where('slug', 'LIKE', $slug.'-%')
                         ->count(),
                 ];
             }
@@ -71,10 +71,10 @@ class LegalPageController extends Controller
             ->whereIn('slug', array_values($this->typeSlugMap))
             ->pluck('slug')
             ->toArray();
-        
+
         $availableTypes = [];
         foreach ($this->typeSlugMap as $title => $slug) {
-            if (!in_array($slug, $existingSlugs)) {
+            if (! in_array($slug, $existingSlugs)) {
                 $availableTypes[] = $title;
             }
         }
@@ -90,7 +90,7 @@ class LegalPageController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'type'  => 'required|string|in:' . implode(',', array_keys($this->typeSlugMap)),
+            'type' => 'required|string|in:'.implode(',', array_keys($this->typeSlugMap)),
             'content' => 'required|string',
         ]);
 
@@ -159,7 +159,7 @@ class LegalPageController extends Controller
         $newVersion = $this->generateVersion($slug);
 
         // Archive dokumen lama (soft delete + ubah slug)
-        $archivedSlug = $slug . '-' . Str::random(8) . '-' . now()->timestamp;
+        $archivedSlug = $slug.'-'.Str::random(8).'-'.now()->timestamp;
         $currentDoc->update(['slug' => $archivedSlug]);
         $currentDoc->delete(); // soft delete
 
@@ -184,14 +184,14 @@ class LegalPageController extends Controller
     {
         // Ambil versi terbaru dari dokumen aktif atau archived
         $last = LegalPage::withTrashed()
-            ->where(function($query) use ($slug) {
+            ->where(function ($query) use ($slug) {
                 $query->where('slug', $slug)
-                    ->orWhere('slug', 'LIKE', $slug . '-%');
+                    ->orWhere('slug', 'LIKE', $slug.'-%');
             })
             ->orderByDesc('id')
             ->first();
 
-        if (!$last) {
+        if (! $last) {
             return 'V 1.0.0';
         }
 
@@ -201,9 +201,9 @@ class LegalPageController extends Controller
             return 'V 1.0.0';
         }
 
-        $major = (int)$parts[0];
-        $minor = (int)$parts[1];
-        $patch = (int)$parts[2];
+        $major = (int) $parts[0];
+        $minor = (int) $parts[1];
+        $patch = (int) $parts[2];
 
         $patch++;
         if ($patch > 9) {
@@ -228,7 +228,7 @@ class LegalPageController extends Controller
             ->firstOrFail();
 
         return Inertia::render('Legal', [
-            'legalPage' => $legalPage
+            'legalPage' => $legalPage,
         ]);
     }
 
@@ -244,7 +244,7 @@ class LegalPageController extends Controller
 
         // Ambil semua archived versions
         $archived = LegalPage::onlyTrashed()
-            ->where('slug', 'LIKE', $slug . '-%')
+            ->where('slug', 'LIKE', $slug.'-%')
             ->orderByDesc('id')
             ->paginate(20);
 
@@ -273,7 +273,7 @@ class LegalPageController extends Controller
     public function restore($id)
     {
         $archivedDoc = LegalPage::onlyTrashed()->findOrFail($id);
-        
+
         // Extract original slug dari archived slug
         $originalSlug = explode('-', $archivedDoc->slug)[0];
 
@@ -284,7 +284,7 @@ class LegalPageController extends Controller
 
         if ($currentDoc) {
             // Archive dokumen aktif saat ini
-            $archivedSlug = $originalSlug . '-' . Str::random(8) . '-' . now()->timestamp;
+            $archivedSlug = $originalSlug.'-'.Str::random(8).'-'.now()->timestamp;
             $currentDoc->update(['slug' => $archivedSlug]);
             $currentDoc->delete(); // soft delete
         }
@@ -303,7 +303,7 @@ class LegalPageController extends Controller
         ]);
 
         return redirect()->route('admin.legal.index')
-            ->with('success', 'Legal page restored from version ' . $archivedDoc->version);
+            ->with('success', 'Legal page restored from version '.$archivedDoc->version);
     }
 
     /**
@@ -316,7 +316,7 @@ class LegalPageController extends Controller
             ->firstOrFail();
 
         // Ubah slug dan soft delete
-        $archivedSlug = $slug . '-' . Str::random(8) . '-' . now()->timestamp;
+        $archivedSlug = $slug.'-'.Str::random(8).'-'.now()->timestamp;
         $legalPage->update(['slug' => $archivedSlug]);
         $legalPage->delete();
 
@@ -345,16 +345,16 @@ class LegalPageController extends Controller
         $active = LegalPage::where('slug', $slug)
             ->whereNull('deleted_at')
             ->first();
-        
+
         if ($active) {
-            $archivedSlug = $slug . '-' . Str::random(8) . '-' . now()->timestamp;
+            $archivedSlug = $slug.'-'.Str::random(8).'-'.now()->timestamp;
             $active->update(['slug' => $archivedSlug]);
             $active->delete();
         }
 
         // Force delete semua archived
         LegalPage::onlyTrashed()
-            ->where('slug', 'LIKE', $slug . '-%')
+            ->where('slug', 'LIKE', $slug.'-%')
             ->forceDelete();
 
         return redirect()->route('admin.legal.index')

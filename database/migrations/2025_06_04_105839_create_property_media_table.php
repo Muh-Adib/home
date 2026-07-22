@@ -21,13 +21,13 @@ return new class extends Migration
             $table->bigInteger('file_size');
             $table->string('mime_type', 100);
             $table->enum('category', [
-                'exterior', 
-                'living_room', 
-                'bedroom', 
-                'kitchen', 
-                'bathroom', 
-                'amenities', 
-                'tour'
+                'exterior',
+                'living_room',
+                'bedroom',
+                'kitchen',
+                'bathroom',
+                'amenities',
+                'tour',
             ])->default('exterior');
             $table->string('title')->nullable();
             $table->string('alt_text')->nullable();

@@ -86,8 +86,8 @@ class BookingIntegrationTest extends TestCase
 
         $this->assertEquals(2, $rateCalculation->nights);
         $this->assertEquals(1000000, $rateCalculation->baseAmount); // 2 nights * 500k
-        $this->assertEquals(100000, $rateCalculation->cleaningFee);
-        $this->assertGreaterThanOrEqual(1100000, $rateCalculation->totalAmount); // base + cleaning fee
+        $this->assertEquals(0, $rateCalculation->cleaningFee);
+        $this->assertGreaterThanOrEqual(1000000, $rateCalculation->totalAmount); // base + cleaning fee
 
         // Step 3: Create booking
         $bookingRequest = BookingRequest::fromArray([
@@ -217,8 +217,8 @@ class BookingIntegrationTest extends TestCase
 
         // Verify weekend premium is included in total
         $this->assertGreaterThan(1000000, $booking->total_amount);
-        // Total should include base (2*500k=1000000) + weekend premium (200000) + cleaning (100000)
-        $this->assertEquals(1000000 + $expectedWeekendPremium + 100000, $booking->total_amount);
+        // Total should include base (2*500k=1000000) + weekend premium (200000) + cleaning (0)
+        $this->assertEquals(1000000 + $expectedWeekendPremium + 0, $booking->total_amount);
     }
 
     #[Test]

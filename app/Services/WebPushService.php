@@ -12,15 +12,24 @@ use Minishlink\WebPush\WebPush;
 
 class WebPushService
 {
-    private WebPush $webPush;
+    private ?WebPush $webPush = null;
 
     public function __construct()
     {
+        $publicKey = config('webpush.vapid.public_key');
+        $privateKey = config('webpush.vapid.private_key');
+
+        if (empty($publicKey) || empty($privateKey)) {
+            Log::warning('[WebPush] VAPID keys are not configured. Web Push notifications are disabled.');
+
+            return;
+        }
+
         $auth = [
             'VAPID' => [
                 'subject' => config('app.url'),
-                'publicKey' => config('webpush.vapid.public_key'),
-                'privateKey' => config('webpush.vapid.private_key'),
+                'publicKey' => $publicKey,
+                'privateKey' => $privateKey,
             ],
         ];
 
@@ -72,6 +81,12 @@ class WebPushService
      */
     private function send(Collection $subscriptions, array $payload): void
     {
+        if (! $this->webPush) {
+            Log::warning('[WebPush] Cannot send push notification: WebPush client is not initialized due to missing VAPID keys.');
+
+            return;
+        }
+
         $json = json_encode($payload);
 
         foreach ($subscriptions as $sub) {

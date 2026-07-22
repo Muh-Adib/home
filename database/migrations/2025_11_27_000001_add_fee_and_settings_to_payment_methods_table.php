@@ -14,19 +14,19 @@ return new class extends Migration
         Schema::table('payment_methods', function (Blueprint $table) {
 
             // Protect: Pastikan kolom belum ada sebelum menambahkan
-            if (!Schema::hasColumn('payment_methods', 'fee_percentage')) {
+            if (! Schema::hasColumn('payment_methods', 'fee_percentage')) {
                 $table->decimal('fee_percentage', 5, 2)->default(0)->after('sort_order');
             }
 
-            if (!Schema::hasColumn('payment_methods', 'fee_fixed')) {
+            if (! Schema::hasColumn('payment_methods', 'fee_fixed')) {
                 $table->decimal('fee_fixed', 12, 2)->default(0)->after('fee_percentage');
             }
 
-            if (!Schema::hasColumn('payment_methods', 'fee_type')) {
+            if (! Schema::hasColumn('payment_methods', 'fee_type')) {
                 $table->string('fee_type', 20)->default('percentage')->after('fee_fixed');
             }
 
-            if (!Schema::hasColumn('payment_methods', 'ipaymu_settings')) {
+            if (! Schema::hasColumn('payment_methods', 'ipaymu_settings')) {
                 $table->json('ipaymu_settings')->nullable()->after('fee_type');
             }
         });

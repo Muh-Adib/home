@@ -1,13 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
+use App\Models\BankMutation;
 use App\Models\Booking;
+use App\Models\BookingService;
 use App\Models\EmployeeLoan;
 use App\Models\EmployeeLoanPayment;
 use App\Models\Income;
+use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Property;
 use App\Models\PropertyExpense;
@@ -15,10 +20,15 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\ExpenseService;
+use App\Services\Financial\PaymentIncomeSyncService;
 use App\Services\WalletService;
 use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Inertia\Response;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class FinanceController extends Controller
 {
@@ -468,7 +478,7 @@ class FinanceController extends Controller
             $currentBalance = $wallet->fresh()->balance;
             if ($currentBalance < $validated['amount']) {
                 return redirect()->back()->withErrors([
-                    'amount' => 'Saldo tidak cukup. Saldo saat ini: Rp '.number_format($currentBalance, 0, ',', '.'),
+                    'amount' => 'Saldo tidak cukup. Saldo saat ini: Rp '.number_format((float) $currentBalance, 0, ',', '.'),
                 ]);
             }
         }
@@ -630,6 +640,50 @@ class FinanceController extends Controller
             ->orderBy('name')
             ->get();
 
+        $propertyIds = $properties->pluck('id');
+
+        // Preload bookings for occupancy/booked nights calculation
+        $allBookingsForNights = Booking::whereIn('property_id', $propertyIds)
+            ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
+            ->where('check_in', '<', $endDate)
+            ->where('check_out', '>', $startDate)
+            ->get(['property_id', 'check_in', 'check_out'])
+            ->groupBy('property_id');
+
+        // Aggregated All-Time Income
+        $allTimeIncomes = Income::selectRaw('property_id, SUM(amount) as total, MIN(income_date) as first_date')
+            ->whereIn('property_id', $propertyIds)
+            ->groupBy('property_id')
+            ->get()
+            ->keyBy('property_id');
+
+        // Aggregated All-Time Expenses (excluding capital and prive)
+        $allTimeExpenses = PropertyExpense::selectRaw('property_id, SUM(amount) as total')
+            ->whereIn('property_id', $propertyIds)
+            ->whereNotIn('expense_scope', ['capital', 'prive'])
+            ->where('status', 'approved')
+            ->groupBy('property_id')
+            ->get()
+            ->keyBy('property_id');
+
+        // Aggregated All-Time Capex
+        $allTimeCapexData = PropertyExpense::selectRaw('property_id, SUM(amount) as total')
+            ->whereIn('property_id', $propertyIds)
+            ->where('expense_scope', 'capital')
+            ->where('status', 'approved')
+            ->groupBy('property_id')
+            ->get()
+            ->keyBy('property_id');
+
+        // Aggregated All-Time Prive
+        $allTimePriveData = PropertyExpense::selectRaw('property_id, SUM(amount) as total')
+            ->whereIn('property_id', $propertyIds)
+            ->where('expense_scope', 'prive')
+            ->where('status', 'approved')
+            ->groupBy('property_id')
+            ->get()
+            ->keyBy('property_id');
+
         // Build query for incomes
         $incomesQuery = Income::whereBetween('income_date', [$startDate, $endDate]);
         if ($propertyId) {
@@ -732,20 +786,36 @@ class FinanceController extends Controller
             $totalOwnerShare += $ownerShare;
             $totalInvestorShare += $investorShare;
 
-            // Calculate booked nights / occupancy
-            $bookedNights = $this->getBookedNightsForProperty($property->id, $startDate, $endDate);
+            // Calculate booked nights / occupancy in memory
+            $propBookings = $allBookingsForNights->get($property->id, collect());
+            $bookedNights = 0;
+            $start = Carbon::parse($startDate);
+            $end = Carbon::parse($endDate);
+
+            foreach ($propBookings as $booking) {
+                $checkIn = Carbon::parse($booking->check_in);
+                $checkOut = Carbon::parse($booking->check_out);
+
+                $overlapStart = $checkIn->max($start);
+                $overlapEnd = $checkOut->min($end);
+
+                if ($overlapStart->lt($overlapEnd)) {
+                    $bookedNights += $overlapStart->diffInDays($overlapEnd);
+                }
+            }
+
             $occupancyRate = ($monthFactor * 30 > 0) ? ($bookedNights / ($monthFactor * 30)) * 100 : 0;
             $lowOccupancyAlert = $bookedNights < (25 * $monthFactor);
 
-            // Cumulative net profit BEP calculations including capital expenses
-            $allTimeIncome = Income::where('property_id', $property->id)->sum('amount');
+            // Cumulative net profit BEP calculations using preloaded data
+            $incomeAgg = $allTimeIncomes->get($property->id);
+            $allTimeIncome = $incomeAgg ? (float) $incomeAgg->total : 0.0;
+            $firstTxDate = $incomeAgg ? $incomeAgg->first_date : (optional($property->created_at)->toDateString() ?? now()->toDateString());
 
-            // All-time operational expenses (exclude CAPEX and prive)
-            $allTimeExpense = PropertyExpense::where('property_id', $property->id)
-                ->whereNotIn('expense_scope', ['capital', 'prive'])
-                ->sum('amount');
+            $allTimeExpense = (float) ($allTimeExpenses->get($property->id)?->total ?? 0.0);
+            $allTimeCapex = (float) ($allTimeCapexData->get($property->id)?->total ?? 0.0);
+            $allTimePrive = (float) ($allTimePriveData->get($property->id)?->total ?? 0.0);
 
-            $firstTxDate = Income::where('property_id', $property->id)->min('income_date') ?? (optional($property->created_at)->toDateString() ?? now()->toDateString());
             $monthsSinceStart = max(1, round(Carbon::parse($firstTxDate)->diffInMonths(now())));
 
             $allTimeRentOrInterest = 0;
@@ -754,18 +824,6 @@ class FinanceController extends Controller
             } elseif ($property->ownership_model === 'owned') {
                 $allTimeRentOrInterest = $property->mortgage_interest_monthly * $monthsSinceStart;
             }
-
-            // Cumulative approved CAPEX
-            $allTimeCapex = PropertyExpense::where('property_id', $property->id)
-                ->where('expense_scope', 'capital')
-                ->where('status', 'approved')
-                ->sum('amount');
-
-            // Cumulative Prive
-            $allTimePrive = PropertyExpense::where('property_id', $property->id)
-                ->where('expense_scope', 'prive')
-                ->where('status', 'approved')
-                ->sum('amount');
 
             $cumulativeProfit = $allTimeIncome - $allTimeExpense - $allTimeRentOrInterest - $allTimePrive;
 
@@ -945,5 +1003,492 @@ class FinanceController extends Controller
         }
 
         return redirect()->back()->with('success', 'Cicilan casbon berhasil dicatat');
+    }
+
+    /**
+     * Display unmapped debit bank mutations for reconciliation
+     */
+    public function unmappedDebitMutations(Request $request): Response
+    {
+        $user = $request->user();
+        if (! in_array($user->role, ['super_admin', 'finance'])) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $debitMutations = BankMutation::with(['bankAccount'])
+            ->where('direction', 'debit')
+            ->where('status', 'baru')
+            ->whereDoesntHave('propertyExpense')
+            ->orderBy('trx_at', 'desc')
+            ->get();
+
+        $kreditMutations = BankMutation::with(['bankAccount'])
+            ->where('direction', 'kredit')
+            ->where('status', 'baru')
+            ->whereNull('matched_payment_id')
+            ->orderBy('trx_at', 'desc')
+            ->get();
+
+        $recentPayments = Payment::with(['booking.property'])
+            ->orderBy('created_at', 'desc')
+            ->take(150)
+            ->get();
+
+        $properties = Property::active()->orderBy('name')->get(['id', 'name', 'color']);
+        $wallets = Wallet::orderBy('name')->get(['id', 'name', 'balance']);
+        $bankAccounts = BankAccount::visibleToUser($user)->orderBy('label')->get(['id', 'bank_name', 'account_number', 'account_holder', 'label', 'wallet_id', 'visibility_mode']);
+        $expenseScopes = config('finance.expense_scopes', []);
+        $expenseCategories = config('finance.expense_categories', []);
+        $expenseTypes = config('finance.expense_types', []);
+        $scopeCategories = config('finance.scope_categories', []);
+
+        return Inertia::render('Admin/Finance/EStatementSync', [
+            'mutations' => $debitMutations,
+            'debitMutations' => $debitMutations,
+            'kreditMutations' => $kreditMutations,
+            'recentPayments' => $recentPayments,
+            'properties' => $properties,
+            'wallets' => $wallets,
+            'bankAccounts' => $bankAccounts,
+            'expenseScopes' => $expenseScopes,
+            'expenseCategories' => $expenseCategories,
+            'expenseTypes' => $expenseTypes,
+            'scopeCategories' => $scopeCategories,
+        ]);
+    }
+
+    /**
+     * Upload and import bank e-Statement file (.xlsx / .xls / .csv) with optional password decryption
+     * and automatic Bank Account / Wallet creation.
+     */
+    public function importStatement(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        if (! in_array($user->role, ['super_admin', 'finance'])) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $request->validate([
+            'statement_file' => 'required|file|max:10240',
+            'bank_account_id' => 'nullable|string',
+            'file_password' => 'nullable|string',
+        ]);
+
+        $file = $request->file('statement_file');
+        $password = trim((string) $request->input('file_password', ''));
+        $bankAccountId = $request->input('bank_account_id');
+
+        // Create temporary output path for decryption
+        $tmpDir = storage_path('app/tmp_statements');
+        if (! is_dir($tmpDir)) {
+            mkdir($tmpDir, 0755, true);
+        }
+
+        $uniqueId = uniqid('stmt_');
+        $decryptedPath = $tmpDir.'/'.$uniqueId.'.xlsx';
+        $uploadedPath = $file->getPathname();
+
+        // 1. Decrypt file via python script if encrypted or password provided
+        $pythonScript = base_path('app/Scripts/decrypt_statement.py');
+        $cmd = sprintf(
+            '/usr/local/bin/python3 %s %s %s %s 2>&1',
+            escapeshellarg($pythonScript),
+            escapeshellarg($uploadedPath),
+            escapeshellarg($decryptedPath),
+            escapeshellarg($password)
+        );
+
+        $output = shell_exec($cmd);
+        $res = json_decode((string) $output, true);
+
+        if (! is_array($res) || empty($res['success'])) {
+            $errorMsg = $res['error'] ?? 'Gagal memproses file e-Statement.';
+            if (! empty($res['requires_password'])) {
+                return redirect()->back()->withErrors(['file_password' => $errorMsg])->withInput();
+            }
+
+            return redirect()->back()->withErrors(['statement_file' => $errorMsg])->withInput();
+        }
+
+        $targetFilePath = file_exists($decryptedPath) ? $decryptedPath : $uploadedPath;
+
+        try {
+            $reader = IOFactory::createReaderForFile($targetFilePath);
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($targetFilePath);
+
+            $accountNumber = null;
+            $accountHolder = null;
+            $bankName = 'Mandiri';
+            $transactions = [];
+
+            // 2. Scan spreadsheet for Header Data & Transactions
+            foreach ($spreadsheet->getAllSheets() as $sheet) {
+                $rows = $sheet->toArray();
+                $inTxSection = false;
+
+                foreach ($rows as $row) {
+                    $rowClean = array_map(fn ($v) => $v !== null ? trim((string) $v) : '', $row);
+                    $rowStr = implode(' ', array_filter($rowClean));
+
+                    // Header Detection
+                    if (preg_match('/Nomor Rekening[^\d]*(\d+)/i', $rowStr, $m)) {
+                        $accountNumber = $m[1];
+                    }
+                    if (preg_match('/Nama\/Name\s*:\s*([^\r\n]+)/i', $rowStr, $m)) {
+                        $accountHolder = trim(explode('Periode', $m[1])[0]);
+                    }
+                    if (str_contains(strtolower($rowStr), 'bca')) {
+                        $bankName = 'BCA';
+                    } elseif (str_contains(strtolower($rowStr), 'mandiri')) {
+                        $bankName = 'Mandiri';
+                    }
+
+                    // Skip header summary rows or rows containing account numbers
+                    if (str_contains($rowStr, 'Nomor Rekening') || str_contains($rowStr, 'Account Number') || str_contains($rowStr, 'Saldo Awal') || str_contains($rowStr, 'Saldo Akhir') || str_contains($rowStr, 'Dana Masuk') || str_contains($rowStr, 'Dana Keluar')) {
+                        continue;
+                    }
+
+                    $currentDate = null;
+                    foreach ($rowClean as $cell) {
+                        if (preg_match('/^\d{1,2}\s+[A-Za-z]{3}\s+\d{4}$/', $cell)) {
+                            try {
+                                $currentDate = Carbon::createFromFormat('d M Y', $cell)->toDateString();
+                            } catch (\Exception $e) {
+                            }
+                        }
+                    }
+
+                    if ($currentDate) {
+                        // Extract amounts (Skip index 0 which is row sequence number "No")
+                        $nonEmpty = array_values(array_filter($rowClean, fn ($v) => $v !== ''));
+                        $remarks = [];
+                        $amounts = [];
+
+                        for ($i = 1; $i < count($nonEmpty); $i++) {
+                            $c = $nonEmpty[$i];
+                            $cleanNum = str_replace('.', '', $c);
+                            $cleanNum = str_replace(',', '.', $cleanNum);
+
+                            if (is_numeric($cleanNum) && (float) $cleanNum > 0 && (float) $cleanNum < 500000000 && ! preg_match('/^\d{1,2}\s+[A-Za-z]{3}\s+\d{4}$/', $c)) {
+                                $amounts[] = (float) $cleanNum;
+                            } elseif (! is_numeric($c) && ! preg_match('/^\d{1,2}\s+[A-Za-z]{3}\s+\d{4}$/', $c) && ! in_array($c, ['No', 'Date', 'Tanggal', 'Keterangan', 'Remarks'])) {
+                                $remarks[] = $c;
+                            }
+                        }
+
+                        $desc = implode(' ', $remarks);
+
+                        if (count($amounts) >= 1) {
+                            $txAmount = $amounts[0];
+                            $direction = 'debit';
+
+                            if (str_contains(strtolower($desc), 'transfer dari') || str_contains(strtolower($desc), 'setor') || str_contains(strtolower($desc), 'kredit')) {
+                                $direction = 'kredit';
+                            }
+
+                            $transactions[] = [
+                                'date' => $currentDate,
+                                'description' => substr($desc ?: $rowStr, 0, 255),
+                                'amount' => $txAmount,
+                                'direction' => $direction,
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // 3. Resolve or Auto-Create BankAccount & Wallet
+            $bankAccount = null;
+            if (! empty($bankAccountId) && is_numeric($bankAccountId) && (int) $bankAccountId > 0) {
+                $bankAccount = BankAccount::find($bankAccountId);
+            }
+
+            if (! $bankAccount && ! empty($accountNumber)) {
+                $bankAccount = BankAccount::where('account_number', $accountNumber)->first();
+            }
+
+            if (! $bankAccount) {
+                $accNum = $accountNumber ?: 'AUTO_'.rand(1000, 9999);
+                $accHolder = $accountHolder ?: 'E-Statement Import';
+
+                $bankAccount = BankAccount::create([
+                    'bank_name' => $bankName,
+                    'account_number' => $accNum,
+                    'account_holder' => $accHolder,
+                    'label' => "{$bankName} {$accHolder} ({$accNum})",
+                    'is_active' => true,
+                ]);
+
+                app(WalletService::class)->ensureEveryBankAccountHasWallet();
+                $bankAccount->refresh();
+            }
+
+            // 4. Save Transactions into bank_mutations (Anti-Duplication)
+            $imported = 0;
+            $duplicates = 0;
+
+            foreach ($transactions as $tx) {
+                $exists = BankMutation::where('bank_account_id', $bankAccount->id)
+                    ->where('trx_at', 'LIKE', "{$tx['date']}%")
+                    ->where('amount', $tx['amount'])
+                    ->where('direction', $tx['direction'])
+                    ->exists();
+
+                if (! $exists) {
+                    BankMutation::create([
+                        'bank_account_id' => $bankAccount->id,
+                        'trx_at' => "{$tx['date']} 12:00:00",
+                        'amount' => $tx['amount'],
+                        'direction' => $tx['direction'],
+                        'description' => $tx['description'],
+                        'source' => 'impor',
+                        'status' => 'baru',
+                        'imported_at' => now(),
+                    ]);
+                    $imported++;
+                } else {
+                    $duplicates++;
+                }
+            }
+
+            // Cleanup temp file
+            if (file_exists($decryptedPath)) {
+                @unlink($decryptedPath);
+            }
+
+            return redirect()->back()->with('success', "Berhasil memproses e-Statement untuk Rekening {$bankAccount->bank_name} {$bankAccount->account_number} (a.n. {$bankAccount->account_holder}). Diimpor: {$imported} mutasi baru ({$duplicates} duplikat dilewati).");
+
+        } catch (\Exception $e) {
+            if (file_exists($decryptedPath)) {
+                @unlink($decryptedPath);
+            }
+
+            return redirect()->back()->withErrors(['statement_file' => 'Gagal membaca file statement: '.$e->getMessage()])->withInput();
+        }
+    }
+
+    /**
+     * Map debit mutation to a PropertyExpense
+     */
+    public function mapDebitMutation(Request $request, ExpenseService $expenseService): RedirectResponse
+    {
+        $user = $request->user();
+        if (! in_array($user->role, ['super_admin', 'finance'])) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $validated = $request->validate([
+            'bank_mutation_id' => 'required|exists:bank_mutations,id',
+            'property_id' => 'nullable|exists:properties,id',
+            'expense_scope' => 'required|string|in:operational,unit,house,kitchen,capital,prive',
+            'expense_category' => 'required|string',
+            'expense_type' => 'nullable|string|in:fixed,variable,additional',
+            'description' => 'nullable|string|max:255',
+            'vendor_name' => 'nullable|string|max:255',
+            'receipt_number' => 'nullable|string|max:255',
+            'wallet_id' => 'nullable|exists:wallets,id',
+            'receipt_image' => 'nullable|file|image|max:5120',
+        ]);
+
+        $mutation = BankMutation::findOrFail($validated['bank_mutation_id']);
+
+        DB::transaction(function () use ($validated, $mutation, $user, $request, $expenseService) {
+            // Determine wallet
+            $walletId = $validated['wallet_id'];
+            if (! $walletId && $mutation->bankAccount) {
+                $walletId = $mutation->bankAccount->wallet_id;
+            }
+
+            $description = $validated['description'] ?? $mutation->description ?? "Pengeluaran Reconciled: Bank Mutation #{$mutation->id}";
+
+            $expense = PropertyExpense::create([
+                'property_id' => $validated['property_id'] ?: null,
+                'expense_scope' => $validated['expense_scope'],
+                'expense_category' => $validated['expense_category'],
+                'expense_type' => $validated['expense_type'] ?? 'variable',
+                'description' => $description,
+                'amount' => $mutation->amount,
+                'expense_date' => $mutation->trx_at->toDateString(),
+                'vendor_name' => $validated['vendor_name'] ?? null,
+                'receipt_number' => $validated['receipt_number'] ?? null,
+                'payment_method' => 'bank_transfer',
+                'wallet_id' => $walletId ? (int) $walletId : null,
+                'status' => 'approved',
+                'recorded_by' => $user->id,
+                'approved_by' => $user->id,
+                'approved_at' => now(),
+                'bank_mutation_id' => $mutation->id,
+                'created_by' => $user->id,
+            ]);
+
+            // If receipt image uploaded, upload via ExpenseService
+            if ($request->hasFile('receipt_image')) {
+                $expenseService->uploadReceipt($expense, $request->file('receipt_image'));
+            }
+
+            // Update mutation status
+            $mutation->update(['status' => 'cocok']);
+
+            // Create WalletTransaction if wallet is linked
+            if ($walletId) {
+                $category = $expense->expense_scope === 'prive' ? 'prive' : 'expense';
+
+                WalletTransaction::create([
+                    'wallet_id' => (int) $walletId,
+                    'direction' => 'out',
+                    'amount' => $mutation->amount,
+                    'category' => $category,
+                    'transaction_date' => $mutation->trx_at->toDateString(),
+                    'description' => $description,
+                    'reference_type' => PropertyExpense::class,
+                    'reference_id' => $expense->id,
+                    'created_by' => $user->id,
+                ]);
+
+                app(WalletService::class)->recalculateBalance((int) $walletId);
+            }
+        });
+
+        return redirect()->back()->with('success', 'Mutasi debet berhasil di-sync ke pengeluaran.');
+    }
+
+    /**
+     * Map a Kredit bank mutation (income) to a Booking Payment
+     */
+    public function mapKreditMutation(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        if (! in_array($user->role, ['super_admin', 'finance'])) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $validated = $request->validate([
+            'bank_mutation_id' => 'required|exists:bank_mutations,id',
+            'payment_id' => 'required|exists:payments,id',
+        ]);
+
+        $mutation = BankMutation::findOrFail($validated['bank_mutation_id']);
+        $payment = Payment::with('booking')->findOrFail($validated['payment_id']);
+
+        DB::transaction(function () use ($mutation, $payment) {
+            // 1. Link bank mutation to payment & mark status 'cocok'
+            $mutation->update([
+                'matched_payment_id' => $payment->id,
+                'status' => 'cocok',
+            ]);
+
+            // 2. If payment is not verified yet, verify it and trigger income sync
+            if ($payment->payment_status !== 'verified') {
+                $payment->update([
+                    'payment_status' => 'verified',
+                    'verified_at' => now(),
+                ]);
+
+                if (class_exists(PaymentIncomeSyncService::class)) {
+                    app(PaymentIncomeSyncService::class)->syncOnVerified($payment);
+                }
+            }
+        });
+
+        $guestName = $payment->booking->guest_name ?? 'Tamu';
+
+        return redirect()->back()->with('success', 'Mutasi kredit Rp '.number_format((float) $mutation->amount, 0, ',', '.')." berhasil dipadankan ke Pembayaran #{$payment->payment_number} ({$guestName}).");
+    }
+
+    /**
+     * Display unbilled breakfast extra services for vendor billing
+     */
+    public function unbilledBreakfasts(Request $request): Response
+    {
+        $user = $request->user();
+        if (! in_array($user->role, ['super_admin', 'finance'])) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $breakfasts = BookingService::with(['booking.property'])
+            ->where('service_type', 'breakfast')
+            ->where('status', 'provided')
+            ->whereNull('expense_id')
+            ->orderBy('service_date', 'asc')
+            ->get();
+
+        $wallets = Wallet::orderBy('name')->get(['id', 'name', 'balance']);
+
+        return Inertia::render('Admin/Finance/BreakfastBilling', [
+            'breakfasts' => $breakfasts,
+            'wallets' => $wallets,
+        ]);
+    }
+
+    /**
+     * Bill selected breakfasts and generate PropertyExpense
+     */
+    public function billBreakfasts(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        if (! in_array($user->role, ['super_admin', 'finance'])) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $validated = $request->validate([
+            'booking_service_ids' => 'required|array',
+            'booking_service_ids.*' => 'exists:booking_services,id',
+            'vendor_name' => 'required|string|max:150',
+            'wallet_id' => 'required|exists:wallets,id',
+        ]);
+
+        $services = BookingService::whereIn('id', $validated['booking_service_ids'])
+            ->whereNull('expense_id')
+            ->get();
+
+        if ($services->isEmpty()) {
+            return redirect()->back()->withErrors(['booking_service_ids' => 'Tidak ada sarapan yang valid atau belum ditagih untuk diproses.']);
+        }
+
+        $totalBill = $services->sum('vendor_total_price');
+        $firstService = $services->first();
+        // Associate with property of first service if applicable
+        $propertyId = $firstService->booking ? $firstService->booking->property_id : null;
+
+        DB::transaction(function () use ($validated, $services, $totalBill, $propertyId, $user) {
+            $expense = PropertyExpense::create([
+                'property_id' => $propertyId,
+                'expense_scope' => 'operational',
+                'expense_category' => 'catering',
+                'expense_type' => 'variable',
+                'description' => "Tagihan Vendor Sarapan: {$validated['vendor_name']} (".count($services).' porsi)',
+                'amount' => $totalBill,
+                'expense_date' => now()->toDateString(),
+                'payment_method' => 'cash',
+                'wallet_id' => $validated['wallet_id'],
+                'status' => 'approved',
+                'recorded_by' => $user->id,
+                'approved_by' => $user->id,
+                'approved_at' => now(),
+                'created_by' => $user->id,
+            ]);
+
+            // Link services to the expense
+            foreach ($services as $service) {
+                $service->update(['expense_id' => $expense->id]);
+            }
+
+            // Create WalletTransaction
+            WalletTransaction::create([
+                'wallet_id' => $validated['wallet_id'],
+                'direction' => 'out',
+                'amount' => $totalBill,
+                'category' => 'expense',
+                'transaction_date' => now()->toDateString(),
+                'description' => "Bayar Tagihan Sarapan: {$validated['vendor_name']} (".count($services).' porsi)',
+                'reference_type' => PropertyExpense::class,
+                'reference_id' => $expense->id,
+            ]);
+
+            app(WalletService::class)->recalculateBalance((int) $validated['wallet_id']);
+        });
+
+        return redirect()->back()->with('success', 'Tagihan sarapan vendor berhasil dicatat dan diproses.');
     }
 }

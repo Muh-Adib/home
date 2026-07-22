@@ -164,7 +164,7 @@ class AIProviderKeyController extends Controller
      */
     public function toggleActive(AIProviderKey $aiKey)
     {
-        $aiKey->update(['is_active' => !$aiKey->is_active]);
+        $aiKey->update(['is_active' => ! $aiKey->is_active]);
 
         return back()->with('success', 'Key status updated successfully');
     }
@@ -194,7 +194,7 @@ class AIProviderKeyController extends Controller
 
         $result = $syncService->sync($validated['provider'], $apiKey);
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return response()->json($result, 400);
         }
 

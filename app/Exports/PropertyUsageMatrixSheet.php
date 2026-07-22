@@ -4,16 +4,20 @@ namespace App\Exports;
 
 use App\Models\InventoryUsage;
 use Maatwebsite\Excel\Concerns\FromArray;
-use Maatwebsite\Excel\Concerns\WithTitle;
-use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithTitle;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class PropertyUsageMatrixSheet implements FromArray, WithTitle, WithStyles, ShouldAutoSize
+class PropertyUsageMatrixSheet implements FromArray, ShouldAutoSize, WithStyles, WithTitle
 {
     protected $propertyId;
+
     protected $propertyName;
+
     protected $dateFrom;
+
     protected $dateTo;
 
     public function __construct($propertyId, $propertyName, $dateFrom = null, $dateTo = null)
@@ -55,8 +59,10 @@ class PropertyUsageMatrixSheet implements FromArray, WithTitle, WithStyles, Shou
 
         // Item row: items vertically
         foreach ($items as $item) {
-            if (!$item) continue;
-            $row = [$item->name . ' (' . $item->unit . ')'];
+            if (! $item) {
+                continue;
+            }
+            $row = [$item->name.' ('.$item->unit.')'];
             foreach ($dates as $date) {
                 $qty = $usages->where('inventory_item_id', $item->id)
                     ->where('usage_date', $date)
@@ -75,7 +81,7 @@ class PropertyUsageMatrixSheet implements FromArray, WithTitle, WithStyles, Shou
             1 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
                 'fill' => [
-                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                    'fillType' => Fill::FILL_SOLID,
                     'startColor' => ['rgb' => '2563EB'],
                 ],
             ],

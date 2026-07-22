@@ -4,8 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Property;
 use App\Services\ICalService;
-use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 
 class ICalController extends Controller
 {
@@ -29,7 +27,7 @@ class ICalController extends Controller
 
         return response($content)
             ->header('Content-Type', 'text/calendar; charset=utf-8')
-            ->header('Content-Disposition', 'attachment; filename="' . $slug . '.ics"');
+            ->header('Content-Disposition', 'attachment; filename="'.$slug.'.ics"');
     }
 
     /**
@@ -40,9 +38,9 @@ class ICalController extends Controller
         $result = $this->icalService->syncFromExternal($property);
 
         if ($result['success']) {
-            return back()->with('success', 'iCal synchronization successful. ' . $result['count'] . ' external entries processed.');
+            return back()->with('success', 'iCal synchronization successful. '.$result['count'].' external entries processed.');
         }
 
-        return back()->with('error', 'iCal synchronization failed: ' . $result['message']);
+        return back()->with('error', 'iCal synchronization failed: '.$result['message']);
     }
 }

@@ -10,7 +10,8 @@ use Illuminate\Support\Facades\DB;
  * Also removes the stale `schema_markup` key from `generation_metadata` JSON,
  * since schema is now generated automatically on-the-fly by SeoService.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         $driver = DB::connection()->getDriverName();

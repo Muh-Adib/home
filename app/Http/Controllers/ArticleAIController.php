@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Article;
-use App\Services\AIArticleService;
 use App\Exceptions\AIGenerationException;
-use Illuminate\Http\Request;
+use App\Models\Article;
+use App\Models\Property;
+use App\Services\AIArticleService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -16,8 +17,7 @@ class ArticleAIController extends Controller
 {
     public function __construct(
         private AIArticleService $aiService
-    ) {
-    }
+    ) {}
 
     /**
      * Generate title suggestions
@@ -82,27 +82,28 @@ class ArticleAIController extends Controller
         try {
             // Load real property data to inject into outline prompt
             $properties = [];
-            if (!empty($validated['property_ids'])) {
-                $properties = \App\Models\Property::with(['media' => function ($q) {
+            if (! empty($validated['property_ids'])) {
+                $properties = Property::with(['media' => function ($q) {
                     $q->orderBy('display_order');
                 }])
-                ->whereIn('id', $validated['property_ids'])
-                ->get(['id', 'name', 'slug', 'description', 'location', 'address', 'capacity', 'bedroom_count', 'base_rate'])
-                ->map(function ($p) {
-                    $coverImages = $p->media->take(3)->pluck('url')->toArray();
-                    return [
-                        'id' => $p->id,
-                        'name' => $p->name,
-                        'slug' => $p->slug,
-                        'description' => $p->description,
-                        'location' => $p->location ?? $p->address,
-                        'capacity' => $p->capacity,
-                        'bedrooms' => $p->bedroom_count,
-                        'base_rate' => $p->base_rate,
-                        'images' => $coverImages,
-                    ];
-                })
-                ->toArray();
+                    ->whereIn('id', $validated['property_ids'])
+                    ->get(['id', 'name', 'slug', 'description', 'location', 'address', 'capacity', 'bedroom_count', 'base_rate'])
+                    ->map(function ($p) {
+                        $coverImages = $p->media->take(3)->pluck('url')->toArray();
+
+                        return [
+                            'id' => $p->id,
+                            'name' => $p->name,
+                            'slug' => $p->slug,
+                            'description' => $p->description,
+                            'location' => $p->location ?? $p->address,
+                            'capacity' => $p->capacity,
+                            'bedrooms' => $p->bedroom_count,
+                            'base_rate' => $p->base_rate,
+                            'images' => $coverImages,
+                        ];
+                    })
+                    ->toArray();
             }
 
             $result = $this->aiService->generateOutline(
@@ -126,6 +127,7 @@ class ArticleAIController extends Controller
             ], $e->getCode() ?: 500);
         } catch (\Exception $e) {
             Log::error('Unexpected error in outline generation', ['error' => $e->getMessage()]);
+
             return response()->json([
                 'success' => false,
                 'error' => 'An unexpected error occurred',
@@ -140,40 +142,40 @@ class ArticleAIController extends Controller
     public function generateContent(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'outline'          => 'required|string',
-            'keywords'         => 'required|array',
-            'property_ids'     => 'nullable|array',
-            'property_ids.*'   => 'exists:properties,id',
-            'provider'         => 'nullable|string|in:openrouter,gemini',
-            'language'         => 'nullable|string|in:id,en',
-            'tone'             => 'nullable|string|in:professional,casual',
-            'intent'           => 'nullable|string',
-            'article_type'     => 'nullable|string|in:travel_guide,seo_article,property_article,event_article',
+            'outline' => 'required|string',
+            'keywords' => 'required|array',
+            'property_ids' => 'nullable|array',
+            'property_ids.*' => 'exists:properties,id',
+            'provider' => 'nullable|string|in:openrouter,gemini',
+            'language' => 'nullable|string|in:id,en',
+            'tone' => 'nullable|string|in:professional,casual',
+            'intent' => 'nullable|string',
+            'article_type' => 'nullable|string|in:travel_guide,seo_article,property_article,event_article',
         ]);
 
         try {
             $properties = [];
-            if (!empty($validated['property_ids'])) {
+            if (! empty($validated['property_ids'])) {
                 // Load full property data dengan media — konsisten dengan generateOutline()
-                $properties = \App\Models\Property::with(['media' => function ($q) {
+                $properties = Property::with(['media' => function ($q) {
                     $q->orderBy('display_order');
                 }])
-                ->whereIn('id', $validated['property_ids'])
-                ->get(['id', 'name', 'slug', 'description', 'location', 'address', 'capacity', 'bedroom_count', 'base_rate'])
-                ->map(function ($p) {
-                    return [
-                        'id'          => $p->id,
-                        'name'        => $p->name,
-                        'slug'        => $p->slug,
-                        'description' => $p->description,
-                        'location'    => $p->location ?? $p->address,
-                        'capacity'    => $p->capacity,
-                        'bedrooms'    => $p->bedroom_count,
-                        'base_rate'   => $p->base_rate,
-                        'images'      => $p->media->take(3)->pluck('url')->toArray(),
-                    ];
-                })
-                ->toArray();
+                    ->whereIn('id', $validated['property_ids'])
+                    ->get(['id', 'name', 'slug', 'description', 'location', 'address', 'capacity', 'bedroom_count', 'base_rate'])
+                    ->map(function ($p) {
+                        return [
+                            'id' => $p->id,
+                            'name' => $p->name,
+                            'slug' => $p->slug,
+                            'description' => $p->description,
+                            'location' => $p->location ?? $p->address,
+                            'capacity' => $p->capacity,
+                            'bedrooms' => $p->bedroom_count,
+                            'base_rate' => $p->base_rate,
+                            'images' => $p->media->take(3)->pluck('url')->toArray(),
+                        ];
+                    })
+                    ->toArray();
             }
 
             $result = $this->aiService->generateContent(
@@ -191,21 +193,21 @@ class ArticleAIController extends Controller
 
         } catch (AIGenerationException $e) {
             return response()->json([
-                'success'          => false,
-                'error'            => $e->getMessage(),
-                'details'          => $e->getDetails(),
-                'retry_suggested'  => $e->shouldRetry(),
+                'success' => false,
+                'error' => $e->getMessage(),
+                'details' => $e->getDetails(),
+                'retry_suggested' => $e->shouldRetry(),
             ], $e->getCode() ?: 500);
         } catch (\Exception $e) {
             Log::error('Unexpected error in content generation', ['error' => $e->getMessage()]);
+
             return response()->json([
-                'success'         => false,
-                'error'           => 'An unexpected error occurred',
+                'success' => false,
+                'error' => 'An unexpected error occurred',
                 'retry_suggested' => false,
             ], 500);
         }
     }
-
 
     /**
      * Improve existing content

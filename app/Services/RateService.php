@@ -127,7 +127,7 @@ class RateService
      */
     public function updateCleaningFee(Property $property, float $cleaningFee): Property
     {
-        $property->update(['cleaning_fee' => 0]);
+        $property->update(['cleaning_fee' => $cleaningFee]);
 
         return $property->fresh();
     }

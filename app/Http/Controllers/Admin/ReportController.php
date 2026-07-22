@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Admin;
 
 use App\Exports\PropertyPerformanceExport;
@@ -404,6 +406,29 @@ class ReportController extends Controller
 
         $dailyRevenueChart = array_values($chartData);
 
+        $targetPropertyIds = Property::active()
+            ->whereIn('id', $propertyIds)
+            ->when($propertyId, function ($q) use ($propertyId) {
+                $q->where('id', $propertyId);
+            })
+            ->pluck('id');
+
+        // Preload all incomes in the date range in a single query
+        $allIncomes = Income::whereIn('property_id', $targetPropertyIds)
+            ->whereBetween('income_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->get()
+            ->groupBy('property_id');
+
+        // Preload all bookings in a single query
+        $allBookings = Booking::whereIn('property_id', $targetPropertyIds)
+            ->confirmedBookings()
+            ->where(function ($q) use ($startDate, $endDate) {
+                $q->where('check_in', '<=', $endDate->toDateString())
+                    ->where('check_out', '>=', $startDate->toDateString());
+            })
+            ->get()
+            ->groupBy('property_id');
+
         // 2. Query Property-wise Performance Summary
         $propertyPerformance = Property::active()
             ->whereIn('id', $propertyIds)
@@ -411,22 +436,14 @@ class ReportController extends Controller
                 $q->where('id', $propertyId);
             })
             ->get()
-            ->map(function ($property) use ($startDate, $endDate) {
-                $revenues = Income::where('property_id', $property->id)
-                    ->whereBetween('income_date', [$startDate->toDateString(), $endDate->toDateString()])
-                    ->get();
+            ->map(function ($property) use ($startDate, $endDate, $allIncomes, $allBookings) {
+                $revenues = $allIncomes->get($property->id, collect());
 
                 $roomRevenue = $revenues->where('source', 'booking')->sum('amount');
                 $servicesRevenue = $revenues->where('source', '!=', 'booking')->sum('amount');
                 $totalRevenue = $roomRevenue + $servicesRevenue;
 
-                $bookingsCount = Booking::where('property_id', $property->id)
-                    ->confirmedBookings()
-                    ->where(function ($q) use ($startDate, $endDate) {
-                        $q->where('check_in', '<=', $endDate->toDateString())
-                            ->where('check_out', '>=', $startDate->toDateString());
-                    })
-                    ->count();
+                $bookingsCount = $allBookings->get($property->id, collect())->count();
 
                 $bookedDays = $revenues->count();
                 $totalDays = max(1, $startDate->diffInDays($endDate));
@@ -635,9 +652,9 @@ class ReportController extends Controller
     {
         $user = $request->user();
         $reportType = $request->input('type', 'revenue');
-        if (in_array($user->role, ['front_desk', 'finance', 'property_manager'])) {
-            if ($reportType !== 'occupancy') {
-                abort(403, 'Akses ditolak. Anda hanya memiliki hak akses untuk Laporan Okupansi.');
+        if ($reportType !== 'occupancy') {
+            if ($user->role !== 'super_admin') {
+                abort(403, 'Akses ditolak. Hanya Super Admin yang dapat mengekspor laporan keuangan.');
             }
         }
         $format = $request->input('format', 'csv');

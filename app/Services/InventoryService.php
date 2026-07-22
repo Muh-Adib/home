@@ -110,7 +110,7 @@ class InventoryService
         });
     }
 
-    public function recordUsage(int $itemId, int $propertyId, string $date, float $quantity, ?int $userId, ?string $notes = null): InventoryUsage
+    public function recordUsage(int $itemId, ?int $propertyId, string $date, float $quantity, ?int $userId, ?string $notes = null): InventoryUsage
     {
         return DB::transaction(function () use ($itemId, $propertyId, $date, $quantity, $userId, $notes) {
             $formattedDate = Carbon::parse($date)->toDateString();
@@ -134,11 +134,16 @@ class InventoryService
             ]);
 
             // Cek apakah usage untuk kombinasi ini sudah ada
-            $usage = InventoryUsage::where('inventory_item_id', $itemId)
-                ->where('property_id', $propertyId)
-                ->whereDate('usage_date', $formattedDate)
-                ->lockForUpdate()
-                ->first();
+            $usageQuery = InventoryUsage::where('inventory_item_id', $itemId)
+                ->whereDate('usage_date', $formattedDate);
+
+            if ($propertyId === null) {
+                $usageQuery->whereNull('property_id');
+            } else {
+                $usageQuery->where('property_id', $propertyId);
+            }
+
+            $usage = $usageQuery->lockForUpdate()->first();
 
             $isNewUsage = ! $usage;
             $oldTotalCost = $usage ? (float) $usage->total_cost : 0;

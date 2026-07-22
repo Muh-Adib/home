@@ -42,7 +42,7 @@ class PropertyFinancialDashboardTest extends TestCase
     }
 
     #[Test]
-    public function property_manager_can_access_financial_dashboard(): void
+    public function property_manager_cannot_access_financial_dashboard(): void
     {
         $manager = User::factory()->create(['role' => 'property_manager']);
         $owner = User::factory()->create(['role' => 'property_owner']);
@@ -51,12 +51,11 @@ class PropertyFinancialDashboardTest extends TestCase
         $response = $this->actingAs($manager)
             ->get(route('admin.properties.financial', $property->slug));
 
-        $response->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Admin/Properties/Financial'));
+        $response->assertForbidden();
     }
 
     #[Test]
-    public function property_owner_can_access_own_property_financial_dashboard(): void
+    public function property_owner_cannot_access_own_property_financial_dashboard(): void
     {
         $owner = User::factory()->create(['role' => 'property_owner']);
         $property = $this->createProperty($owner);
@@ -64,8 +63,7 @@ class PropertyFinancialDashboardTest extends TestCase
         $response = $this->actingAs($owner)
             ->get(route('admin.properties.financial', $property->slug));
 
-        $response->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Admin/Properties/Financial'));
+        $response->assertForbidden();
     }
 
     #[Test]

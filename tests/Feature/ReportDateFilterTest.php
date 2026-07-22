@@ -78,6 +78,7 @@ class ReportDateFilterTest extends TestCase
             'check_in' => '2026-07-01',
             'check_out' => '2026-07-03',
         ]);
+        BookingDailyRevenue::where('booking_id', $checkoutBooking->id)->delete();
         BookingDailyRevenue::create([
             'booking_id' => $checkoutBooking->id,
             'property_id' => $property->id,
@@ -94,6 +95,7 @@ class ReportDateFilterTest extends TestCase
             'check_in' => '2026-07-04',
             'check_out' => '2026-07-06',
         ]);
+        BookingDailyRevenue::where('booking_id', $paidCancelBooking->id)->delete();
         BookingDailyRevenue::create([
             'booking_id' => $paidCancelBooking->id,
             'property_id' => $property->id,
@@ -110,6 +112,7 @@ class ReportDateFilterTest extends TestCase
             'check_in' => '2026-07-07',
             'check_out' => '2026-07-09',
         ]);
+        BookingDailyRevenue::where('booking_id', $unpaidCancelBooking->id)->delete();
         BookingDailyRevenue::create([
             'booking_id' => $unpaidCancelBooking->id,
             'property_id' => $property->id,
@@ -130,14 +133,22 @@ class ReportDateFilterTest extends TestCase
 
         $response->assertInertia(function ($page) {
             $data = $page->toArray()['props']['data'];
-            $dates = collect($data['dailyBreakdown'])->pluck('date')->toArray();
+            $breakdown = collect($data['dailyBreakdown']);
 
-            // Should contain July 2nd (checked_out) and July 5th (paid cancelled)
-            $this->assertContains('2026-07-02', $dates);
-            $this->assertContains('2026-07-05', $dates);
+            // Should contain July 2nd (checked_out) with correct revenue (400,000)
+            $day2 = $breakdown->where('date', '2026-07-02')->first();
+            $this->assertNotNull($day2);
+            $this->assertEquals(400000, $day2['amount']);
 
-            // Should NOT contain July 8th (unpaid cancelled)
-            $this->assertNotContains('2026-07-08', $dates);
+            // Should contain July 5th (paid cancelled) with correct revenue (300,000)
+            $day5 = $breakdown->where('date', '2026-07-05')->first();
+            $this->assertNotNull($day5);
+            $this->assertEquals(300000, $day5['amount']);
+
+            // Should NOT have revenue for July 8th (unpaid cancelled)
+            $day8 = $breakdown->where('date', '2026-07-08')->first();
+            $this->assertNotNull($day8);
+            $this->assertEquals(0, $day8['amount']);
         });
     }
 
@@ -163,9 +174,10 @@ class ReportDateFilterTest extends TestCase
             'service_date' => '2026-07-02',
         ]);
 
-        // Run the sync console command
+        // Run the sync console command with --force to recalculate
         $this->artisan('booking:sync-daily-revenue', [
             '--booking' => $booking->id,
+            '--force' => true,
         ])->assertExitCode(0);
 
         // Fetch daily revenues and verify July 2nd has 2 extra beds and 300,000 amount

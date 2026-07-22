@@ -143,8 +143,9 @@ class PropertyController extends Controller
             return Amenity::active()->ordered()->get()->toArray();
         });
 
-        // Cache SEO for Properties Index
-        $seoData = Cache::remember('seo_properties_index', 86400, function () {
+        // Cache SEO for Properties Index (Vary cache key by page to prevent page 2 canonical url cache poisoning)
+        $pageNumber = $request->input('page', 1);
+        $seoData = Cache::remember("seo_properties_index_page_{$pageNumber}", 86400, function () {
             return $this->seoService->forPropertiesIndex();
         });
 
@@ -183,156 +184,156 @@ class PropertyController extends Controller
     public function show(Request $request, Property $property): Response
     {
         try {
-        // Load relations fresh — no caching of Eloquent models
-        $property->load([
-            'owner',
-            'amenities' => function ($query) {
-                $query->where('property_amenities.is_available', true);
-            },
-            'media' => function ($query) {
-                $query->orderBy('display_order');
-            },
-            'seasonalRates' => function ($query) {
-                $query->where('is_active', true)
-                    ->orderBy('priority', 'desc');
-            },
-            'approvedReviews' => function ($query) {
-                $query->latest()->limit(3);
-            },
-        ])->loadCount('approvedReviews')
-            ->loadAvg('approvedReviews as rating_avg', 'rating');
-
-        // Get search parameters
-        $checkIn = $request->input('check_in') ?: today()->toDateString();
-        $checkOut = $request->input('check_out') ?: today()->addDays($property->min_stay_weekday ?? 1)->toDateString();
-        $guestCount = (int) $request->input('guests', 2);
-
-        // Pre-load 3-month availability and rates data (safe to cache — returns plain array)
-        $startDate = today()->toDateString();
-        $endDate = today()->addMonths(3)->toDateString();
-
-        $availCacheKey = "property_v2_{$property->id}_avail_{$startDate}_{$endDate}";
-        $availabilityData = Cache::remember($availCacheKey, 3600, function () use ($property, $startDate, $endDate) {
-            return $this->availabilityService->getAvailabilityData($property, $startDate, $endDate);
-        });
-
-        $availabilityAndRates = array_merge($availabilityData, [
-            'guest_count' => $guestCount,
-            'property_info' => $availabilityData['property'] ?? [],
-            'rates' => $availabilityData['availability_data']['rates'] ?? [],
-        ]);
-
-        // Calculate current rate
-        if ($checkIn && $checkOut) {
-            try {
-                $rateCalculation = $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount);
-                $nights = max(1, $rateCalculation->nights);
-                $rateCalculationArray = $rateCalculation->toArray();
-                $property->current_rate_calculation = $rateCalculationArray;
-                $property->current_total_rate = $rateCalculation->totalAmount;
-                $property->current_rate_per_night = $rateCalculation->totalAmount / $nights;
-                $property->formatted_current_rate = 'Rp '.number_format($property->current_rate_per_night, 0, ',', '.');
-                $property->has_seasonal_rate = $rateCalculation->seasonalPremium > 0;
-                $property->seasonal_rate_info = $rateCalculation->breakdown['rate_breakdown']['seasonal_rates_applied'] ?? [];
-                $property->rate_breakdown = $rateCalculationArray;
-            } catch (\Throwable $e) {
-                Log::warning('Rate calculation failed for property show', [
-                    'property_id' => $property->id,
-                    'error' => $e->getMessage(),
-                ]);
-                $property->current_total_rate = $property->base_rate;
-                $property->current_rate_per_night = $property->base_rate;
-                $property->formatted_current_rate = $property->formatted_base_rate;
-                $property->has_seasonal_rate = false;
-                $property->seasonal_rate_info = [];
-            }
-        } else {
-            if ($property->seasonalRates->count() > 0) {
-                $property->has_seasonal_rate = true;
-                $property->seasonal_rate_info = $property->seasonalRates->map(fn ($rate) => [
-                    'name' => $rate->rate_name,
-                    'description' => $rate->description,
-                    'rate_value' => $rate->rate_value,
-                    'rate_type' => $rate->rate_type,
-                    'start_date' => $rate->start_date,
-                    'end_date' => $rate->end_date,
-                ])->toArray();
-            } else {
-                $property->has_seasonal_rate = false;
-                $property->seasonal_rate_info = [];
-            }
-        }
-
-        // Get similar properties with rate calculation
-        $similarProperties = Property::active()
-            ->where('id', '!=', $property->id)
-            ->where(function ($query) use ($property) {
-                $query->whereBetween('base_rate', [
-                    $property->base_rate * 0.7,
-                    $property->base_rate * 1.3,
-                ])
-                    ->orWhere('capacity', $property->capacity);
-            })
-            ->with([
+            // Load relations fresh — no caching of Eloquent models
+            $property->load([
+                'owner',
+                'amenities' => function ($query) {
+                    $query->where('property_amenities.is_available', true);
+                },
                 'media' => function ($query) {
                     $query->orderBy('display_order');
                 },
-            ])
-            ->limit(4)
-            ->get();
+                'seasonalRates' => function ($query) {
+                    $query->where('is_active', true)
+                        ->orderBy('priority', 'desc');
+                },
+                'approvedReviews' => function ($query) {
+                    $query->latest()->limit(3);
+                },
+            ])->loadCount('approvedReviews')
+                ->loadAvg('approvedReviews as rating_avg', 'rating');
 
-        // Calculate rates for similar properties if dates are provided
-        if ($checkIn && $checkOut) {
-            $similarProperties->transform(function ($similarProperty) use ($checkIn, $checkOut, $guestCount) {
-                try {
-                    $rateCalculation = $this->rateCalculationService->calculateRate($similarProperty, $checkIn, $checkOut, $guestCount);
-                    $similarProperty->current_rate_per_night = $rateCalculation->totalAmount / $rateCalculation->nights;
-                    $similarProperty->formatted_current_rate = 'Rp '.number_format($similarProperty->current_rate_per_night, 0, ',', '.');
-                } catch (\Exception $e) {
-                    $similarProperty->formatted_current_rate = $similarProperty->formatted_base_rate;
-                }
+            // Get search parameters
+            $checkIn = $request->input('check_in') ?: today()->toDateString();
+            $checkOut = $request->input('check_out') ?: today()->addDays($property->min_stay_weekday ?? 1)->toDateString();
+            $guestCount = (int) $request->input('guests', 2);
 
-                return $similarProperty;
+            // Pre-load 3-month availability and rates data (safe to cache — returns plain array)
+            $startDate = today()->toDateString();
+            $endDate = today()->addMonths(3)->toDateString();
+
+            $availCacheKey = "property_v2_{$property->id}_avail_{$startDate}_{$endDate}";
+            $availabilityData = Cache::remember($availCacheKey, 3600, function () use ($property, $startDate, $endDate) {
+                return $this->availabilityService->getAvailabilityData($property, $startDate, $endDate);
             });
-        }
 
-        // Cache heavy SEO and Schema generation
-        $seoCacheKey = "property_seo_v2_{$property->id}";
-        $seoData = Cache::remember($seoCacheKey, 3600, function () use ($property) {
-            $faqs = $this->seoService->getPropertyFaqs($property);
-            $breadcrumbs = [
-                ['name' => 'Home', 'url' => route('home')],
-                ['name' => 'Properties', 'url' => route('properties.index')],
-                ['name' => $property->name, 'url' => route('properties.show', $property->slug)],
-            ];
+            $availabilityAndRates = array_merge($availabilityData, [
+                'guest_count' => $guestCount,
+                'property_info' => $availabilityData['property'] ?? [],
+                'rates' => $availabilityData['availability_data']['rates'] ?? [],
+            ]);
 
-            return [
-                'seo' => $this->seoService->forProperty($property),
-                'schema' => $this->seoService->propertySchema($property),
-                'faqSchema' => $this->seoService->faqSchema($faqs),
-                'breadcrumbSchema' => $this->seoService->breadcrumbSchema($breadcrumbs),
-                'videoSchema' => $this->seoService->videoSchema($property),
-                'faqs' => $faqs,
-            ];
-        });
+            // Calculate current rate
+            if ($checkIn && $checkOut) {
+                try {
+                    $rateCalculation = $this->rateCalculationService->calculateRate($property, $checkIn, $checkOut, $guestCount);
+                    $nights = max(1, $rateCalculation->nights);
+                    $rateCalculationArray = $rateCalculation->toArray();
+                    $property->current_rate_calculation = $rateCalculationArray;
+                    $property->current_total_rate = $rateCalculation->totalAmount;
+                    $property->current_rate_per_night = $rateCalculation->totalAmount / $nights;
+                    $property->formatted_current_rate = 'Rp '.number_format($property->current_rate_per_night, 0, ',', '.');
+                    $property->has_seasonal_rate = $rateCalculation->seasonalPremium > 0;
+                    $property->seasonal_rate_info = $rateCalculation->breakdown['rate_breakdown']['seasonal_rates_applied'] ?? [];
+                    $property->rate_breakdown = $rateCalculationArray;
+                } catch (\Throwable $e) {
+                    Log::warning('Rate calculation failed for property show', [
+                        'property_id' => $property->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $property->current_total_rate = $property->base_rate;
+                    $property->current_rate_per_night = $property->base_rate;
+                    $property->formatted_current_rate = $property->formatted_base_rate;
+                    $property->has_seasonal_rate = false;
+                    $property->seasonal_rate_info = [];
+                }
+            } else {
+                if ($property->seasonalRates->count() > 0) {
+                    $property->has_seasonal_rate = true;
+                    $property->seasonal_rate_info = $property->seasonalRates->map(fn ($rate) => [
+                        'name' => $rate->rate_name,
+                        'description' => $rate->description,
+                        'rate_value' => $rate->rate_value,
+                        'rate_type' => $rate->rate_type,
+                        'start_date' => $rate->start_date,
+                        'end_date' => $rate->end_date,
+                    ])->toArray();
+                } else {
+                    $property->has_seasonal_rate = false;
+                    $property->seasonal_rate_info = [];
+                }
+            }
 
-        return Inertia::render('Properties/Show', [
-            'property' => $property->toArray(),
-            'similarProperties' => $similarProperties->toArray(),
-            'searchParams' => [
-                'check_in' => $checkIn,
-                'check_out' => $checkOut,
-                'guests' => $guestCount,
-            ],
-            'availabilityData' => $availabilityAndRates,
-            'seo' => $seoData['seo'],
-            'schema' => $seoData['schema'],
-            // GEO: Additional schemas for AI optimization
-            'faqSchema' => $seoData['faqSchema'],
-            'breadcrumbSchema' => $seoData['breadcrumbSchema'],
-            'videoSchema' => $seoData['videoSchema'],
-            'faqs' => $seoData['faqs'], // For FAQ component
-        ]);
+            // Get similar properties with rate calculation
+            $similarProperties = Property::active()
+                ->where('id', '!=', $property->id)
+                ->where(function ($query) use ($property) {
+                    $query->whereBetween('base_rate', [
+                        $property->base_rate * 0.7,
+                        $property->base_rate * 1.3,
+                    ])
+                        ->orWhere('capacity', $property->capacity);
+                })
+                ->with([
+                    'media' => function ($query) {
+                        $query->orderBy('display_order');
+                    },
+                ])
+                ->limit(4)
+                ->get();
+
+            // Calculate rates for similar properties if dates are provided
+            if ($checkIn && $checkOut) {
+                $similarProperties->transform(function (Property $similarProperty) use ($checkIn, $checkOut, $guestCount) {
+                    try {
+                        $rateCalculation = $this->rateCalculationService->calculateRate($similarProperty, $checkIn, $checkOut, $guestCount);
+                        $similarProperty->current_rate_per_night = $rateCalculation->totalAmount / $rateCalculation->nights;
+                        $similarProperty->formatted_current_rate = 'Rp '.number_format($similarProperty->current_rate_per_night, 0, ',', '.');
+                    } catch (\Exception $e) {
+                        $similarProperty->formatted_current_rate = $similarProperty->formatted_base_rate;
+                    }
+
+                    return $similarProperty;
+                });
+            }
+
+            // Cache heavy SEO and Schema generation
+            $seoCacheKey = "property_seo_v2_{$property->id}";
+            $seoData = Cache::remember($seoCacheKey, 3600, function () use ($property) {
+                $faqs = $this->seoService->getPropertyFaqs($property);
+                $breadcrumbs = [
+                    ['name' => 'Home', 'url' => route('home')],
+                    ['name' => 'Properties', 'url' => route('properties.index')],
+                    ['name' => $property->name, 'url' => route('properties.show', $property->slug)],
+                ];
+
+                return [
+                    'seo' => $this->seoService->forProperty($property),
+                    'schema' => $this->seoService->propertySchema($property),
+                    'faqSchema' => $this->seoService->faqSchema($faqs),
+                    'breadcrumbSchema' => $this->seoService->breadcrumbSchema($breadcrumbs),
+                    'videoSchema' => $this->seoService->videoSchema($property),
+                    'faqs' => $faqs,
+                ];
+            });
+
+            return Inertia::render('Properties/Show', [
+                'property' => $property->toArray(),
+                'similarProperties' => $similarProperties->toArray(),
+                'searchParams' => [
+                    'check_in' => $checkIn,
+                    'check_out' => $checkOut,
+                    'guests' => $guestCount,
+                ],
+                'availabilityData' => $availabilityAndRates,
+                'seo' => $seoData['seo'],
+                'schema' => $seoData['schema'],
+                // GEO: Additional schemas for AI optimization
+                'faqSchema' => $seoData['faqSchema'],
+                'breadcrumbSchema' => $seoData['breadcrumbSchema'],
+                'videoSchema' => $seoData['videoSchema'],
+                'faqs' => $seoData['faqs'], // For FAQ component
+            ]);
         } catch (\Throwable $e) {
             Log::error('PropertyController::show() failed', [
                 'property_id' => $property->id,

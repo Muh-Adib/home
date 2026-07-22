@@ -8,7 +8,7 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     * 
+     *
      * Add breakdown columns to track revenue sources:
      * - base_amount: Base rate for the day
      * - weekend_premium: Weekend premium applied

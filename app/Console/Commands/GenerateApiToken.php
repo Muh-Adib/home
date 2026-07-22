@@ -34,7 +34,7 @@ class GenerateApiToken extends Command
 
         $token = ApiToken::create([
             'name' => $name,
-            'token' => substr($tokenString, 0, 12) . '...', // Store preview only
+            'token' => substr($tokenString, 0, 12).'...', // Store preview only
             'token_hash' => ApiToken::hashToken($tokenString),
             'client_name' => $clientName,
             'scopes' => $scopes,

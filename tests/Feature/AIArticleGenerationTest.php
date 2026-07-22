@@ -10,13 +10,14 @@ use App\Services\AIArticleService;
 use App\Services\NewsDiscoveryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class AIArticleGenerationTest extends TestCase
 {
     use RefreshDatabase;
 
-    #[\PHPUnit\Framework\Attributes\Test]
+    #[Test]
     public function it_filters_low_relevance_news(): void
     {
         /** Mock: news service returns 1 item */
@@ -28,7 +29,7 @@ class AIArticleGenerationTest extends TestCase
                     'link' => 'http://example.com/news1',
                     'source' => 'LocalNews',
                     'pubDate' => now()->toIso8601String(),
-                ]
+                ],
             ]);
 
         /** Mock: AI returns low score */
@@ -41,13 +42,13 @@ class AIArticleGenerationTest extends TestCase
         $aiService->shouldNotReceive('generateOutline');
         $aiService->shouldNotReceive('generateContent');
 
-        $job = new GenerateTrendingArticleJob();
+        $job = new GenerateTrendingArticleJob;
         $job->handle($newsService, $aiService);
 
         $this->assertEquals(0, Article::count());
     }
 
-    #[\PHPUnit\Framework\Attributes\Test]
+    #[Test]
     public function it_generates_article_for_high_relevance_news(): void
     {
         /** Seed active property & admin user */
@@ -63,7 +64,7 @@ class AIArticleGenerationTest extends TestCase
                     'link' => 'http://example.com/news2',
                     'source' => 'EventNews',
                     'pubDate' => now()->toIso8601String(),
-                ]
+                ],
             ]);
 
         /** Mock: AI returns high score */
@@ -105,7 +106,7 @@ class AIArticleGenerationTest extends TestCase
             ->once()
             ->andReturn([
                 'success' => true,
-                'content' => '## Jazz Festival Jogja dan Dilema Penginapan' . str_repeat(' lorem ipsum', 80),
+                'content' => '## Jazz Festival Jogja dan Dilema Penginapan'.str_repeat(' lorem ipsum', 80),
                 'excerpt' => 'Panduan lengkap menginap di Jogja saat Jazz Festival.',
                 'meta_description' => 'Cari villa murah di Jogja untuk Jazz Festival? Temukan rekomendasi terbaik di sini.',
                 'word_count' => 820,
@@ -113,7 +114,7 @@ class AIArticleGenerationTest extends TestCase
                 'article_type' => 'event_article',
             ]);
 
-        $job = new GenerateTrendingArticleJob();
+        $job = new GenerateTrendingArticleJob;
         $job->handle($newsService, $aiService);
 
         $this->assertEquals(1, Article::count());

@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\Auth\WhatsappAuthController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -23,12 +24,14 @@ Route::middleware('guest')->group(function () {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
 
-    Route::post('login', [AuthenticatedSessionController::class, 'store']);
+    Route::post('login', [AuthenticatedSessionController::class, 'store'])
+        ->middleware('throttle:5,1');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
 
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
+        ->middleware('throttle:5,1')
         ->name('password.email');
 
     Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
@@ -45,23 +48,23 @@ Route::middleware('guest')->group(function () {
     Route::post('set-password/{user}', [NewPasswordController::class, 'storeSetPassword']);
 
     // WhatsApp Authentication Routes
-    Route::post('auth/whatsapp/check-number', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'checkNumber'])
+    Route::post('auth/whatsapp/check-number', [WhatsappAuthController::class, 'checkNumber'])
         ->name('auth.whatsapp.check-number');
 
-    Route::post('auth/whatsapp/request-otp', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'requestOtp'])
+    Route::post('auth/whatsapp/request-otp', [WhatsappAuthController::class, 'requestOtp'])
         ->name('auth.whatsapp.request-otp');
 
-    Route::post('auth/whatsapp/verify-otp', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'verifyOtp'])
+    Route::post('auth/whatsapp/verify-otp', [WhatsappAuthController::class, 'verifyOtp'])
         ->name('auth.whatsapp.verify-otp');
 
-    Route::post('auth/whatsapp/resend-otp', [\App\Http\Controllers\Auth\WhatsappAuthController::class, 'resendOtp'])
+    Route::post('auth/whatsapp/resend-otp', [WhatsappAuthController::class, 'resendOtp'])
         ->name('auth.whatsapp.resend-otp');
 
 });
 
 /**
  * Email Verification Route
- * 
+ *
  * This route is OUTSIDE the 'auth' middleware group to allow guest users
  * to verify their email. The 'verify.signature.auth' middleware will
  * auto-login users with valid signed URLs.

@@ -2,11 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\LegalPage;
-use Carbon\Carbon;
 use Inertia\Inertia;
-use Inertia\Response;
 
 class LegalViewController extends Controller
 {
@@ -18,10 +15,9 @@ class LegalViewController extends Controller
         $legalPage = LegalPage::where('slug', $slug)
             ->whereNull('deleted_at')
             ->firstOrFail(); // bisa null
-        
 
         return Inertia::render('Legal', [
-            'legalPage' => $legalPage // null atau model
+            'legalPage' => $legalPage, // null atau model
         ]);
     }
 }

@@ -2,10 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
 class UpdatePaymentStructureSeeder extends Seeder
@@ -55,14 +54,14 @@ class UpdatePaymentStructureSeeder extends Seeder
             if ($payment->payment_method) {
                 // Try to find matching payment method by type
                 $paymentMethod = PaymentMethod::where('type', $payment->payment_method)->first();
-                
-                if (!$paymentMethod) {
+
+                if (! $paymentMethod) {
                     // If not found by type, try to find by common mapping
                     $mapping = [
                         'bank_transfer' => 'bca',
                         'e_wallet' => 'ovo',
                         'cash' => 'cash',
-                        'credit_card' => 'credit_card'
+                        'credit_card' => 'credit_card',
                     ];
 
                     if (isset($mapping[$payment->payment_method])) {

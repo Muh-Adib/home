@@ -5,11 +5,10 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Http\RedirectResponse;
 
 /**
  * RoleMiddleware - Middleware untuk mengontrol akses berdasarkan role pengguna
-  * 
+ *
  * role yang ada:
  * super_admin
  * admin
@@ -19,12 +18,12 @@ use Illuminate\Http\RedirectResponse;
  * housekeeping
  * finance
  * guest
- * 
+ *
  * Middleware ini digunakan untuk:
  * 1. Memastikan pengguna sudah login
  * 2. Memeriksa role pengguna sesuai dengan yang diizinkan
  * 3. Memblokir akses jika role tidak sesuai
- * 
+ *
  * Contoh penggunaan di routes:
  * Route::get('/admin', [AdminController::class, 'index'])->middleware('role:super_admin,admin');
  * Route::get('/owner', [OwnerController::class, 'index'])->middleware('role:property_owner');
@@ -33,34 +32,35 @@ class RoleMiddleware
 {
     /**
      * Handle an incoming request.
-     * 
+     *
      * Proses yang dilakukan:
      * 1. Cek apakah user sudah login
      * 2. Ambil role dari user yang login
      * 3. Bandingkan dengan role yang diizinkan
      * 4. Izinkan atau tolak akses
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
-     * @param  string ...$roles - Daftar role yang diizinkan (bisa multiple: 'admin', 'manager', dll)
+     * @param  Closure(Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  string  ...$roles  - Daftar role yang diizinkan (bisa multiple: 'admin', 'manager', dll)
      */
     public function handle(Request $request, Closure $next, string ...$roles)
     {
         // 1. PENGECEKAN LOGIN
         // Jika user belum login, redirect ke halaman login
-        if (!$request->user()) {
+        if (! $request->user()) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Unauthenticated'], 401);
             }
+
             return redirect()->route('login');
         }
 
         // 2. AMBIL ROLE USER
         // Mendapatkan role dari user yang sedang login
         $userRole = $request->user()->role;
-        
+
         // 3. PENGECEKAN ROLE
         // Cek apakah role user ada dalam daftar role yang diizinkan
-        if (!in_array($userRole, $roles)) {
+        if (! in_array($userRole, $roles)) {
             // Log unauthorized access attempt
             \Log::warning('Unauthorized access attempt', [
                 'user_id' => $request->user()->id,
@@ -77,7 +77,7 @@ class RoleMiddleware
                 return response()->json([
                     'message' => 'Access denied. You do not have permission to access this resource.',
                     'required_roles' => $roles,
-                    'user_role' => $userRole
+                    'user_role' => $userRole,
                 ], 403);
             }
 
@@ -138,7 +138,7 @@ class AdminController extends Controller
     {
         return view('admin.dashboard');
     }
-    
+
     // Tambahan pengecekan role di dalam method (optional)
     public function deleteUser(User $user)
     {
@@ -146,7 +146,7 @@ class AdminController extends Controller
         if (!in_array(auth()->user()->role, ['super_admin'])) {
             abort(403, 'Only super admin can delete users');
         }
-        
+
         $user->delete();
         return redirect()->back()->with('success', 'User deleted');
     }
@@ -193,7 +193,7 @@ User::create([
 
 User::create([
     'name' => 'Property Owner',
-    'email' => 'owner@example.com', 
+    'email' => 'owner@example.com',
     'role' => 'property_owner',
     'password' => Hash::make('password'),
 ]);
@@ -218,10 +218,10 @@ class PropertyPolicy
     {
         return $user->role === 'property_owner' && $user->id === $property->owner_id;
     }
-    
+
     public function update(User $user, Property $property)
     {
-        return in_array($user->role, ['super_admin', 'property_owner']) 
+        return in_array($user->role, ['super_admin', 'property_owner'])
                && ($user->role === 'super_admin' || $user->id === $property->owner_id);
     }
 }

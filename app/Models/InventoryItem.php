@@ -13,7 +13,7 @@ class InventoryItem extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'name','sku','unit','min_stock','selling_price','category','average_unit_cost','last_unit_cost','image_path','assigned_user_id'
+        'name', 'sku', 'unit', 'min_stock', 'selling_price', 'category', 'average_unit_cost', 'last_unit_cost', 'image_path', 'assigned_user_id',
     ];
 
     protected $casts = [
@@ -27,7 +27,7 @@ class InventoryItem extends Model
     public static function generateUniqueSku(): string
     {
         do {
-            $sku = 'H-' . strtoupper(Str::random(8));
+            $sku = 'H-'.strtoupper(Str::random(8));
         } while (self::withTrashed()->where('sku', $sku)->exists());
 
         return $sku;
@@ -35,15 +35,16 @@ class InventoryItem extends Model
 
     public function getCurrentStockAttribute(): float
     {
-        $in = (float) \App\Models\InventoryStockMovement::where('inventory_item_id', $this->id)
-            ->whereIn('type', ['purchase','in'])
+        $in = (float) InventoryStockMovement::where('inventory_item_id', $this->id)
+            ->whereIn('type', ['purchase', 'in'])
             ->sum('quantity');
-        $out = (float) \App\Models\InventoryStockMovement::where('inventory_item_id', $this->id)
+        $out = (float) InventoryStockMovement::where('inventory_item_id', $this->id)
             ->where('type', 'out')
             ->sum('quantity');
-        $adj = (float) \App\Models\InventoryStockMovement::where('inventory_item_id', $this->id)
+        $adj = (float) InventoryStockMovement::where('inventory_item_id', $this->id)
             ->where('type', 'adjustment')
             ->sum('quantity');
+
         return $in - $out + $adj;
     }
 
@@ -62,5 +63,3 @@ class InventoryItem extends Model
         return $this->hasMany(InventoryUsage::class);
     }
 }
-
-

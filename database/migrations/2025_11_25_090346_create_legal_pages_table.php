@@ -21,7 +21,7 @@ return new class extends Migration
             $table->timestamp('published_at')->nullable();
             $table->timestamps();
             $table->softDeletes(); // Untuk archive
-            
+
             // Index untuk performa query
             $table->index(['slug', 'deleted_at']); // Untuk ambil active version
             $table->index(['type', 'deleted_at']); // Untuk group by type

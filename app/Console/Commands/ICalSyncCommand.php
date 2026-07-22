@@ -34,7 +34,7 @@ class ICalSyncCommand extends Command
             $this->syncProperty($property, $icalService);
         } else {
             $properties = Property::whereNotNull('ical_import_urls')->get();
-            $this->info('Starting iCal sync for ' . $properties->count() . ' properties...');
+            $this->info('Starting iCal sync for '.$properties->count().' properties...');
 
             foreach ($properties as $property) {
                 $this->syncProperty($property, $icalService);
@@ -46,13 +46,13 @@ class ICalSyncCommand extends Command
 
     private function syncProperty(Property $property, ICalService $icalService)
     {
-        $this->info('Syncing property: ' . $property->name);
+        $this->info('Syncing property: '.$property->name);
         $result = $icalService->syncFromExternal($property);
 
         if ($result['success']) {
-            $this->info('Success: ' . $result['count'] . ' external entries synced.');
+            $this->info('Success: '.$result['count'].' external entries synced.');
         } else {
-            $this->error('Failed: ' . $result['message']);
+            $this->error('Failed: '.$result['message']);
         }
     }
 }

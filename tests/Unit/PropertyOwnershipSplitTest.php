@@ -231,6 +231,9 @@ class PropertyOwnershipSplitTest extends TestCase
             'guest_count' => 2,
             'base_amount' => 1000000,
             'total_amount' => 1000000,
+            'dp_amount' => 300000,    // 30% of 1000000
+            'dp_paid_amount' => 0,
+            'remaining_amount' => 1000000,
             'booking_status' => 'pending',
             'payment_status' => 'unpaid',
             'verification_status' => 'unverified',

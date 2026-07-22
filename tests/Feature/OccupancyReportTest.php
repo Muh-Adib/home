@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Booking;
 use App\Models\Property;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -76,6 +77,8 @@ class OccupancyReportTest extends TestCase
         // Total vacant nights = 31 - 14 = 17 nights
         // Occupancy percentage = (14 / 31) * 100 = 45.16% => 45.2%
 
+        Carbon::setTestNow('2026-07-14');
+
         $response = $this->actingAs($admin)
             ->get(route('admin.reports.occupancy', [
                 'month' => $month,
@@ -83,6 +86,8 @@ class OccupancyReportTest extends TestCase
             ]));
 
         $response->assertStatus(200);
+
+        Carbon::setTestNow();
 
         $response->assertInertia(function ($page) use ($property) {
             $report = $page->toArray()['props']['occupancyReport'];

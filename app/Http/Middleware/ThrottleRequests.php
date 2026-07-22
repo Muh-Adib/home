@@ -3,8 +3,8 @@
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
 use Illuminate\Cache\RateLimiter;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -20,12 +20,10 @@ class ThrottleRequests
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      * @param  int|string  $maxAttempts
      * @param  float|int  $decayMinutes
      * @param  string  $prefix
-     * @return \Symfony\Component\HttpFoundation\Response
      */
     public function handle(Request $request, Closure $next, $maxAttempts = 60, $decayMinutes = 1, $prefix = ''): Response
     {
@@ -61,7 +59,7 @@ class ThrottleRequests
     /**
      * Resolve the number of attempts if the user is authenticated or not.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param  Request  $request
      * @param  int|string  $maxAttempts
      * @return int
      */
@@ -79,26 +77,26 @@ class ThrottleRequests
     /**
      * Resolve request signature for rate limiting.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param  Request  $request
      * @param  string  $prefix
      * @return string
      */
     protected function resolveRequestSignature($request, $prefix)
     {
         if ($request->user()) {
-            return sha1($prefix . $request->user()->getAuthIdentifier());
+            return sha1($prefix.$request->user()->getAuthIdentifier());
         }
 
-        return sha1($prefix . $request->ip());
+        return sha1($prefix.$request->ip());
     }
 
     /**
      * Create a 'too many attempts' response.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param  Request  $request
      * @param  string  $key
      * @param  int  $maxAttempts
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @return Response
      */
     protected function buildTooManyAttemptsResponse($request, $key, $maxAttempts)
     {
@@ -119,11 +117,11 @@ class ThrottleRequests
     /**
      * Add the limit header information to the given response.
      *
-     * @param  \Symfony\Component\HttpFoundation\Response  $response
+     * @param  Response  $response
      * @param  int  $maxAttempts
      * @param  int  $remainingAttempts
      * @param  int|null  $retryAfter
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @return Response
      */
     protected function addHeaders($response, $maxAttempts, $remainingAttempts, $retryAfter = null)
     {
@@ -165,4 +163,4 @@ class ThrottleRequests
     {
         return time() + $delay;
     }
-} 
+}

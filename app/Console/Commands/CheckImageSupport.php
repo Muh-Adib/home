@@ -3,10 +3,13 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Intervention\Image\Drivers\Imagick\Driver;
+use Intervention\Image\ImageManager;
 
 class CheckImageSupport extends Command
 {
     protected $signature = 'image:check-support';
+
     protected $description = 'Check image processing capabilities';
 
     public function handle()
@@ -16,17 +19,17 @@ class CheckImageSupport extends Command
 
         // Check extensions
         $this->info('📦 PHP Extensions:');
-        $this->line('  GD: ' . (extension_loaded('gd') ? '✅ Installed' : '❌ Not installed'));
-        $this->line('  Imagick: ' . (extension_loaded('imagick') ? '✅ Installed' : '❌ Not installed'));
+        $this->line('  GD: '.(extension_loaded('gd') ? '✅ Installed' : '❌ Not installed'));
+        $this->line('  Imagick: '.(extension_loaded('imagick') ? '✅ Installed' : '❌ Not installed'));
         $this->newLine();
 
         // Check GD formats
         if (extension_loaded('gd')) {
             $this->info('🎨 GD Supported Formats:');
-            $this->line('  WebP: ' . (function_exists('imagewebp') ? '✅ Yes' : '❌ No'));
-            $this->line('  JPEG: ' . (function_exists('imagejpeg') ? '✅ Yes' : '❌ No'));
-            $this->line('  PNG: ' . (function_exists('imagepng') ? '✅ Yes' : '❌ No'));
-            $this->line('  GIF: ' . (function_exists('imagegif') ? '✅ Yes' : '❌ No'));
+            $this->line('  WebP: '.(function_exists('imagewebp') ? '✅ Yes' : '❌ No'));
+            $this->line('  JPEG: '.(function_exists('imagejpeg') ? '✅ Yes' : '❌ No'));
+            $this->line('  PNG: '.(function_exists('imagepng') ? '✅ Yes' : '❌ No'));
+            $this->line('  GIF: '.(function_exists('imagegif') ? '✅ Yes' : '❌ No'));
             $this->newLine();
         }
 
@@ -34,21 +37,21 @@ class CheckImageSupport extends Command
         if (extension_loaded('imagick')) {
             $this->info('🎨 Imagick Supported Formats:');
 
-            $imagick = new \Imagick();
+            $imagick = new \Imagick;
             $formats = $imagick->queryFormats();
 
             $checkFormats = ['WEBP', 'JPEG', 'JPG', 'PNG', 'GIF'];
             foreach ($checkFormats as $format) {
                 $supported = in_array($format, $formats);
-                $this->line('  ' . $format . ': ' . ($supported ? '✅ Yes' : '❌ No'));
+                $this->line('  '.$format.': '.($supported ? '✅ Yes' : '❌ No'));
             }
 
             $this->newLine();
-            $this->info('📊 Imagick Version: ' . phpversion('imagick'));
+            $this->info('📊 Imagick Version: '.phpversion('imagick'));
 
             // Check ImageMagick version
             $version = $imagick->getVersion();
-            $this->line('  ImageMagick: ' . ($version['versionString'] ?? 'Unknown'));
+            $this->line('  ImageMagick: '.($version['versionString'] ?? 'Unknown'));
 
             $this->newLine();
         }
@@ -56,21 +59,21 @@ class CheckImageSupport extends Command
         // Check Intervention Image
         $this->info('📚 Intervention Image:');
         try {
-            $manager = new \Intervention\Image\ImageManager(
-                new \Intervention\Image\Drivers\Imagick\Driver()
+            $manager = new ImageManager(
+                new Driver
             );
             $this->line('  Imagick Driver: ✅ Available');
         } catch (\Exception $e) {
-            $this->line('  Imagick Driver: ❌ Error - ' . $e->getMessage());
+            $this->line('  Imagick Driver: ❌ Error - '.$e->getMessage());
         }
 
         try {
-            $manager = new \Intervention\Image\ImageManager(
-                new \Intervention\Image\Drivers\Gd\Driver()
+            $manager = new ImageManager(
+                new \Intervention\Image\Drivers\Gd\Driver
             );
             $this->line('  GD Driver: ✅ Available');
         } catch (\Exception $e) {
-            $this->line('  GD Driver: ❌ Error - ' . $e->getMessage());
+            $this->line('  GD Driver: ❌ Error - '.$e->getMessage());
         }
 
         $this->newLine();

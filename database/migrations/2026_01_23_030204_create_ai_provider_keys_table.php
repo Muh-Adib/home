@@ -4,12 +4,13 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     /**
      * Run the migrations.
-     * 
+     *
      * Table untuk management multiple AI provider API keys dengan:
-     * - Usage tracking  
+     * - Usage tracking
      * - Auto-rotation berdasarkan usage terendah
      * - Rate limiting per key
      */

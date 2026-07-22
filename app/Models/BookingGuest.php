@@ -94,7 +94,7 @@ class BookingGuest extends Model
      */
     public function getAgeCategoryLabel(): string
     {
-        return match($this->age_category) {
+        return match ($this->age_category) {
             'adult' => 'Dewasa',
             'child' => 'Anak-anak',
             'infant' => 'Bayi',
@@ -107,7 +107,7 @@ class BookingGuest extends Model
      */
     public function getGenderLabel(): string
     {
-        return match($this->gender) {
+        return match ($this->gender) {
             'male' => 'Laki-laki',
             'female' => 'Perempuan',
             default => 'Tidak Diketahui'

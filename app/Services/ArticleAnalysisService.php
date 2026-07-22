@@ -50,12 +50,12 @@ class ArticleAnalysisService
         }
 
         // Featured image (10 points)
-        if (!empty($article->featured_image)) {
+        if (! empty($article->featured_image)) {
             $score += 10;
         }
 
         // Excerpt (5 points)
-        if (!empty($article->excerpt)) {
+        if (! empty($article->excerpt)) {
             $score += 5;
         }
 
@@ -85,6 +85,7 @@ class ArticleAnalysisService
     public function calculateReadingTime(string $content): int
     {
         $wordCount = str_word_count(strip_tags($content));
+
         return (int) ceil($wordCount / 200);
     }
 }

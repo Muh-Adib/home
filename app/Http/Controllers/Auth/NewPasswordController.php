@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,6 @@ use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use App\Models\User;
 
 class NewPasswordController extends Controller
 {
@@ -72,11 +72,10 @@ class NewPasswordController extends Controller
         }
 
         return Inertia::render('auth/set-password', [
-            'user' => $user->only(['id','email','name']),
+            'user' => $user->only(['id', 'email', 'name']),
             'email' => $user->email,
         ]);
     }
-
 
     /**
      * Handle set password pertama kali untuk user baru.
@@ -94,7 +93,6 @@ class NewPasswordController extends Controller
         $email = $request->query('email');
 
         $user = User::where('email', $email)->first();
-        
 
         if (! $user) {
             throw ValidationException::withMessages([

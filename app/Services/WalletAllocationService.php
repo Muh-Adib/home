@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\WalletAllocationRule;
 use App\Models\Income;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use App\Models\PropertyExpense;
+use App\Models\Wallet;
+use App\Models\WalletAllocationRule;
+use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
 
 class WalletAllocationService
@@ -22,7 +22,9 @@ class WalletAllocationService
                 ->orderBy('priority')
                 ->get();
 
-            if ($rules->isEmpty()) return;
+            if ($rules->isEmpty()) {
+                return;
+            }
 
             $totalIncome = (float) Income::where('property_id', $propertyId)
                 ->whereBetween('income_date', [$periodStart, $periodEnd])
@@ -33,7 +35,9 @@ class WalletAllocationService
                     ? round($totalIncome * ((float) $rule->value) / 100, 2)
                     : (float) $rule->value;
 
-                if ($amount <= 0) continue;
+                if ($amount <= 0) {
+                    continue;
+                }
 
                 // Catat sebagai pengeluaran kategori savings
                 $expense = PropertyExpense::create([
@@ -73,6 +77,3 @@ class WalletAllocationService
         });
     }
 }
-
-
-

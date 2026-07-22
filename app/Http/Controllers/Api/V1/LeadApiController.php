@@ -111,7 +111,7 @@ class LeadApiController extends Controller
             'phone' => $phone,
             'email' => $request->input('email'),
             'intent_type' => $intent['type'] ?? 'researching',
-            'intent_summary' => $intent['summary'],
+            'intent_summary' => $intent['summary'] ?? null,
             'units_inquired' => $intent['units_inquired'] ?? [],
             'preferred_check_in' => $intent['preferred_dates']['check_in'] ?? null,
             'preferred_check_out' => $intent['preferred_dates']['check_out'] ?? null,

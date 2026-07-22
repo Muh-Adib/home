@@ -2,18 +2,18 @@
 
 namespace App\Services;
 
-use App\Models\ContentPlan;
 use App\Models\Article;
+use App\Models\ContentPlan;
+use App\Models\Property;
 use App\Models\User;
-use Illuminate\Support\Collection;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 
 class ContentPlanService
 {
     public function __construct(
         protected AIArticleService $aiService
-    ) {
-    }
+    ) {}
 
     /**
      * Create a new content plan
@@ -42,7 +42,7 @@ class ContentPlanService
             Article::create([
                 'content_plan_id' => $plan->id,
                 'title' => $plan->title ?? 'Untitled Article',
-                'slug' => \Str::slug(($plan->title ?? 'untitled') . '-' . \Str::random(6)),
+                'slug' => \Str::slug(($plan->title ?? 'untitled').'-'.\Str::random(6)),
                 'status' => $plan->status, // Sync status
                 'author_id' => $plan->assigned_to ?? $plan->created_by,
                 'target_keywords' => $plan->target_keywords,
@@ -60,6 +60,7 @@ class ContentPlanService
     public function updatePlan(ContentPlan $plan, array $data): ContentPlan
     {
         $plan->update($data);
+
         return $plan->fresh();
     }
 
@@ -137,8 +138,8 @@ PROMPT;
 
         $plans = json_decode($jsonStr, true);
 
-        if (!$plans || !is_array($plans)) {
-            throw new \Exception('Failed to parse AI calendar response. Raw: ' . substr($content, 0, 200));
+        if (! $plans || ! is_array($plans)) {
+            throw new \Exception('Failed to parse AI calendar response. Raw: '.substr($content, 0, 200));
         }
 
         // Create content plans
@@ -166,7 +167,6 @@ PROMPT;
 
         return $created;
     }
-
 
     /**
      * Research topic using AI (Deep Analysis)
@@ -203,30 +203,30 @@ PROMPT;
         // Merge research context + intent instructions
         $researchContext = array_merge(
             $plan->ai_research_data ?? [],
-            !empty($intentInstructions) ? ['intent_instructions' => $intentInstructions] : []
+            ! empty($intentInstructions) ? ['intent_instructions' => $intentInstructions] : []
         );
 
         // Load related properties for this plan (articles linked via content_plan_id)
         $properties = [];
-        if ($plan->article && !empty($plan->article->property_ids ?? [])) {
+        if ($plan->article && ! empty($plan->article->property_ids ?? [])) {
             $propertyIds = is_array($plan->article->property_ids)
                 ? $plan->article->property_ids
                 : json_decode($plan->article->property_ids, true) ?? [];
 
-            if (!empty($propertyIds)) {
-                $properties = \App\Models\Property::with(['media' => fn($q) => $q->orderBy('display_order')])
+            if (! empty($propertyIds)) {
+                $properties = Property::with(['media' => fn ($q) => $q->orderBy('display_order')])
                     ->whereIn('id', $propertyIds)
                     ->get(['id', 'name', 'slug', 'description', 'location', 'address', 'capacity', 'bedroom_count', 'base_rate'])
-                    ->map(fn($p) => [
-                        'id'          => $p->id,
-                        'name'        => $p->name,
-                        'slug'        => $p->slug,
+                    ->map(fn ($p) => [
+                        'id' => $p->id,
+                        'name' => $p->name,
+                        'slug' => $p->slug,
                         'description' => $p->description,
-                        'location'    => $p->location ?? $p->address,
-                        'capacity'    => $p->capacity,
-                        'bedrooms'    => $p->bedroom_count,
-                        'base_rate'   => $p->base_rate,
-                        'images'      => $p->media->take(3)->pluck('url')->toArray(),
+                        'location' => $p->location ?? $p->address,
+                        'capacity' => $p->capacity,
+                        'bedrooms' => $p->bedroom_count,
+                        'base_rate' => $p->base_rate,
+                        'images' => $p->media->take(3)->pluck('url')->toArray(),
                     ])
                     ->toArray();
             }
@@ -243,9 +243,9 @@ PROMPT;
         );
 
         $plan->update([
-            'ai_outline'      => $outline['outline'],
+            'ai_outline' => $outline['outline'],
             'target_keywords' => array_unique(array_merge($plan->target_keywords ?? [], $outline['lsi_keywords'] ?? [])),
-            'status'          => 'outlining',
+            'status' => 'outlining',
         ]);
 
         return $outline['outline'];
@@ -257,12 +257,12 @@ PROMPT;
     private function mapContentTypeToArticleType(string $contentType): string
     {
         return match ($contentType) {
-            'guide'      => 'travel_guide',
-            'news'       => 'event_article',
-            'review'     => 'property_article',
+            'guide' => 'travel_guide',
+            'news' => 'event_article',
+            'review' => 'property_article',
             'comparison' => 'seo_article',
-            'tips'       => 'seo_article',
-            default      => 'travel_guide',
+            'tips' => 'seo_article',
+            default => 'travel_guide',
         };
     }
 
@@ -275,50 +275,45 @@ PROMPT;
         $intent = $suggestions['search_intent'] ?? null;
         $variations = $suggestions['keyword_variations'] ?? [];
 
-        if (!$intent && empty($variations)) {
+        if (! $intent && empty($variations)) {
             // Fallback to generic instructions
-            return "- Create comprehensive outline with sections and sub-points\n" .
-                "- Include: Introduction, main sections, conclusion";
+            return "- Create comprehensive outline with sections and sub-points\n".
+                '- Include: Introduction, main sections, conclusion';
         }
 
         $intentInstructions = match ($intent) {
-            'informational' =>
-            "- Structure: Hook → Penjelasan konsep → Langkah/Tips detail → FAQ → Penutup\n" .
-            "- Tone: Edukatif, informatif, mudah dipahami pemula\n" .
+            'informational' => "- Structure: Hook → Penjelasan konsep → Langkah/Tips detail → FAQ → Penutup\n".
+            "- Tone: Edukatif, informatif, mudah dipahami pemula\n".
             "- Sertakan sub-bagian 'Yang Perlu Diketahui' dan 'Kesalahan Umum'",
-            'transactional' =>
-            "- Structure: Hook (urgensi) → Benefit utama → Cara pesan/sewa → Harga/perbandingan → CTA kuat\n" .
-            "- Tone: Persuasif, action-oriented, bangun kepercayaan\n" .
+            'transactional' => "- Structure: Hook (urgensi) → Benefit utama → Cara pesan/sewa → Harga/perbandingan → CTA kuat\n".
+            "- Tone: Persuasif, action-oriented, bangun kepercayaan\n".
             "- Sertakan sub-bagian 'Mengapa Pilih Kami' dan 'Cara Memesan'",
-            'local' =>
-            "- Structure: Hook (lokasi spesifik) → Deskripsi area → Properti di kawasan tersebut → Akses & transport → Tips lokal\n" .
-            "- Tone: Lokal, hangat, seperti panduan teman setempat\n" .
+            'local' => "- Structure: Hook (lokasi spesifik) → Deskripsi area → Properti di kawasan tersebut → Akses & transport → Tips lokal\n".
+            "- Tone: Lokal, hangat, seperti panduan teman setempat\n".
             "- Sertakan sub-bagian 'Apa yang Ada di Sekitar' dan 'Tips Wisatawan Lokal'",
-            'commercial' =>
-            "- Structure: Hook (comparison angle) → Kriteria perbandingan → Tabel/list perbandingan → Rekomendasi → CTA\n" .
-            "- Tone: Objektif, analitis, membantu keputusan\n" .
+            'commercial' => "- Structure: Hook (comparison angle) → Kriteria perbandingan → Tabel/list perbandingan → Rekomendasi → CTA\n".
+            "- Tone: Objektif, analitis, membantu keputusan\n".
             "- Sertakan sub-bagian 'Pro & Kontra' dan 'Verdict/Rekomendasi Akhir'",
-            default =>
-            "- Create comprehensive outline with sections and sub-points\n" .
-            "- Include: Introduction, main sections, conclusion",
+            default => "- Create comprehensive outline with sections and sub-points\n".
+            '- Include: Introduction, main sections, conclusion',
         };
 
         // Append keyword variation hints so the AI can weave them into sections
         $variationHints = '';
-        if (!empty($variations)) {
+        if (! empty($variations)) {
             $lines = [];
             foreach ($variations as $intentType => $kws) {
-                if (!empty($kws)) {
-                    $lines[] = "  [{$intentType}]: " . implode(', ', (array) $kws);
+                if (! empty($kws)) {
+                    $lines[] = "  [{$intentType}]: ".implode(', ', (array) $kws);
                 }
             }
             if ($lines) {
-                $variationHints = "\n- Selipkan variasi kata kunci berikut secara natural di judul sub-bagian:\n" .
+                $variationHints = "\n- Selipkan variasi kata kunci berikut secara natural di judul sub-bagian:\n".
                     implode("\n", $lines);
             }
         }
 
-        return $intentInstructions . $variationHints;
+        return $intentInstructions.$variationHints;
     }
 
     /**
@@ -357,7 +352,7 @@ PROMPT;
     {
         return $plan->planned_publish_date instanceof Carbon
             && $plan->planned_publish_date->isPast()
-            && (!$plan->article || $plan->article->status !== 'published')
+            && (! $plan->article || $plan->article->status !== 'published')
             && $plan->status !== 'published';
     }
 
@@ -374,7 +369,7 @@ PROMPT;
         // Fallback for old plans without articles
         $article = Article::create([
             'title' => $plan->title,
-            'slug' => \Str::slug($plan->title . '-' . uniqid()),
+            'slug' => \Str::slug($plan->title.'-'.uniqid()),
             'target_keywords' => $plan->target_keywords,
             'language' => 'id',
             'status' => 'draft',
@@ -434,9 +429,9 @@ PROMPT;
                 $q->whereBetween('planned_publish_date', [$start, $end])
                     // OR Article scheduled/published date in range
                     ->orWhereHas('article', function ($qa) use ($start, $end) {
-                    $qa->whereBetween('scheduled_at', [$start, $end])
-                        ->orWhereBetween('published_at', [$start, $end]);
-                });
+                        $qa->whereBetween('scheduled_at', [$start, $end])
+                            ->orWhereBetween('published_at', [$start, $end]);
+                    });
             });
 
         $this->applyFilters($query, $filters);
@@ -510,28 +505,28 @@ PROMPT;
      */
     private function applyFilters($query, array $filters)
     {
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $query->where(function ($q) use ($filters) {
-                $q->where('title', 'like', '%' . $filters['search'] . '%')
-                    ->orWhere('description', 'like', '%' . $filters['search'] . '%')
+                $q->where('title', 'like', '%'.$filters['search'].'%')
+                    ->orWhere('description', 'like', '%'.$filters['search'].'%')
                     ->orWhereJsonContains('target_keywords', $filters['search']);
             });
         }
 
-        if (!empty($filters['status'])) {
+        if (! empty($filters['status'])) {
             // Filter by Article status or Plan status (fallback)
             $status = $filters['status'];
             $query->where(function ($q) use ($status) {
                 $q->where('status', $status)
-                    ->orWhereHas('article', fn($qa) => $qa->where('status', $status));
+                    ->orWhereHas('article', fn ($qa) => $qa->where('status', $status));
             });
         }
 
-        if (!empty($filters['assigned_to'])) {
+        if (! empty($filters['assigned_to'])) {
             $query->where('assigned_to', $filters['assigned_to']);
         }
 
-        if (!empty($filters['content_type'])) {
+        if (! empty($filters['content_type'])) {
             $query->where('content_type', $filters['content_type']);
         }
     }
@@ -552,12 +547,12 @@ PROMPT;
 
         $thisMonth = (clone $baseQuery)->whereBetween('planned_publish_date', [
             now()->startOfMonth(),
-            now()->endOfMonth()
+            now()->endOfMonth(),
         ])->count();
 
         $nextMonth = (clone $baseQuery)->whereBetween('planned_publish_date', [
             now()->addMonth()->startOfMonth(),
-            now()->addMonth()->endOfMonth()
+            now()->addMonth()->endOfMonth(),
         ])->count();
 
         $inProgress = (clone $baseQuery)->whereIn('status', ['writing', 'reviewing', 'draft', 'outlining'])->count();

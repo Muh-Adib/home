@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Models\User;
 use App\Models\Booking;
 use App\Models\Property;
+use App\Models\User;
 use App\Services\BookingExtraServiceSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
+use Tests\TestCase;
 
 /**
  * Preservation Property Tests — Task 2 (Bugfix: codebase-audit-cleanup)
@@ -92,7 +92,7 @@ class PreservationTest extends TestCase
             ->get(route('admin.bookings.index'));
 
         $this->assertNotEquals(404, $response->getStatusCode(),
-            "Route admin.bookings.index harus resolve (non-404)"
+            'Route admin.bookings.index harus resolve (non-404)'
         );
     }
 
@@ -107,7 +107,7 @@ class PreservationTest extends TestCase
             ->get(route('admin.bookings.create'));
 
         $this->assertNotEquals(404, $response->getStatusCode(),
-            "Route admin.bookings.create harus resolve (non-404)"
+            'Route admin.bookings.create harus resolve (non-404)'
         );
     }
 
@@ -122,7 +122,7 @@ class PreservationTest extends TestCase
             ->get(route('admin.bookings.check-in-out'));
 
         $this->assertNotEquals(404, $response->getStatusCode(),
-            "Route admin.bookings.check-in-out harus resolve (non-404)"
+            'Route admin.bookings.check-in-out harus resolve (non-404)'
         );
     }
 
@@ -140,7 +140,7 @@ class PreservationTest extends TestCase
     {
         $this->assertTrue(
             class_exists(BookingExtraServiceSyncService::class),
-            "Class BookingExtraServiceSyncService harus ada"
+            'Class BookingExtraServiceSyncService harus ada'
         );
     }
 
@@ -153,7 +153,7 @@ class PreservationTest extends TestCase
     {
         $this->assertTrue(
             method_exists(BookingExtraServiceSyncService::class, 'sync'),
-            "BookingExtraServiceSyncService harus memiliki method sync()"
+            'BookingExtraServiceSyncService harus memiliki method sync()'
         );
     }
 
@@ -167,7 +167,7 @@ class PreservationTest extends TestCase
     {
         $property = Property::factory()->create();
         $booking = Booking::factory()->create(['property_id' => $property->id]);
-        $service = new BookingExtraServiceSyncService();
+        $service = new BookingExtraServiceSyncService;
 
         // Property: untuk semua input services kosong/null, sync() harus return 0.0
         $inputs = [null, [], ''];
@@ -175,7 +175,7 @@ class PreservationTest extends TestCase
         foreach ($inputs as $input) {
             $result = $service->sync($booking, is_string($input) ? null : $input);
             $this->assertEquals(0.0, $result,
-                "sync() harus return 0.0 untuk input services kosong/null (input: " . json_encode($input) . ")"
+                'sync() harus return 0.0 untuk input services kosong/null (input: '.json_encode($input).')'
             );
         }
     }
@@ -190,7 +190,7 @@ class PreservationTest extends TestCase
     {
         $property = Property::factory()->create();
         $booking = Booking::factory()->create(['property_id' => $property->id]);
-        $service = new BookingExtraServiceSyncService();
+        $service = new BookingExtraServiceSyncService;
 
         // Berbagai kombinasi input services yang valid
         $testCases = [
@@ -240,7 +240,7 @@ class PreservationTest extends TestCase
             $this->assertEquals(
                 $case['expected_total'],
                 $result,
-                "sync() harus menghasilkan total yang konsisten: " . json_encode($case['services'])
+                'sync() harus menghasilkan total yang konsisten: '.json_encode($case['services'])
             );
         }
     }
@@ -255,7 +255,7 @@ class PreservationTest extends TestCase
     {
         $property = Property::factory()->create();
         $booking = Booking::factory()->create(['property_id' => $property->id]);
-        $service = new BookingExtraServiceSyncService();
+        $service = new BookingExtraServiceSyncService;
 
         $services = [
             [
@@ -273,10 +273,10 @@ class PreservationTest extends TestCase
         $result2 = $service->sync($booking, $services, replaceExisting: true);
 
         $this->assertEquals($result1, $result2,
-            "sync() dengan replaceExisting=true harus menghasilkan output yang konsisten (idempotent)"
+            'sync() dengan replaceExisting=true harus menghasilkan output yang konsisten (idempotent)'
         );
         $this->assertEquals(100000.0, $result2,
-            "sync() harus menghasilkan total yang benar setelah replace"
+            'sync() harus menghasilkan total yang benar setelah replace'
         );
     }
 }

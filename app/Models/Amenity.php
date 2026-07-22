@@ -27,8 +27,8 @@ class Amenity extends Model
     public function properties(): BelongsToMany
     {
         return $this->belongsToMany(Property::class, 'property_amenities')
-                    ->withPivot('is_available', 'notes')
-                    ->withTimestamps();
+            ->withPivot('is_available', 'notes')
+            ->withTimestamps();
     }
 
     // Scopes

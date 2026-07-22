@@ -107,11 +107,10 @@ class BookingServiceRefactoredTest extends TestCase
             'user_id' => $this->user->id,
         ]);
 
-        // Mock rate calculation
         $this->rateCalculationService
             ->shouldReceive('calculateRate')
             ->once()
-            ->with(Mockery::type(Property::class), '2024-01-15', '2024-01-17', Mockery::type('int'))
+            ->with(Mockery::type(Property::class), '2024-01-15', '2024-01-17', Mockery::type('int'), Mockery::any())
             ->andReturn($rateCalculation);
 
         // Mock booking creation
@@ -230,7 +229,7 @@ class BookingServiceRefactoredTest extends TestCase
         $this->rateCalculationService
             ->shouldReceive('calculateRate')
             ->once()
-            ->with($this->property, '2024-01-15', '2024-01-17', 2)
+            ->with($this->property, '2024-01-15', '2024-01-17', 2, Mockery::any())
             ->andReturn($expectedCalculation);
 
         $result = $this->bookingService->calculateRate(

@@ -354,6 +354,7 @@ class BookingService
             guestName: $data['guest_name'],
             guestEmail: $data['guest_email'],
             guestPhone: $data['guest_phone'],
+            guestPhoneAlternative: $data['guest_phone_alternative'] ?? null,
             guestCountry: $data['guest_country'] ?? 'Indonesia',
             guestIdNumber: $data['guest_id_number'] ?? null,
             guestGender: $data['guest_gender'] ?? 'male',

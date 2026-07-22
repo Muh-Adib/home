@@ -3,13 +3,12 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
     /**
      * Run the migrations.
-     * 
+     *
      * Menambahkan kolom extra_bed_rate untuk mengatur tarif extra bed pada seasonal rate
      * Jika null, menggunakan extra_bed_rate dari property
      */
@@ -31,4 +30,3 @@ return new class extends Migration
         });
     }
 };
-

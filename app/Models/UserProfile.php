@@ -41,7 +41,7 @@ class UserProfile extends Model
             $this->city,
             $this->state,
             $this->postal_code,
-            $this->country
+            $this->country,
         ]);
 
         return implode(', ', $parts);

@@ -30,7 +30,7 @@ class BookingDailyRevenue extends Model
     ];
 
     protected $casts = [
-        'tanggal' => 'date',
+        'tanggal' => 'datetime',
         'amount' => 'integer',
         'base_amount' => 'integer',
         'weekend_premium' => 'integer',

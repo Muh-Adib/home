@@ -78,8 +78,8 @@ class AIProviderKey extends Model
             }
 
             return substr($key, 0, $visibleChars)
-                . str_repeat('*', strlen($key) - ($visibleChars * 2))
-                . substr($key, -$visibleChars);
+                .str_repeat('*', strlen($key) - ($visibleChars * 2))
+                .substr($key, -$visibleChars);
         } catch (\Exception $e) {
             return '****';
         }
@@ -130,7 +130,7 @@ class AIProviderKey extends Model
 
     public function isRateLimited(): bool
     {
-        if (!$this->daily_limit) {
+        if (! $this->daily_limit) {
             return false;
         }
 
@@ -168,7 +168,7 @@ class AIProviderKey extends Model
         return [
             'total_requests' => number_format($this->requests_count),
             'total_tokens' => number_format($this->tokens_used),
-            'total_cost' => '$' . number_format($this->total_cost, 2),
+            'total_cost' => '$'.number_format($this->total_cost, 2),
             'limit_remaining' => $this->daily_limit
                 ? ($this->daily_limit - $this->requests_count)
                 : 'Unlimited',

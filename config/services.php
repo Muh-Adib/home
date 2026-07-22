@@ -45,7 +45,7 @@ return [
     */
     'google_indexing' => [
         'client_email' => env('GOOGLE_INDEXING_CLIENT_EMAIL'),
-        'private_key'  => env('GOOGLE_INDEXING_PRIVATE_KEY'),
+        'private_key' => env('GOOGLE_INDEXING_PRIVATE_KEY'),
     ],
 
 ];

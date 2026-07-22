@@ -3,7 +3,6 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\URL;
@@ -44,14 +43,14 @@ class GuestWelcomeNotification extends Notification
         );
 
         return (new MailMessage)
-            ->subject('Welcome to ' . config('app.name'))
-            ->greeting('Hello, ' . e($notifiable->name) . '!')
+            ->subject('Welcome to '.config('app.name'))
+            ->greeting('Hello, '.e($notifiable->name).'!')
             ->line('Your booking account has been created successfully.')
             ->line('To access your booking and manage your stay, please set your password using the link below.')
             ->action('Set Your Password', $setPasswordUrl)
-            ->line("⚠ This link is secure and will expire in 2 hours for your protection.")
+            ->line('⚠ This link is secure and will expire in 2 hours for your protection.')
             ->line('If you did not request this, please ignore this email.')
-            ->salutation('Best regards, ' . config('app.name'));
+            ->salutation('Best regards, '.config('app.name'));
     }
 
     /**

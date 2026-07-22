@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\User;
+use App\Models\UserProfile;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
@@ -95,7 +95,7 @@ class UserSeeder extends Seeder
 
         foreach ($users as $userData) {
             // Use updateOrCreate to avoid duplicate constraint violations
-            $user = \App\Models\User::updateOrCreate(
+            $user = User::updateOrCreate(
                 ['email' => $userData['email']],
                 array_merge($userData, [
                     'created_at' => now(),
@@ -104,7 +104,7 @@ class UserSeeder extends Seeder
             );
 
             // Create user profile for each user if not exists
-            \App\Models\UserProfile::updateOrCreate(
+            UserProfile::updateOrCreate(
                 ['user_id' => $user->id],
                 [
                     'country' => 'Indonesia',
@@ -112,7 +112,7 @@ class UserSeeder extends Seeder
                     'updated_at' => now(),
                 ]
             );
-            
+
             $this->command->info("Created/Updated user: {$userData['name']} ({$userData['email']})");
         }
     }

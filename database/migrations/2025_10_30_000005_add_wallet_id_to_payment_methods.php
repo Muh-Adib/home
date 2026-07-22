@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasColumn('payment_methods', 'wallet_id')) {
+        if (! Schema::hasColumn('payment_methods', 'wallet_id')) {
             Schema::table('payment_methods', function (Blueprint $table) {
                 $table->foreignId('wallet_id')->nullable()->after('sort_order');
                 $table->index('wallet_id');
@@ -18,7 +18,7 @@ return new class extends Migration
                 Schema::table('payment_methods', function (Blueprint $table) {
                     $table->foreign('wallet_id')->references('id')->on('wallets')->nullOnDelete();
                 });
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 // Abaikan untuk SQLite; pada MySQL/Postgres akan sukses
             }
         }
@@ -31,7 +31,7 @@ return new class extends Migration
                 Schema::table('payment_methods', function (Blueprint $table) {
                     $table->dropForeign(['wallet_id']);
                 });
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 // Ignore if FK not present
             }
             Schema::table('payment_methods', function (Blueprint $table) {
@@ -42,5 +42,3 @@ return new class extends Migration
         }
     }
 };
-
-

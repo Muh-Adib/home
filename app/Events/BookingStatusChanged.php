@@ -6,8 +6,6 @@ use App\Models\Booking;
 use App\Models\User;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
-use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -17,8 +15,11 @@ class BookingStatusChanged implements ShouldBroadcast
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public Booking $booking;
+
     public string $oldStatus;
+
     public string $newStatus;
+
     public User $changedBy;
 
     /**
@@ -35,13 +36,13 @@ class BookingStatusChanged implements ShouldBroadcast
     /**
      * Get the channels the event should broadcast on.
      *
-     * @return array<int, \Illuminate\Broadcasting\Channel>
+     * @return array<int, Channel>
      */
     public function broadcastOn(): array
     {
         return [
             new Channel('admin-notifications'),
-            new Channel('booking.' . $this->booking->booking_number),
+            new Channel('booking.'.$this->booking->booking_number),
         ];
     }
 

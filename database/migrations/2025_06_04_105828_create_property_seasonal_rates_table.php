@@ -20,7 +20,7 @@ return new class extends Migration
             $table->enum('rate_type', [
                 'percentage', // percentage increase from base_rate
                 'fixed', // fixed amount per night
-                'multiplier' // multiply base_rate by this factor
+                'multiplier', // multiply base_rate by this factor
             ])->default('percentage');
             $table->decimal('rate_value', 8, 2); // percentage (e.g., 50), fixed amount (e.g., 2000000), or multiplier (e.g., 1.5)
             $table->integer('min_stay_nights')->default(1); // minimum nights for this rate
@@ -30,7 +30,7 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->json('applicable_days')->nullable(); // array of day numbers (0=Sunday, 1=Monday, etc.)
             $table->timestamps();
-            
+
             // Ensure no overlapping dates for same property with same priority
             $table->index(['property_id', 'start_date', 'end_date']);
             $table->index(['property_id', 'is_active', 'priority']);
@@ -44,4 +44,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('property_seasonal_rates');
     }
-}; 
+};

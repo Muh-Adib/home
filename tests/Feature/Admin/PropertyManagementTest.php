@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 class PropertyManagementTest extends TestCase
 {
-    // use RefreshDatabase; // Commented out to avoid wiping existing dev data if not using in-memory DB
+    use RefreshDatabase;
 
     #[Test]
     public function admin_can_create_property_with_type()
@@ -39,7 +39,8 @@ class PropertyManagementTest extends TestCase
             'min_stay_weekday' => 1,
             'min_stay_weekend' => 2,
             'min_stay_peak' => 3,
-            'owner_id' => $admin->id, // or create another owner
+            'owner_id' => (string) $admin->id,
+            'ownership_model' => 'owned',
             'ical_import_urls' => [],
         ];
 
@@ -85,6 +86,9 @@ class PropertyManagementTest extends TestCase
             'min_stay_weekend' => $property->min_stay_weekend,
             'min_stay_peak' => $property->min_stay_peak,
             'status' => 'active',
+            'location' => $property->location ?? 'selatan',
+            'ownership_model' => $property->ownership_model ?? 'owned',
+            'weekend_premium_type' => $property->weekend_premium_type ?? 'percentage',
             'ical_import_urls' => [],
         ];
 

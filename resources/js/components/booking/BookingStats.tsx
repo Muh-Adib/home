@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
+import { usePage } from '@inertiajs/react';
+
 interface BookingStatsProps {
     statistics: {
         total_bookings: number;
@@ -38,6 +40,8 @@ export default function BookingStats({
     compactMode = false
 }: BookingStatsProps) {
     const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
+    const { auth } = usePage<any>().props;
+    const isSuperAdmin = auth?.user?.role === 'super_admin';
 
     const stats = [
         {
@@ -76,15 +80,17 @@ export default function BookingStats({
             change: '-2%',
             priority: 7
         },
-        {
-            title: 'Total Revenue',
-            value: formatCurrency(statistics.total_revenue),
-            icon: DollarSign,
-            color: 'bg-emerald-500',
-            trend: 'up',
-            change: '+15%',
-            priority: 4
-        },
+        ...(isSuperAdmin ? [
+            {
+                title: 'Total Revenue',
+                value: formatCurrency(statistics.total_revenue),
+                icon: DollarSign,
+                color: 'bg-emerald-500',
+                trend: 'up',
+                change: '+15%',
+                priority: 4
+            }
+        ] : []),
         {
             title: 'Check-ins Today',
             value: statistics.check_ins_today,
@@ -103,15 +109,17 @@ export default function BookingStats({
             change: '-1',
             priority: 6
         },
-        {
-            title: 'Pending Revenue',
-            value: formatCurrency(statistics.pending_revenue),
-            icon: TrendingUp,
-            color: 'bg-orange-500',
-            trend: 'up',
-            change: '+22%',
-            priority: 8
-        }
+        ...(isSuperAdmin ? [
+            {
+                title: 'Pending Revenue',
+                value: formatCurrency(statistics.pending_revenue),
+                icon: TrendingUp,
+                color: 'bg-orange-500',
+                trend: 'up',
+                change: '+22%',
+                priority: 8
+            }
+        ] : [])
     ];
 
     // Show only high priority stats in compact mode

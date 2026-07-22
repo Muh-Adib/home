@@ -133,6 +133,33 @@ export default function FinanceIndex({ summary, wallets, bankAccounts, scopeBrea
             <CardDescription>Menu navigasi cepat ke seluruh pencatatan keuangan</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
+            <Link href="/admin/finance/e-statement-sync">
+              <Button variant="outline" className="w-full justify-between hover:bg-accent group border-indigo-200 bg-indigo-50/30">
+                <span className="flex items-center gap-2 font-bold text-indigo-700">
+                  <FileText className="w-4 h-4 text-indigo-600" />
+                  Sync E-Statement (Upload/Map)
+                </span>
+                <ArrowRight className="w-4 h-4 text-indigo-500 group-hover:translate-x-0.5 transition-transform" />
+              </Button>
+            </Link>
+            <Link href="/admin/finance/refunds">
+              <Button variant="outline" className="w-full justify-between hover:bg-accent group">
+                <span className="flex items-center gap-2">
+                  <Coins className="w-4 h-4 text-rose-500" />
+                  Pengajuan Refund Tamu
+                </span>
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+              </Button>
+            </Link>
+            <Link href="/admin/finance/unbilled-breakfasts">
+              <Button variant="outline" className="w-full justify-between hover:bg-accent group">
+                <span className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-orange-500" />
+                  Tagihan Sarapan Vendor
+                </span>
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+              </Button>
+            </Link>
             <Link href="/admin/finance/incomes">
               <Button variant="outline" className="w-full justify-between hover:bg-accent group">
                 <span className="flex items-center gap-2">

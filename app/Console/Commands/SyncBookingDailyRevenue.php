@@ -92,6 +92,9 @@ class SyncBookingDailyRevenue extends Command
      */
     private function syncBookingRevenue(Booking $booking): void
     {
+        if ($this->option('force')) {
+            $booking->dailyRevenues()->delete();
+        }
         app(BookingDailyRevenueService::class)->syncBookingRevenue($booking);
     }
 }

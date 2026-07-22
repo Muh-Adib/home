@@ -37,8 +37,11 @@ class ExpenseService
                         'wallet_id' => ['Wallet tidak ditemukan.'],
                     ]);
                 }
-
-
+                if ($wallet->balance < $amount) {
+                    throw ValidationException::withMessages([
+                        'amount' => ['Saldo wallet tidak mencukupi untuk mencatat pengeluaran ini.'],
+                    ]);
+                }
             }
 
             // Buat expense record
@@ -108,8 +111,11 @@ class ExpenseService
                         'wallet_id' => ['Wallet tidak ditemukan.'],
                     ]);
                 }
-
-
+                if ($wallet->balance < $amount) {
+                    throw ValidationException::withMessages([
+                        'amount' => ['Saldo wallet tidak mencukupi untuk memperbarui pengeluaran ini.'],
+                    ]);
+                }
             }
 
             // Hapus transaksi wallet lama yang terasosiasi dengan expense ini

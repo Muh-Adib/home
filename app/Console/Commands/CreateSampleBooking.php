@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\Property;
 use App\Models\Booking;
+use App\Models\Property;
 use Carbon\Carbon;
+use Illuminate\Console\Command;
 
 class CreateSampleBooking extends Command
 {
@@ -29,23 +29,25 @@ class CreateSampleBooking extends Command
     public function handle()
     {
         $property = Property::first();
-        
-        if (!$property) {
+
+        if (! $property) {
             $this->error('No property found. Please run property seeder first.');
+
             return;
         }
 
         // Check if sample booking already exists
-        $existingBooking = Booking::where('booking_number', 'LIKE', 'BKG-' . date('Ymd') . '%')->first();
+        $existingBooking = Booking::where('booking_number', 'LIKE', 'BKG-'.date('Ymd').'%')->first();
         if ($existingBooking) {
-            $this->info('Sample booking already exists: ' . $existingBooking->booking_number);
-            $this->info('Payment URL: /booking/' . $existingBooking->booking_number . '/payment');
+            $this->info('Sample booking already exists: '.$existingBooking->booking_number);
+            $this->info('Payment URL: /booking/'.$existingBooking->booking_number.'/payment');
+
             return;
         }
 
         $booking = Booking::create([
             'property_id' => $property->id,
-            'booking_number' => 'BKG-' . date('Ymd') . '-0001',
+            'booking_number' => 'BKG-'.date('Ymd').'-0001',
             'guest_name' => 'John Doe',
             'guest_email' => 'john@example.com',
             'guest_phone' => '+6281234567890',
@@ -72,14 +74,14 @@ class CreateSampleBooking extends Command
         ]);
 
         $this->info('✅ Sample booking created successfully!');
-        $this->info('Booking Number: ' . $booking->booking_number);
-        $this->info('Property: ' . $property->name);
-        $this->info('Guest: ' . $booking->guest_name);
-        $this->info('DP Amount: Rp ' . number_format($booking->dp_amount));
+        $this->info('Booking Number: '.$booking->booking_number);
+        $this->info('Property: '.$property->name);
+        $this->info('Guest: '.$booking->guest_name);
+        $this->info('DP Amount: Rp '.number_format($booking->dp_amount));
         $this->info('');
         $this->info('🔗 Test URLs:');
-        $this->info('Booking Confirmation: /booking/' . $booking->id . '/confirmation');
-        $this->info('Payment Form: /booking/' . $booking->booking_number . '/payment');
+        $this->info('Booking Confirmation: /booking/'.$booking->id.'/confirmation');
+        $this->info('Payment Form: /booking/'.$booking->booking_number.'/payment');
         $this->info('');
         $this->info('💡 The booking status is "confirmed" so payment button should be available.');
     }

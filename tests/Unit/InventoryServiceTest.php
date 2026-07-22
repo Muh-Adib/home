@@ -2,43 +2,45 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
-use App\Services\InventoryService;
 use App\Models\InventoryItem;
 use App\Models\InventoryStockMovement;
 use App\Models\InventoryUsage;
-use App\Models\PropertyExpense;
 use App\Models\Property;
+use App\Models\PropertyExpense;
 use App\Models\User;
+use App\Services\InventoryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Log;
+use Tests\TestCase;
 
 class InventoryServiceTest extends TestCase
 {
     use RefreshDatabase;
 
     protected InventoryService $service;
+
     protected User $user;
+
     protected Property $property;
+
     protected InventoryItem $item;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
-        $this->service = new InventoryService();
-        
+
+        $this->service = new InventoryService;
+
         // Create test user
         $this->user = User::factory()->create([
             'role' => 'super_admin',
         ]);
-        
+
         // Create test property
         $this->property = Property::factory()->create([
             'name' => 'Test Villa',
             'capacity' => 8,
         ]);
-        
+
         // Create test inventory item
         $this->item = InventoryItem::create([
             'name' => 'Sabun Mandi',
@@ -124,7 +126,7 @@ class InventoryServiceTest extends TestCase
             ->where('inventory_item_id', $this->item->id)
             ->latest()
             ->first();
-        
+
         $this->assertNotNull($movement);
         $this->assertEquals('out', $movement->type);
         $this->assertEquals($quantity, $movement->quantity);
@@ -160,7 +162,7 @@ class InventoryServiceTest extends TestCase
 
         // Assert expense was created and linked
         $this->assertNotNull($usage->expense_id);
-        
+
         $expense = PropertyExpense::find($usage->expense_id);
         $this->assertNotNull($expense);
         $this->assertEquals('supplies', $expense->expense_category);
@@ -214,16 +216,16 @@ class InventoryServiceTest extends TestCase
 
         // Assert it's the same usage record (merged)
         $this->assertEquals($usage1->id, $usage2->id);
-        
+
         // Assert quantity is summed
         $this->assertEquals(15, $usage2->quantity_used);
-        
+
         // Assert total cost is updated
         $this->assertGreaterThan($firstTotalCost, $usage2->total_cost);
-        
+
         // Assert expense is updated (same expense_id)
         $this->assertEquals($firstExpenseId, $usage2->expense_id);
-        
+
         $updatedExpense = PropertyExpense::find($firstExpenseId);
         $this->assertGreaterThan($firstExpenseAmount, $updatedExpense->amount);
         $this->assertEquals($usage2->total_cost, $updatedExpense->amount);
@@ -271,7 +273,7 @@ class InventoryServiceTest extends TestCase
 
         // Assert different usage records
         $this->assertNotEquals($usage1->id, $usage2->id);
-        
+
         // Assert different expenses
         $this->assertNotNull($usage1->expense_id);
         $this->assertNotNull($usage2->expense_id);
@@ -280,7 +282,7 @@ class InventoryServiceTest extends TestCase
         // Verify both expenses exist
         $expense1 = PropertyExpense::find($usage1->expense_id);
         $expense2 = PropertyExpense::find($usage2->expense_id);
-        
+
         $this->assertNotNull($expense1);
         $this->assertNotNull($expense2);
         $this->assertStringContainsString('Sabun Mandi', $expense1->description);
@@ -303,9 +305,9 @@ class InventoryServiceTest extends TestCase
         );
 
         $expense = $usage->expense;
-        
+
         // Check description format: "Penggunaan {item_name} - {qty} {unit}"
-        $expectedDescription = "Penggunaan Sabun Mandi - 12 pcs";
+        $expectedDescription = 'Penggunaan Sabun Mandi - 12 pcs';
         $this->assertEquals($expectedDescription, $expense->description);
     }
 
@@ -346,14 +348,14 @@ class InventoryServiceTest extends TestCase
     {
         // Purchase 100 units
         $this->service->recordPurchase($this->item->id, 100, 5000, null, now()->toDateString(), $this->user->id);
-        
+
         // Use 30 units
         $this->service->recordUsage($this->item->id, $this->property->id, now()->toDateString(), 30, $this->user->id);
 
         // Check current stock
         $this->item->refresh();
         $currentStock = $this->item->current_stock;
-        
+
         $this->assertEquals(70, $currentStock);
     }
 

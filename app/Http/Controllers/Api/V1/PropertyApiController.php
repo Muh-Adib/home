@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Property;
 use App\Services\AvailabilityService;
 use App\Services\RateCalculationService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -106,7 +107,8 @@ class PropertyApiController extends Controller
         $checkOut = $request->input('check_out');
         $guests = $request->integer('guests', 2);
 
-        $result = $properties->map(fn ($property) => $this->formatPropertySummary($property, $checkIn, $checkOut, $guests));
+        /** @var Collection<int, Property> $properties */
+        $result = $properties->map(fn (Property $property) => $this->formatPropertySummary($property, $checkIn, $checkOut, $guests));
 
         return response()->json([
             'success' => true,
@@ -132,6 +134,10 @@ class PropertyApiController extends Controller
      */
     public function show(Request $request, Property $property): JsonResponse
     {
+        if ($property->status !== 'active') {
+            abort(404, 'Property not found.');
+        }
+
         $property->load([
             'amenities' => fn ($q) => $q->where('property_amenities.is_available', true),
             'media' => fn ($q) => $q->orderBy('display_order'),
@@ -174,7 +180,7 @@ class PropertyApiController extends Controller
                 'currency' => 'IDR',
                 'formatted_base' => 'Rp '.number_format((int) $property->base_rate, 0, ',', '.'),
             ],
-            'facilities' => $property->amenities->map(fn ($a) => [
+            'facilities' => ($property->relationLoaded('amenities') ? $property->getRelation('amenities') : collect())->map(fn ($a) => [
                 'code' => $a->code ?? $a->slug ?? $a->name,
                 'label' => $a->name,
                 'category' => $a->category ?? 'general',
@@ -246,7 +252,7 @@ class PropertyApiController extends Controller
                 'season_rates_available' => $property->seasonalRates->isNotEmpty(),
                 'formatted_base' => 'Rp '.number_format((int) $property->base_rate, 0, ',', '.'),
             ],
-            'facilities' => $property->amenities->map(fn ($a) => [
+            'facilities' => ($property->relationLoaded('amenities') ? $property->getRelation('amenities') : collect())->map(fn ($a) => [
                 'code' => $a->code ?? $a->slug ?? $a->name,
                 'label' => $a->name,
                 'category' => $a->category ?? 'general',

@@ -26,7 +26,7 @@ return new class extends Migration
             $table->integer('bedroom_count');
             $table->integer('bathroom_count');
             $table->decimal('base_rate', 12, 0);
-            $table->integer('weekend_premium_percent')->default(20);
+            $table->integer('weekend_premium_percent')->nullable()->default(20);
             $table->decimal('cleaning_fee', 10, 0)->default(0);
             $table->decimal('extra_bed_rate', 10, 0)->default(0);
             $table->enum('status', ['active', 'inactive', 'maintenance'])->default('active');

@@ -3,14 +3,24 @@
 namespace App\Console\Commands;
 
 use App\Services\WalletService;
-use Illuminate\Console\Attributes\Description;
-use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
-#[Signature('finance:sync-wallets')]
-#[Description('Sinkronkan dan hitung ulang seluruh saldo wallet berdasarkan transaksi, pendapatan, dan pengeluaran')]
 class SyncWallets extends Command
 {
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'finance:sync-wallets';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Sinkronkan dan hitung ulang seluruh saldo wallet berdasarkan transaksi, pendapatan, dan pengeluaran';
+
     /**
      * Execute the console command.
      */

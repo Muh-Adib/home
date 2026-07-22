@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::table('properties', function (Blueprint $table) {
             $table->enum('location', ['selatan', 'utara'])
-                  ->default('selatan')
-                  ->after('address')
-                  ->comment('Property location area: SELATAN or UTARA');
+                ->default('selatan')
+                ->after('address')
+                ->comment('Property location area: SELATAN or UTARA');
         });
     }
 

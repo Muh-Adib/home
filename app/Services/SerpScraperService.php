@@ -10,7 +10,7 @@ use Symfony\Component\DomCrawler\Crawler;
 
 /**
  * SerpScraperService
- * 
+ *
  * Mengekstrak Top SERP (Search Engine Results Page) data secara gratis
  * melalui DuckDuckGo Lite version (anti-blockir).
  */
@@ -20,10 +20,6 @@ class SerpScraperService
 
     /**
      * Mengambil Top N competitor titles & snippets untuk suatu keyword
-     * 
-     * @param string $keyword
-     * @param int $limit
-     * @return array
      */
     public function scrapeTopResults(string $keyword, int $limit = 5): array
     {
@@ -34,12 +30,13 @@ class SerpScraperService
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                 'Content-Type' => 'application/x-www-form-urlencoded',
             ])->asForm()->post(self::BASE_URL, [
-                        'q' => $keyword,
-                        'kl' => 'id-id', // Region Indonesia
-                    ]);
+                'q' => $keyword,
+                'kl' => 'id-id', // Region Indonesia
+            ]);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 Log::warning("[SerpScraperService] Gagal fetch DDG Lite untuk keyword: {$keyword}. Status: {$response->status()}");
+
                 return [];
             }
 
@@ -66,7 +63,7 @@ class SerpScraperService
                         $snippet = $snippetNode->count() > 0 ? trim($snippetNode->text()) : '';
 
                         // Hanya simpan jika url valid / tidak empty
-                        if (!empty($url) && !str_contains($url, 'duckduckgo')) {
+                        if (! empty($url) && ! str_contains($url, 'duckduckgo')) {
                             $results[] = [
                                 'title' => $title,
                                 'snippet' => $snippet,
@@ -79,12 +76,13 @@ class SerpScraperService
                 }
             });
 
-            Log::info("[SerpScraperService] Scraped " . count($results) . " top results for: {$keyword}");
+            Log::info('[SerpScraperService] Scraped '.count($results)." top results for: {$keyword}");
 
             return $results;
 
         } catch (\Exception $e) {
-            Log::error("[SerpScraperService] Error scraping SERP: " . $e->getMessage());
+            Log::error('[SerpScraperService] Error scraping SERP: '.$e->getMessage());
+
             return [];
         }
     }

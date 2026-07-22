@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\Article;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use App\Models\Article;
 
 /**
  * ArticleImageService - Handle article image uploads with WebP compression
- * 
+ *
  * Features:
  * - Auto WebP conversion dengan quality 88
  * - Resize if too large (max 1920x1080)
@@ -19,15 +19,11 @@ class ArticleImageService
 {
     public function __construct(
         private ImageService $imageService
-    ) {
-    }
+    ) {}
 
     /**
      * Upload and process article image
-     * 
-     * @param UploadedFile $file
-     * @param Article|null $article
-     * @return array
+     *
      * @throws \Exception
      */
     public function uploadImage(UploadedFile $file, ?Article $article = null): array
@@ -35,7 +31,7 @@ class ArticleImageService
         // Determine directory path
         $directory = 'articles/images';
         if ($article) {
-            $directory .= '/' . substr($article->slug, 0, 50);
+            $directory .= '/'.substr($article->slug, 0, 50);
         }
 
         // Upload using centralized ImageService
@@ -48,7 +44,7 @@ class ArticleImageService
             'sharpen' => true,
         ]);
 
-        if (!$result->success) {
+        if (! $result->success) {
             throw new \Exception($result->error ?? 'Failed to upload image');
         }
 
@@ -67,10 +63,6 @@ class ArticleImageService
 
     /**
      * Upload multiple images at once
-     * 
-     * @param array $files
-     * @param Article|null $article
-     * @return array
      */
     public function uploadMultiple(array $files, ?Article $article = null): array
     {
@@ -93,9 +85,6 @@ class ArticleImageService
 
     /**
      * Delete image from storage
-     * 
-     * @param string $path
-     * @return bool
      */
     public function deleteImage(string $path): bool
     {
@@ -108,16 +97,14 @@ class ArticleImageService
 
     /**
      * Re-optimize existing image
-     * 
-     * @param string $path
-     * @return array
+     *
      * @throws \Exception
      */
     public function optimizeExistingImage(string $path): array
     {
         $fullPath = Storage::disk('public')->path($path);
 
-        if (!file_exists($fullPath)) {
+        if (! file_exists($fullPath)) {
             throw new \Exception("Image not found: {$path}");
         }
 
@@ -144,17 +131,12 @@ class ArticleImageService
 
     /**
      * Generate thumbnail variant
-     * 
-     * @param string $path
-     * @param int $width
-     * @param int $height
-     * @return array
      */
     public function generateThumbnail(string $path, int $width = 400, int $height = 300): array
     {
         $fullPath = Storage::disk('public')->path($path);
 
-        if (!file_exists($fullPath)) {
+        if (! file_exists($fullPath)) {
             throw new \Exception("Image not found: {$path}");
         }
 
@@ -173,9 +155,6 @@ class ArticleImageService
 
     /**
      * Cleanup orphaned images (images not referenced in any article)
-     * 
-     * @param bool $dryRun
-     * @return array
      */
     public function cleanupOrphanedImages(bool $dryRun = true): array
     {
@@ -186,14 +165,14 @@ class ArticleImageService
             $url = Storage::disk('public')->url($imagePath);
 
             // Check if image is referenced in any article
-            $referenced = \App\Models\Article::where('content', 'like', "%{$url}%")
+            $referenced = Article::where('content', 'like', "%{$url}%")
                 ->orWhere('featured_image', $url)
                 ->exists();
 
-            if (!$referenced) {
+            if (! $referenced) {
                 $orphaned[] = $imagePath;
 
-                if (!$dryRun) {
+                if (! $dryRun) {
                     Storage::disk('public')->delete($imagePath);
                 }
             }
@@ -204,14 +183,13 @@ class ArticleImageService
             'orphaned_count' => count($orphaned),
             'orphaned_files' => $orphaned,
             'dry_run' => $dryRun,
-            'deleted' => !$dryRun,
+            'deleted' => ! $dryRun,
         ];
     }
 
     /**
      * Validate uploaded image
-     * 
-     * @param UploadedFile $file
+     *
      * @throws \Exception
      */
     private function validateImage(UploadedFile $file): void
@@ -223,13 +201,13 @@ class ArticleImageService
 
         // Check mime type
         $allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-        if (!in_array($file->getMimeType(), $allowedMimeTypes)) {
+        if (! in_array($file->getMimeType(), $allowedMimeTypes)) {
             throw new \Exception('Invalid image format. Allowed: JPG, PNG, GIF, WebP');
         }
 
         // Validate image dimensions
         $imageInfo = @getimagesize($file->getRealPath());
-        if (!$imageInfo) {
+        if (! $imageInfo) {
             throw new \Exception('Invalid image file');
         }
 
@@ -245,15 +223,12 @@ class ArticleImageService
 
     /**
      * Get image info
-     * 
-     * @param string $path
-     * @return array
      */
     public function getImageInfo(string $path): array
     {
         $fullPath = Storage::disk('public')->path($path);
 
-        if (!file_exists($fullPath)) {
+        if (! file_exists($fullPath)) {
             throw new \Exception("Image not found: {$path}");
         }
 

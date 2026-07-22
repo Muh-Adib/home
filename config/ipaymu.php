@@ -20,7 +20,7 @@ return [
     |
     | VA adalah nomor Virtual Account dari iPaymu.
     | API Key adalah kunci API dari iPaymu untuk autentikasi.
-    | 
+    |
     | Signature Generation (sesuai dokumentasi iPaymu):
     | - StringToSign = HTTPMethod:VaNumber:Lowercase(SHA-256(RequestBody)):ApiKey
     | - Signature = HMAC-256(StringToSign, ApiKey)
@@ -30,8 +30,8 @@ return [
     |
     */
 
-    'va' => env('IPAYMU_VA','1179000899'), // Virtual Account (VA) number
-    'api_key' => env('IPAYMU_API_KEY','QbGcoO0Qds9sQFDmY0MWg1Tq.xtuh1'), // API Key untuk signature generation
+    'va' => env('IPAYMU_VA', '1179000899'), // Virtual Account (VA) number
+    'api_key' => env('IPAYMU_API_KEY', 'QbGcoO0Qds9sQFDmY0MWg1Tq.xtuh1'), // API Key untuk signature generation
 
     'sandbox' => [
         'api_url' => 'https://sandbox.ipaymu.com/api/v2',
@@ -55,9 +55,9 @@ return [
     |
     */
 
-    'callback_url' => env('IPAYMU_CALLBACK_URL', env('APP_URL') . '/payment-gateway/callback'),
-    'return_url' => env('IPAYMU_RETURN_URL', env('APP_URL') . '/payment-gateway/callback'),
-    'notify_url' => env('IPAYMU_NOTIFY_URL', env('APP_URL') . '/payment-gateway/webhook'),
+    'callback_url' => env('IPAYMU_CALLBACK_URL', env('APP_URL').'/payment-gateway/callback'),
+    'return_url' => env('IPAYMU_RETURN_URL', env('APP_URL').'/payment-gateway/callback'),
+    'notify_url' => env('IPAYMU_NOTIFY_URL', env('APP_URL').'/payment-gateway/webhook'),
 
     /*
     |--------------------------------------------------------------------------
@@ -105,18 +105,3 @@ return [
     'log_requests' => env('IPAYMU_LOG_REQUESTS', true),
     'log_channel' => env('IPAYMU_LOG_CHANNEL', 'daily'),
 ];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

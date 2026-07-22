@@ -83,11 +83,17 @@ trait HasPaymentManagement
     public function generatePaymentToken(): string
     {
         $token = bin2hex(random_bytes(16)); // 32 character token
+        $expiresAt = now()->addDays(7);
 
-        $this->update([
+        $this->newQuery()->where($this->getKeyName(), $this->getKey())->update([
             'payment_token' => $token,
-            'payment_token_expires_at' => now()->addDays(7), // Valid for 7 days
+            'payment_token_expires_at' => $expiresAt,
         ]);
+
+        $this->payment_token = $token;
+        $this->payment_token_expires_at = $expiresAt;
+        $this->syncOriginalAttribute('payment_token');
+        $this->syncOriginalAttribute('payment_token_expires_at');
 
         return $token;
     }
@@ -122,9 +128,14 @@ trait HasPaymentManagement
      */
     public function clearPaymentToken(): void
     {
-        $this->update([
+        $this->newQuery()->where($this->getKeyName(), $this->getKey())->update([
             'payment_token' => null,
             'payment_token_expires_at' => null,
         ]);
+
+        $this->payment_token = null;
+        $this->payment_token_expires_at = null;
+        $this->syncOriginalAttribute('payment_token');
+        $this->syncOriginalAttribute('payment_token_expires_at');
     }
 }

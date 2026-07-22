@@ -11,7 +11,7 @@ class WalletAllocationRule extends Model
     use HasFactory;
 
     protected $fillable = [
-        'property_id','wallet_id','name','mode','value','active','priority'
+        'property_id', 'wallet_id', 'name', 'mode', 'value', 'active', 'priority',
     ];
 
     protected $casts = [
@@ -29,6 +29,3 @@ class WalletAllocationRule extends Model
         return $this->belongsTo(Wallet::class);
     }
 }
-
-
-

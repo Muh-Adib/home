@@ -79,6 +79,7 @@ class GenerateTrendingArticleJob implements ShouldQueue
 
     /** Kategori dipilih bergilir via cache untuk coverage merata */
     private const CATEGORY_CACHE_KEY = 'autopilot_article_keyword_category';
+
     private const CATEGORIES = ['transactional', 'informational', 'seasonal'];
 
     /** Pre-filter: skip berita yang jelas tidak relevan untuk travel/stay */
@@ -116,6 +117,7 @@ class GenerateTrendingArticleJob implements ShouldQueue
 
         if (empty($newsItems)) {
             Log::info("[AutopilotArticle] No news found for: {$keyword}");
+
             return;
         }
 
@@ -124,6 +126,7 @@ class GenerateTrendingArticleJob implements ShouldQueue
 
         if (empty($candidates)) {
             Log::info('[AutopilotArticle] All news items filtered at pre-filter stage.');
+
             return;
         }
 
@@ -179,6 +182,7 @@ class GenerateTrendingArticleJob implements ShouldQueue
             foreach (self::IRRELEVANT_KEYWORDS as $bad) {
                 if (str_contains($titleLower, $bad)) {
                     Log::info("[AutopilotArticle] Pre-filtered (bad keyword): {$news['title']}");
+
                     return false;
                 }
             }
@@ -186,6 +190,7 @@ class GenerateTrendingArticleJob implements ShouldQueue
             // Skip duplikat (1 query DB)
             if (Article::where('generation_metadata->source_url', $news['link'])->exists()) {
                 Log::info("[AutopilotArticle] Pre-filtered (duplicate): {$news['title']}");
+
                 return false;
             }
 
@@ -246,7 +251,7 @@ class GenerateTrendingArticleJob implements ShouldQueue
 
             $researchContext = [
                 'search_intent' => $this->resolveSearchIntent($keywordCategory),
-                'target_audience_analysis' => 'Wisatawan yang merencanakan liburan ke Yogyakarta, dipicu oleh: ' . $news['title'],
+                'target_audience_analysis' => 'Wisatawan yang merencanakan liburan ke Yogyakarta, dipicu oleh: '.$news['title'],
                 'traveler_angle' => $travelerAngle,
                 'key_points' => [
                     $travelerAngle,
@@ -269,7 +274,7 @@ class GenerateTrendingArticleJob implements ShouldQueue
             $outline = $outlineResult['outline'];
             $lsiKeywords = $outlineResult['lsi_keywords'] ?? [];
 
-            Log::info('[AutopilotArticle] Outline generated. LSI: ' . implode(', ', $lsiKeywords));
+            Log::info('[AutopilotArticle] Outline generated. LSI: '.implode(', ', $lsiKeywords));
 
             // ── Step 3: Generate Full Content ────────────────────────────────
             Log::info('[AutopilotArticle] Step 3: Generating full article content...');
@@ -291,7 +296,7 @@ class GenerateTrendingArticleJob implements ShouldQueue
             Log::info("[AutopilotArticle] Content generated: {$wordCount} words.");
 
             // ── Step 4: Save Article ─────────────────────────────────────────
-            $slug = Str::slug($articleTitle) . '-' . Str::random(6);
+            $slug = Str::slug($articleTitle).'-'.Str::random(6);
 
             Article::create([
                 'title' => $articleTitle,
@@ -321,7 +326,7 @@ class GenerateTrendingArticleJob implements ShouldQueue
             Log::info("[AutopilotArticle] ✅ Article saved: \"{$articleTitle}\" ({$wordCount} words)");
 
         } catch (\Exception $e) {
-            Log::error('[AutopilotArticle] ❌ Generation failed: ' . $e->getMessage(), [
+            Log::error('[AutopilotArticle] ❌ Generation failed: '.$e->getMessage(), [
                 'news' => $news['title'],
                 'trace' => $e->getTraceAsString(),
             ]);

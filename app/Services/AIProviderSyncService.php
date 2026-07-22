@@ -9,10 +9,6 @@ class AIProviderSyncService
 {
     /**
      * Sync models and rate limits for a given provider and API key
-     *
-     * @param string $provider
-     * @param string $apiKey
-     * @return array
      */
     public function sync(string $provider, string $apiKey): array
     {
@@ -31,6 +27,7 @@ class AIProviderSyncService
             }
         } catch (\Exception $e) {
             Log::error("API Sync failed for {$provider}", ['error' => $e->getMessage()]);
+
             return [
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -43,12 +40,12 @@ class AIProviderSyncService
         // Gemini API to list models
         $response = Http::get("https://generativelanguage.googleapis.com/v1beta/models?key={$apiKey}");
 
-        if (!$response->successful()) {
-            throw new \Exception('Failed to fetch Gemini models. Please check your API key. Error: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to fetch Gemini models. Please check your API key. Error: '.$response->body());
         }
 
         $data = $response->json();
-        
+
         $models = [];
         if (isset($data['models'])) {
             // Filter models that support generateContent
@@ -57,7 +54,7 @@ class AIProviderSyncService
                     // removing 'models/' prefix
                     $id = str_replace('models/', '', $model['name']);
                     // skip tuned models for now unless requested
-                    if (!str_starts_with($id, 'tunedModels/')) {
+                    if (! str_starts_with($id, 'tunedModels/')) {
                         $models[] = [
                             'id' => $id,
                             'name' => $model['displayName'] ?? $id,
@@ -78,19 +75,19 @@ class AIProviderSyncService
         // OpenRouter API to fetch models and rate limits
         // 1. Fetch available models (public endpoint, doesn't require auth but we can pass it)
         $modelsResponse = Http::get('https://openrouter.ai/api/v1/models');
-        
+
         // 2. Fetch key rate limits
         $authResponse = Http::withHeaders([
             'Authorization' => "Bearer {$apiKey}",
         ])->get('https://openrouter.ai/api/v1/auth/key');
 
-        if (!$authResponse->successful()) {
+        if (! $authResponse->successful()) {
             throw new \Exception('Failed to authenticate with OpenRouter. Please check your API key.');
         }
 
         $authData = $authResponse->json();
         $rateLimit = $authData['data']['rate_limit'] ?? null;
-        
+
         $models = [];
         if ($modelsResponse->successful()) {
             $modelsData = $modelsResponse->json();
@@ -112,7 +109,7 @@ class AIProviderSyncService
             'rate_limit' => [
                 'requests_per_minute' => $rateLimit['requests'] ?? null,
                 'interval' => $rateLimit['interval'] ?? null, // e.g. "10s",
-            ]
+            ],
         ];
     }
 
@@ -122,12 +119,12 @@ class AIProviderSyncService
             'Authorization' => "Bearer {$apiKey}",
         ])->get('https://api.openai.com/v1/models');
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             throw new \Exception('Failed to fetch OpenAI models. Please check your API key.');
         }
 
         $data = $response->json();
-        
+
         $models = [];
         if (isset($data['data'])) {
             foreach ($data['data'] as $model) {
@@ -140,7 +137,7 @@ class AIProviderSyncService
                 }
             }
             // Sort models by id
-            usort($models, function($a, $b) {
+            usort($models, function ($a, $b) {
                 return strcmp($a['id'], $b['id']);
             });
         }

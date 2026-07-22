@@ -20,7 +20,7 @@ return new class extends Migration
             $table->integer('attempts')->default(0); // Jumlah percobaan verifikasi
             $table->string('ip_address')->nullable();
             $table->timestamps();
-            
+
             $table->index('phone');
             $table->index(['phone', 'is_verified']);
         });

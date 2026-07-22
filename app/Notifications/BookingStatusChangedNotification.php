@@ -2,10 +2,11 @@
 
 namespace App\Notifications;
 
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Messages\BroadcastMessage;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class BookingStatusChangedNotification extends Notification implements ShouldQueue
@@ -43,16 +44,16 @@ class BookingStatusChangedNotification extends Notification implements ShouldQue
         $oldStatus = $this->data['old_status'];
         $newStatus = $this->data['new_status'];
         $changedBy = $this->data['changed_by']['name'];
-        
+
         return (new MailMessage)
-                    ->subject("Booking Status Changed - {$bookingNumber}")
-                    ->line("Booking status has been updated.")
-                    ->line("Booking Number: {$bookingNumber}")
-                    ->line("Guest: {$guestName}")
-                    ->line("Property: {$propertyName}")
-                    ->line("Status Changed: {$oldStatus} → {$newStatus}")
-                    ->line("Changed by: {$changedBy}")
-                    ->action('View Booking', url($this->data['action_url']))
+            ->subject("Booking Status Changed - {$bookingNumber}")
+            ->line('Booking status has been updated.')
+            ->line("Booking Number: {$bookingNumber}")
+            ->line("Guest: {$guestName}")
+            ->line("Property: {$propertyName}")
+            ->line("Status Changed: {$oldStatus} → {$newStatus}")
+            ->line("Changed by: {$changedBy}")
+            ->action('View Booking', url($this->data['action_url']))
             ->line('Thank you for using our application!');
     }
 
@@ -113,7 +114,7 @@ class BookingStatusChangedNotification extends Notification implements ShouldQue
     public function broadcastOn(): array
     {
         return [
-            new \Illuminate\Broadcasting\Channel('admin-notifications'),
+            new Channel('admin-notifications'),
         ];
     }
 

@@ -61,6 +61,6 @@ class SyncICalCommand extends Command
             }
         }
 
-        $this->info("Sync completed.");
+        $this->info('Sync completed.');
     }
 }

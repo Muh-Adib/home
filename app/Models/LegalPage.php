@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class LegalPage extends Model
 {
@@ -37,9 +37,9 @@ class LegalPage extends Model
      */
     public function scopeByBaseSlug($query, $slug)
     {
-        return $query->where(function($q) use ($slug) {
+        return $query->where(function ($q) use ($slug) {
             $q->where('slug', $slug)
-              ->orWhere('slug', 'LIKE', $slug . '-%');
+                ->orWhere('slug', 'LIKE', $slug.'-%');
         });
     }
 
@@ -67,7 +67,7 @@ class LegalPage extends Model
         if ($this->isActive()) {
             return $this->slug;
         }
-        
+
         // Extract original slug dari archived slug (tos-abc123-1234567890 -> tos)
         return explode('-', $this->slug)[0];
     }
@@ -85,7 +85,7 @@ class LegalPage extends Model
      */
     public function getFormattedPublishedDateAttribute(): ?string
     {
-        return $this->published_at 
+        return $this->published_at
             ? $this->published_at->format('d F Y, H:i')
             : null;
     }

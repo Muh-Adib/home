@@ -45,7 +45,7 @@ class PasswordController extends Controller
         $user = auth()->user();
         $isNewUser = $user && $user->created_at->diffInHours(now()) < 24;
 
-        if (!$isNewUser) {
+        if (! $isNewUser) {
             return redirect()->route('password.edit');
         }
 
@@ -62,7 +62,7 @@ class PasswordController extends Controller
         $user = $request->user();
         $isNewUser = $user && $user->created_at->diffInHours(now()) < 24;
 
-        if (!$isNewUser) {
+        if (! $isNewUser) {
             return redirect()->route('password.edit')
                 ->withErrors(['error' => 'Halaman ini hanya untuk user baru.']);
         }

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->enum('weekend_premium_type', ['percentage', 'fixed'])
                 ->default('percentage')
                 ->after('weekend_premium_percent');
-            
+
             // Fixed price for weekend premium (when type is 'fixed')
             $table->decimal('weekend_premium_fixed', 12, 0)
                 ->nullable()
@@ -33,9 +33,8 @@ return new class extends Migration
         Schema::table('properties', function (Blueprint $table) {
             $table->dropColumn([
                 'weekend_premium_type',
-                'weekend_premium_fixed'
+                'weekend_premium_fixed',
             ]);
         });
     }
 };
-

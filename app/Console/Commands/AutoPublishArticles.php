@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\Article;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 class AutoPublishArticles extends Command
@@ -29,7 +29,7 @@ class AutoPublishArticles extends Command
     {
         $count = 0;
 
-        Log::info("Running Auto-Publish Check...");
+        Log::info('Running Auto-Publish Check...');
 
         // Find scheduled articles due for publishing
         $articles = Article::where('status', 'scheduled')
@@ -57,7 +57,7 @@ class AutoPublishArticles extends Command
                 Log::info("Auto-Published Article ID: {$article->id}");
                 $count++;
             } catch (\Exception $e) {
-                Log::error("Failed to auto-publish article {$article->id}: " . $e->getMessage());
+                Log::error("Failed to auto-publish article {$article->id}: ".$e->getMessage());
                 $this->error("Failed to publish: {$article->title}");
             }
         }

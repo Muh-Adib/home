@@ -2,9 +2,8 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Services\PaymentIncomeSyncService;
-use App\Models\Payment;
+use Illuminate\Console\Command;
 
 class SyncPaymentIncome extends Command
 {
@@ -46,43 +45,18 @@ class SyncPaymentIncome extends Command
             $this->info("✓ Cleaned up {$cleaned} unverified payments.");
         }
 
-        if (!$this->option('all') && !$this->option('cleanup')) {
+        if (! $this->option('all') && ! $this->option('cleanup')) {
             $this->warn('Please specify --all or --cleanup option.');
             $this->info('Usage:');
             $this->info('  php artisan payment:sync-income --all      : Sync all verified payments');
             $this->info('  php artisan payment:sync-income --cleanup  : Cleanup unverified payments');
             $this->info('  php artisan payment:sync-income --all --cleanup : Do both');
+
             return 1;
         }
 
         $this->info('Synchronization completed!');
+
         return 0;
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -2,14 +2,12 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use App\Models\Amenity;
 use App\Models\Property;
 use App\Models\PropertyMedia;
 use App\Models\User;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class PropertySeeder extends Seeder
 {
@@ -20,7 +18,7 @@ class PropertySeeder extends Seeder
     {
         // Get existing property owners
         $owners = User::where('role', 'property_owner')->get();
-        
+
         if ($owners->isEmpty()) {
             $this->command->warn('No property owners found. Creating sample properties without owners.');
         }
@@ -406,17 +404,17 @@ class PropertySeeder extends Seeder
             // Create unique slug with timestamp to avoid duplicates
             $baseSlug = Str::slug($propertyData['name']);
             $slug = $baseSlug;
-            
+
             // Check if slug exists and append timestamp if needed
             $counter = 1;
             while (Property::where('slug', $slug)->exists()) {
-                $slug = $baseSlug . '-' . time() . '-' . $counter;
+                $slug = $baseSlug.'-'.time().'-'.$counter;
                 $counter++;
             }
 
             // Assign owner if available
             $owner = $owners->get($index % $owners->count());
-            
+
             $property = Property::create([
                 'name' => $propertyData['name'],
                 'slug' => $slug,
@@ -504,18 +502,18 @@ class PropertySeeder extends Seeder
             $filePath = "properties/{$property->id}/{$photoId}.jpg";
 
             PropertyMedia::create([
-                'property_id'   => $property->id,
-                'media_type'    => 'image',
-                'file_path'     => "https://images.unsplash.com/{$photoId}?w=800&q=80&auto=format&fit=crop",
-                'file_name'     => "{$photoId}.jpg",
-                'file_size'     => 0,
-                'mime_type'     => 'image/jpeg',
-                'category'      => $category,
-                'title'         => $property->name . ' - ' . ucfirst($category),
-                'alt_text'      => $property->name . ' ' . ucfirst($category),
+                'property_id' => $property->id,
+                'media_type' => 'image',
+                'file_path' => "https://images.unsplash.com/{$photoId}?w=800&q=80&auto=format&fit=crop",
+                'file_name' => "{$photoId}.jpg",
+                'file_size' => 0,
+                'mime_type' => 'image/jpeg',
+                'category' => $category,
+                'title' => $property->name.' - '.ucfirst($category),
+                'alt_text' => $property->name.' '.ucfirst($category),
                 'display_order' => $order + 1,
-                'is_cover'      => $order === 0,
-                'is_featured'   => $order === 0,
+                'is_cover' => $order === 0,
+                'is_featured' => $order === 0,
             ]);
         }
     }
@@ -556,9 +554,9 @@ class PropertySeeder extends Seeder
 
         $pivotData = array_fill_keys($amenityIds, [
             'is_available' => true,
-            'notes'        => null,
-            'created_at'   => now(),
-            'updated_at'   => now(),
+            'notes' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $property->amenities()->sync($pivotData);

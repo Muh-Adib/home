@@ -13,19 +13,19 @@ return new class extends Migration
     {
         Schema::table('property_expenses', function (Blueprint $table) {
             // Add receipt_number column if it doesn't exist
-            if (!Schema::hasColumn('property_expenses', 'receipt_number')) {
+            if (! Schema::hasColumn('property_expenses', 'receipt_number')) {
                 $table->string('receipt_number', 100)->nullable()->after('vendor_name');
             }
 
             // Add payment_method column if it doesn't exist
-            if (!Schema::hasColumn('property_expenses', 'payment_method')) {
+            if (! Schema::hasColumn('property_expenses', 'payment_method')) {
                 $table->string('payment_method', 50)->nullable()->after('receipt_number');
             }
 
             // Add created_by column if it doesn't exist
-            // Note: Migration original menggunakan 'recorded_by', 
+            // Note: Migration original menggunakan 'recorded_by',
             // tapi model dan controller menggunakan 'created_by'
-            if (!Schema::hasColumn('property_expenses', 'created_by')) {
+            if (! Schema::hasColumn('property_expenses', 'created_by')) {
                 $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete()->after('payment_method');
                 $table->index('created_by');
             }
@@ -54,26 +54,3 @@ return new class extends Migration
         });
     }
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

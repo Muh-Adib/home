@@ -22,7 +22,7 @@ class InventoryStockMovement extends Model
         'reference_id',
         'vendor_name',
         'notes',
-        'created_by'
+        'created_by',
     ];
 
     protected $casts = [
@@ -47,5 +47,3 @@ class InventoryStockMovement extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 }
-
-

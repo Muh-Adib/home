@@ -1,10 +1,9 @@
 <?php
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use App\Models\Property;
 use App\Models\User;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -20,7 +19,7 @@ return new class extends Migration
         $ownerId = $owner ? $owner->id : 1;
 
         // Insert Dapur if it does not exist
-        if (!Property::where('slug', 'dapur')->exists()) {
+        if (! Property::where('slug', 'dapur')->exists()) {
             Property::create([
                 'owner_id' => $ownerId,
                 'name' => 'Dapur',
@@ -38,7 +37,7 @@ return new class extends Migration
         }
 
         // Insert Laundry if it does not exist
-        if (!Property::where('slug', 'laundry')->exists()) {
+        if (! Property::where('slug', 'laundry')->exists()) {
             Property::create([
                 'owner_id' => $ownerId,
                 'name' => 'Laundry',

@@ -17,7 +17,7 @@ return new class extends Migration
                 ->after('booking_id')
                 ->constrained('service_masters')
                 ->onDelete('set null');
-            
+
             $table->index('service_master_id');
         });
     }
@@ -34,4 +34,3 @@ return new class extends Migration
         });
     }
 };
-

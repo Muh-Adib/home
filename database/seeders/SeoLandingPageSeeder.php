@@ -9,7 +9,7 @@ class SeoLandingPageSeeder extends Seeder
 {
     /**
      * Seed SEO landingpages
-     * 
+     *
      * Creates 30+ programmatic landing pages for:
      * - Property types (villa, homestay, guest house)
      * - Locations (Bantul, Sleman, UGM, Malioboro, Prawirotaman)
@@ -33,7 +33,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['property_type' => 'villa']),
                 'sitemap_priority' => 0.9,
             ],
-            
+
             [
                 'slug' => 'homestay-jogja',
                 'title' => 'Homestay di Jogja | 200+ Homestay Nyaman & Terjangkau',
@@ -44,7 +44,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['property_type' => 'homestay']),
                 'sitemap_priority' => 1.0, // Highest!
             ],
-            
+
             [
                 'slug' => 'guest-house-jogja',
                 'title' => 'Guest House Jogja | Penginapan Nyaman Budget Traveler',
@@ -69,7 +69,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['location' => 'Bantul']),
                 'sitemap_priority' => 0.8,
             ],
-            
+
             [
                 'slug' => 'homestay-sleman',
                 'title' => 'Homestay di Sleman | Dekat Candi Prambanan & Kaliurang',
@@ -80,7 +80,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['location' => 'Sleman']),
                 'sitemap_priority' => 0.8,
             ],
-            
+
             [
                 'slug' => 'villa-bantul',
                 'title' => 'Villa di Bantul | Villa Mewah View Pantai Parangtritis',
@@ -91,7 +91,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['property_type' => 'villa', 'location' => 'Bantul']),
                 'sitemap_priority' => 0.7,
             ],
-            
+
             [
                 'slug' => 'villa-sleman',
                 'title' => 'Villa di Sleman | Villa Sejuk View Pegunungan',
@@ -114,7 +114,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['location' => 'Malioboro']),
                 'sitemap_priority' => 0.9,
             ],
-            
+
             [
                 'slug' => 'homestay-prawirotaman',
                 'title' => 'Homestay Prawirotaman | Guest House Area Backpacker',
@@ -125,7 +125,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['location' => 'Prawirotaman']),
                 'sitemap_priority' => 0.7,
             ],
-            
+
             [
                 'slug' => 'homestay-ugm',
                 'title' => 'Homestay Dekat UGM | Penginapan Murah Area Kampus',
@@ -150,7 +150,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['max_price' => 200000]),
                 'sitemap_priority' => 1.0, // Very high volume!
             ],
-            
+
             [
                 'slug' => 'villa-murah-jogja',
                 'title' => 'Villa Murah Jogja Mulai 250rb | Villa Terjangkau',
@@ -161,7 +161,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['property_type' => 'villa', 'max_price' => 500000]),
                 'sitemap_priority' => 0.8,
             ],
-            
+
             [
                 'slug' => 'guest-house-murah-jogja',
                 'title' => 'Guest House Murah Jogja Mulai 50rb | Backpacker Friendly',
@@ -186,7 +186,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['property_type' => 'villa', 'amenity' => 'private pool']),
                 'sitemap_priority' => 0.9,
             ],
-            
+
             [
                 'slug' => 'homestay-kolam-renang-jogja',
                 'title' => 'Homestay dengan Kolam Renang di Jogja',
@@ -211,7 +211,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['property_type' => 'villa', 'max_price' => 600000, 'amenity' => 'private pool']),
                 'sitemap_priority' => 0.8,
             ],
-            
+
             [
                 'slug' => 'homestay-murah-bantul',
                 'title' => 'Homestay Murah Bantul | Dekat Pantai Budget Friendly',
@@ -222,7 +222,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['location' => 'Bantul', 'max_price' => 150000]),
                 'sitemap_priority' => 0.7,
             ],
-            
+
             [
                 'slug' => 'homestay-murah-sleman',
                 'title' => 'Homestay Murah Sleman | Penginapan Sejuk Budget Traveler',
@@ -233,7 +233,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['location' => 'Sleman', 'max_price' => 150000]),
                 'sitemap_priority' => 0.7,
             ],
-            
+
             [
                 'slug' => 'guest-house-malioboro',
                 'title' => 'Guest House Malioboro | Walking Distance ke Pusat Kota',
@@ -244,7 +244,7 @@ class SeoLandingPageSeeder extends Seeder
                 'filters' => json_encode(['property_type' => 'guest_house', 'location' => 'Malioboro']),
                 'sitemap_priority' => 0.7,
             ],
-            
+
             // More combo variations...
             [
                 'slug' => 'penginapan-jogja',
@@ -273,6 +273,6 @@ class SeoLandingPageSeeder extends Seeder
             );
         }
 
-        $this->command->info('✅ Created ' . count($pages) . ' SEO landing pages!');
+        $this->command->info('✅ Created '.count($pages).' SEO landing pages!');
     }
 }

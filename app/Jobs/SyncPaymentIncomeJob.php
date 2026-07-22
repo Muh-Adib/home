@@ -18,6 +18,7 @@ class SyncPaymentIncomeJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $backoff = 60;
 
     public function __construct(private int $paymentId) {}
@@ -26,8 +27,9 @@ class SyncPaymentIncomeJob implements ShouldQueue
     {
         $payment = Payment::find($this->paymentId);
 
-        if (!$payment) {
+        if (! $payment) {
             Log::warning('SyncPaymentIncomeJob: payment not found', ['payment_id' => $this->paymentId]);
+
             return;
         }
 

@@ -84,12 +84,12 @@ class PropertyMedia extends Model
             return $this->file_path;
         }
 
-        return asset('storage/' . $this->file_path);
+        return asset('storage/'.$this->file_path);
     }
 
     public function getThumbnailUrlAttribute(): ?string
     {
-        return $this->thumbnail_path ? asset('storage/' . $this->thumbnail_path) : null;
+        return $this->thumbnail_path ? asset('storage/'.$this->thumbnail_path) : null;
     }
 
     // Mutators

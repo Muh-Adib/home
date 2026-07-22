@@ -3,15 +3,14 @@
 namespace App\Services;
 
 use App\Models\Article;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class ArticleFeaturedImageService
 {
     /**
      * Generate featured image for article using AI
-     * 
-     * @param Article $article
+     *
      * @return string|null Path to generated image or null on failure
      */
     public function generateForArticle(Article $article): ?string
@@ -48,9 +47,6 @@ class ArticleFeaturedImageService
 
     /**
      * Create image generation prompt from article
-     * 
-     * @param Article $article
-     * @return string
      */
     private function createPrompt(Article $article): string
     {
@@ -64,21 +60,20 @@ class ArticleFeaturedImageService
             $prompt .= " The article is about: {$excerpt}.";
         }
 
-        $prompt .= " The image should be visually appealing, modern, and relevant to the content. Use vibrant colors and professional design.";
+        $prompt .= ' The image should be visually appealing, modern, and relevant to the content. Use vibrant colors and professional design.';
 
         return $prompt;
     }
 
     /**
      * Save generated image to storage
-     * 
-     * @param string $imageData Base64 or binary image data
-     * @param int $articleId
+     *
+     * @param  string  $imageData  Base64 or binary image data
      * @return string Path to saved image
      */
     private function saveImage(string $imageData, int $articleId): string
     {
-        $filename = "article-{$articleId}-" . time() . '.webp';
+        $filename = "article-{$articleId}-".time().'.webp';
         $path = "articles/featured/{$filename}";
 
         Storage::disk('public')->put($path, $imageData);
@@ -88,9 +83,6 @@ class ArticleFeaturedImageService
 
     /**
      * Delete featured image from storage
-     * 
-     * @param string $path
-     * @return bool
      */
     public function deleteImage(string $path): bool
     {

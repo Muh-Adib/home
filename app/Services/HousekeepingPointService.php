@@ -12,6 +12,7 @@ use App\Models\HousekeepingSchedule;
 use App\Models\Income;
 use App\Models\Property;
 use App\Models\PropertyExpense;
+use App\Models\StaffPayroll;
 use App\Models\UnitDamageAction;
 use App\Models\User;
 use Carbon\Carbon;
@@ -64,7 +65,7 @@ class HousekeepingPointService
     /**
      * Calculate monthly sharing pool metrics for all properties.
      */
-    public function getMonthlyPool(int $month, int $year): array
+    public function getMonthlyPool(int $month, int $year, ?float $poolPercentage = null): array
     {
         $startDate = Carbon::create($year, $month, 1)->startOfMonth()->startOfDay();
         $endDate = Carbon::create($year, $month, 1)->endOfMonth()->endOfDay();
@@ -151,8 +152,34 @@ class HousekeepingPointService
             ];
         }
 
-        // E. Total Pool (0.7% of eligible turnover)
-        $totalPool = $eligibleTurnover * 0.007;
+        // Calculate company net profit
+        $totalIncome = (float) Income::whereBetween('income_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->sum('amount');
+
+        $totalExpense = (float) PropertyExpense::whereBetween('expense_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->where('status', 'approved')
+            ->sum('amount');
+
+        // Sum salaries to subtract if not already in PropertyExpense
+        $payrollSalaries = (float) StaffPayroll::where('month', $month)->where('year', $year)->sum('total_salary');
+        if ($payrollSalaries <= 0) {
+            $payrollSalaries = (float) User::where('role', '!=', 'guest')->sum('base_salary');
+        }
+
+        $salaryExpenseInDb = (float) PropertyExpense::whereBetween('expense_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->where('status', 'approved')
+            ->where(function ($q) {
+                $q->where('expense_category', 'salary')
+                    ->orWhere('expense_category', 'staff');
+            })
+            ->sum('amount');
+
+        $unrecordedSalaries = max(0.0, $payrollSalaries - $salaryExpenseInDb);
+        $netCompanyProfit = max(0.0, $totalIncome - $totalExpense - $unrecordedSalaries);
+
+        // E. Total Pool (default 5% of net profit, configurable)
+        $percentage = $poolPercentage ?? 5.0;
+        $totalPool = $netCompanyProfit * ($percentage / 100.0);
 
         // F. Calculate total housekeeping points collected in the month
         $housekeepingUsers = User::where('role', 'housekeeping')->active()->get();
@@ -181,10 +208,10 @@ class HousekeepingPointService
     /**
      * Calculate individual housekeeping bonus share.
      */
-    public function calculateHousekeepingBonus(int $userId, int $month, int $year): float
+    public function calculateHousekeepingBonus(int $userId, int $month, int $year, ?float $poolPercentage = null): float
     {
         $details = $this->getMonthlyPointsDetails($userId, $month, $year);
-        $poolData = $this->getMonthlyPool($month, $year);
+        $poolData = $this->getMonthlyPool($month, $year, $poolPercentage);
 
         return $details['total'] * $poolData['point_rate'];
     }

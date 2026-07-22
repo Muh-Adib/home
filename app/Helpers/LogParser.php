@@ -9,16 +9,15 @@ class LogParser
     /**
      * Parse Laravel log file with pagination and filtering
      * OPTIMIZED: Uses tail for large files to prevent timeout
-     * 
-     * @param string $logFile Path to log file
-     * @param array $filters Filters: level, search, date_from, date_to
-     * @param int $page Current page
-     * @param int $perPage Items per page
-     * @return array
+     *
+     * @param  string  $logFile  Path to log file
+     * @param  array  $filters  Filters: level, search, date_from, date_to
+     * @param  int  $page  Current page
+     * @param  int  $perPage  Items per page
      */
     public static function parse(string $logFile, array $filters = [], int $page = 1, int $perPage = 50): array
     {
-        if (!file_exists($logFile)) {
+        if (! file_exists($logFile)) {
             return [
                 'data' => [],
                 'total' => 0,
@@ -38,13 +37,13 @@ class LogParser
             : self::parseLogEntriesFast($logFile, 1000);
 
         // Apply filters
-        if (!empty($filters['level'])) {
+        if (! empty($filters['level'])) {
             $entries = array_filter($entries, function ($entry) use ($filters) {
                 return strtolower($entry['level']) === strtolower($filters['level']);
             });
         }
 
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $search = strtolower($filters['search']);
             $entries = array_filter($entries, function ($entry) use ($search) {
                 return str_contains(strtolower($entry['message']), $search) ||
@@ -52,14 +51,14 @@ class LogParser
             });
         }
 
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $dateFrom = Carbon::parse($filters['date_from'])->startOfDay();
             $entries = array_filter($entries, function ($entry) use ($dateFrom) {
                 return Carbon::parse($entry['timestamp'])->gte($dateFrom);
             });
         }
 
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $dateTo = Carbon::parse($filters['date_to'])->endOfDay();
             $entries = array_filter($entries, function ($entry) use ($dateTo) {
                 return Carbon::parse($entry['timestamp'])->lte($dateTo);
@@ -85,10 +84,6 @@ class LogParser
 
     /**
      * Parse log entries (pure PHP - no external commands)
-     * 
-     * @param string $logFile
-     * @param int $maxEntries
-     * @return array
      */
     private static function parseLogEntriesWithTail(string $logFile, int $maxEntries = 500): array
     {
@@ -99,16 +94,12 @@ class LogParser
 
     /**
      * Parse log entries fast (for smaller files < 10MB)
-     * 
-     * @param string $logFile
-     * @param int $maxEntries
-     * @return array
      */
     private static function parseLogEntriesFast(string $logFile, int $maxEntries = 1000): array
     {
         // Read last N KB of file (much faster than entire file)
         $handle = fopen($logFile, 'r');
-        if (!$handle) {
+        if (! $handle) {
             return [];
         }
 
@@ -127,10 +118,6 @@ class LogParser
 
     /**
      * Parse lines into structured log entries
-     * 
-     * @param array $lines
-     * @param int $maxEntries
-     * @return array
      */
     private static function parseLines(array $lines, int $maxEntries = 500): array
     {
@@ -159,13 +146,13 @@ class LogParser
             } elseif ($currentEntry !== null) {
                 // Continuation of previous entry (stack trace or context)
                 $trimmedLine = trim($line);
-                if (!empty($trimmedLine)) {
+                if (! empty($trimmedLine)) {
                     // Limit context/stack trace length to prevent memory issues
                     if (strlen($currentEntry['context']) + strlen($currentEntry['stack_trace']) < 5000) {
                         if (str_starts_with($trimmedLine, '#') || str_starts_with($trimmedLine, 'Stack trace:')) {
-                            $currentEntry['stack_trace'] .= $trimmedLine . "\n";
+                            $currentEntry['stack_trace'] .= $trimmedLine."\n";
                         } else {
-                            $currentEntry['context'] .= $trimmedLine . "\n";
+                            $currentEntry['context'] .= $trimmedLine."\n";
                         }
                     }
                 }
@@ -183,13 +170,10 @@ class LogParser
 
     /**
      * Get log file size
-     * 
-     * @param string $logFile
-     * @return string
      */
     public static function getFileSize(string $logFile): string
     {
-        if (!file_exists($logFile)) {
+        if (! file_exists($logFile)) {
             return '0 B';
         }
 
@@ -200,18 +184,15 @@ class LogParser
             $bytes /= 1024;
         }
 
-        return round($bytes, 2) . ' ' . $units[$i];
+        return round($bytes, 2).' '.$units[$i];
     }
 
     /**
      * Get log statistics (FAST: only reads last 500 entries)
-     * 
-     * @param string $logFile
-     * @return array
      */
     public static function getStatistics(string $logFile): array
     {
-        if (!file_exists($logFile)) {
+        if (! file_exists($logFile)) {
             return [
                 'total_entries' => 0,
                 'by_level' => [],
@@ -242,13 +223,11 @@ class LogParser
 
     /**
      * Get available log files
-     * 
-     * @return array
      */
     public static function getAvailableLogFiles(): array
     {
         $logPath = storage_path('logs');
-        $files = glob($logPath . '/*.log');
+        $files = glob($logPath.'/*.log');
 
         $logFiles = [];
         foreach ($files as $file) {

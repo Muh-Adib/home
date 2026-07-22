@@ -4,15 +4,17 @@ namespace App\Exports;
 
 use App\Models\InventoryUsage;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithTitle;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class InventoryUsagesListSheet implements FromCollection, WithHeadings, WithStyles, ShouldAutoSize, WithTitle
+class InventoryUsagesListSheet implements FromCollection, ShouldAutoSize, WithHeadings, WithStyles, WithTitle
 {
     protected $dateFrom;
+
     protected $dateTo;
 
     public function __construct($dateFrom = null, $dateTo = null)
@@ -73,7 +75,7 @@ class InventoryUsagesListSheet implements FromCollection, WithHeadings, WithStyl
             1 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
                 'fill' => [
-                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                    'fillType' => Fill::FILL_SOLID,
                     'startColor' => ['rgb' => '4F46E5'],
                 ],
             ],

@@ -7,13 +7,13 @@ namespace App\Services;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Imagick\Driver as ImagickDriver;
 use Intervention\Image\Drivers\Gd\Driver as GdDriver;
+use Intervention\Image\Drivers\Imagick\Driver as ImagickDriver;
+use Intervention\Image\ImageManager;
 
 /**
  * ImageService - Centralized image processing service
- * 
+ *
  * Handles all image operations across the application:
  * - Upload & Convert to WebP
  * - Resize & Optimize
@@ -24,6 +24,7 @@ use Intervention\Image\Drivers\Gd\Driver as GdDriver;
 class ImageService
 {
     private ImageManager $manager;
+
     private string $driver;
 
     public function __construct()
@@ -34,10 +35,9 @@ class ImageService
 
     /**
      * Upload and process image
-     * 
-     * @param UploadedFile $file
-     * @param array $options Configuration options
-     * @return ImageUploadResult
+     *
+     * @param  array  $options  Configuration options
+     *
      * @throws \Exception
      */
     public function upload(UploadedFile $file, array $options = []): ImageUploadResult
@@ -91,7 +91,7 @@ class ImageService
 
                     // Fallback: Save in original format
                     $extension = strtolower($file->getClientOriginalExtension());
-                    $fallbackFilename = str_replace('.webp', '.' . $extension, $filename);
+                    $fallbackFilename = str_replace('.webp', '.'.$extension, $filename);
                     $fallbackPath = "{$directory}/{$fallbackFilename}";
                     $fullPath = Storage::disk('public')->path($fallbackPath);
 
@@ -163,25 +163,23 @@ class ImageService
 
     /**
      * Generate thumbnail for existing image
-     * 
-     * @param string $path Relative path from storage/public
-     * @param int $width
-     * @param int $height
+     *
+     * @param  string  $path  Relative path from storage/public
      * @return string Thumbnail path
      */
     public function generateThumbnail(string $path, int $width = 300, int $height = 200): string
     {
         $fullPath = Storage::disk('public')->path($path);
 
-        if (!file_exists($fullPath)) {
+        if (! file_exists($fullPath)) {
             throw new \Exception("Image not found: {$path}");
         }
 
         // Generate thumbnail filename
         $pathInfo = pathinfo($path);
         $suffix = config('image.thumbnail.suffix', '_thumb');
-        $thumbnailFilename = $pathInfo['filename'] . $suffix . '.' . $pathInfo['extension'];
-        $thumbnailPath = $pathInfo['dirname'] . '/' . $thumbnailFilename;
+        $thumbnailFilename = $pathInfo['filename'].$suffix.'.'.$pathInfo['extension'];
+        $thumbnailPath = $pathInfo['dirname'].'/'.$thumbnailFilename;
         $thumbnailFullPath = Storage::disk('public')->path($thumbnailPath);
 
         // Create thumbnail
@@ -218,16 +216,14 @@ class ImageService
 
     /**
      * Optimize existing image
-     * 
-     * @param string $path Relative path from storage/public
-     * @param array $options
-     * @return void
+     *
+     * @param  string  $path  Relative path from storage/public
      */
     public function optimize(string $path, array $options = []): void
     {
         $fullPath = Storage::disk('public')->path($path);
 
-        if (!file_exists($fullPath)) {
+        if (! file_exists($fullPath)) {
             throw new \Exception("Image not found: {$path}");
         }
 
@@ -264,9 +260,7 @@ class ImageService
 
     /**
      * Validate uploaded image
-     * 
-     * @param UploadedFile $file
-     * @param array $config
+     *
      * @throws \Exception
      */
     public function validate(UploadedFile $file, array $config = []): void
@@ -276,18 +270,18 @@ class ImageService
         // Check file size
         $maxSize = $config['max_file_size'] ?? $validation['max_file_size'];
         if ($file->getSize() > $maxSize) {
-            throw new \Exception('Image size must be less than ' . ($maxSize / 1024 / 1024) . 'MB');
+            throw new \Exception('Image size must be less than '.($maxSize / 1024 / 1024).'MB');
         }
 
         // Check mime type
         $allowedMimeTypes = $config['allowed_mime_types'] ?? $validation['allowed_mime_types'];
-        if (!in_array($file->getMimeType(), $allowedMimeTypes)) {
+        if (! in_array($file->getMimeType(), $allowedMimeTypes)) {
             throw new \Exception('Invalid image format. Allowed: JPG, PNG, GIF, WebP');
         }
 
         // Validate image dimensions
         $imageInfo = @getimagesize($file->getRealPath());
-        if (!$imageInfo) {
+        if (! $imageInfo) {
             throw new \Exception('Invalid image file');
         }
 
@@ -351,8 +345,8 @@ class ImageService
     private function createManager(): ImageManager
     {
         $driver = match ($this->driver) {
-            'imagick' => new ImagickDriver(),
-            'gd' => new GdDriver(),
+            'imagick' => new ImagickDriver,
+            'gd' => new GdDriver,
             default => throw new \Exception("Unsupported driver: {$this->driver}"),
         };
 
@@ -385,7 +379,7 @@ class ImageService
      */
     private function ensureDirectoryExists(string $path): void
     {
-        if (!file_exists($path)) {
+        if (! file_exists($path)) {
             mkdir($path, 0755, true);
         }
     }

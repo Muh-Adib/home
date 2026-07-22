@@ -2,24 +2,23 @@
 
 namespace Tests\Manual;
 
-use App\Models\Property;
 use App\Models\Booking;
-use App\Services\ICalService;
+use App\Models\Property;
 use App\Services\AvailabilityService;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Log;
+use App\Services\ICalService;
 
 class TestICalSync
 {
     public function run()
     {
-        $log = "";
+        $log = '';
 
         // 1. Setup Mock Property
         $property = Property::first();
-        if (!$property) {
+        if (! $property) {
             $log .= "No property found to test.\n";
             file_put_contents('test_output.txt', $log);
+
             return;
         }
 
@@ -38,14 +37,14 @@ class TestICalSync
         $service = app(ICalService::class);
         $result = $service->syncFromExternal($property);
 
-        $log .= "Sync Result: " . json_encode($result) . "\n";
+        $log .= 'Sync Result: '.json_encode($result)."\n";
 
         // 3. Verify OTA Bookings
         $otaBookings = Booking::where('property_id', $property->id)
             ->whereIn('source', ['airbnb', 'booking_com', 'ota'])
             ->get();
 
-        $log .= "Found " . $otaBookings->count() . " OTA bookings.\n";
+        $log .= 'Found '.$otaBookings->count()." OTA bookings.\n";
         if ($otaBookings->count() > 0) {
             $first = $otaBookings->first();
             $log .= "Sample Booking: {$first->check_in} - {$first->check_out} ({$first->source})\n";
@@ -56,14 +55,14 @@ class TestICalSync
         $first = $otaBookings->first();
         if ($first) {
             $check = $availabilityService->checkAvailability($property, $first->check_in->format('Y-m-d'), $first->check_out->format('Y-m-d'));
-            $log .= "Availability Check (without override): " . ($check['available'] ? 'AVAILABLE (FAIL)' : 'BLOCKED (PASS)') . "\n";
+            $log .= 'Availability Check (without override): '.($check['available'] ? 'AVAILABLE (FAIL)' : 'BLOCKED (PASS)')."\n";
 
             // 5. Test Availability (Approved Override)
             $checkOverride = $availabilityService->checkAvailability($property, $first->check_in->format('Y-m-d'), $first->check_out->format('Y-m-d'), null, null, true);
-            $log .= "Availability Check (WITH override): " . ($checkOverride['available'] ? 'AVAILABLE (PASS)' : 'BLOCKED (FAIL)') . "\n";
+            $log .= 'Availability Check (WITH override): '.($checkOverride['available'] ? 'AVAILABLE (PASS)' : 'BLOCKED (FAIL)')."\n";
 
-            if (!$checkOverride['available']) {
-                $log .= "Blocked by: " . json_encode($checkOverride['booked_dates'] ?? []) . "\n";
+            if (! $checkOverride['available']) {
+                $log .= 'Blocked by: '.json_encode($checkOverride['booked_dates'] ?? [])."\n";
                 // Debug: manually check overlapping without triggering accessors
                 $overlapping = Booking::where('property_id', $property->id)
                     ->where('check_in', '<', $first->check_out)
@@ -74,11 +73,11 @@ class TestICalSync
                     return [
                         'id' => $b->id,
                         'source' => $b->source,
-                        'booking_status' => $b->booking_status
+                        'booking_status' => $b->booking_status,
                     ];
                 });
 
-                $log .= "Actual Overlapping in DB: " . json_encode($debugData) . "\n";
+                $log .= 'Actual Overlapping in DB: '.json_encode($debugData)."\n";
             }
         }
 
@@ -89,6 +88,6 @@ class TestICalSync
         $log .= "Test Completed.\n";
 
         file_put_contents('test_output.txt', $log);
-        echo "Log written to test_output.txt";
+        echo 'Log written to test_output.txt';
     }
 }

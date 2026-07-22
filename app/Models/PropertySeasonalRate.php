@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Carbon\Carbon;
 
 class PropertySeasonalRate extends Model
 {
@@ -67,19 +67,19 @@ class PropertySeasonalRate extends Model
     public function appliesTo(Carbon $date): bool
     {
         // Check if date is within the range
-        if (!$date->between($this->start_date, $this->end_date)) {
+        if (! $date->between($this->start_date, $this->end_date)) {
             return false;
         }
 
         // Check if it applies to weekends only (Jumat, Sabtu, Minggu)
-        if ($this->applies_to_weekends_only && !($date->isFriday() || $date->isSaturday() || $date->isSunday())) {
+        if ($this->applies_to_weekends_only && ! ($date->isFriday() || $date->isSaturday() || $date->isSunday())) {
             return false;
         }
 
         // Check specific days if applicable_days is set
-        if ($this->applicable_days && !empty($this->applicable_days)) {
+        if ($this->applicable_days && ! empty($this->applicable_days)) {
             $dayOfWeek = $date->dayOfWeek; // 0=Sunday, 1=Monday, etc.
-            if (!in_array($dayOfWeek, $this->applicable_days)) {
+            if (! in_array($dayOfWeek, $this->applicable_days)) {
                 return false;
             }
         }
@@ -113,11 +113,11 @@ class PropertySeasonalRate extends Model
             case 'percentage':
                 return "+{$this->rate_value}% dari tarif dasar";
             case 'fixed':
-                return "Rp " . number_format($this->rate_value, 0, ',', '.') . " per malam";
+                return 'Rp '.number_format($this->rate_value, 0, ',', '.').' per malam';
             case 'multiplier':
                 return "{$this->rate_value}x tarif dasar";
             default:
-                return "Tarif khusus";
+                return 'Tarif khusus';
         }
     }
 
@@ -137,7 +137,7 @@ class PropertySeasonalRate extends Model
 
     /**
      * Get the effective rate for a date range
-     * 
+     *
      * Fix: Query untuk mencari seasonal rate yang overlap dengan periode booking
      * Overlap terjadi ketika: start_date <= endDate AND end_date >= startDate
      */
@@ -162,7 +162,9 @@ class PropertySeasonalRate extends Model
 
             // Get highest priority rate for this date (sudah diurutkan byPriority)
             $effectiveRate = $applicableRates->first();
-            $dailyRates[$date->format('Y-m-d')] = $effectiveRate;
+            if ($effectiveRate !== null) {
+                $dailyRates[$date->format('Y-m-d')] = $effectiveRate;
+            }
         }
 
         return $dailyRates;

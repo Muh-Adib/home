@@ -4,17 +4,13 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use SimpleXMLElement;
 
 class NewsDiscoveryService
 {
     /**
      * Fetch trending news from Google News RSS
-     * 
-     * @param string $keyword
-     * @param string $language (id, en)
-     * @param int $limit
-     * @return array
+     *
+     * @param  string  $language  (id, en)
      */
     public function fetchTrendingNews(string $keyword, string $language = 'id', int $limit = 5): array
     {
@@ -26,12 +22,13 @@ class NewsDiscoveryService
             $hl = $language === 'id' ? 'id-ID' : 'en-US';
 
             // scoring=n (Newest), scoring=r (Relevance)
-            $url = "https://news.google.com/rss/search?q=" . urlencode($keyword) . "&hl={$hl}&gl={$gl}&ceid={$ceid}&scoring=n";
+            $url = 'https://news.google.com/rss/search?q='.urlencode($keyword)."&hl={$hl}&gl={$gl}&ceid={$ceid}&scoring=n";
 
             $response = Http::get($url);
 
             if ($response->failed()) {
-                Log::error("Failed to fetch Google News RSS for keyword: {$keyword}. Status: " . $response->status());
+                Log::error("Failed to fetch Google News RSS for keyword: {$keyword}. Status: ".$response->status());
+
                 return [];
             }
 
@@ -40,8 +37,9 @@ class NewsDiscoveryService
             // Parse XML
             $rss = simplexml_load_string($xmlContent, 'SimpleXMLElement', LIBXML_NOCDATA);
 
-            if (!$rss || !isset($rss->channel->item)) {
+            if (! $rss || ! isset($rss->channel->item)) {
                 Log::warning("RSS parsed but no items found for {$keyword}");
+
                 return [];
             }
 
@@ -49,8 +47,9 @@ class NewsDiscoveryService
             $count = 0;
 
             foreach ($rss->channel->item as $item) {
-                if ($count >= $limit)
+                if ($count >= $limit) {
                     break;
+                }
 
                 // Extract pubDate
                 $pubDate = (string) $item->pubDate;
@@ -64,7 +63,7 @@ class NewsDiscoveryService
                 // Clean title (Google News often adds "- Source Name" at the end)
                 $title = (string) $item->title;
                 $source = (string) $item->source;
-                $cleanTitle = str_replace(" - {$source}", "", $title);
+                $cleanTitle = str_replace(" - {$source}", '', $title);
 
                 $newsItems[] = [
                     'title' => $cleanTitle,
@@ -82,7 +81,8 @@ class NewsDiscoveryService
             return $newsItems;
 
         } catch (\Exception $e) {
-            Log::error("NewsDiscoveryService Error: " . $e->getMessage());
+            Log::error('NewsDiscoveryService Error: '.$e->getMessage());
+
             return [];
         }
     }

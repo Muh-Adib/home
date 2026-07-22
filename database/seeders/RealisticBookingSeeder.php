@@ -2,13 +2,13 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Booking;
-use App\Models\Property;
-use App\Models\User;
 use App\Models\InventoryItem;
 use App\Models\InventoryStockMovement;
 use App\Models\InventoryUsage;
+use App\Models\Property;
+use App\Models\User;
+use Illuminate\Database\Seeder;
 
 class RealisticBookingSeeder extends Seeder
 {
@@ -48,7 +48,7 @@ class RealisticBookingSeeder extends Seeder
                         'unit' => $unit,
                         'min_stock' => 10,
                         'average_unit_cost' => 5000,
-                        'sku' => strtoupper(substr($name, 0, 3)) . rand(100, 999)
+                        'sku' => strtoupper(substr($name, 0, 3)).rand(100, 999),
                     ]
                 )
             );

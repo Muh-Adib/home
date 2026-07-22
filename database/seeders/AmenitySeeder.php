@@ -2,10 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use App\Models\Amenity;
+use Illuminate\Database\Seeder;
 
 class AmenitySeeder extends Seeder
 {
@@ -80,7 +78,7 @@ class AmenitySeeder extends Seeder
                 ['name' => $amenityData['name']],
                 $amenityData
             );
-            
+
             $this->command->info("Created/Updated amenity: {$amenityData['name']}");
         }
     }

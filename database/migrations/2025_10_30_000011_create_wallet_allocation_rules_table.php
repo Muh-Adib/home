@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('wallet_allocation_rules')) {
+        if (! Schema::hasTable('wallet_allocation_rules')) {
             Schema::create('wallet_allocation_rules', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('property_id')->constrained('properties')->cascadeOnDelete();
@@ -19,7 +19,7 @@ return new class extends Migration
                 $table->boolean('active')->default(true);
                 $table->unsignedTinyInteger('priority')->default(10);
                 $table->timestamps();
-                $table->index(['property_id','active']);
+                $table->index(['property_id', 'active']);
             });
         }
     }
@@ -29,6 +29,3 @@ return new class extends Migration
         Schema::dropIfExists('wallet_allocation_rules');
     }
 };
-
-
-

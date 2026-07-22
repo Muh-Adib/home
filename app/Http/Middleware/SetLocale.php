@@ -18,7 +18,7 @@ class SetLocale
     {
         $locale = session('locale');
 
-        if (!$locale) {
+        if (! $locale) {
             // Gunakan header browser
             $browserLocale = substr($request->header('Accept-Language'), 0, 2);
             if (in_array($browserLocale, $this->supportedLocales)) {
@@ -30,7 +30,7 @@ class SetLocale
         $locale = $locale ?? config('app.locale', 'id');
 
         // Pastikan locale didukung
-        if (!in_array($locale, $this->supportedLocales)) {
+        if (! in_array($locale, $this->supportedLocales)) {
             $locale = 'id';
         }
 
@@ -41,4 +41,4 @@ class SetLocale
 
         return $next($request);
     }
-} 
+}

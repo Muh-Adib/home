@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\Property;
+use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 
 class GenerateICalTokensCommand extends Command
@@ -42,6 +42,7 @@ class GenerateICalTokensCommand extends Command
 
         if ($count === 0) {
             $this->info('All properties already have iCal export tokens!');
+
             return 0;
         }
 

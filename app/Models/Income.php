@@ -53,5 +53,3 @@ class Income extends Model
         return $this->belongsTo(Payment::class);
     }
 }
-
-

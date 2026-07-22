@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\VerifyCsrfToken;
 use App\Models\Property;
 use App\Models\User;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -73,10 +75,12 @@ class SecurityTest extends TestCase
     {
         $guest = User::factory()->create(['role' => 'guest']);
 
-        $this->expectsEvents(MessageLogged::class);
+        Event::fake([MessageLogged::class]);
 
         $response = $this->actingAs($guest)->get('/admin/dashboard');
         $response->assertStatus(403);
+
+        Event::assertDispatched(MessageLogged::class);
     }
 
     #[Test]
@@ -86,7 +90,7 @@ class SecurityTest extends TestCase
 
         $response = $this->actingAs($guest)
             ->withHeaders(['Accept' => 'application/json'])
-            ->get('/admin/api/dashboard');
+            ->get('/admin/dashboard');
 
         $response->assertStatus(403)
             ->assertJson([
@@ -103,7 +107,7 @@ class SecurityTest extends TestCase
         $file = UploadedFile::fake()->create('malicious.php', 100, 'application/x-php');
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => [$file],
             ]);
 
@@ -120,7 +124,7 @@ class SecurityTest extends TestCase
         $file = UploadedFile::fake()->image('large.jpg')->size(6000); // 6MB
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => [$file],
             ]);
 
@@ -137,7 +141,7 @@ class SecurityTest extends TestCase
         $file = UploadedFile::fake()->image('valid.jpg', 800, 600)->size(1000);
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => [$file],
             ]);
 
@@ -157,7 +161,7 @@ class SecurityTest extends TestCase
         $file = UploadedFile::fake()->image('test.jpg');
 
         $response = $this->actingAs($guest)
-            ->postJson("/admin/properties/{$property->id}/media/upload", [
+            ->postJson("/admin/properties/{$property->slug}/media/upload", [
                 'files' => [$file],
             ]);
 
@@ -171,7 +175,7 @@ class SecurityTest extends TestCase
 
         // Test without CSRF token
         $response = $this->actingAs($admin)
-            ->withoutMiddleware(VerifyCsrfToken::class)
+            ->withoutMiddleware(ValidateCsrfToken::class)
             ->post('/admin/properties', [
                 'name' => 'Test Property',
                 'description' => 'Test Description',
@@ -231,7 +235,7 @@ class SecurityTest extends TestCase
         $response->assertStatus(200); // Should not crash
 
         // Verify table still exists
-        $this->assertDatabaseHas('properties', []);
+        $this->assertTrue(Schema::hasTable('properties'));
     }
 
     #[Test]

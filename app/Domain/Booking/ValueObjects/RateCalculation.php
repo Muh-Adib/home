@@ -2,8 +2,6 @@
 
 namespace App\Domain\Booking\ValueObjects;
 
-use Carbon\Carbon;
-
 class RateCalculation
 {
     public function __construct(
@@ -18,8 +16,7 @@ class RateCalculation
         public readonly int $extraBeds,
         public readonly array $breakdown = [],
         public readonly array $seasonalRatesApplied = []
-    ) {
-    }
+    ) {}
 
     public function toArray(): array
     {
@@ -36,9 +33,9 @@ class RateCalculation
             'breakdown' => $this->breakdown,
             'seasonal_rates_applied' => $this->seasonalRatesApplied,
             'formatted' => [
-                'total_amount' => 'Rp ' . number_format($this->totalAmount, 0, ',', '.'),
-                'per_night' => 'Rp ' . number_format($this->totalAmount / $this->nights, 0, ',', '.')
-            ]
+                'total_amount' => 'Rp '.number_format($this->totalAmount, 0, ',', '.'),
+                'per_night' => 'Rp '.number_format($this->totalAmount / $this->nights, 0, ',', '.'),
+            ],
         ];
     }
 

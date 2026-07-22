@@ -36,17 +36,19 @@ class TestPaymentNotifications extends Command
         $finance = User::where('role', 'finance')->first();
         $guest = User::where('role', 'guest')->first();
 
-        if (!$admin || !$finance || !$guest) {
+        if (! $admin || ! $finance || ! $guest) {
             $this->error('Test users not found. Please ensure you have super_admin, finance, and guest users.');
-            $this->info('Available roles: ' . User::distinct()->pluck('role')->implode(', '));
+            $this->info('Available roles: '.User::distinct()->pluck('role')->implode(', '));
+
             return 1;
         }
 
         // Get a test payment
         $payment = Payment::with('booking')->first();
-        
-        if (!$payment) {
+
+        if (! $payment) {
             $this->error('No payment found for testing.');
+
             return 1;
         }
 
@@ -64,20 +66,20 @@ class TestPaymentNotifications extends Command
 
         // Check notification counts
         $this->info('3. Checking notification counts...');
-        
+
         foreach ([$admin, $finance, $guest] as $user) {
             $totalNotifications = $user->notifications()->count();
             $unreadNotifications = $user->unreadNotifications()->count();
             $latestNotification = $user->notifications()->latest()->first();
-            
+
             $this->info("User: {$user->name} ({$user->role})");
             $this->info("  - Total notifications: {$totalNotifications}");
             $this->info("  - Unread notifications: {$unreadNotifications}");
-            
+
             if ($latestNotification) {
-                $this->info("  - Latest: " . get_class($latestNotification) . " at " . $latestNotification->created_at);
-                $this->info("  - Data: " . json_encode($latestNotification->data));
-                $this->info("  - Read at: " . ($latestNotification->read_at ?? 'NULL'));
+                $this->info('  - Latest: '.get_class($latestNotification).' at '.$latestNotification->created_at);
+                $this->info('  - Data: '.json_encode($latestNotification->data));
+                $this->info('  - Read at: '.($latestNotification->read_at ?? 'NULL'));
             }
             $this->info('');
         }
@@ -88,6 +90,7 @@ class TestPaymentNotifications extends Command
         $this->info("Pending jobs in queue: {$pendingJobs}");
 
         $this->info('✅ Payment notification test completed!');
+
         return 0;
     }
-} 
+}

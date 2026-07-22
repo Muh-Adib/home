@@ -3,10 +3,11 @@
 namespace App\Notifications;
 
 use App\Models\Payment;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Messages\BroadcastMessage;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class PaymentCreatedNotification extends Notification implements ShouldQueue
@@ -40,15 +41,15 @@ class PaymentCreatedNotification extends Notification implements ShouldQueue
     {
         $bookingNumber = $this->payment->booking->booking_number;
         $paymentNumber = $this->payment->payment_number;
-        
+
         return (new MailMessage)
-                    ->subject("Payment Created - {$paymentNumber}")
-                    ->line("A new payment has been created for booking {$bookingNumber}.")
-                    ->line("Payment Number: {$paymentNumber}")
-                    ->line("Amount: " . number_format($this->payment->amount, 0, ',', '.'))
-                    ->line("Status: {$this->payment->payment_status}")
-                    ->action('View Payment', url("/admin/payments/{$paymentNumber}"))
-                    ->line('Thank you for using our application!');
+            ->subject("Payment Created - {$paymentNumber}")
+            ->line("A new payment has been created for booking {$bookingNumber}.")
+            ->line("Payment Number: {$paymentNumber}")
+            ->line('Amount: '.number_format($this->payment->amount, 0, ',', '.'))
+            ->line("Status: {$this->payment->payment_status}")
+            ->action('View Payment', url("/admin/payments/{$paymentNumber}"))
+            ->line('Thank you for using our application!');
     }
 
     /**
@@ -95,7 +96,7 @@ class PaymentCreatedNotification extends Notification implements ShouldQueue
     public function broadcastOn(): array
     {
         return [
-            new \Illuminate\Broadcasting\Channel('admin-notifications'),
+            new Channel('admin-notifications'),
         ];
     }
 

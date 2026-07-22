@@ -33,7 +33,7 @@ class BankAccountController extends Controller
     {
         $this->checkAccess($request);
 
-        $query = BankAccount::query();
+        $query = BankAccount::visibleToUser($request->user());
 
         // Search
         if ($request->filled('search')) {
@@ -52,7 +52,7 @@ class BankAccountController extends Controller
 
         // Stats
         $stats = [
-            'total' => BankAccount::count(),
+            'total' => BankAccount::visibleToUser($request->user())->count(),
         ];
 
         return Inertia::render('Admin/BankAccounts/Index', [
@@ -88,6 +88,7 @@ class BankAccountController extends Controller
             'account_number' => 'required|string|max:50|unique:bank_accounts,account_number',
             'account_holder' => 'required|string|max:255',
             'label' => 'required|string|max:255',
+            'visibility_mode' => 'required|in:public,super_admin_only,super_admin_and_pm',
         ]);
 
         $pm = PaymentMethod::findOrFail($request->input('payment_method_id'));
@@ -125,6 +126,7 @@ class BankAccountController extends Controller
             'account_number' => 'required|string|max:50|unique:bank_accounts,account_number,'.$bankAccount->id,
             'account_holder' => 'required|string|max:255',
             'label' => 'required|string|max:255',
+            'visibility_mode' => 'required|in:public,super_admin_only,super_admin_and_pm',
         ]);
 
         $pm = PaymentMethod::findOrFail($request->input('payment_method_id'));

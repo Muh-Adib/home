@@ -25,7 +25,7 @@ return new class extends Migration
             $table->string('emergency_contact_phone')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
-            
+
             // Add indexes for performance
             $table->index(['booking_id', 'guest_type']);
             $table->index(['booking_id', 'age_category']);

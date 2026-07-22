@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Layout;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -26,6 +27,7 @@ use Tests\TestCase;
  */
 class LayoutLinksPreservationTest extends TestCase
 {
+    use RefreshDatabase;
     // =========================================================================
     // Test Case A — guest-layout.tsx Footer Quick Links Are Present
     // Validates: Requirements 3.7
@@ -55,27 +57,27 @@ class LayoutLinksPreservationTest extends TestCase
         $source = file_get_contents($layoutPath);
 
         $this->assertStringContainsString(
-            'href="/about"',
+            "href: '/about'",
             $source,
-            'guest-layout.tsx must contain href="/about" in the footer Quick Links'
+            'guest-layout.tsx must contain href: \'/about\' in the footer Quick Links'
         );
 
         $this->assertStringContainsString(
-            'href="/properties"',
+            "href: '/properties'",
             $source,
-            'guest-layout.tsx must contain href="/properties" in the footer Quick Links'
+            'guest-layout.tsx must contain href: \'/properties\' in the footer Quick Links'
         );
 
         $this->assertStringContainsString(
-            'href="/articles"',
+            "href: '/articles'",
             $source,
-            'guest-layout.tsx must contain href="/articles" in the footer Quick Links'
+            'guest-layout.tsx must contain href: \'/articles\' in the footer Quick Links'
         );
 
         $this->assertStringContainsString(
-            'href="/faq"',
+            "href: '/faq'",
             $source,
-            'guest-layout.tsx must contain href="/faq" in the footer Quick Links'
+            'guest-layout.tsx must contain href: \'/faq\' in the footer Quick Links'
         );
     }
 

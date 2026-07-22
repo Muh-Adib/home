@@ -9,12 +9,12 @@ Route::middleware('auth')->group(function () {
     Route::redirect('settings', 'settings/profile');
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::post('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::match(['post', 'patch'], 'settings/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('settings/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('settings/password', [PasswordController::class, 'edit'])->name('password.edit');
     Route::put('settings/password', [PasswordController::class, 'update'])->name('password.update');
-    
+
     // Change password for new users (no current password required)
     Route::get('password/change', [PasswordController::class, 'change'])->name('password.change');
     Route::post('password/change', [PasswordController::class, 'changePassword'])->name('password.change.store');

@@ -359,12 +359,12 @@ export default function Expenses({
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className={selectedScope === 'unit' ? "grid grid-cols-2 gap-2" : "block"}>
                 {/* Category Selector */}
                 <div>
-                  <Label>Kategori</Label>
+                  <Label>Kategori <span className="text-red-500">*</span></Label>
                   <select 
-                    className="w-full border rounded h-9 px-2 bg-background" 
+                    className="w-full border rounded h-9 px-2 bg-background font-medium" 
                     value={data.expense_category} 
                     onChange={(e) => setData('expense_category', e.target.value)}
                   >
@@ -373,19 +373,21 @@ export default function Expenses({
                     ))}
                   </select>
                 </div>
-                {/* Type Selector */}
-                <div>
-                  <Label>Tipe</Label>
-                  <select 
-                    className="w-full border rounded h-9 px-2 bg-background" 
-                    value={data.expense_type} 
-                    onChange={(e) => setData('expense_type', e.target.value)}
-                  >
-                    {Object.entries(expenseTypes || {}).map(([key, label]: any) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
+                {/* Type Selector (Only for Per Unit Property Expenses) */}
+                {selectedScope === 'unit' && (
+                  <div>
+                    <Label>Tipe Beban Unit <span className="text-red-500">*</span></Label>
+                    <select 
+                      className="w-full border rounded h-9 px-2 bg-background font-medium" 
+                      value={data.expense_type} 
+                      onChange={(e) => setData('expense_type', e.target.value)}
+                    >
+                      {Object.entries(expenseTypes || {}).map(([key, label]: any) => (
+                        <option key={key} value={key}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Wallet Selector (Sumber Dana) */}

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Property>
+ * @extends Factory<Property>
  */
 class PropertyFactory extends Factory
 {
@@ -19,9 +19,9 @@ class PropertyFactory extends Factory
      */
     public function definition(): array
     {
-        $name = $this->faker->words(3, true) . ' ' . $this->faker->randomElement(['Villa', 'House', 'Homestay']);
+        $name = $this->faker->words(3, true).' '.$this->faker->randomElement(['Villa', 'House', 'Homestay']);
         $baseRate = $this->faker->numberBetween(300000, 1500000);
-        
+
         return [
             'name' => $name,
             'slug' => Str::slug($name),

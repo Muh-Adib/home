@@ -34,6 +34,10 @@ class StaffPayroll extends Model
         'total_salary',
         'status',
         'paid_at',
+        'performance_bonus',
+        'kpi_details',
+        'points_details',
+        'loans_details',
         'notes',
         'created_by',
         'expense_id',
@@ -47,6 +51,7 @@ class StaffPayroll extends Model
         'standby_bonus' => 'float',
         'frontdesk_first_night_bonus' => 'float',
         'frontdesk_next_nights_bonus_share' => 'float',
+        'performance_bonus' => 'float',
         'total_salary' => 'float',
         'paid_at' => 'datetime',
         'sick_days' => 'integer',
@@ -58,6 +63,9 @@ class StaffPayroll extends Model
         'overtime_hours' => 'float',
         'overtime_bonus' => 'float',
         'holiday_days' => 'integer',
+        'kpi_details' => 'array',
+        'points_details' => 'array',
+        'loans_details' => 'array',
     ];
 
     public function user(): BelongsTo

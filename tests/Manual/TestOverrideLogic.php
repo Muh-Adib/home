@@ -2,8 +2,8 @@
 
 namespace Tests\Manual;
 
-use App\Models\Property;
 use App\Models\Booking;
+use App\Models\Property;
 use App\Services\AvailabilityService;
 use Illuminate\Support\Carbon;
 
@@ -11,12 +11,13 @@ class TestOverrideLogic
 {
     public function run()
     {
-        $log = "";
+        $log = '';
 
         // 1. Setup - Find or Create Property
         $property = Property::first();
-        if (!$property) {
+        if (! $property) {
             file_put_contents('test_override_output.txt', "No property found.\n");
+
             return;
         }
 
@@ -36,7 +37,7 @@ class TestOverrideLogic
         // Scenario A: OTA Booking
         $otaBooking = Booking::create([
             'property_id' => $property->id,
-            'booking_number' => 'TEST-OTA-' . uniqid(),
+            'booking_number' => 'TEST-OTA-'.uniqid(),
             'guest_name' => 'Test OTA',
             'guest_email' => 'test@ota.com',
             'guest_phone' => '0000',
@@ -59,7 +60,7 @@ class TestOverrideLogic
         // Scenario B: Direct Booking
         $directBooking = Booking::create([
             'property_id' => $property->id,
-            'booking_number' => 'TEST-DIRECT-' . uniqid(),
+            'booking_number' => 'TEST-DIRECT-'.uniqid(),
             'guest_name' => 'Test Direct',
             'guest_email' => 'test@direct.com',
             'guest_phone' => '0000',
@@ -87,8 +88,8 @@ class TestOverrideLogic
         $checkA_Override = $service->checkAvailability($property, $dateA->toDateString(), $dateA->copy()->addDay()->toDateString(), null, null, true);
 
         $log .= "--- Scenario A: OTA Booking ---\n";
-        $log .= "Normal Check (Should Fail): " . ($checkA_Normal['available'] ? 'Available (FAIL)' : 'Blocked (PASS)') . "\n";
-        $log .= "Override Check (Should Pass): " . ($checkA_Override['available'] ? 'Available (PASS)' : 'Blocked (FAIL)') . "\n";
+        $log .= 'Normal Check (Should Fail): '.($checkA_Normal['available'] ? 'Available (FAIL)' : 'Blocked (PASS)')."\n";
+        $log .= 'Override Check (Should Pass): '.($checkA_Override['available'] ? 'Available (PASS)' : 'Blocked (FAIL)')."\n";
 
         // Test Direct Non-Override
         $checkB_Normal = $service->checkAvailability($property, $dateB->toDateString(), $dateB->copy()->addDay()->toDateString());
@@ -96,8 +97,8 @@ class TestOverrideLogic
         $checkB_Override = $service->checkAvailability($property, $dateB->toDateString(), $dateB->copy()->addDay()->toDateString(), null, null, true);
 
         $log .= "--- Scenario B: Direct Booking ---\n";
-        $log .= "Normal Check (Should Fail): " . ($checkB_Normal['available'] ? 'Available (FAIL)' : 'Blocked (PASS)') . "\n";
-        $log .= "Override Check (Should Fail): " . ($checkB_Override['available'] ? 'Available (FAIL - Override Direct)' : 'Blocked (PASS)') . "\n";
+        $log .= 'Normal Check (Should Fail): '.($checkB_Normal['available'] ? 'Available (FAIL)' : 'Blocked (PASS)')."\n";
+        $log .= 'Override Check (Should Fail): '.($checkB_Override['available'] ? 'Available (FAIL - Override Direct)' : 'Blocked (PASS)')."\n";
 
         // 5. Cleanup
         // $otaBooking->forceDelete();
@@ -105,6 +106,6 @@ class TestOverrideLogic
         $log .= "Cleanup skipped for review. Please delete TEST bookings manually if needed.\n";
 
         file_put_contents('test_override_output.txt', $log);
-        echo "Log written to test_override_output.txt";
+        echo 'Log written to test_override_output.txt';
     }
 }

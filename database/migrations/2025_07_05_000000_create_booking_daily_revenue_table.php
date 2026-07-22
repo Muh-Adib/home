@@ -18,7 +18,7 @@ return new class extends Migration
             $table->date('tanggal');
             $table->decimal('amount', 10, 2);
             $table->timestamps();
-            
+
             $table->unique(['booking_id', 'tanggal']);
         });
     }
@@ -30,4 +30,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('booking_daily_revenue');
     }
-}; 
+};

@@ -1,18 +1,19 @@
 <?php
 
+use App\Models\ContentPlan;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
-return new class extends Migration {
+return new class extends Migration
+{
     /**
      * Run the migrations.
      */
     public function up(): void
     {
-        \App\Models\ContentPlan::whereNull('uuid')->chunk(100, function ($plans) {
+        ContentPlan::whereNull('uuid')->chunk(100, function ($plans) {
             foreach ($plans as $plan) {
-                $plan->update(['uuid' => (string) \Illuminate\Support\Str::uuid()]);
+                $plan->update(['uuid' => (string) Str::uuid()]);
             }
         });
     }

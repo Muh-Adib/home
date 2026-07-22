@@ -110,24 +110,32 @@ class ReconciliationService
         $monthStart = Carbon::now()->startOfMonth();
         $monthEnd = Carbon::now()->endOfMonth();
 
-        for ($code = 1; $code <= 999; $code++) {
-            $expectedAmount = $baseAmount + $code;
+        // Get all unique codes currently in use for pending or verified payments on this bank account
+        $usedCodes = Payment::where(function ($q) {
+            $q->whereIn('payment_status', ['pending', 'verified'])
+                ->orWhereIn('status', ['menunggu', 'cocok']);
+        })
+            ->whereBetween('created_at', [$monthStart, $monthEnd])
+            ->whereHas('booking.property', function ($query) use ($bankAccountId) {
+                $query->where('bank_account_id', $bankAccountId);
+            })
+            ->whereNotNull('unique_code')
+            ->where('unique_code', '>', 0)
+            ->pluck('unique_code')
+            ->unique()
+            ->toArray();
 
-            $exists = Payment::where('status', 'menunggu')
-                ->where('expected_amount', $expectedAmount)
-                ->whereBetween('created_at', [$monthStart, $monthEnd])
-                ->whereHas('booking.property', function ($query) use ($bankAccountId) {
-                    $query->where('bank_account_id', $bankAccountId);
-                })
-                ->exists();
+        // We want a random code between 1 and 300
+        $allCodes = range(1, 300);
+        $availableCodes = array_values(array_diff($allCodes, $usedCodes));
 
-            if (! $exists) {
-                return $code;
-            }
+        if (! empty($availableCodes)) {
+            // Return a random available code
+            return $availableCodes[array_rand($availableCodes)];
         }
 
-        // All 999 slots taken for this month — cannot assign unique code
-        \Log::warning("[ReconciliationService] No unique code available for bank_account_id={$bankAccountId}, amount={$baseAmount} this month.");
+        // All 300 slots taken for this month — cannot assign unique code
+        \Log::warning("[ReconciliationService] No unique code available (1-300) for bank_account_id={$bankAccountId}, amount={$baseAmount} this month.");
 
         return 0;
     }

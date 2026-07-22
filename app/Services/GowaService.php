@@ -21,7 +21,7 @@ class GowaService
     public function checkWhatsappNumber(string $phone): bool
     {
         try {
-            if (!$this->config) {
+            if (! $this->config) {
                 throw new \Exception('GOWA configuration not found');
             }
 
@@ -35,7 +35,8 @@ class GowaService
             // Check if response indicates phone is registered
             return isset($response['data']['is_registered']) && $response['data']['is_registered'] === true;
         } catch (\Exception $e) {
-            Log::error('GOWA checkWhatsappNumber error: ' . $e->getMessage());
+            Log::error('GOWA checkWhatsappNumber error: '.$e->getMessage());
+
             return false;
         }
     }
@@ -46,7 +47,7 @@ class GowaService
     public function sendMessage(string $phone, string $message): array
     {
         try {
-            if (!$this->config) {
+            if (! $this->config) {
                 throw new \Exception('GOWA configuration not found');
             }
 
@@ -63,7 +64,8 @@ class GowaService
                 'data' => $response,
             ];
         } catch (\Exception $e) {
-            Log::error('GOWA sendMessage error: ' . $e->getMessage());
+            Log::error('GOWA sendMessage error: '.$e->getMessage());
+
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
@@ -77,7 +79,7 @@ class GowaService
     public function getUserInfo(string $phone): ?array
     {
         try {
-            if (!$this->config) {
+            if (! $this->config) {
                 throw new \Exception('GOWA configuration not found');
             }
 
@@ -89,7 +91,8 @@ class GowaService
 
             return $response['data'] ?? null;
         } catch (\Exception $e) {
-            Log::error('GOWA getUserInfo error: ' . $e->getMessage());
+            Log::error('GOWA getUserInfo error: '.$e->getMessage());
+
             return null;
         }
     }
@@ -100,7 +103,7 @@ class GowaService
     public function getLoginQRCode(): array
     {
         try {
-            if (!$this->config) {
+            if (! $this->config) {
                 throw new \Exception('GOWA configuration not found');
             }
 
@@ -112,7 +115,8 @@ class GowaService
                 'timeout' => $response['data']['timeout'] ?? 20,
             ];
         } catch (\Exception $e) {
-            Log::error('GOWA getLoginQRCode error: ' . $e->getMessage());
+            Log::error('GOWA getLoginQRCode error: '.$e->getMessage());
+
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
@@ -126,14 +130,16 @@ class GowaService
     public function logout(): bool
     {
         try {
-            if (!$this->config) {
+            if (! $this->config) {
                 throw new \Exception('GOWA configuration not found');
             }
 
             $response = $this->makeRequest('GET', '/app/logout');
+
             return isset($response['code']) && $response['code'] === 200;
         } catch (\Exception $e) {
-            Log::error('GOWA logout error: ' . $e->getMessage());
+            Log::error('GOWA logout error: '.$e->getMessage());
+
             return false;
         }
     }
@@ -144,14 +150,16 @@ class GowaService
     public function reconnect(): bool
     {
         try {
-            if (!$this->config) {
+            if (! $this->config) {
                 throw new \Exception('GOWA configuration not found');
             }
 
             $response = $this->makeRequest('GET', '/app/reconnect');
+
             return isset($response['code']) && $response['code'] === 200;
         } catch (\Exception $e) {
-            Log::error('GOWA reconnect error: ' . $e->getMessage());
+            Log::error('GOWA reconnect error: '.$e->getMessage());
+
             return false;
         }
     }
@@ -162,18 +170,19 @@ class GowaService
     public function getDevices(): array
     {
         try {
-            if (!$this->config) {
+            if (! $this->config) {
                 throw new \Exception('GOWA configuration not found');
             }
 
             $response = $this->makeRequest('GET', '/app/devices');
-            
+
             return [
                 'success' => true,
                 'devices' => $response['data'] ?? [],
             ];
         } catch (\Exception $e) {
-            Log::error('GOWA getDevices error: ' . $e->getMessage());
+            Log::error('GOWA getDevices error: '.$e->getMessage());
+
             return [
                 'success' => false,
                 'devices' => [],
@@ -188,14 +197,16 @@ class GowaService
     public function checkConnection(): bool
     {
         try {
-            if (!$this->config) {
+            if (! $this->config) {
                 return false;
             }
 
             $response = $this->makeRequest('GET', '/app/devices');
+
             return isset($response['code']) && $response['code'] === 200;
         } catch (\Exception $e) {
-            Log::error('GOWA checkConnection error: ' . $e->getMessage());
+            Log::error('GOWA checkConnection error: '.$e->getMessage());
+
             return false;
         }
     }
@@ -205,7 +216,7 @@ class GowaService
      */
     protected function makeRequest(string $method, string $endpoint, array $data = []): array
     {
-        $url = rtrim($this->config->url, '/') . $endpoint;
+        $url = rtrim($this->config->url, '/').$endpoint;
 
         $request = Http::withBasicAuth($this->config->username, $this->config->password)
             ->timeout(30);
@@ -216,8 +227,8 @@ class GowaService
             $response = $request->post($url, $data);
         }
 
-        if (!$response->successful()) {
-            throw new \Exception('GOWA API request failed: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('GOWA API request failed: '.$response->body());
         }
 
         return $response->json();
@@ -229,10 +240,10 @@ class GowaService
     protected function formatPhoneNumber(string $phone): string
     {
         $cleanPhone = $this->cleanPhoneNumber($phone);
-        
+
         // Add @s.whatsapp.net if not already present
-        if (!str_contains($cleanPhone, '@')) {
-            return $cleanPhone . '@s.whatsapp.net';
+        if (! str_contains($cleanPhone, '@')) {
+            return $cleanPhone.'@s.whatsapp.net';
         }
 
         return $cleanPhone;
@@ -245,13 +256,13 @@ class GowaService
     {
         // Remove @s.whatsapp.net suffix
         $phone = str_replace('@s.whatsapp.net', '', $phone);
-        
+
         // Remove any non-numeric characters except +
         $phone = preg_replace('/[^0-9+]/', '', $phone);
-        
+
         // Remove leading + if present
         $phone = ltrim($phone, '+');
-        
+
         return $phone;
     }
 }

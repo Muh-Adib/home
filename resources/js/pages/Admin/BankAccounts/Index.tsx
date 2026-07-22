@@ -181,17 +181,33 @@ export default function BankAccountsIndex({ bankAccounts, stats, filters, flash 
                                     <th className="p-4">Bank</th>
                                     <th className="p-4">Nomor Rekening</th>
                                     <th className="p-4">Nama Pemilik</th>
+                                    <th className="p-4">Privasi Akses</th>
                                     <th className="p-4 pr-6 text-right">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                                 {bankAccounts.data.length > 0 ? (
-                                    bankAccounts.data.map((acc) => (
+                                    bankAccounts.data.map((acc: any) => (
                                         <tr key={acc.id} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="p-4 pl-6 font-bold text-slate-900">{acc.label}</td>
                                             <td className="p-4">{acc.bank_name}</td>
                                             <td className="p-4 font-mono font-semibold">{acc.account_number}</td>
                                             <td className="p-4">{acc.account_holder}</td>
+                                            <td className="p-4">
+                                                {acc.visibility_mode === 'super_admin_only' ? (
+                                                    <span className="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full border border-purple-200">
+                                                        🔒 Super Admin Only
+                                                    </span>
+                                                ) : acc.visibility_mode === 'super_admin_and_pm' ? (
+                                                    <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                                                        🔑 Super Admin & PM
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                                                        🌐 Publik (Semua Staff)
+                                                    </span>
+                                                )}
+                                            </td>
                                             <td className="p-4 pr-6 text-right space-x-2">
                                                 <Link href={`/admin/bank-accounts/${acc.id}/edit`}>
                                                     <Button size="sm" variant="outline" className="border-slate-200 text-slate-600 hover:bg-slate-50">

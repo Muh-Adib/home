@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('inventory_usages', function (Blueprint $table) {
-            if (!Schema::hasColumn('inventory_usages', 'expense_id')) {
+            if (! Schema::hasColumn('inventory_usages', 'expense_id')) {
                 $table->foreignId('expense_id')->nullable()->after('total_cost')->constrained('property_expenses')->nullOnDelete();
                 $table->index('expense_id');
             }
@@ -23,16 +23,15 @@ return new class extends Migration
                 try {
                     // Try to drop index if exists
                     $table->dropIndex(['expense_id']);
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     // Index might not exist, continue
                 }
                 try {
                     $table->dropConstrainedForeignId('expense_id');
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     // Foreign key might not exist, continue
                 }
             }
         });
     }
 };
-

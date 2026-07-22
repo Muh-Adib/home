@@ -17,7 +17,7 @@ class ICalService
     public function generateForProperty(Property $property): string
     {
         $bookings = $property->bookings()
-            ->select(['check_in','check_out','booking_number','source'])
+            ->select(['check_in', 'check_out', 'booking_number', 'source'])
             ->whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
             ->whereNotIn('source', ['airbnb', 'booking_com', 'ota'])
             ->where('check_out', '>=', today())
@@ -35,11 +35,11 @@ class ICalService
 
         foreach ($bookings as $booking) {
             $ical[] = 'BEGIN:VEVENT';
-            $ical[] = 'DTSTAMP:' . $now;
-            $ical[] = 'DTSTART;VALUE=DATE:' . $booking->check_in->format('Ymd');
-            $ical[] = 'DTEND;VALUE=DATE:' . $booking->check_out->format('Ymd');
-            $ical[] = 'UID:' . $booking->booking_number . '@homsjogja.com';
-            $ical[] = 'SUMMARY:' . ($booking->source === 'direct' ? 'Booked' : strtoupper($booking->source));
+            $ical[] = 'DTSTAMP:'.$now;
+            $ical[] = 'DTSTART;VALUE=DATE:'.$booking->check_in->format('Ymd');
+            $ical[] = 'DTEND;VALUE=DATE:'.$booking->check_out->format('Ymd');
+            $ical[] = 'UID:'.$booking->booking_number.'@homsjogja.com';
+            $ical[] = 'SUMMARY:'.($booking->source === 'direct' ? 'Booked' : strtoupper($booking->source));
             $ical[] = 'END:VEVENT';
         }
 
@@ -63,18 +63,20 @@ class ICalService
         $successfulUrls = 0;
 
         foreach ($property->ical_import_urls as $url) {
-            if (empty($url))
+            if (empty($url)) {
                 continue;
+            }
 
             try {
                 $response = Http::timeout(30)
                     ->withHeaders([
-                        'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                     ])
                     ->get($url);
 
-                if (!$response->successful()) {
-                    $errors[] = "Failed to fetch $url: HTTP " . $response->status();
+                if (! $response->successful()) {
+                    $errors[] = "Failed to fetch $url: HTTP ".$response->status();
+
                     continue;
                 }
 
@@ -83,7 +85,7 @@ class ICalService
                 $successfulUrls++;
 
                 foreach ($events as $event) {
-                    if (!isset($event['dtstart']) || !isset($event['dtend'])) {
+                    if (! isset($event['dtstart']) || ! isset($event['dtend'])) {
                         continue;
                     }
 
@@ -92,7 +94,7 @@ class ICalService
                         continue;
                     }
 
-                    $externalId = $event['uid'] ?? md5($event['dtstart'] . $event['dtend'] . $url);
+                    $externalId = $event['uid'] ?? md5($event['dtstart'].$event['dtend'].$url);
                     $allSyncedExternalIds[] = $externalId;
 
                     // Extract detail dari DESCRIPTION (Airbnb)
@@ -114,17 +116,17 @@ class ICalService
                 }
 
             } catch (\Exception $e) {
-                Log::error("iCal Sync Error for {$url}: " . $e->getMessage(), [
+                Log::error("iCal Sync Error for {$url}: ".$e->getMessage(), [
                     'property_id' => $property->id,
                     'trace' => $e->getTraceAsString(),
                 ]);
-                $errors[] = "Error with $url: " . $e->getMessage();
+                $errors[] = "Error with $url: ".$e->getMessage();
             }
         }
 
         // SAFETY: Hanya hapus jika minimal 1 URL berhasil di-fetch
         // Mencegah penghapusan massal saat semua feed sedang error
-        if ($successfulUrls > 0 && !empty($allSyncedExternalIds)) {
+        if ($successfulUrls > 0 && ! empty($allSyncedExternalIds)) {
             Booking::where('property_id', $property->id)
                 ->whereIn('source', ['airbnb', 'booking_com', 'ota'])
                 ->whereNotNull('external_id')
@@ -167,7 +169,7 @@ class ICalService
 
     /**
      * Extract Airbnb-specific details dari DESCRIPTION
-     * 
+     *
      * @return array{0: string|null, 1: string|null} [$url, $phone]
      */
     private function extractAirbnbDetails(string $source, string $description): array
@@ -225,10 +227,10 @@ class ICalService
             ];
 
             // Tambahkan external URL ke internal notes jika belum ada
-            if ($externalUrl && !str_contains((string) $existing->internal_notes, $externalUrl)) {
-                $note = "External Reservation URL: " . $externalUrl;
+            if ($externalUrl && ! str_contains((string) $existing->internal_notes, $externalUrl)) {
+                $note = 'External Reservation URL: '.$externalUrl;
                 $updateData['internal_notes'] = $existing->internal_notes
-                    ? $existing->internal_notes . "\n" . $note
+                    ? $existing->internal_notes."\n".$note
                     : $note;
             }
 
@@ -238,8 +240,8 @@ class ICalService
             Booking::create([
                 'property_id' => $propertyId,
                 'external_id' => $externalId,
-                'booking_number' => 'EXT-' . strtoupper(Str::random(8)),
-                'guest_name' => 'External Booking (' . strtoupper($source) . ')',
+                'booking_number' => 'EXT-'.strtoupper(Str::random(8)),
+                'guest_name' => 'External Booking ('.strtoupper($source).')',
                 'guest_email' => 'external@homsjogja.com',
                 'guest_phone' => $externalPhone ?? '0000',
                 'guest_count' => 1,
@@ -258,7 +260,7 @@ class ICalService
                 'check_in_time' => '14:00',
                 'external_reservation_url' => $externalUrl,
                 'external_phone' => $externalPhone,
-                'internal_notes' => $externalUrl ? "External Reservation URL: " . $externalUrl : null,
+                'internal_notes' => $externalUrl ? 'External Reservation URL: '.$externalUrl : null,
             ]);
         }
     }
@@ -282,11 +284,13 @@ class ICalService
         foreach ($lines as $line) {
             $line = rtrim($line);
 
-            if ($line === '')
+            if ($line === '') {
                 continue;
+            }
 
             if ($line === 'BEGIN:VEVENT') {
                 $currentEvent = [];
+
                 continue;
             }
 
@@ -295,13 +299,15 @@ class ICalService
                     $events[] = $currentEvent;
                 }
                 $currentEvent = null;
+
                 continue;
             }
 
             if ($currentEvent !== null) {
                 $colonPos = strpos($line, ':');
-                if ($colonPos === false)
+                if ($colonPos === false) {
                     continue;
+                }
 
                 $keyPart = substr($line, 0, $colonPos);
                 $value = substr($line, $colonPos + 1);
@@ -326,7 +332,7 @@ class ICalService
                 $currentEvent[$key] = $value;
 
                 if ($params !== '') {
-                    $currentEvent[$key . '_params'] = $params;
+                    $currentEvent[$key.'_params'] = $params;
                 }
             }
         }

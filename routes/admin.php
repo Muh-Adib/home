@@ -14,12 +14,14 @@ use App\Http\Controllers\Admin\GowaAdminController;
 use App\Http\Controllers\Admin\InventoryController;
 use App\Http\Controllers\Admin\LegalPageController;
 use App\Http\Controllers\Admin\LostAndFoundController;
+use App\Http\Controllers\Admin\MonthlySettlementController;
 use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\PaymentMethodController;
 use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\PropertyManagementController;
 use App\Http\Controllers\Admin\PropertySeasonalRateController;
 use App\Http\Controllers\Admin\RateManagementController;
+use App\Http\Controllers\Admin\RefundRequestController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UnitDamageController;
@@ -256,8 +258,8 @@ Route::middleware(['auth', 'role:super_admin,admin,property_manager,property_own
         // Main booking routes
         Route::get('bookings', 'index')->name('bookings.index');
         Route::get('bookings/daily-operations', 'dailyOperations')->name('bookings.daily-operations');
-        Route::get('bookings/staff-tracking', 'staffTracking')->name('bookings.staff-tracking')->middleware('role:super_admin,admin,property_manager,front_desk');
-        Route::put('bookings/{booking}/staff-tracking', 'updateStaffTracking')->name('bookings.staff-tracking.update')->middleware('role:super_admin,admin,property_manager,front_desk');
+        Route::get('bookings/staff-tracking', 'staffTracking')->name('bookings.staff-tracking')->middleware('role:super_admin,admin,property_manager');
+        Route::put('bookings/{booking}/staff-tracking', 'updateStaffTracking')->name('bookings.staff-tracking.update')->middleware('role:super_admin,admin,property_manager');
 
         Route::get('bookings/create', 'create')->name('bookings.create');
         Route::post('bookings', 'store')->name('bookings.store');
@@ -321,7 +323,7 @@ Route::middleware(['auth', 'role:super_admin,property_manager'])->prefix('admin'
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:super_admin,property_manager,front_desk,property_owner'])->prefix('admin/payments')->name('admin.payments.')->group(function () {
+Route::middleware(['auth', 'role:super_admin,property_manager,front_desk,property_owner,finance'])->prefix('admin/payments')->name('admin.payments.')->group(function () {
     Route::controller(PaymentController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/create', 'create')->name('create');
@@ -352,8 +354,8 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk,propert
     });
 });
 
-// Finance Management - Restricted from finance and property_manager roles
-Route::middleware(['auth', 'role:super_admin,property_owner'])->prefix('admin')->name('admin.')->group(function () {
+// Finance Management - Restricted to super_admin role
+Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::controller(FinanceController::class)->group(function () {
         Route::get('finance', 'index')->name('finance.index');
         Route::get('finance/incomes', 'incomes')->name('finance.incomes');
@@ -373,6 +375,26 @@ Route::middleware(['auth', 'role:super_admin,property_owner'])->prefix('admin')-
         Route::get('finance/loans', 'loans')->name('finance.loans');
         Route::post('finance/loans', 'storeLoan')->name('finance.loans.store');
         Route::post('finance/loans/{loan}/payments', 'storeLoanPayment')->name('finance.loans.payments.store');
+
+        // E-Statement mapping / sync
+        Route::get('finance/unmapped-debit-mutations', 'unmappedDebitMutations')->name('finance.unmapped-debit-mutations');
+        Route::get('finance/e-statement-sync', 'unmappedDebitMutations')->name('finance.e-statement-sync');
+        Route::post('finance/import-statement', 'importStatement')->name('finance.import-statement');
+        Route::post('finance/map-debit-mutation', 'mapDebitMutation')->name('finance.map-debit-mutation');
+        Route::post('finance/map-kredit-mutation', 'mapKreditMutation')->name('finance.map-kredit-mutation');
+
+        // Breakfast billing
+        Route::get('finance/unbilled-breakfasts', 'unbilledBreakfasts')->name('finance.unbilled-breakfasts');
+        Route::post('finance/bill-breakfasts', 'billBreakfasts')->name('finance.bill-breakfasts');
+    });
+
+    // Monthly Property Settlement (Closing / Laporan Akhir Bulan)
+    Route::controller(MonthlySettlementController::class)->group(function () {
+        Route::get('finance/settlements', 'index')->name('finance.settlements.index');
+        Route::post('finance/settlements/generate', 'generate')->name('finance.settlements.generate');
+        Route::get('finance/settlements/{settlement}', 'show')->name('finance.settlements.show');
+        Route::put('finance/settlements/{settlement}', 'update')->name('finance.settlements.update');
+        Route::post('finance/settlements/{settlement}/finalize', 'finalize')->name('finance.settlements.finalize');
     });
 });
 
@@ -394,6 +416,16 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin/finance')->name('
         Route::post('payroll/store', 'store')->name('payroll.store');
         Route::post('payroll/user-settings', 'updateUserSettings')->name('payroll.user-settings');
         Route::post('payroll/shifts', 'storeShifts')->name('payroll.shifts');
+    });
+});
+
+// Refund Requests Flow
+Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
+    Route::controller(RefundRequestController::class)->group(function () {
+        Route::get('finance/refunds', 'index')->name('finance.refunds.index')->middleware('role:super_admin,finance,property_manager');
+        Route::post('finance/refunds', 'store')->name('finance.refunds.store')->middleware('role:super_admin,finance,property_manager,front_desk');
+        Route::post('finance/refunds/{id}/approve', 'approve')->name('finance.refunds.approve')->middleware('role:super_admin,finance');
+        Route::post('finance/refunds/{id}/reject', 'reject')->name('finance.refunds.reject')->middleware('role:super_admin,finance');
     });
 });
 
@@ -452,14 +484,14 @@ Route::middleware(['auth', 'role:super_admin,admin,property_owner,property_manag
 
 Route::middleware(['auth', 'role:super_admin,admin,property_manager,finance,front_desk,property_owner'])->prefix('admin/reports')->name('admin.reports.')->group(function () {
     Route::controller(ReportController::class)->group(function () {
-        Route::get('/', 'index')->name('index');
+        Route::get('/', 'index')->name('index')->middleware('role:super_admin');
         Route::get('/occupancy', 'occupancy')->name('occupancy');
         Route::post('/export', 'export')->name('export');
 
-        // Financial & performance reports are restricted from admin role
-        Route::get('/financial', 'financial')->name('financial')->middleware('role:super_admin,property_owner');
-        Route::get('/property-performance', 'propertyPerformance')->name('property-performance')->middleware('role:super_admin,property_owner');
-        Route::get('/staff-performance', 'staffPerformance')->name('staff-performance')->middleware('role:super_admin,property_owner');
+        // Financial & performance reports are restricted to super_admin only
+        Route::get('/financial', 'financial')->name('financial')->middleware('role:super_admin');
+        Route::get('/property-performance', 'propertyPerformance')->name('property-performance')->middleware('role:super_admin');
+        Route::get('/staff-performance', 'staffPerformance')->name('staff-performance')->middleware('role:super_admin');
     });
 });
 

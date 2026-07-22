@@ -53,7 +53,7 @@ class WalletService
         if ($fromWallet->balance < $amount) {
             throw new \Exception(
                 'Insufficient balance. Current balance: Rp '.
-                number_format($fromWallet->balance, 0, ',', '.')
+                number_format((float) $fromWallet->balance, 0, ',', '.')
             );
         }
 
@@ -447,5 +447,25 @@ class WalletService
 
         // Trigger sync to calculate balances
         $this->syncAll();
+    }
+
+    /**
+     * Recalculate balance for a single wallet
+     */
+    public function recalculateBalance(int $walletId): void
+    {
+        $wallet = Wallet::find($walletId);
+        if ($wallet) {
+            $totalIn = WalletTransaction::where('wallet_id', $wallet->id)
+                ->where('direction', 'in')
+                ->sum('amount');
+
+            $totalOut = WalletTransaction::where('wallet_id', $wallet->id)
+                ->where('direction', 'out')
+                ->sum('amount');
+
+            $wallet->balance = (float) ($totalIn - $totalOut);
+            $wallet->save();
+        }
     }
 }

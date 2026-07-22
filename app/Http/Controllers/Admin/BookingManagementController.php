@@ -35,6 +35,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -1096,7 +1097,7 @@ class BookingManagementController extends Controller
                 ]);
             }
 
-            $type = $validated['type'] ?? ($paidAmount === 0 ? 'dp' : 'remaining');
+            $type = $validated['type'] ?? ($otherPaidBaseAmount === 0 ? 'dp' : 'remaining');
 
             // Generate payment link dengan options
             $payment = $this->gatewayService->initiateGatewayPayment(
@@ -1871,7 +1872,7 @@ class BookingManagementController extends Controller
     public function staffTracking(Request $request): Response|JsonResponse
     {
         $user = $request->user();
-        if (! in_array($user->role, ['super_admin', 'property_manager', 'front_desk'])) {
+        if (! in_array($user->role, ['super_admin', 'property_manager'])) {
             abort(403, 'Unauthorized.');
         }
 
@@ -1944,7 +1945,7 @@ class BookingManagementController extends Controller
     public function updateStaffTracking(Request $request, Booking $booking): RedirectResponse
     {
         $user = $request->user();
-        if (! in_array($user->role, ['super_admin', 'property_manager', 'front_desk'])) {
+        if (! in_array($user->role, ['super_admin', 'property_manager'])) {
             abort(403, 'Unauthorized.');
         }
 

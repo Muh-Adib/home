@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasColumn('properties', 'tiktok_video_url')) {
+        if (! Schema::hasColumn('properties', 'tiktok_video_url')) {
             Schema::table('properties', function (Blueprint $table) {
                 $table->string('tiktok_video_url', 500)->nullable()->after('maps_link');
             });
@@ -24,4 +24,3 @@ return new class extends Migration
         }
     }
 };
-

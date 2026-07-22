@@ -92,11 +92,11 @@ class BookingResource extends JsonResource
             'can' => [
                 'update' => $this->when(
                     $request->user(),
-                    fn() => $request->user()->can('update', $this->resource)
+                    fn () => $request->user()->can('update', $this->resource)
                 ),
                 'delete' => $this->when(
                     $request->user(),
-                    fn() => $request->user()->can('delete', $this->resource)
+                    fn () => $request->user()->can('delete', $this->resource)
                 ),
             ],
         ];

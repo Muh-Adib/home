@@ -191,13 +191,7 @@ const getAdminNavItems = (userRole: User['role']) => {
         children: [
           { title: 'Payments', href: '/admin/payments', icon: CreditCard },
           { title: 'Rekonsiliasi Bank', href: '/admin/payments/reconciliation', icon: DollarSign },
-          { title: 'Reports', href: '/admin/reports', icon: BarChart3 },
-          { title: 'Property Performance', href: '/admin/reports/property-performance', icon: Building2 },
-          { title: 'Staff Performance', href: '/admin/reports/staff-performance', icon: Users },
-          { title: 'Finance', href: '/admin/finance', icon: DollarSign },
-          { title: 'Incomes', href: '/admin/finance/incomes', icon: DollarSign },
           { title: 'Expenses', href: '/admin/finance/expenses', icon: FileText },
-          { title: 'Wallets', href: '/admin/finance/wallets', icon: CreditCard },
         ]
       },
       {

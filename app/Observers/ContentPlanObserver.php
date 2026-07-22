@@ -2,8 +2,8 @@
 
 namespace App\Observers;
 
-use App\Models\ContentPlan;
 use App\Models\Article;
+use App\Models\ContentPlan;
 use Illuminate\Support\Str;
 
 class ContentPlanObserver
@@ -29,7 +29,7 @@ class ContentPlanObserver
         }
 
         // 1. Auto-create Article when moving to 'writing' status
-        if ($contentPlan->isDirty('status') && $contentPlan->status === 'writing' && !$contentPlan->article) {
+        if ($contentPlan->isDirty('status') && $contentPlan->status === 'writing' && ! $contentPlan->article) {
             Article::create([
                 'title' => $contentPlan->title,
                 'target_keywords' => $contentPlan->target_keywords,

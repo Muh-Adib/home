@@ -4,7 +4,6 @@ namespace Tests\Unit;
 
 use App\Services\ICalService;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
 
 class ICalServiceTest extends TestCase
 {
@@ -18,17 +17,17 @@ class ICalServiceTest extends TestCase
         //  (space at start of next line indicates continuation)
 
         $content = implode("\r\n", [
-            "BEGIN:VCALENDAR",
-            "BEGIN:VEVENT",
-            "SUMMARY:Folded Event",
-            "DESCRIPTION:This is a very long description that is fol",
-            " ded into multiple lines.",
-            "END:VEVENT",
-            "END:VCALENDAR"
+            'BEGIN:VCALENDAR',
+            'BEGIN:VEVENT',
+            'SUMMARY:Folded Event',
+            'DESCRIPTION:This is a very long description that is fol',
+            ' ded into multiple lines.',
+            'END:VEVENT',
+            'END:VCALENDAR',
         ]);
 
         // We need to access private method parseICal
-        $service = new ICalService();
+        $service = new ICalService;
         $reflection = new \ReflectionClass($service);
         $method = $reflection->getMethod('parseICal');
         $method->setAccessible(true);
@@ -77,12 +76,15 @@ class ICalServiceTest extends TestCase
 
         foreach ($testCases as $summary => $shouldSkip) {
             $skipped = false;
-            if (stripos($summary, 'Airbnb (Not available)') !== false)
+            if (stripos($summary, 'Airbnb (Not available)') !== false) {
                 $skipped = true;
-            if (stripos($summary, 'CLOSED - Not available') !== false)
+            }
+            if (stripos($summary, 'CLOSED - Not available') !== false) {
                 $skipped = true;
-            if (stripos($summary, 'Not available') !== false)
+            }
+            if (stripos($summary, 'Not available') !== false) {
                 $skipped = true;
+            }
 
             $this->assertEquals($shouldSkip, $skipped, "Failed assertion for summary: '$summary'");
         }

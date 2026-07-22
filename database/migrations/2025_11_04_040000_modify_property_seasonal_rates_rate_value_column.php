@@ -1,22 +1,20 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
     /**
      * Run the migrations.
-     * 
+     *
      * Mengubah tipe kolom rate_value dari decimal(8,2) menjadi decimal(15,2)
      * untuk menampung nilai hingga 9999999999999.99 (triliunan rupiah)
      */
     public function up(): void
     {
         $driver = DB::connection()->getDriverName();
-        
+
         if ($driver === 'sqlite') {
             // SQLite tidak mendukung MODIFY, perlu recreate table
             $this->modifyColumnForSqlite('up');
@@ -37,7 +35,7 @@ return new class extends Migration
     public function down(): void
     {
         $driver = DB::connection()->getDriverName();
-        
+
         if ($driver === 'sqlite') {
             // SQLite tidak mendukung MODIFY, perlu recreate table
             $this->modifyColumnForSqlite('down');
@@ -83,7 +81,7 @@ return new class extends Migration
         ");
 
         // Step 2: Copy data from old table
-        DB::statement("
+        DB::statement('
             INSERT INTO property_seasonal_rates_new 
             SELECT 
                 id, property_id, name, start_date, end_date, rate_type, 
@@ -91,7 +89,7 @@ return new class extends Migration
                 is_active, priority, description, applicable_days, 
                 created_at, updated_at
             FROM property_seasonal_rates
-        ");
+        ');
 
         // Step 3: Drop old table
         DB::statement('DROP TABLE property_seasonal_rates');
@@ -103,15 +101,14 @@ return new class extends Migration
         // Check if indexes exist before creating to avoid errors
         try {
             DB::statement('CREATE INDEX property_seasonal_rates_property_id_start_date_end_date_index ON property_seasonal_rates(property_id, start_date, end_date)');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index might already exist, continue
         }
-        
+
         try {
             DB::statement('CREATE INDEX property_seasonal_rates_property_id_is_active_priority_index ON property_seasonal_rates(property_id, is_active, priority)');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index might already exist, continue
         }
     }
 };
-

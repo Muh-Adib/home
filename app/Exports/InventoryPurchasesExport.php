@@ -4,14 +4,16 @@ namespace App\Exports;
 
 use App\Models\InventoryStockMovement;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class InventoryPurchasesExport implements FromCollection, WithHeadings, WithStyles, ShouldAutoSize
+class InventoryPurchasesExport implements FromCollection, ShouldAutoSize, WithHeadings, WithStyles
 {
     protected $dateFrom;
+
     protected $dateTo;
 
     public function __construct($dateFrom = null, $dateTo = null)
@@ -72,7 +74,7 @@ class InventoryPurchasesExport implements FromCollection, WithHeadings, WithStyl
             1 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
                 'fill' => [
-                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                    'fillType' => Fill::FILL_SOLID,
                     'startColor' => ['rgb' => '059669'],
                 ],
             ],

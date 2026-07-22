@@ -345,16 +345,17 @@ class PropertyManagementController extends Controller
                 'all_time_expense' => (float) $allTimeExpense,
             ];
 
+            $user = request()->user();
             // Calculate property statistics with error handling
             $stats = [
                 'total_bookings' => $property->bookings()->count() ?? 0,
                 'confirmed_bookings' => $property->bookings()->where('booking_status', 'confirmed')->count() ?? 0,
-                'total_revenue' => $property->bookings()
+                'total_revenue' => $user->role === 'super_admin' ? ($property->bookings()
                     ->where('booking_status', '!=', 'cancelled')
-                    ->sum('total_amount') ?? 0,
+                    ->sum('total_amount') ?? 0) : 0,
                 'average_rating' => $property->reviews()->avg('rating') ?? 0,
                 'occupancy_rate' => $this->calculateOccupancyRate($property),
-                'bep_data' => $bepData,
+                'bep_data' => $user->role === 'super_admin' ? $bepData : null,
             ];
 
             // Ensure all required data exists with defaults
@@ -744,7 +745,8 @@ class PropertyManagementController extends Controller
         $newProperty->save();
 
         // Copy amenities relationship
-        $newProperty->amenities()->attach($property->amenities->pluck('id'));
+        $amenityIds = $property->amenities()->pluck('amenities.id');
+        $newProperty->amenities()->attach($amenityIds);
 
         return redirect()->route('admin.properties.edit', $newProperty->slug)
             ->with('success', 'Property duplicated successfully. Please review and update the details.');
@@ -803,12 +805,15 @@ class PropertyManagementController extends Controller
                 })
                 ->get();
 
+            $user = $request->user();
+            $isSuperAdmin = $user->role === 'super_admin';
+
             // Calculate KPIs
             $confirmedBookings = $bookings->filter(function ($booking) {
                 return in_array($booking->booking_status, ['confirmed', 'checked_in', 'checked_out']) ||
                     ($booking->booking_status === 'cancelled' && in_array($booking->payment_status, ['dp_received', 'fully_paid']));
             });
-            $revenueTotal = $confirmedBookings->sum('total_amount');
+            $revenueTotal = $isSuperAdmin ? $confirmedBookings->sum('total_amount') : 0;
             $totalBookings = $confirmedBookings->count();
             $averageRating = $confirmedBookings->whereNotNull('guest_rating')->avg('guest_rating') ?? 0;
 
@@ -824,6 +829,13 @@ class PropertyManagementController extends Controller
 
             // Generate trend data based on period
             $trend = $this->generateTrendData($bookings, $from, $to, $period);
+            if (! $isSuperAdmin) {
+                $trend = array_map(function ($item) {
+                    $item['revenue'] = 0;
+
+                    return $item;
+                }, $trend);
+            }
 
             // Breakdown by source (if available)
             $breakdown = [

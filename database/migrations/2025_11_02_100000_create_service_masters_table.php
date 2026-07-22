@@ -16,15 +16,15 @@ return new class extends Migration
             $table->string('name');
             $table->text('description')->nullable();
             $table->enum('service_type', [
-                'extra_bed', 
-                'breakfast', 
-                'airport_transfer', 
-                'bbq_package', 
-                'private_chef', 
-                'laundry', 
+                'extra_bed',
+                'breakfast',
+                'airport_transfer',
+                'bbq_package',
+                'private_chef',
+                'laundry',
                 'tour_package',
                 'motor_rental',
-                'other'
+                'other',
             ]);
             $table->decimal('unit_price', 10, 2);
             $table->string('thumbnail_path')->nullable();
@@ -47,4 +47,3 @@ return new class extends Migration
         Schema::dropIfExists('service_masters');
     }
 };
-

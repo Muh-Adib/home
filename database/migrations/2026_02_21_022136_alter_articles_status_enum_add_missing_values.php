@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\DB;
  *   all existing values are already included in the new enum definition.
  * - We sanitise orphaned values BEFORE altering to prevent strict-mode errors.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     /**
      * Full target enum values (order matters for the SQL).
      */
@@ -23,7 +24,7 @@ return new class extends Migration {
         $driver = DB::connection()->getDriverName();
 
         // 1. Sanitise: remap any legacy values not in the new set → 'draft'
-        $valid = implode(',', array_map(fn($v) => "'$v'", self::VALUES));
+        $valid = implode(',', array_map(fn ($v) => "'$v'", self::VALUES));
 
         DB::statement("UPDATE articles SET status = 'draft' WHERE status NOT IN ($valid)");
 

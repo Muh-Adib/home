@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasColumn('property_expenses', 'status')) {
+        if (! Schema::hasColumn('property_expenses', 'status')) {
             Schema::table('property_expenses', function (Blueprint $table) {
                 $table->string('status')->default('pending')->after('approved_at');
-        });
+            });
         }
     }
 
@@ -25,8 +25,8 @@ return new class extends Migration
     {
         if (Schema::hasColumn('property_expenses', 'status')) {
             Schema::table('property_expenses', function (Blueprint $table) {
-            $table->dropColumn('status');
-        });
+                $table->dropColumn('status');
+            });
         }
     }
 };

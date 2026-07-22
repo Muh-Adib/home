@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
@@ -20,8 +21,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property array|null $target_keywords
  * @property string $language
  * @property string $status
- * @property \Illuminate\Support\Carbon|null $published_at
- * @property \Illuminate\Support\Carbon|null $scheduled_at
+ * @property Carbon|null $published_at
+ * @property Carbon|null $scheduled_at
  * @property string|null $ai_provider
  * @property string|null $ai_model
  * @property array|null $generation_metadata
@@ -31,9 +32,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $click_count
  * @property float|null $avg_time_on_page
  * @property string|null $featured_image
- * @property \Illuminate\Support\Carbon $created_at
- * @property \Illuminate\Support\Carbon $updated_at
- * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  */
 class Article extends Model
 {
@@ -139,6 +140,7 @@ class Article extends Model
     {
         // Average reading speed: 200 words per minute
         $wordCount = str_word_count(strip_tags($this->content));
+
         return (int) ceil($wordCount / 200);
     }
 

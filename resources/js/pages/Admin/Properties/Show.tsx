@@ -96,8 +96,8 @@ interface PropertyShowProps extends PageProps {
 export default function PropertyShow({ property, stats }: PropertyShowProps) {
     const { auth } = usePage<PageProps>().props;
     const authUser = auth?.user as any;
-    const canViewFinancials = ['super_admin', 'property_owner', 'property_manager'].includes(authUser?.role);
-    const canViewBep = ['super_admin', 'property_manager', 'admin'].includes(authUser?.role);
+    const canViewFinancials = authUser?.role === 'super_admin';
+    const canViewBep = authUser?.role === 'super_admin';
 
     // Ensure property data exists with safe defaults
     const safeProperty = {
@@ -321,18 +321,20 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                 </div>
 
                 {/* KPI Tiles - Modern Gradient Design */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                    <KpiTile
-                        title="Total Pendapatan"
-                        value={formatCurrency(enhancedStats?.kpis?.revenue_total || safeStats.total_revenue)}
-                        trend={enhancedStats?.kpis ? {
-                            value: Math.round(((enhancedStats.kpis.revenue_total - safeStats.total_revenue) / Math.max(safeStats.total_revenue, 1)) * 100),
-                            period: 'vs periode lalu'
-                        } : undefined}
-                        icon={<DollarSign className="h-5 w-5" />}
-                        loading={statsLoading}
-                        gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
-                    />
+                <div className={`grid grid-cols-2 ${canViewFinancials ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3 sm:gap-4`}>
+                    {canViewFinancials && (
+                        <KpiTile
+                            title="Total Pendapatan"
+                            value={formatCurrency(enhancedStats?.kpis?.revenue_total || safeStats.total_revenue)}
+                            trend={enhancedStats?.kpis ? {
+                                value: Math.round(((enhancedStats.kpis.revenue_total - safeStats.total_revenue) / Math.max(safeStats.total_revenue, 1)) * 100),
+                                period: 'vs periode lalu'
+                            } : undefined}
+                            icon={<DollarSign className="h-5 w-5" />}
+                            loading={statsLoading}
+                            gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
+                        />
+                    )}
                     <KpiTile
                         title="Okupansi"
                         value={`${enhancedStats?.kpis?.occupancy_rate || safeStats.occupancy_rate}%`}
@@ -479,6 +481,7 @@ export default function PropertyShow({ property, stats }: PropertyShowProps) {
                             <ChartPerformance
                                 data={enhancedStats?.trend || []}
                                 loading={statsLoading}
+                                showRevenue={canViewFinancials}
                             />
                         )}
                     </div>

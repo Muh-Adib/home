@@ -35,7 +35,7 @@ class PayrollTest extends TestCase
 
         $this->actingAs($finance)
             ->get(route('admin.finance.payroll.index'))
-            ->assertStatus(200);
+            ->assertStatus(403);
     }
 
     public function test_authorized_users_can_store_payroll(): void

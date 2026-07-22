@@ -60,9 +60,7 @@ class WalletTransaction extends Model
     public function getCategoryLabel(): string
     {
         $categories = config('finance.wallet_transaction_categories', []);
+
         return $categories[$this->category] ?? ucfirst($this->category ?? 'Lainnya');
     }
 }
-
-
-

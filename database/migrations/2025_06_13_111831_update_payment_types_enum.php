@@ -1,8 +1,6 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
@@ -18,7 +16,7 @@ return new class extends Migration
             // The validation will be handled in the controller
             return;
         }
-        
+
         // For MySQL/PostgreSQL
         DB::statement("ALTER TABLE payments MODIFY COLUMN payment_type ENUM('dp', 'remaining', 'full', 'refund', 'penalty', 'additional', 'damage', 'cleaning', 'extra_service')");
     }
@@ -31,7 +29,7 @@ return new class extends Migration
         if (DB::getDriverName() === 'sqlite') {
             return;
         }
-        
+
         // Revert back to original enum values
         DB::statement("ALTER TABLE payments MODIFY COLUMN payment_type ENUM('dp', 'remaining', 'full', 'refund', 'penalty')");
     }

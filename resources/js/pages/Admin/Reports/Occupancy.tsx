@@ -302,57 +302,53 @@ export default function OccupancyReport({ occupancyReport, summary, filters }: O
                                     </table>
                                 </div>
 
-                                {/* Mobile View */}
-                                <div className="block sm:hidden space-y-4">
-                                    {occupancyReport.map((row) => (
-                                        <div
-                                            key={row.property_id}
-                                            className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white shadow-sm"
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div className="space-y-0.5">
-                                                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-                                                        <Building2 className="h-4 w-4 text-slate-400" />
-                                                        {row.property_name}
-                                                    </h3>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                                <div>
-                                                    <span className="text-slate-400 font-bold text-[10px] uppercase block">Terisi</span>
-                                                    <span className="font-black text-slate-800">{row.occupied_nights} Malam</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-slate-400 font-bold text-[10px] uppercase block">Sisa Kosong</span>
-                                                    <span className="font-black text-rose-500">{row.vacant_nights} Malam</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-3 text-xs border-t pt-3 border-slate-100">
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between text-[10px] font-bold text-slate-500">
-                                                        <span>Okupansi Saat Ini</span>
-                                                        <span>{Math.round(row.occupancy_percentage)}%</span>
-                                                    </div>
-                                                    <Progress value={Math.round(row.occupancy_percentage)} className="h-1.5 bg-slate-100" />
-                                                </div>
-
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between text-[10px] font-bold text-slate-500">
-                                                        <span>Potensi Okupansi Maksimal</span>
-                                                        <span>{Math.round(row.potential_max_percentage)}%</span>
-                                                    </div>
-                                                    <Progress value={Math.round(row.potential_max_percentage)} className="h-1.5 bg-slate-100 [&>div]:bg-blue-500" />
-                                                </div>
-                                            </div>
-
-                                            <div className="border-t pt-3 border-slate-100 flex items-center justify-between">
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Target Status</span>
-                                                {getTargetBadge(row.target_status)}
-                                            </div>
-                                        </div>
-                                    ))}
+                                {/* Mobile View: Compact Spreadsheet Layout without Progress Bars */}
+                                <div className="block sm:hidden overflow-x-auto border border-slate-300 rounded-lg bg-white shadow-xs">
+                                    <table className="w-full text-left border-collapse text-[11px]">
+                                        <thead>
+                                            <tr className="bg-slate-100 border-b border-slate-300 text-slate-700 font-black tracking-tight">
+                                                <th className="py-2 px-2 text-left border-r border-slate-200">Unit</th>
+                                                <th className="py-2 px-1.5 text-center border-r border-slate-200">Terisi</th>
+                                                <th className="py-2 px-1.5 text-center border-r border-slate-200">Sisa</th>
+                                                <th className="py-2 px-1.5 text-center border-r border-slate-200">Okupansi</th>
+                                                <th className="py-2 px-1.5 text-center border-r border-slate-200">Max %</th>
+                                                <th className="py-2 px-1.5 text-center">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200 font-medium text-slate-800">
+                                            {occupancyReport.map((row, idx) => {
+                                                const isEven = idx % 2 === 0;
+                                                return (
+                                                    <tr key={row.property_id} className={isEven ? 'bg-white' : 'bg-slate-50/60'}>
+                                                        <td className="py-1.5 px-2 font-bold text-slate-900 border-r border-slate-200 truncate max-w-[110px]">
+                                                            {row.property_name}
+                                                        </td>
+                                                        <td className="py-1.5 px-1.5 text-center font-bold text-slate-900 border-r border-slate-200">
+                                                            {row.occupied_nights}
+                                                        </td>
+                                                        <td className="py-1.5 px-1.5 text-center font-bold text-rose-600 border-r border-slate-200">
+                                                            {row.vacant_nights}
+                                                        </td>
+                                                        <td className="py-1.5 px-1.5 text-center font-black text-slate-900 border-r border-slate-200">
+                                                            {Math.round(row.occupancy_percentage)}%
+                                                        </td>
+                                                        <td className="py-1.5 px-1.5 text-center font-semibold text-blue-600 border-r border-slate-200">
+                                                            {Math.round(row.potential_max_percentage)}%
+                                                        </td>
+                                                        <td className="py-1.5 px-1.5 text-center text-[10px] font-bold">
+                                                            {row.target_status === 'Tercapai' ? (
+                                                                <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">Tercapai</span>
+                                                            ) : row.target_status === 'Potensial Tercapai' ? (
+                                                                <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">Potensial</span>
+                                                            ) : (
+                                                                <span className="text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">Gagal</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         ) : (

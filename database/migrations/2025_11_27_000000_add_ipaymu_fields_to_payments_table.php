@@ -13,16 +13,16 @@ return new class extends Migration
     {
         Schema::table('payments', function (Blueprint $table) {
 
-            if (!Schema::hasColumn('payments', 'ipaymu_session_id')) {
+            if (! Schema::hasColumn('payments', 'ipaymu_session_id')) {
                 $table->string('ipaymu_session_id', 100)->nullable()->after('gateway_transaction_id');
                 $table->index('ipaymu_session_id');
             }
 
-            if (!Schema::hasColumn('payments', 'ipaymu_payment_url')) {
+            if (! Schema::hasColumn('payments', 'ipaymu_payment_url')) {
                 $table->text('ipaymu_payment_url')->nullable()->after('ipaymu_session_id');
             }
 
-            if (!Schema::hasColumn('payments', 'ipaymu_expired_at')) {
+            if (! Schema::hasColumn('payments', 'ipaymu_expired_at')) {
                 $table->datetime('ipaymu_expired_at')->nullable()->after('ipaymu_payment_url');
             }
         });

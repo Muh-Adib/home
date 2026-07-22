@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\GowaConfig;
+use Illuminate\Database\Seeder;
 
 class GowaConfigSeeder extends Seeder
 {
@@ -15,6 +15,7 @@ class GowaConfigSeeder extends Seeder
         // Check if config already exists
         if (GowaConfig::count() > 0) {
             $this->command->info('GOWA config already exists, skipping seeder.');
+
             return;
         }
 

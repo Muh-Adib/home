@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class GenerateCalendarJob implements ShouldQueue
@@ -24,8 +25,7 @@ class GenerateCalendarJob implements ShouldQueue
         protected string $targetAudience,
         protected ?string $startDate,
         protected int $userId
-    ) {
-    }
+    ) {}
 
     /**
      * Execute the job.
@@ -36,15 +36,15 @@ class GenerateCalendarJob implements ShouldQueue
         try {
             Log::info("Starting GenerateCalendarJob for User ID: {$this->userId}", [
                 'keywords' => $this->keywords,
-                'count' => $this->articleCount
+                'count' => $this->articleCount,
             ]);
 
             // Impersonate user to ensure 'created_by' is correct (if service uses auth()->id())
-            // However, it's better to pass userId to service. 
+            // However, it's better to pass userId to service.
             // Since service uses auth()->id(), we might need to login manually or adjust service.
             // For now, let's login as the user.
             if ($user = User::find($this->userId)) {
-                \Illuminate\Support\Facades\Auth::login($user);
+                Auth::login($user);
             }
 
             $plans = $contentPlanService->generateMonthlyCalendar(
@@ -54,11 +54,11 @@ class GenerateCalendarJob implements ShouldQueue
                 $this->startDate
             );
 
-            Log::info("GenerateCalendarJob completed. Created " . count($plans) . " plans.");
+            Log::info('GenerateCalendarJob completed. Created '.count($plans).' plans.');
 
         } catch (\Exception $e) {
-            Log::error("GenerateCalendarJob failed: " . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
+            Log::error('GenerateCalendarJob failed: '.$e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
             ]);
 
             // Optional: Notify user via notification system if available

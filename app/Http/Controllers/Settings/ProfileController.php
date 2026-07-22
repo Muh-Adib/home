@@ -3,13 +3,11 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Models\User;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -71,7 +69,7 @@ class ProfileController extends Controller
         // Extract user data - jangan gunakan filter() karena akan menghapus field yang kosong
         // Gunakan only() saja, dan hanya update field yang ada di validated
         $userData = collect($validated)->only([
-            'name', 'email', 'phone', 'avatar'
+            'name', 'email', 'phone', 'avatar',
         ])->toArray();
 
         // Update user - fill dan save untuk memastikan semua field ter-update
@@ -88,8 +86,8 @@ class ProfileController extends Controller
 
         // Extract profile data - jangan gunakan filter() karena field nullable perlu tetap di-update
         $profileData = collect($validated)->only([
-            'address', 'city', 'state', 'country', 'postal_code', 
-            'birth_date', 'gender', 'bio'
+            'address', 'city', 'state', 'country', 'postal_code',
+            'birth_date', 'gender', 'bio',
         ])->toArray();
 
         // Filter hanya null/empty string yang tidak perlu di-update
@@ -104,12 +102,12 @@ class ProfileController extends Controller
         }
 
         // Update or create profile dengan user_id yang eksplisit
-        if (!empty($profileDataToUpdate)) {
+        if (! empty($profileDataToUpdate)) {
             $user->load('profile');
             $user->profile()->updateOrCreate(
                 ['user_id' => $user->id],
                 array_merge($profileDataToUpdate, [
-                    'country' => $profileDataToUpdate['country'] ?? $user->profile?->country ?? 'Indonesia'
+                    'country' => $profileDataToUpdate['country'] ?? $user->profile?->country ?? 'Indonesia',
                 ])
             );
         }
@@ -117,4 +115,24 @@ class ProfileController extends Controller
         return to_route('profile.edit')->with('success', 'Profile berhasil diperbarui');
     }
 
+    /**
+     * Delete the user's account.
+     */
+    public function destroy(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'password' => ['required', 'current_password'],
+        ]);
+
+        $user = $request->user();
+
+        Auth::logout();
+
+        $user->forceDelete();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect('/');
+    }
 }

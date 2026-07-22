@@ -4,12 +4,13 @@ namespace App\Exports;
 
 use App\Models\InventoryItem;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class InventoryItemsExport implements FromCollection, WithHeadings, WithStyles, ShouldAutoSize
+class InventoryItemsExport implements FromCollection, ShouldAutoSize, WithHeadings, WithStyles
 {
     protected $category;
 
@@ -60,7 +61,7 @@ class InventoryItemsExport implements FromCollection, WithHeadings, WithStyles, 
             1 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
                 'fill' => [
-                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                    'fillType' => Fill::FILL_SOLID,
                     'startColor' => ['rgb' => '4F46E5'],
                 ],
             ],

@@ -5,15 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Property;
 use App\Models\SeoLandingPage;
 use App\Services\SeoService;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class SeoLandingController extends Controller
 {
     public function __construct(
         private SeoService $seoService
-    ) {
-    }
+    ) {}
 
     /**
      * Display SEO landing page
@@ -26,7 +24,7 @@ class SeoLandingController extends Controller
             ->first();
 
         // 404 if page not found
-        if (!$page) {
+        if (! $page) {
             abort(404);
         }
 
@@ -65,15 +63,15 @@ class SeoLandingController extends Controller
                 $content = $this->generateNaturalContent($page, $properties->total());
 
                 // Use intro_text from DB if set (admin override)
-                if (!empty($page->intro_text)) {
+                if (! empty($page->intro_text)) {
                     $content['intro'] = $page->intro_text;
                 }
             } catch (\Throwable $e) {
-                \Log::warning("SEO Landing Content Generation Failed: " . $e->getMessage());
+                \Log::warning('SEO Landing Content Generation Failed: '.$e->getMessage());
                 $content = [
-                    'intro' => $page->intro_text ?? "Temukan penginapan terbaik di Yogyakarta bersama Homsjogja.",
+                    'intro' => $page->intro_text ?? 'Temukan penginapan terbaik di Yogyakarta bersama Homsjogja.',
                     'whyChooseUs' => [],
-                    'about' => $page->meta_description ?? "Homsjogja menyediakan homestay berkualitas.",
+                    'about' => $page->meta_description ?? 'Homsjogja menyediakan homestay berkualitas.',
                     'tips' => [],
                     'locationDescription' => null,
                 ];
@@ -83,7 +81,7 @@ class SeoLandingController extends Controller
             try {
                 $faqs = $this->generateFAQs($page, $properties->total());
             } catch (\Throwable $e) {
-                \Log::warning("SEO Landing FAQ Generation Failed: " . $e->getMessage());
+                \Log::warning('SEO Landing FAQ Generation Failed: '.$e->getMessage());
                 $faqs = [];
             }
 
@@ -124,7 +122,7 @@ class SeoLandingController extends Controller
             $faqSchema = json_encode([
                 '@context' => 'https://schema.org',
                 '@type' => 'FAQPage',
-                'mainEntity' => array_map(fn($faq) => [
+                'mainEntity' => array_map(fn ($faq) => [
                     '@type' => 'Question',
                     'name' => $faq['question'],
                     'acceptedAnswer' => [
@@ -162,28 +160,28 @@ class SeoLandingController extends Controller
                     '@type' => 'ListItem',
                     'position' => $position++,
                     'url' => route('properties.show', $prop->slug),
-                    'name' => $prop->name
+                    'name' => $prop->name,
                 ];
             }
-            
+
             $itemListSchema = empty($itemListElements) ? null : json_encode([
                 '@context' => 'https://schema.org',
                 '@type' => 'ItemList',
-                'name' => 'Daftar ' . $page->title,
+                'name' => 'Daftar '.$page->title,
                 'itemListElement' => $itemListElements,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
             // Fetch related PSEO pages for internal linking (Orphan page mitigation)
             $location = $page->filters['location'] ?? null;
             $relatedPagesQuery = SeoLandingPage::active()->where('id', '!=', $page->id);
-            
+
             if ($location) {
                 // Try to prioritize the same location using LIKE for broad DB compatibility
-                $relatedPagesQuery->where('filters', 'LIKE', '%"' . $location . '"%');
+                $relatedPagesQuery->where('filters', 'LIKE', '%"'.$location.'"%');
             }
-            
+
             $relatedPages = $relatedPagesQuery->inRandomOrder()->limit(6)->get(['id', 'title', 'slug', 'target_keyword']);
-            
+
             // Backfill with random active pages if we don't have enough
             if ($relatedPages->count() < 6) {
                 $excludeIds = $relatedPages->pluck('id')->push($page->id)->toArray();
@@ -209,8 +207,8 @@ class SeoLandingController extends Controller
             ]);
 
         } catch (\Throwable $e) {
-            \Log::error("SEO Landing Page Error: " . $e->getMessage());
-            abort(500, "Terjadi kesalahan saat memuat halaman.");
+            \Log::error('SEO Landing Page Error: '.$e->getMessage());
+            abort(500, 'Terjadi kesalahan saat memuat halaman.');
         }
     }
 
@@ -260,7 +258,7 @@ class SeoLandingController extends Controller
      */
     private function generateIntro(string $keyword, string $propertyType, string $location, int $total, ?int $maxPrice): string
     {
-        $priceText = $maxPrice ? "dengan budget hingga Rp " . number_format($maxPrice, 0, ',', '.') : "dengan berbagai pilihan harga";
+        $priceText = $maxPrice ? 'dengan budget hingga Rp '.number_format($maxPrice, 0, ',', '.') : 'dengan berbagai pilihan harga';
 
         $intros = [
             "Sedang mencari {$keyword} untuk liburan atau perjalanan bisnis Anda? Homsjogja menyediakan {$total}+ pilihan {$propertyType} terbaik di {$location} {$priceText}. Semua properti sudah terverifikasi dengan foto asli dan review terpercaya.",
@@ -280,11 +278,11 @@ class SeoLandingController extends Controller
     {
         $benefits = [
             "✓ Pilihan Terlengkap – Ratusan {$propertyType} di seluruh {$location}",
-            "✓ Harga Terjangkau – Mulai dari Rp 100rb/malam" . ($maxPrice ? ", maksimal Rp " . number_format($maxPrice, 0, ',', '.') : ""),
-            "✓ Lokasi Strategis – Dekat dengan wisata populer, pusat kota, dan transportasi umum",
-            "✓ Booking Mudah – Proses pemesanan online 100% aman tanpa ribet",
-            "✓ Customer Service – Tim kami siap membantu 24/7 via WhatsApp",
-            "✓ Review Terpercaya – Semua review dari tamu asli yang sudah menginap",
+            '✓ Harga Terjangkau – Mulai dari Rp 100rb/malam'.($maxPrice ? ', maksimal Rp '.number_format($maxPrice, 0, ',', '.') : ''),
+            '✓ Lokasi Strategis – Dekat dengan wisata populer, pusat kota, dan transportasi umum',
+            '✓ Booking Mudah – Proses pemesanan online 100% aman tanpa ribet',
+            '✓ Customer Service – Tim kami siap membantu 24/7 via WhatsApp',
+            '✓ Review Terpercaya – Semua review dari tamu asli yang sudah menginap',
         ];
 
         if ($amenity) {
@@ -310,13 +308,13 @@ class SeoLandingController extends Controller
         return [
             'title' => "Tips Booking {$keyword} yang Tepat",
             'items' => [
-                "Booking minimal 3-7 hari sebelumnya untuk mendapatkan harga terbaik dan pilihan properti lebih banyak",
-                "Baca review dari tamu sebelumnya untuk mengetahui pengalaman nyata mereka",
-                "Periksa foto properti secara detail – pastikan sesuai dengan kebutuhan Anda",
-                "Konfirmasi fasilitas yang tersedia seperti WiFi, AC, parkir, dan dapur",
-                "Tanyakan lokasi pasti dan jarak ke destinasi wisata yang ingin Anda kunjungi",
-                "Manfaatkan promo long stay untuk menginap lebih dari 3 malam",
-                "Hubungi customer service jika ada pertanyaan sebelum booking",
+                'Booking minimal 3-7 hari sebelumnya untuk mendapatkan harga terbaik dan pilihan properti lebih banyak',
+                'Baca review dari tamu sebelumnya untuk mengetahui pengalaman nyata mereka',
+                'Periksa foto properti secara detail – pastikan sesuai dengan kebutuhan Anda',
+                'Konfirmasi fasilitas yang tersedia seperti WiFi, AC, parkir, dan dapur',
+                'Tanyakan lokasi pasti dan jarak ke destinasi wisata yang ingin Anda kunjungi',
+                'Manfaatkan promo long stay untuk menginap lebih dari 3 malam',
+                'Hubungi customer service jika ada pertanyaan sebelum booking',
             ],
         ];
     }
@@ -370,28 +368,28 @@ class SeoLandingController extends Controller
             [
                 'question' => "Berapa harga {$keyword} per malam?",
                 'answer' => $maxPrice
-                    ? "Harga {$keyword} di {$location} mulai dari Rp 100.000 hingga Rp " . number_format($maxPrice, 0, ',', '.') . " per malam. Harga ini sudah mencakup fasilitas dasar. Tersedia {$totalProperties}+ pilihan properti yang bisa disesuaikan dengan budget Anda."
+                    ? "Harga {$keyword} di {$location} mulai dari Rp 100.000 hingga Rp ".number_format($maxPrice, 0, ',', '.')." per malam. Harga ini sudah mencakup fasilitas dasar. Tersedia {$totalProperties}+ pilihan properti yang bisa disesuaikan dengan budget Anda."
                     : "Harga {$keyword} di {$location} berkisar antara Rp 100.000 hingga Rp 1.000.000 per malam. Perbedaan harga ditentukan oleh tipe properti, kelengkapan fasilitas, dan jarak ke pusat wisata.",
             ],
             [
                 'question' => "Bagaimana cara booking {$keyword}?",
-                'answer' => "Anda dapat melakukan booking langsung melalui website Homsjogja dengan memilih tanggal check-in, check-out, dan jumlah tamu. Pembayaran dilakukan secara online dan aman, dengan konfirmasi instan via email dan WhatsApp.",
+                'answer' => 'Anda dapat melakukan booking langsung melalui website Homsjogja dengan memilih tanggal check-in, check-out, dan jumlah tamu. Pembayaran dilakukan secara online dan aman, dengan konfirmasi instan via email dan WhatsApp.',
             ],
             [
                 'question' => "Apakah ada minimum booking {$keyword}?",
-                'answer' => "Ya, durasi menginap minimum adalah 1 malam untuk hari biasa (weekday) dan 2 malam untuk akhir pekan (weekend). Kami juga menyediakan potongan harga khusus untuk tamu yang menginap lebih dari 7 malam.",
+                'answer' => 'Ya, durasi menginap minimum adalah 1 malam untuk hari biasa (weekday) dan 2 malam untuk akhir pekan (weekend). Kami juga menyediakan potongan harga khusus untuk tamu yang menginap lebih dari 7 malam.',
             ],
             [
                 'question' => "Fasilitas apa saja yang tersedia di {$keyword}?",
-                'answer' => "Fasilitas standar yang disediakan mencakup WiFi gratis, AC, kamar mandi dalam, air panas, area parkir, dan dapur bersama. Beberapa properti premium juga menyediakan kolam renang pribadi dan area BBQ.",
+                'answer' => 'Fasilitas standar yang disediakan mencakup WiFi gratis, AC, kamar mandi dalam, air panas, area parkir, dan dapur bersama. Beberapa properti premium juga menyediakan kolam renang pribadi dan area BBQ.',
             ],
             [
                 'question' => "Dimana lokasi {$keyword}?",
                 'answer' => "Properti {$keyword} berlokasi strategis di area {$location}. Sebagian besar properti kami hanya berjarak 10-45 menit perjalanan darat dari destinasi utama seperti Jalan Malioboro, Keraton Yogyakarta, dan Candi Prambanan.",
             ],
             [
-                'question' => "Apakah harga sudah termasuk breakfast?",
-                'answer' => "Tergantung pada properti yang Anda pilih. Beberapa properti menjadikan sarapan pagi (breakfast) sebagai layanan inklusif gratis, sementara yang lain menawarkannya dengan biaya tambahan terpisah.",
+                'question' => 'Apakah harga sudah termasuk breakfast?',
+                'answer' => 'Tergantung pada properti yang Anda pilih. Beberapa properti menjadikan sarapan pagi (breakfast) sebagai layanan inklusif gratis, sementara yang lain menawarkannya dengan biaya tambahan terpisah.',
             ],
         ];
     }

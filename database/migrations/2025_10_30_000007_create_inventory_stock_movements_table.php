@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('inventory_item_id')->constrained('inventory_items')->cascadeOnDelete();
             $table->foreignId('property_id')->nullable()->constrained('properties')->nullOnDelete();
-            $table->enum('type', ['purchase','in','out','adjustment']);
+            $table->enum('type', ['purchase', 'in', 'out', 'adjustment']);
             $table->decimal('quantity', 15, 4);
             $table->decimal('unit_cost', 15, 4)->default(0); // digunakan pada purchase
             $table->decimal('total_cost', 15, 2)->default(0);
@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('notes')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->index(['inventory_item_id','movement_date']);
+            $table->index(['inventory_item_id', 'movement_date']);
         });
     }
 
@@ -31,6 +31,3 @@ return new class extends Migration
         Schema::dropIfExists('inventory_stock_movements');
     }
 };
-
-
-

@@ -17,6 +17,7 @@ interface BankAccount {
     account_holder: string;
     label: string;
     payment_method_id?: number | null;
+    visibility_mode?: string;
     created_at: string;
     updated_at: string;
 }
@@ -38,6 +39,7 @@ export default function BankAccountsEdit({ bankAccount, paymentMethods = [] }: B
         account_number: bankAccount.account_number || '',
         account_holder: bankAccount.account_holder || '',
         label: bankAccount.label || '',
+        visibility_mode: bankAccount.visibility_mode || 'public',
     });
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -148,6 +150,25 @@ export default function BankAccountsEdit({ bankAccount, paymentMethods = [] }: B
                                 {errors.account_holder && (
                                     <p className="text-xs text-red-500">{errors.account_holder}</p>
                                 )}
+                            </div>
+
+                            {/* Visibility Mode (Hidden Settings) */}
+                            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                                <Label htmlFor="visibility_mode" className="font-bold text-slate-800">Privasi Akses Rekening *</Label>
+                                <select
+                                    id="visibility_mode"
+                                    value={data.visibility_mode}
+                                    onChange={(e) => setData('visibility_mode', e.target.value)}
+                                    className="w-full text-xs font-semibold border border-slate-200 rounded-lg p-2.5 bg-white"
+                                    required
+                                >
+                                    <option value="public">🌐 Publik (Terbuka untuk Semua Staff Terkait)</option>
+                                    <option value="super_admin_and_pm">🔑 Disembunyikan (Hanya Super Admin & Property Manager)</option>
+                                    <option value="super_admin_only">🔒 Sembunyikan Penuh (Hanya Super Admin)</option>
+                                </select>
+                                <p className="text-xs text-slate-400">
+                                    Rekening yang disembunyikan tidak akan muncul pada pilihan atau daftar staf yang tidak berwenang.
+                                </p>
                             </div>
 
                             {/* Action Buttons */}
