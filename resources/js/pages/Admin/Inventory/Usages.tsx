@@ -169,7 +169,9 @@ export default function Usages({ items, properties, usages, usageStats, filters 
     };
 
     const availableProperties = [
-        ...(data.usages.some(row => row.property_id === 'global' || row.property_id === '') ? [] : [{ id: 'global', name: '🏢 Pengeluaran Perusahaan (Global / Dapur & Laundry)' }]),
+        ...(data.usages.some(row => row.property_id === 'kitchen') ? [] : [{ id: 'kitchen', name: 'Scope Dapur' }]),
+        ...(data.usages.some(row => row.property_id === 'laundry') ? [] : [{ id: 'laundry', name: 'Scope Laundry' }]),
+        ...(data.usages.some(row => row.property_id === 'global' || row.property_id === '') ? [] : [{ id: 'global', name: 'Perusahaan (Global)' }]),
         ...(properties?.filter((p: any) => !data.usages.some(row => row.property_id === p.id?.toString())) || [])
     ];
 
@@ -337,7 +339,7 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                                 onChange={(e) => setData('property_id', e.target.value)}
                                                 className={cn("w-full bg-white/50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl h-10 text-xs px-3 outline-none transition-all cursor-pointer appearance-none", errors.property_id && "border-red-500")}
                                             >
-                                                <option value="">🏢 Pengeluaran Perusahaan (Global / Dapur & Laundry)</option>
+                                                <option value="">Perusahaan (Global)</option>
                                                 {properties?.map((p: any) => (
                                                     <option key={p.id} value={p.id}>{p.name}</option>
                                                 ))}
@@ -386,9 +388,7 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                         {data.usages.length > 0 ? (
                                             <div className="space-y-2 mt-2 p-2 bg-slate-50/50 border border-slate-100 rounded-xl max-h-[220px] overflow-y-auto">
                                                 {data.usages.map((row, idx) => {
-                                                    const prop = row.property_id === 'global' || row.property_id === '' 
-                                                        ? { name: '🏢 Global / Dapur & Laundry' }
-                                                        : properties.find((p: any) => p.id?.toString() === row.property_id);
+                                                    const prop = row.property_id === 'kitchen' ? { name: 'Scope Dapur' } : row.property_id === 'laundry' ? { name: 'Scope Laundry' } : row.property_id === 'global' || row.property_id === '' ? { name: 'Global' } : properties.find((p: any) => p.id?.toString() === row.property_id);
                                                     return (
                                                         <div key={row.property_id} className="flex items-center justify-between gap-3 p-2 bg-white border border-slate-100 rounded-lg shadow-sm">
                                                             <span className="text-xs font-semibold text-slate-700 truncate flex-1">{prop?.name || 'Global'}</span>
@@ -547,7 +547,7 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                                     </div>
                                                     <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-1.5">
                                                         <Badge variant="secondary" className="text-[10px] font-semibold bg-slate-100/80 text-slate-600 border-none px-1.5 py-0 rounded-md">
-                                                            {u.property?.name || '🏢 Global / Dapur & Laundry'}
+                                                            {u.property?.name || 'Global'}
                                                         </Badge>
                                                         <span>{formatDate(u.usage_date)}</span>
                                                     </div>
@@ -626,7 +626,7 @@ export default function Usages({ items, properties, usages, usageStats, filters 
                                                         {u.notes && <div className="text-[11px] text-slate-400 truncate max-w-[180px] mt-0.5" title={u.notes}>{u.notes}</div>}
                                                     </TableCell>
                                                     <TableCell className="text-slate-600 text-sm font-medium">
-                                                         {u.property?.name || <span className="text-indigo-600 font-semibold">🏢 Global / Dapur & Laundry</span>}
+                                                         {u.property?.name || <span className="text-indigo-600 font-semibold">Global</span>}
                                                     </TableCell>
                                                     <TableCell className="text-slate-600 text-sm">
                                                         {Number(u.quantity_used)} <span className="text-slate-400 text-xs font-medium">{u.item?.unit}</span>

@@ -52,7 +52,8 @@ export default function Expenses({
   wallets,
   totalByProperty,
   totalGeneral,
-  totalAll
+  totalAll,
+  filters,
 }: any) {
   const { auth } = usePage<any>().props;
   const userRole = auth?.user?.role;
@@ -138,18 +139,24 @@ export default function Expenses({
     capital_split_investor_pct: '',
   });
 
-  const [viewMode, setViewMode] = useState<'all' | 'by_property' | 'general'>('all');
+  const initialViewMode = useMemo<'all' | 'by_property' | 'general'>(() => {
+    if (filters?.property_id === 'null') return 'general';
+    if (filters?.property_id) return 'by_property';
+    return 'all';
+  }, [filters?.property_id]);
+
+  const [viewMode, setViewMode] = useState<'all' | 'by_property' | 'general'>(initialViewMode);
 
   const { data: filter, setData: setFilter, get } = useForm({
-    q: '',
-    from: '',
-    to: '',
-    type: '',
-    category: '',
-    scope: '',
-    property_id: '',
-    wallet_id: '',
-    is_inventory: '',
+    q: filters?.q || '',
+    from: filters?.from || '',
+    to: filters?.to || '',
+    type: filters?.type || '',
+    category: filters?.category || '',
+    scope: filters?.scope || '',
+    property_id: filters?.property_id || '',
+    wallet_id: filters?.wallet_id || '',
+    is_inventory: filters?.is_inventory || '',
   });
 
   const canEdit = (row: any) => {
@@ -960,11 +967,25 @@ export default function Expenses({
               )}
             </div>
 
-            <div className="flex items-center justify-between mt-4 text-xs">
-              <div>Menampilkan {expenses?.from || 0}-{expenses?.to || 0} dari {expenses?.total || 0}</div>
-              <div className="flex gap-2">
-                {expenses?.links?.map((l: any) => (
-                  <Link key={l.label} href={l.url || '#'} className={`px-2 py-1 rounded ${l.active ? 'bg-accent font-bold' : 'hover:bg-accent/60'} ${!l.url ? 'pointer-events-none opacity-50' : ''}`}>{l.label.replace('&laquo;', '«').replace('&raquo;', '»')}</Link>
+            <div className="flex flex-col sm:flex-row items-center justify-between mt-4 text-xs gap-3 pt-2 border-t border-slate-100">
+              <div className="text-slate-500 font-medium text-center sm:text-left">
+                Menampilkan {expenses?.from || 0}-{expenses?.to || 0} dari {expenses?.total || 0} pengeluaran
+              </div>
+              <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1.5 max-w-full overflow-x-auto py-1">
+                {expenses?.links?.map((l: any, idx: number) => (
+                  <Link
+                    key={idx}
+                    href={l.url || '#'}
+                    preserveScroll
+                    preserveState
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                      l.active
+                        ? 'bg-indigo-600 text-white shadow-sm font-bold'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    } ${!l.url ? 'pointer-events-none opacity-40' : ''}`}
+                  >
+                    {l.label.replace('&laquo;', '«').replace('&raquo;', '»')}
+                  </Link>
                 ))}
               </div>
             </div>

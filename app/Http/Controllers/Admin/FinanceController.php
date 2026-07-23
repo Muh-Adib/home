@@ -181,6 +181,7 @@ class FinanceController extends Controller
             'totalByProperty' => $totalByProperty,
             'totalGeneral' => $totalGeneral,
             'totalAll' => $totalAll,
+            'filters' => $request->only(['q', 'from', 'to', 'type', 'category', 'scope', 'property_id', 'wallet_id', 'is_inventory']),
         ]);
     }
 

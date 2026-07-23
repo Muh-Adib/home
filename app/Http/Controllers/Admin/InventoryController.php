@@ -565,7 +565,20 @@ class InventoryController extends Controller
 
         DB::transaction(function () use ($data, $service, $request) {
             foreach ($data['usages'] as $usageRow) {
-                $propId = (! empty($usageRow['property_id']) && is_numeric($usageRow['property_id'])) ? (int) $usageRow['property_id'] : null;
+                $targetProp = $usageRow['property_id'] ?? null;
+                $propId = (is_numeric($targetProp) && (int) $targetProp > 0) ? (int) $targetProp : null;
+
+                $rowNotes = $data['notes'] ?? null;
+                $scope = null;
+                if ($targetProp === 'kitchen') {
+                    $scope = 'kitchen';
+                    $rowNotes = trim('[Dapur] '.($data['notes'] ?? ''));
+                } elseif ($targetProp === 'laundry') {
+                    $scope = 'house';
+                    $rowNotes = trim('[Laundry] '.($data['notes'] ?? ''));
+                } elseif ($targetProp === 'global') {
+                    $scope = 'operational';
+                }
 
                 $usageRecord = $service->recordUsage(
                     (int) $data['inventory_item_id'],
@@ -573,10 +586,11 @@ class InventoryController extends Controller
                     $data['usage_date'],
                     (float) $usageRow['quantity_used'],
                     $request->user()->id,
-                    $data['notes'] ?? null
+                    $rowNotes,
+                    $scope
                 );
 
-                $propName = $usageRecord->property?->name ?? 'Global / Dapur & Laundry';
+                $propName = $usageRecord->property?->name ?? ($scope ? ucfirst($scope) : 'Global');
                 $this->logActivity(
                     $request,
                     'create_usage',

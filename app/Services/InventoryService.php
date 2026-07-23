@@ -14,9 +14,9 @@ use Illuminate\Support\Facades\Log;
 
 class InventoryService
 {
-    public function recordPurchase(int $itemId, float $quantity, float $unitCost, $propertyId, string $date, ?int $userId, ?string $notes = null, ?string $vendorName = null): InventoryStockMovement
+    public function recordPurchase(int $itemId, float $quantity, float $unitCost, $propertyId, string $date, ?int $userId, ?string $notes = null, ?string $vendorName = null, ?string $scope = null): InventoryStockMovement
     {
-        return DB::transaction(function () use ($itemId, $quantity, $unitCost, $propertyId, $date, $userId, $notes, $vendorName) {
+        return DB::transaction(function () use ($itemId, $quantity, $unitCost, $propertyId, $date, $userId, $notes, $vendorName, $scope) {
             $item = InventoryItem::lockForUpdate()->findOrFail($itemId);
 
             $totalCost = round($quantity * $unitCost, 2);
@@ -50,18 +50,24 @@ class InventoryService
                 'created_by' => $userId,
             ]);
 
-            // Jika propertyId adalah null, maka tidak di simpan di property expense
-            if ($propertyId === null) {
-                return $movement;
-            }
-
             // Tentukan wallet untuk pembelian inventaris (default: Kas Kecil / expense_account)
             $walletPurpose = config('finance.inventory_purchase_wallet_purpose', 'expense_account');
             $wallet = Wallet::where('purpose', $walletPurpose)->first();
 
-            // Catat pengeluaran supplies (variable) ke property_id=NULL = pengeluaran global
+            $expenseScope = $scope ?? 'operational';
+            if (! $propertyId && $notes) {
+                $notesLower = strtolower($notes);
+                if (str_contains($notesLower, 'dapur') || str_contains($notesLower, 'kitchen')) {
+                    $expenseScope = 'kitchen';
+                } elseif (str_contains($notesLower, 'laundry') || str_contains($notesLower, 'housekeeping')) {
+                    $expenseScope = 'house';
+                }
+            }
+
+            // Catat pengeluaran supplies (variable)
             $expense = PropertyExpense::create([
-                'property_id' => null,
+                'property_id' => $propertyId,
+                'expense_scope' => $expenseScope,
                 'expense_category' => 'supplies',
                 'expense_type' => 'variable',
                 'description' => 'Pembelian '.$item->name.' qty '.$quantity.' '.$item->unit,
@@ -189,9 +195,20 @@ class InventoryService
             $description = "Penggunaan {$item->name} - ".(float) $usage->quantity_used." {$item->unit}";
 
             if ($isNewUsage || ! $usage->expense_id) {
+                $scope = 'operational';
+                if (! $usage->property_id) {
+                    $notesLower = strtolower($usage->notes ?? '');
+                    if (str_contains($notesLower, 'dapur') || str_contains($notesLower, 'kitchen')) {
+                        $scope = 'kitchen';
+                    } elseif (str_contains($notesLower, 'laundry') || str_contains($notesLower, 'housekeeping')) {
+                        $scope = 'house';
+                    }
+                }
+
                 // Buat expense baru
                 $expense = PropertyExpense::create([
                     'property_id' => $usage->property_id,
+                    'expense_scope' => $scope,
                     'expense_category' => 'supplies',
                     'expense_type' => 'variable',
                     'description' => $description,
