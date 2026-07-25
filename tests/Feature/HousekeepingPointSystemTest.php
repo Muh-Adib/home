@@ -235,6 +235,7 @@ class HousekeepingPointSystemTest extends TestCase
             'expense_category' => 'supplies',
             'description' => 'Buying items',
             'expense_date' => now()->toDateString(),
+            'status' => 'approved',
             'recorded_by' => $this->admin->id,
             'created_at' => now(),
             'updated_at' => now(),
@@ -265,6 +266,7 @@ class HousekeepingPointSystemTest extends TestCase
             'expense_category' => 'supplies',
             'description' => 'Repairs cost',
             'expense_date' => now()->toDateString(),
+            'status' => 'approved',
             'recorded_by' => $this->admin->id,
             'created_at' => now(),
             'updated_at' => now(),
@@ -280,7 +282,7 @@ class HousekeepingPointSystemTest extends TestCase
         ]);
 
         $pointService = app(HousekeepingPointService::class);
-        $poolData = $pointService->getMonthlyPool($month, $year);
+        $poolData = $pointService->getMonthlyPool($month, $year, 2.0);
 
         // Eligible turnover = 20,000,000. Total pool = 20,000,000 * 0.7% = 140,000.
         // Total points = 10. Point rate = 140,000 / 10 = 14,000 per point.
@@ -293,7 +295,7 @@ class HousekeepingPointSystemTest extends TestCase
         $pointsSummary = $pointService->getMonthlyPointsDetails($this->maleStaff->id, $month, $year);
         $this->assertEquals(10.0, $pointsSummary['routine']);
 
-        $bonus = $pointService->calculateHousekeepingBonus($this->maleStaff->id, $month, $year);
+        $bonus = $pointService->calculateHousekeepingBonus($this->maleStaff->id, $month, $year, 2.0);
         $this->assertEquals(140000.0, $bonus); // 10 points * 14,000 rate = 140,000
     }
 }

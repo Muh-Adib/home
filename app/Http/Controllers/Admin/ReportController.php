@@ -11,9 +11,9 @@ use App\Models\BookingDailyRevenue;
 use App\Models\Income;
 use App\Models\Payment;
 use App\Models\Property;
-use App\Models\UnitDamage;
 use App\Models\UnitDamageAction;
 use App\Models\User;
+use App\Services\HousekeepingPointService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -1634,6 +1634,7 @@ class ReportController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'role']);
 
+        $pointService = app(HousekeepingPointService::class);
         $performanceData = [];
 
         foreach ($staff as $s) {
@@ -1667,15 +1668,8 @@ class ReportController extends Controller
                 ->whereBetween('created_at', [$startDate, $endDate])
                 ->count();
 
-            // Sum points earned from damage repair actions
-            $damagePoints = (int) UnitDamageAction::where('user_id', $s->id)
-                ->whereBetween('created_at', [$startDate, $endDate])
-                ->sum('points');
-
-            // Count Assigned unit damages
-            $assignedDamagesCount = UnitDamage::where('assigned_to', $s->id)
-                ->whereBetween('created_at', [$startDate, $endDate])
-                ->count();
+            // Fetch complete HK 5-sources points breakdown
+            $pointsBreakdown = $pointService->getMonthlyPointsDetails($s->id, (int) $startDate->month, (int) $startDate->year);
 
             $performanceData[] = [
                 'id' => $s->id,
@@ -1687,8 +1681,8 @@ class ReportController extends Controller
                 'check_ins' => $checkedInCount,
                 'deals_value' => (float) $totalDealsValue,
                 'resolved_damages' => $resolvedDamagesCount,
-                'assigned_damages' => $assignedDamagesCount,
-                'damage_points' => $damagePoints,
+                'damage_points' => (int) $pointsBreakdown['total'],
+                'points_details' => $pointsBreakdown,
             ];
         }
 

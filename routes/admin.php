@@ -412,8 +412,14 @@ Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,fin
 Route::middleware(['auth', 'role:super_admin'])->prefix('admin/finance')->name('admin.finance.')->group(function () {
     Route::controller(PayrollController::class)->group(function () {
         Route::get('payroll', 'index')->name('payroll.index');
+        Route::get('payroll/attendance-review', 'attendanceReview')->name('payroll.attendance-review');
+        Route::post('payroll/attendance-correction', 'correctAttendance')->name('payroll.attendance-correction');
         Route::post('payroll/attendance', 'uploadAttendance')->name('payroll.attendance');
+        Route::post('payroll/generate-bonuses', 'generateBonuses')->name('payroll.generate-bonuses');
+        Route::post('payroll/rates', 'updateRates')->name('payroll.rates');
         Route::post('payroll/store', 'store')->name('payroll.store');
+        Route::post('payroll/approve', 'approvePayroll')->name('payroll.approve');
+        Route::post('payroll/pay', 'payPayroll')->name('payroll.pay');
         Route::post('payroll/user-settings', 'updateUserSettings')->name('payroll.user-settings');
         Route::post('payroll/shifts', 'storeShifts')->name('payroll.shifts');
     });

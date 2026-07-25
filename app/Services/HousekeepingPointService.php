@@ -10,6 +10,7 @@ use App\Models\BookingDailyRevenue;
 use App\Models\CustomTaskMember;
 use App\Models\HousekeepingSchedule;
 use App\Models\Income;
+use App\Models\InventoryUsage;
 use App\Models\Property;
 use App\Models\PropertyExpense;
 use App\Models\StaffPayroll;
@@ -51,13 +52,19 @@ class HousekeepingPointService
             ->whereBetween('created_at', [$startDate, $endDate])
             ->sum('points');
 
-        $totalPoints = $routinePoints + $cleaningPoints + $damagePoints + $customPoints;
+        // 5. Inventory Usage Points (1.0 point per inventory usage entry logged by staff)
+        $inventoryPoints = (float) InventoryUsage::where('created_by', $userId)
+            ->whereBetween('usage_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->count();
+
+        $totalPoints = $routinePoints + $cleaningPoints + $damagePoints + $customPoints + $inventoryPoints;
 
         return [
             'routine' => $routinePoints,
             'cleaning' => $cleaningPoints,
             'damage' => $damagePoints,
             'custom' => $customPoints,
+            'inventory' => $inventoryPoints,
             'total' => $totalPoints,
         ];
     }

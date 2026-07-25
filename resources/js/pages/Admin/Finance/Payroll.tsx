@@ -8,13 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { 
     Coins,
     Calculator,
     Upload,
     Save,
-    Calendar,
+    Calendar as CalendarIcon,
     AlertCircle,
     Settings,
     Clock,
@@ -22,7 +23,17 @@ import {
     Loader2,
     Sparkles,
     TrendingUp,
-    Printer
+    Printer,
+    CheckCircle2,
+    History,
+    RefreshCw,
+    ShieldCheck,
+    CreditCard,
+    Edit,
+    CalendarCheck,
+    SlidersHorizontal,
+    PlusCircle,
+    MinusCircle
 } from 'lucide-react';
 import { type BreadcrumbItem } from '@/types';
 import { apiPostForm } from '@/lib/api';
@@ -33,6 +44,8 @@ interface PayrollStaffRow {
     name: string;
     role: string;
     fingerprint_id: string | null;
+    version?: number;
+    batch_id?: string | null;
     shift_start_time: string;
     shift_end_time: string;
     base_salary: number;
@@ -52,29 +65,43 @@ interface PayrollStaffRow {
     standby_bonus: number;
     frontdesk_first_night_bonus: number;
     frontdesk_next_nights_bonus_share: number;
+    performance_bonus: number;
+    custom_allowance: number;
+    custom_deduction: number;
+    custom_allowance_reason?: string;
+    custom_deduction_reason?: string;
     overtime_hours: number;
     overtime_bonus: number;
     holiday_days: number;
     total_salary: number;
-    status: 'pending' | 'paid';
+    status: 'draft' | 'generated' | 'reviewed' | 'approved' | 'paid' | 'archived';
     notes: string;
     outstanding_loans: number;
     stored: boolean;
-    holiday_quota: number;
     expense_id: number | null;
     original_base_salary?: number;
     prorated?: boolean;
     active_employment_days?: number;
+    bonus_finalized?: boolean;
     hk_points?: number;
     first_nights_count?: number;
     next_nights_pool_count?: number;
     frontdesk_count?: number;
 }
 
+interface DailyShiftItem {
+    date: string;
+    day: number;
+    shift_start_time: string;
+    shift_end_time: string;
+    is_off_day: boolean;
+}
+
 interface PayrollProps {
     payrolls: PayrollStaffRow[];
     wallets: Array<{ id: number; name: string; balance: number }>;
     userShifts: Record<number, Array<{ date: string; shift_start_time: string; shift_end_time: string; is_off_day: boolean }>>;
+    versions: Array<{ version: number; batch_id: string; is_active: boolean; status: string; created_at: string }>;
     poolData: {
         eligible_turnover: number;
         total_pool: number;
@@ -86,151 +113,80 @@ interface PayrollProps {
         year: number;
         first_night_rate: number;
         next_night_rate: number;
-        housekeeping_rate_per_point: number;
+        housekeeping_bonus_mode?: string;
+        housekeeping_rate_per_point?: number;
+        housekeeping_fixed_pool?: number;
+        housekeeping_pool_percentage?: number;
+        housekeeping_max_cap?: number;
         late_deduction_rate: number;
         standby_rate: number;
         overtime_rate: number;
         absent_deduction_rate: number;
         sick_deduction_rate: number;
         permission_deduction_rate: number;
+        follow_up_rate?: number;
+        creation_rate?: number;
     };
 }
 
-interface CurrencyInputProps {
-    value: number;
-    onChange: (val: number) => void;
-    className?: string;
-    placeholder?: string;
-    disabled?: boolean;
-}
-
-const CurrencyInput: React.FC<CurrencyInputProps> = ({ value, onChange, className = '', placeholder = '', disabled = false }) => {
-    const formatNumber = (num: number): string => {
-        if (!num && num !== 0) return '';
-        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    };
-
-    const parseNumber = (str: string): number => {
-        const cleaned = str.replace(/[^0-9]/g, '');
-        if (cleaned === '') return 0;
-        return parseInt(cleaned, 10);
-    };
-
-    const [inputValue, setInputValue] = React.useState(formatNumber(value));
-
-    React.useEffect(() => {
-        setInputValue(formatNumber(value));
-    }, [value]);
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        const numericStr = val.replace(/[^0-9]/g, '');
-        const parsed = parseNumber(numericStr);
-        setInputValue(formatNumber(parsed));
-        onChange(parsed);
-    };
-
-    return (
-        <div className="relative flex items-center w-full">
-            <span className="absolute left-2.5 text-slate-400 font-bold text-[10px] select-none pointer-events-none">Rp</span>
-            <Input
-                type="text"
-                value={inputValue}
-                onChange={handleInputChange}
-                className={`pl-7 pr-2 font-bold ${className}`}
-                placeholder={placeholder}
-                disabled={disabled}
-            />
-        </div>
-    );
-};
-
-export default function Payroll({ payrolls, wallets, userShifts, poolData, filters }: PayrollProps) {
+export default function Payroll({ payrolls, wallets, userShifts, versions, poolData, filters }: PayrollProps) {
     const [selectedMonth, setSelectedMonth] = useState(filters.month);
     const [selectedYear, setSelectedYear] = useState(filters.year);
 
-    // Rates configuration
-    const [firstNightRate, setFirstNightRate] = useState(filters.first_night_rate);
-    const [nextNightRate, setNextNightRate] = useState(filters.next_night_rate);
-    const [housekeepingRate, setHousekeepingRate] = useState(poolData ? poolData.point_rate : filters.housekeeping_rate_per_point);
-    const [lateDeductionRate, setLateDeductionRate] = useState(filters.late_deduction_rate); // late rate per hour
+    // Rates configuration state
+    const [firstNightRate, setFirstNightRate] = useState(filters.first_night_rate || 1000);
+    const [nextNightRate, setNextNightRate] = useState(filters.next_night_rate || 1000);
+    const [housekeepingBonusMode, setHousekeepingBonusMode] = useState(filters.housekeeping_bonus_mode || 'rate_per_point');
+    const [housekeepingRate, setHousekeepingRate] = useState(filters.housekeeping_rate_per_point || 2000);
+    const [housekeepingFixedPool, setHousekeepingFixedPool] = useState(filters.housekeeping_fixed_pool || 1500000);
+    const [housekeepingPoolPercentage, setHousekeepingPoolPercentage] = useState(filters.housekeeping_pool_percentage || 5.0);
+    const [housekeepingMaxCap, setHousekeepingMaxCap] = useState(filters.housekeeping_max_cap || 1500000);
+
+    const [lateDeductionRate, setLateDeductionRate] = useState(filters.late_deduction_rate || 20000);
     const [standbyRate, setStandbyRate] = useState(filters.standby_rate || 50000);
-    const [overtimeRate, setOvertimeRate] = useState(filters.overtime_rate || 25000); // overtime rate per hour
+    const [overtimeRate, setOvertimeRate] = useState(filters.overtime_rate || 25000);
     const [absentDeductionRate, setAbsentDeductionRate] = useState(filters.absent_deduction_rate || 100000);
     const [sickDeductionRate, setSickDeductionRate] = useState(filters.sick_deduction_rate || 50000);
     const [permissionDeductionRate, setPermissionDeductionRate] = useState(filters.permission_deduction_rate || 75000);
+    const [followUpRate, setFollowUpRate] = useState(filters.follow_up_rate || 1000);
+    const [creationRate, setCreationRate] = useState(filters.creation_rate || 1000);
 
     const [isParsingAttendance, setIsParsingAttendance] = useState(false);
-    const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
-
-    // Wallet selection state for payment
     const [selectedWalletId, setSelectedWalletId] = useState<string>('');
-
-    // User selected for editing shift settings
-    const [selectedUserForShift, setSelectedUserForShift] = useState<PayrollStaffRow | null>(null);
-    const [tempFingerprintId, setTempFingerprintId] = useState('');
-    const [tempShiftStart, setTempShiftStart] = useState('');
-    const [tempShiftEnd, setTempShiftEnd] = useState('');
-    const [tempBaseSalary, setTempBaseSalary] = useState(0);
-    const [tempHolidayQuota, setTempHolidayQuota] = useState(4);
-    const [isSavingShift, setIsSavingShift] = useState(false);
 
     const [selectedUserForPrint, setSelectedUserForPrint] = useState<PayrollStaffRow | null>(null);
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+    const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
+    const [isRatesModalOpen, setIsRatesModalOpen] = useState(false);
 
-    const openPrintModal = (row: PayrollStaffRow) => {
-        setSelectedUserForPrint(row);
-        setIsPrintModalOpen(true);
-    };
+    // HR Staff Salary & Shift Modal state
+    const [isUserSettingsModalOpen, setIsUserSettingsModalOpen] = useState(false);
+    const [editingStaff, setEditingStaff] = useState<PayrollStaffRow | null>(null);
+    const [staffBaseSalary, setStaffBaseSalary] = useState(0);
+    const [staffFingerprintId, setStaffFingerprintId] = useState('');
+    const [staffShiftStart, setStaffShiftStart] = useState('08:00');
+    const [staffShiftEnd, setStaffShiftEnd] = useState('16:00');
+    const [isUpdatingUserSettings, setIsUpdatingUserSettings] = useState(false);
 
-    const handlePrint = () => {
-        if (!selectedUserForPrint) return;
-        const printContent = document.getElementById('printable-payslip')?.innerHTML;
-        if (!printContent) return;
+    // Modal Penyesuaian Gaji Khusus (Penambahan & Pengurangan Manual)
+    const [isCustomAdjustmentModalOpen, setIsCustomAdjustmentModalOpen] = useState(false);
+    const [adjustingStaffIndex, setAdjustingStaffIndex] = useState<number | null>(null);
+    const [customAllowanceInput, setCustomAllowanceInput] = useState(0);
+    const [customAllowanceReasonInput, setCustomAllowanceReasonInput] = useState('');
+    const [customDeductionInput, setCustomDeductionInput] = useState(0);
+    const [customDeductionReasonInput, setCustomDeductionReasonInput] = useState('');
 
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-            printWindow.document.write(`
-                <html>
-                <head>
-                    <title>Slip Gaji - ${selectedUserForPrint.name}</title>
-                    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-                    <style>
-                        body { padding: 40px; background-color: white; font-family: 'Courier New', Courier, monospace; }
-                        @media print {
-                            body { padding: 0; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    ${printContent}
-                    <script>
-                        window.onload = function() {
-                            window.print();
-                            setTimeout(function() { window.close(); }, 500);
-                        }
-                    </script>
-                </body>
-                </html>
-            `);
-            printWindow.document.close();
-        }
-    };
+    // Monthly Daily Shift Calendar Modal State
+    const [isShiftCalendarModalOpen, setIsShiftCalendarModalOpen] = useState(false);
+    const [selectedShiftStaff, setSelectedShiftStaff] = useState<PayrollStaffRow | null>(null);
+    const [dailyShifts, setDailyShifts] = useState<DailyShiftItem[]>([]);
+    const [isSavingShifts, setIsSavingShifts] = useState(false);
 
-    // Shift planning calendar variables
-    const [showDailyShifts, setShowDailyShifts] = useState(false);
-    const [dailyShifts, setDailyShifts] = useState<Array<{ date: string; shift_start_time: string; shift_end_time: string; is_off_day: boolean }>>([]);
-    const [importedLogs, setImportedLogs] = useState<Record<number, Array<{
-        day: number;
-        date: string;
-        check_in: string;
-        check_out: string;
-        is_off_day: boolean;
-        shift_start: string;
-        shift_end: string;
-        late_hours: number;
-        overtime_hours: number;
-    }>>>({});
+    const [isGeneratingBonuses, setIsGeneratingBonuses] = useState(false);
+    const [isSavingRates, setIsSavingRates] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isApproving, setIsApproving] = useState(false);
+    const [isPaying, setIsPaying] = useState(false);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -248,167 +204,181 @@ export default function Payroll({ payrolls, wallets, userShifts, poolData, filte
     useEffect(() => {
         setStaffRows(payrolls);
     }, [payrolls]);
+
+    const activeVersion = useMemo(() => {
+        return staffRows[0]?.version || 1;
+    }, [staffRows]);
+
+    const activeStatus = useMemo(() => {
+        return staffRows[0]?.status || 'draft';
+    }, [staffRows]);
+
     const handleMonthChange = (monthVal: number) => {
         setSelectedMonth(monthVal);
-        router.get(
-            route('admin.finance.payroll.index'),
-            {
-                month: monthVal,
-                year: selectedYear,
-            },
-            { preserveState: false }
-        );
+        router.get(route('admin.finance.payroll.index'), { month: monthVal, year: selectedYear }, { preserveState: false });
     };
 
     const handleYearChange = (yearVal: number) => {
         setSelectedYear(yearVal);
-        router.get(
-            route('admin.finance.payroll.index'),
+        router.get(route('admin.finance.payroll.index'), { month: selectedMonth, year: yearVal }, { preserveState: false });
+    };
+
+    const openCustomAdjustmentModal = (index: number) => {
+        const staff = staffRows[index];
+        setAdjustingStaffIndex(index);
+        setCustomAllowanceInput(staff.custom_allowance || 0);
+        setCustomAllowanceReasonInput(staff.custom_allowance_reason || '');
+        setCustomDeductionInput(staff.custom_deduction || 0);
+        setCustomDeductionReasonInput(staff.custom_deduction_reason || '');
+        setIsCustomAdjustmentModalOpen(true);
+    };
+
+    const handleSaveCustomAdjustment = () => {
+        if (adjustingStaffIndex === null) return;
+
+        setStaffRows((prev) => {
+            const updated = [...prev];
+            const item = { ...updated[adjustingStaffIndex] };
+
+            item.custom_allowance = customAllowanceInput;
+            item.custom_allowance_reason = customAllowanceReasonInput;
+            item.custom_deduction = customDeductionInput;
+            item.custom_deduction_reason = customDeductionReasonInput;
+
+            const base = Number(item.base_salary) || 0;
+            const bonuses = (Number(item.housekeeping_bonus) || 0) + 
+                            (Number(item.standby_bonus) || 0) + 
+                            (Number(item.frontdesk_first_night_bonus) || 0) + 
+                            (Number(item.frontdesk_next_nights_bonus_share) || 0) + 
+                            (Number(item.performance_bonus) || 0) + 
+                            (Number(item.overtime_bonus) || 0) + 
+                            Number(item.custom_allowance);
+
+            const deductions = (Number(item.late_deduction) || 0) + 
+                               (Number(item.loan_deduction) || 0) + 
+                               (Number(item.sick_deduction) || 0) + 
+                               (Number(item.permission_deduction) || 0) + 
+                               (Number(item.absent_deduction) || 0) + 
+                               Number(item.custom_deduction);
+
+            item.total_salary = maxZero(base + bonuses - deductions);
+            updated[adjustingStaffIndex] = item;
+            return updated;
+        });
+
+        toast.success('Penyesuaian gaji khusus (penambahan & pengurangan) berhasil diperbarui di draft payroll.');
+        setIsCustomAdjustmentModalOpen(false);
+    };
+
+    const maxZero = (val: number) => (val > 0 ? val : 0);
+
+    const openUserSettingsModal = (row: PayrollStaffRow) => {
+        setEditingStaff(row);
+        setStaffBaseSalary(row.original_base_salary || row.base_salary || 0);
+        setStaffFingerprintId(row.fingerprint_id || '');
+        setStaffShiftStart(row.shift_start_time || '08:00');
+        setStaffShiftEnd(row.shift_end_time || '16:00');
+        setIsUserSettingsModalOpen(true);
+    };
+
+    const openShiftCalendarModal = (row: PayrollStaffRow) => {
+        setSelectedShiftStaff(row);
+        const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+        const existingShifts = userShifts[row.user_id] || [];
+
+        const generatedShifts: DailyShiftItem[] = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const found = existingShifts.find((s) => s.date === dateStr);
+
+            generatedShifts.push({
+                date: dateStr,
+                day: d,
+                shift_start_time: found ? found.shift_start_time : row.shift_start_time || '08:00',
+                shift_end_time: found ? found.shift_end_time : row.shift_end_time || '16:00',
+                is_off_day: found ? Boolean(found.is_off_day) : false,
+            });
+        }
+
+        setDailyShifts(generatedShifts);
+        setIsShiftCalendarModalOpen(true);
+    };
+
+    const toggleOffDay = (index: number) => {
+        setDailyShifts((prev) => {
+            const updated = [...prev];
+            updated[index] = { ...updated[index], is_off_day: !updated[index].is_off_day };
+            return updated;
+        });
+    };
+
+    const updateShiftTime = (index: number, start: string, end: string) => {
+        setDailyShifts((prev) => {
+            const updated = [...prev];
+            updated[index] = { ...updated[index], shift_start_time: start, shift_end_time: end };
+            return updated;
+        });
+    };
+
+    const handleSaveDailyShifts = () => {
+        if (!selectedShiftStaff) return;
+        setIsSavingShifts(true);
+
+        router.post(
+            route('admin.finance.payroll.shifts'),
             {
-                month: selectedMonth,
-                year: yearVal,
+                user_id: selectedShiftStaff.user_id,
+                shifts: dailyShifts.map((s) => ({
+                    date: s.date,
+                    shift_start_time: s.shift_start_time,
+                    shift_end_time: s.shift_end_time,
+                    is_off_day: s.is_off_day,
+                })),
             },
-            { preserveState: false }
-        );
-    };
-    // Recalculate all rows locally when rates change
-    useEffect(() => {
-        setStaffRows((prevRows) => 
-            prevRows.map((row) => {
-                const late_deduction = (Number(row.late_hours) || 0) * lateDeductionRate;
-                const overtime_bonus = (Number(row.overtime_hours) || 0) * overtimeRate;
-                const sick_deduction = (Number(row.sick_days) || 0) * sickDeductionRate;
-                const permission_deduction = (Number(row.permission_days) || 0) * permissionDeductionRate;
-                const absent_deduction = (Number(row.absent_days) || 0) * absentDeductionRate;
-                const standby_bonus = (Number(row.standby_nights) || 0) * standbyRate;
-
-                // Housekeeping points rate update
-                const hkPoints = Number((row as any).hk_points) || 0;
-                const housekeeping_bonus = hkPoints * housekeepingRate;
-
-                // Frontdesk reservation bonuses
-                const firstNightsCount = Number((row as any).first_nights_count) || 0;
-                const nextNightsPoolCount = Number((row as any).next_nights_pool_count) || 0;
-                const frontdeskCount = Number((row as any).frontdesk_count) || 0;
-
-                const frontdesk_first_night_bonus = firstNightsCount * firstNightRate;
-                const frontdesk_next_nights_bonus_share = frontdeskCount > 0 
-                    ? (nextNightsPoolCount * nextNightRate) / frontdeskCount 
-                    : 0;
-
-                const bonuses = (Number(housekeeping_bonus) || 0) + 
-                                (Number(standby_bonus) || 0) + 
-                                (Number(frontdesk_first_night_bonus) || 0) + 
-                                (Number(frontdesk_next_nights_bonus_share) || 0) +
-                                (Number(overtime_bonus) || 0);
-
-                const deductions = (Number(late_deduction) || 0) + 
-                                   (Number(row.loan_deduction) || 0) + 
-                                   (Number(sick_deduction) || 0) + 
-                                   (Number(permission_deduction) || 0) + 
-                                   (Number(absent_deduction) || 0);
-
-                const total_salary = Math.max(0, (Number(row.base_salary) || 0) + bonuses - deductions);
-
-                return {
-                    ...row,
-                    late_deduction,
-                    overtime_bonus,
-                    sick_deduction,
-                    permission_deduction,
-                    absent_deduction,
-                    standby_bonus,
-                    housekeeping_bonus,
-                    frontdesk_first_night_bonus,
-                    frontdesk_next_nights_bonus_share,
-                    total_salary
-                };
-            })
-        );
-    }, [
-        firstNightRate,
-        nextNightRate,
-        housekeepingRate,
-        lateDeductionRate,
-        standbyRate,
-        overtimeRate,
-        absentDeductionRate,
-        sickDeductionRate,
-        permissionDeductionRate
-    ]);
-
-    const formatCurrency = (val: number) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-        }).format(val);
-    };
-
-    // Modify a cell value and recalculate
-    const handleCellChange = (userId: number, field: keyof PayrollStaffRow, value: any) => {
-        setStaffRows((prevRows) => 
-            prevRows.map((row) => {
-                if (row.user_id !== userId) return row;
-
-                const updatedRow = { ...row, [field]: value };
-
-                if (field === 'base_salary') updatedRow.base_salary = parseFloat(value) || 0;
-                if (field === 'holiday_quota') updatedRow.holiday_quota = parseInt(value) || 0;
-                if (field === 'attendance_days') updatedRow.attendance_days = parseInt(value) || 0;
-                
-                if (field === 'absent_days') {
-                    updatedRow.absent_days = parseInt(value) || 0;
-                    updatedRow.absent_deduction = updatedRow.absent_days * absentDeductionRate;
+            {
+                onSuccess: () => {
+                    toast.success(`Jadwal shift harian untuk ${selectedShiftStaff.name} berhasil disimpan.`);
+                    setIsShiftCalendarModalOpen(false);
+                    setIsSavingShifts(false);
+                    router.reload();
+                },
+                onError: (err) => {
+                    console.error(err);
+                    toast.error('Gagal menyimpan jadwal shift harian.');
+                    setIsSavingShifts(false);
                 }
-                if (field === 'sick_days') {
-                    updatedRow.sick_days = parseInt(value) || 0;
-                    updatedRow.sick_deduction = updatedRow.sick_days * sickDeductionRate;
-                }
-                if (field === 'permission_days') {
-                    updatedRow.permission_days = parseInt(value) || 0;
-                    updatedRow.permission_deduction = updatedRow.permission_days * permissionDeductionRate;
-                }
-                if (field === 'holiday_days') updatedRow.holiday_days = parseInt(value) || 0;
-
-                if (field === 'late_hours') {
-                    updatedRow.late_hours = parseFloat(value) || 0;
-                    updatedRow.late_deduction = updatedRow.late_hours * lateDeductionRate;
-                }
-                if (field === 'overtime_hours') {
-                    updatedRow.overtime_hours = parseFloat(value) || 0;
-                    updatedRow.overtime_bonus = updatedRow.overtime_hours * overtimeRate;
-                }
-                if (field === 'standby_nights') {
-                    updatedRow.standby_nights = parseInt(value) || 0;
-                    updatedRow.standby_bonus = updatedRow.standby_nights * standbyRate;
-                }
-                if (field === 'late_deduction') updatedRow.late_deduction = parseFloat(value) || 0;
-                if (field === 'loan_deduction') {
-                    const amount = parseFloat(value) || 0;
-                    updatedRow.loan_deduction = Math.min(amount, row.outstanding_loans);
-                }
-
-                // Math formula: Base + Housekeeping Points + Standby nights + Frontdesk bonuses + Overtime bonus - Deductions (Lateness, Loans, Absences, Sickness, Permission)
-                const bonuses = (Number(updatedRow.housekeeping_bonus) || 0) + 
-                                (Number(updatedRow.standby_bonus) || 0) + 
-                                (Number(updatedRow.frontdesk_first_night_bonus) || 0) + 
-                                (Number(updatedRow.frontdesk_next_nights_bonus_share) || 0) +
-                                (Number(updatedRow.overtime_bonus) || 0);
-                const deductions = (Number(updatedRow.late_deduction) || 0) + 
-                                   (Number(updatedRow.loan_deduction) || 0) + 
-                                   (Number(updatedRow.sick_deduction) || 0) + 
-                                   (Number(updatedRow.permission_deduction) || 0) + 
-                                   (Number(updatedRow.absent_deduction) || 0);
-                
-                updatedRow.total_salary = Math.max(0, (Number(updatedRow.base_salary) || 0) + bonuses - deductions);
-
-                return updatedRow;
-            })
+            }
         );
     };
 
-    // Handle excel attendance file upload
+    const handleSaveUserSettings = () => {
+        if (!editingStaff) return;
+        setIsUpdatingUserSettings(true);
+        router.post(
+            route('admin.finance.payroll.user-settings'),
+            {
+                user_id: editingStaff.user_id,
+                base_salary: staffBaseSalary,
+                fingerprint_id: staffFingerprintId || null,
+                shift_start_time: staffShiftStart,
+                shift_end_time: staffShiftEnd,
+            },
+            {
+                onSuccess: () => {
+                    toast.success(`Pengaturan gaji pokok & shift untuk ${editingStaff.name} berhasil diperbarui.`);
+                    setIsUserSettingsModalOpen(false);
+                    setIsUpdatingUserSettings(false);
+                    router.reload();
+                },
+                onError: (err) => {
+                    console.error(err);
+                    toast.error('Gagal memperbarui pengaturan gaji staff.');
+                    setIsUpdatingUserSettings(false);
+                }
+            }
+        );
+    };
+
     const handleFingerprintUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -418,80 +388,12 @@ export default function Payroll({ payrolls, wallets, userShifts, poolData, filte
         formData.append('file', file);
         formData.append('month', selectedMonth.toString());
         formData.append('year', selectedYear.toString());
-        formData.append('late_deduction_rate', lateDeductionRate.toString());
-        formData.append('overtime_rate', overtimeRate.toString());
-        formData.append('standby_rate', standbyRate.toString());
 
         try {
             const res = await apiPostForm<any>('/admin/finance/payroll/attendance', formData);
-            if (res.success && res.summary) {
-                const summary = res.summary as Array<{ 
-                    name: string; 
-                    fingerprint_id: string;
-                    present_days: number; 
-                    late_days: number; 
-                    late_hours: number;
-                    overtime_hours: number;
-                    absent_days: number;
-                    standby_nights: number;
-                    holiday_days: number;
-                    days_logs?: any[];
-                }>;
-                
-                const logsMap: Record<number, any[]> = {};
-                let matchCount = 0;
-                setStaffRows((prevRows) => 
-                    prevRows.map((row) => {
-                        // Match by fingerprint_id first, fallback to fuzzy name contains
-                        const matchedSummary = summary.find(
-                            (item) => (row.fingerprint_id && item.fingerprint_id === row.fingerprint_id) ||
-                                      item.name.toLowerCase().replace(/\s/g, '').includes(row.name.toLowerCase().replace(/\s/g, '')) ||
-                                      row.name.toLowerCase().replace(/\s/g, '').includes(item.name.toLowerCase().replace(/\s/g, ''))
-                        );
-
-                        if (matchedSummary) {
-                            matchCount++;
-                            if (matchedSummary.days_logs) {
-                                logsMap[row.user_id] = matchedSummary.days_logs;
-                            }
-                            const updatedRow = {
-                                ...row,
-                                attendance_days: matchedSummary.present_days,
-                                absent_days: matchedSummary.absent_days,
-                                late_days: matchedSummary.late_days,
-                                late_hours: matchedSummary.late_hours,
-                                overtime_hours: matchedSummary.overtime_hours,
-                                standby_nights: matchedSummary.standby_nights,
-                                holiday_days: matchedSummary.holiday_days || 0,
-                                
-                                // Recalculate rates
-                                late_deduction: matchedSummary.late_hours * lateDeductionRate,
-                                overtime_bonus: matchedSummary.overtime_hours * overtimeRate,
-                                standby_bonus: matchedSummary.standby_nights * standbyRate,
-                                absent_deduction: matchedSummary.absent_days * absentDeductionRate,
-                            };
-
-                            const bonuses = (Number(updatedRow.housekeeping_bonus) || 0) + 
-                                            (Number(updatedRow.standby_bonus) || 0) +
-                                            (Number(updatedRow.frontdesk_first_night_bonus) || 0) + 
-                                            (Number(updatedRow.frontdesk_next_nights_bonus_share) || 0) +
-                                            (Number(updatedRow.overtime_bonus) || 0);
-                            const deductions = (Number(updatedRow.late_deduction) || 0) + 
-                                               (Number(updatedRow.loan_deduction) || 0) +
-                                               (Number(updatedRow.sick_deduction) || 0) +
-                                               (Number(updatedRow.permission_deduction) || 0) +
-                                               (Number(updatedRow.absent_deduction) || 0);
-
-                            updatedRow.total_salary = Math.max(0, (Number(updatedRow.base_salary) || 0) + bonuses - deductions);
-                            return updatedRow;
-                        }
-
-                        return row;
-                    })
-                );
-
-                setImportedLogs(logsMap);
-                toast.success(`Berhasil mengimpor absensi sidik jari. ${matchCount} staff berhasil dicocokkan.`);
+            if (res.success) {
+                toast.success(res.message || 'Berhasil mengimpor data absensi ke database.');
+                router.reload();
             } else {
                 toast.error('Gagal memproses file absensi sidik jari.');
             }
@@ -504,85 +406,140 @@ export default function Payroll({ payrolls, wallets, userShifts, poolData, filte
         }
     };
 
-    // Save user settings (default start/end, default base salary, default holiday quota) and daily shifts
-    const handleSaveShiftSettings = () => {
-        if (!selectedUserForShift) return;
-        setIsSavingShift(true);
-
+    const handleSaveRates = () => {
+        setIsSavingRates(true);
         router.post(
-            route('admin.finance.payroll.user-settings'),
+            route('admin.finance.payroll.rates'),
             {
-                user_id: selectedUserForShift.user_id,
-                fingerprint_id: tempFingerprintId || null,
-                shift_start_time: tempShiftStart,
-                shift_end_time: tempShiftEnd,
-                base_salary: tempBaseSalary,
-                holiday_quota: tempHolidayQuota,
+                month: selectedMonth,
+                year: selectedYear,
+                first_night_rate: firstNightRate,
+                next_night_rate: nextNightRate,
+                housekeeping_bonus_mode: housekeepingBonusMode,
+                housekeeping_rate_per_point: housekeepingRate,
+                housekeeping_fixed_pool: housekeepingFixedPool,
+                housekeeping_pool_percentage: housekeepingPoolPercentage,
+                housekeeping_max_cap: housekeepingMaxCap,
+                late_deduction_rate: lateDeductionRate,
+                standby_rate: standbyRate,
+                overtime_rate: overtimeRate,
+                absent_deduction_rate: absentDeductionRate,
+                sick_deduction_rate: sickDeductionRate,
+                permission_deduction_rate: permissionDeductionRate,
+                follow_up_rate: followUpRate,
+                creation_rate: creationRate,
             },
             {
                 onSuccess: () => {
-                    // Save custom daily shifts list
-                    router.post(
-                        route('admin.finance.payroll.shifts'),
-                        {
-                            user_id: selectedUserForShift.user_id,
-                            shifts: dailyShifts,
-                        },
-                        {
-                            onSuccess: () => {
-                                toast.success('Jadwal shift & konfigurasi gaji berhasil disimpan.');
-                                setIsSavingShift(false);
-                                setIsShiftModalOpen(false);
-                                // Update local state
-                                setStaffRows((prev) => 
-                                    prev.map((row) => 
-                                        row.user_id === selectedUserForShift.user_id 
-                                            ? { ...row, fingerprint_id: tempFingerprintId || null, shift_start_time: tempShiftStart, shift_end_time: tempShiftEnd, base_salary: tempBaseSalary, holiday_quota: tempHolidayQuota } 
-                                            : row
-                                    )
-                                );
-                            },
-                            onError: () => {
-                                toast.error('Gagal menyimpan jadwal shift harian.');
-                                setIsSavingShift(false);
-                            }
-                        }
-                    );
+                    toast.success('Pengaturan tarif denda & insentif berhasil disimpan secara permanen di database.');
+                    setIsSavingRates(false);
+                    setIsRatesModalOpen(false);
+                    router.reload();
                 },
                 onError: () => {
-                    toast.error('Gagal menyimpan pengaturan.');
-                    setIsSavingShift(false);
+                    toast.error('Gagal menyimpan pengaturan tarif.');
+                    setIsSavingRates(false);
                 }
             }
         );
     };
 
-    // Save full payroll data
-    const [isSaving, setIsSaving] = useState(false);
-    const handleSavePayroll = () => {
-        if (!selectedWalletId) {
-            toast.error('Pilih rekening sumber pembayaran sebelum finalisasi gaji!');
-            return;
-        }
+    const handleGenerateBonuses = () => {
+        setIsGeneratingBonuses(true);
+        router.post(
+            route('admin.finance.payroll.generate-bonuses'),
+            {
+                month: selectedMonth,
+                year: selectedYear,
+                first_night_rate: firstNightRate,
+                next_night_rate: nextNightRate,
+                housekeeping_bonus_mode: housekeepingBonusMode,
+                housekeeping_rate_per_point: housekeepingRate,
+                housekeeping_fixed_pool: housekeepingFixedPool,
+                housekeeping_pool_percentage: housekeepingPoolPercentage,
+                housekeeping_max_cap: housekeepingMaxCap,
+                follow_up_rate: followUpRate,
+                creation_rate: creationRate,
+            },
+            {
+                onSuccess: () => {
+                    toast.success('Bonus Staff Performance (HK & FO) berhasil digenerate.');
+                    setIsGeneratingBonuses(false);
+                    router.reload();
+                },
+                onError: () => {
+                    toast.error('Gagal memproses bonus staff performance.');
+                    setIsGeneratingBonuses(false);
+                }
+            }
+        );
+    };
 
+    const handleSavePayroll = (replaceExisting: boolean = false) => {
         setIsSaving(true);
         router.post(
             route('admin.finance.payroll.store'),
             {
                 month: selectedMonth,
                 year: selectedYear,
-                wallet_id: selectedWalletId,
+                wallet_id: selectedWalletId || null,
+                replace_existing: replaceExisting,
                 payrolls: staffRows as any,
             },
             {
                 onSuccess: () => {
-                    toast.success('Laporan payroll & pengeluaran operasional berhasil disimpan ke sistem.');
+                    toast.success(replaceExisting ? 'Payroll versi baru berhasil dibuat dan versi lama diarsipkan.' : 'Data payroll berhasil disimpan.');
                     setIsSaving(false);
                 },
                 onError: (err) => {
                     console.error('Save payroll failed:', err);
-                    toast.error('Gagal menyimpan laporan payroll.');
+                    toast.error('Gagal menyimpan payroll.');
                     setIsSaving(false);
+                }
+            }
+        );
+    };
+
+    const handleApprovePayroll = () => {
+        setIsApproving(true);
+        router.post(
+            route('admin.finance.payroll.approve'),
+            { month: selectedMonth, year: selectedYear },
+            {
+                onSuccess: () => {
+                    toast.success('Payroll berhasil disetujui (Approved).');
+                    setIsApproving(false);
+                },
+                onError: () => {
+                    toast.error('Gagal me-review payroll.');
+                    setIsApproving(false);
+                }
+            }
+        );
+    };
+
+    const handlePayPayroll = () => {
+        if (!selectedWalletId) {
+            toast.error('Pilih rekening sumber pembayaran sebelum menandai lunas!');
+            return;
+        }
+
+        setIsPaying(true);
+        router.post(
+            route('admin.finance.payroll.pay'),
+            {
+                month: selectedMonth,
+                year: selectedYear,
+                wallet_id: selectedWalletId,
+            },
+            {
+                onSuccess: () => {
+                    toast.success('Payroll berhasil dibayarkan dan transaksi kas/wallet telah dicatat.');
+                    setIsPaying(false);
+                },
+                onError: () => {
+                    toast.error('Gagal memproses pembayaran payroll.');
+                    setIsPaying(false);
                 }
             }
         );
@@ -596,12 +553,17 @@ export default function Payroll({ payrolls, wallets, userShifts, poolData, filte
                                (Number(curr.standby_bonus) || 0) + 
                                (Number(curr.frontdesk_first_night_bonus) || 0) + 
                                (Number(curr.frontdesk_next_nights_bonus_share) || 0) + 
-                               (Number(curr.overtime_bonus) || 0);
+                               (Number(curr.performance_bonus) || 0) + 
+                               (Number(curr.overtime_bonus) || 0) + 
+                               (Number(curr.custom_allowance) || 0);
+
                 acc.deductions += (Number(curr.late_deduction) || 0) + 
                                   (Number(curr.loan_deduction) || 0) + 
                                   (Number(curr.sick_deduction) || 0) + 
                                   (Number(curr.permission_deduction) || 0) + 
-                                  (Number(curr.absent_deduction) || 0);
+                                  (Number(curr.absent_deduction) || 0) + 
+                                  (Number(curr.custom_deduction) || 0);
+
                 acc.net += Number(curr.total_salary) || 0;
                 return acc;
             },
@@ -609,92 +571,198 @@ export default function Payroll({ payrolls, wallets, userShifts, poolData, filte
         );
     }, [staffRows]);
 
-    const openShiftModal = (row: PayrollStaffRow) => {
-        setSelectedUserForShift(row);
-        setTempFingerprintId(row.fingerprint_id || '');
-        setTempShiftStart(row.shift_start_time || '08:00');
-        setTempShiftEnd(row.shift_end_time || '16:00');
-        setTempBaseSalary(row.original_base_salary || row.base_salary);
-        setTempHolidayQuota(row.holiday_quota || 4);
-
-        // Build daily shifts for selectedMonth and selectedYear
-        const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-        const existingShifts = userShifts[row.user_id] || [];
-        const shiftsList = [];
-
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dateString = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const existing = existingShifts.find(s => s.date === dateString);
-
-            shiftsList.push({
-                date: dateString,
-                shift_start_time: existing?.shift_start_time || row.shift_start_time || '08:00',
-                shift_end_time: existing?.shift_end_time || row.shift_end_time || '16:00',
-                is_off_day: existing ? existing.is_off_day : new Date(selectedYear, selectedMonth - 1, d).getDay() === 0 // default sunday off
-            });
-        }
-
-        setDailyShifts(shiftsList);
-        setShowDailyShifts(false);
-        setIsShiftModalOpen(true);
+    const formatCurrency = (val: number) => {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+        }).format(val);
     };
+
+    const openPrintModal = (row: PayrollStaffRow) => {
+        setSelectedUserForPrint(row);
+        setIsPrintModalOpen(true);
+    };
+
+    const handlePrint = () => {
+        if (!selectedUserForPrint) return;
+        const printContent = document.getElementById('printable-payslip')?.innerHTML;
+        if (!printContent) return;
+
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Slip Gaji Versi ${selectedUserForPrint.version || 1} - ${selectedUserForPrint.name}</title>
+                    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+                    <style>
+                        body { padding: 40px; background-color: white; font-family: 'Courier New', Courier, monospace; }
+                        @media print { body { padding: 0; } }
+                    </style>
+                </head>
+                <body>
+                    ${printContent}
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            setTimeout(function() { window.close(); }, 500);
+                        }
+                    </script>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+    };
+
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case 'paid':
+                return <Badge className="bg-emerald-600 text-white font-bold">Lunas (Paid)</Badge>;
+            case 'approved':
+                return <Badge className="bg-blue-600 text-white font-bold">Approved</Badge>;
+            case 'generated':
+            case 'reviewed':
+                return <Badge className="bg-purple-600 text-white font-bold">Generated (v{activeVersion})</Badge>;
+            case 'archived':
+                return <Badge variant="outline" className="text-slate-400">Arsip</Badge>;
+            default:
+                return <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">Draft</Badge>;
+        }
+    };
+
+    // Calculate detailed breakdown for selected printable staff
+    const payslipTotals = useMemo(() => {
+        if (!selectedUserForPrint) return { totalAllowances: 0, totalDeductions: 0, netSalary: 0 };
+        const u = selectedUserForPrint;
+        const base = Number(u.base_salary) || 0;
+        const allowances = base + 
+            (Number(u.performance_bonus) || 0) + 
+            (Number(u.frontdesk_first_night_bonus) || 0) + 
+            (Number(u.frontdesk_next_nights_bonus_share) || 0) + 
+            (Number(u.housekeeping_bonus) || 0) + 
+            (Number(u.standby_bonus) || 0) + 
+            (Number(u.overtime_bonus) || 0) + 
+            (Number(u.custom_allowance) || 0);
+
+        const deductions = (Number(u.late_deduction) || 0) + 
+            (Number(u.absent_deduction) || 0) + 
+            (Number(u.sick_deduction) || 0) + 
+            (Number(u.permission_deduction) || 0) + 
+            (Number(u.loan_deduction) || 0) + 
+            (Number(u.custom_deduction) || 0);
+
+        return {
+            totalAllowances: allowances,
+            totalDeductions: deductions,
+            netSalary: maxZero(allowances - deductions),
+        };
+    }, [selectedUserForPrint]);
 
     return (
         <AdminLayout breadcrumbs={breadcrumbs}>
-            <Head title="Sistem Payroll & Gaji" />
+            <Head title="Sistem Payroll & Gaji Karyawan" />
 
             <div className="space-y-6 max-w-7xl mx-auto pb-12">
-                {/* Header */}
+                {/* Header Title & Actions */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                            <Coins className="h-6 w-6 text-emerald-600" />
-                            Sistem Payroll & Penggajian Karyawan
-                        </h1>
+                        <div className="flex items-center gap-2 mb-1">
+                            <h1 className="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                <Coins className="h-6 w-6 text-emerald-600" />
+                                Sistem Payroll & Penggajian Karyawan
+                            </h1>
+                            {getStatusBadge(activeStatus)}
+                            <Badge variant="outline" className="border-slate-300 font-bold">Versi {activeVersion}</Badge>
+                        </div>
                         <p className="text-sm text-slate-500 font-medium">
-                            Kelola gaji bulanan, shift harian staff, potongan absensi/terlambat per jam, bonus lembur, dan integrasi cicilan casbon.
+                            Kelola alur 7-langkah HR, gaji pokok prorated, penyesuaian khusus (bonus/potongan manual), dan rincian lengkap pembayaran lunas.
                         </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setIsRatesModalOpen(true)} className="h-9 font-bold border-purple-300 text-purple-800 bg-purple-50 hover:bg-purple-100">
+                            <SlidersHorizontal className="w-4 h-4 mr-1.5" /> Pengaturan Tarif Denda & Insentif
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setIsVersionModalOpen(true)} className="h-9 font-bold">
+                            <History className="w-4 h-4 mr-1.5 text-blue-600" /> Histori Versi ({versions.length})
+                        </Button>
+                        <Link href={route('admin.finance.payroll.attendance-review')}>
+                            <Button variant="outline" size="sm" className="h-9 font-bold border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">
+                                <Clock className="w-4 h-4 mr-1.5" /> Review Absensi Staff
+                            </Button>
+                        </Link>
                     </div>
                 </div>
 
+                {/* 7-STEP WORKFLOW GUIDE BANNER */}
+                <Card className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white border-0 shadow-lg">
+                    <CardHeader className="p-4 pb-2 border-b border-slate-800">
+                        <CardTitle className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                            <Sparkles className="w-4 h-4" /> Workflow Utama Payroll HR (7 Langkah Sederhana)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                        <div className="grid grid-cols-2 md:grid-cols-7 gap-2 text-center text-xs">
+                            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400">Step 1</span>
+                                <div className="font-bold text-white flex items-center justify-center gap-1"><Upload className="w-3.5 h-3.5 text-emerald-400" /> Fingerprint</div>
+                            </div>
+                            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400">Step 2</span>
+                                <div className="font-bold text-white flex items-center justify-center gap-1"><Clock className="w-3.5 h-3.5 text-blue-400" /> Review</div>
+                            </div>
+                            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400">Step 3</span>
+                                <div className="font-bold text-white flex items-center justify-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-amber-400" /> Koreksi</div>
+                            </div>
+                            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400">Step 4</span>
+                                <div className="font-bold text-white flex items-center justify-center gap-1"><TrendingUp className="w-3.5 h-3.5 text-purple-400" /> Bonus HK/FO</div>
+                            </div>
+                            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400">Step 5</span>
+                                <div className="font-bold text-white flex items-center justify-center gap-1"><Calculator className="w-3.5 h-3.5 text-indigo-400" /> Generate</div>
+                            </div>
+                            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400">Step 6</span>
+                                <div className="font-bold text-white flex items-center justify-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Approve</div>
+                            </div>
+                            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400">Step 7</span>
+                                <div className="font-bold text-white flex items-center justify-center gap-1"><CreditCard className="w-3.5 h-3.5 text-emerald-400" /> Bayar (Paid)</div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Control Panel Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                     {/* Period Card */}
                     <Card className="shadow-md">
                         <CardHeader className="p-4 pb-2">
                             <CardTitle className="text-sm font-bold flex items-center gap-1.5 text-slate-700">
-                                <Calendar className="h-4 w-4 text-slate-400" />
-                                Periode Payroll
+                                <CalendarIcon className="h-4 w-4 text-slate-400" /> Periode Payroll
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0 space-y-3">
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase">Bulan</label>
-                                                                    <Select 
-                                        value={selectedMonth.toString()} 
-                                        onValueChange={(v) => handleMonthChange(parseInt(v))}
-                                    >
-                                        <SelectTrigger className="h-9">
-                                            <SelectValue />
-                                        </SelectTrigger>
+                                    <Select value={selectedMonth.toString()} onValueChange={(v) => handleMonthChange(parseInt(v))}>
+                                        <SelectTrigger className="h-9 font-bold"><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                             {monthsName.map((m, idx) => (
-                                                <SelectItem key={idx + 1} value={(idx + 1).toString()}>
-                                                    {m}
-                                                </SelectItem>
+                                                <SelectItem key={idx + 1} value={(idx + 1).toString()}>{m}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase">Tahun</label>
-                                    <Select 
-                                        value={selectedYear.toString()} 
-                                        onValueChange={(v) => handleYearChange(parseInt(v))}
-                                    >
-                                        <SelectTrigger className="h-9">
-                                            <SelectValue />
-                                        </SelectTrigger>
+                                    <Select value={selectedYear.toString()} onValueChange={(v) => handleYearChange(parseInt(v))}>
+                                        <SelectTrigger className="h-9 font-bold"><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                             {[2025, 2026, 2027].map((y) => (
                                                 <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
@@ -710,493 +778,252 @@ export default function Payroll({ payrolls, wallets, userShifts, poolData, filte
                     <Card className="shadow-md">
                         <CardHeader className="p-4 pb-2">
                             <CardTitle className="text-sm font-bold flex items-center gap-1.5 text-slate-700">
-                                <Upload className="h-4 w-4 text-slate-400" />
-                                Impor Data Absensi
+                                <Upload className="h-4 w-4 text-slate-400" /> Impor Data Absensi (Step 1)
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0 space-y-3">
-                            <div className="relative">
-                                <Input
-                                    type="file"
-                                    accept=".xls,.xlsx,.csv"
-                                    onChange={handleFingerprintUpload}
-                                    className="hidden"
-                                    id="fingerprint-file-input"
-                                    disabled={isParsingAttendance}
-                                />
-                                <Button asChild variant="outline" size="sm" className="w-full h-9" disabled={isParsingAttendance}>
-                                    <label htmlFor="fingerprint-file-input" className="cursor-pointer font-bold flex items-center justify-center gap-1">
-                                        {isParsingAttendance ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                Membaca...
-                                            </>
-                                        ) : 'Pilih File Excel / CSV'}
-                                    </label>
-                                </Button>
-                            </div>
+                            <Input
+                                type="file"
+                                accept=".xls,.xlsx,.csv"
+                                onChange={handleFingerprintUpload}
+                                className="hidden"
+                                id="fingerprint-file-input"
+                                disabled={isParsingAttendance}
+                            />
+                            <Button asChild variant="outline" size="sm" className="w-full h-9 font-bold" disabled={isParsingAttendance}>
+                                <label htmlFor="fingerprint-file-input" className="cursor-pointer flex items-center justify-center gap-1">
+                                    {isParsingAttendance ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Pilih File Excel / CSV'}
+                                </label>
+                            </Button>
                         </CardContent>
                     </Card>
 
-                    {/* Summary Total Card */}
-                    <Card className="shadow-md md:col-span-2 flex flex-col justify-between">
+                    {/* Generate Bonus Performance Card */}
+                    <Card className="shadow-md">
                         <CardHeader className="p-4 pb-2">
-                            <CardTitle className="text-sm font-bold text-slate-700">Total Akumulasi Pembayaran Gaji Karyawan</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-4 pt-0">
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="space-y-0.5">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase">Gaji Pokok</span>
-                                    <p className="text-sm font-black text-slate-800">{formatCurrency(totalPayrollSummary.base)}</p>
-                                </div>
-                                <div className="space-y-0.5">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase">Total Bonus</span>
-                                    <p className="text-sm font-black text-emerald-600">+{formatCurrency(totalPayrollSummary.bonuses)}</p>
-                                </div>
-                                <div className="space-y-0.5">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase">Total Potongan</span>
-                                    <p className="text-sm font-black text-red-500">-{formatCurrency(totalPayrollSummary.deductions)}</p>
-                                </div>
-                                <div className="space-y-0.5">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase">Gaji Bersih (Net)</span>
-                                    <p className="text-base font-black text-blue-600">{formatCurrency(totalPayrollSummary.net)}</p>
-                                </div>
-                            </div>
-
-                            <div className="mt-4 pt-3 border-t flex flex-wrap items-center justify-between gap-4">
-                                <div className="flex items-center gap-3">
-                                    <div>
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Rekening Pembayar (Gaji) <span className="text-red-500">*</span></label>
-                                        <select
-                                            value={selectedWalletId}
-                                            onChange={(e) => setSelectedWalletId(e.target.value)}
-                                            className="border border-slate-200 rounded h-9 px-2.5 bg-background text-xs w-48 font-bold focus:ring-1 focus:ring-primary focus:border-primary"
-                                        >
-                                            <option value="">— Pilih Rekening —</option>
-                                            {wallets?.map((w) => (
-                                                <option key={w.id} value={w.id}>{w.name} ({formatCurrency(w.balance)})</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
+                            <CardTitle className="text-sm font-bold flex items-center justify-between text-slate-700">
+                                <span className="flex items-center gap-1.5">
+                                    <TrendingUp className="h-4 w-4 text-purple-600" /> Bonus Staff (Step 4)
+                                </span>
                                 <Button 
-                                    onClick={handleSavePayroll} 
-                                    disabled={isSaving || staffRows.length === 0 || !selectedWalletId}
-                                    className="bg-emerald-600 hover:bg-emerald-700 font-bold px-6 shadow-md h-9"
+                                    onClick={() => setIsRatesModalOpen(true)} 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-6 px-2 text-[10px] font-bold text-slate-500 hover:text-purple-700"
                                 >
-                                    {isSaving ? 'Menyimpan...' : (
-                                        <>
-                                            <Save className="h-4 w-4 mr-1.5" />
-                                            Simpan & Finalisasi Gaji
-                                        </>
-                                    )}
+                                    <SlidersHorizontal className="w-3 h-3 mr-1" /> Atur Tarif
                                 </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Sharing Pool Info Banner */}
-                    {poolData && (
-                        <div className="lg:col-span-4 bg-gradient-to-r from-blue-50 to-indigo-50/50 border border-blue-100 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
-                            <div className="space-y-1">
-                                <div className="text-xs font-black text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
-                                    <Sparkles className="h-4 w-4 text-blue-600 animate-pulse" />
-                                    Sharing Pool Housekeeping Bulan Ini
-                                </div>
-                                <p className="text-xs text-blue-600 font-medium">
-                                    Total 0.7% omset bersih dari seluruh properti aktif (di luar properti defisit) yang dibagi rata berdasarkan kontribusi poin.
-                                </p>
-                            </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 bg-white/80 p-3 rounded-xl border border-blue-100/50 shrink-0">
-                                <div className="space-y-0.5">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Omset Gowa</span>
-                                    <span className="text-xs font-black text-slate-800">{formatCurrency(poolData.eligible_turnover)}</span>
-                                </div>
-                                <div className="space-y-0.5">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Sharing Pool (0.7%)</span>
-                                    <span className="text-xs font-black text-blue-700">{formatCurrency(poolData.total_pool)}</span>
-                                </div>
-                                <div className="space-y-0.5">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Poin HK</span>
-                                    <span className="text-xs font-black text-slate-800">{poolData.total_points.toFixed(2)} Poin</span>
-                                </div>
-                                <div className="space-y-0.5">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Per Poin</span>
-                                    <span className="text-xs font-black text-indigo-700">{formatCurrency(poolData.point_rate)}</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Settings Configuration Card */}
-                    <Card className="shadow-md lg:col-span-4">
-                        <CardHeader className="p-4 pb-2">
-                            <CardTitle className="text-sm font-bold flex items-center gap-1.5 text-slate-700">
-                                <Calculator className="h-4 w-4 text-slate-400" />
-                                Parameter Tarif Lembur, Jaga Malam, Hasil Reservasi & Denda Absensi
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="p-4 pt-0">
-                            <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-9 gap-3">
-                                <div>
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tight block truncate">Lembur (/Jam)</label>
-                                    <CurrencyInput
-                                        value={overtimeRate}
-                                        onChange={setOvertimeRate}
-                                        className="h-8 text-xs font-bold mt-1"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tight block truncate">Lambat (/Jam)</label>
-                                    <CurrencyInput
-                                        value={lateDeductionRate}
-                                        onChange={setLateDeductionRate}
-                                        className="h-8 text-xs font-bold mt-1"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tight block truncate">Sakit (/Hari)</label>
-                                    <CurrencyInput
-                                        value={sickDeductionRate}
-                                        onChange={setSickDeductionRate}
-                                        className="h-8 text-xs font-bold mt-1"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tight block truncate">Izin (/Hari)</label>
-                                    <CurrencyInput
-                                        value={permissionDeductionRate}
-                                        onChange={setPermissionDeductionRate}
-                                        className="h-8 text-xs font-bold mt-1"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tight block truncate">Alpha (/Hari)</label>
-                                    <CurrencyInput
-                                        value={absentDeductionRate}
-                                        onChange={setAbsentDeductionRate}
-                                        className="h-8 text-xs font-bold mt-1"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tight block truncate">Jaga Malam</label>
-                                    <CurrencyInput
-                                        value={standbyRate}
-                                        onChange={setStandbyRate}
-                                        className="h-8 text-xs font-bold mt-1"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tight block truncate">Poin HK (/Poin)</label>
-                                    <CurrencyInput
-                                        value={housekeepingRate}
-                                        onChange={setHousekeepingRate}
-                                        className="h-8 text-xs font-bold mt-1"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tight block truncate">FD Reservasi Mlm 1</label>
-                                    <CurrencyInput
-                                        value={firstNightRate}
-                                        onChange={setFirstNightRate}
-                                        className="h-8 text-xs font-bold mt-1"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-tight block truncate">FD Share Mlm 2+</label>
-                                    <CurrencyInput
-                                        value={nextNightRate}
-                                        onChange={setNextNightRate}
-                                        className="h-8 text-xs font-bold mt-1"
-                                    />
-                                </div>
+                        <CardContent className="p-4 pt-0 space-y-3">
+                            <Button 
+                                onClick={handleGenerateBonuses}
+                                disabled={isGeneratingBonuses}
+                                variant="outline" 
+                                size="sm" 
+                                className="w-full h-9 font-bold border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100"
+                            >
+                                {isGeneratingBonuses ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Generate & Finalkan Bonus HK/FO'}
+                            </Button>
+                        </CardContent>
+                    </Card>
+
+                    {/* Summary & Lifecycle Actions */}
+                    <Card className="shadow-md flex flex-col justify-between">
+                        <CardHeader className="p-4 pb-2">
+                            <CardTitle className="text-sm font-bold text-slate-700">Total Akumulasi Pembayaran Gaji</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 pt-0 space-y-3">
+                            <div className="flex items-center justify-between border-b pb-2">
+                                <span className="text-xs text-slate-500 font-medium">Gaji Bersih (Net)</span>
+                                <span className="text-base font-black text-emerald-600">{formatCurrency(totalPayrollSummary.net)}</span>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase block">Rekening Pembayar <span className="text-red-500">*</span></label>
+                                <select
+                                    value={selectedWalletId}
+                                    onChange={(e) => setSelectedWalletId(e.target.value)}
+                                    className="border border-slate-200 rounded h-8 px-2 bg-background text-xs w-full font-bold focus:ring-1 focus:ring-primary"
+                                >
+                                    <option value="">— Pilih Rekening Sumber —</option>
+                                    {wallets?.map((w) => (
+                                        <option key={w.id} value={w.id}>{w.name} ({formatCurrency(w.balance)})</option>
+                                    ))}
+                                </select>
                             </div>
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* Payroll Table */}
-                <Card className="shadow-lg overflow-hidden">
-                    <CardHeader className="bg-slate-50 p-4 border-b">
-                        <CardTitle className="text-base font-black text-slate-800">Daftar Rincian & Kalkulasi Gaji Karyawan</CardTitle>
+                {/* Workflow Action Buttons Bar */}
+                <div className="bg-slate-100 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                        <Button 
+                            onClick={() => handleSavePayroll(false)} 
+                            disabled={isSaving} 
+                            size="sm" 
+                            className="bg-indigo-600 hover:bg-indigo-700 font-bold h-9"
+                        >
+                            <Save className="w-4 h-4 mr-1.5" /> Simpan Draft / Generate (v{activeVersion})
+                        </Button>
+                        {staffRows[0]?.stored && (
+                            <Button 
+                                onClick={() => handleSavePayroll(true)} 
+                                disabled={isSaving} 
+                                variant="outline"
+                                size="sm" 
+                                className="border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 font-bold h-9"
+                            >
+                                <RefreshCw className="w-4 h-4 mr-1.5" /> Buat Versi Baru (Regenerate v{activeVersion + 1})
+                            </Button>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {activeStatus !== 'approved' && activeStatus !== 'paid' && (
+                            <Button 
+                                onClick={handleApprovePayroll} 
+                                disabled={isApproving || !staffRows[0]?.stored} 
+                                size="sm" 
+                                className="bg-blue-600 hover:bg-blue-700 font-bold h-9"
+                            >
+                                <ShieldCheck className="w-4 h-4 mr-1.5" /> Approve Payroll
+                            </Button>
+                        )}
+                        <Button 
+                            onClick={handlePayPayroll} 
+                            disabled={isPaying || !selectedWalletId || activeStatus === 'paid'} 
+                            size="sm" 
+                            className="bg-emerald-600 hover:bg-emerald-700 font-bold h-9"
+                        >
+                            <CreditCard className="w-4 h-4 mr-1.5" /> Tandai Lunas (Mark as Paid)
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Main Payroll Staff Table */}
+                <Card className="shadow-md">
+                    <CardHeader className="p-4 border-b flex flex-row items-center justify-between">
+                        <CardTitle className="text-base font-bold text-slate-800">Tabel Rincian Gaji Staff (Versi {activeVersion})</CardTitle>
+                        <p className="text-xs text-slate-400 font-medium">Klik <span className="font-bold text-indigo-600">Adjust</span> untuk penyesuaian khusus (bonus/potongan manual) per staff.</p>
                     </CardHeader>
                     <CardContent className="p-0 overflow-x-auto">
-                        <Table className="min-w-[1450px]">
-                            <TableHeader>
-                                <TableRow className="bg-slate-100/50">
-                                    <TableHead className="font-bold py-3 pl-6">Nama / Info Shift</TableHead>
-                                    <TableHead className="font-bold py-3">Gaji Pokok</TableHead>
-                                    <TableHead className="font-bold py-3 text-center">Kehadiran (Hdr / Skt / Ijn / Alp / Lbr)</TableHead>
-                                    <TableHead className="font-bold py-3 text-center">Keterlambatan (Jam)</TableHead>
-                                    <TableHead className="font-bold py-3 text-center">Lembur (Jam)</TableHead>
-                                    <TableHead className="font-bold py-3 text-center">Jaga Malam (HK)</TableHead>
-                                    <TableHead className="font-bold py-3">Bonus Poin HK</TableHead>
-                                    <TableHead className="font-bold py-3">Bonus FD (Mlm 1 / Share)</TableHead>
-                                    <TableHead className="font-bold py-3">Daftar Potongan</TableHead>
-                                    <TableHead className="font-bold py-3">Gaji Bersih</TableHead>
-                                    <TableHead className="font-bold py-3">Status</TableHead>
-                                    <TableHead className="font-bold py-3 pr-6 text-right">Aksi</TableHead>
+                        <Table>
+                            <TableHeader className="bg-slate-50">
+                                <TableRow>
+                                    <TableHead className="font-bold text-xs">Nama Staff & Role</TableHead>
+                                    <TableHead className="font-bold text-xs">Gaji Pokok (Prorated)</TableHead>
+                                    <TableHead className="font-bold text-xs">Hadir / Terlambat</TableHead>
+                                    <TableHead className="font-bold text-xs">Rincian Bonus & Insentif</TableHead>
+                                    <TableHead className="font-bold text-xs">Rincian Potongan & Denda</TableHead>
+                                    <TableHead className="font-bold text-xs">Total Net Salary</TableHead>
+                                    <TableHead className="font-bold text-xs text-right">Aksi</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {staffRows.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={12} className="h-32 text-center text-slate-400">
-                                            Tidak ada staff terdaftar.
+                                        <TableCell colSpan={7} className="text-center py-12 text-slate-400 font-medium">
+                                            Belum ada data staff untuk periode ini.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    staffRows.map((row) => (
-                                        <TableRow key={row.user_id} className="hover:bg-slate-50/50">
-                                            {/* Name / Role / Shift settings */}
-                                            <TableCell className="py-3 pl-6">
-                                                <div className="font-bold text-slate-800">{row.name}</div>
-                                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                                                    <Badge variant="secondary" className="capitalize text-[9px] font-bold px-1 py-0">
-                                                        {row.role.replace('_', ' ')}
+                                    staffRows.map((row, idx) => (
+                                        <TableRow key={row.user_id} className="hover:bg-slate-50/80">
+                                            <TableCell>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-bold text-xs text-slate-800">{row.name}</span>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-5 w-5 text-slate-400 hover:text-blue-600 hover:bg-blue-50" 
+                                                        onClick={() => openUserSettingsModal(row)}
+                                                        title="Edit Gaji Pokok & Shift Standar Staff"
+                                                    >
+                                                        <Settings className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 uppercase font-semibold">{row.role}</div>
+                                                {row.prorated && (
+                                                    <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-300 mt-0.5">
+                                                        Prorated ({row.active_employment_days}/26 hr)
                                                     </Badge>
-                                                    <span className="text-[9px] text-slate-400 font-semibold flex items-center gap-0.5">
-                                                        <Clock className="h-2.5 w-2.5" />
-                                                        {row.shift_start_time} - {row.shift_end_time}
-                                                    </span>
-                                                    {row.holiday_quota !== null && (
-                                                        <span className="text-[9px] text-slate-400 font-bold">
-                                                            Quota Off: {row.holiday_quota} Hari
-                                                        </span>
-                                                    )}
-                                                    {row.fingerprint_id && (
-                                                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-blue-200 text-blue-600 bg-blue-50/20 font-bold">
-                                                            ID: {row.fingerprint_id}
-                                                        </Badge>
-                                                    )}
-                                                </div>
+                                                )}
                                             </TableCell>
-
-                                            {/* Base Salary */}
                                             <TableCell>
-                                                <div className="flex flex-col gap-1">
-                                                    <CurrencyInput
-                                                        value={row.base_salary}
-                                                        onChange={(val) => handleCellChange(row.user_id, 'base_salary', val)}
-                                                        className="w-32 h-8 text-xs font-bold"
-                                                    />
-                                                    {row.prorated && (
-                                                        <span className="text-[9px] text-blue-600 font-bold bg-blue-50 px-1 py-0.5 rounded border border-blue-100 w-fit" title={`Diproporsikan karena masa kerja aktif: ${row.active_employment_days} hari kerja`}>
-                                                            Prorata ({row.active_employment_days}/26 Hari)
-                                                        </span>
-                                                    )}
+                                                <div className="font-bold text-xs flex items-center gap-1">
+                                                    {formatCurrency(row.base_salary)}
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-4 w-4 text-slate-400 hover:text-blue-600" 
+                                                        onClick={() => openUserSettingsModal(row)}
+                                                        title="Ubah Gaji Pokok"
+                                                    >
+                                                        <Edit className="w-3 h-3" />
+                                                    </Button>
                                                 </div>
                                             </TableCell>
-
-                                            {/* Attendance details (Hdr / Skt / Ijn / Alp / Lbr) */}
-                                            <TableCell className="text-center">
-                                                <div className="flex flex-col items-center gap-1.5">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        <Input
-                                                            type="number"
-                                                            value={row.attendance_days}
-                                                            onChange={(e) => handleCellChange(row.user_id, 'attendance_days', e.target.value)}
-                                                            className="w-8 h-8 text-center text-xs p-0 font-bold border-emerald-200"
-                                                            title="Hadir"
-                                                        />
-                                                        <Input
-                                                            type="number"
-                                                            value={row.sick_days}
-                                                            onChange={(e) => handleCellChange(row.user_id, 'sick_days', e.target.value)}
-                                                            className="w-8 h-8 text-center text-xs p-0 font-bold border-yellow-200"
-                                                            title="Sakit"
-                                                        />
-                                                        <Input
-                                                            type="number"
-                                                            value={row.permission_days}
-                                                            onChange={(e) => handleCellChange(row.user_id, 'permission_days', e.target.value)}
-                                                            className="w-8 h-8 text-center text-xs p-0 font-bold border-sky-200"
-                                                            title="Izin"
-                                                        />
-                                                        <Input
-                                                            type="number"
-                                                            value={row.absent_days}
-                                                            onChange={(e) => handleCellChange(row.user_id, 'absent_days', e.target.value)}
-                                                            className="w-8 h-8 text-center text-xs p-0 font-bold border-rose-200"
-                                                            title="Alpa"
-                                                        />
-                                                        <Input
-                                                            type="number"
-                                                            value={row.holiday_days}
-                                                            onChange={(e) => handleCellChange(row.user_id, 'holiday_days', e.target.value)}
-                                                            className="w-8 h-8 text-center text-xs p-0 font-bold border-slate-200"
-                                                            title="Libur"
-                                                        />
+                                            <TableCell className="text-xs space-y-0.5">
+                                                <div>Hadir: <span className="font-bold">{row.attendance_days} hari</span></div>
+                                                {row.late_hours > 0 && <div className="text-red-500 font-semibold">Late: {row.late_hours} jam</div>}
+                                            </TableCell>
+                                            <TableCell className="text-xs space-y-0.5 font-medium">
+                                                {row.performance_bonus > 0 && <div className="text-purple-600">FO Follow-Up: +{formatCurrency(row.performance_bonus)}</div>}
+                                                {row.frontdesk_first_night_bonus > 0 && <div className="text-blue-600">FO Input Data: +{formatCurrency(row.frontdesk_first_night_bonus)}</div>}
+                                                {row.frontdesk_next_nights_bonus_share > 0 && <div className="text-indigo-600">FO Pool Malam: +{formatCurrency(row.frontdesk_next_nights_bonus_share)}</div>}
+                                                {row.housekeeping_bonus > 0 && <div className="text-emerald-600">HK Poin: +{formatCurrency(row.housekeeping_bonus)}</div>}
+                                                {row.standby_bonus > 0 && <div className="text-amber-600">Standby: +{formatCurrency(row.standby_bonus)}</div>}
+                                                {row.overtime_bonus > 0 && <div className="text-emerald-600">Lembur: +{formatCurrency(row.overtime_bonus)}</div>}
+                                                {row.custom_allowance > 0 && (
+                                                    <div className="text-indigo-600 font-bold">
+                                                        Bonus Khusus: +{formatCurrency(row.custom_allowance)}
+                                                        {row.custom_allowance_reason && <span className="block text-[10px] font-normal text-slate-400">({row.custom_allowance_reason})</span>}
                                                     </div>
-                                                    {importedLogs[row.user_id] && (
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => openShiftModal(row)}
-                                                            className="text-[9px] text-emerald-600 hover:text-emerald-700 font-black tracking-wide hover:underline cursor-pointer flex items-center gap-0.5"
-                                                        >
-                                                            <Clock className="w-2.5 h-2.5" /> Lihat Rincian Harian
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-
-                                            {/* Late Hours */}
-                                            <TableCell className="text-center">
-                                                <div className="flex flex-col items-center gap-1">
-                                                    <Input
-                                                        type="number"
-                                                        step="0.1"
-                                                        value={row.late_hours}
-                                                        onChange={(e) => handleCellChange(row.user_id, 'late_hours', e.target.value)}
-                                                        className="w-14 h-8 text-center text-xs font-bold border-amber-200"
-                                                        title="Jam Terlambat"
-                                                    />
-                                                    {row.late_deduction > 0 && (
-                                                        <span className="text-[10px] text-red-500 font-bold">
-                                                            -{formatCurrency(row.late_deduction)}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-
-                                            {/* Overtime Hours */}
-                                            <TableCell className="text-center">
-                                                <div className="flex flex-col items-center gap-1">
-                                                    <Input
-                                                        type="number"
-                                                        step="0.1"
-                                                        value={row.overtime_hours}
-                                                        onChange={(e) => handleCellChange(row.user_id, 'overtime_hours', e.target.value)}
-                                                        className="w-14 h-8 text-center text-xs font-bold border-emerald-200"
-                                                        title="Jam Lembur"
-                                                    />
-                                                    {row.overtime_bonus > 0 && (
-                                                        <span className="text-[10px] text-emerald-600 font-bold">
-                                                            +{formatCurrency(row.overtime_bonus)}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-
-                                            {/* Jaga Malam Standby Nights */}
-                                            <TableCell className="text-center">
-                                                {row.role === 'housekeeping' ? (
-                                                    <div className="flex flex-col items-center justify-center space-y-1">
-                                                        <Input
-                                                            type="number"
-                                                            value={row.standby_nights}
-                                                            onChange={(e) => handleCellChange(row.user_id, 'standby_nights', e.target.value)}
-                                                            className="w-12 h-8 text-center text-xs font-bold border-indigo-200"
-                                                        />
-                                                        {row.standby_bonus > 0 && (
-                                                            <span className="text-[9px] text-indigo-600 font-bold">
-                                                                {formatCurrency(row.standby_bonus)}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-slate-300 text-xs">-</span>
+                                                )}
+                                                {row.performance_bonus === 0 && row.housekeeping_bonus === 0 && row.frontdesk_first_night_bonus === 0 && row.frontdesk_next_nights_bonus_share === 0 && row.standby_bonus === 0 && row.overtime_bonus === 0 && row.custom_allowance === 0 && (
+                                                    <span className="text-slate-300">—</span>
                                                 )}
                                             </TableCell>
-
-                                            {/* Housekeeping Points Bonus */}
-                                            <TableCell className="text-xs font-medium">
-                                                {row.role === 'housekeeping' ? (
-                                                    <div>
-                                                        <div className="font-black text-slate-800">{formatCurrency(row.housekeeping_bonus)}</div>
-                                                        <div className="text-[9px] text-slate-400 font-bold leading-none">Poin kerusakan</div>
+                                            <TableCell className="text-xs space-y-0.5 font-medium text-red-500">
+                                                {row.late_deduction > 0 && <div>Terlambat: -{formatCurrency(row.late_deduction)}</div>}
+                                                {row.absent_deduction > 0 && <div>Mangkir: -{formatCurrency(row.absent_deduction)}</div>}
+                                                {row.sick_deduction > 0 && <div>Sakit: -{formatCurrency(row.sick_deduction)}</div>}
+                                                {row.permission_deduction > 0 && <div>Izin: -{formatCurrency(row.permission_deduction)}</div>}
+                                                {row.loan_deduction > 0 && <div>Casbon: -{formatCurrency(row.loan_deduction)}</div>}
+                                                {row.custom_deduction > 0 && (
+                                                    <div className="text-red-700 font-bold">
+                                                        Potongan Khusus: -{formatCurrency(row.custom_deduction)}
+                                                        {row.custom_deduction_reason && <span className="block text-[10px] font-normal text-slate-400">({row.custom_deduction_reason})</span>}
                                                     </div>
-                                                ) : (
-                                                    <span className="text-slate-300">-</span>
+                                                )}
+                                                {row.late_deduction === 0 && row.absent_deduction === 0 && row.sick_deduction === 0 && row.permission_deduction === 0 && row.loan_deduction === 0 && row.custom_deduction === 0 && (
+                                                    <span className="text-slate-300">—</span>
                                                 )}
                                             </TableCell>
-
-                                            {/* Frontdesk Night Bonuses */}
-                                            <TableCell className="text-xs font-semibold">
-                                                {row.role === 'front_desk' ? (
-                                                    <div>
-                                                        <div className="text-slate-700">Mlm 1: <span className="font-bold text-slate-900">{formatCurrency(row.frontdesk_first_night_bonus)}</span></div>
-                                                        <div className="text-slate-700">Pool: <span className="font-bold text-emerald-600">+{formatCurrency(row.frontdesk_next_nights_bonus_share)}</span></div>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-slate-300">-</span>
-                                                )}
-                                            </TableCell>
-
-                                            {/* Deductions breakdown & loans */}
-                                            <TableCell className="text-xs font-semibold">
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="text-[9px] text-slate-400 font-bold uppercase w-10">Casbon:</span>
-                                                        <CurrencyInput
-                                                            value={row.loan_deduction}
-                                                            onChange={(val) => handleCellChange(row.user_id, 'loan_deduction', val)}
-                                                            className="w-28 h-7 text-xs font-bold text-red-500"
-                                                        />
-                                                    </div>
-                                                    {row.outstanding_loans > 0 && (
-                                                        <div className="text-[9px] text-amber-600 font-bold leading-none mb-1">
-                                                            Sisa Pinjaman: {formatCurrency(row.outstanding_loans)}
-                                                        </div>
-                                                    )}
-                                                    {(row.sick_deduction > 0 || row.permission_deduction > 0 || row.absent_deduction > 0) && (
-                                                        <div className="text-[9px] text-slate-500 space-y-0.5 border-t pt-1">
-                                                            {row.sick_deduction > 0 && <div>Sakit: -{formatCurrency(row.sick_deduction)}</div>}
-                                                            {row.permission_deduction > 0 && <div>Izin: -{formatCurrency(row.permission_deduction)}</div>}
-                                                            {row.absent_deduction > 0 && <div>Alpha: -{formatCurrency(row.absent_deduction)}</div>}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-
-                                            {/* Total Salary (Net) */}
-                                            <TableCell className="font-black text-blue-600 text-xs">
-                                                {formatCurrency(row.total_salary)}
-                                            </TableCell>
-
-                                            {/* Status */}
-                                            <TableCell>
-                                                <Select
-                                                    value={row.status}
-                                                    onValueChange={(val) => handleCellChange(row.user_id, 'status', val)}
-                                                    disabled={row.expense_id !== null}
+                                            <TableCell className="font-black text-sm text-blue-600">{formatCurrency(row.total_salary)}</TableCell>
+                                            <TableCell className="text-right space-x-1">
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    onClick={() => openCustomAdjustmentModal(idx)} 
+                                                    className="h-7 px-2 text-xs font-bold border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
+                                                    title="Input Penambahan / Pengurangan Khusus Gaji"
                                                 >
-                                                    <SelectTrigger className="h-8 w-24 text-xs font-semibold">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="pending">
-                                                            <span className="text-amber-500">Pending</span>
-                                                        </SelectItem>
-                                                        <SelectItem value="paid">
-                                                            <span className="text-emerald-500 font-bold">Lunas</span>
-                                                        </SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </TableCell>
-
-                                            {/* Aksi */}
-                                            <TableCell className="pr-6 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => openShiftModal(row)}
-                                                        className="h-8 font-bold text-xs rounded-xl"
-                                                    >
-                                                        <Settings className="h-3.5 w-3.5 mr-1" />
-                                                        Atur Gaji/Shift
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => openPrintModal(row)}
-                                                        className="h-8 font-bold text-xs rounded-xl border-blue-200 text-blue-600 hover:bg-blue-50"
-                                                    >
-                                                        <Printer className="h-3.5 w-3.5 mr-1" />
-                                                        Cetak Slip
-                                                    </Button>
-                                                </div>
+                                                    <SlidersHorizontal className="w-3.5 h-3.5 mr-1" /> Adjust
+                                                </Button>
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    onClick={() => openShiftCalendarModal(row)} 
+                                                    className="h-7 px-2 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-100"
+                                                >
+                                                    <CalendarCheck className="w-3.5 h-3.5 mr-1" /> Shift
+                                                </Button>
+                                                <Button variant="outline" size="sm" onClick={() => openPrintModal(row)} className="h-7 px-2.5 text-xs font-bold">
+                                                    <Printer className="w-3.5 h-3.5 mr-1 text-slate-500" /> Slip
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     ))
@@ -1207,391 +1034,520 @@ export default function Payroll({ payrolls, wallets, userShifts, poolData, filte
                 </Card>
             </div>
 
-            {/* Shift & Wage Settings Modal */}
-            <Dialog open={isShiftModalOpen} onOpenChange={setIsShiftModalOpen}>
+            {/* MODAL PENYESUAIAN GAJI KHUSUS (BONUS & POTONGAN MANUAL) */}
+            <Dialog open={isCustomAdjustmentModalOpen} onOpenChange={setIsCustomAdjustmentModalOpen}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-slate-800">
-                            <Clock className="h-5 w-5 text-blue-600" />
-                            Konfigurasi Gaji Pokok & Shift Karyawan
+                        <DialogTitle className="text-base font-bold flex items-center gap-2 text-indigo-900">
+                            <SlidersHorizontal className="w-5 h-5 text-indigo-600" /> Modal Penyesuaian Gaji Khusus
                         </DialogTitle>
-                        <DialogDescription className="text-xs font-semibold">
-                            Sesuaikan gaji pokok bulanan, kuota cuti/libur, dan jadwal shift harian untuk staff **{selectedUserForShift?.name}**.
+                        <DialogDescription className="text-xs">
+                            Masukkan jumlah penambahan (bonus manual) atau pengurangan (potongan manual) khusus untuk <span className="font-bold text-slate-800">{adjustingStaffIndex !== null ? staffRows[adjustingStaffIndex]?.name : ''}</span>.
                         </DialogDescription>
                     </DialogHeader>
-                    
-                    <div className="space-y-4 py-3 text-xs">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-slate-500">Gaji Pokok Bulanan</label>
-                                <CurrencyInput
-                                    placeholder="Gaji pokok..."
-                                    value={tempBaseSalary}
-                                    onChange={setTempBaseSalary}
-                                    className="h-9"
-                                />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-slate-500">Kuota Libur Bulanan (Hari)</label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    placeholder="Jatah libur..."
-                                    value={tempHolidayQuota}
-                                    onChange={(e) => setTempHolidayQuota(parseInt(e.target.value) || 0)}
-                                    className="h-9"
-                                />
-                            </div>
+
+                    <div className="space-y-4 py-2 text-xs">
+                        {/* Penambahan Gaji Khusus */}
+                        <div className="p-3 bg-indigo-50/70 rounded-lg border border-indigo-200 space-y-2">
+                            <Label className="font-bold text-xs text-indigo-900 flex items-center gap-1.5">
+                                <PlusCircle className="w-4 h-4 text-indigo-600" /> Penambahan Gaji Khusus / Bonus Manual (Rp)
+                            </Label>
+                            <Input 
+                                type="number" 
+                                value={customAllowanceInput} 
+                                onChange={(e) => setCustomAllowanceInput(Number(e.target.value) || 0)} 
+                                placeholder="Contoh: 150000"
+                                className="font-bold bg-white"
+                            />
+                            <Input 
+                                type="text" 
+                                value={customAllowanceReasonInput} 
+                                onChange={(e) => setCustomAllowanceReasonInput(e.target.value)} 
+                                placeholder="Alasan penambahan (misal: Bonus Pencapaian Khusus)"
+                                className="bg-white"
+                            />
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3">
-                            <div className="space-y-1 col-span-1">
-                                <label className="text-xs font-bold text-slate-500">ID Sidik Jari</label>
-                                <Input
-                                    placeholder="ID Mesin..."
-                                    value={tempFingerprintId}
-                                    onChange={(e) => setTempFingerprintId(e.target.value)}
-                                    className="h-9"
-                                />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-slate-500">Shift Masuk Default</label>
-                                <Input
-                                    placeholder="08:00"
-                                    value={tempShiftStart}
-                                    onChange={(e) => setTempShiftStart(e.target.value)}
-                                    className="h-9"
-                                />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-slate-500">Shift Keluar Default</label>
-                                <Input
-                                    placeholder="16:00"
-                                    value={tempShiftEnd}
-                                    onChange={(e) => setTempShiftEnd(e.target.value)}
-                                    className="h-9"
-                                />
-                            </div>
+                        {/* Pengurangan Gaji Khusus */}
+                        <div className="p-3 bg-red-50/70 rounded-lg border border-red-200 space-y-2">
+                            <Label className="font-bold text-xs text-red-900 flex items-center gap-1.5">
+                                <MinusCircle className="w-4 h-4 text-red-600" /> Pengurangan Gaji Khusus / Potongan Manual (Rp)
+                            </Label>
+                            <Input 
+                                type="number" 
+                                value={customDeductionInput} 
+                                onChange={(e) => setCustomDeductionInput(Number(e.target.value) || 0)} 
+                                placeholder="Contoh: 50000"
+                                className="font-bold bg-white"
+                            />
+                            <Input 
+                                type="text" 
+                                value={customDeductionReasonInput} 
+                                onChange={(e) => setCustomDeductionReasonInput(e.target.value)} 
+                                placeholder="Alasan pengurangan (misal: Ganti Rugi Barang Hilang)"
+                                className="bg-white"
+                            />
                         </div>
-
-                        {/* Collapsible Daily Shifts Scheduler */}
-                        <div className="border-t pt-3 mt-3">
-                            {showDailyShifts ? (
-                                <div className="space-y-2.5 max-h-60 overflow-y-auto border border-slate-200 p-3 rounded-lg bg-slate-50">
-                                    <div className="flex justify-between items-center pb-1.5 border-b">
-                                        <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Jadwal Shift Harian ({monthsName[selectedMonth - 1]} {selectedYear})</h4>
-                                        <Button type="button" variant="ghost" className="h-5 text-[9px] px-1" onClick={() => setShowDailyShifts(false)}>Sembunyikan</Button>
-                                    </div>
-                                    {dailyShifts.map((ds, idx) => {
-                                        const dateObj = new Date(ds.date);
-                                        const dayName = dateObj.toLocaleDateString('id-ID', { weekday: 'short' });
-                                        return (
-                                            <div key={ds.date} className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5 text-xs">
-                                                <span className="font-bold text-slate-600">{dayName}, {dateObj.getDate()} {monthsName[selectedMonth - 1]}</span>
-                                                <div className="flex items-center gap-3">
-                                                    <label className="flex items-center gap-1 cursor-pointer font-semibold text-slate-500 text-[11px]">
-                                                        <input 
-                                                            type="checkbox" 
-                                                            checked={ds.is_off_day} 
-                                                            onChange={(e) => {
-                                                                setDailyShifts(prev => prev.map((s, i) => i === idx ? { ...s, is_off_day: e.target.checked } : s));
-                                                            }}
-                                                            className="rounded border-slate-300"
-                                                        />
-                                                        <span>Off</span>
-                                                    </label>
-                                                    {!ds.is_off_day && (
-                                                        <div className="flex items-center gap-1">
-                                                            <input 
-                                                                type="text" 
-                                                                value={ds.shift_start_time} 
-                                                                onChange={(e) => {
-                                                                    setDailyShifts(prev => prev.map((s, i) => i === idx ? { ...s, shift_start_time: e.target.value } : s));
-                                                                }}
-                                                                className="w-12 h-6 border border-slate-200 rounded text-center text-[10px] font-bold"
-                                                            />
-                                                            <span className="text-slate-400">-</span>
-                                                            <input 
-                                                                type="text" 
-                                                                value={ds.shift_end_time} 
-                                                                onChange={(e) => {
-                                                                    setDailyShifts(prev => prev.map((s, i) => i === idx ? { ...s, shift_end_time: e.target.value } : s));
-                                                                }}
-                                                                className="w-12 h-6 border border-slate-200 rounded text-center text-[10px] font-bold"
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <Button type="button" variant="outline" size="sm" className="w-full text-xs h-8 text-primary border-primary/20 hover:bg-primary/5 font-semibold" onClick={() => setShowDailyShifts(true)}>
-                                    <Calendar className="w-3.5 h-3.5 mr-1" />
-                                    Atur Shift Harian Tanggal Off...
-                                </Button>
-                            )}
-                        </div>
-
-                        {/* Detail Jam Hadir Sidik Jari (Hasil Import) */}
-                        {selectedUserForShift && importedLogs[selectedUserForShift.user_id] && (
-                            <div className="border-t pt-3 mt-3">
-                                <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1">
-                                    <Clock className="w-3.5 h-3.5 text-emerald-600" /> Detail Jam Hadir Sidik Jari ({monthsName[selectedMonth - 1]})
-                                </h4>
-                                <div className="max-h-52 overflow-y-auto border border-emerald-100 rounded-lg p-2 bg-emerald-50/20 text-[10px]">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="border-b border-emerald-100/50 text-slate-400 font-bold uppercase text-[9px]">
-                                                <th className="pb-1.5">Tgl</th>
-                                                <th className="pb-1.5">Masuk</th>
-                                                <th className="pb-1.5">Keluar</th>
-                                                <th className="pb-1.5">Shift</th>
-                                                <th className="pb-1.5 text-right">Lembur</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {importedLogs[selectedUserForShift.user_id].map((log) => (
-                                                <tr key={log.date} className="border-b border-slate-100/30 hover:bg-emerald-50/30">
-                                                    <td className="py-1 font-bold text-slate-600">{log.day}</td>
-                                                    <td className="py-1 font-semibold text-slate-700">{log.check_in}</td>
-                                                    <td className="py-1 font-semibold text-slate-700">{log.check_out}</td>
-                                                    <td className="py-1 text-slate-400">
-                                                        {log.is_off_day ? 'Off' : `${log.shift_start}-${log.shift_end}`}
-                                                    </td>
-                                                    <td className="py-1 text-right font-bold text-emerald-600">
-                                                        {log.overtime_hours > 0 ? `+${log.overtime_hours} jam` : '—'}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" size="sm" onClick={() => setIsShiftModalOpen(false)}>
-                            Batal
-                        </Button>
-                        <Button 
-                            onClick={handleSaveShiftSettings} 
-                            disabled={isSavingShift}
-                            className="font-bold text-xs h-8 shadow-sm"
-                            size="sm"
-                        >
-                            {isSavingShift ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <>
-                                    <Save className="h-4 w-4 mr-1.5" />
-                                    Simpan Pengaturan
-                                </>
-                            )}
+                        <Button variant="outline" size="sm" onClick={() => setIsCustomAdjustmentModalOpen(false)}>Batal</Button>
+                        <Button size="sm" onClick={handleSaveCustomAdjustment} className="bg-indigo-600 hover:bg-indigo-700 font-bold">
+                            Terapkan ke Draft Payroll
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* Print Slip Dialog */}
-            <Dialog open={isPrintModalOpen} onOpenChange={setIsPrintModalOpen}>
-                <DialogContent className="max-w-2xl bg-white shadow-xl rounded-2xl p-6 border-0">
+            {/* MODAL PENGATURAN SEMUA TARIF DENDA & INSENTIF PAYROLL (TERMASUK SETTING POIN HK) */}
+            <Dialog open={isRatesModalOpen} onOpenChange={setIsRatesModalOpen}>
+                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-slate-800 text-base font-bold">
-                            <Printer className="h-5 w-5 text-blue-600" />
-                            Cetak Slip Gaji Karyawan
+                        <DialogTitle className="text-base font-bold flex items-center gap-2 text-purple-900">
+                            <SlidersHorizontal className="w-5 h-5 text-purple-600" /> Modal Pengaturan Tarif Denda & Insentif Staff
                         </DialogTitle>
                         <DialogDescription className="text-xs">
-                            Pratinjau slip gaji resmi untuk karyawan **{selectedUserForPrint?.name}**.
+                            Atur metode perhitungan Poin HK, nominal denda absensi, serta tarif bonus FO/HK yang tersimpan secara permanen.
                         </DialogDescription>
                     </DialogHeader>
 
-                    {selectedUserForPrint && (
-                        <div className="py-2">
-                            <div 
-                                id="printable-payslip" 
-                                className="p-6 border border-slate-200 rounded-xl bg-white text-slate-800 space-y-6"
-                                style={{ fontFamily: "'Courier New', Courier, monospace" }}
-                            >
-                                {/* Header */}
-                                <div className="flex justify-between items-start border-b border-slate-200 pb-4">
-                                    <div>
-                                        <h2 className="text-lg font-black tracking-wider text-slate-900 uppercase">ANTIGRAVITY HOME</h2>
-                                        <p className="text-[10px] text-slate-500 font-bold">Lombok, NTB, Indonesia</p>
-                                        <p className="text-[10px] text-slate-500 font-bold">Sistem Payroll Homestay Dev</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <h3 className="text-base font-black text-slate-800 uppercase">SLIP GAJI BULANAN</h3>
-                                        <p className="text-[10px] text-slate-500 font-bold">Periode: {monthsName[selectedMonth - 1]} {selectedYear}</p>
-                                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2 text-xs">
+                        {/* Group Housekeeping Bonus Settings */}
+                        <div className="col-span-1 md:col-span-2 space-y-3 p-3 bg-emerald-50/70 rounded-lg border border-emerald-200">
+                            <h4 className="font-bold text-xs text-emerald-900 border-b border-emerald-200 pb-1 flex items-center gap-1.5">
+                                <Sparkles className="w-4 h-4 text-emerald-600" /> Pengaturan Kalkulasi Bonus Housekeeping (HK)
+                            </h4>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-700">Metode Bonus HK</Label>
+                                    <Select value={housekeepingBonusMode} onValueChange={(v) => setHousekeepingBonusMode(v)}>
+                                        <SelectTrigger className="bg-white font-bold h-9">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="rate_per_point">Tarif Flat per Poin (Rp)</SelectItem>
+                                            <SelectItem value="fixed_pool">Total Budget Pool HK Fix (Rp)</SelectItem>
+                                            <SelectItem value="profit_sharing">Profit Sharing Pool Net (%)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
 
-                                {/* Employee Details */}
-                                <div className="grid grid-cols-2 gap-4 text-[10px] bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                    <div>
-                                        <table className="w-full">
-                                            <tbody>
-                                                <tr>
-                                                    <td className="font-bold py-0.5 w-24 text-slate-500 uppercase">Karyawan</td>
-                                                    <td className="py-0.5 font-bold text-slate-800">: {selectedUserForPrint.name}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td className="font-bold py-0.5 text-slate-500 uppercase">Fingerprint</td>
-                                                    <td className="py-0.5 font-bold text-slate-800">: {selectedUserForPrint.fingerprint_id || '-'}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td className="font-bold py-0.5 text-slate-500 uppercase">Jabatan</td>
-                                                    <td className="py-0.5 font-bold text-slate-800">: {selectedUserForPrint.role.toUpperCase().replace('_', ' ')}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
+                                {housekeepingBonusMode === 'rate_per_point' && (
+                                    <div className="space-y-1">
+                                        <Label className="text-[11px] font-semibold text-slate-700">Tarif Flat per Poin HK (Rp)</Label>
+                                        <Input type="number" value={housekeepingRate} onChange={(e) => setHousekeepingRate(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
                                     </div>
-                                    <div>
-                                        <table className="w-full">
-                                            <tbody>
-                                                <tr>
-                                                    <td className="font-bold py-0.5 w-28 text-slate-500 uppercase">Hari Aktif Kerja</td>
-                                                    <td className="py-0.5 font-bold text-slate-800">: {selectedUserForPrint.active_employment_days ?? 26} Hari</td>
-                                                </tr>
-                                                <tr>
-                                                    <td className="font-bold py-0.5 text-slate-500 uppercase">Hari Kehadiran</td>
-                                                    <td className="py-0.5 font-bold text-slate-800">: {selectedUserForPrint.attendance_days} Hari</td>
-                                                </tr>
-                                                <tr>
-                                                    <td className="font-bold py-0.5 text-slate-500 uppercase">Status Gaji</td>
-                                                    <td className="py-0.5 font-bold text-slate-800">
-                                                        : <span className={selectedUserForPrint.status === 'paid' ? 'text-emerald-600 uppercase font-black' : 'text-amber-500 uppercase font-black'}>
-                                                            {selectedUserForPrint.status === 'paid' ? 'LUNAS' : 'PENDING'}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
+                                )}
 
-                                {/* Earnings & Deductions Tables */}
-                                <div className="grid grid-cols-2 gap-6 pt-2">
-                                    {/* Earnings */}
-                                    <div className="space-y-2">
-                                        <h4 className="text-[10px] font-black text-slate-900 border-b border-slate-200 pb-1 uppercase tracking-wider">Penerimaan (Earnings)</h4>
-                                        <table className="w-full text-[10px]">
-                                            <tbody>
-                                                <tr>
-                                                    <td className="py-1 text-slate-600 font-bold">Gaji Pokok {selectedUserForPrint.prorated ? '(Prorata)' : ''}</td>
-                                                    <td className="py-1 text-right font-bold text-slate-800">{formatCurrency(selectedUserForPrint.base_salary)}</td>
-                                                </tr>
-                                                {selectedUserForPrint.overtime_bonus > 0 && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-600 font-bold">Uang Lembur ({selectedUserForPrint.overtime_hours} Jam)</td>
-                                                        <td className="py-1 text-right font-bold text-slate-800">{formatCurrency(selectedUserForPrint.overtime_bonus)}</td>
-                                                    </tr>
-                                                )}
-                                                {selectedUserForPrint.standby_bonus > 0 && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-600 font-bold">Bonus Jaga Malam ({selectedUserForPrint.standby_nights} Mlm)</td>
-                                                        <td className="py-1 text-right font-bold text-slate-800">{formatCurrency(selectedUserForPrint.standby_bonus)}</td>
-                                                    </tr>
-                                                )}
-                                                {selectedUserForPrint.housekeeping_bonus > 0 && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-600 font-bold">Bonus Poin HK ({selectedUserForPrint.hk_points} Poin)</td>
-                                                        <td className="py-1 text-right font-bold text-slate-800">{formatCurrency(selectedUserForPrint.housekeeping_bonus)}</td>
-                                                    </tr>
-                                                )}
-                                                {selectedUserForPrint.frontdesk_first_night_bonus > 0 && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-600 font-bold">Bonus FD Mlm 1</td>
-                                                        <td className="py-1 text-right font-bold text-slate-800">{formatCurrency(selectedUserForPrint.frontdesk_first_night_bonus)}</td>
-                                                    </tr>
-                                                )}
-                                                {selectedUserForPrint.frontdesk_next_nights_bonus_share > 0 && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-600 font-bold">Bonus Share Mlm 2+</td>
-                                                        <td className="py-1 text-right font-bold text-slate-800">{formatCurrency(selectedUserForPrint.frontdesk_next_nights_bonus_share)}</td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
+                                {housekeepingBonusMode === 'fixed_pool' && (
+                                    <div className="space-y-1">
+                                        <Label className="text-[11px] font-semibold text-slate-700">Total Budget Pool HK Fix (Rp)</Label>
+                                        <Input type="number" value={housekeepingFixedPool} onChange={(e) => setHousekeepingFixedPool(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
                                     </div>
+                                )}
 
-                                    {/* Deductions */}
-                                    <div className="space-y-2">
-                                        <h4 className="text-[10px] font-black text-slate-900 border-b border-slate-200 pb-1 uppercase tracking-wider">Potongan (Deductions)</h4>
-                                        <table className="w-full text-[10px]">
-                                            <tbody>
-                                                {selectedUserForPrint.late_deduction > 0 && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-600 font-bold">Denda Lambat ({selectedUserForPrint.late_hours} Jam)</td>
-                                                        <td className="py-1 text-right text-rose-600 font-bold">-{formatCurrency(selectedUserForPrint.late_deduction)}</td>
-                                                    </tr>
-                                                )}
-                                                {selectedUserForPrint.sick_deduction > 0 && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-600 font-bold">Potongan Sakit ({selectedUserForPrint.sick_days} Hari)</td>
-                                                        <td className="py-1 text-right text-rose-600 font-bold">-{formatCurrency(selectedUserForPrint.sick_deduction)}</td>
-                                                    </tr>
-                                                )}
-                                                {selectedUserForPrint.permission_deduction > 0 && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-600 font-bold">Potongan Izin ({selectedUserForPrint.permission_days} Hari)</td>
-                                                        <td className="py-1 text-right text-rose-600 font-bold">-{formatCurrency(selectedUserForPrint.permission_deduction)}</td>
-                                                    </tr>
-                                                )}
-                                                {selectedUserForPrint.absent_deduction > 0 && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-600 font-bold">Potongan Alpha ({selectedUserForPrint.absent_days} Hari)</td>
-                                                        <td className="py-1 text-right text-rose-600 font-bold">-{formatCurrency(selectedUserForPrint.absent_deduction)}</td>
-                                                    </tr>
-                                                )}
-                                                {selectedUserForPrint.loan_deduction > 0 && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-600 font-bold">Potongan Kasbon (Loan)</td>
-                                                        <td className="py-1 text-right text-rose-600 font-bold">-{formatCurrency(selectedUserForPrint.loan_deduction)}</td>
-                                                    </tr>
-                                                )}
-                                                {!(selectedUserForPrint.late_deduction > 0 || selectedUserForPrint.sick_deduction > 0 || selectedUserForPrint.permission_deduction > 0 || selectedUserForPrint.absent_deduction > 0 || selectedUserForPrint.loan_deduction > 0) && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-400 italic">Tidak ada potongan</td>
-                                                        <td className="py-1 text-right text-slate-500 font-bold">Rp 0</td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
+                                {housekeepingBonusMode === 'profit_sharing' && (
+                                    <div className="space-y-1">
+                                        <Label className="text-[11px] font-semibold text-slate-700">Persentase Pool HK dari Profit Net (%)</Label>
+                                        <Input type="number" step="0.1" value={housekeepingPoolPercentage} onChange={(e) => setHousekeepingPoolPercentage(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
                                     </div>
-                                </div>
+                                )}
 
-                                {/* Summary / Total Salary */}
-                                <div className="flex justify-between items-center pt-3 border-t border-slate-300 border-dashed">
-                                    <span className="text-xs font-black text-slate-950 uppercase tracking-wider">GAJI BERSIH (NET PAY)</span>
-                                    <span className="text-base font-black text-blue-600">{formatCurrency(selectedUserForPrint.total_salary)}</span>
-                                </div>
-
-                                {/* Signatures */}
-                                <div className="grid grid-cols-2 gap-4 pt-8 text-[9px]">
-                                    <div className="text-center space-y-12">
-                                        <p className="text-slate-500 font-bold">Penerima,</p>
-                                        <div className="border-t border-slate-300 w-28 mx-auto pt-1 font-bold text-slate-700 uppercase">{selectedUserForPrint.name}</div>
-                                    </div>
-                                    <div className="text-center space-y-12">
-                                        <p className="text-slate-500 font-bold">Dibuat oleh,</p>
-                                        <div className="border-t border-slate-300 w-28 mx-auto pt-1 font-bold text-slate-700 uppercase">FINANCE DEPT</div>
-                                    </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-700">Cap Maksimum Bonus per Staff HK (Rp)</Label>
+                                    <Input type="number" value={housekeepingMaxCap} onChange={(e) => setHousekeepingMaxCap(Number(e.target.value) || 0)} className="bg-white font-bold h-9" placeholder="0 = tanpa batas" />
                                 </div>
                             </div>
                         </div>
-                    )}
 
-                    <DialogFooter className="gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setIsPrintModalOpen(false)} className="rounded-xl">
-                            Tutup
+                        {/* Group Denda */}
+                        <div className="space-y-3 p-3 bg-red-50/50 rounded-lg border border-red-100">
+                            <h4 className="font-bold text-xs text-red-900 border-b pb-1">Nominal Denda & Potongan Absensi</h4>
+                            <div className="space-y-1">
+                                <Label className="text-[11px] font-semibold text-slate-600">Denda Keterlambatan (per Jam)</Label>
+                                <Input type="number" value={lateDeductionRate} onChange={(e) => setLateDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[11px] font-semibold text-slate-600">Potongan Mangkir/Absent (per Hari)</Label>
+                                <Input type="number" value={absentDeductionRate} onChange={(e) => setAbsentDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[11px] font-semibold text-slate-600">Potongan Sakit Tanpa Surat (per Hari)</Label>
+                                <Input type="number" value={sickDeductionRate} onChange={(e) => setSickDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[11px] font-semibold text-slate-600">Potongan Izin Karyawan (per Hari)</Label>
+                                <Input type="number" value={permissionDeductionRate} onChange={(e) => setPermissionDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
+                            </div>
+                        </div>
+
+                        {/* Group Insentif & Bonus FO */}
+                        <div className="space-y-3 p-3 bg-purple-50/50 rounded-lg border border-purple-100">
+                            <h4 className="font-bold text-xs text-purple-900 border-b pb-1">Tarif Insentif & Bonus Front Office (FO)</h4>
+                            <div className="space-y-1">
+                                <Label className="text-[11px] font-semibold text-slate-600">Insentif Shift Standby (per Malam)</Label>
+                                <Input type="number" value={standbyRate} onChange={(e) => setStandbyRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[11px] font-semibold text-slate-600">Insentif Lembur (per Jam)</Label>
+                                <Input type="number" value={overtimeRate} onChange={(e) => setOvertimeRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[11px] font-semibold text-slate-600">Bonus Input Data Booking FO (per Unit)</Label>
+                                <Input type="number" value={creationRate} onChange={(e) => setCreationRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[11px] font-semibold text-slate-600">Bonus Follow-up Booking FO (per Unit)</Label>
+                                <Input type="number" value={followUpRate} onChange={(e) => setFollowUpRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[11px] font-semibold text-slate-600">Bonus Malam Tambahan Pool FO (per Malam)</Label>
+                                <Input type="number" value={nextNightRate} onChange={(e) => setNextNightRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" size="sm" onClick={() => setIsRatesModalOpen(false)}>Tutup</Button>
+                        <Button size="sm" onClick={handleSaveRates} disabled={isSavingRates} className="bg-purple-600 hover:bg-purple-700 font-bold">
+                            {isSavingRates ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan Semua Tarif Permanen'}
                         </Button>
-                        <Button onClick={handlePrint} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm">
-                            <Printer className="h-4 w-4 mr-1.5" />
-                            Cetak / Download PDF
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* MODAL JADWAL SHIFT HARIAN STAFF (KALENDER MONTHLY SHIFT & OFF DAY) */}
+            <Dialog open={isShiftCalendarModalOpen} onOpenChange={setIsShiftCalendarModalOpen}>
+                <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-base font-bold flex items-center gap-2 text-indigo-900">
+                            <CalendarCheck className="w-5 h-5 text-indigo-600" /> Jadwal Shift Harian & Hari Libur (Off Day)
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Atur jam kerja harian dan tentukan hari libur (Off Day) untuk <span className="font-bold text-slate-800">{selectedShiftStaff?.name}</span> periode {monthsName[selectedMonth - 1]} {selectedYear}.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="py-2 space-y-3">
+                        <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-lg border">
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-700">Jam Shift Standar:</span>
+                                <Badge variant="outline" className="font-mono bg-white">{selectedShiftStaff?.shift_start_time || '08:00'} - {selectedShiftStaff?.shift_end_time || '16:00'}</Badge>
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                                Klik tombol <span className="font-bold text-red-600">OFF (Libur)</span> untuk mengubah status hari.
+                            </div>
+                        </div>
+
+                        {/* Grid Kalender Hari 1 s/d End of Month */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 max-h-80 overflow-y-auto p-1">
+                            {dailyShifts.map((item, idx) => (
+                                <div 
+                                    key={item.date} 
+                                    className={`p-2 rounded-lg border flex flex-col justify-between text-xs space-y-1.5 transition-all ${
+                                        item.is_off_day 
+                                            ? 'bg-red-50/80 border-red-200' 
+                                            : 'bg-white border-slate-200 hover:border-indigo-300 shadow-sm'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-black text-slate-800 text-xs">Tgl {item.day}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleOffDay(idx)}
+                                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                                                item.is_off_day
+                                                    ? 'bg-red-600 text-white hover:bg-red-700'
+                                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                            }`}
+                                        >
+                                            {item.is_off_day ? 'OFF' : 'Kerja'}
+                                        </button>
+                                    </div>
+
+                                    {!item.is_off_day ? (
+                                        <div className="space-y-1">
+                                            <input
+                                                type="text"
+                                                value={item.shift_start_time}
+                                                onChange={(e) => updateShiftTime(idx, e.target.value, item.shift_end_time)}
+                                                className="w-full text-[11px] font-mono h-6 px-1 border rounded text-center bg-slate-50"
+                                                placeholder="08:00"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={item.shift_end_time}
+                                                onChange={(e) => updateShiftTime(idx, item.shift_start_time, e.target.value)}
+                                                className="w-full text-[11px] font-mono h-6 px-1 border rounded text-center bg-slate-50"
+                                                placeholder="16:00"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="py-2 text-center text-red-500 font-bold text-[10px]">
+                                            Libur
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" size="sm" onClick={() => setIsShiftCalendarModalOpen(false)}>Batal</Button>
+                        <Button 
+                            size="sm" 
+                            onClick={handleSaveDailyShifts} 
+                            disabled={isSavingShifts}
+                            className="bg-indigo-600 hover:bg-indigo-700 font-bold"
+                        >
+                            {isSavingShifts ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan Jadwal Shift Bulan Ini'}
                         </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal Edit Gaji Pokok & Shift Staff */}
+            <Dialog open={isUserSettingsModalOpen} onOpenChange={setIsUserSettingsModalOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-base font-bold flex items-center gap-2">
+                            <Settings className="w-5 h-5 text-blue-600" /> Pengaturan Gaji Pokok & Shift Staff
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Atur nilai Gaji Pokok standar per bulan, ID mesin fingerprint, dan jam shift untuk <span className="font-bold text-slate-800">{editingStaff?.name}</span>.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2 text-xs">
+                        <div className="space-y-1">
+                            <Label className="font-bold text-xs">Gaji Pokok Standar Bulanan (Rp)</Label>
+                            <Input 
+                                type="number" 
+                                value={staffBaseSalary} 
+                                onChange={(e) => setStaffBaseSalary(Number(e.target.value) || 0)} 
+                                placeholder="Contoh: 3000000"
+                                className="font-bold"
+                            />
+                            <p className="text-[10px] text-slate-400">Gaji ini akan dihitung secara proporsional (prorated) jika staff masuk pertengahan bulan.</p>
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label className="font-bold text-xs">ID Mesin Fingerprint (Nomor Absensi)</Label>
+                            <Input 
+                                type="text" 
+                                value={staffFingerprintId} 
+                                onChange={(e) => setStaffFingerprintId(e.target.value)} 
+                                placeholder="Contoh: 101"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <Label className="font-bold text-xs">Jam Masuk Shift</Label>
+                                <Input 
+                                    type="time" 
+                                    value={staffShiftStart} 
+                                    onChange={(e) => setStaffShiftStart(e.target.value)} 
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="font-bold text-xs">Jam Keluar Shift</Label>
+                                <Input 
+                                    type="time" 
+                                    value={staffShiftEnd} 
+                                    onChange={(e) => setStaffShiftEnd(e.target.value)} 
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" size="sm" onClick={() => setIsUserSettingsModalOpen(false)}>Batal</Button>
+                        <Button 
+                            size="sm" 
+                            onClick={handleSaveUserSettings} 
+                            disabled={isUpdatingUserSettings}
+                            className="bg-blue-600 hover:bg-blue-700 font-bold"
+                        >
+                            {isUpdatingUserSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan Pengaturan Staff'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal Histori Versi Payroll */}
+            <Dialog open={isVersionModalOpen} onOpenChange={setIsVersionModalOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-base font-bold flex items-center gap-2">
+                            <History className="w-5 h-5 text-blue-600" /> Histori Versi Snapshot Payroll
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Daftar versi payroll yang pernah digenerate untuk periode {monthsName[selectedMonth - 1]} {selectedYear}.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-2 py-2 max-h-64 overflow-y-auto">
+                        {versions.map((v) => (
+                            <div key={v.version} className={`p-3 rounded-lg border flex items-center justify-between text-xs ${v.is_active ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
+                                <div>
+                                    <div className="font-bold text-slate-800">Versi {v.version} {v.is_active && <span className="text-emerald-600">(Aktif)</span>}</div>
+                                    <div className="text-[10px] text-slate-400">Batch: {v.batch_id?.substring(0, 8)}...</div>
+                                </div>
+                                <div className="text-right">
+                                    {getStatusBadge(v.status)}
+                                    <div className="text-[10px] text-slate-400 mt-1">{new Date(v.created_at).toLocaleDateString('id-ID')}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" size="sm" onClick={() => setIsVersionModalOpen(false)}>Tutup</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal Print Payslip */}
+            <Dialog open={isPrintModalOpen} onOpenChange={setIsPrintModalOpen}>
+                <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-base font-bold flex items-center justify-between">
+                            <span>Slip Gaji Karyawan (Versi {selectedUserForPrint?.version || 1})</span>
+                            <Button size="sm" onClick={handlePrint} className="bg-emerald-600 hover:bg-emerald-700 font-bold h-8">
+                                <Printer className="w-3.5 h-3.5 mr-1" /> Cetak Sekarang
+                            </Button>
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div id="printable-payslip" className="border p-6 rounded-lg font-mono text-xs space-y-4 bg-white text-slate-900">
+                        <div className="border-b pb-3 text-center">
+                            <h2 className="text-base font-bold uppercase tracking-wider">SLIP GAJI KARYAWAN</h2>
+                            <p className="text-[10px] text-slate-500">Periode: {monthsName[selectedMonth - 1]} {selectedYear} | Versi: {selectedUserForPrint?.version || 1}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>Nama: <span className="font-bold">{selectedUserForPrint?.name}</span></div>
+                            <div>Role: <span className="font-bold uppercase">{selectedUserForPrint?.role?.replace('_', ' ')}</span></div>
+                        </div>
+
+                        {/* Rincian Penerimaan (Allowances) */}
+                        <div className="border-t border-b py-2 space-y-1">
+                            <div className="font-bold text-slate-700 border-b pb-1 mb-1">PENERIMAAN (ALLOWANCES)</div>
+                            <div className="flex justify-between"><span>Gaji Pokok {selectedUserForPrint?.prorated ? '(Prorated)' : ''}</span><span>{formatCurrency(selectedUserForPrint?.base_salary || 0)}</span></div>
+                            
+                            {selectedUserForPrint?.performance_bonus > 0 && (
+                                <div className="flex justify-between text-purple-700">
+                                    <span>Bonus Front Office (Follow-up)</span>
+                                    <span>+{formatCurrency(selectedUserForPrint.performance_bonus)}</span>
+                                </div>
+                            )}
+                            {selectedUserForPrint?.frontdesk_first_night_bonus > 0 && (
+                                <div className="flex justify-between text-blue-700">
+                                    <span>Bonus Front Office (Input Data)</span>
+                                    <span>+{formatCurrency(selectedUserForPrint.frontdesk_first_night_bonus)}</span>
+                                </div>
+                            )}
+                            {selectedUserForPrint?.frontdesk_next_nights_bonus_share > 0 && (
+                                <div className="flex justify-between text-indigo-700">
+                                    <span>Bonus Front Office (Pool Extra Nights)</span>
+                                    <span>+{formatCurrency(selectedUserForPrint.frontdesk_next_nights_bonus_share)}</span>
+                                </div>
+                            )}
+                            {selectedUserForPrint?.housekeeping_bonus > 0 && (
+                                <div className="flex justify-between text-emerald-700">
+                                    <span>Bonus Housekeeping (Poin Sharing Pool)</span>
+                                    <span>+{formatCurrency(selectedUserForPrint.housekeeping_bonus)}</span>
+                                </div>
+                            )}
+                            {selectedUserForPrint?.standby_bonus > 0 && (
+                                <div className="flex justify-between text-amber-700">
+                                    <span>Insentif Shift Standby ({selectedUserForPrint.standby_nights} malam)</span>
+                                    <span>+{formatCurrency(selectedUserForPrint.standby_bonus)}</span>
+                                </div>
+                            )}
+                            {selectedUserForPrint?.overtime_bonus > 0 && (
+                                <div className="flex justify-between text-emerald-700">
+                                    <span>Insentif Lembur ({selectedUserForPrint.overtime_hours} jam)</span>
+                                    <span>+{formatCurrency(selectedUserForPrint.overtime_bonus)}</span>
+                                </div>
+                            )}
+                            {selectedUserForPrint?.custom_allowance > 0 && (
+                                <div className="flex justify-between text-indigo-700 font-bold">
+                                    <span>Bonus Khusus Manual ({selectedUserForPrint.custom_allowance_reason || 'Bonus Khusus'})</span>
+                                    <span>+{formatCurrency(selectedUserForPrint.custom_allowance)}</span>
+                                </div>
+                            )}
+
+                            <div className="flex justify-between font-bold border-t pt-1 text-slate-800">
+                                <span>TOTAL PENERIMAAN</span>
+                                <span>{formatCurrency(payslipTotals.totalAllowances)}</span>
+                            </div>
+                        </div>
+
+                        {/* Rincian Potongan (Deductions) */}
+                        <div className="border-b pb-2 space-y-1">
+                            <div className="font-bold text-slate-700 border-b pb-1 mb-1">POTONGAN (DEDUCTIONS)</div>
+                            {selectedUserForPrint?.late_deduction > 0 && (
+                                <div className="flex justify-between text-red-600">
+                                    <span>Denda Keterlambatan ({selectedUserForPrint.late_hours} jam)</span>
+                                    <span>-{formatCurrency(selectedUserForPrint.late_deduction)}</span>
+                                </div>
+                            )}
+                            {selectedUserForPrint?.absent_deduction > 0 && (
+                                <div className="flex justify-between text-red-600">
+                                    <span>Potongan Mangkir/Absent ({selectedUserForPrint.absent_days} hari)</span>
+                                    <span>-{formatCurrency(selectedUserForPrint.absent_deduction)}</span>
+                                </div>
+                            )}
+                            {selectedUserForPrint?.sick_deduction > 0 && (
+                                <div className="flex justify-between text-red-600">
+                                    <span>Potongan Sakit Tanpa Surat ({selectedUserForPrint.sick_days} hari)</span>
+                                    <span>-{formatCurrency(selectedUserForPrint.sick_deduction)}</span>
+                                </div>
+                            )}
+                            {selectedUserForPrint?.permission_deduction > 0 && (
+                                <div className="flex justify-between text-red-600">
+                                    <span>Potongan Izin Karyawan ({selectedUserForPrint.permission_days} hari)</span>
+                                    <span>-{formatCurrency(selectedUserForPrint.permission_deduction)}</span>
+                                </div>
+                            )}
+                            {selectedUserForPrint?.loan_deduction > 0 && (
+                                <div className="flex justify-between text-red-600">
+                                    <span>Potongan Pinjaman (Casbon)</span>
+                                    <span>-{formatCurrency(selectedUserForPrint.loan_deduction)}</span>
+                                </div>
+                            )}
+                            {selectedUserForPrint?.custom_deduction > 0 && (
+                                <div className="flex justify-between text-red-700 font-bold">
+                                    <span>Potongan Khusus Manual ({selectedUserForPrint.custom_deduction_reason || 'Potongan Khusus'})</span>
+                                    <span>-{formatCurrency(selectedUserForPrint.custom_deduction)}</span>
+                                </div>
+                            )}
+
+                            {selectedUserForPrint?.late_deduction === 0 && selectedUserForPrint?.absent_deduction === 0 && selectedUserForPrint?.sick_deduction === 0 && selectedUserForPrint?.permission_deduction === 0 && selectedUserForPrint?.loan_deduction === 0 && selectedUserForPrint?.custom_deduction === 0 && (
+                                <div className="flex justify-between text-slate-400 italic">
+                                    <span>Tidak ada potongan</span>
+                                    <span>Rp 0</span>
+                                </div>
+                            )}
+
+                            <div className="flex justify-between font-bold border-t pt-1 text-slate-800">
+                                <span>TOTAL POTONGAN</span>
+                                <span>{formatCurrency(payslipTotals.totalDeductions)}</span>
+                            </div>
+                        </div>
+
+                        {/* Total Net Salary */}
+                        <div className="flex justify-between items-center text-sm font-bold pt-2 border-t-2 border-slate-900">
+                            <span>TOTAL GAJI BERSIH (NET SALARY)</span>
+                            <span className="text-emerald-700 text-base">{formatCurrency(payslipTotals.netSalary)}</span>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" size="sm" onClick={() => setIsPrintModalOpen(false)}>Tutup</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
