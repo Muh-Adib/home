@@ -10,6 +10,7 @@ use App\Models\BookingDailyRevenue;
 use App\Models\Property;
 use App\Models\User;
 use App\Repositories\BookingRepository;
+use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -173,8 +174,9 @@ class BookingService
 
         // Calculate nights
         $nights = 0;
+        $checkOutStr = Carbon::parse($booking->check_out)->format('Y-m-d');
         foreach ($breakdown as $tanggal => $detail) {
-            if ($tanggal < $booking->check_out->format('Y-m-d')) {
+            if ($tanggal < $checkOutStr) {
                 $nights++;
             }
         }
@@ -188,7 +190,7 @@ class BookingService
         $revenueData = [];
         $i = 0;
         foreach ($breakdown as $tanggal => $detail) {
-            if ($tanggal >= $booking->check_out->format('Y-m-d')) {
+            if ($tanggal >= $checkOutStr) {
                 continue;
             }
 
@@ -279,8 +281,9 @@ class BookingService
 
         // Calculate nights
         $nights = 0;
+        $checkOutStr = Carbon::parse($booking->check_out)->format('Y-m-d');
         foreach ($breakdown as $tanggal => $detail) {
-            if ($tanggal < $booking->check_out->format('Y-m-d')) {
+            if ($tanggal < $checkOutStr) {
                 $nights++;
             }
         }
@@ -294,7 +297,7 @@ class BookingService
         $revenueData = [];
         $i = 0;
         foreach ($breakdown as $tanggal => $detail) {
-            if ($tanggal >= $booking->check_out->format('Y-m-d')) {
+            if ($tanggal >= $checkOutStr) {
                 continue;
             }
 

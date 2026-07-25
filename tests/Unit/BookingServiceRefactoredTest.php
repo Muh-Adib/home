@@ -28,9 +28,11 @@ class BookingServiceRefactoredTest extends TestCase
 
     private User $user;
 
-    private BookingRepository $bookingRepository;
+    /** @var BookingRepository&Mockery::MockInterface */
+    private $bookingRepository;
 
-    private RateCalculationService $rateCalculationService;
+    /** @var RateCalculationService&Mockery::MockInterface */
+    private $rateCalculationService;
 
     protected function setUp(): void
     {

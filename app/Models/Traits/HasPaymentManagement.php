@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models\Traits;
 
 use App\Models\Payment;
+use Illuminate\Support\Carbon;
 
 /**
  * Payment Management Trait for Booking Model
@@ -83,7 +84,7 @@ trait HasPaymentManagement
     public function generatePaymentToken(): string
     {
         $token = bin2hex(random_bytes(16)); // 32 character token
-        $expiresAt = now()->addDays(7);
+        $expiresAt = Carbon::parse(now()->addDays(7)->toDateTimeString());
 
         $this->newQuery()->where($this->getKeyName(), $this->getKey())->update([
             'payment_token' => $token,

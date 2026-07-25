@@ -116,7 +116,7 @@ class InventoryService
         });
     }
 
-    public function recordUsage(int $itemId, ?int $propertyId, string $date, float $quantity, ?int $userId, ?string $notes = null): InventoryUsage
+    public function recordUsage(int $itemId, ?int $propertyId, string $date, float $quantity, ?int $userId, ?string $notes = null, ?string $scope = null): InventoryUsage
     {
         return DB::transaction(function () use ($itemId, $propertyId, $date, $quantity, $userId, $notes) {
             $formattedDate = Carbon::parse($date)->toDateString();
