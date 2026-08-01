@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\Booking;
+use App\Models\Property;
 use App\Models\StaffPayroll;
 use App\Models\StaffShift;
 use App\Models\SystemSetting;
@@ -28,7 +30,7 @@ class PayrollController extends Controller
         protected AttendanceService $attendanceService,
         protected StaffPerformanceService $performanceService,
         protected PayrollCalculationService $payrollCalculationService,
-        protected HousekeepingPointService $pointService
+        protected HousekeepingPointService $hkPointService
     ) {}
 
     /**
@@ -41,35 +43,36 @@ class PayrollController extends Controller
             abort(403, 'Unauthorized.');
         }
 
-        $month = (int) $request->input('month', now()->month);
-        $year = (int) $request->input('year', now()->year);
+        $prevMonth = now()->subMonth();
+        $month = (int) $request->input('month', $prevMonth->month);
+        $year = (int) $request->input('year', $prevMonth->year);
 
         // Fetch stored rate settings from SystemSetting or fallback to defaults
         $rates = [
+            // FO Bonus Rates (per booking & per night)
             'bonus_booking_fo' => (float) $request->input('bonus_booking_fo', SystemSetting::get('bonus_booking_fo', 3000)),
             'bonus_night_fo' => (float) $request->input('bonus_night_fo', SystemSetting::get('bonus_night_fo', 1000)),
-            'bonus_booking_hk' => (float) $request->input('bonus_booking_hk', SystemSetting::get('bonus_booking_hk', 3000)),
-            'bonus_night_hk' => (float) $request->input('bonus_night_hk', SystemSetting::get('bonus_night_hk', 5000)),
+            // HK South Bonus Rates (point-based pool, per booking & per night)
+            'bonus_booking_hk_selatan' => (float) $request->input('bonus_booking_hk_selatan', SystemSetting::get('bonus_booking_hk_selatan', 3000)),
+            'bonus_night_hk_selatan' => (float) $request->input('bonus_night_hk_selatan', SystemSetting::get('bonus_night_hk_selatan', 5000)),
+            // HK North Bonus Rates (percentage-based allocation, per booking & per night)
+            'bonus_booking_hk_utara' => (float) $request->input('bonus_booking_hk_utara', SystemSetting::get('bonus_booking_hk_utara', 3000)),
+            'bonus_night_hk_utara' => (float) $request->input('bonus_night_hk_utara', SystemSetting::get('bonus_night_hk_utara', 5000)),
+            // FO Standby/Shift rates
             'first_night_rate' => (float) $request->input('first_night_rate', SystemSetting::get('first_night_rate', 1000)),
             'next_night_rate' => (float) $request->input('next_night_rate', SystemSetting::get('next_night_rate', 1000)),
-            'housekeeping_bonus_mode' => (string) $request->input('housekeeping_bonus_mode', SystemSetting::get('housekeeping_bonus_mode', 'rate_per_point')),
-            'housekeeping_rate_per_point' => (float) $request->input('housekeeping_rate_per_point', SystemSetting::get('housekeeping_rate_per_point', 2000)),
-            'housekeeping_fixed_pool' => (float) $request->input('housekeeping_fixed_pool', SystemSetting::get('housekeeping_fixed_pool', 1500000)),
-            'housekeeping_pool_percentage' => (float) $request->input('housekeeping_pool_percentage', SystemSetting::get('housekeeping_pool_percentage', 5.0)),
-            'housekeeping_max_cap' => (float) $request->input('housekeeping_max_cap', SystemSetting::get('housekeeping_max_cap', 1500000)),
+            // Deductions
             'late_deduction_rate' => (float) $request->input('late_deduction_rate', SystemSetting::get('late_deduction_rate', 20000)),
             'standby_rate' => (float) $request->input('standby_rate', SystemSetting::get('standby_rate', 50000)),
             'overtime_rate' => (float) $request->input('overtime_rate', SystemSetting::get('overtime_rate', 25000)),
             'absent_deduction_rate' => (float) $request->input('absent_deduction_rate', SystemSetting::get('absent_deduction_rate', 100000)),
             'sick_deduction_rate' => (float) $request->input('sick_deduction_rate', SystemSetting::get('sick_deduction_rate', 50000)),
             'permission_deduction_rate' => (float) $request->input('permission_deduction_rate', SystemSetting::get('permission_deduction_rate', 75000)),
-            'follow_up_rate' => (float) $request->input('follow_up_rate', SystemSetting::get('follow_up_rate', 1000)),
-            'creation_rate' => (float) $request->input('creation_rate', SystemSetting::get('creation_rate', 1000)),
             'proration_standard_days' => (float) $request->input('proration_standard_days', SystemSetting::get('proration_standard_days', 26)),
         ];
 
         // If request has rates explicitly, automatically persist them to SystemSetting
-        if ($request->has('first_night_rate') || $request->has('housekeeping_rate_per_point') || $request->has('bonus_booking_fo')) {
+        if ($request->has('bonus_booking_fo') || $request->has('bonus_booking_hk_selatan') || $request->has('bonus_booking_hk_utara')) {
             SystemSetting::setMany($rates, 'payroll_rates');
         }
 
@@ -103,8 +106,58 @@ class PayrollController extends Controller
             })->values()->all();
         }
 
-        // 3. Housekeeping pool data
-        $poolData = $this->pointService->getMonthlyPool($month, $year, $rates['housekeeping_pool_percentage']);
+        // 3. Calculate booking & night stats for the period (for UI preview)
+        $startDate = Carbon::create($year, $month, 1)->startOfMonth();
+        $endDate = Carbon::create($year, $month, 1)->endOfMonth();
+        $startOfNextMonth = $startDate->copy()->addMonth();
+
+        $periodBookings = Booking::whereIn('booking_status', ['confirmed', 'checked_in', 'checked_out'])
+            ->where('check_in', '<', $startOfNextMonth->toDateString())
+            ->where('check_out', '>', $startDate->toDateString())
+            ->get();
+
+        $totalBookings = 0;
+        $totalNights = 0;
+        $northBookings = 0;
+        $northNights = 0;
+        $southBookings = 0;
+        $southNights = 0;
+
+        $northPropertyIds = Property::active()->where('location', 'utara')->pluck('id')->toArray();
+        $southPropertyIds = Property::active()->where('location', 'selatan')->pluck('id')->toArray();
+
+        foreach ($periodBookings as $bk) {
+            $checkInCarbon = Carbon::parse($bk->check_in)->startOfDay();
+            $checkOutCarbon = Carbon::parse($bk->check_out)->startOfDay();
+            $isStartingInMonth = $checkInCarbon->gte($startDate) && $checkInCarbon->lte($endDate);
+            $overlapStart = $checkInCarbon->max($startDate);
+            $overlapEnd = $checkOutCarbon->min($startOfNextMonth);
+            $nightsInMonth = $overlapEnd->gt($overlapStart) ? (int) $overlapStart->diffInDays($overlapEnd) : 0;
+
+            $totalNights += $nightsInMonth;
+            if ($isStartingInMonth) {
+                $totalBookings++;
+            }
+
+            if (in_array($bk->property_id, $northPropertyIds)) {
+                $northNights += $nightsInMonth;
+                if ($isStartingInMonth) {
+                    $northBookings++;
+                }
+            } elseif (in_array($bk->property_id, $southPropertyIds)) {
+                $southNights += $nightsInMonth;
+                if ($isStartingInMonth) {
+                    $southBookings++;
+                }
+            }
+        }
+
+        $southBonusNight = max(0, $southNights - $southBookings);
+        $northBonusNight = max(0, $northNights - $northBookings);
+
+        $hkSouthFund = ($southBookings * $rates['bonus_booking_hk_selatan']) + ($southBonusNight * $rates['bonus_night_hk_selatan']);
+        $hkNorthFund = ($northBookings * $rates['bonus_booking_hk_utara']) + ($northBonusNight * $rates['bonus_night_hk_utara']);
+        $foFund = max(0, $totalNights - $totalBookings) * $rates['bonus_night_fo'];
 
         // 4. Fetch wallets
         $wallets = Wallet::orderBy('name')->get(['id', 'name', 'balance']);
@@ -123,10 +176,15 @@ class PayrollController extends Controller
             'userShifts' => $userShifts,
             'versions' => $versions,
             'poolData' => [
-                'eligible_turnover' => $poolData['eligible_turnover'],
-                'total_pool' => $poolData['total_pool'],
-                'total_points' => $poolData['total_points'],
-                'point_rate' => $poolData['point_rate'],
+                'total_bookings' => $totalBookings,
+                'total_nights' => $totalNights,
+                'north_bookings' => $northBookings,
+                'north_nights' => $northNights,
+                'south_bookings' => $southBookings,
+                'south_nights' => $southNights,
+                'hk_south_fund' => $hkSouthFund,
+                'hk_north_fund' => $hkNorthFund,
+                'fo_fund_total' => $foFund,
             ],
             'filters' => array_merge(['month' => $month, 'year' => $year], $rates),
         ]);
@@ -142,23 +200,25 @@ class PayrollController extends Controller
             abort(403, 'Unauthorized.');
         }
 
-        $month = (int) $request->input('month', now()->month);
-        $year = (int) $request->input('year', now()->year);
+        // Default bulan = bulan sebelumnya, sesuai periode payroll
+        $prevMonth = now()->subMonth();
+        $month = (int) $request->input('month', $prevMonth->month);
+        $year = (int) $request->input('year', $prevMonth->year);
 
         $startDate = Carbon::create($year, $month, 1)->startOfMonth();
         $endDate = Carbon::create($year, $month, 1)->endOfMonth();
         $daysInMonth = $startDate->daysInMonth;
 
-        $pointService = app(HousekeepingPointService::class);
+        $hkPointService = $this->hkPointService;
         $staff = User::query()
             ->where('role', '!=', 'guest')
             ->whereNull('deleted_at')
             ->orderBy('name')
-            ->get(['id', 'name', 'role', 'fingerprint_id'])
-            ->map(function ($s) use ($pointService, $month, $year) {
+            ->get(['id', 'name', 'role', 'fingerprint_id', 'hk_location'])
+            ->map(function ($s) use ($hkPointService, $month, $year) {
                 $points = 0.0;
                 if ($s->role === 'housekeeping') {
-                    $points = (float) ($pointService->getMonthlyPointsDetails($s->id, $month, $year)['total'] ?? 0.0);
+                    $points = (float) ($hkPointService->getMonthlyPointsDetails($s->id, $month, $year)['total'] ?? 0.0);
                 }
                 $s->hk_points = $points;
 
@@ -360,13 +420,12 @@ class PayrollController extends Controller
         $rates = $request->only([
             'first_night_rate',
             'next_night_rate',
-            'housekeeping_bonus_mode',
-            'housekeeping_rate_per_point',
-            'housekeeping_fixed_pool',
-            'housekeeping_pool_percentage',
-            'housekeeping_max_cap',
-            'follow_up_rate',
-            'creation_rate',
+            'bonus_booking_fo',
+            'bonus_night_fo',
+            'bonus_booking_hk_selatan',
+            'bonus_night_hk_selatan',
+            'bonus_booking_hk_utara',
+            'bonus_night_hk_utara',
         ]);
 
         // Automatically persist rate settings into SystemSetting
@@ -391,33 +450,22 @@ class PayrollController extends Controller
         $rates = $request->only([
             'first_night_rate',
             'next_night_rate',
-            'housekeeping_bonus_mode',
-            'housekeeping_rate_per_point',
-            'housekeeping_fixed_pool',
-            'housekeeping_pool_percentage',
-            'housekeeping_max_cap',
+            'bonus_booking_fo',
+            'bonus_night_fo',
+            'bonus_booking_hk_selatan',
+            'bonus_night_hk_selatan',
+            'bonus_booking_hk_utara',
+            'bonus_night_hk_utara',
             'late_deduction_rate',
             'standby_rate',
             'overtime_rate',
             'absent_deduction_rate',
             'sick_deduction_rate',
             'permission_deduction_rate',
-            'follow_up_rate',
-            'creation_rate',
+            'proration_standard_days',
         ]);
 
         SystemSetting::setMany($rates, 'payroll_rates');
-
-        // Recalculate bonuses with new rates if month & year are provided
-        if ($request->has('month') && $request->has('year')) {
-            $this->performanceService->calculateAndSaveMonthlyBonuses(
-                (int) $request->input('month'),
-                (int) $request->input('year'),
-                $rates,
-                true,
-                $request->user()
-            );
-        }
 
         return redirect()->back()->with('success', 'Pengaturan tarif denda & insentif payroll berhasil disimpan secara permanen.');
     }
@@ -534,10 +582,12 @@ class PayrollController extends Controller
             'holiday_quota' => 'nullable|integer|min:0',
             'join_date' => 'nullable|date',
             'resign_date' => 'nullable|date',
+            'hk_location' => 'nullable|in:utara,selatan',
         ]);
 
         $u = User::findOrFail($validated['user_id']);
-        $u->update([
+
+        $updateData = [
             'fingerprint_id' => $validated['fingerprint_id'],
             'shift_start_time' => $validated['shift_start_time'],
             'shift_end_time' => $validated['shift_end_time'],
@@ -545,7 +595,14 @@ class PayrollController extends Controller
             'holiday_quota' => $validated['holiday_quota'] ?? 4,
             'join_date' => $validated['join_date'] ?? null,
             'resign_date' => $validated['resign_date'] ?? null,
-        ]);
+        ];
+
+        // Only update hk_location for housekeeping staff
+        if ($u->role === 'housekeeping') {
+            $updateData['hk_location'] = $validated['hk_location'] ?? 'selatan';
+        }
+
+        $u->update($updateData);
 
         // Sync active unpaid payroll records for this user to reflect new base salary immediately
         StaffPayroll::where('user_id', $u->id)

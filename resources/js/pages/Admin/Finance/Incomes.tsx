@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import { Link, useForm } from '@inertiajs/react';
-import { FileText, Link2, DollarSign, Wallet, Calendar, Download } from 'lucide-react';
+import { FileText, Link2, DollarSign, Wallet, Calendar, Download, Loader2 } from 'lucide-react';
+import { apiGet } from '@/lib/api';
 
 interface IncomeForm {
   property_id?: number | string | null;
@@ -103,10 +104,74 @@ export default function Incomes({
     window.open(`/admin/finance/incomes/export?${params.toString()}`, '_blank');
   };
 
-  // Group incomes by property
+  const [loadedIncomes, setLoadedIncomes] = useState<any[]>(incomes?.data || []);
+  const [currentPage, setCurrentPage] = useState(incomes?.current_page || 1);
+  const [lastPage, setLastPage] = useState(incomes?.last_page || 1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Sync state when initial props update (e.g., when filters change)
+  useEffect(() => {
+    setLoadedIncomes(incomes?.data || []);
+    setCurrentPage(incomes?.current_page || 1);
+    setLastPage(incomes?.last_page || 1);
+  }, [incomes]);
+
+  const loadNextPage = async () => {
+    if (currentPage >= lastPage || isLoadingMore) return;
+    setIsLoadingMore(true);
+
+    try {
+      const params: Record<string, any> = {
+        page: currentPage + 1,
+        format: 'json',
+      };
+      if (filter.q) params.q = filter.q;
+      if (filter.from) params.from = filter.from;
+      if (filter.to) params.to = filter.to;
+      if (filter.source) params.source = filter.source;
+      if (filter.property_id) params.property_id = filter.property_id;
+      if (filter.wallet_id) params.wallet_id = filter.wallet_id;
+
+      const res = await apiGet<{ incomes: any }>('/admin/finance/incomes', params);
+
+      if (res.incomes && res.incomes.data) {
+        setLoadedIncomes((prev) => [...prev, ...res.incomes.data]);
+        setCurrentPage(res.incomes.current_page);
+        setLastPage(res.incomes.last_page);
+      }
+    } catch (err) {
+      console.error('Failed to load more incomes:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && currentPage < lastPage && !isLoadingMore) {
+          loadNextPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const target = document.getElementById('infinite-scroll-trigger');
+    if (target) {
+      observer.observe(target);
+    }
+
+    return () => {
+      if (target) {
+        observer.unobserve(target);
+      }
+    };
+  }, [currentPage, lastPage, isLoadingMore, filter]);
+
+  // Group incomes by property using loadedIncomes (including infinite scrolled items)
   const groupedIncomes = useMemo(() => {
     const grouped: Record<string | 'general', any[]> = {};
-    incomes?.data?.forEach((income: any) => {
+    loadedIncomes.forEach((income: any) => {
       const key = income.property_id ? `property_${income.property_id}` : 'general';
       if (!grouped[key]) {
         grouped[key] = [];
@@ -114,12 +179,12 @@ export default function Incomes({
       grouped[key].push(income);
     });
     return grouped;
-  }, [incomes]);
+  }, [loadedIncomes]);
 
   // Filter incomes based on view mode
   const displayedIncomes = useMemo(() => {
     if (viewMode === 'all') {
-      return incomes?.data || [];
+      return loadedIncomes;
     } else if (viewMode === 'general') {
       return groupedIncomes['general'] || [];
     } else {
@@ -131,7 +196,7 @@ export default function Incomes({
       });
       return propertyIncomes;
     }
-  }, [viewMode, incomes, groupedIncomes]);
+  }, [viewMode, loadedIncomes, groupedIncomes]);
 
   return (
     <AdminLayout title="Pendapatan" breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Keuangan', href: '/admin/finance' }, { title: 'Pendapatan' }]}>
@@ -589,18 +654,30 @@ export default function Incomes({
                 )}
               </div>
 
-              <div className="flex items-center justify-between mt-4 text-xs">
-                <div>Menampilkan {incomes?.from || 0}-{incomes?.to || 0} dari {incomes?.total || 0}</div>
-                <div className="flex gap-1">
-                  {incomes?.links?.map((l: any) => (
-                    <Link 
-                      key={l.label} 
-                      href={l.url || '#'} 
-                      className={`px-2 py-1 rounded cursor-pointer ${l.active ? 'bg-primary text-white font-bold' : 'hover:bg-accent'} ${!l.url ? 'pointer-events-none opacity-50' : ''}`}
+              <div className="flex flex-col items-center justify-between mt-6 text-xs gap-3">
+                <div className="text-slate-500 font-medium">
+                  Menampilkan {loadedIncomes.length} dari {incomes?.total || 0} data pendapatan
+                </div>
+                
+                <div id="infinite-scroll-trigger" className="w-full flex justify-center items-center py-2">
+                  {isLoadingMore ? (
+                    <div className="flex items-center gap-2 text-slate-500 font-bold bg-slate-100 px-4 py-2 rounded-xl">
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      Memuat data pendapatan selanjutnya...
+                    </div>
+                  ) : currentPage < lastPage ? (
+                    <Button 
+                      variant="outline" 
+                      onClick={loadNextPage} 
+                      className="font-bold border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl cursor-pointer"
                     >
-                      {l.label.replace('&laquo;', '«').replace('&raquo;', '»')}
-                    </Link>
-                  ))}
+                      Muat Lebih Banyak ({incomes.total - loadedIncomes.length} tersisa)
+                    </Button>
+                  ) : loadedIncomes.length > 0 ? (
+                    <div className="text-[11px] text-slate-400 font-medium italic">
+                      ✓ Semua data pendapatan pada periode ini telah ditampilkan
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </CardContent>

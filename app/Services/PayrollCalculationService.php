@@ -20,7 +20,8 @@ class PayrollCalculationService
     public function __construct(
         protected AttendanceService $attendanceService,
         protected StaffPerformanceService $performanceService,
-        protected WalletService $walletService
+        protected WalletService $walletService,
+        protected HousekeepingPointService $hkPointService
     ) {}
 
     /**
@@ -52,7 +53,7 @@ class PayrollCalculationService
             ->where('role', '!=', 'guest')
             ->whereNull('deleted_at')
             ->orderBy('name')
-            ->get(['id', 'name', 'role', 'status', 'fingerprint_id', 'shift_start_time', 'shift_end_time', 'base_salary', 'holiday_quota', 'join_date', 'resign_date', 'created_at', 'deleted_at']);
+            ->get(['id', 'name', 'role', 'status', 'fingerprint_id', 'shift_start_time', 'shift_end_time', 'base_salary', 'holiday_quota', 'join_date', 'resign_date', 'created_at', 'deleted_at', 'hk_location']);
 
         // Fetch performance bonuses (or compute on-the-fly if not present)
         $performanceBonuses = $this->performanceService->getBonusesForMonth($month, $year);
@@ -114,7 +115,7 @@ class PayrollCalculationService
             // Housekeeping points fallback
             $hkPointsDetails = [];
             if ($s->role === 'housekeeping') {
-                $hkPointsDetails = app(HousekeepingPointService::class)->getMonthlyPointsDetails($s->id, $month, $year);
+                $hkPointsDetails = $this->hkPointService->getMonthlyPointsDetails($s->id, $month, $year);
             }
 
             // Deductions & Allowances
@@ -229,6 +230,7 @@ class PayrollCalculationService
                     'join_date' => $s->join_date ? Carbon::parse($s->join_date)->toDateString() : null,
                     'resign_date' => $s->resign_date ? Carbon::parse($s->resign_date)->toDateString() : null,
                     'bonus_finalized' => (bool) $bonusRecord,
+                    'hk_location' => $s->hk_location ?? ($s->role === 'housekeeping' ? 'selatan' : null),
                     'kpi_details' => $existing->kpi_details ?? ($bonusRecord?->details['kpi'] ?? []),
                     'points_details' => $existing->points_details && count($existing->points_details) > 0 ? $existing->points_details : $hkPointsDetails,
                     'loans_details' => $existing->loans_details ?? $loansDetails,
@@ -289,6 +291,7 @@ class PayrollCalculationService
                     'prorated' => $prorationFactor < 1.0,
                     'active_employment_days' => $activeDays,
                     'bonus_finalized' => (bool) $bonusRecord,
+                    'hk_location' => $s->hk_location ?? ($s->role === 'housekeeping' ? 'selatan' : null),
                     'kpi_details' => $bonusRecord?->details['kpi'] ?? [],
                     'points_details' => $hkPointsDetails,
                     'loans_details' => $loansDetails,

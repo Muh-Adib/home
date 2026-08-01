@@ -27,8 +27,12 @@ class NightOverlapCalculatorService
         $rates = array_merge([
             'bonus_booking_fo' => (float) SystemSetting::get('bonus_booking_fo', 3000),
             'bonus_night_fo' => (float) SystemSetting::get('bonus_night_fo', 1000),
-            'bonus_booking_hk' => (float) SystemSetting::get('bonus_booking_hk', 3000),
-            'bonus_night_hk' => (float) SystemSetting::get('bonus_night_hk', 5000),
+            // South HK rates (point-based pool)
+            'bonus_booking_hk_selatan' => (float) SystemSetting::get('bonus_booking_hk_selatan', SystemSetting::get('bonus_booking_hk', 3000)),
+            'bonus_night_hk_selatan' => (float) SystemSetting::get('bonus_night_hk_selatan', SystemSetting::get('bonus_night_hk', 5000)),
+            // North HK rates (percentage-allocation)
+            'bonus_booking_hk_utara' => (float) SystemSetting::get('bonus_booking_hk_utara', SystemSetting::get('bonus_booking_hk', 3000)),
+            'bonus_night_hk_utara' => (float) SystemSetting::get('bonus_night_hk_utara', SystemSetting::get('bonus_night_hk', 5000)),
         ], $rates);
 
         $properties = Property::active()->get();
@@ -69,8 +73,16 @@ class NightOverlapCalculatorService
 
         $bonusBookingFo = (float) ($rates['bonus_booking_fo'] ?? 3000);
         $bonusNightFo = (float) ($rates['bonus_night_fo'] ?? 1000);
-        $bonusBookingHk = (float) ($rates['bonus_booking_hk'] ?? 3000);
-        $bonusNightHk = (float) ($rates['bonus_night_hk'] ?? 5000);
+
+        // Determine which HK rates to use based on property location
+        $location = strtolower((string) ($property->location ?? 'selatan'));
+        if ($location === 'utara') {
+            $bonusBookingHk = (float) ($rates['bonus_booking_hk_utara'] ?? $rates['bonus_booking_hk'] ?? 3000);
+            $bonusNightHk = (float) ($rates['bonus_night_hk_utara'] ?? $rates['bonus_night_hk'] ?? 5000);
+        } else {
+            $bonusBookingHk = (float) ($rates['bonus_booking_hk_selatan'] ?? $rates['bonus_booking_hk'] ?? 3000);
+            $bonusNightHk = (float) ($rates['bonus_night_hk_selatan'] ?? $rates['bonus_night_hk'] ?? 5000);
+        }
 
         foreach ($propBookings as $booking) {
             $checkInCarbon = Carbon::parse($booking->check_in)->startOfDay();
@@ -120,7 +132,7 @@ class NightOverlapCalculatorService
         return new PropertyNightOverlapDto(
             propertyId: $property->id,
             propertyName: $property->name,
-            location: strtolower((string) ($property->location ?? 'selatan')),
+            location: $location,
             bookingCount: $bookingCount,
             occupiedNights: $occupiedNights,
             bonusBooking: $bonusBooking,

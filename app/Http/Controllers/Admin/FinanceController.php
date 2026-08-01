@@ -89,6 +89,9 @@ class FinanceController extends Controller
     {
         $query = Income::with(['property', 'booking', 'wallet', 'payment']);
 
+        $from = $request->has('from') ? $request->input('from') : now()->startOfMonth()->toDateString();
+        $to = $request->has('to') ? $request->input('to') : now()->endOfMonth()->toDateString();
+
         // Apply filters
         if ($request->filled('q')) {
             $search = $request->input('q');
@@ -98,12 +101,12 @@ class FinanceController extends Controller
             });
         }
 
-        if ($request->filled('from')) {
-            $query->whereDate('income_date', '>=', $request->input('from'));
+        if (! empty($from) && $from !== 'all') {
+            $query->whereDate('income_date', '>=', $from);
         }
 
-        if ($request->filled('to')) {
-            $query->whereDate('income_date', '<=', $request->input('to'));
+        if (! empty($to) && $to !== 'all') {
+            $query->whereDate('income_date', '<=', $to);
         }
 
         if ($request->filled('source')) {
@@ -126,6 +129,12 @@ class FinanceController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        if ($request->wantsJson() || $request->input('format') === 'json') {
+            return response()->json([
+                'incomes' => $incomes,
+            ]);
+        }
+
         // Calculate dynamic summaries based on filters
         $summaryQuery = Income::query();
         if ($request->filled('q')) {
@@ -135,11 +144,11 @@ class FinanceController extends Controller
                     ->orWhere('source', 'like', "%{$search}%");
             });
         }
-        if ($request->filled('from')) {
-            $summaryQuery->whereDate('income_date', '>=', $request->input('from'));
+        if (! empty($from) && $from !== 'all') {
+            $summaryQuery->whereDate('income_date', '>=', $from);
         }
-        if ($request->filled('to')) {
-            $summaryQuery->whereDate('income_date', '<=', $request->input('to'));
+        if (! empty($to) && $to !== 'all') {
+            $summaryQuery->whereDate('income_date', '<=', $to);
         }
         if ($request->filled('source')) {
             $summaryQuery->where('source', $request->input('source'));
@@ -177,7 +186,14 @@ class FinanceController extends Controller
             'totalByProperty' => $totalByProperty,
             'totalGeneral' => $totalGeneral,
             'totalAll' => $totalAll,
-            'filters' => $request->only(['q', 'from', 'to', 'source', 'property_id', 'wallet_id']),
+            'filters' => [
+                'q' => $request->input('q', ''),
+                'from' => $from,
+                'to' => $to,
+                'source' => $request->input('source', ''),
+                'property_id' => $request->input('property_id', ''),
+                'wallet_id' => $request->input('wallet_id', ''),
+            ],
         ]);
     }
 
@@ -1599,7 +1615,13 @@ class FinanceController extends Controller
             abort(403, 'Unauthorized.');
         }
 
-        $filters = $request->only(['q', 'from', 'to', 'source', 'property_id', 'wallet_id']);
+        $from = $request->has('from') ? $request->input('from') : now()->startOfMonth()->toDateString();
+        $to = $request->has('to') ? $request->input('to') : now()->endOfMonth()->toDateString();
+
+        $filters = array_merge([
+            'from' => $from,
+            'to' => $to,
+        ], $request->only(['q', 'from', 'to', 'source', 'property_id', 'wallet_id']));
 
         $export = new IncomesExport($filters);
         $filename = 'Pendapatan_'.now()->format('Ymd_His').'.xlsx';

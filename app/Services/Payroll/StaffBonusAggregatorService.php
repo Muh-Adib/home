@@ -29,12 +29,16 @@ class StaffBonusAggregatorService
         ?User $finalizer = null
     ): array {
         return DB::transaction(function () use ($month, $year, $rates, $finalize, $finalizer) {
-            // Load and persist rate settings
+            // Load and persist rate settings (use new location-specific keys)
             $rates = array_merge([
                 'bonus_booking_fo' => (float) SystemSetting::get('bonus_booking_fo', 3000),
                 'bonus_night_fo' => (float) SystemSetting::get('bonus_night_fo', 1000),
-                'bonus_booking_hk' => (float) SystemSetting::get('bonus_booking_hk', 3000),
-                'bonus_night_hk' => (float) SystemSetting::get('bonus_night_hk', 5000),
+                // South HK rates (point-based pool)
+                'bonus_booking_hk_selatan' => (float) SystemSetting::get('bonus_booking_hk_selatan', SystemSetting::get('bonus_booking_hk', 3000)),
+                'bonus_night_hk_selatan' => (float) SystemSetting::get('bonus_night_hk_selatan', SystemSetting::get('bonus_night_hk', 5000)),
+                // North HK rates (percentage-allocation)
+                'bonus_booking_hk_utara' => (float) SystemSetting::get('bonus_booking_hk_utara', SystemSetting::get('bonus_booking_hk', 3000)),
+                'bonus_night_hk_utara' => (float) SystemSetting::get('bonus_night_hk_utara', SystemSetting::get('bonus_night_hk', 5000)),
             ], $rates);
 
             SystemSetting::setMany($rates, 'payroll_rates');
@@ -42,20 +46,24 @@ class StaffBonusAggregatorService
             // 1. Calculate property night overlaps
             $propertyOverlapDtos = $this->nightOverlapCalculator->calculateAllProperties($month, $year, $rates);
 
-            // 2. Fetch Active, Non-Deleted Staff
+            // 2. Fetch Active, Non-Deleted Staff (include hk_location for routing)
             $staff = User::query()
                 ->where('role', '!=', 'guest')
                 ->whereNull('deleted_at')
                 ->orderBy('name')
-                ->get(['id', 'name', 'role', 'status']);
+                ->get(['id', 'name', 'role', 'status', 'hk_location']);
 
             $foStaff = $staff->where('role', 'front_desk');
             $hkStaff = $staff->where('role', 'housekeeping');
 
+            // Route HK staff by hk_location: null defaults to 'selatan'
+            $hkSouthStaff = $hkStaff->filter(fn ($u) => ($u->hk_location ?? 'selatan') === 'selatan');
+            $hkNorthStaff = $hkStaff->filter(fn ($u) => $u->hk_location === 'utara');
+
             // 3. Compute FO & HK Bonuses
             $foBonusResults = $this->foCalculator->calculate($propertyOverlapDtos, $foStaff, (float) $rates['bonus_booking_fo']);
-            $hkSouthBonusResults = $this->hkSouthCalculator->calculate($propertyOverlapDtos, $hkStaff, $month, $year);
-            $hkNorthBonusResults = $this->hkNorthCalculator->calculate($propertyOverlapDtos, $hkStaff);
+            $hkSouthBonusResults = $this->hkSouthCalculator->calculate($propertyOverlapDtos, $hkSouthStaff, $month, $year);
+            $hkNorthBonusResults = $this->hkNorthCalculator->calculate($propertyOverlapDtos, $hkNorthStaff);
 
             $results = [];
 
@@ -76,16 +84,19 @@ class StaffBonusAggregatorService
                         $details['front_office'] = $foData['details'] ?? [];
                     }
                 } elseif ($s->role === 'housekeeping') {
-                    $southData = $hkSouthBonusResults[$s->id] ?? null;
-                    $northData = $hkNorthBonusResults[$s->id] ?? null;
+                    $hkLocation = $s->hk_location ?? 'selatan';
 
-                    $hkSouthBonus = (float) ($southData['hk_south_bonus'] ?? 0.0);
-                    $hkNorthBonus = (float) ($northData['hk_north_bonus'] ?? 0.0);
-
-                    $hkBonus = $hkSouthBonus + $hkNorthBonus;
-
-                    $details['housekeeping_south'] = $southData['details'] ?? [];
-                    $details['housekeeping_north'] = $northData['details'] ?? [];
+                    if ($hkLocation === 'utara') {
+                        $northData = $hkNorthBonusResults[$s->id] ?? null;
+                        $hkBonus = (float) ($northData['hk_north_bonus'] ?? 0.0);
+                        $details['housekeeping_north'] = $northData['details'] ?? [];
+                        $details['hk_zone'] = 'utara';
+                    } else {
+                        $southData = $hkSouthBonusResults[$s->id] ?? null;
+                        $hkBonus = (float) ($southData['hk_south_bonus'] ?? 0.0);
+                        $details['housekeeping_south'] = $southData['details'] ?? [];
+                        $details['hk_zone'] = 'selatan';
+                    }
                 }
 
                 $totalBonus = $hkBonus + $fdFirstNightBonus + $fdNextNightsShare + $kpiBonus;

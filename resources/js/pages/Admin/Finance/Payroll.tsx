@@ -33,7 +33,8 @@ import {
     CalendarCheck,
     SlidersHorizontal,
     PlusCircle,
-    MinusCircle
+    MinusCircle,
+    MapPin
 } from 'lucide-react';
 import { type BreadcrumbItem } from '@/types';
 import { apiPostForm } from '@/lib/api';
@@ -90,6 +91,7 @@ interface PayrollStaffRow {
     join_date?: string | null;
     resign_date?: string | null;
     holiday_quota?: number;
+    hk_location?: 'utara' | 'selatan' | null;
 }
 
 interface DailyShiftItem {
@@ -106,29 +108,33 @@ interface PayrollProps {
     userShifts: Record<number, Array<{ date: string; shift_start_time: string; shift_end_time: string; is_off_day: boolean }>>;
     versions: Array<{ version: number; batch_id: string; is_active: boolean; status: string; created_at: string }>;
     poolData: {
-        eligible_turnover: number;
-        total_pool: number;
-        total_points: number;
-        point_rate: number;
+        total_bookings: number;
+        total_nights: number;
+        north_bookings: number;
+        north_nights: number;
+        south_bookings: number;
+        south_nights: number;
+        hk_south_fund: number;
+        hk_north_fund: number;
+        fo_fund_total: number;
     };
     filters: {
         month: number;
         year: number;
+        bonus_booking_fo: number;
+        bonus_night_fo: number;
+        bonus_booking_hk_selatan: number;
+        bonus_night_hk_selatan: number;
+        bonus_booking_hk_utara: number;
+        bonus_night_hk_utara: number;
         first_night_rate: number;
         next_night_rate: number;
-        housekeeping_bonus_mode?: string;
-        housekeeping_rate_per_point?: number;
-        housekeeping_fixed_pool?: number;
-        housekeeping_pool_percentage?: number;
-        housekeeping_max_cap?: number;
         late_deduction_rate: number;
         standby_rate: number;
         overtime_rate: number;
         absent_deduction_rate: number;
         sick_deduction_rate: number;
         permission_deduction_rate: number;
-        follow_up_rate?: number;
-        creation_rate?: number;
         proration_standard_days?: number;
     };
 }
@@ -137,14 +143,15 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
     const [selectedMonth, setSelectedMonth] = useState(filters.month);
     const [selectedYear, setSelectedYear] = useState(filters.year);
 
-    // Rates configuration state
+    // Rates configuration state (bonus per booking & per malam)
+    const [bonusBookingFo, setBonusBookingFo] = useState(filters.bonus_booking_fo || 3000);
+    const [bonusNightFo, setBonusNightFo] = useState(filters.bonus_night_fo || 1000);
+    const [bonusBookingHkSelatan, setBonusBookingHkSelatan] = useState(filters.bonus_booking_hk_selatan || 3000);
+    const [bonusNightHkSelatan, setBonusNightHkSelatan] = useState(filters.bonus_night_hk_selatan || 5000);
+    const [bonusBookingHkUtara, setBonusBookingHkUtara] = useState(filters.bonus_booking_hk_utara || 3000);
+    const [bonusNightHkUtara, setBonusNightHkUtara] = useState(filters.bonus_night_hk_utara || 5000);
     const [firstNightRate, setFirstNightRate] = useState(filters.first_night_rate || 1000);
     const [nextNightRate, setNextNightRate] = useState(filters.next_night_rate || 1000);
-    const [housekeepingBonusMode, setHousekeepingBonusMode] = useState(filters.housekeeping_bonus_mode || 'rate_per_point');
-    const [housekeepingRate, setHousekeepingRate] = useState(filters.housekeeping_rate_per_point || 2000);
-    const [housekeepingFixedPool, setHousekeepingFixedPool] = useState(filters.housekeeping_fixed_pool || 1500000);
-    const [housekeepingPoolPercentage, setHousekeepingPoolPercentage] = useState(filters.housekeeping_pool_percentage || 5.0);
-    const [housekeepingMaxCap, setHousekeepingMaxCap] = useState(filters.housekeeping_max_cap || 1500000);
 
     const [lateDeductionRate, setLateDeductionRate] = useState(filters.late_deduction_rate || 20000);
     const [standbyRate, setStandbyRate] = useState(filters.standby_rate || 50000);
@@ -152,8 +159,6 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
     const [absentDeductionRate, setAbsentDeductionRate] = useState(filters.absent_deduction_rate || 100000);
     const [sickDeductionRate, setSickDeductionRate] = useState(filters.sick_deduction_rate || 50000);
     const [permissionDeductionRate, setPermissionDeductionRate] = useState(filters.permission_deduction_rate || 75000);
-    const [followUpRate, setFollowUpRate] = useState(filters.follow_up_rate || 1000);
-    const [creationRate, setCreationRate] = useState(filters.creation_rate || 1000);
     const [prorationStandardDays, setProrationStandardDays] = useState(filters.proration_standard_days || 26);
 
     const [isParsingAttendance, setIsParsingAttendance] = useState(false);
@@ -174,6 +179,7 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
     const [staffJoinDate, setStaffJoinDate] = useState('');
     const [staffResignDate, setStaffResignDate] = useState('');
     const [staffHolidayQuota, setStaffHolidayQuota] = useState(4);
+    const [staffHkLocation, setStaffHkLocation] = useState<'utara' | 'selatan' | ''>('selatan');
     const [isUpdatingUserSettings, setIsUpdatingUserSettings] = useState(false);
 
     // Modal Penyesuaian Gaji Khusus (Penambahan & Pengurangan Manual)
@@ -289,6 +295,7 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
         setStaffJoinDate(row.join_date ? row.join_date.substring(0, 10) : '');
         setStaffResignDate(row.resign_date ? row.resign_date.substring(0, 10) : '');
         setStaffHolidayQuota(row.holiday_quota || 4);
+        setStaffHkLocation(row.hk_location || 'selatan');
         setIsUserSettingsModalOpen(true);
     };
 
@@ -376,6 +383,7 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                 join_date: staffJoinDate || null,
                 resign_date: staffResignDate || null,
                 holiday_quota: staffHolidayQuota,
+                ...(editingStaff.role === 'housekeeping' ? { hk_location: staffHkLocation || 'selatan' } : {}),
             },
             {
                 onSuccess: () => {
@@ -427,26 +435,25 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
             {
                 month: selectedMonth,
                 year: selectedYear,
+                bonus_booking_fo: bonusBookingFo,
+                bonus_night_fo: bonusNightFo,
+                bonus_booking_hk_selatan: bonusBookingHkSelatan,
+                bonus_night_hk_selatan: bonusNightHkSelatan,
+                bonus_booking_hk_utara: bonusBookingHkUtara,
+                bonus_night_hk_utara: bonusNightHkUtara,
                 first_night_rate: firstNightRate,
                 next_night_rate: nextNightRate,
-                housekeeping_bonus_mode: housekeepingBonusMode,
-                housekeeping_rate_per_point: housekeepingRate,
-                housekeeping_fixed_pool: housekeepingFixedPool,
-                housekeeping_pool_percentage: housekeepingPoolPercentage,
-                housekeeping_max_cap: housekeepingMaxCap,
                 late_deduction_rate: lateDeductionRate,
                 standby_rate: standbyRate,
                 overtime_rate: overtimeRate,
                 absent_deduction_rate: absentDeductionRate,
                 sick_deduction_rate: sickDeductionRate,
                 permission_deduction_rate: permissionDeductionRate,
-                follow_up_rate: followUpRate,
-                creation_rate: creationRate,
                 proration_standard_days: prorationStandardDays,
             },
             {
                 onSuccess: () => {
-                    toast.success('Pengaturan tarif denda & insentif berhasil disimpan secara permanen di database.');
+                    toast.success('Pengaturan tarif bonus & denda berhasil disimpan secara permanen di database.');
                     setIsSavingRates(false);
                     setIsRatesModalOpen(false);
                     router.reload();
@@ -466,15 +473,14 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
             {
                 month: selectedMonth,
                 year: selectedYear,
+                bonus_booking_fo: bonusBookingFo,
+                bonus_night_fo: bonusNightFo,
+                bonus_booking_hk_selatan: bonusBookingHkSelatan,
+                bonus_night_hk_selatan: bonusNightHkSelatan,
+                bonus_booking_hk_utara: bonusBookingHkUtara,
+                bonus_night_hk_utara: bonusNightHkUtara,
                 first_night_rate: firstNightRate,
                 next_night_rate: nextNightRate,
-                housekeeping_bonus_mode: housekeepingBonusMode,
-                housekeeping_rate_per_point: housekeepingRate,
-                housekeeping_fixed_pool: housekeepingFixedPool,
-                housekeeping_pool_percentage: housekeepingPoolPercentage,
-                housekeeping_max_cap: housekeepingMaxCap,
-                follow_up_rate: followUpRate,
-                creation_rate: creationRate,
             },
             {
                 onSuccess: () => {
@@ -960,6 +966,14 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                                                     </Button>
                                                 </div>
                                                 <div className="text-[10px] text-slate-400 uppercase font-semibold">{row.role}</div>
+                                                {row.role === 'housekeeping' && (
+                                                    <Badge 
+                                                        className={`text-[9px] mt-0.5 font-bold ${(row.hk_location ?? 'selatan') === 'utara' ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'bg-blue-100 text-blue-700 border border-blue-300'}`}
+                                                    >
+                                                        <MapPin className="w-2.5 h-2.5 mr-0.5" />
+                                                        HK {(row.hk_location ?? 'selatan').toUpperCase()}
+                                                    </Badge>
+                                                )}
                                                 {row.prorated && (
                                                     <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-300 mt-0.5">
                                                         Prorated ({row.active_employment_days}/26 hr)
@@ -1114,115 +1128,148 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL PENGATURAN SEMUA TARIF DENDA & INSENTIF PAYROLL (TERMASUK SETTING POIN HK) */}
+            {/* MODAL PENGATURAN SEMUA TARIF DENDA & INSENTIF PAYROLL */}
             <Dialog open={isRatesModalOpen} onOpenChange={setIsRatesModalOpen}>
-                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-base font-bold flex items-center gap-2 text-purple-900">
-                            <SlidersHorizontal className="w-5 h-5 text-purple-600" /> Modal Pengaturan Tarif Denda & Insentif Staff
+                            <SlidersHorizontal className="w-5 h-5 text-purple-600" /> Modal Pengaturan Tarif Bonus & Denda Payroll
                         </DialogTitle>
                         <DialogDescription className="text-xs">
-                            Atur metode perhitungan Poin HK, nominal denda absensi, serta tarif bonus FO/HK yang tersimpan secara permanen.
+                            Atur tarif bonus per booking/malam untuk FO, HK Selatan, dan HK Utara. Nilai ini tersimpan permanen dan jadi dasar kalkulasi bonus bulan {monthsName[selectedMonth - 1]} {selectedYear}.
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2 text-xs">
-                        {/* Group Housekeeping Bonus Settings */}
-                        <div className="col-span-1 md:col-span-2 space-y-3 p-3 bg-emerald-50/70 rounded-lg border border-emerald-200">
-                            <h4 className="font-bold text-xs text-emerald-900 border-b border-emerald-200 pb-1 flex items-center gap-1.5">
-                                <Sparkles className="w-4 h-4 text-emerald-600" /> Pengaturan Kalkulasi Bonus Housekeeping (HK)
+                    <div className="space-y-4 py-2 text-xs">
+                        {/* Live Preview Panel */}
+                        <div className="p-3 bg-slate-900 text-white rounded-xl border border-slate-700 space-y-2">
+                            <h4 className="font-bold text-xs text-emerald-400 flex items-center gap-1.5 border-b border-slate-700 pb-1.5">
+                                <Sparkles className="w-3.5 h-3.5" /> Preview Kalkulasi Dana Bonus — {monthsName[selectedMonth - 1]} {selectedYear}
                             </h4>
-                            
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-3 gap-3 text-[11px]">
                                 <div className="space-y-1">
-                                    <Label className="text-[11px] font-semibold text-slate-700">Metode Bonus HK</Label>
-                                    <Select value={housekeepingBonusMode} onValueChange={(v) => setHousekeepingBonusMode(v)}>
-                                        <SelectTrigger className="bg-white font-bold h-9">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="rate_per_point">Tarif Flat per Poin (Rp)</SelectItem>
-                                            <SelectItem value="fixed_pool">Total Budget Pool HK Fix (Rp)</SelectItem>
-                                            <SelectItem value="profit_sharing">Profit Sharing Pool Net (%)</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    <div className="text-slate-400 font-semibold">📋 Data Bulan Ini</div>
+                                    <div>Total Booking: <span className="font-bold text-white">{poolData.total_bookings}</span></div>
+                                    <div>Total Malam: <span className="font-bold text-white">{poolData.total_nights}</span></div>
+                                    <div className="mt-1 text-slate-400 font-semibold">Selatan:</div>
+                                    <div>Booking: <span className="text-blue-300">{poolData.south_bookings}</span>, Malam: <span className="text-blue-300">{poolData.south_nights}</span></div>
+                                    <div className="mt-0.5 text-slate-400 font-semibold">Utara:</div>
+                                    <div>Booking: <span className="text-purple-300">{poolData.north_bookings}</span>, Malam: <span className="text-purple-300">{poolData.north_nights}</span></div>
                                 </div>
-
-                                {housekeepingBonusMode === 'rate_per_point' && (
-                                    <div className="space-y-1">
-                                        <Label className="text-[11px] font-semibold text-slate-700">Tarif Flat per Poin HK (Rp)</Label>
-                                        <Input type="number" value={housekeepingRate} onChange={(e) => setHousekeepingRate(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
-                                    </div>
-                                )}
-
-                                {housekeepingBonusMode === 'fixed_pool' && (
-                                    <div className="space-y-1">
-                                        <Label className="text-[11px] font-semibold text-slate-700">Total Budget Pool HK Fix (Rp)</Label>
-                                        <Input type="number" value={housekeepingFixedPool} onChange={(e) => setHousekeepingFixedPool(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
-                                    </div>
-                                )}
-
-                                {housekeepingBonusMode === 'profit_sharing' && (
-                                    <div className="space-y-1">
-                                        <Label className="text-[11px] font-semibold text-slate-700">Persentase Pool HK dari Profit Net (%)</Label>
-                                        <Input type="number" step="0.1" value={housekeepingPoolPercentage} onChange={(e) => setHousekeepingPoolPercentage(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
-                                    </div>
-                                )}
-
                                 <div className="space-y-1">
-                                    <Label className="text-[11px] font-semibold text-slate-700">Cap Maksimum Bonus per Staff HK (Rp)</Label>
-                                    <Input type="number" value={housekeepingMaxCap} onChange={(e) => setHousekeepingMaxCap(Number(e.target.value) || 0)} className="bg-white font-bold h-9" placeholder="0 = tanpa batas" />
+                                    <div className="text-slate-400 font-semibold">💼 Shared Pool Malam FO</div>
+                                    <div>= ({Math.max(0, poolData.total_nights - poolData.total_bookings)} malam lanjutan × {formatCurrency(bonusNightFo)})</div>
+                                    <div className="pt-1 border-t border-slate-700 font-black text-emerald-400 text-sm">
+                                        = {formatCurrency(Math.max(0, poolData.total_nights - poolData.total_bookings) * bonusNightFo)}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-1">Dibagi rata ke seluruh staff FO aktif.</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="text-blue-400 font-semibold">🧹 Dana HK Selatan (Pool Poin)</div>
+                                    <div>= ({poolData.south_bookings} × {formatCurrency(bonusBookingHkSelatan)})</div>
+                                    <div>+ ({Math.max(0, poolData.south_nights - poolData.south_bookings)} × {formatCurrency(bonusNightHkSelatan)})</div>
+                                    <div className="pt-1 border-t border-slate-700 font-black text-blue-400 text-sm">
+                                        = {formatCurrency((poolData.south_bookings * bonusBookingHkSelatan) + (Math.max(0, poolData.south_nights - poolData.south_bookings) * bonusNightHkSelatan))}
+                                    </div>
+                                    <div className="mt-2 text-purple-400 font-semibold">🏠 Dana HK Utara (% Alokasi)</div>
+                                    <div>= ({poolData.north_bookings} × {formatCurrency(bonusBookingHkUtara)})</div>
+                                    <div>+ ({Math.max(0, poolData.north_nights - poolData.north_bookings)} × {formatCurrency(bonusNightHkUtara)})</div>
+                                    <div className="pt-1 border-t border-slate-700 font-black text-purple-400 text-sm">
+                                        = {formatCurrency((poolData.north_bookings * bonusBookingHkUtara) + (Math.max(0, poolData.north_nights - poolData.north_bookings) * bonusNightHkUtara))}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Group Denda */}
-                        <div className="space-y-3 p-3 bg-red-50/50 rounded-lg border border-red-100">
+                        {/* FO Bonus Rates */}
+                        <div className="p-3 bg-purple-50/50 rounded-lg border border-purple-100 space-y-3">
+                            <h4 className="font-bold text-xs text-purple-900 border-b border-purple-200 pb-1 flex items-center gap-1.5">
+                                <TrendingUp className="w-3.5 h-3.5 text-purple-600" /> Tarif Bonus Front Office (FO) — per Booking & per Malam Lanjutan
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-700">Bonus per Booking FO (Rp)</Label>
+                                    <Input type="number" value={bonusBookingFo} onChange={(e) => setBonusBookingFo(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                    <p className="text-[10px] text-slate-500">Diberikan ke staff FO penanggung jawab (input/follow-up). Jika beda staff, dibagi 50-50.</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-700">Bonus per Malam Lanjutan FO (Rp)</Label>
+                                    <Input type="number" value={bonusNightFo} onChange={(e) => setBonusNightFo(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                    <p className="text-[10px] text-slate-500">Dikumpulkan ke Pool Malam Lanjutan & dibagi rata ke semua staff FO aktif.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* HK South Bonus Rates */}
+                        <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 space-y-3">
+                            <h4 className="font-bold text-xs text-blue-900 border-b border-blue-200 pb-1 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Tarif Bonus HK <span className="bg-blue-600 text-white px-1.5 py-0.5 rounded-md text-[10px]">SELATAN</span> — Pool Poin
+                            </h4>
+                            <p className="text-[10px] text-slate-500 -mt-1">Dana terkumpul dibagi proporsional berdasarkan poin kerja HK Selatan bulan ini.</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-700">Kontribusi per Booking (Rp)</Label>
+                                    <Input type="number" value={bonusBookingHkSelatan} onChange={(e) => setBonusBookingHkSelatan(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-700">Kontribusi per Malam Lanjutan (Rp)</Label>
+                                    <Input type="number" value={bonusNightHkSelatan} onChange={(e) => setBonusNightHkSelatan(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* HK North Bonus Rates */}
+                        <div className="p-3 bg-purple-50/50 rounded-lg border border-purple-100 space-y-3">
+                            <h4 className="font-bold text-xs text-purple-900 border-b border-purple-200 pb-1 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-purple-600" /> Tarif Bonus HK <span className="bg-purple-600 text-white px-1.5 py-0.5 rounded-md text-[10px]">UTARA</span> — Alokasi Persentase per Staff
+                            </h4>
+                            <p className="text-[10px] text-slate-500 -mt-1">Dana per properti Utara dibagi ke HK berdasarkan % alokasi yang diatur di masing-masing properti.</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-700">Kontribusi per Booking (Rp)</Label>
+                                    <Input type="number" value={bonusBookingHkUtara} onChange={(e) => setBonusBookingHkUtara(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-700">Kontribusi per Malam Lanjutan (Rp)</Label>
+                                    <Input type="number" value={bonusNightHkUtara} onChange={(e) => setBonusNightHkUtara(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Deductions */}
+                        <div className="p-3 bg-red-50/50 rounded-lg border border-red-100 space-y-3">
                             <h4 className="font-bold text-xs text-red-900 border-b pb-1">Nominal Denda & Potongan Absensi</h4>
-                            <div className="space-y-1">
-                                <Label className="text-[11px] font-semibold text-slate-600">Denda Keterlambatan (per Jam)</Label>
-                                <Input type="number" value={lateDeductionRate} onChange={(e) => setLateDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-600">Denda Keterlambatan (per Jam)</Label>
+                                    <Input type="number" value={lateDeductionRate} onChange={(e) => setLateDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-600">Potongan Mangkir/Absent (per Hari)</Label>
+                                    <Input type="number" value={absentDeductionRate} onChange={(e) => setAbsentDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-600">Potongan Sakit Tanpa Surat (per Hari)</Label>
+                                    <Input type="number" value={sickDeductionRate} onChange={(e) => setSickDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-600">Potongan Izin Karyawan (per Hari)</Label>
+                                    <Input type="number" value={permissionDeductionRate} onChange={(e) => setPermissionDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                </div>
                             </div>
-                            <div className="space-y-1">
-                                <Label className="text-[11px] font-semibold text-slate-600">Potongan Mangkir/Absent (per Hari)</Label>
-                                <Input type="number" value={absentDeductionRate} onChange={(e) => setAbsentDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
-                            </div>
-                            <div className="space-y-1">
-                                <Label className="text-[11px] font-semibold text-slate-600">Potongan Sakit Tanpa Surat (per Hari)</Label>
-                                <Input type="number" value={sickDeductionRate} onChange={(e) => setSickDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
-                            </div>
-                            <div className="space-y-1">
-                                <Label className="text-[11px] font-semibold text-slate-600">Potongan Izin Karyawan (per Hari)</Label>
-                                <Input type="number" value={permissionDeductionRate} onChange={(e) => setPermissionDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
-                            </div>
-                            <div className="space-y-1 pt-1 border-t border-red-200">
-                                <Label className="text-[11px] font-semibold text-slate-700">Standar Hari Kerja Prorasi (Hari/Bulan)</Label>
-                                <Input type="number" value={prorationStandardDays} onChange={(e) => setProrationStandardDays(Number(e.target.value) || 26)} className="bg-white font-bold" placeholder="Default 26 hari" />
-                            </div>
-                        </div>
-
-                        {/* Group Insentif & Bonus FO */}
-                        <div className="space-y-3 p-3 bg-purple-50/50 rounded-lg border border-purple-100">
-                            <h4 className="font-bold text-xs text-purple-900 border-b pb-1">Tarif Insentif & Bonus Front Office (FO)</h4>
-                            <div className="space-y-1">
-                                <Label className="text-[11px] font-semibold text-slate-600">Insentif Shift Standby (per Malam)</Label>
-                                <Input type="number" value={standbyRate} onChange={(e) => setStandbyRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
-                            </div>
-                            <div className="space-y-1">
-                                <Label className="text-[11px] font-semibold text-slate-600">Insentif Lembur (per Jam)</Label>
-                                <Input type="number" value={overtimeRate} onChange={(e) => setOvertimeRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
-                            </div>
-                            <div className="space-y-1">
-                                <Label className="text-[11px] font-semibold text-slate-600">Bonus Input Data Booking FO (per Unit)</Label>
-                                <Input type="number" value={creationRate} onChange={(e) => setCreationRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
-                            </div>
-                            <div className="space-y-1">
-                                <Label className="text-[11px] font-semibold text-slate-600">Bonus Follow-up Booking FO (per Unit)</Label>
-                                <Input type="number" value={followUpRate} onChange={(e) => setFollowUpRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
-                            </div>
-                            <div className="space-y-1">
-                                <Label className="text-[11px] font-semibold text-slate-600">Bonus Malam Tambahan Pool FO (per Malam)</Label>
-                                <Input type="number" value={nextNightRate} onChange={(e) => setNextNightRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
+                            <div className="grid grid-cols-2 gap-3 pt-1 border-t border-red-100">
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-600">Insentif Shift Standby (per Malam)</Label>
+                                    <Input type="number" value={standbyRate} onChange={(e) => setStandbyRate(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-semibold text-slate-600">Insentif Lembur (per Jam)</Label>
+                                    <Input type="number" value={overtimeRate} onChange={(e) => setOvertimeRate(Number(e.target.value) || 0)} className="bg-white font-bold h-9" />
+                                </div>
+                                <div className="space-y-1 col-span-2">
+                                    <Label className="text-[11px] font-semibold text-slate-700">Standar Hari Kerja Prorasi (Hari/Bulan)</Label>
+                                    <Input type="number" value={prorationStandardDays} onChange={(e) => setProrationStandardDays(Number(e.target.value) || 26)} className="bg-white font-bold h-9" placeholder="Default 26 hari" />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1391,7 +1438,26 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                             </div>
                         </div>
 
-                        {/* Tanggal Resmi Bergabung & Resign untuk kontrol prorasi */}
+                        {/* HK Location - only for housekeeping */}
+                        {editingStaff?.role === 'housekeeping' && (
+                            <div className="space-y-1 pt-2 border-t border-slate-200">
+                                <Label className="font-bold text-xs flex items-center gap-1.5">
+                                    <MapPin className="w-3.5 h-3.5 text-slate-500" /> Zona Penempatan HK
+                                </Label>
+                                <Select value={staffHkLocation || 'selatan'} onValueChange={(v) => setStaffHkLocation(v as 'utara' | 'selatan')}>
+                                    <SelectTrigger className="h-9 font-bold">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="selatan">🏙️ HK Selatan (Pool Poin)</SelectItem>
+                                        <SelectItem value="utara">🏠 HK Utara (Alokasi % per Properti)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-[10px] text-slate-400">
+                                    Selatan = bonus dari pool poin gabungan. Utara = bonus dari alokasi % tiap properti utara.
+                                </p>
+                            </div>
+                        )}
                         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
                             <div className="space-y-1">
                                 <Label className="font-bold text-xs">Tgl Resmi Bergabung (Join Date)</Label>

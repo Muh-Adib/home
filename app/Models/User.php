@@ -40,6 +40,7 @@ class User extends Authenticatable
         'shift_end_time',
         'join_date',
         'resign_date',
+        'hk_location',
     ];
 
     /**
