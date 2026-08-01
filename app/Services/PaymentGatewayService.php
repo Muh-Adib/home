@@ -37,6 +37,53 @@ class PaymentGatewayService
         array $options = []
     ): Payment {
         return DB::transaction(function () use ($booking, $amount, $type, $options) {
+            // Check if checkout date + 1 day has passed
+            if ($booking->check_out) {
+                $checkOutLimit = Carbon::parse($booking->check_out)->addDay()->endOfDay();
+                if (now()->gt($checkOutLimit)) {
+                    throw new \Exception('Link pembayaran ini telah kadaluarsa karena telah melewati 1 hari setelah tanggal check-out.');
+                }
+            }
+
+            // Enforce MAX 1 active pending payment request per booking
+            $existingPayment = Payment::where('booking_id', $booking->id)
+                ->where('status', 'menunggu')
+                ->where('payment_status', 'pending')
+                ->first();
+
+            if ($existingPayment) {
+                $existingBaseAmount = max(0, (float) ($existingPayment->amount - ($existingPayment->unique_code ?? 0)));
+                // If payment type and base amount match (within rounding margin), REUSE IT! Unique code stays unchanged permanently.
+                if ($existingPayment->payment_type === $type && abs($existingBaseAmount - $amount) < 10) {
+                    if (! $booking->payment_token) {
+                        $booking->generatePaymentToken();
+                    }
+
+                    if (empty($existingPayment->ipaymu_payment_url)) {
+                        $existingPayment->update([
+                            'ipaymu_payment_url' => $booking->getSecurePaymentUrl(),
+                        ]);
+                    }
+
+                    return $existingPayment;
+                }
+
+                // If request is for a NEW amount/type, cancel previous pending payment request
+                $existingPayment->update([
+                    'payment_status' => 'cancelled',
+                    'status' => 'batal',
+                    'notes' => ($existingPayment->notes ? $existingPayment->notes.' | ' : '').'Dibatalkan karena ada permintaan pembayaran baru dengan nominal/tipe berbeda.',
+                ]);
+            } else {
+                // Cancel any stray pending payment records to guarantee ONLY 1 active request
+                Payment::where('booking_id', $booking->id)
+                    ->whereIn('payment_status', ['pending'])
+                    ->update([
+                        'payment_status' => 'cancelled',
+                        'status' => 'batal',
+                    ]);
+            }
+
             // Generate payment token if not exists
             if (! $booking->payment_token) {
                 $booking->generatePaymentToken();
@@ -50,7 +97,7 @@ class PaymentGatewayService
 
             $bankAccountId = $bankAccount ? $bankAccount->id : 1;
 
-            // Generate unique code for amount reconciliation
+            // Generate unique code ONCE and store it permanently for this payment request
             $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $amount);
             $expectedAmount = $amount + $uniqueCode;
 
@@ -89,7 +136,7 @@ class PaymentGatewayService
                 $paymentMethodId = $paymentMethod ? $paymentMethod->id : null;
             }
 
-            // Create payment record
+            // Create payment record with unique code stored permanently
             $payment = $booking->payments()->create([
                 'payment_method_id' => $paymentMethodId,
                 'payment_number' => Payment::generatePaymentNumber(),
@@ -100,6 +147,7 @@ class PaymentGatewayService
                 'status' => 'menunggu', // set status to menunggu for reconciliation
                 'unique_code' => $uniqueCode,
                 'expected_amount' => $expectedAmount,
+                'payment_date' => now(),
                 'ipaymu_payment_url' => $booking->getSecurePaymentUrl(),
                 'ipaymu_expired_at' => $expiredAt,
                 'processed_by' => $options['user_id'] ?? null,

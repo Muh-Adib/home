@@ -86,6 +86,9 @@ class Payment extends Model
             if (empty($payment->payment_number)) {
                 $payment->payment_number = self::generatePaymentNumber();
             }
+            if (empty($payment->payment_date)) {
+                $payment->payment_date = now();
+            }
         });
 
         static::saving(function ($payment) {

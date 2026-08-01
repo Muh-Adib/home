@@ -90,10 +90,35 @@ class PaymentController extends Controller
     ];
 
     /**
+     * Check if public payment link is expired (checkout date + 1 day limit)
+     */
+    protected function isPaymentLinkExpired(Booking $booking): bool
+    {
+        if (! $booking->check_out) {
+            return false;
+        }
+
+        $checkOutLimit = Carbon::parse($booking->check_out)->addDay()->endOfDay();
+
+        return now()->gt($checkOutLimit);
+    }
+
+    /**
      * Show payment page for guest - langsung redirect ke iPaymu
      */
     public function create(Booking $booking): Response|RedirectResponse
     {
+        // Check if payment link is expired (checkout date + 1 day)
+        if ($this->isPaymentLinkExpired($booking)) {
+            if (Auth::check()) {
+                return redirect()->route('my-bookings')
+                    ->with('error', 'Link pembayaran ini telah kadaluarsa (telah melewati 1 hari setelah tanggal check-out).');
+            }
+
+            return redirect()->route('home')
+                ->with('error', 'Link pembayaran ini telah kadaluarsa (telah melewati 1 hari setelah tanggal check-out).');
+        }
+
         // Check if user has permission to make payment for this booking
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
@@ -160,7 +185,6 @@ class PaymentController extends Controller
         }
 
         // If property has a custom bank account, override matching bank transfer method details
-        // (same logic as securePayment)
         if ($bankAccount) {
             $paymentMethods = $paymentMethods->map(function ($method) use ($bankAccount) {
                 if ($method['type'] === 'bank_transfer' && $method['id'] === $bankAccount->payment_method_id) {
@@ -182,7 +206,7 @@ class PaymentController extends Controller
             })->values();
         }
 
-        // Allocate unique code
+        // Allocate unique code (permanent once generated)
         if ($pendingAmount <= 0) {
             $uniqueCode = 0;
             $expectedAmount = 0;
@@ -193,12 +217,12 @@ class PaymentController extends Controller
                 ->first();
 
             if ($existingPayment) {
-                $uniqueCode = $existingPayment->unique_code;
-                $expectedAmount = $existingPayment->expected_amount;
+                $uniqueCode = (int) $existingPayment->unique_code;
+                $expectedAmount = (int) $existingPayment->expected_amount;
             } else {
-                $bankAccountId = $bankAccount ? $bankAccount->id : 1;
-                $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $pendingAmount);
-                $expectedAmount = $pendingAmount + $uniqueCode;
+                $payment = $this->gatewayService->initiateGatewayPayment($booking, $pendingAmount, $paymentType);
+                $uniqueCode = (int) $payment->unique_code;
+                $expectedAmount = (int) $payment->expected_amount;
             }
         }
 
@@ -228,6 +252,12 @@ class PaymentController extends Controller
 
     public function store(Request $request, Booking $booking): RedirectResponse
     {
+        // Check if payment link is expired (checkout date + 1 day)
+        if ($this->isPaymentLinkExpired($booking)) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Link pembayaran ini telah kadaluarsa (telah melewati 1 hari setelah tanggal check-out).']);
+        }
+
         // Check if user has permission to make payment for this booking
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
@@ -270,7 +300,13 @@ class PaymentController extends Controller
             $bankAccount = $booking->property->bankAccount;
             $bankAccountId = $bankAccount ? $bankAccount->id : (BankAccount::first()->id ?? 1);
 
-            $uniqueCode = $request->input('unique_code');
+            // Find existing active pending payment record or create new
+            $payment = Payment::where('booking_id', $booking->id)
+                ->where('status', 'menunggu')
+                ->where('payment_status', 'pending')
+                ->first();
+
+            $uniqueCode = $request->input('unique_code') ?? ($payment ? $payment->unique_code : null);
             if (! $uniqueCode) {
                 $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $request->amount);
             }
@@ -286,26 +322,44 @@ class PaymentController extends Controller
                 $destAccountName = $bankAccount->account_holder;
             }
 
-            // Create payment record
-            $payment = Payment::create([
-                'booking_id' => $booking->id,
-                'payment_number' => Payment::generatePaymentNumber(),
-                'payment_method_id' => $request->payment_method_id,
-                'amount' => $expectedAmount,
-                'payment_type' => $paymentType,
-                'payment_method' => $paymentMethod->type,
-                'payment_status' => 'pending',
-                'status' => 'menunggu', // set status to menunggu for reconciliation
-                'unique_code' => $uniqueCode,
-                'expected_amount' => $expectedAmount,
-                'attachment_path' => $proofPath,
-                'verification_notes' => $request->payment_notes,
-                'payment_date' => now(),
-                'processed_by' => null, // Guest payment, no processor
-                'bank_name' => $destBankName,
-                'account_number' => $destAccountNumber,
-                'account_name' => $destAccountName,
-            ]);
+            if ($payment) {
+                $payment->update([
+                    'payment_method_id' => $request->payment_method_id,
+                    'amount' => $expectedAmount,
+                    'payment_type' => $paymentType,
+                    'payment_method' => $paymentMethod->type,
+                    'payment_status' => 'pending',
+                    'status' => 'menunggu',
+                    'unique_code' => $uniqueCode,
+                    'expected_amount' => $expectedAmount,
+                    'attachment_path' => $proofPath,
+                    'verification_notes' => $request->payment_notes,
+                    'payment_date' => now(),
+                    'bank_name' => $destBankName,
+                    'account_number' => $destAccountNumber,
+                    'account_name' => $destAccountName,
+                ]);
+            } else {
+                $payment = Payment::create([
+                    'booking_id' => $booking->id,
+                    'payment_number' => Payment::generatePaymentNumber(),
+                    'payment_method_id' => $request->payment_method_id,
+                    'amount' => $expectedAmount,
+                    'payment_type' => $paymentType,
+                    'payment_method' => $paymentMethod->type,
+                    'payment_status' => 'pending',
+                    'status' => 'menunggu',
+                    'unique_code' => $uniqueCode,
+                    'expected_amount' => $expectedAmount,
+                    'attachment_path' => $proofPath,
+                    'verification_notes' => $request->payment_notes,
+                    'payment_date' => now(),
+                    'processed_by' => null,
+                    'bank_name' => $destBankName,
+                    'account_number' => $destAccountNumber,
+                    'account_name' => $destAccountName,
+                ]);
+            }
 
             // Update booking payment status
             $booking->updatePaymentStatus();
@@ -424,12 +478,17 @@ class PaymentController extends Controller
     /**
      * Show secure payment form (token-based access)
      */
-    public function securePayment(Booking $booking, string $token): Response
+    public function securePayment(Booking $booking, string $token): Response|RedirectResponse
     {
-        // Validate payment token
-        if (! $booking->isPaymentTokenValid($token)) {
-            return redirect()->route('my-bookings')
-                ->with('error', 'Invalid or expired payment link.');
+        // Check if payment link is expired (checkout date + 1 day)
+        if ($this->isPaymentLinkExpired($booking) || ! $booking->isPaymentTokenValid($token)) {
+            if (Auth::check()) {
+                return redirect()->route('my-bookings')
+                    ->with('error', 'Link pembayaran ini telah kadaluarsa (telah melewati 1 hari setelah tanggal check-out).');
+            }
+
+            return redirect()->route('home')
+                ->with('error', 'Link pembayaran ini telah kadaluarsa (telah melewati 1 hari setelah tanggal check-out).');
         }
 
         // Update expiry time to maximum 2 hours from now when link is opened
@@ -500,19 +559,19 @@ class PaymentController extends Controller
             })->values();
         }
 
-        // Allocate unique code
+        // Allocate unique code (permanent once generated)
         $existingPayment = Payment::where('booking_id', $booking->id)
             ->where('status', 'menunggu')
             ->where('payment_type', $paymentType)
             ->first();
 
         if ($existingPayment) {
-            $uniqueCode = $existingPayment->unique_code;
-            $expectedAmount = $existingPayment->expected_amount;
+            $uniqueCode = (int) $existingPayment->unique_code;
+            $expectedAmount = (int) $existingPayment->expected_amount;
         } else {
-            $bankAccountId = $bankAccount ? $bankAccount->id : 1;
-            $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $requiredAmount);
-            $expectedAmount = $requiredAmount + $uniqueCode;
+            $payment = $this->gatewayService->initiateGatewayPayment($booking, $requiredAmount, $paymentType);
+            $uniqueCode = (int) $payment->unique_code;
+            $expectedAmount = (int) $payment->expected_amount;
         }
 
         // Calculate nights
@@ -562,10 +621,10 @@ class PaymentController extends Controller
      */
     public function securePaymentStore(Request $request, Booking $booking, string $token): RedirectResponse
     {
-        // Validate payment token
-        if (! $booking->isPaymentTokenValid($token)) {
-            return redirect()->route('my-bookings')
-                ->with('error', 'Invalid or expired payment link.');
+        // Check if payment link is expired (checkout date + 1 day)
+        if ($this->isPaymentLinkExpired($booking) || ! $booking->isPaymentTokenValid($token)) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Link pembayaran ini telah kadaluarsa (telah melewati 1 hari setelah tanggal check-out).']);
         }
 
         // Validate request
@@ -597,7 +656,13 @@ class PaymentController extends Controller
             $bankAccount = $booking->property->bankAccount;
             $bankAccountId = $bankAccount ? $bankAccount->id : (BankAccount::first()->id ?? 1);
 
-            $uniqueCode = $request->input('unique_code');
+            // Find existing active pending payment record or create new
+            $payment = Payment::where('booking_id', $booking->id)
+                ->where('status', 'menunggu')
+                ->where('payment_status', 'pending')
+                ->first();
+
+            $uniqueCode = $request->input('unique_code') ?? ($payment ? $payment->unique_code : null);
             if (! $uniqueCode) {
                 $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $request->amount);
             }
@@ -613,26 +678,44 @@ class PaymentController extends Controller
                 $destAccountName = $bankAccount->account_holder;
             }
 
-            // Create payment record
-            $payment = Payment::create([
-                'booking_id' => $booking->id,
-                'payment_number' => Payment::generatePaymentNumber(),
-                'payment_method_id' => $request->payment_method_id,
-                'amount' => $expectedAmount,
-                'payment_type' => $paymentType,
-                'payment_method' => $paymentMethod->type,
-                'payment_status' => 'pending',
-                'status' => 'menunggu', // set status to menunggu for reconciliation
-                'unique_code' => $uniqueCode,
-                'expected_amount' => $expectedAmount,
-                'attachment_path' => $proofPath,
-                'verification_notes' => $request->payment_notes,
-                'payment_date' => now(),
-                'processed_by' => null, // Guest payment, no processor
-                'bank_name' => $destBankName,
-                'account_number' => $destAccountNumber,
-                'account_name' => $destAccountName,
-            ]);
+            if ($payment) {
+                $payment->update([
+                    'payment_method_id' => $request->payment_method_id,
+                    'amount' => $expectedAmount,
+                    'payment_type' => $paymentType,
+                    'payment_method' => $paymentMethod->type,
+                    'payment_status' => 'pending',
+                    'status' => 'menunggu',
+                    'unique_code' => $uniqueCode,
+                    'expected_amount' => $expectedAmount,
+                    'attachment_path' => $proofPath,
+                    'verification_notes' => $request->payment_notes,
+                    'payment_date' => now(),
+                    'bank_name' => $destBankName,
+                    'account_number' => $destAccountNumber,
+                    'account_name' => $destAccountName,
+                ]);
+            } else {
+                $payment = Payment::create([
+                    'booking_id' => $booking->id,
+                    'payment_number' => Payment::generatePaymentNumber(),
+                    'payment_method_id' => $request->payment_method_id,
+                    'amount' => $expectedAmount,
+                    'payment_type' => $paymentType,
+                    'payment_method' => $paymentMethod->type,
+                    'payment_status' => 'pending',
+                    'status' => 'menunggu',
+                    'unique_code' => $uniqueCode,
+                    'expected_amount' => $expectedAmount,
+                    'attachment_path' => $proofPath,
+                    'verification_notes' => $request->payment_notes,
+                    'payment_date' => now(),
+                    'processed_by' => null,
+                    'bank_name' => $destBankName,
+                    'account_number' => $destAccountNumber,
+                    'account_name' => $destAccountName,
+                ]);
+            }
 
             // Update booking payment status
             $booking->updatePaymentStatus();

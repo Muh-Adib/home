@@ -100,10 +100,17 @@ trait HasPaymentManagement
     }
 
     /**
-     * Check if payment token is valid
+     * Check if payment token is valid (including check_out date + 1 day limit)
      */
     public function isPaymentTokenValid(string $token): bool
     {
+        if ($this->check_out) {
+            $checkOutLimit = Carbon::parse($this->check_out)->addDay()->endOfDay();
+            if (now()->gt($checkOutLimit)) {
+                return false;
+            }
+        }
+
         return $this->payment_token === $token &&
                $this->payment_token_expires_at &&
                $this->payment_token_expires_at->isFuture();
