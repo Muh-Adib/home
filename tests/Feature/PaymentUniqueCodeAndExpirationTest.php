@@ -8,6 +8,7 @@ use App\Models\PaymentMethod;
 use App\Models\Property;
 use App\Services\PaymentGatewayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class PaymentUniqueCodeAndExpirationTest extends TestCase
@@ -121,5 +122,56 @@ class PaymentUniqueCodeAndExpirationTest extends TestCase
 
         // Token validation check
         $this->assertFalse($booking->isPaymentTokenValid($token));
+    }
+
+    public function test_cancel_pending_requires_authorization_or_valid_token(): void
+    {
+        $property = Property::factory()->create();
+        $booking = Booking::factory()->create([
+            'property_id' => $property->id,
+            'total_amount' => 1000000,
+            'dp_amount' => 500000,
+        ]);
+
+        $gatewayService = app(PaymentGatewayService::class);
+        $payment = $gatewayService->initiateGatewayPayment($booking, 500000, 'dp');
+
+        // Unauthenticated user without token gets redirected and payment remains active
+        $response = $this->post(route('payments.cancel-pending', $booking->booking_number));
+        $response->assertRedirect(route('home'));
+
+        $payment->refresh();
+        $this->assertEquals('menunggu', $payment->status);
+    }
+
+    public function test_client_unique_code_input_is_ignored_by_server(): void
+    {
+        $property = Property::factory()->create();
+        $booking = Booking::factory()->create([
+            'property_id' => $property->id,
+            'total_amount' => 1000000,
+            'dp_amount' => 500000,
+            'check_in' => now()->addDays(2)->toDateString(),
+            'check_out' => now()->addDays(4)->toDateString(),
+        ]);
+
+        $gatewayService = app(PaymentGatewayService::class);
+        $payment = $gatewayService->initiateGatewayPayment($booking, 500000, 'dp');
+        $serverUniqueCode = $payment->unique_code;
+
+        $token = $booking->generatePaymentToken();
+
+        // Attempt to pass malicious unique_code = 999 from client
+        $this->post(route('booking.secure-payment.store', [$booking->booking_number, $token]), [
+            'payment_method_id' => PaymentMethod::first()->id,
+            'amount' => 500000,
+            'unique_code' => 999,
+            'proof_of_payment' => UploadedFile::fake()->create('proof.jpg', 100),
+        ]);
+
+        $payment->refresh();
+        // Server MUST keep original server-generated unique code, NOT 999
+        $this->assertEquals($serverUniqueCode, $payment->unique_code);
+        $this->assertEquals(500000 + $serverUniqueCode, $payment->expected_amount);
     }
 }

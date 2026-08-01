@@ -90,15 +90,14 @@ class PaymentGatewayService
             }
 
             // Retrieve linked bank account details of the property
-            $bankAccount = $booking->property->bankAccount;
+            $bankAccount = $booking->property?->bankAccount;
             if (! $bankAccount) {
-                $bankAccount = BankAccount::first();
+                $bankAccount = BankAccount::whereHas('paymentMethod', fn ($q) => $q->where('type', 'bank_transfer')->where('is_active', true))->first()
+                    ?? BankAccount::first();
             }
 
-            $bankAccountId = $bankAccount ? $bankAccount->id : 1;
-
-            // Generate unique code ONCE and store it permanently for this payment request
-            $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $amount);
+            $bankAccountId = $bankAccount?->id;
+            $uniqueCode = $bankAccountId ? ReconciliationService::generateUniqueCode($bankAccountId, $amount) : rand(100, 999);
             $expectedAmount = $amount + $uniqueCode;
 
             // Expiry settings (max 2 hours, or check-in time minus 4 hours, whichever is earlier)

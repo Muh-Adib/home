@@ -106,7 +106,7 @@ class PaymentController extends Controller
     /**
      * Show payment page for guest - langsung redirect ke iPaymu
      */
-    public function create(Booking $booking): Response|RedirectResponse
+    public function create(Request $request, Booking $booking): Response|RedirectResponse
     {
         // Check if payment link is expired (checkout date + 1 day)
         if ($this->isPaymentLinkExpired($booking)) {
@@ -119,33 +119,32 @@ class PaymentController extends Controller
                 ->with('error', 'Link pembayaran ini telah kadaluarsa (telah melewati 1 hari setelah tanggal check-out).');
         }
 
-        // Check if user has permission to make payment for this booking
+        // Authorization check for auth user or token
+        $token = $request->query('token');
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
+        } elseif ($token) {
+            if (! $booking->isPaymentTokenValid($token)) {
+                return redirect()->route('home')
+                    ->with('error', 'Link pembayaran tidak valid atau sudah kadaluarsa.');
+            }
         }
 
-        $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-        $actualRemaining = $booking->total_amount - $paidAmount;
+        $paidAmount = (float) $booking->payments()->where('payment_status', 'verified')->sum('amount');
+        $dpAmount = (float) ($booking->dp_amount ?: (int) ($booking->total_amount * (($booking->dp_percentage ?: 50) / 100)));
+        $actualRemaining = max(0.0, (float) $booking->total_amount - $paidAmount);
 
-        if ($actualRemaining <= 0) {
+        // Standardized paymentType calculation
+        $paymentType = ($paidAmount >= $dpAmount) ? 'remaining' : 'dp';
+        $pendingAmount = ($paymentType === 'dp') ? min($dpAmount, $actualRemaining) : $actualRemaining;
+
+        if ($actualRemaining <= 0.0) {
             if (Auth::check()) {
                 return redirect()->route('my-bookings')
                     ->with('info', 'This booking has been fully paid.');
             }
-            $pendingAmount = 0;
-        } else {
-            // Determine payment type
-            $paymentType = $paidAmount === 0 ? 'dp' : 'remaining';
-
-            if ($paymentType === 'dp') {
-                $pendingAmount = $booking->dp_amount ?: (int) ($booking->total_amount * (($booking->dp_percentage ?: 50) / 100));
-            } else {
-                $pendingAmount = $actualRemaining;
-            }
+            $pendingAmount = 0.0;
         }
-
-        // Determine payment type (in case it wasn't set because actualRemaining was <= 0)
-        $paymentType = $paidAmount === 0 ? 'dp' : 'remaining';
 
         // Calculate nights
         $checkIn = Carbon::parse($booking->check_in);
@@ -178,9 +177,8 @@ class PaymentController extends Controller
             });
 
         // Retrieve linked bank account details of the property
-        $bankAccount = $booking->property->bankAccount;
+        $bankAccount = $booking->property?->bankAccount;
         if (! $bankAccount) {
-            // Fallback: find first bank account with active payment method for bank_transfer
             $bankAccount = BankAccount::whereHas('paymentMethod', fn ($q) => $q->where('type', 'bank_transfer')->where('is_active', true))->first();
         }
 
@@ -207,12 +205,13 @@ class PaymentController extends Controller
         }
 
         // Allocate unique code (permanent once generated)
-        if ($pendingAmount <= 0) {
+        if ($pendingAmount <= 0.0) {
             $uniqueCode = 0;
             $expectedAmount = 0;
         } else {
             $existingPayment = Payment::where('booking_id', $booking->id)
                 ->where('status', 'menunggu')
+                ->where('payment_status', 'pending')
                 ->where('payment_type', $paymentType)
                 ->first();
 
@@ -238,12 +237,12 @@ class PaymentController extends Controller
             'bankAccount' => $bankAccount,
             'paymentInfo' => [
                 'paidAmount' => $paidAmount,
-                'dpAmount' => $booking->dp_amount ?? ($booking->total_amount * 0.5), // Fallback if not set
-                'remainingAmount' => $booking->total_amount - $paidAmount - $expectedAmount,
+                'dpAmount' => $dpAmount,
+                'remainingAmount' => max(0, $booking->total_amount - $paidAmount - $expectedAmount),
                 'requiredAmount' => $expectedAmount,
                 'uniqueCode' => $uniqueCode,
                 'paymentType' => $paymentType,
-                'isDpComplete' => $paidAmount >= ($booking->dp_amount ?? ($booking->total_amount * 0.5)),
+                'isDpComplete' => $paidAmount >= $dpAmount,
             ],
             'review' => $booking->review,
             'canReview' => $booking->booking_status === 'checked_out' && ! $booking->review,
@@ -258,27 +257,34 @@ class PaymentController extends Controller
                 ->withErrors(['error' => 'Link pembayaran ini telah kadaluarsa (telah melewati 1 hari setelah tanggal check-out).']);
         }
 
-        // Check if user has permission to make payment for this booking
+        // Authorization check for auth user or token
+        $token = $request->input('token') ?? $request->query('token');
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
+        } elseif ($token) {
+            if (! $booking->isPaymentTokenValid($token)) {
+                return redirect()->route('home')
+                    ->with('error', 'Link pembayaran tidak valid atau sudah kadaluarsa.');
+            }
         }
 
-        // Validate request — gunakan pendingAmount sebagai batas maksimal (bukan total_amount)
-        $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-        $pendingAmount = max(0, (int) ($booking->total_amount - $paidAmount));
+        $paidAmount = (float) $booking->payments()->where('payment_status', 'verified')->sum('amount');
+        $actualRemaining = max(0.0, (float) $booking->total_amount - $paidAmount);
+        $dpAmount = (float) ($booking->dp_amount ?: (int) ($booking->total_amount * (($booking->dp_percentage ?: 50) / 100)));
+        $paymentType = ($paidAmount >= $dpAmount) ? 'remaining' : 'dp';
+        $pendingAmount = ($paymentType === 'dp') ? min($dpAmount, $actualRemaining) : $actualRemaining;
 
         $request->validate([
             'payment_method_id' => 'required|exists:payment_methods,id',
-            'amount' => 'required|integer|min:1|max:'.$pendingAmount,
+            'amount' => 'required|numeric|min:1|max:'.$pendingAmount,
             'proof_of_payment' => 'required|file|mimes:jpg,jpeg,png,pdf,webp,heic,heif|max:10240',
             'payment_notes' => 'nullable|string|max:500',
-            'unique_code' => 'nullable|integer|min:0|max:999',
         ], [
             'proof_of_payment.max' => 'Ukuran file bukti pembayaran terlalu besar (Maksimum 10MB).',
             'proof_of_payment.mimes' => 'Format file bukti pembayaran harus berupa foto (JPG, PNG, WEBP, HEIC) atau PDF.',
         ]);
 
-        if ($pendingAmount <= 0) {
+        if ($pendingAmount <= 0.0) {
             return redirect()->route('payments.create', $booking->booking_number)
                 ->with('info', 'Booking ini sudah lunas.');
         }
@@ -286,31 +292,33 @@ class PaymentController extends Controller
         try {
             DB::beginTransaction();
 
+            // Lock booking for update to prevent double-submit race condition
+            Booking::where('id', $booking->id)->lockForUpdate()->first();
+
             // Get payment method
             $paymentMethod = PaymentMethod::findOrFail($request->payment_method_id);
 
             // Upload proof of payment
             $proofPath = $this->uploadAndOptimizePaymentProof($request->file('proof_of_payment'));
 
-            // Calculate paid amount
-            $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-            $dpAmount = $booking->dp_amount ?: (int) ($booking->total_amount * (($booking->dp_percentage ?: 50) / 100));
-            $paymentType = ($paidAmount >= $dpAmount) ? 'remaining' : 'dp';
+            $bankAccount = $booking->property?->bankAccount;
+            $bankAccountId = $bankAccount ? $bankAccount->id : (BankAccount::whereHas('paymentMethod', fn ($q) => $q->where('type', 'bank_transfer')->where('is_active', true))->first()?->id);
 
-            $bankAccount = $booking->property->bankAccount;
-            $bankAccountId = $bankAccount ? $bankAccount->id : (BankAccount::first()->id ?? 1);
-
-            // Find existing active pending payment record or create new
+            // Find existing active pending payment record for this paymentType with lock
             $payment = Payment::where('booking_id', $booking->id)
                 ->where('status', 'menunggu')
                 ->where('payment_status', 'pending')
+                ->where('payment_type', $paymentType)
+                ->lockForUpdate()
                 ->first();
 
-            $uniqueCode = $request->input('unique_code') ?? ($payment ? $payment->unique_code : null);
-            if (! $uniqueCode) {
-                $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $request->amount);
+            // Server-side unique_code resolution (ignore client request input)
+            if ($payment && $payment->unique_code) {
+                $uniqueCode = (int) $payment->unique_code;
+            } else {
+                $uniqueCode = $bankAccountId ? ReconciliationService::generateUniqueCode($bankAccountId, (float) $request->amount) : rand(100, 999);
             }
-            $expectedAmount = $request->amount + $uniqueCode;
+            $expectedAmount = (int) $request->amount + $uniqueCode;
 
             $destBankName = $paymentMethod->bank_name;
             $destAccountNumber = $paymentMethod->account_number;
@@ -404,13 +412,35 @@ class PaymentController extends Controller
     /**
      * Cancel pending direct payment so guest can select a new method
      */
-    public function cancelPending(Booking $booking): RedirectResponse
+    public function cancelPending(Request $request, Booking $booking): RedirectResponse
     {
-        $booking->payments()
-            ->where('payment_status', 'pending')
-            ->update(['payment_status' => 'failed']); // Set ke failed/expired agar dianggap tidak aktif
+        // Authorization check
+        if (Auth::check()) {
+            $this->authorize('makePayment', $booking);
+        } else {
+            $token = $request->input('token') ?? $request->query('token');
+            if (! $token || ! $booking->isPaymentTokenValid($token)) {
+                return redirect()->route('home')
+                    ->with('error', 'Akses tidak diizinkan atau link pembayaran tidak valid.');
+            }
+        }
 
-        return redirect()->route('payments.create', $booking->booking_number)
+        $booking->payments()
+            ->where(function ($q) {
+                $q->where('payment_status', 'pending')
+                    ->orWhere('status', 'menunggu');
+            })
+            ->update([
+                'payment_status' => 'cancelled',
+                'status' => 'batal',
+            ]);
+
+        if (Auth::check()) {
+            return redirect()->route('payments.create', $booking->booking_number)
+                ->with('info', 'Metode pembayaran dibatalkan. Silakan pilih metode pembayaran baru.');
+        }
+
+        return redirect()->back()
             ->with('info', 'Metode pembayaran dibatalkan. Silakan pilih metode pembayaran baru.');
     }
 
@@ -419,13 +449,9 @@ class PaymentController extends Controller
      */
     public function myPayments(Request $request): Response
     {
-        $user = $request->user();
-
-        $query = Payment::query()
-            ->with(['booking.property', 'paymentMethod'])
-            ->whereHas('booking', function ($q) use ($user) {
-                $q->where('guest_email', $user->email);
-            });
+        $query = Payment::whereHas('booking', function ($q) {
+            $q->where('created_by', Auth::id());
+        })->with(['booking.property', 'paymentMethod']);
 
         // Filter by status
         if ($request->filled('status')) {
@@ -492,53 +518,43 @@ class PaymentController extends Controller
         }
 
         // Update expiry time to maximum 2 hours from now when link is opened
-        // This ensures countdown is always max 2 hours from when user opens the link
         $twoHoursFromNow = now()->addHours(2);
         if (! $booking->payment_token_expires_at || $booking->payment_token_expires_at->gt($twoHoursFromNow)) {
             $booking->update([
                 'payment_token_expires_at' => $twoHoursFromNow,
             ]);
-            // Refresh booking to get updated expiry time
             $booking->refresh();
         }
 
         // Calculate payment amounts
-        $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-        $dpAmount = $booking->dp_amount ?? ($booking->total_amount * 0.3); // Default 30% DP
-        $remainingAmount = $booking->total_amount - $paidAmount;
+        $paidAmount = (float) $booking->payments()->where('payment_status', 'verified')->sum('amount');
+        $dpAmount = (float) ($booking->dp_amount ?? ($booking->total_amount * 0.3));
+        $remainingAmount = max(0.0, (float) $booking->total_amount - $paidAmount);
 
-        // Determine payment type and amount
-        $paymentType = 'dp';
-        $requiredAmount = $dpAmount;
+        $paymentType = ($paidAmount >= $dpAmount) ? 'remaining' : 'dp';
+        $requiredAmount = ($paymentType === 'dp') ? min($dpAmount, $remainingAmount) : $remainingAmount;
 
-        if ($paidAmount >= $dpAmount) {
-            $paymentType = 'remaining';
-            $requiredAmount = $remainingAmount;
-        }
-
-        if ($remainingAmount <= 0) {
+        if ($remainingAmount <= 0.0) {
             if (Auth::check()) {
                 return redirect()->route('my-bookings')
-                    ->with('info', 'This booking has been fully paid.');
+                    ->with('info', 'Booking ini sudah lunas.');
             }
 
             return redirect()->route('payments.create', $booking->booking_number);
         }
 
         // Retrieve linked bank account details
-        $bankAccount = $booking->property->bankAccount;
+        $bankAccount = $booking->property?->bankAccount;
         if (! $bankAccount) {
-            $bankAccount = BankAccount::first();
+            $bankAccount = BankAccount::whereHas('paymentMethod', fn ($q) => $q->where('type', 'bank_transfer')->where('is_active', true))->first();
         }
 
         // Get active payment methods
         $paymentMethods = PaymentMethod::active()->get();
 
-        // If property has a custom bank account, override matching bank transfer method details
         if ($bankAccount) {
             $paymentMethods = $paymentMethods->map(function ($method) use ($bankAccount) {
                 if ($method->type === 'bank_transfer') {
-                    // Match exactly using payment_method_id
                     if ($method->id === $bankAccount->payment_method_id) {
                         $method->account_number = $bankAccount->account_number;
                         $method->account_name = $bankAccount->account_holder;
@@ -549,7 +565,6 @@ class PaymentController extends Controller
                 return $method;
             });
 
-            // Also filter bank transfer methods to only show the one matching the property's bank
             $paymentMethods = $paymentMethods->filter(function ($method) use ($bankAccount) {
                 if ($method->type === 'bank_transfer') {
                     return $method->id === $bankAccount->payment_method_id;
@@ -562,6 +577,7 @@ class PaymentController extends Controller
         // Allocate unique code (permanent once generated)
         $existingPayment = Payment::where('booking_id', $booking->id)
             ->where('status', 'menunggu')
+            ->where('payment_status', 'pending')
             ->where('payment_type', $paymentType)
             ->first();
 
@@ -605,7 +621,7 @@ class PaymentController extends Controller
             'paymentInfo' => [
                 'paidAmount' => $paidAmount,
                 'dpAmount' => $dpAmount,
-                'remainingAmount' => $remainingAmount - $expectedAmount,
+                'remainingAmount' => max(0, $remainingAmount - $expectedAmount),
                 'requiredAmount' => $expectedAmount,
                 'paymentType' => $paymentType,
                 'isDpComplete' => $paidAmount >= $dpAmount,
@@ -627,13 +643,17 @@ class PaymentController extends Controller
                 ->withErrors(['error' => 'Link pembayaran ini telah kadaluarsa (telah melewati 1 hari setelah tanggal check-out).']);
         }
 
-        // Validate request
+        $paidAmount = (float) $booking->payments()->where('payment_status', 'verified')->sum('amount');
+        $actualRemaining = max(0.0, (float) $booking->total_amount - $paidAmount);
+        $dpAmount = (float) ($booking->dp_amount ?? ($booking->total_amount * 0.3));
+        $paymentType = ($paidAmount >= $dpAmount) ? 'remaining' : 'dp';
+        $pendingAmount = ($paymentType === 'dp') ? min($dpAmount, $actualRemaining) : $actualRemaining;
+
         $request->validate([
             'payment_method_id' => 'required|exists:payment_methods,id',
-            'amount' => 'required|numeric|min:1|max:'.$booking->total_amount,
+            'amount' => 'required|numeric|min:1|max:'.$pendingAmount,
             'proof_of_payment' => 'required|file|mimes:jpg,jpeg,png,pdf,webp,heic,heif|max:10240',
             'payment_notes' => 'nullable|string|max:500',
-            'unique_code' => 'nullable|integer',
         ], [
             'proof_of_payment.max' => 'Ukuran file bukti pembayaran terlalu besar (Maksimum 10MB).',
             'proof_of_payment.mimes' => 'Format file bukti pembayaran harus berupa foto (JPG, PNG, WEBP, HEIC) atau PDF.',
@@ -642,31 +662,32 @@ class PaymentController extends Controller
         try {
             DB::beginTransaction();
 
+            Booking::where('id', $booking->id)->lockForUpdate()->first();
+
             // Get payment method
             $paymentMethod = PaymentMethod::findOrFail($request->payment_method_id);
 
             // Upload proof of payment
             $proofPath = $this->uploadAndOptimizePaymentProof($request->file('proof_of_payment'));
 
-            // Calculate paid amount
-            $paidAmount = $booking->payments()->where('payment_status', 'verified')->sum('amount');
-            $dpAmount = $booking->dp_amount ?? ($booking->total_amount * 0.3);
-            $paymentType = ($paidAmount >= $dpAmount) ? 'remaining' : 'dp';
+            $bankAccount = $booking->property?->bankAccount;
+            $bankAccountId = $bankAccount ? $bankAccount->id : (BankAccount::whereHas('paymentMethod', fn ($q) => $q->where('type', 'bank_transfer')->where('is_active', true))->first()?->id);
 
-            $bankAccount = $booking->property->bankAccount;
-            $bankAccountId = $bankAccount ? $bankAccount->id : (BankAccount::first()->id ?? 1);
-
-            // Find existing active pending payment record or create new
+            // Find existing active pending payment record
             $payment = Payment::where('booking_id', $booking->id)
                 ->where('status', 'menunggu')
                 ->where('payment_status', 'pending')
+                ->where('payment_type', $paymentType)
+                ->lockForUpdate()
                 ->first();
 
-            $uniqueCode = $request->input('unique_code') ?? ($payment ? $payment->unique_code : null);
-            if (! $uniqueCode) {
-                $uniqueCode = ReconciliationService::generateUniqueCode($bankAccountId, $request->amount);
+            // Server-side unique_code resolution
+            if ($payment && $payment->unique_code) {
+                $uniqueCode = (int) $payment->unique_code;
+            } else {
+                $uniqueCode = $bankAccountId ? ReconciliationService::generateUniqueCode($bankAccountId, (float) $request->amount) : rand(100, 999);
             }
-            $expectedAmount = $request->amount + $uniqueCode;
+            $expectedAmount = (int) $request->amount + $uniqueCode;
 
             $destBankName = $paymentMethod->bank_name;
             $destAccountNumber = $paymentMethod->account_number;

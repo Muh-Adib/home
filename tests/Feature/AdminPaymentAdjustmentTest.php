@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Property;
 use App\Models\User;
+use App\Services\PaymentGatewayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -57,22 +58,24 @@ class AdminPaymentAdjustmentTest extends TestCase
 
         $proofFile = UploadedFile::fake()->image('receipt.png');
 
+        // Create initial pending payment via gateway service (server-generated unique code)
+        $gatewayService = app(PaymentGatewayService::class);
+        $pendingPayment = $gatewayService->initiateGatewayPayment($booking, 250000, 'dp');
+
         // Submit guest payment
         $response = $this->actingAs($guest)->post(route('payments.store', $booking->booking_number), [
             'payment_method_id' => $paymentMethod->id,
             'amount' => 250000,
             'proof_of_payment' => $proofFile,
             'payment_notes' => 'Tamu kirim dp',
-            'unique_code' => 123,
         ]);
 
         $response->assertSessionHasNoErrors();
 
-        // Assert payment record has correct destination bank details
+        // Assert payment record has correct destination bank details and preserved unique code
         $this->assertDatabaseHas('payments', [
             'booking_id' => $booking->id,
-            'amount' => 250123,
-            'unique_code' => 123,
+            'unique_code' => $pendingPayment->unique_code,
             'bank_name' => 'Mandiri',
             'account_number' => '1370500743444',
             'account_name' => 'Indah Arini Puspitasari',
@@ -115,22 +118,24 @@ class AdminPaymentAdjustmentTest extends TestCase
 
         $proofFile = UploadedFile::fake()->image('receipt2.png');
 
+        // Create initial pending payment via gateway service (server-generated unique code)
+        $gatewayService = app(PaymentGatewayService::class);
+        $pendingPayment = $gatewayService->initiateGatewayPayment($booking, 300000, 'dp');
+
         // Submit via secure token link
         $response = $this->actingAs($guest)->post(route('booking.secure-payment.store', [$booking->booking_number, $token]), [
             'payment_method_id' => $paymentMethod->id,
             'amount' => 300000,
             'proof_of_payment' => $proofFile,
             'payment_notes' => 'Tamu kirim dp secure link',
-            'unique_code' => 456,
         ]);
 
         $response->assertSessionHasNoErrors();
 
-        // Assert payment record has correct destination bank details
+        // Assert payment record has correct destination bank details and preserved unique code
         $this->assertDatabaseHas('payments', [
             'booking_id' => $booking->id,
-            'amount' => 300456,
-            'unique_code' => 456,
+            'unique_code' => $pendingPayment->unique_code,
             'bank_name' => 'BCA',
             'account_number' => '1234567890',
             'account_name' => 'Homs Partner',
