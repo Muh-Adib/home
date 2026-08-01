@@ -93,9 +93,7 @@ class PayrollCalculationService
                 if ($resignedInTargetMonth && $dateCarbon->gt($userResignDate->endOfDay())) {
                     continue;
                 }
-                if (! $dateCarbon->isSunday()) {
-                    $activeDays++;
-                }
+                $activeDays++;
             }
 
             $isProratedAuto = $joinedInTargetMonth || $resignedInTargetMonth;
@@ -112,6 +110,12 @@ class PayrollCalculationService
             $fdFirstNightBonus = (float) ($bonusRecord?->frontdesk_first_night_bonus ?? 0.0);
             $fdNextNightsShare = (float) ($bonusRecord?->frontdesk_next_nights_bonus_share ?? 0.0);
             $performanceBonus = (float) ($bonusRecord?->kpi_performance_bonus ?? 0.0);
+
+            // Housekeeping points fallback
+            $hkPointsDetails = [];
+            if ($s->role === 'housekeeping') {
+                $hkPointsDetails = app(HousekeepingPointService::class)->getMonthlyPointsDetails($s->id, $month, $year);
+            }
 
             // Deductions & Allowances
             $lateHours = (float) $attSummary['late_hours'];
@@ -181,6 +185,8 @@ class PayrollCalculationService
                     'name' => $s->name,
                     'role' => $s->role,
                     'fingerprint_id' => $s->fingerprint_id,
+                    'shift_start_time' => $s->shift_start_time,
+                    'shift_end_time' => $s->shift_end_time,
                     'version' => $existing->version,
                     'batch_id' => $existing->batch_id,
                     'base_salary' => $exBase,
@@ -224,7 +230,7 @@ class PayrollCalculationService
                     'resign_date' => $s->resign_date ? Carbon::parse($s->resign_date)->toDateString() : null,
                     'bonus_finalized' => (bool) $bonusRecord,
                     'kpi_details' => $existing->kpi_details ?? ($bonusRecord?->details['kpi'] ?? []),
-                    'points_details' => $existing->points_details ?? ($bonusRecord?->details['housekeeping_points'] ?? []),
+                    'points_details' => $existing->points_details && count($existing->points_details) > 0 ? $existing->points_details : $hkPointsDetails,
                     'loans_details' => $existing->loans_details ?? $loansDetails,
                     'attendance_summary' => $existing->attendance_summary ?? $attSummary,
                 ];
@@ -239,6 +245,8 @@ class PayrollCalculationService
                     'name' => $s->name,
                     'role' => $s->role,
                     'fingerprint_id' => $s->fingerprint_id,
+                    'shift_start_time' => $s->shift_start_time,
+                    'shift_end_time' => $s->shift_end_time,
                     'version' => 1,
                     'batch_id' => null,
                     'base_salary' => $baseSalary,
@@ -282,7 +290,7 @@ class PayrollCalculationService
                     'active_employment_days' => $activeDays,
                     'bonus_finalized' => (bool) $bonusRecord,
                     'kpi_details' => $bonusRecord?->details['kpi'] ?? [],
-                    'points_details' => $bonusRecord?->details['housekeeping_points'] ?? [],
+                    'points_details' => $hkPointsDetails,
                     'loans_details' => $loansDetails,
                     'attendance_summary' => $attSummary,
                 ];

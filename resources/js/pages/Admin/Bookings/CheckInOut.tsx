@@ -17,6 +17,8 @@ interface Guest {
     nights?: number;
     check_out_date?: string;
     is_cleaned?: boolean;
+    first_day_extra_beds?: number;
+    extra_services?: string[];
 }
 
 interface PropertyUnit {
@@ -266,16 +268,32 @@ function CheckInOut({ checkOuts, checkIns, stayingGuests, emptyUnits, today }: C
                                         {checkInsGrouped.selatan.map((guest, index) => (
                                             <div key={guest.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                                 <div>
-                                                    <span className="font-medium">{index + 1}. {guest.property_name}</span>
-                                                    <span className="text-muted-foreground mx-2">-</span>
-                                                    <span className="text-sm text-blue-600">{guest.nights} malam</span>
-                                                    <span className="text-muted-foreground mx-2">-</span>
-                                                    <span>{guest.guest_name}</span>
-                                                    {guest.guest_phone && (
-                                                        <>
-                                                            <span className="text-muted-foreground mx-2">-</span>
-                                                            <span className="text-sm">{guest.guest_phone}</span>
-                                                        </>
+                                                    <div className="flex items-center flex-wrap">
+                                                        <span className="font-medium">{index + 1}. {guest.property_name}</span>
+                                                        <span className="text-muted-foreground mx-2">-</span>
+                                                        <span className="text-sm text-blue-600">{guest.nights} malam</span>
+                                                        <span className="text-muted-foreground mx-2">-</span>
+                                                        <span>{guest.guest_name}</span>
+                                                        {guest.guest_phone && (
+                                                            <>
+                                                                <span className="text-muted-foreground mx-2">-</span>
+                                                                <span className="text-sm">{guest.guest_phone}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    {((guest.first_day_extra_beds && guest.first_day_extra_beds > 0) || (guest.extra_services && guest.extra_services.length > 0)) && (
+                                                        <div className="flex items-center flex-wrap gap-1.5 mt-1.5">
+                                                            {guest.first_day_extra_beds && guest.first_day_extra_beds > 0 ? (
+                                                                <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded font-bold">
+                                                                    🛏️ Extrabed H1: {guest.first_day_extra_beds}
+                                                                </span>
+                                                            ) : null}
+                                                            {guest.extra_services && guest.extra_services.length > 0 ? (
+                                                                <span className="text-[10px] bg-purple-100 text-purple-900 border border-purple-300 px-1.5 py-0.5 rounded font-bold">
+                                                                    ✨ Extra Service: {guest.extra_services.join(', ')}
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-2">
@@ -301,16 +319,32 @@ function CheckInOut({ checkOuts, checkIns, stayingGuests, emptyUnits, today }: C
                                         {checkInsGrouped.utara.map((guest, index) => (
                                             <div key={guest.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                                 <div>
-                                                    <span className="font-medium">{index + 1}. {guest.property_name}</span>
-                                                    <span className="text-muted-foreground mx-2">-</span>
-                                                    <span className="text-sm text-blue-600">{guest.nights} malam</span>
-                                                    <span className="text-muted-foreground mx-2">-</span>
-                                                    <span>{guest.guest_name}</span>
-                                                    {guest.guest_phone && (
-                                                        <>
-                                                            <span className="text-muted-foreground mx-2">-</span>
-                                                            <span className="text-sm">{guest.guest_phone}</span>
-                                                        </>
+                                                    <div className="flex items-center flex-wrap">
+                                                        <span className="font-medium">{index + 1}. {guest.property_name}</span>
+                                                        <span className="text-muted-foreground mx-2">-</span>
+                                                        <span className="text-sm text-blue-600">{guest.nights} malam</span>
+                                                        <span className="text-muted-foreground mx-2">-</span>
+                                                        <span>{guest.guest_name}</span>
+                                                        {guest.guest_phone && (
+                                                            <>
+                                                                <span className="text-muted-foreground mx-2">-</span>
+                                                                <span className="text-sm">{guest.guest_phone}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    {((guest.first_day_extra_beds && guest.first_day_extra_beds > 0) || (guest.extra_services && guest.extra_services.length > 0)) && (
+                                                        <div className="flex items-center flex-wrap gap-1.5 mt-1.5">
+                                                            {guest.first_day_extra_beds && guest.first_day_extra_beds > 0 ? (
+                                                                <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded font-bold">
+                                                                    🛏️ Extrabed H1: {guest.first_day_extra_beds}
+                                                                </span>
+                                                            ) : null}
+                                                            {guest.extra_services && guest.extra_services.length > 0 ? (
+                                                                <span className="text-[10px] bg-purple-100 text-purple-900 border border-purple-300 px-1.5 py-0.5 rounded font-bold">
+                                                                    ✨ Extra Service: {guest.extra_services.join(', ')}
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-2">

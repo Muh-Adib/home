@@ -52,7 +52,8 @@ class PaymentUniqueCodeAndExpirationTest extends TestCase
         $this->assertEquals($code1, $payment2->unique_code);
 
         // Visiting payment page re-uses the same unique code
-        $response = $this->get(route('payments.create', $booking->booking_number));
+        $token = $booking->generatePaymentToken();
+        $response = $this->get(route('payments.create', [$booking->booking_number, 'token' => $token]));
         $response->assertStatus(200);
 
         $activePayments = Payment::where('booking_id', $booking->id)
@@ -116,7 +117,7 @@ class PaymentUniqueCodeAndExpirationTest extends TestCase
         $token = $booking->generatePaymentToken();
 
         // Public create page redirect with error for guest
-        $responseCreate = $this->get(route('payments.create', $booking->booking_number));
+        $responseCreate = $this->get(route('payments.create', [$booking->booking_number, 'token' => $token]));
         $responseCreate->assertRedirect(route('home'));
         $responseCreate->assertSessionHas('error');
 

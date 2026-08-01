@@ -1,7 +1,7 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { DollarSign, Wallet as WalletIcon, FileText, ArrowRight, TrendingUp, Users, Coins } from 'lucide-react';
 
 interface FinanceIndexProps {
@@ -14,45 +14,104 @@ interface FinanceIndexProps {
   bankAccounts: any[];
   scopeBreakdown: Record<string, number>;
   expenseScopes: Record<string, string>;
+  filters?: {
+    month: number;
+    year: number;
+  };
 }
+
+const MONTHS = [
+  { value: 1, label: 'Januari' },
+  { value: 2, label: 'Februari' },
+  { value: 3, label: 'Maret' },
+  { value: 4, label: 'April' },
+  { value: 5, label: 'Mei' },
+  { value: 6, label: 'Juni' },
+  { value: 7, label: 'Juli' },
+  { value: 8, label: 'Agustus' },
+  { value: 9, label: 'September' },
+  { value: 10, label: 'Oktober' },
+  { value: 11, label: 'November' },
+  { value: 12, label: 'Desember' }
+];
+
+const YEARS = [2024, 2025, 2026, 2027];
 
 function formatRupiah(n: number) {
   return `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 }
 
-export default function FinanceIndex({ summary, wallets, bankAccounts, scopeBreakdown, expenseScopes }: FinanceIndexProps) {
+export default function FinanceIndex({ summary, wallets, bankAccounts, scopeBreakdown, expenseScopes, filters }: FinanceIndexProps) {
+  const selectedMonth = filters?.month ?? new Date().getMonth() + 1;
+  const selectedYear = filters?.year ?? new Date().getFullYear();
+  const monthName = MONTHS.find(m => m.value === selectedMonth)?.label ?? '';
+
+  const handleFilterChange = (m: number, y: number) => {
+    router.get('/admin/finance', { month: m, year: y }, { preserveState: true, replace: true });
+  };
+
   return (
     <AdminLayout
       title="Dashboard Keuangan"
       breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Keuangan' }]}
     >
+      {/* Month & Year Cutoff Selector */}
+      <Card className="mb-6 border-slate-100 bg-slate-50/50 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h3 className="text-sm font-bold text-slate-800">Cutoff Filter Keuangan</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Menampilkan total pendapatan dan pengeluaran akumulatif sebelum awal bulan terpilih (real berdasarkan tanggal transaksi).
+          </p>
+        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <select 
+            value={selectedMonth} 
+            onChange={(e) => handleFilterChange(Number(e.target.value), selectedYear)}
+            className="border rounded-lg h-9 px-3 bg-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary min-w-[140px]"
+          >
+            {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+          <select 
+            value={selectedYear} 
+            onChange={(e) => handleFilterChange(selectedMonth, Number(e.target.value))}
+            className="border rounded-lg h-9 px-3 bg-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary min-w-[90px]"
+          >
+            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      </Card>
+
       {/* Overview Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="border-emerald-100 bg-emerald-50/50 dark:bg-emerald-950/10">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" /> Total Pendapatan (YTD)
+              <TrendingUp className="h-4 w-4" /> Total Pendapatan
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-emerald-900 dark:text-emerald-100">
               {formatRupiah(summary.totalIncome)}
             </div>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Akumulasi pendapatan riil masuk tahun ini</p>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+              Akumulasi sebelum 1 {monthName} {selectedYear}
+            </p>
           </CardContent>
         </Card>
 
         <Card className="border-rose-100 bg-rose-50/50 dark:bg-rose-950/10">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-rose-800 dark:text-rose-300 flex items-center gap-2">
-              <FileText className="h-4 w-4" /> Total Pengeluaran (YTD)
+              <FileText className="h-4 w-4" /> Total Pengeluaran
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-rose-900 dark:text-rose-100">
               {formatRupiah(summary.totalExpense)}
             </div>
-            <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">Akumulasi semua pengeluaran operasional & modal</p>
+            <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
+              Akumulasi sebelum 1 {monthName} {selectedYear}
+            </p>
           </CardContent>
         </Card>
 
@@ -66,7 +125,9 @@ export default function FinanceIndex({ summary, wallets, bankAccounts, scopeBrea
             <div className={`text-3xl font-bold ${summary.netProfit >= 0 ? 'text-blue-900 dark:text-blue-100' : 'text-rose-900'}`}>
               {formatRupiah(summary.netProfit)}
             </div>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Selisih laba tahun berjalan</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+              Selisih laba s.d. awal {monthName} {selectedYear}
+            </p>
           </CardContent>
         </Card>
       </div>

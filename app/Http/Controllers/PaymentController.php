@@ -123,8 +123,8 @@ class PaymentController extends Controller
         $token = $request->query('token');
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
-        } elseif ($token) {
-            if (! $booking->isPaymentTokenValid($token)) {
+        } else {
+            if (! $token || ! $booking->isPaymentTokenValid($token)) {
                 return redirect()->route('home')
                     ->with('error', 'Link pembayaran tidak valid atau sudah kadaluarsa.');
             }
@@ -168,7 +168,7 @@ class PaymentController extends Controller
                     'fee_type' => $method->fee_type ?? 'percentage',
                     'fee_amount' => $method->calculateFee($pendingAmount),
                     'total_with_fee' => $method->getTotalWithFee($pendingAmount),
-                    'is_ipaymu' => $method->isIpaymu(),
+                    'is_ipaymu' => $method->isIpaymu(), // depreciated
                     'account_number' => $method->account_number,
                     'account_name' => $method->account_name,
                     'bank_name' => $method->bank_name,
@@ -261,8 +261,8 @@ class PaymentController extends Controller
         $token = $request->input('token') ?? $request->query('token');
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
-        } elseif ($token) {
-            if (! $booking->isPaymentTokenValid($token)) {
+        } else {
+            if (! $token || ! $booking->isPaymentTokenValid($token)) {
                 return redirect()->route('home')
                     ->with('error', 'Link pembayaran tidak valid atau sudah kadaluarsa.');
             }
@@ -333,7 +333,7 @@ class PaymentController extends Controller
             if ($payment) {
                 $payment->update([
                     'payment_method_id' => $request->payment_method_id,
-                    'amount' => $expectedAmount,
+                    'amount' => $request->amount,
                     'payment_type' => $paymentType,
                     'payment_method' => $paymentMethod->type,
                     'payment_status' => 'pending',
@@ -352,7 +352,7 @@ class PaymentController extends Controller
                     'booking_id' => $booking->id,
                     'payment_number' => Payment::generatePaymentNumber(),
                     'payment_method_id' => $request->payment_method_id,
-                    'amount' => $expectedAmount,
+                    'amount' => $request->amount,
                     'payment_type' => $paymentType,
                     'payment_method' => $paymentMethod->type,
                     'payment_status' => 'pending',
@@ -702,7 +702,7 @@ class PaymentController extends Controller
             if ($payment) {
                 $payment->update([
                     'payment_method_id' => $request->payment_method_id,
-                    'amount' => $expectedAmount,
+                    'amount' => $request->amount,
                     'payment_type' => $paymentType,
                     'payment_method' => $paymentMethod->type,
                     'payment_status' => 'pending',
@@ -721,7 +721,7 @@ class PaymentController extends Controller
                     'booking_id' => $booking->id,
                     'payment_number' => Payment::generatePaymentNumber(),
                     'payment_method_id' => $request->payment_method_id,
-                    'amount' => $expectedAmount,
+                    'amount' => $request->amount,
                     'payment_type' => $paymentType,
                     'payment_method' => $paymentMethod->type,
                     'payment_status' => 'pending',

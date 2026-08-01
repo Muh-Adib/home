@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\ExpensesExport;
+use App\Exports\IncomesExport;
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\BankMutation;
@@ -28,6 +30,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class FinanceController extends Controller
@@ -49,11 +52,16 @@ class FinanceController extends Controller
             ->orderBy('label')
             ->get();
 
-        $totalIncome = (float) Income::whereYear('income_date', now()->year)->sum('amount');
-        $totalExpense = (float) PropertyExpense::whereYear('expense_date', now()->year)->sum('amount');
+        $month = $request->integer('month', (int) now()->month);
+        $year = $request->integer('year', (int) now()->year);
+
+        $cutoffDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+
+        $totalIncome = (float) Income::where('income_date', '<', $cutoffDate)->sum('amount');
+        $totalExpense = (float) PropertyExpense::where('expense_date', '<', $cutoffDate)->sum('amount');
 
         // Scope breakdown for chart
-        $scopeBreakdown = PropertyExpense::whereYear('expense_date', now()->year)
+        $scopeBreakdown = PropertyExpense::where('expense_date', '<', $cutoffDate)
             ->selectRaw('expense_scope, SUM(amount) as total')
             ->groupBy('expense_scope')
             ->get()
@@ -70,20 +78,95 @@ class FinanceController extends Controller
             ],
             'scopeBreakdown' => $scopeBreakdown,
             'expenseScopes' => config('finance.expense_scopes'),
+            'filters' => [
+                'month' => $month,
+                'year' => $year,
+            ],
         ]);
     }
 
     public function incomes(Request $request)
     {
-        $incomes = Income::with(['property', 'booking', 'wallet', 'payment'])
-            ->orderByDesc('income_date')
+        $query = Income::with(['property', 'booking', 'wallet', 'payment']);
+
+        // Apply filters
+        if ($request->filled('q')) {
+            $search = $request->input('q');
+            $query->where(function ($q) use ($search) {
+                $q->where('description', 'like', "%{$search}%")
+                    ->orWhere('source', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('from')) {
+            $query->whereDate('income_date', '>=', $request->input('from'));
+        }
+
+        if ($request->filled('to')) {
+            $query->whereDate('income_date', '<=', $request->input('to'));
+        }
+
+        if ($request->filled('source')) {
+            $query->where('source', $request->input('source'));
+        }
+
+        if ($request->filled('property_id')) {
+            if ($request->input('property_id') === 'null' || $request->input('property_id') === '') {
+                $query->whereNull('property_id');
+            } else {
+                $query->where('property_id', $request->input('property_id'));
+            }
+        }
+
+        if ($request->filled('wallet_id')) {
+            $query->where('wallet_id', $request->input('wallet_id'));
+        }
+
+        $incomes = $query->orderByDesc('income_date')
             ->paginate(20)
             ->withQueryString();
+
+        // Calculate dynamic summaries based on filters
+        $summaryQuery = Income::query();
+        if ($request->filled('q')) {
+            $search = $request->input('q');
+            $summaryQuery->where(function ($q) use ($search) {
+                $q->where('description', 'like', "%{$search}%")
+                    ->orWhere('source', 'like', "%{$search}%");
+            });
+        }
+        if ($request->filled('from')) {
+            $summaryQuery->whereDate('income_date', '>=', $request->input('from'));
+        }
+        if ($request->filled('to')) {
+            $summaryQuery->whereDate('income_date', '<=', $request->input('to'));
+        }
+        if ($request->filled('source')) {
+            $summaryQuery->where('source', $request->input('source'));
+        }
+        if ($request->filled('property_id')) {
+            if ($request->input('property_id') === 'null' || $request->input('property_id') === '') {
+                $summaryQuery->whereNull('property_id');
+            } else {
+                $summaryQuery->where('property_id', $request->input('property_id'));
+            }
+        }
+        if ($request->filled('wallet_id')) {
+            $summaryQuery->where('wallet_id', $request->input('wallet_id'));
+        }
+
+        $totalByProperty = (clone $summaryQuery)->selectRaw('property_id, SUM(amount) as total')
+            ->groupBy('property_id')
+            ->get()
+            ->keyBy('property_id');
+
+        $totalGeneral = (float) (clone $summaryQuery)->whereNull('property_id')->sum('amount');
+        $totalAll = (float) (clone $summaryQuery)->sum('amount');
 
         $properties = Property::select('id', 'name')->orderBy('name')->get();
         $user = $request->user();
         $wallets = Wallet::visibleToUser($user->id, $user->role)
-            ->select('id', 'name')
+            ->select('id', 'name', 'balance')
             ->orderBy('name')
             ->get();
 
@@ -91,6 +174,10 @@ class FinanceController extends Controller
             'incomes' => $incomes,
             'properties' => $properties,
             'wallets' => $wallets,
+            'totalByProperty' => $totalByProperty,
+            'totalGeneral' => $totalGeneral,
+            'totalAll' => $totalAll,
+            'filters' => $request->only(['q', 'from', 'to', 'source', 'property_id', 'wallet_id']),
         ]);
     }
 
@@ -1500,5 +1587,45 @@ class FinanceController extends Controller
         });
 
         return redirect()->back()->with('success', 'Tagihan sarapan vendor berhasil dicatat dan diproses.');
+    }
+
+    /**
+     * Export incomes to Excel
+     */
+    public function exportIncomes(Request $request)
+    {
+        $user = $request->user();
+        if (! in_array($user->role, ['super_admin', 'property_owner', 'property_manager', 'finance'])) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $filters = $request->only(['q', 'from', 'to', 'source', 'property_id', 'wallet_id']);
+
+        $export = new IncomesExport($filters);
+        $filename = 'Pendapatan_'.now()->format('Ymd_His').'.xlsx';
+
+        return Excel::download($export, $filename, \Maatwebsite\Excel\Excel::XLSX, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /**
+     * Export expenses to Excel
+     */
+    public function exportExpenses(Request $request)
+    {
+        $user = $request->user();
+        if (! in_array($user->role, ['super_admin', 'property_owner', 'property_manager', 'finance'])) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $filters = $request->only(['q', 'from', 'to', 'type', 'category', 'scope', 'property_id', 'wallet_id', 'is_inventory']);
+
+        $export = new ExpensesExport($filters);
+        $filename = 'Pengeluaran_'.now()->format('Ymd_His').'.xlsx';
+
+        return Excel::download($export, $filename, \Maatwebsite\Excel\Excel::XLSX, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 }

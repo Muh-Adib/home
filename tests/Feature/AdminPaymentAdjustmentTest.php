@@ -192,7 +192,8 @@ class AdminPaymentAdjustmentTest extends TestCase
 
         $payment->refresh();
         $this->assertEquals('verified', $payment->payment_status);
-        $this->assertEquals(500123, $payment->amount);
+        $this->assertEquals(500000, $payment->amount);
+        $this->assertEquals(500123, $payment->expected_amount);
         $this->assertEquals(123, $payment->unique_code);
 
         // 2. Admin adjusts unique code to 0 (zeroed out)

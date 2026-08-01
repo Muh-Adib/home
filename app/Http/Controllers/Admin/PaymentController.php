@@ -284,7 +284,7 @@ class PaymentController extends Controller
             $otherPaidBaseAmount = $booking->payments()
                 ->where('payment_status', 'verified')
                 ->get()
-                ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
+                ->sum(fn ($p) => $p->amount);
             $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
 
             $currentBaseAmount = $validated['amount'] - ($validated['unique_code'] ?? 0);
@@ -303,7 +303,7 @@ class PaymentController extends Controller
             $payment = $booking->payments()->create([
                 'payment_method_id' => $validated['payment_method_id'],
                 'payment_number' => Payment::generatePaymentNumber(),
-                'amount' => $validated['amount'],
+                'amount' => $validated['amount'] - ($validated['unique_code'] ?? 0),
                 'payment_type' => $validated['payment_type'],
                 'payment_method' => $paymentMethod->type,
                 'payment_status' => $validated['payment_status'],
@@ -463,7 +463,7 @@ class PaymentController extends Controller
             $otherPaidBaseAmount = $booking->payments()
                 ->where('payment_status', 'verified')
                 ->get()
-                ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
+                ->sum(fn ($p) => $p->amount);
             $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
 
             $currentBaseAmount = $validated['amount'] - ($validated['unique_code'] ?? 0);
@@ -487,7 +487,7 @@ class PaymentController extends Controller
             $payment = $booking->payments()->create([
                 'payment_method_id' => $validated['payment_method_id'],
                 'payment_number' => Payment::generatePaymentNumber(),
-                'amount' => $validated['amount'],
+                'amount' => $validated['amount'] - ($validated['unique_code'] ?? 0),
                 'payment_type' => $validated['payment_type'],
                 'payment_method' => $paymentMethod->type,
                 'payment_status' => $validated['payment_status'],
@@ -698,7 +698,7 @@ class PaymentController extends Controller
             $otherPaidBaseAmount = $booking->payments()
                 ->where('payment_status', 'verified')
                 ->get()
-                ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
+                ->sum(fn ($p) => $p->amount);
             $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
 
             $currentBaseAmount = $validated['amount'] - ($validated['unique_code'] ?? 0);
@@ -711,7 +711,7 @@ class PaymentController extends Controller
             $payment = $booking->payments()->create([
                 'payment_method_id' => $validated['payment_method_id'],
                 'payment_number' => Payment::generatePaymentNumber(),
-                'amount' => $validated['amount'],
+                'amount' => $validated['amount'] - ($validated['unique_code'] ?? 0),
                 'payment_type' => $validated['payment_type'],
                 'payment_method' => $paymentMethod->type,
                 'payment_status' => $validated['payment_status'],
@@ -861,7 +861,7 @@ class PaymentController extends Controller
                     ->where('payment_status', 'verified')
                     ->where('id', '!=', $payment->id)
                     ->get()
-                    ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
+                    ->sum(fn ($p) => $p->amount);
 
                 $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
 
@@ -912,12 +912,13 @@ class PaymentController extends Controller
                 $updateData['payment_method_id'] = $validated['payment_method_id'];
                 $updateData['payment_method'] = $paymentMethod->type;
             }
-            if (isset($validated['amount'])) {
-                $updateData['amount'] = $validated['amount'];
-                $updateData['expected_amount'] = $validated['amount'];
-            }
-            if (array_key_exists('unique_code', $validated)) {
-                $updateData['unique_code'] = $validated['unique_code'] ?? 0;
+            if (isset($validated['amount']) || array_key_exists('unique_code', $validated)) {
+                $amountVal = isset($validated['amount']) ? $validated['amount'] : ($payment->expected_amount ?: $payment->amount);
+                $uniqueCodeVal = array_key_exists('unique_code', $validated) ? ($validated['unique_code'] ?? 0) : ($payment->unique_code ?? 0);
+
+                $updateData['amount'] = $amountVal - $uniqueCodeVal;
+                $updateData['expected_amount'] = $amountVal;
+                $updateData['unique_code'] = $uniqueCodeVal;
             }
             if (isset($validated['payment_type'])) {
                 $updateData['payment_type'] = $validated['payment_type'];

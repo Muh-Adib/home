@@ -107,12 +107,17 @@ interface PaymentCreateProps {
 }
 
 export default function CreatePayment({ booking, paymentMethods, paymentInfo, bankAccount, review, canReview }: PaymentCreateProps) {
+    const [isMounted, setIsMounted] = useState(false);
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
         paymentMethods.find(m => m.type === 'bank_transfer') || paymentMethods[0] || null
     );
     const [copiedField, setCopiedField] = useState<string | null>(null);
-    const hasPendingPayment = booking.payments?.some(p => p.payment_status === 'pending');
-    const pendingPayment = booking.payments?.find(p => p.payment_status === 'pending');
+    const hasPendingPayment = booking.payments?.some(p => p.payment_status === 'pending' && p.attachment_path);
+    const pendingPayment = booking.payments?.find(p => p.payment_status === 'pending' && p.attachment_path);
 
     // --- Review state ---
     const [reviewRating, setReviewRating] = useState(0);
@@ -669,7 +674,15 @@ export default function CreatePayment({ booking, paymentMethods, paymentInfo, ba
                                         </form>
                                     )
                                 ) : (booking.payment_status === 'fully_paid' || booking.booking_status === 'checked_in') ? (
-                                (isBeforeCheckIn && booking.booking_status !== 'checked_in') ? (
+                                    !isMounted ? (
+                                        <div className="text-center py-8 px-4 space-y-5">
+                                            <div className="animate-pulse space-y-4">
+                                                <div className="h-20 w-20 bg-slate-200 rounded-full mx-auto" />
+                                                <div className="h-6 bg-slate-200 rounded w-1/3 mx-auto" />
+                                                <div className="h-4 bg-slate-200 rounded w-1/2 mx-auto" />
+                                            </div>
+                                        </div>
+                                    ) : (isBeforeCheckIn && booking.booking_status !== 'checked_in') ? (
                                     <div className="text-center py-8 px-4 space-y-5">
                                         <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-blue-50 text-blue-600 mb-1">
                                             <CheckCircle className="h-12 w-12 text-blue-500" />

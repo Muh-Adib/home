@@ -52,7 +52,7 @@ class PaymentGatewayService
                 ->first();
 
             if ($existingPayment) {
-                $existingBaseAmount = max(0, (float) ($existingPayment->amount - ($existingPayment->unique_code ?? 0)));
+                $existingBaseAmount = (float) $existingPayment->amount;
                 // If payment type and base amount match (within rounding margin), REUSE IT! Unique code stays unchanged permanently.
                 if ($existingPayment->payment_type === $type && abs($existingBaseAmount - $amount) < 10) {
                     if (! $booking->payment_token) {
@@ -139,7 +139,7 @@ class PaymentGatewayService
             $payment = $booking->payments()->create([
                 'payment_method_id' => $paymentMethodId,
                 'payment_number' => Payment::generatePaymentNumber(),
-                'amount' => $expectedAmount,
+                'amount' => $amount,
                 'payment_type' => $type,
                 'payment_method' => 'bank_transfer',
                 'payment_status' => 'pending',

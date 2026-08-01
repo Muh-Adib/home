@@ -24,10 +24,10 @@ class PaymentService
             $otherPaidBaseAmount = $booking->payments()
                 ->where('payment_status', 'verified')
                 ->get()
-                ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
+                ->sum(fn ($p) => $p->amount);
             $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
 
-            $currentBaseAmount = $data['amount'] - ($data['unique_code'] ?? 0);
+            $currentBaseAmount = $data['amount'];
             if ($currentBaseAmount > $pendingAmount) {
                 throw new \Exception('Payment amount exceeds pending amount');
             }

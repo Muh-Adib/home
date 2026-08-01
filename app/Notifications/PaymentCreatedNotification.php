@@ -46,7 +46,7 @@ class PaymentCreatedNotification extends Notification implements ShouldQueue
             ->subject("Payment Created - {$paymentNumber}")
             ->line("A new payment has been created for booking {$bookingNumber}.")
             ->line("Payment Number: {$paymentNumber}")
-            ->line('Amount: '.number_format($this->payment->amount, 0, ',', '.'))
+            ->line('Amount: '.number_format($this->payment->expected_amount ?: $this->payment->amount, 0, ',', '.'))
             ->line("Status: {$this->payment->payment_status}")
             ->action('View Payment', url("/admin/payments/{$paymentNumber}"))
             ->line('Thank you for using our application!');
@@ -66,7 +66,7 @@ class PaymentCreatedNotification extends Notification implements ShouldQueue
             'payment_number' => $this->payment->payment_number,
             'booking_id' => $this->payment->booking_id,
             'booking_number' => $this->payment->booking->booking_number,
-            'amount' => $this->payment->amount,
+            'amount' => $this->payment->expected_amount ?: $this->payment->amount,
             'payment_status' => $this->payment->payment_status,
             'message' => "Payment {$this->payment->payment_number} created for booking {$this->payment->booking->booking_number}",
             'action_url' => "/admin/payments/{$this->payment->payment_number}",
@@ -84,7 +84,7 @@ class PaymentCreatedNotification extends Notification implements ShouldQueue
             'type' => 'payment_created',
             'payment_number' => $this->payment->payment_number,
             'booking_number' => $this->payment->booking->booking_number,
-            'amount' => number_format($this->payment->amount, 0, ',', '.'),
+            'amount' => number_format($this->payment->expected_amount ?: $this->payment->amount, 0, ',', '.'),
             'message' => "Payment {$this->payment->payment_number} created for booking {$this->payment->booking->booking_number}",
             'action_url' => "/admin/payments/{$this->payment->payment_number}",
         ]);

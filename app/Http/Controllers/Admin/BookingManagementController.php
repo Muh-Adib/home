@@ -1088,7 +1088,7 @@ class BookingManagementController extends Controller
             $otherPaidBaseAmount = $booking->payments()
                 ->where('payment_status', 'verified')
                 ->get()
-                ->sum(fn ($p) => $p->amount - ($p->unique_code ?? 0));
+                ->sum(fn ($p) => $p->amount);
             $pendingAmount = $booking->total_amount - $otherPaidBaseAmount;
 
             if ($validated['amount'] > $pendingAmount) {
@@ -1179,7 +1179,7 @@ class BookingManagementController extends Controller
             $message = "Halo {$booking->guest_name},\n\n";
             $message .= "Berikut adalah link pembayaran untuk booking Anda:\n";
             $message .= "Booking Number: {$booking->booking_number}\n";
-            $message .= 'Amount: Rp '.number_format($validated['amount'], 0, ',', '.')."\n\n";
+            $message .= 'Amount: Rp '.number_format($payment->expected_amount, 0, ',', '.')."\n\n";
             $message .= "Link Pembayaran:\n{$paymentUrl}\n\n";
             $message .= 'Link ini berlaku hingga: '.$result['expired_at']->format('d M Y H:i')."\n\n";
             $message .= 'Terima kasih!';

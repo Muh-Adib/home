@@ -91,8 +91,8 @@ export default function SecurePayment({ booking, paymentMethods, paymentInfo, to
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
     const [showProofUpload, setShowProofUpload] = useState(false);
     const [copiedField, setCopiedField] = useState<string | null>(null);
-    const hasPendingPayment = booking.payments?.some(p => p.payment_status === 'pending');
-    const pendingPayment = booking.payments?.find(p => p.payment_status === 'pending');
+    const hasPendingPayment = booking.payments?.some(p => p.payment_status === 'pending' && p.attachment_path);
+    const pendingPayment = booking.payments?.find(p => p.payment_status === 'pending' && p.attachment_path);
 
     const { data, setData, post, processing, errors } = useForm({
         payment_method_id: '',

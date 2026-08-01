@@ -6,7 +6,7 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { useState, useMemo, useEffect } from 'react';
-import { Package, FileText, Image as ImageIcon, Eye, Upload, Percent, Link2, Plus } from 'lucide-react';
+import { Package, FileText, Image as ImageIcon, Eye, Upload, Percent, Link2, Plus, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface ExpenseForm {
@@ -267,6 +267,20 @@ export default function Expenses({
     get(`/admin/finance/expenses?${params.toString()}`, { preserveScroll: true, preserveState: true });
   };
 
+  const handleExport = () => {
+    const params = new URLSearchParams();
+    if (filter.q) params.set('q', filter.q);
+    if (filter.from) params.set('from', filter.from);
+    if (filter.to) params.set('to', filter.to);
+    if (filter.type) params.set('type', filter.type);
+    if (filter.category) params.set('category', filter.category);
+    if (filter.scope) params.set('scope', filter.scope);
+    if (filter.property_id) params.set('property_id', filter.property_id);
+    if (filter.wallet_id) params.set('wallet_id', filter.wallet_id);
+    if (filter.is_inventory) params.set('is_inventory', filter.is_inventory);
+    window.open(`/admin/finance/expenses/export?${params.toString()}`, '_blank');
+  };
+
   const isFromInventory = (expense: any) => {
     return expense.payment_method === 'inventory_usage';
   };
@@ -309,19 +323,29 @@ export default function Expenses({
             <h2 className="text-xl font-bold text-slate-800">Manajemen Pengeluaran</h2>
             <p className="text-xs text-slate-500">Kelola catatan dan klasifikasi biaya operasional properti Anda.</p>
           </div>
-          {['super_admin', 'property_manager', 'finance'].includes(userRole) && (
+          <div className="flex items-center gap-2 shrink-0">
             <Button
-              onClick={() => {
-                reset();
-                setEditingId(null);
-                setIsFormOpen(true);
-              }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md cursor-pointer shrink-0"
+              onClick={handleExport}
+              variant="outline"
+              className="border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl cursor-pointer"
             >
-              <Plus className="h-4 w-4 mr-1.5" />
-              Tambah Pengeluaran
+              <Download className="h-4 w-4 mr-1.5" />
+              Export Excel
             </Button>
-          )}
+            {['super_admin', 'property_manager', 'finance'].includes(userRole) && (
+              <Button
+                onClick={() => {
+                  reset();
+                  setEditingId(null);
+                  setIsFormOpen(true);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md cursor-pointer"
+              >
+                <Plus className="h-4 w-4 mr-1.5" />
+                Tambah Pengeluaran
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Form Modal Dialog */}
@@ -597,37 +621,58 @@ export default function Expenses({
             </div>
 
             {/* Filter Form */}
-            <form className="grid gap-2.5 md:grid-cols-4" onSubmit={applyFilter}>
-              <Input placeholder="Cari deskripsi/vendor" value={filter.q} onChange={(e) => setFilter('q', e.target.value)} />
-              <Input type="date" value={filter.from} onChange={(e) => setFilter('from', e.target.value)} />
-              <Input type="date" value={filter.to} onChange={(e) => setFilter('to', e.target.value)} />
-              <select className="border rounded h-9 px-2 bg-background text-sm" value={filter.scope} onChange={(e) => setFilter('scope', e.target.value)}>
-                <option value="">Semua Scope</option>
-                {Object.entries(expenseScopes || {}).map(([key, label]: any) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-              <select className="border rounded h-9 px-2 bg-background text-sm" value={filter.category} onChange={(e) => setFilter('category', e.target.value)}>
-                <option value="">Semua Kategori</option>
-                {Object.entries(expenseCategories || {}).map(([key, label]: any) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-              <select className="border rounded h-9 px-2 bg-background text-sm" value={filter.property_id} onChange={(e) => setFilter('property_id', e.target.value)}>
-                <option value="">Semua Property</option>
-                <option value="null">Perusahaan (Umum)</option>
-                {properties?.map((p: any) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              <select className="border rounded h-9 px-2 bg-background text-sm" value={filter.wallet_id} onChange={(e) => setFilter('wallet_id', e.target.value)}>
-                <option value="">Semua Rekening</option>
-                {wallets?.map((w: any) => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
-                ))}
-              </select>
-              <div className="flex gap-2">
-                <Button type="submit" variant="secondary" className="h-9">Filter</Button>
+            <form className="grid gap-4 md:grid-cols-4 mb-6 bg-slate-50/50 p-4 rounded-xl border border-slate-100" onSubmit={applyFilter}>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-600">Cari</Label>
+                <Input placeholder="Cari deskripsi/vendor..." value={filter.q} onChange={(e) => setFilter('q', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-600">Dari</Label>
+                <Input type="date" value={filter.from} onChange={(e) => setFilter('from', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-600">Sampai</Label>
+                <Input type="date" value={filter.to} onChange={(e) => setFilter('to', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-600">Scope</Label>
+                <select className="border rounded h-9 px-2 bg-background text-sm w-full" value={filter.scope} onChange={(e) => setFilter('scope', e.target.value)}>
+                  <option value="">Semua Scope</option>
+                  {Object.entries(expenseScopes || {}).map(([key, label]: any) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-600">Kategori</Label>
+                <select className="border rounded h-9 px-2 bg-background text-sm w-full" value={filter.category} onChange={(e) => setFilter('category', e.target.value)}>
+                  <option value="">Semua Kategori</option>
+                  {Object.entries(expenseCategories || {}).map(([key, label]: any) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-600">Property</Label>
+                <select className="border rounded h-9 px-2 bg-background text-sm w-full" value={filter.property_id} onChange={(e) => setFilter('property_id', e.target.value)}>
+                  <option value="">Semua Property</option>
+                  <option value="null">Perusahaan (Umum)</option>
+                  {properties?.map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-600">Rekening</Label>
+                <select className="border rounded h-9 px-2 bg-background text-sm w-full" value={filter.wallet_id} onChange={(e) => setFilter('wallet_id', e.target.value)}>
+                  <option value="">Semua Rekening</option>
+                  {wallets?.map((w: any) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2 items-end">
+                <Button type="submit" variant="secondary" className="h-9 font-bold cursor-pointer">Filter</Button>
                 <Button
                   type="button"
                   variant={filter.is_inventory === 'true' ? 'default' : 'outline'}
@@ -635,10 +680,21 @@ export default function Expenses({
                     setFilter('is_inventory', filter.is_inventory === 'true' ? '' : 'true');
                     setTimeout(() => applyFilter(new Event('submit') as any), 0);
                   }}
-                  className="gap-2 h-9 text-xs"
+                  className="gap-2 h-9 text-xs cursor-pointer"
                 >
                   <Package className="w-3.5 h-3.5" />
                   {filter.is_inventory === 'true' ? 'Semua' : 'Inventory'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-9 px-3 cursor-pointer font-bold text-slate-500 hover:text-slate-800"
+                  onClick={() => {
+                    setFilter({ q: '', from: '', to: '', type: '', category: '', scope: '', property_id: '', wallet_id: '', is_inventory: '' });
+                    get('/admin/finance/expenses');
+                  }}
+                >
+                  Reset
                 </Button>
               </div>
             </form>

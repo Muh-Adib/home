@@ -33,7 +33,8 @@ class BookingPaymentPhasesTest extends TestCase
             'payment_status' => 'dp_pending',
         ]);
 
-        $response = $this->get(route('payments.create', $booking->booking_number));
+        $token = $booking->generatePaymentToken();
+        $response = $this->get(route('payments.create', [$booking->booking_number, 'token' => $token]));
 
         $response->assertStatus(200);
         $response->assertInertia(fn ($page) => $page
@@ -70,7 +71,8 @@ class BookingPaymentPhasesTest extends TestCase
             'payment_method_id' => $paymentMethod->id,
         ]);
 
-        $response = $this->get(route('payments.create', $booking->booking_number));
+        $token = $booking->generatePaymentToken();
+        $response = $this->get(route('payments.create', [$booking->booking_number, 'token' => $token]));
 
         $response->assertStatus(200);
         $response->assertInertia(fn ($page) => $page

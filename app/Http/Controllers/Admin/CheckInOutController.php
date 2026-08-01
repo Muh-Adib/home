@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\BookingDailyRevenue;
 use App\Models\Property;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -23,7 +24,7 @@ class CheckInOutController extends Controller
 
         // Get today's check-outs
         $checkOuts = Booking::with(['property', 'primaryGuest'])
-            ->where('check_out', $today)
+            ->whereDate('check_out', $today)
             ->where('booking_status', 'checked_in')
             ->orderBy('property_id')
             ->get()
@@ -33,39 +34,42 @@ class CheckInOutController extends Controller
                     'booking_number' => $booking->booking_number,
                     'property_name' => $booking->property->name,
                     'location' => $booking->property->location ?? 'selatan',
-                    'guest_name' => $booking->primaryGuest->guest_name ?? '',
-                    'guest_phone' => $booking->primaryGuest->guest_phone ?? '',
+                    'guest_name' => $booking->primaryGuest->full_name ?? $booking->primaryGuest->guest_name ?? $booking->guest_name ?? '',
+                    'guest_phone' => $booking->primaryGuest->phone ?? $booking->primaryGuest->guest_phone ?? $booking->guest_phone ?? '',
                     'is_cleaned' => $booking->is_cleaned,
                 ];
             });
 
         // Get today's check-ins
-        $checkIns = Booking::with(['property', 'primaryGuest'])
-            ->where('check_in', $today)
+        $checkIns = Booking::with(['property', 'primaryGuest', 'services', 'dailyRevenues'])
+            ->whereDate('check_in', $today)
             ->whereIn('booking_status', ['pending_verification', 'confirmed'])
             ->orderBy('property_id')
             ->get()
-            ->map(function ($booking) {
+            ->map(function ($booking) use ($today) {
                 $checkInDate = Carbon::parse($booking->check_in);
                 $checkOutDate = Carbon::parse($booking->check_out);
                 $nights = $checkInDate->diffInDays($checkOutDate);
+                $addons = $this->getCheckInAddons($booking, $today);
 
                 return [
                     'id' => $booking->id,
                     'booking_number' => $booking->booking_number,
                     'property_name' => $booking->property->name,
                     'location' => $booking->property->location ?? 'selatan',
-                    'guest_name' => $booking->primaryGuest->guest_name ?? '',
-                    'guest_phone' => $booking->primaryGuest->guest_phone ?? '',
+                    'guest_name' => $booking->primaryGuest->full_name ?? $booking->primaryGuest->guest_name ?? $booking->guest_name ?? '',
+                    'guest_phone' => $booking->primaryGuest->phone ?? $booking->primaryGuest->guest_phone ?? $booking->guest_phone ?? '',
                     'nights' => $nights,
                     'is_cleaned' => $booking->is_cleaned,
+                    'first_day_extra_beds' => $addons['first_day_extra_beds'],
+                    'extra_services' => $addons['extra_services'],
                 ];
             });
 
         // Get staying guests (checked in but not checking out today)
         $stayingGuests = Booking::with(['property', 'primaryGuest'])
             ->where('booking_status', 'checked_in')
-            ->where('check_out', '!=', $today)
+            ->whereDate('check_out', '!=', $today)
             ->orderBy('property_id')
             ->get()
             ->map(function ($booking) {
@@ -136,14 +140,14 @@ class CheckInOutController extends Controller
 
         // Get today's check-outs
         $checkOuts = Booking::with(['property', 'primaryGuest'])
-            ->where('check_out', $todayDate)
+            ->whereDate('check_out', $todayDate)
             ->where('booking_status', 'checked_in')
             ->orderBy('property_id')
             ->get();
 
         // Get today's check-ins
-        $checkIns = Booking::with(['property', 'primaryGuest'])
-            ->where('check_in', $todayDate)
+        $checkIns = Booking::with(['property', 'primaryGuest', 'services', 'dailyRevenues'])
+            ->whereDate('check_in', $todayDate)
             ->whereIn('booking_status', ['pending_verification', 'confirmed'])
             ->orderBy('property_id')
             ->get();
@@ -151,14 +155,14 @@ class CheckInOutController extends Controller
         // Get staying guests
         $stayingGuests = Booking::with(['property'])
             ->where('booking_status', 'checked_in')
-            ->where('check_out', '!=', $todayDate)
+            ->whereDate('check_out', '!=', $todayDate)
             ->orderBy('property_id')
             ->get();
 
         // Get empty units
         $bookedPropertyIds = Booking::where(function ($query) use ($todayDate) {
-            $query->where('check_in', '<=', $todayDate)
-                ->where('check_out', '>', $todayDate)
+            $query->whereDate('check_in', '<=', $todayDate)
+                ->whereDate('check_out', '>', $todayDate)
                 ->whereIn('booking_status', ['confirmed', 'checked_in', 'pending_verification']);
         })
             ->pluck('property_id')
@@ -217,9 +221,20 @@ class CheckInOutController extends Controller
         } else {
             foreach ($checkInsSelatan->values() as $index => $booking) {
                 $nights = Carbon::parse($booking->check_in)->diffInDays(Carbon::parse($booking->check_out));
-                $name = $booking->primaryGuest?->guest_name ?? $booking->guest_name ?? '-';
-                $phone = $booking->primaryGuest?->guest_phone ?? $booking->guest_phone ?? '-';
-                $text .= ($index + 1).". {$booking->property?->name} {$nights} malam - {$name} - {$phone}\n";
+                $name = $booking->primaryGuest?->full_name ?? $booking->primaryGuest?->guest_name ?? $booking->guest_name ?? '-';
+                $phone = $booking->primaryGuest?->phone ?? $booking->primaryGuest?->guest_phone ?? $booking->guest_phone ?? '-';
+                $addons = $this->getCheckInAddons($booking, $todayDate);
+
+                $addonItems = [];
+                if ($addons['first_day_extra_beds'] > 0) {
+                    $addonItems[] = "Extrabed H1: {$addons['first_day_extra_beds']}";
+                }
+                if (! empty($addons['extra_services'])) {
+                    $addonItems[] = 'Extra Service: '.implode(', ', $addons['extra_services']);
+                }
+                $addonStr = ! empty($addonItems) ? ' ['.implode(' | ', $addonItems).']' : '';
+
+                $text .= ($index + 1).". {$booking->property?->name} {$nights} malam - {$name} - {$phone}{$addonStr}\n";
             }
         }
         $text .= "\n";
@@ -230,9 +245,20 @@ class CheckInOutController extends Controller
         } else {
             foreach ($checkInsUtara->values() as $index => $booking) {
                 $nights = Carbon::parse($booking->check_in)->diffInDays(Carbon::parse($booking->check_out));
-                $name = $booking->primaryGuest?->guest_name ?? $booking->guest_name ?? '-';
-                $phone = $booking->primaryGuest?->guest_phone ?? $booking->guest_phone ?? '-';
-                $text .= ($index + 1).". {$booking->property?->name} {$nights} malam - {$name} - {$phone}\n";
+                $name = $booking->primaryGuest?->full_name ?? $booking->primaryGuest?->guest_name ?? $booking->guest_name ?? '-';
+                $phone = $booking->primaryGuest?->phone ?? $booking->primaryGuest?->guest_phone ?? $booking->guest_phone ?? '-';
+                $addons = $this->getCheckInAddons($booking, $todayDate);
+
+                $addonItems = [];
+                if ($addons['first_day_extra_beds'] > 0) {
+                    $addonItems[] = "Extrabed H1: {$addons['first_day_extra_beds']}";
+                }
+                if (! empty($addons['extra_services'])) {
+                    $addonItems[] = 'Extra Service: '.implode(', ', $addons['extra_services']);
+                }
+                $addonStr = ! empty($addonItems) ? ' ['.implode(' | ', $addonItems).']' : '';
+
+                $text .= ($index + 1).". {$booking->property?->name} {$nights} malam - {$name} - {$phone}{$addonStr}\n";
             }
         }
         $text .= "\n";
@@ -274,5 +300,48 @@ class CheckInOutController extends Controller
             'success' => true,
             'text' => $text,
         ]);
+    }
+
+    /**
+     * Extract first day extra bed count and extra services list for a check-in booking.
+     */
+    protected function getCheckInAddons(Booking $booking, string $targetDateStr): array
+    {
+        $firstDayRev = BookingDailyRevenue::where('booking_id', $booking->id)
+            ->whereDate('tanggal', $targetDateStr)
+            ->first();
+
+        $firstDayExtraBeds = $firstDayRev ? (int) $firstDayRev->extra_bed_count : 0;
+
+        if ($firstDayExtraBeds === 0) {
+            $ebService = $booking->services ? $booking->services->first(function ($s) {
+                return stripos($s->service_name, 'extra bed') !== false
+                    || stripos($s->service_name, 'extrabed') !== false
+                    || $s->service_type === 'extra_bed';
+            }) : null;
+
+            if ($ebService) {
+                $firstDayExtraBeds = (int) $ebService->quantity;
+            } else {
+                $firstDayExtraBeds = (int) ($booking->extra_bed_count ?? 0);
+            }
+        }
+
+        $extraServices = $booking->services ? $booking->services
+            ->filter(function ($s) {
+                return stripos($s->service_name, 'extra bed') === false
+                    && stripos($s->service_name, 'extrabed') === false
+                    && $s->service_type !== 'extra_bed';
+            })
+            ->map(function ($s) {
+                return $s->quantity > 1 ? "{$s->service_name} ({$s->quantity}x)" : $s->service_name;
+            })
+            ->values()
+            ->all() : [];
+
+        return [
+            'first_day_extra_beds' => $firstDayExtraBeds,
+            'extra_services' => $extraServices,
+        ];
     }
 }

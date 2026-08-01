@@ -96,9 +96,7 @@ class AttendanceService
         } else {
             $shiftStart = $user->shift_start_time ?: '08:00';
             $shiftEnd = $user->shift_end_time ?: '16:00';
-            if ($date->dayOfWeek === Carbon::SUNDAY) {
-                $isOffDay = true;
-            }
+            $isOffDay = false;
         }
 
         $lateMinutes = 0;
@@ -272,6 +270,16 @@ class AttendanceService
         $totalLateMinutes = 0;
         $totalOvertimeMinutes = 0;
 
+        $candidateOffDates = [];
+        $explicitOffDates = [];
+        $explicitWorkDates = [];
+
+        // Load custom shifts for the month
+        $customShifts = StaffShift::where('user_id', $userId)
+            ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->get()
+            ->keyBy('date');
+
         for ($d = 1; $d <= $daysInMonth; $d++) {
             $dateCarbon = Carbon::create($year, $month, $d);
             $dateStr = $dateCarbon->toDateString();
@@ -284,6 +292,7 @@ class AttendanceService
             }
 
             $rec = $records->get($dateStr);
+            $customShift = $customShifts->get($dateStr);
 
             if ($rec) {
                 if (in_array($rec->status, ['present', 'standby'])) {
@@ -291,8 +300,6 @@ class AttendanceService
                     if ($rec->status === 'standby') {
                         $standbyNights++;
                     }
-                } elseif ($rec->status === 'absent') {
-                    $absentDays++;
                 } elseif ($rec->status === 'sick') {
                     $sickDays++;
                 } elseif ($rec->status === 'permission') {
@@ -304,13 +311,30 @@ class AttendanceService
                 $totalLateMinutes += $rec->late_minutes;
                 $totalOvertimeMinutes += $rec->overtime_minutes;
             } else {
-                if ($dateCarbon->isSunday()) {
-                    $holidayDays++;
+                if ($customShift) {
+                    if ($customShift->is_off_day) {
+                        $explicitOffDates[] = $dateStr;
+                    } else {
+                        $explicitWorkDates[] = $dateStr;
+                    }
                 } else {
-                    $absentDays++;
+                    $candidateOffDates[] = $dateStr;
                 }
             }
         }
+
+        $quota = $user?->holiday_quota ?? 4;
+        $holidayDays += count($explicitOffDates);
+
+        foreach ($candidateOffDates as $dateStr) {
+            if ($holidayDays < $quota) {
+                $holidayDays++;
+            } else {
+                $absentDays++;
+            }
+        }
+
+        $absentDays += count($explicitWorkDates);
 
         $lateHours = round($totalLateMinutes / 60, 2);
         $overtimeHours = round($totalOvertimeMinutes / 60, 2);

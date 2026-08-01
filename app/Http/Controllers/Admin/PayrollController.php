@@ -149,11 +149,21 @@ class PayrollController extends Controller
         $endDate = Carbon::create($year, $month, 1)->endOfMonth();
         $daysInMonth = $startDate->daysInMonth;
 
+        $pointService = app(HousekeepingPointService::class);
         $staff = User::query()
             ->where('role', '!=', 'guest')
             ->whereNull('deleted_at')
             ->orderBy('name')
-            ->get(['id', 'name', 'role', 'fingerprint_id']);
+            ->get(['id', 'name', 'role', 'fingerprint_id'])
+            ->map(function ($s) use ($pointService, $month, $year) {
+                $points = 0.0;
+                if ($s->role === 'housekeeping') {
+                    $points = (float) ($pointService->getMonthlyPointsDetails($s->id, $month, $year)['total'] ?? 0.0);
+                }
+                $s->hk_points = $points;
+
+                return $s;
+            });
 
         $attendances = Attendance::with(['user:id,name,role', 'corrections.corrector:id,name'])
             ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])

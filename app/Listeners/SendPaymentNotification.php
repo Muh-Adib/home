@@ -49,7 +49,7 @@ class SendPaymentNotification
         }
 
         // Send background web push to admin/finance subscribers
-        $amount = 'Rp '.number_format((float) $payment->amount, 0, ',', '.');
+        $amount = 'Rp '.number_format((float) ($payment->expected_amount ?: $payment->amount), 0, ',', '.');
         $this->webPush->sendToRoles(['super_admin', 'property_manager', 'finance'], [
             'title' => '💰 Pembayaran Baru',
             'body' => "{$amount} — Booking {$payment->booking->booking_number}",

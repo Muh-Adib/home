@@ -356,12 +356,30 @@ Route::middleware(['auth', 'role:super_admin,property_manager,front_desk,propert
 
 // Finance Management - Restricted to super_admin role
 Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')->group(function () {
+    // Monthly Property Settlement (Closing / Laporan Akhir Bulan)
+    Route::controller(MonthlySettlementController::class)->group(function () {
+        Route::get('finance/settlements', 'index')->name('finance.settlements.index');
+        Route::post('finance/settlements/generate', 'generate')->name('finance.settlements.generate');
+        Route::get('finance/settlements/{settlement}', 'show')->name('finance.settlements.show');
+        Route::put('finance/settlements/{settlement}', 'update')->name('finance.settlements.update');
+        Route::post('finance/settlements/{settlement}/finalize', 'finalize')->name('finance.settlements.finalize');
+    });
+});
+
+// Finance Management (Allowed for finance, manager, owner roles)
+Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
     Route::controller(FinanceController::class)->group(function () {
         Route::get('finance', 'index')->name('finance.index');
         Route::get('finance/incomes', 'incomes')->name('finance.incomes');
+        Route::get('finance/incomes/export', 'exportIncomes')->name('finance.incomes.export');
+        Route::post('finance/incomes', 'storeIncome')->name('finance.incomes.store');
+        Route::get('finance/expenses', 'expenses')->name('finance.expenses');
+        Route::get('finance/expenses/export', 'exportExpenses')->name('finance.expenses.export');
+        Route::post('finance/expenses', 'storeExpense')->name('finance.expenses.store');
+        Route::post('finance/expenses/{expense}/update', 'updateExpense')->name('finance.expenses.update')->middleware('role:super_admin,property_manager');
+        Route::post('finance/expenses/{expense}/receipt', 'storeExpenseReceipt')->name('finance.expenses.receipt');
         Route::get('finance/wallets', 'wallets')->name('finance.wallets');
         Route::get('finance/report', 'financialReport')->name('finance.report');
-        Route::post('finance/incomes', 'storeIncome')->name('finance.incomes.store');
         Route::post('finance/wallets', 'storeWallet')->name('finance.wallets.store');
         Route::post('finance/wallets/transfer', 'transferWallet')->name('finance.wallets.transfer');
         Route::post('finance/wallets/{wallet}/transactions', 'storeWalletTransaction')->name('finance.wallets.transactions.store');
@@ -386,25 +404,6 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
         // Breakfast billing
         Route::get('finance/unbilled-breakfasts', 'unbilledBreakfasts')->name('finance.unbilled-breakfasts');
         Route::post('finance/bill-breakfasts', 'billBreakfasts')->name('finance.bill-breakfasts');
-    });
-
-    // Monthly Property Settlement (Closing / Laporan Akhir Bulan)
-    Route::controller(MonthlySettlementController::class)->group(function () {
-        Route::get('finance/settlements', 'index')->name('finance.settlements.index');
-        Route::post('finance/settlements/generate', 'generate')->name('finance.settlements.generate');
-        Route::get('finance/settlements/{settlement}', 'show')->name('finance.settlements.show');
-        Route::put('finance/settlements/{settlement}', 'update')->name('finance.settlements.update');
-        Route::post('finance/settlements/{settlement}/finalize', 'finalize')->name('finance.settlements.finalize');
-    });
-});
-
-// Finance Management - Expenses Only (Allowed for finance role)
-Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
-    Route::controller(FinanceController::class)->group(function () {
-        Route::get('finance/expenses', 'expenses')->name('finance.expenses');
-        Route::post('finance/expenses', 'storeExpense')->name('finance.expenses.store');
-        Route::post('finance/expenses/{expense}/update', 'updateExpense')->name('finance.expenses.update')->middleware('role:super_admin,property_manager');
-        Route::post('finance/expenses/{expense}/receipt', 'storeExpenseReceipt')->name('finance.expenses.receipt');
     });
 });
 

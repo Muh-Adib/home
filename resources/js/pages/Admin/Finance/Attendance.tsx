@@ -68,6 +68,7 @@ interface StaffMember {
     name: string;
     role: string;
     fingerprint_id: string | null;
+    hk_points?: number;
 }
 
 interface AttendanceProps {
@@ -376,7 +377,14 @@ export default function Attendance({ staff, attendances, daysInMonth = 31, filte
                                                     {/* Sticky Staff Column */}
                                                     <TableCell className="sticky left-0 z-10 bg-white font-bold text-xs border-r border-slate-300 p-2 shadow-sm">
                                                         <div className="text-slate-900 font-black truncate max-w-[180px]">{member.name}</div>
-                                                        <div className="text-[10px] text-slate-400 font-semibold uppercase">{member.role}</div>
+                                                        <div className="flex flex-col gap-1 items-start">
+                                                            <div className="text-[10px] text-slate-400 font-semibold uppercase">{member.role}</div>
+                                                            {member.role === 'housekeeping' && (
+                                                                <Badge className="bg-emerald-100 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[9px] px-1 py-0.5 mt-0.5">
+                                                                    {member.hk_points ?? 0} Poin HK
+                                                                </Badge>
+                                                            )}
+                                                        </div>
                                                     </TableCell>
 
                                                     {/* Days Columns */}
